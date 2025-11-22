@@ -7,7 +7,6 @@
   downloadMediaMessage,
   jidNormalizedUser,
   jidDecode,
-  makeInMemoryStore,
 } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
 import pino from "pino";
@@ -17,19 +16,27 @@ import { storage } from "./storage";
 import WebSocket from "ws";
 import { generateAIResponse } from "./aiAgent";
 
+// Cache manual de contatos para mapear @lid → phoneNumber
+interface Contact {
+  id: string;
+  lid?: string;
+  phoneNumber?: string;
+  name?: string;
+}
+
 interface WhatsAppSession {
   socket: WASocket | null;
   userId: string;
   connectionId: string;
   phoneNumber?: string;
-  store?: ReturnType<typeof makeInMemoryStore>;
+  contactsCache: Map<string, Contact>;
 }
 
 interface AdminWhatsAppSession {
   socket: WASocket | null;
   adminId: string;
   phoneNumber?: string;
-  store?: ReturnType<typeof makeInMemoryStore>;
+  contactsCache: Map<string, Contact>;
 }
 
 interface AuthenticatedWebSocket extends WebSocket {
@@ -54,16 +61,16 @@ function cleanContactNumber(input?: string | null): string {
   return (input?.split(":")[0] || "").replace(/\D/g, "");
 }
 
-function parseRemoteJid(remoteJid: string, store?: ReturnType<typeof makeInMemoryStore>) {
+function parseRemoteJid(remoteJid: string, contactsCache?: Map<string, Contact>) {
   const decoded = jidDecode(remoteJid);
   const rawUser = decoded?.user || remoteJid.split("@")[0] || "";
   let jidSuffix = decoded?.server || remoteJid.split("@")[1]?.split(":")[0] || DEFAULT_JID_SUFFIX;
 
-  // FIX LID 2025: Se for @lid, tentar buscar número real via store.contacts
+  // FIX LID 2025: Se for @lid, tentar buscar número real via contactsCache
   let contactNumber = cleanContactNumber(rawUser);
   
-  if (remoteJid.includes("@lid") && store) {
-    const contact = store.contacts[remoteJid];
+  if (remoteJid.includes("@lid") && contactsCache) {
+    const contact = contactsCache.get(remoteJid);
     if (contact?.phoneNumber) {
       // Encontrou mapeamento LID → Phone Number!
       const realNumber = cleanContactNumber(contact.phoneNumber.split("@")[0]);
@@ -187,8 +194,8 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
     const { state, saveCreds } = await useMultiFileAuthState(userAuthPath);
 
-    // FIX LID 2025: Criar store para mapear @lid → phone number
-    const store = makeInMemoryStore({ logger: pino({ level: "silent" }) });
+    // FIX LID 2025: Cache manual para mapear @lid → phone number
+    const contactsCache = new Map<string, Contact>();
 
     const sock = makeWASocket({
       auth: state,
@@ -196,17 +203,25 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       printQRInTerminal: false,
     });
 
-    // Bind store ao socket para receber eventos contacts.upsert
-    store.bind(sock.ev);
-
     const session: WhatsAppSession = {
       socket: sock,
       userId,
       connectionId: connection.id,
-      store,
+      contactsCache,
     };
 
     sessions.set(userId, session);
+
+    // Listener para cachear contatos quando Baileys emitir contacts.upsert
+    sock.ev.on("contacts.upsert", (contacts) => {
+      for (const contact of contacts) {
+        contactsCache.set(contact.id, contact);
+        if (contact.lid) {
+          contactsCache.set(contact.lid, contact);
+        }
+        console.log(`[CONTACT CACHE] Added: ${contact.id}${contact.phoneNumber ? ` (phoneNumber: ${contact.phoneNumber})` : ""}`);
+      }
+    });
 
     sock.ev.on("creds.update", saveCreds);
 
@@ -317,8 +332,8 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     return;
   }
 
-  // FIX LID 2025: Passar store para resolver @lid → phone number
-  const { contactNumber, jidSuffix, normalizedJid } = parseRemoteJid(remoteJid, session.store);
+  // FIX LID 2025: Passar contactsCache para resolver @lid → phone number
+  const { contactNumber, jidSuffix, normalizedJid } = parseRemoteJid(remoteJid, session.contactsCache);
   if (!contactNumber) {
     console.log(`[WhatsApp] Could not extract contact number from JID: ${remoteJid}`);
     return;
@@ -637,8 +652,8 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     const adminAuthPath = path.join(SESSIONS_BASE, `auth_admin_${adminId}`);
     const { state, saveCreds } = await useMultiFileAuthState(adminAuthPath);
 
-    // FIX LID 2025: Criar store para mapear @lid → phone number
-    const store = makeInMemoryStore({ logger: pino({ level: "silent" }) });
+    // FIX LID 2025: Cache manual para mapear @lid → phone number
+    const contactsCache = new Map<string, Contact>();
 
     const socket = makeWASocket({
       auth: state,
@@ -646,13 +661,21 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       logger: pino({ level: "silent" }),
     });
 
-    // Bind store ao socket para receber eventos contacts.upsert
-    store.bind(socket.ev);
-
     adminSessions.set(adminId, {
       socket,
       adminId,
-      store,
+      contactsCache,
+    });
+
+    // Listener para cachear contatos quando Baileys emitir contacts.upsert
+    socket.ev.on("contacts.upsert", (contacts) => {
+      for (const contact of contacts) {
+        contactsCache.set(contact.id, contact);
+        if (contact.lid) {
+          contactsCache.set(contact.lid, contact);
+        }
+        console.log(`[ADMIN CONTACT CACHE] Added: ${contact.id}${contact.phoneNumber ? ` (phoneNumber: ${contact.phoneNumber})` : ""}`);
+      }
     });
 
     socket.ev.on("creds.update", saveCreds);
