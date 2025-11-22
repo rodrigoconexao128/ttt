@@ -44,35 +44,23 @@ export async function generateAIResponse(
 
     // Validação de trigger phrases: se configuradas, verifica se alguma aparece na conversa
     if (agentConfig.triggerPhrases && agentConfig.triggerPhrases.length > 0) {
-      // Palavras comuns que SEMPRE devem ser respondidas (saudações básicas)
-      const commonGreetings = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "alô", "alo", "ei", "hey"];
-      
       // Concatena todas as mensagens da conversa (histórico + nova mensagem)
       const allMessages = [
         ...conversationHistory.map(m => m.text || ""),
         newMessageText
       ].join(" ").toLowerCase();
 
-      // Verifica se é primeira mensagem (saudação) OU contém trigger phrase
-      const isGreeting = commonGreetings.some(greeting => 
-        newMessageText.toLowerCase().trim() === greeting || 
-        newMessageText.toLowerCase().startsWith(greeting + " ")
-      );
-      
+      // Verifica se alguma trigger phrase está presente
       const hasTrigger = agentConfig.triggerPhrases.some(phrase => 
         allMessages.includes(phrase.toLowerCase())
       );
 
-      if (!hasTrigger && !isGreeting) {
-        console.log(`⏸️ [AI Agent] Skipping - no trigger phrase or greeting found for user ${userId}`);
+      if (!hasTrigger) {
+        console.log(`[AI Agent] Skipping response - no trigger phrase found for user ${userId}`);
         return null;
       }
 
-      if (isGreeting) {
-        console.log(`👋 [AI Agent] Greeting detected, proceeding with response`);
-      } else {
-        console.log(`✅ [AI Agent] Trigger phrase detected for user ${userId}, proceeding with response`);
-      }
+      console.log(`[AI Agent] Trigger phrase detected for user ${userId}, proceeding with response`);
     }
 
     const messages: Array<{ role: string; content: string }> = [
