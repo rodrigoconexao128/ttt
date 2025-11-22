@@ -89,26 +89,34 @@ export async function generateAIResponse(
     }
     
     console.log(`📋 [AI Agent] Enviando ${uniqueMessages.length} mensagens de contexto (${recentMessages.length - uniqueMessages.length} duplicatas removidas):`);
-    uniqueMessages.forEach((msg, index) => {
+    
+    // Adicionar mensagens do histórico (exceto a última se for do user com mesmo texto que newMessageText)
+    for (let i = 0; i < uniqueMessages.length; i++) {
+      const msg = uniqueMessages[i];
       const role = msg.fromMe ? "assistant" : "user";
+      const isLastMessage = i === uniqueMessages.length - 1;
+      
+      // Se última mensagem do histórico for do user com mesmo texto que newMessageText, pular (evitar duplicação)
+      if (isLastMessage && !msg.fromMe && msg.text === newMessageText) {
+        console.log(`   ${i + 1}. [${role}] ${(msg.text || "").substring(0, 50)}... (PULADA - duplicata da nova mensagem)`);
+        continue;
+      }
+      
       const preview = (msg.text || "").substring(0, 50);
-      console.log(`   ${index + 1}. [${role}] ${preview}...`);
+      console.log(`   ${i + 1}. [${role}] ${preview}...`);
       
       messages.push({
         role,
         content: msg.text || "",
       });
-    });
-
-    // ✅ FIX: Garantir que última mensagem seja do user (Mistral exige isso)
-    // Se última mensagem do histórico for do assistant, adicionar a nova mensagem do user
-    if (messages.length > 1 && messages[messages.length - 1].role === "assistant") {
-      console.log(`⚠️ [AI Agent] Última mensagem era assistant, adicionando nova mensagem do user: "${newMessageText.substring(0, 50)}..."`);
-      messages.push({
-        role: "user",
-        content: newMessageText,
-      });
     }
+
+    // ✅ SEMPRE adicionar a nova mensagem do user como última (Mistral exige que última seja user)
+    console.log(`   ${uniqueMessages.length + 1}. [user] ${newMessageText.substring(0, 50)}... (NOVA MENSAGEM)`);
+    messages.push({
+      role: "user",
+      content: newMessageText,
+    });
 
     const mistral = await getMistralClient();
     const chatResponse = await mistral.chat.complete({
