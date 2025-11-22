@@ -70,9 +70,19 @@ export async function generateAIResponse(
       },
     ];
 
-    // 🚫 FIX: Usar apenas últimas 5 mensagens (contexto focado)
-    // Não adicionar newMessageText separadamente pois JÁ está no conversationHistory!
-    const recentMessages = conversationHistory.slice(-5);
+    // 🚫 FIX: Usar últimas 10 mensagens (contexto suficiente)
+    // Mas FILTRAR mensagens do agente dos últimos 2 minutos para evitar loop
+    const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
+    const recentMessages = conversationHistory
+      .slice(-10)
+      .filter(msg => {
+        // Se for mensagem do agente (fromMe) e for muito recente, pular
+        if (msg.fromMe && new Date(msg.timestamp).getTime() > twoMinutesAgo) {
+          console.log(`⏭️ [AI Agent] Pulando mensagem recente do agente: "${(msg.text || '').substring(0, 30)}..."`);
+          return false;
+        }
+        return true;
+      });
     
     // 🧹 REMOVER DUPLICATAS: Mensagens idênticas confundem a IA
     const uniqueMessages: Message[] = [];
@@ -122,6 +132,7 @@ export async function generateAIResponse(
     const chatResponse = await mistral.chat.complete({
       model: agentConfig.model,
       messages: messages as any,
+      maxTokens: 500, // ⚠️ LIMITAR resposta para evitar textos gigantes (500 tokens ≈ 1500 chars)
     });
 
     const content = chatResponse.choices?.[0]?.message?.content;
