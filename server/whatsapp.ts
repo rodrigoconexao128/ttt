@@ -51,6 +51,10 @@ const adminWsClients = new Map<string, Set<AuthenticatedWebSocket>>();
 
 const DEFAULT_JID_SUFFIX = "s.whatsapp.net";
 
+// 🚫 Set para rastrear IDs de mensagens enviadas pelo agente/usuário via sendMessage
+// Evita duplicatas quando Baileys dispara evento fromMe após socket.sendMessage()
+const agentMessageIds = new Set<string>();
+
 // Base directory for storing Baileys multi-file auth state.
 // Defaults to current working directory (backwards compatible with ./auth_*)
 // You can set SESSIONS_DIR (e.g., "/data/whatsapp-sessions" on Railway volumes)
@@ -413,6 +417,17 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   const remoteJid = waMessage.key.remoteJid;
   if (!remoteJid) return;
 
+  // 🚫 FIX BUG DUPLICATA: Ignorar mensagens enviadas pelo agente IA
+  // Quando IA envia via socket.sendMessage(), Baileys dispara evento fromMe:true
+  // MAS a mensagem já foi salva no createMessage() do setTimeout do agente.
+  // Se salvar novamente aqui = DUPLICATA!
+  const messageId = waMessage.key.id;
+  if (messageId && agentMessageIds.has(messageId)) {
+    console.log(`⚠️ [FROM ME] Ignorando mensagem do agente (já salva): ${messageId}`);
+    agentMessageIds.delete(messageId); // Limpar após verificar
+    return;
+  }
+
   // Filtrar grupos e status
   if (remoteJid.includes("@g.us") || remoteJid.includes("@broadcast")) {
     console.log(`📱 [FROM ME] Ignoring group/status message`);
@@ -456,6 +471,20 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     messageText = msg.conversation;
   } else if (msg?.extendedTextMessage?.text) {
     messageText = msg.extendedTextMessage.text;
+    
+    // 🚫 FIX BUG DUPLICATA: Baileys as vezes envia texto 2x no mesmo campo
+    // Exemplo: "Texto\nTexto" (repetido separado por \n)
+    // Detectar e remover duplicação
+    const lines = messageText.split('\n');
+    const halfLength = Math.floor(lines.length / 2);
+    if (lines.length > 2 && lines.length % 2 === 0) {
+      const firstHalf = lines.slice(0, halfLength).join('\n');
+      const secondHalf = lines.slice(halfLength).join('\n');
+      if (firstHalf === secondHalf) {
+        console.log(`⚠️ [FROM ME] Texto duplicado detectado, usando apenas primeira metade`);
+        messageText = firstHalf;
+      }
+    }
   } else if (msg?.imageMessage?.caption) {
     messageText = msg.imageMessage.caption;
     mediaType = "image";
@@ -830,6 +859,12 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
             console.log(`[AI Agent] Sending to original JID: ${jid}`);
             const sentMessage = await currentSession.socket.sendMessage(jid, { text: aiResponse });
 
+            // ⚠️ IMPORTANTE: Registrar messageId para evitar duplicata em handleOutgoingMessage
+            if (sentMessage?.key.id) {
+              agentMessageIds.add(sentMessage.key.id);
+              console.log(`🔒 [AI Agent] MessageId registrado: ${sentMessage.key.id}`);
+            }
+
             await storage.createMessage({
               conversationId: conversationId,
               messageId: sentMessage?.key.id || Date.now().toString(),
@@ -887,6 +922,12 @@ export async function sendMessage(userId: string, conversationId: string, text: 
   
   console.log(`[sendMessage] Sending to: ${jid}`);
   const sentMessage = await session.socket.sendMessage(jid, { text });
+
+  // ⚠️ IMPORTANTE: Registrar messageId para evitar duplicata em handleOutgoingMessage
+  if (sentMessage?.key.id) {
+    agentMessageIds.add(sentMessage.key.id);
+    console.log(`🔒 [sendMessage] MessageId registrado: ${sentMessage.key.id}`);
+  }
 
   await storage.createMessage({
     conversationId,

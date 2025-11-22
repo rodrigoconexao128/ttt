@@ -11,8 +11,16 @@ export async function generateAIResponse(
     const agentConfig = await storage.getAgentConfig(userId);
 
     if (!agentConfig || !agentConfig.isActive) {
+      console.log(`[AI Agent] Config not found or inactive for user ${userId}`);
       return null;
     }
+
+    // 📝 DEBUG: Log do config do agente para verificar se prompt está correto
+    console.log(`🤖 [AI Agent] Config encontrado para user ${userId}:`);
+    console.log(`   Model: ${agentConfig.model}`);
+    console.log(`   Active: ${agentConfig.isActive}`);
+    console.log(`   Trigger phrases: ${agentConfig.triggerPhrases?.length || 0}`);
+    console.log(`   Prompt (primeiros 100 chars): ${agentConfig.prompt?.substring(0, 100) || 'N/A'}...`);
 
     // Validação de trigger phrases: se configuradas, verifica se alguma aparece na conversa
     if (agentConfig.triggerPhrases && agentConfig.triggerPhrases.length > 0) {
