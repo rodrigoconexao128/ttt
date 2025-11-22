@@ -444,6 +444,22 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     contactNumber = realNumber;
     jidSuffix = "s.whatsapp.net";
     normalizedJid = realJid; // Usar JID real para envio
+    
+    // 💾 SALVAR NO DB: Mapear LID → phoneNumber para cache persistente
+    try {
+      await storage.upsertContact({
+        connectionId: session.connectionId,
+        contactId: remoteJid, // LID original (254635809968349@lid)
+        lid: remoteJid, // Marcar como LID
+        phoneNumber: realJid, // Número real (5517991956944@s.whatsapp.net)
+        name: waMessage.pushName || null,
+        imgUrl: null,
+        lastSyncedAt: new Date(),
+      });
+      console.log(`💾 [DB] Mapeamento LID → phoneNumber salvo no banco`);
+    } catch (error) {
+      console.error("❌ [DB] Erro ao salvar mapeamento LID:", error);
+    }
   } else {
     // Fallback: usar parseRemoteJid para contatos normais
     const parsed = await parseRemoteJid(remoteJid, session.contactsCache, session.connectionId);
