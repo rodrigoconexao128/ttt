@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, index, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, index, uniqueIndex, decimal } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -75,7 +75,9 @@ export const whatsappContacts = pgTable("whatsapp_contacts", {
   index("idx_contacts_phone").on(table.phoneNumber).where(sql`${table.phoneNumber} IS NOT NULL`),
   // UNIQUE CONSTRAINT: Um contato por connectionId (evita duplicatas)
   // Permite upsert sem conflitos
-  index("idx_contacts_unique_connection_contact").on(table.connectionId, table.contactId).unique(),
+  uniqueIndex("idx_contacts_unique_connection_contact").on(table.connectionId, table.contactId),
+  // ÍNDICE: Cleanup de contatos antigos (data retention)
+  index("idx_contacts_last_synced").on(table.lastSyncedAt),
 ]);
 
 // Conversations table
