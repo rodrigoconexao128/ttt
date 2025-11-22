@@ -81,26 +81,41 @@ export async function generateAIResponse(
       },
     ];
 
-    // 🚫 FIX: Contexto inteligente - últimas 6 mensagens alternadas (3 pares user/assistant)
-    // Filtrar mensagens muito longas do agente (>300 chars) para evitar "aprender" respostas ruins
-    const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
-    const recentMessages = conversationHistory
-      .slice(-6) // Reduzir de 10 para 6 (contexto mais focado)
-      .filter(msg => {
-        // Se for mensagem do agente (fromMe) e for muito recente, pular
-        if (msg.fromMe && new Date(msg.timestamp).getTime() > twoMinutesAgo) {
-          console.log(`⏭️ [AI Agent] Pulando mensagem recente do agente: "${(msg.text || '').substring(0, 30)}..."`);
-          return false;
-        }
-        
-        // Se for mensagem do agente muito longa (>400 chars), truncar para evitar poluição
-        if (msg.fromMe && (msg.text || '').length > 400) {
-          console.log(`✂️ [AI Agent] Truncando mensagem longa do agente (${msg.text?.length} chars)`);
-          msg.text = (msg.text || '').substring(0, 400) + '...';
-        }
-        
-        return true;
+    // 🧠 CONVERSATION MEMORY: Sistema inspirado em Claude/GPT/Intercom
+    // Manter últimas 8 mensagens COMPLETAS (4 turnos user/assistant)
+    // Isso dá contexto suficiente sem perder o fio da conversa
+    const thirtySecondsAgo = Date.now() - (30 * 1000); // Apenas 30seg (tempo do delay)
+    
+    let recentMessages = conversationHistory.slice(-8);
+    
+    // Remover APENAS mensagens do agente dos últimos 30 segundos (em envio)
+    // Isso evita loop mas mantém contexto de mensagens já estabelecidas
+    recentMessages = recentMessages.filter(msg => {
+      if (msg.fromMe && new Date(msg.timestamp).getTime() > thirtySecondsAgo) {
+        console.log(`⏭️ [AI Agent] Pulando mensagem MUITO recente (<30s): "${(msg.text || '').substring(0, 30)}..."`);
+        return false;
+      }
+      return true;
+    });
+    
+    // Se ainda tem >6 mensagens, criar RESUMO das antigas + últimas 6 completas
+    if (recentMessages.length > 6) {
+      const oldMessages = recentMessages.slice(0, -6);
+      const recentSix = recentMessages.slice(-6);
+      
+      // Criar resumo simples das mensagens antigas
+      const summary = `[Contexto anterior: Cliente perguntou sobre ${oldMessages.filter(m => !m.fromMe).map(m => (m.text || '').substring(0, 30)).join(', ')}, e você respondeu com informações sobre o serviço]`;
+      
+      console.log(`📚 [AI Agent] Resumindo ${oldMessages.length} mensagens antigas em contexto`);
+      
+      // Adicionar resumo como mensagem de sistema (não conta como user/assistant)
+      messages.push({
+        role: "system",
+        content: summary
       });
+      
+      recentMessages = recentSix;
+    }
     
     // 🧹 REMOVER DUPLICATAS: Mensagens idênticas confundem a IA
     const uniqueMessages: Message[] = [];
