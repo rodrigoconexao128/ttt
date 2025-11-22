@@ -50,16 +50,20 @@ export async function generateAIResponse(
       },
     ];
 
-    conversationHistory.slice(-10).forEach((msg) => {
+    // 🚫 FIX: Usar apenas últimas 5 mensagens (contexto focado)
+    // Não adicionar newMessageText separadamente pois JÁ está no conversationHistory!
+    const recentMessages = conversationHistory.slice(-5);
+    
+    console.log(`📋 [AI Agent] Enviando ${recentMessages.length} mensagens de contexto:`);
+    recentMessages.forEach((msg, index) => {
+      const role = msg.fromMe ? "assistant" : "user";
+      const preview = (msg.text || "").substring(0, 50);
+      console.log(`   ${index + 1}. [${role}] ${preview}...`);
+      
       messages.push({
-        role: msg.fromMe ? "assistant" : "user",
+        role,
         content: msg.text || "",
       });
-    });
-
-    messages.push({
-      role: "user",
-      content: newMessageText,
     });
 
     const mistral = await getMistralClient();
@@ -69,7 +73,29 @@ export async function generateAIResponse(
     });
 
     const content = chatResponse.choices?.[0]?.message?.content;
-    const responseText = typeof content === 'string' ? content : null;
+    let responseText = typeof content === 'string' ? content : null;
+    
+    if (responseText) {
+      // 🚫 FIX: Detectar e remover duplicação na resposta do Mistral
+      // As vezes a API retorna texto 2x separado por \n\n
+      const paragraphs = responseText.split('\n\n');
+      const halfLength = Math.floor(paragraphs.length / 2);
+      
+      if (paragraphs.length > 2 && paragraphs.length % 2 === 0) {
+        const firstHalf = paragraphs.slice(0, halfLength).join('\n\n');
+        const secondHalf = paragraphs.slice(halfLength).join('\n\n');
+        
+        if (firstHalf === secondHalf) {
+          console.log(`⚠️ [AI Agent] Resposta duplicada detectada do Mistral, usando apenas primeira metade`);
+          console.log(`   Original length: ${responseText.length} chars`);
+          responseText = firstHalf;
+          console.log(`   Fixed length: ${responseText.length} chars`);
+        }
+      }
+      
+      console.log(`✅ [AI Agent] Resposta gerada: ${responseText.substring(0, 100)}...`);
+    }
+    
     return responseText;
   } catch (error) {
     console.error("Error generating AI response:", error);
