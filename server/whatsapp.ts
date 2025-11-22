@@ -55,6 +55,56 @@ const DEFAULT_JID_SUFFIX = "s.whatsapp.net";
 // Evita duplicatas quando Baileys dispara evento fromMe após socket.sendMessage()
 const agentMessageIds = new Set<string>();
 
+// 🤖 HUMANIZAÇÃO: Quebra mensagem longa em partes menores
+// Best practices: WhatsApp, Intercom, Drift quebram a cada 2-3 parágrafos ou 300-500 chars
+// Fonte: https://www.drift.com/blog/conversational-marketing-best-practices/
+function splitMessageHumanLike(message: string): string[] {
+  const MAX_CHARS_PER_MESSAGE = 400; // WhatsApp ideal: 300-500 chars
+  const parts: string[] = [];
+  
+  // Dividir por parágrafos duplos (quebras de seção)
+  const sections = message.split('\n\n').filter(s => s.trim());
+  
+  let currentPart = '';
+  
+  for (const section of sections) {
+    // Se adicionar esta seção ultrapassar o limite, salva parte atual e inicia nova
+    if (currentPart && (currentPart + '\n\n' + section).length > MAX_CHARS_PER_MESSAGE) {
+      parts.push(currentPart.trim());
+      currentPart = section;
+    } else {
+      currentPart = currentPart ? currentPart + '\n\n' + section : section;
+    }
+  }
+  
+  // Adicionar última parte
+  if (currentPart) {
+    parts.push(currentPart.trim());
+  }
+  
+  // Se mensagem muito longa sem parágrafos, quebra por frases
+  if (parts.length === 1 && parts[0].length > MAX_CHARS_PER_MESSAGE) {
+    const sentences = parts[0].match(/[^.!?]+[.!?]+/g) || [parts[0]];
+    parts.length = 0;
+    currentPart = '';
+    
+    for (const sentence of sentences) {
+      if (currentPart && (currentPart + sentence).length > MAX_CHARS_PER_MESSAGE) {
+        parts.push(currentPart.trim());
+        currentPart = sentence;
+      } else {
+        currentPart += sentence;
+      }
+    }
+    
+    if (currentPart) {
+      parts.push(currentPart.trim());
+    }
+  }
+  
+  return parts.length > 0 ? parts : [message];
+}
+
 // Base directory for storing Baileys multi-file auth state.
 // Defaults to current working directory (backwards compatible with ./auth_*)
 // You can set SESSIONS_DIR (e.g., "/data/whatsapp-sessions" on Railway volumes)
@@ -637,7 +687,6 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
         phoneNumber: realJid,    // Número real (5517991956944@s.whatsapp.net)
         name: waMessage.pushName || null,
         imgUrl: null,
-        lastSyncedAt: new Date(),
       });
       console.log(`💾 [DB] Mapeamento LID → phoneNumber salvo: ${remoteJid} → ${realJid}`);
     } catch (error) {
@@ -856,37 +905,55 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
               ? buildSendJid(conversationData)
               : `${targetNumber}@${jidSuffix || DEFAULT_JID_SUFFIX}`;
             
-            console.log(`[AI Agent] Sending to original JID: ${jid}`);
-            const sentMessage = await currentSession.socket.sendMessage(jid, { text: aiResponse });
+            // 🤖 HUMANIZAÇÃO: Quebrar mensagens longas em múltiplas
+            // Best practice: WhatsApp, Intercom, Drift quebram a cada 2-3 parágrafos ou 400 chars
+            const messageParts = splitMessageHumanLike(aiResponse);
+            
+            console.log(`[AI Agent] Sending to original JID: ${jid} (${messageParts.length} parts)`);
+            
+            for (let i = 0; i < messageParts.length; i++) {
+              const part = messageParts[i];
+              const isLast = i === messageParts.length - 1;
+              
+              // Delay entre mensagens (2-4 segundos) para simular digitação
+              if (i > 0) {
+                await new Promise(resolve => setTimeout(resolve, 2500 + Math.random() * 1500));
+              }
+              
+              const sentMessage = await currentSession.socket.sendMessage(jid, { text: part });
 
-            // ⚠️ IMPORTANTE: Registrar messageId para evitar duplicata em handleOutgoingMessage
-            if (sentMessage?.key.id) {
-              agentMessageIds.add(sentMessage.key.id);
-              console.log(`🔒 [AI Agent] MessageId registrado: ${sentMessage.key.id}`);
+              // ⚠️ IMPORTANTE: Registrar messageId para evitar duplicata em handleOutgoingMessage
+              if (sentMessage?.key.id) {
+                agentMessageIds.add(sentMessage.key.id);
+                console.log(`🔒 [AI Agent] MessageId registrado (parte ${i+1}/${messageParts.length}): ${sentMessage.key.id}`);
+              }
+
+              await storage.createMessage({
+                conversationId: conversationId,
+                messageId: sentMessage?.key.id || `${Date.now()}-${i}`,
+                fromMe: true,
+                text: part,
+                timestamp: new Date(),
+                status: "sent",
+                isFromAgent: true,
+              });
+
+              // Só atualizar conversa na última parte
+              if (isLast) {
+                await storage.updateConversation(conversationId, {
+                  lastMessageText: part,
+                  lastMessageTime: new Date(),
+                });
+
+                broadcastToUser(userId, {
+                  type: "agent_response",
+                  conversationId: conversationId,
+                  message: aiResponse, // Mensagem completa para broadcast
+                });
+              }
+
+              console.log(`[AI Agent] Part ${i+1}/${messageParts.length} SENT to WhatsApp ${targetNumber}`);
             }
-
-            await storage.createMessage({
-              conversationId: conversationId,
-              messageId: sentMessage?.key.id || Date.now().toString(),
-              fromMe: true,
-              text: aiResponse,
-              timestamp: new Date(),
-              status: "sent",
-              isFromAgent: true,
-            });
-
-            await storage.updateConversation(conversationId, {
-              lastMessageText: aiResponse,
-              lastMessageTime: new Date(),
-            });
-
-            broadcastToUser(userId, {
-              type: "agent_response",
-              conversationId: conversationId,
-              message: aiResponse,
-            });
-
-            console.log(`[AI Agent] Message SENT to WhatsApp ${targetNumber}: ${aiResponse}`);
           } else {
             console.log(`[AI Agent] No response generated (trigger phrase check or agent inactive)`);
           }

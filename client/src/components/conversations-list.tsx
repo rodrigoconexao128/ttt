@@ -3,13 +3,18 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, MessageCircle, Smartphone } from "lucide-react";
+import { Search, MessageCircle, Smartphone, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@shared/schema";
 import { useState, useEffect } from "react";
 import { queryClient } from "@/lib/queryClient";
 import { getAuthToken } from "@/lib/supabase";
+import {
+  Dialog,
+  DialogContent,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 interface ConversationsListProps {
   connectionId?: string;
@@ -24,6 +29,9 @@ export function ConversationsList({
 }: ConversationsListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false);
+  const [avatarModalImage, setAvatarModalImage] = useState<string | null>(null);
+  const [avatarModalName, setAvatarModalName] = useState<string>("");
 
   const { data: conversations = [], isLoading } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations"],
@@ -266,6 +274,26 @@ export function ConversationsList({
           </div>
         )}
       </div>
+      
+      {/* Modal de foto ampliada */}
+      <Dialog open={avatarModalOpen} onOpenChange={setAvatarModalOpen}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden bg-black/90">
+          <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10">
+            <X className="h-6 w-6 text-white" />
+            <span className="sr-only">Fechar</span>
+          </DialogClose>
+          {avatarModalImage && (
+            <div className="flex flex-col items-center justify-center p-4">
+              <h3 className="text-white font-semibold mb-4 text-lg">{avatarModalName}</h3>
+              <img 
+                src={avatarModalImage} 
+                alt={avatarModalName}
+                className="max-w-full max-h-[70vh] object-contain rounded-lg"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

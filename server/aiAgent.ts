@@ -54,8 +54,22 @@ export async function generateAIResponse(
     // Não adicionar newMessageText separadamente pois JÁ está no conversationHistory!
     const recentMessages = conversationHistory.slice(-5);
     
-    console.log(`📋 [AI Agent] Enviando ${recentMessages.length} mensagens de contexto:`);
-    recentMessages.forEach((msg, index) => {
+    // 🧹 REMOVER DUPLICATAS: Mensagens idênticas confundem a IA
+    const uniqueMessages: Message[] = [];
+    const seenTexts = new Set<string>();
+    
+    for (const msg of recentMessages) {
+      const textKey = `${msg.fromMe ? 'me' : 'user'}:${msg.text || ''}`;
+      if (!seenTexts.has(textKey)) {
+        seenTexts.add(textKey);
+        uniqueMessages.push(msg);
+      } else {
+        console.log(`⚠️ [AI Agent] Mensagem duplicada removida: ${(msg.text || '').substring(0, 30)}...`);
+      }
+    }
+    
+    console.log(`📋 [AI Agent] Enviando ${uniqueMessages.length} mensagens de contexto (${recentMessages.length - uniqueMessages.length} duplicatas removidas):`);
+    uniqueMessages.forEach((msg, index) => {
       const role = msg.fromMe ? "assistant" : "user";
       const preview = (msg.text || "").substring(0, 50);
       console.log(`   ${index + 1}. [${role}] ${preview}...`);
