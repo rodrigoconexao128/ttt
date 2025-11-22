@@ -399,6 +399,20 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         });
 
         broadcastToUser(userId, { type: "connected", phoneNumber });
+
+        // ======================================================================
+        // FIX LID 2025 - WORKAROUND: Contatos serão populados ao receber mensagens
+        // ======================================================================
+        // Baileys 7.0.0-rc.6 não tem makeInMemoryStore e não emite contacts.upsert
+        // em sessões restauradas. Os contatos serão populados quando:
+        // 1. Primeira mensagem de cada contato chegar (contacts.upsert dispara)
+        // 2. Usuário enviar mensagem (parseRemoteJid salva no DB via fallback)
+        
+        console.log(`\n⚠️ [CONTACTS INFO] Aguardando contatos do Baileys...`);
+        console.log(`   Contatos serão sincronizados automaticamente quando:`);
+        console.log(`   1. Evento contacts.upsert do Baileys disparar`);
+        console.log(`   2. Mensagens forem recebidas/enviadas`);
+        console.log(`   Cache warming carregou ${contactsCache.size} contatos do DB\n`);
       }
     });
 
@@ -452,7 +466,60 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   }
 
   // FIX LID 2025: Passar contactsCache + connectionId para resolver @lid → phone number (com fallback DB)
-  const { contactNumber, jidSuffix, normalizedJid } = await parseRemoteJid(remoteJid, session.contactsCache, session.connectionId);
+  let { contactNumber, jidSuffix, normalizedJid } = await parseRemoteJid(remoteJid, session.contactsCache, session.connectionId);
+  
+  // ======================================================================
+  // FIX LID 2025 - RESOLVER @LID VIA onWhatsApp() API
+  // ======================================================================
+  // Se ainda não temos o número real, perguntar ao Baileys
+  if (remoteJid.includes("@lid") && contactNumber.includes("254")) {
+    console.log(`\n🔎 [LID RESOLVER] Tentando resolver ${remoteJid} via onWhatsApp()...`);
+    
+    try {
+      // Buscar informações do contato diretamente do WhatsApp
+      const [result] = await session.socket!.onWhatsApp(remoteJid);
+      
+      console.log(`   📥 Resposta onWhatsApp():`, JSON.stringify(result, null, 2));
+      
+      if (result?.jid) {
+        const realJid = result.jid;
+        const realNumber = cleanContactNumber(realJid.split("@")[0]);
+        
+        console.log(`   ✅ Número real encontrado: ${realJid} (${realNumber})`);
+        
+        // Atualizar contactNumber para usar o número real
+        contactNumber = realNumber;
+        jidSuffix = "s.whatsapp.net";
+        normalizedJid = jidNormalizedUser(`${realNumber}@s.whatsapp.net`);
+        
+        // Salvar no banco para próxima vez
+        const contactData = {
+          id: realJid,
+          lid: remoteJid,
+          phoneNumber: realJid,
+          name: waMessage.pushName,
+        };
+        
+        session.contactsCache.set(remoteJid, contactData);
+        session.contactsCache.set(realJid, contactData);
+        
+        await storage.upsertContact({
+          connectionId: session.connectionId,
+          contactId: realJid,
+          lid: remoteJid,
+          phoneNumber: realJid,
+          name: waMessage.pushName || null,
+          imgUrl: null,
+        });
+        
+        console.log(`   💾 Mapeamento salvo: ${remoteJid} → ${realJid}`);
+      }
+    } catch (error) {
+      console.error(`   ❌ Erro ao resolver via onWhatsApp():`, error);
+    }
+  }
+  // ======================================================================
+  
   if (!contactNumber) {
     console.log(`[WhatsApp] Could not extract contact number from JID: ${remoteJid}`);
     return;
