@@ -7,6 +7,7 @@
   downloadMediaMessage,
   jidNormalizedUser,
   jidDecode,
+  makeInMemoryStore,
 } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
 import pino from "pino";
@@ -16,27 +17,19 @@ import { storage } from "./storage";
 import WebSocket from "ws";
 import { generateAIResponse } from "./aiAgent";
 
-// Cache manual de contatos para mapear @lid → phoneNumber
-interface Contact {
-  id: string;
-  lid?: string;
-  phoneNumber?: string;
-  name?: string;
-}
-
 interface WhatsAppSession {
   socket: WASocket | null;
   userId: string;
   connectionId: string;
   phoneNumber?: string;
-  contactsCache: Map<string, Contact>;
+  store?: ReturnType<typeof makeInMemoryStore>;
 }
 
 interface AdminWhatsAppSession {
   socket: WASocket | null;
   adminId: string;
   phoneNumber?: string;
-  contactsCache: Map<string, Contact>;
+  store?: ReturnType<typeof makeInMemoryStore>;
 }
 
 interface AuthenticatedWebSocket extends WebSocket {
@@ -61,36 +54,31 @@ function cleanContactNumber(input?: string | null): string {
   return (input?.split(":")[0] || "").replace(/\D/g, "");
 }
 
-async function parseRemoteJid(remoteJid: string, contactsCache?: Map<string, Contact>, connectionId?: string) {
+function parseRemoteJid(remoteJid: string, store?: ReturnType<typeof makeInMemoryStore>) {
   const decoded = jidDecode(remoteJid);
   const rawUser = decoded?.user || remoteJid.split("@")[0] || "";
-  let jidSuffix = decoded?.server || remoteJid.split("@")[1]?.split(":")[0] || DEFAULT_JID_SUFFIX;
+  const jidSuffix = decoded?.server || remoteJid.split("@")[1]?.split(":")[0] || DEFAULT_JID_SUFFIX;
 
-  console.log(`\n🔍 [parseRemoteJid] ========== DEBUG START ==========`);
-  console.log(`   Input remoteJid: ${remoteJid}`);
-  console.log(`   Decoded user: ${rawUser}`);
-  console.log(`   Decoded server: ${jidSuffix}`);
-  console.log(`   Is @lid?: ${remoteJid.includes("@lid")}`);
-  console.log(`   Cache size: ${contactsCache?.size || 0}`);
-  console.log(`   ConnectionId provided: ${connectionId || "N/A"}`);
-
-  // FIX LID 2025: Para @lid, retornar o próprio LID (sem tentar converter)
+  // FIX LID 2025: Se for @lid, tentar buscar número real via store.contacts
   let contactNumber = cleanContactNumber(rawUser);
   
-  if (remoteJid.includes("@lid")) {
-    console.log(`   🔎 [LID DETECTED] Instagram/Facebook Business contact`);
-    console.log(`      LID: ${remoteJid}`);
-    console.log(`      ℹ️ LIDs são IDs do Meta, não números WhatsApp`);
-    console.log(`      ✅ Usando LID diretamente (comportamento correto)`);
-  }  const normalizedJid = contactNumber
+  if (remoteJid.includes("@lid") && store) {
+    const contact = store.contacts[remoteJid];
+    if (contact?.jid) {
+      // Encontrou mapeamento LID → Phone Number!
+      const realNumber = cleanContactNumber(contact.jid.split("@")[0]);
+      if (realNumber) {
+        console.log(`[LID FIX] Mapped ${remoteJid} → ${contact.jid} (${realNumber})`);
+        contactNumber = realNumber;
+      }
+    } else {
+      console.log(`[LID WARNING] No phone number mapping found for ${remoteJid}`);
+    }
+  }
+
+  const normalizedJid = contactNumber
     ? jidNormalizedUser(`${contactNumber}@${jidSuffix}`)
     : jidNormalizedUser(remoteJid);
-
-  console.log(`   📤 [parseRemoteJid] Resultado final:`);
-  console.log(`      contactNumber: ${contactNumber}`);
-  console.log(`      jidSuffix: ${jidSuffix}`);
-  console.log(`      normalizedJid: ${normalizedJid}`);
-  console.log(`   ========== DEBUG END ==========\n`);
 
   return { contactNumber, jidSuffix, normalizedJid };
 }
@@ -197,8 +185,8 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
     const { state, saveCreds } = await useMultiFileAuthState(userAuthPath);
 
-    // FIX LID 2025: Cache manual para mapear @lid → phone number
-    const contactsCache = new Map<string, Contact>();
+    // FIX LID 2025: Criar store para mapear @lid → phone number
+    const store = makeInMemoryStore({ logger: pino({ level: "silent" }) });
 
     const sock = makeWASocket({
       auth: state,
@@ -206,88 +194,17 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       printQRInTerminal: false,
     });
 
+    // Bind store ao socket para receber eventos contacts.upsert
+    store.bind(sock.ev);
+
     const session: WhatsAppSession = {
       socket: sock,
       userId,
       connectionId: connection.id,
-      contactsCache,
+      store,
     };
 
     sessions.set(userId, session);
-
-    // ======================================================================
-    // FIX LID 2025 - CACHE WARMING (Carregar contatos do DB para memória)
-    // ======================================================================
-    // Previne race condition: mensagens @lid chegam antes de contacts.upsert
-    try {
-      const dbContacts = await storage.getContactsByConnectionId(connection.id);
-      console.log(`[CACHE WARMING] Loading ${dbContacts.length} contacts from DB...`);
-      
-      for (const dbContact of dbContacts) {
-        const contact: Contact = {
-          id: dbContact.contactId,
-          lid: dbContact.lid || undefined,
-          phoneNumber: dbContact.phoneNumber || undefined,
-          name: dbContact.name || undefined,
-        };
-        
-        contactsCache.set(dbContact.contactId, contact);
-        if (dbContact.lid) {
-          contactsCache.set(dbContact.lid, contact);
-        }
-      }
-      
-      console.log(`[CACHE WARMING] ✅ Loaded ${dbContacts.length} contacts into memory`);
-    } catch (error) {
-      console.error(`[CACHE WARMING] ❌ Failed to load contacts:`, error);
-    }
-
-    // ======================================================================
-    // FIX LID 2025 - SALVAR CONTATOS NO DB SUPABASE (Híbrido: Cache + DB)
-    // ======================================================================
-    sock.ev.on("contacts.upsert", async (contacts) => {
-      console.log(`\n========================================`);
-      console.log(`[CONTACTS SYNC] ⚡ Baileys emitiu ${contacts.length} contatos`);
-      console.log(`[CONTACTS SYNC] Connection ID: ${connection.id}`);
-      console.log(`========================================\n`);
-      
-      for (const contact of contacts) {
-        // 🔍 DEBUG EXTREMO: Mostrar TUDO sobre o contato
-        console.log(`\n🔍 [CONTACT DEBUG] Processando contato:`);
-        console.log(`   - ID: ${contact.id}`);
-        console.log(`   - LID: ${contact.lid || "N/A"}`);
-        console.log(`   - phoneNumber: ${contact.phoneNumber || "N/A"}`);
-        console.log(`   - name: ${contact.name || "N/A"}`);
-        console.log(`   - imgUrl: ${contact.imgUrl ? "Presente" : "N/A"}`);
-        console.log(`   - Raw contact object:`, JSON.stringify(contact, null, 2));
-        
-        // 1. Atualizar cache em memória (performance)
-        contactsCache.set(contact.id, contact);
-        if (contact.lid) {
-          contactsCache.set(contact.lid, contact);
-          console.log(`   ✅ Adicionado ao cache com LID: ${contact.lid}`);
-        }
-        
-        // 2. Salvar no banco Supabase (persistência)
-        try {
-          const savedContact = await storage.upsertContact({
-            connectionId: connection.id,
-            contactId: contact.id,
-            lid: contact.lid || null,
-            phoneNumber: contact.phoneNumber || null,
-            name: contact.name || null,
-            imgUrl: contact.imgUrl || null,
-          });
-          
-          console.log(`   ✅ [DB SAVE] Salvo no Supabase com sucesso!`);
-          console.log(`   📊 Dados salvos:`, JSON.stringify(savedContact, null, 2));
-        } catch (error) {
-          console.error(`[DB SAVE] ❌ Failed to save contact ${contact.id}:`, error);
-        }
-      }
-      
-      console.log(`[CONTACTS SYNC] ✅ Processed ${contacts.length} contacts (cache + DB)`);
-    });
 
     sock.ev.on("creds.update", saveCreds);
 
@@ -346,20 +263,6 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         });
 
         broadcastToUser(userId, { type: "connected", phoneNumber });
-
-        // ======================================================================
-        // FIX LID 2025 - WORKAROUND: Contatos serão populados ao receber mensagens
-        // ======================================================================
-        // Baileys 7.0.0-rc.6 não tem makeInMemoryStore e não emite contacts.upsert
-        // em sessões restauradas. Os contatos serão populados quando:
-        // 1. Primeira mensagem de cada contato chegar (contacts.upsert dispara)
-        // 2. Usuário enviar mensagem (parseRemoteJid salva no DB via fallback)
-        
-        console.log(`\n⚠️ [CONTACTS INFO] Aguardando contatos do Baileys...`);
-        console.log(`   Contatos serão sincronizados automaticamente quando:`);
-        console.log(`   1. Evento contacts.upsert do Baileys disparar`);
-        console.log(`   2. Mensagens forem recebidas/enviadas`);
-        console.log(`   Cache warming carregou ${contactsCache.size} contatos do DB\n`);
       }
     });
 
@@ -412,44 +315,8 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     return;
   }
 
-  // ======================================================================
-  // FIX LID 2025 - USAR participantPn DO MESSAGE.KEY
-  // ======================================================================
-  // Baileys 7.0.0 adicionou `participantPn` no WAMessageKey (PR #1540)
-  // Esse campo contém o número REAL do WhatsApp mesmo quando remoteJid é @lid!
-  // Fonte: https://github.com/WhiskeySockets/Baileys/issues/1692#issuecomment-3226590794
-  
-  console.log(`\n🔍 [MESSAGE KEY DEBUG]`);
-  console.log(`   remoteJid: ${remoteJid}`);
-  console.log(`   pushName: ${waMessage.pushName || "N/A"}`);
-  console.log(`   participantPn: ${(waMessage.key as any).participantPn || "N/A"}`);
-  console.log(`   verifiedBizName: ${(waMessage as any).verifiedBizName || "N/A"}`);
-  console.log(`   Full key:`, JSON.stringify(waMessage.key, null, 2));
-  
-  let contactNumber: string;
-  let jidSuffix: string;
-  let normalizedJid: string;
-  
-  // SOLUÇÃO CORRETA: Usar participantPn se disponível (número real mesmo para @lid)
-  if (remoteJid.includes("@lid") && (waMessage.key as any).participantPn) {
-    const realPhoneNumber = (waMessage.key as any).participantPn;
-    console.log(`\n✅ [LID RESOLVIDO] Número real encontrado via participantPn!`);
-    console.log(`   LID: ${remoteJid}`);
-    console.log(`   Número WhatsApp REAL: ${realPhoneNumber}`);
-    console.log(`   Nome: ${waMessage.pushName || "N/A"}\n`);
-    
-    contactNumber = cleanContactNumber(realPhoneNumber);
-    jidSuffix = "s.whatsapp.net"; // Usar suffix normal para número real
-    normalizedJid = `${contactNumber}@s.whatsapp.net`; // Normalizar para JID WhatsApp
-  } else {
-    // Fallback: usar parseRemoteJid para contatos normais
-    const parsed = await parseRemoteJid(remoteJid, session.contactsCache, session.connectionId);
-    contactNumber = parsed.contactNumber;
-    jidSuffix = parsed.jidSuffix;
-    normalizedJid = parsed.normalizedJid;
-  }
-  // ======================================================================
-  
+  // FIX LID 2025: Passar store para resolver @lid → phone number
+  const { contactNumber, jidSuffix, normalizedJid } = parseRemoteJid(remoteJid, session.store);
   if (!contactNumber) {
     console.log(`[WhatsApp] Could not extract contact number from JID: ${remoteJid}`);
     return;
@@ -768,8 +635,8 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     const adminAuthPath = path.join(SESSIONS_BASE, `auth_admin_${adminId}`);
     const { state, saveCreds } = await useMultiFileAuthState(adminAuthPath);
 
-    // FIX LID 2025: Cache manual para mapear @lid → phone number
-    const contactsCache = new Map<string, Contact>();
+    // FIX LID 2025: Criar store para mapear @lid → phone number
+    const store = makeInMemoryStore({ logger: pino({ level: "silent" }) });
 
     const socket = makeWASocket({
       auth: state,
@@ -777,21 +644,13 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       logger: pino({ level: "silent" }),
     });
 
+    // Bind store ao socket para receber eventos contacts.upsert
+    store.bind(socket.ev);
+
     adminSessions.set(adminId, {
       socket,
       adminId,
-      contactsCache,
-    });
-
-    // Listener para cachear contatos quando Baileys emitir contacts.upsert
-    socket.ev.on("contacts.upsert", (contacts) => {
-      for (const contact of contacts) {
-        contactsCache.set(contact.id, contact);
-        if (contact.lid) {
-          contactsCache.set(contact.lid, contact);
-        }
-        console.log(`[ADMIN CONTACT CACHE] Added: ${contact.id}${contact.phoneNumber ? ` (phoneNumber: ${contact.phoneNumber})` : ""}`);
-      }
+      store,
     });
 
     socket.ev.on("creds.update", saveCreds);
