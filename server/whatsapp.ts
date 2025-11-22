@@ -413,34 +413,37 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   }
 
   // ======================================================================
-  // FIX LID 2025 - USAR participantPn DO MESSAGE.KEY
+  // FIX LID 2025 - USAR remoteJidAlt DO MESSAGE.KEY
   // ======================================================================
-  // Baileys 7.0.0 adicionou `participantPn` no WAMessageKey (PR #1540)
-  // Esse campo contém o número REAL do WhatsApp mesmo quando remoteJid é @lid!
-  // Fonte: https://github.com/WhiskeySockets/Baileys/issues/1692#issuecomment-3226590794
+  // Baileys retorna remoteJidAlt com o número REAL do WhatsApp!
+  // Exemplo:
+  //   remoteJid: "254635809968349@lid" (ID do Meta)
+  //   remoteJidAlt: "5517991956944@s.whatsapp.net" (NÚMERO REAL!)
   
   console.log(`\n🔍 [MESSAGE KEY DEBUG]`);
   console.log(`   remoteJid: ${remoteJid}`);
+  console.log(`   remoteJidAlt: ${(waMessage.key as any).remoteJidAlt || "N/A"}`);
   console.log(`   pushName: ${waMessage.pushName || "N/A"}`);
   console.log(`   participantPn: ${(waMessage.key as any).participantPn || "N/A"}`);
-  console.log(`   verifiedBizName: ${(waMessage as any).verifiedBizName || "N/A"}`);
-  console.log(`   Full key:`, JSON.stringify(waMessage.key, null, 2));
   
   let contactNumber: string;
   let jidSuffix: string;
   let normalizedJid: string;
   
-  // SOLUÇÃO CORRETA: Usar participantPn se disponível (número real mesmo para @lid)
-  if (remoteJid.includes("@lid") && (waMessage.key as any).participantPn) {
-    const realPhoneNumber = (waMessage.key as any).participantPn;
-    console.log(`\n✅ [LID RESOLVIDO] Número real encontrado via participantPn!`);
+  // SOLUÇÃO DEFINITIVA: Usar remoteJidAlt (contém número real para @lid)
+  if (remoteJid.includes("@lid") && (waMessage.key as any).remoteJidAlt) {
+    const realJid = (waMessage.key as any).remoteJidAlt;
+    const realNumber = cleanContactNumber(realJid);
+    
+    console.log(`\n✅ [LID RESOLVIDO] Número real encontrado via remoteJidAlt!`);
     console.log(`   LID: ${remoteJid}`);
-    console.log(`   Número WhatsApp REAL: ${realPhoneNumber}`);
+    console.log(`   JID WhatsApp REAL: ${realJid}`);
+    console.log(`   Número limpo: ${realNumber}`);
     console.log(`   Nome: ${waMessage.pushName || "N/A"}\n`);
     
-    contactNumber = cleanContactNumber(realPhoneNumber);
-    jidSuffix = "s.whatsapp.net"; // Usar suffix normal para número real
-    normalizedJid = `${contactNumber}@s.whatsapp.net`; // Normalizar para JID WhatsApp
+    contactNumber = realNumber;
+    jidSuffix = "s.whatsapp.net";
+    normalizedJid = realJid; // Usar JID real para envio
   } else {
     // Fallback: usar parseRemoteJid para contatos normais
     const parsed = await parseRemoteJid(remoteJid, session.contactsCache, session.connectionId);
