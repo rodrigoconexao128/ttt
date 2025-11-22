@@ -61,7 +61,7 @@ function cleanContactNumber(input?: string | null): string {
   return (input?.split(":")[0] || "").replace(/\D/g, "");
 }
 
-function parseRemoteJid(remoteJid: string, contactsCache?: Map<string, Contact>) {
+async function parseRemoteJid(remoteJid: string, contactsCache?: Map<string, Contact>, connectionId?: string) {
   const decoded = jidDecode(remoteJid);
   const rawUser = decoded?.user || remoteJid.split("@")[0] || "";
   let jidSuffix = decoded?.server || remoteJid.split("@")[1]?.split(":")[0] || DEFAULT_JID_SUFFIX;
@@ -70,7 +70,33 @@ function parseRemoteJid(remoteJid: string, contactsCache?: Map<string, Contact>)
   let contactNumber = cleanContactNumber(rawUser);
   
   if (remoteJid.includes("@lid") && contactsCache) {
-    const contact = contactsCache.get(remoteJid);
+    // Tentativa 1: Buscar no cache em memória (rápido)
+    let contact = contactsCache.get(remoteJid);
+    
+    // Tentativa 2: Se cache miss, buscar no banco Supabase (fallback)
+    if (!contact?.phoneNumber && connectionId) {
+      console.log(`[LID FALLBACK] Cache miss for ${remoteJid}, querying Supabase...`);
+      try {
+        const dbContact = await storage.getContactByLid(remoteJid, connectionId);
+        if (dbContact?.phoneNumber) {
+          // Encontrou no DB! Atualizar cache para próxima vez
+          contact = {
+            id: dbContact.contactId,
+            lid: dbContact.lid || undefined,
+            phoneNumber: dbContact.phoneNumber,
+            name: dbContact.name || undefined,
+          };
+          contactsCache.set(remoteJid, contact);
+          contactsCache.set(dbContact.contactId, contact);
+          console.log(`[LID FALLBACK] ✅ Found in DB: ${remoteJid} → ${dbContact.phoneNumber}`);
+        } else {
+          console.log(`[LID FALLBACK] ❌ Not found in DB: ${remoteJid}`);
+        }
+      } catch (error) {
+        console.error(`[LID FALLBACK] DB query failed:`, error);
+      }
+    }
+    
     if (contact?.phoneNumber) {
       // Encontrou mapeamento LID → Phone Number!
       const realNumber = cleanContactNumber(contact.phoneNumber.split("@")[0]);
@@ -81,7 +107,7 @@ function parseRemoteJid(remoteJid: string, contactsCache?: Map<string, Contact>)
         jidSuffix = "s.whatsapp.net";
       }
     } else {
-      console.log(`[LID WARNING] No phone number mapping found for ${remoteJid}`);
+      console.log(`[LID WARNING] No phone number mapping found for ${remoteJid} (cache + DB)`);
     }
   }
 
@@ -212,15 +238,64 @@ export async function connectWhatsApp(userId: string): Promise<void> {
 
     sessions.set(userId, session);
 
-    // Listener para cachear contatos quando Baileys emitir contacts.upsert
-    sock.ev.on("contacts.upsert", (contacts) => {
+    // ======================================================================
+    // FIX LID 2025 - CACHE WARMING (Carregar contatos do DB para memória)
+    // ======================================================================
+    // Previne race condition: mensagens @lid chegam antes de contacts.upsert
+    try {
+      const dbContacts = await storage.getContactsByConnectionId(connection.id);
+      console.log(`[CACHE WARMING] Loading ${dbContacts.length} contacts from DB...`);
+      
+      for (const dbContact of dbContacts) {
+        const contact: Contact = {
+          id: dbContact.contactId,
+          lid: dbContact.lid || undefined,
+          phoneNumber: dbContact.phoneNumber || undefined,
+          name: dbContact.name || undefined,
+        };
+        
+        contactsCache.set(dbContact.contactId, contact);
+        if (dbContact.lid) {
+          contactsCache.set(dbContact.lid, contact);
+        }
+      }
+      
+      console.log(`[CACHE WARMING] ✅ Loaded ${dbContacts.length} contacts into memory`);
+    } catch (error) {
+      console.error(`[CACHE WARMING] ❌ Failed to load contacts:`, error);
+    }
+
+    // ======================================================================
+    // FIX LID 2025 - SALVAR CONTATOS NO DB SUPABASE (Híbrido: Cache + DB)
+    // ======================================================================
+    sock.ev.on("contacts.upsert", async (contacts) => {
+      console.log(`[CONTACTS SYNC] Received ${contacts.length} contacts from Baileys`);
+      
       for (const contact of contacts) {
+        // 1. Atualizar cache em memória (performance)
         contactsCache.set(contact.id, contact);
         if (contact.lid) {
           contactsCache.set(contact.lid, contact);
         }
-        console.log(`[CONTACT CACHE] Added: ${contact.id}${contact.phoneNumber ? ` (phoneNumber: ${contact.phoneNumber})` : ""}`);
+        
+        // 2. Salvar no banco Supabase (persistência)
+        try {
+          await storage.upsertContact({
+            connectionId: connection.id,
+            contactId: contact.id,
+            lid: contact.lid || null,
+            phoneNumber: contact.phoneNumber || null,
+            name: contact.name || null,
+            imgUrl: contact.imgUrl || null,
+          });
+          
+          console.log(`[DB SAVE] ✅ ${contact.id}${contact.phoneNumber ? ` → ${contact.phoneNumber}` : ""} ${contact.lid ? `(LID: ${contact.lid})` : ""}`);
+        } catch (error) {
+          console.error(`[DB SAVE] ❌ Failed to save contact ${contact.id}:`, error);
+        }
       }
+      
+      console.log(`[CONTACTS SYNC] ✅ Processed ${contacts.length} contacts (cache + DB)`);
     });
 
     sock.ev.on("creds.update", saveCreds);
@@ -332,8 +407,8 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     return;
   }
 
-  // FIX LID 2025: Passar contactsCache para resolver @lid → phone number
-  const { contactNumber, jidSuffix, normalizedJid } = parseRemoteJid(remoteJid, session.contactsCache);
+  // FIX LID 2025: Passar contactsCache + connectionId para resolver @lid → phone number (com fallback DB)
+  const { contactNumber, jidSuffix, normalizedJid } = await parseRemoteJid(remoteJid, session.contactsCache, session.connectionId);
   if (!contactNumber) {
     console.log(`[WhatsApp] Could not extract contact number from JID: ${remoteJid}`);
     return;

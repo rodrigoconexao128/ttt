@@ -11,6 +11,7 @@ import {
   subscriptions,
   payments,
   systemConfig,
+  whatsappContacts,
   type User,
   type UpsertUser,
   type WhatsappConnection,
@@ -31,6 +32,8 @@ import {
   type InsertPayment,
   type SystemConfig,
   type InsertSystemConfig,
+  type WhatsappContact,
+  type InsertWhatsappContact,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
@@ -106,6 +109,14 @@ export interface IStorage {
   getAllUsers(): Promise<User[]>;
   getTotalRevenue(): Promise<number>;
   getActiveSubscriptionsCount(): Promise<number>;
+
+  // WhatsApp Contacts operations (FIX LID 2025)
+  upsertContact(contact: InsertWhatsappContact): Promise<WhatsappContact>;
+  batchUpsertContacts(contacts: InsertWhatsappContact[]): Promise<void>;
+  getContactByLid(lid: string, connectionId: string): Promise<WhatsappContact | undefined>;
+  getContactById(contactId: string, connectionId: string): Promise<WhatsappContact | undefined>;
+  getContactsByConnectionId(connectionId: string): Promise<WhatsappContact[]>;
+  deleteOldContacts(daysOld: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -579,6 +590,159 @@ export class DatabaseStorage implements IStorage {
       .where(eq(subscriptions.status, "active"));
 
     return result.length;
+  }
+
+  // ======================================================================
+  // WhatsApp Contacts Operations (FIX LID 2025)
+  // Persistent storage for @lid → phoneNumber mappings
+  // ======================================================================
+
+  /**
+   * Upsert (Insert or Update) a WhatsApp contact
+   * Uses ON CONFLICT to avoid duplicates and update existing records
+   */
+  async upsertContact(contact: InsertWhatsappContact): Promise<WhatsappContact> {
+    const [upserted] = await db
+      .insert(whatsappContacts)
+      .values({
+        ...contact,
+        lastSyncedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [whatsappContacts.connectionId, whatsappContacts.contactId],
+        set: {
+          lid: contact.lid,
+          phoneNumber: contact.phoneNumber,
+          name: contact.name,
+          imgUrl: contact.imgUrl,
+          lastSyncedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    
+    console.log(`[DB] Upserted contact: ${contact.contactId}${contact.phoneNumber ? ` (phoneNumber: ${contact.phoneNumber})` : ""}`);
+    return upserted;
+  }
+
+  /**
+   * Batch upsert multiple contacts at once (more efficient than individual inserts)
+   * Used during initial sync when Baileys emits many contacts.upsert events
+   */
+  async batchUpsertContacts(contacts: InsertWhatsappContact[]): Promise<void> {
+    if (contacts.length === 0) return;
+
+    const now = new Date();
+    const contactsWithTimestamps = contacts.map(c => ({
+      ...c,
+      lastSyncedAt: now,
+      updatedAt: now,
+    }));
+
+    await db
+      .insert(whatsappContacts)
+      .values(contactsWithTimestamps)
+      .onConflictDoUpdate({
+        target: [whatsappContacts.connectionId, whatsappContacts.contactId],
+        set: {
+          lid: sql`EXCLUDED.lid`,
+          phoneNumber: sql`EXCLUDED.phone_number`,
+          name: sql`EXCLUDED.name`,
+          imgUrl: sql`EXCLUDED.img_url`,
+          lastSyncedAt: now,
+          updatedAt: now,
+        },
+      });
+
+    console.log(`[DB] Batch upserted ${contacts.length} contacts`);
+  }
+
+  /**
+   * Get contact by LID (primary use case for @lid resolution)
+   * Query: SELECT * FROM whatsapp_contacts WHERE lid = ? AND connection_id = ?
+   */
+  async getContactByLid(lid: string, connectionId: string): Promise<WhatsappContact | undefined> {
+    const [contact] = await db
+      .select()
+      .from(whatsappContacts)
+      .where(and(
+        eq(whatsappContacts.lid, lid),
+        eq(whatsappContacts.connectionId, connectionId)
+      ))
+      .limit(1);
+
+    if (contact) {
+      console.log(`[DB] Contact found by LID: ${lid} → ${contact.phoneNumber || "no phone"}`);
+    }
+
+    return contact;
+  }
+
+  /**
+   * Get contact by contactId (general lookup)
+   * Query: SELECT * FROM whatsapp_contacts WHERE contact_id = ? AND connection_id = ?
+   */
+  async getContactById(contactId: string, connectionId: string): Promise<WhatsappContact | undefined> {
+    const [contact] = await db
+      .select()
+      .from(whatsappContacts)
+      .where(and(
+        eq(whatsappContacts.contactId, contactId),
+        eq(whatsappContacts.connectionId, connectionId)
+      ))
+      .limit(1);
+
+    return contact;
+  }
+
+  /**
+   * Get all contacts for a specific connection (cache warming)
+   * Used when restoring session to pre-populate in-memory cache
+   */
+  async getContactsByConnectionId(connectionId: string): Promise<WhatsappContact[]> {
+    const contacts = await db
+      .select()
+      .from(whatsappContacts)
+      .where(eq(whatsappContacts.connectionId, connectionId))
+      .orderBy(desc(whatsappContacts.lastSyncedAt));
+
+    console.log(`[DB] Loaded ${contacts.length} contacts for connection ${connectionId}`);
+    return contacts;
+  }
+
+  /**
+   * Delete contacts from inactive connections (data retention policy)
+   * Should be run periodically (e.g., daily cron job)
+   * Query: DELETE FROM whatsapp_contacts WHERE connection_id IN (...)
+   */
+  async deleteOldContacts(daysOld: number = 90): Promise<number> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+    // Find inactive connections
+    const inactiveConnections = await db
+      .select({ id: whatsappConnections.id })
+      .from(whatsappConnections)
+      .where(and(
+        eq(whatsappConnections.isConnected, false),
+        sql`${whatsappConnections.updatedAt} < ${cutoffDate}`
+      ));
+
+    if (inactiveConnections.length === 0) {
+      console.log(`[DB] No inactive connections older than ${daysOld} days`);
+      return 0;
+    }
+
+    const connectionIds = inactiveConnections.map(c => c.id);
+
+    // Delete contacts from those connections
+    const deleted = await db
+      .delete(whatsappContacts)
+      .where(sql`${whatsappContacts.connectionId} = ANY(${connectionIds})`);
+
+    console.log(`[DB] Deleted contacts from ${connectionIds.length} inactive connections (${daysOld}+ days old)`);
+    return deleted.rowCount || 0;
   }
 }
 

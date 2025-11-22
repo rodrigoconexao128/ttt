@@ -41,6 +41,43 @@ export const whatsappConnections = pgTable("whatsapp_connections", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// WhatsApp Contacts Cache table (FIX LID 2025 - Persistent storage)
+// Armazena mapeamento de @lid → phoneNumber para contatos do Instagram/Facebook
+export const whatsappContacts = pgTable("whatsapp_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Connection que possui este contato
+  connectionId: varchar("connection_id")
+    .notNull()
+    .references(() => whatsappConnections.id, { onDelete: "cascade" }),
+  // JID principal do contato (pode ser @s.whatsapp.net ou @lid)
+  contactId: text("contact_id").notNull(),
+  // LID do contato (se vier de Instagram/Facebook Business)
+  // Exemplo: "153519764074616@lid"
+  lid: text("lid"),
+  // Número de telefone real do contato (formato: numero@s.whatsapp.net)
+  // Exemplo: "5511987654321@s.whatsapp.net"
+  // ESTE É O CAMPO CRÍTICO para resolver @lid → número real
+  phoneNumber: text("phone_number"),
+  // Nome do contato (push name do WhatsApp)
+  name: varchar("name", { length: 255 }),
+  // URL da foto de perfil (opcional)
+  imgUrl: text("img_url"),
+  // Última sincronização com Baileys (para auditoria)
+  lastSyncedAt: timestamp("last_synced_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  // ÍNDICE COMPOSTO: Busca rápida por connectionId + contactId
+  index("idx_contacts_connection_id").on(table.connectionId, table.contactId),
+  // ÍNDICE: Busca rápida por LID (principal use case: resolver @lid)
+  index("idx_contacts_lid").on(table.lid).where(sql`${table.lid} IS NOT NULL`),
+  // ÍNDICE: Busca por phoneNumber para lookups reversos
+  index("idx_contacts_phone").on(table.phoneNumber).where(sql`${table.phoneNumber} IS NOT NULL`),
+  // UNIQUE CONSTRAINT: Um contato por connectionId (evita duplicatas)
+  // Permite upsert sem conflitos
+  index("idx_contacts_unique_connection_contact").on(table.connectionId, table.contactId).unique(),
+]);
+
 // Conversations table
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -185,6 +222,14 @@ export const whatsappConnectionsRelations = relations(whatsappConnections, ({ on
     references: [users.id],
   }),
   conversations: many(conversations),
+  contacts: many(whatsappContacts),
+}));
+
+export const whatsappContactsRelations = relations(whatsappContacts, ({ one }) => ({
+  connection: one(whatsappConnections, {
+    fields: [whatsappContacts.connectionId],
+    references: [whatsappConnections.id],
+  }),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -255,6 +300,16 @@ export const insertConversationSchema = createInsertSchema(conversations).omit({
 });
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
+
+// WhatsApp Contacts schemas and types
+export const insertWhatsappContactSchema = createInsertSchema(whatsappContacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastSyncedAt: true,
+});
+export type InsertWhatsappContact = z.infer<typeof insertWhatsappContactSchema>;
+export type WhatsappContact = typeof whatsappContacts.$inferSelect;
 
 export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
