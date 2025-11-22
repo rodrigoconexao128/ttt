@@ -33,13 +33,14 @@ export async function transcribeAudioWithMistral(
   try {
     const mistral = await getMistralClient();
 
-    // 🎤 TRANSCRIÇÃO DE ÁUDIO - Modelo Whisper Large V3 do Mistral
-    // Nota: Mistral usa whisper-large-v3 para transcrição de áudio
-    // Não confundir com modelos de chat (mistral-small-latest, etc)
+    // 🎤 TRANSCRIÇÃO DE ÁUDIO - Voxtral Mini Transcribe
+    // Documentação: https://docs.mistral.ai/capabilities/audio_transcription
+    // Modelo: voxtral-mini-latest (via audio/transcriptions endpoint)
+    // NÃO confundir com modelos de chat (mistral-small-latest, voxtral-small-latest)
     const model =
       options?.model ||
       process.env.MISTRAL_TRANSCRIPTION_MODEL ||
-      "whisper-large-v3"; // ✅ Modelo correto para transcrição
+      "voxtral-mini-latest"; // ✅ Modelo correto para transcrição
 
     const response = await mistral.audio.transcriptions.complete({
       model,
