@@ -903,6 +903,8 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
             finalText // ✅ Usar texto transcrito (crítico para áudios!)
           );
 
+          console.log(`🔍 [AI Agent] generateAIResponse retornou: ${aiResponse ? `"${aiResponse.substring(0, 100)}..."` : 'NULL'}`);
+
           if (aiResponse) {
             // Buscar remoteJid original do banco
             const conversationData = await storage.getConversation(conversationId);
