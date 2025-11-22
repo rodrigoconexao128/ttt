@@ -43,7 +43,12 @@ export async function generateAIResponse(
     console.log(`   Prompt (primeiros 100 chars): ${agentConfig.prompt?.substring(0, 100) || 'N/A'}...`);
 
     // Validação de trigger phrases: se configuradas, verifica se alguma aparece na conversa
-    if (agentConfig.triggerPhrases && agentConfig.triggerPhrases.length > 0) {
+    // EXCEÇÃO: Se é a PRIMEIRA mensagem da conversa (conversationHistory vazio), SEMPRE responde
+    const isFirstMessage = conversationHistory.length === 0;
+    
+    if (agentConfig.triggerPhrases && agentConfig.triggerPhrases.length > 0 && !isFirstMessage) {
+      console.log(`🔍 [AI Agent] Verificando trigger phrases (conversa com ${conversationHistory.length} mensagens)`);
+      
       // Concatena todas as mensagens da conversa (histórico + nova mensagem)
       const allMessages = [
         ...conversationHistory.map(m => m.text || ""),
@@ -56,11 +61,15 @@ export async function generateAIResponse(
       );
 
       if (!hasTrigger) {
-        console.log(`[AI Agent] Skipping response - no trigger phrase found for user ${userId}`);
+        console.log(`⏸️ [AI Agent] Skipping response - no trigger phrase found for user ${userId}`);
+        console.log(`   Trigger phrases configuradas: ${agentConfig.triggerPhrases.join(', ')}`);
+        console.log(`   Mensagem recebida: "${newMessageText}"`);
         return null;
       }
 
-      console.log(`[AI Agent] Trigger phrase detected for user ${userId}, proceeding with response`);
+      console.log(`✅ [AI Agent] Trigger phrase detected for user ${userId}, proceeding with response`);
+    } else if (isFirstMessage) {
+      console.log(`👋 [AI Agent] Primeira mensagem da conversa - respondendo sempre (ignora trigger phrases)`);
     }
 
     const messages: Array<{ role: string; content: string }> = [
