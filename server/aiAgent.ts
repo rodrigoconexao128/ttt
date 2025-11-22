@@ -2,6 +2,26 @@ import { storage } from "./storage";
 import type { Message } from "@shared/schema";
 import { getMistralClient } from "./mistralClient";
 
+// 📝 Converter formatação Markdown para WhatsApp
+// WhatsApp usa: *negrito* _itálico_ ~tachado~ ```mono```
+// Mistral retorna: **negrito** *itálico* ~~tachado~~ `mono`
+function convertMarkdownToWhatsApp(text: string): string {
+  let converted = text;
+  
+  // 1. Negrito: **texto** → *texto*
+  // Regex: Match **...** mas não pegar ***... (que seria bold+italic)
+  converted = converted.replace(/\*\*(?!\*)(.+?)\*\*(?!\*)/g, '*$1*');
+  
+  // 2. Tachado: ~~texto~~ → ~texto~
+  converted = converted.replace(/~~(.+?)~~/g, '~$1~');
+  
+  // 3. Mono (code inline): `texto` → ```texto``` (WhatsApp prefere triplo)
+  // Mas preservar blocos de código que já são ```...```
+  converted = converted.replace(/(?<!`)\`(?!``)(.+?)\`(?!`)/g, '```$1```');
+  
+  return converted;
+}
+
 export async function generateAIResponse(
   userId: string,
   conversationHistory: Message[],
@@ -106,6 +126,11 @@ export async function generateAIResponse(
           console.log(`   Fixed length: ${responseText.length} chars`);
         }
       }
+      
+      // 📝 FIX: Converter formatação Markdown para WhatsApp
+      // WhatsApp: *negrito* _itálico_ ~tachado~ ```mono```
+      // Markdown:  **negrito** *itálico* ~~tachado~~ `mono`
+      responseText = convertMarkdownToWhatsApp(responseText);
       
       console.log(`✅ [AI Agent] Resposta gerada: ${responseText.substring(0, 100)}...`);
     }

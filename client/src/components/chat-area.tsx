@@ -5,7 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Send, MessageCircle, Bot, BotOff, Smartphone } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -23,6 +24,9 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
   const { toast } = useToast();
   const [messageText, setMessageText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false);
+  const [avatarModalImage, setAvatarModalImage] = useState("");
+  const [avatarModalName, setAvatarModalName] = useState("");
 
   const { data: conversation } = useQuery<Conversation>({
     queryKey: ["/api/conversation", conversationId],
@@ -245,7 +249,17 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
     <div className="flex flex-col h-full">
       {/* Chat Header */}
       <div className="p-4 border-b flex items-center gap-3">
-        <Avatar className="w-10 h-10">
+        <Avatar 
+          className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity" 
+          onClick={(e) => {
+            e.stopPropagation();
+            if (conversation?.contactAvatar) {
+              setAvatarModalImage(conversation.contactAvatar);
+              setAvatarModalName(conversation.contactName || displayNumber);
+              setAvatarModalOpen(true);
+            }
+          }}
+        >
           {conversation?.contactAvatar ? (
             <img 
               src={conversation.contactAvatar} 
@@ -416,6 +430,32 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
           </Button>
         </div>
       </div>
+
+      {/* Avatar Modal */}
+      <Dialog open={avatarModalOpen} onOpenChange={setAvatarModalOpen}>
+        <DialogContent className="max-w-md bg-black border-none">
+          <DialogHeader className="flex flex-row items-center justify-between border-b border-gray-800 pb-4">
+            <DialogTitle className="text-white font-medium">
+              {avatarModalName}
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-gray-400 hover:text-white hover:bg-transparent"
+              onClick={() => setAvatarModalOpen(false)}
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </DialogHeader>
+          <div className="flex items-center justify-center py-6">
+            <img
+              src={avatarModalImage}
+              alt={avatarModalName}
+              className="max-w-full max-h-[70vh] object-contain rounded-lg"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

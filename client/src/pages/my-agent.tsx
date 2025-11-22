@@ -21,6 +21,7 @@ export default function MyAgent() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [triggerPhrases, setTriggerPhrases] = useState<string[]>([]);
   const [newTriggerPhrase, setNewTriggerPhrase] = useState("");
+  const [messageSplitChars, setMessageSplitChars] = useState(400);
 
   const { data: config, isLoading } = useQuery<AiAgentConfig | null>({
     queryKey: ["/api/agent/config"],
@@ -31,6 +32,7 @@ export default function MyAgent() {
       setPrompt(config.prompt || "");
       setIsActive(config.isActive || false);
       setTriggerPhrases(config.triggerPhrases || []);
+      setMessageSplitChars(config.messageSplitChars ?? 400);
     }
   }, [config]);
 
@@ -40,6 +42,7 @@ export default function MyAgent() {
         prompt,
         isActive,
         triggerPhrases,
+        messageSplitChars,
       });
     },
     onSuccess: () => {
@@ -288,6 +291,59 @@ export default function MyAgent() {
                   </p>
                 </div>
               )}
+
+              <div className="space-y-3 pt-4 border-t">
+                <div className="space-y-2">
+                  <Label htmlFor="message-split" className="text-base font-semibold">
+                    Tamanho das Bolhas de Mensagem
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Defina quantos caracteres cada mensagem pode ter antes de ser dividida. Use 0 para enviar sem divisão.
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="message-split"
+                    type="number"
+                    min={0}
+                    max={1000}
+                    step={50}
+                    value={messageSplitChars}
+                    onChange={(e) => setMessageSplitChars(Number(e.target.value))}
+                    className="w-32"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      variant={messageSplitChars === 200 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setMessageSplitChars(200)}
+                    >
+                      Pequeno (200)
+                    </Button>
+                    <Button
+                      variant={messageSplitChars === 400 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setMessageSplitChars(400)}
+                    >
+                      Médio (400)
+                    </Button>
+                    <Button
+                      variant={messageSplitChars === 600 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setMessageSplitChars(600)}
+                    >
+                      Grande (600)
+                    </Button>
+                    <Button
+                      variant={messageSplitChars === 0 ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setMessageSplitChars(0)}
+                    >
+                      Sem divisão
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </Card>

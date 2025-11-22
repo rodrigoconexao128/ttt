@@ -58,8 +58,13 @@ const agentMessageIds = new Set<string>();
 // 🤖 HUMANIZAÇÃO: Quebra mensagem longa em partes menores
 // Best practices: WhatsApp, Intercom, Drift quebram a cada 2-3 parágrafos ou 300-500 chars
 // Fonte: https://www.drift.com/blog/conversational-marketing-best-practices/
-function splitMessageHumanLike(message: string): string[] {
-  const MAX_CHARS_PER_MESSAGE = 400; // WhatsApp ideal: 300-500 chars
+function splitMessageHumanLike(message: string, maxChars: number = 400): string[] {
+  // Se maxChars = 0, retorna mensagem completa sem divisão
+  if (maxChars === 0) {
+    return [message];
+  }
+  
+  const MAX_CHARS_PER_MESSAGE = maxChars;
   const parts: string[] = [];
   
   // Dividir por parágrafos duplos (quebras de seção)
@@ -907,7 +912,10 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
             
             // 🤖 HUMANIZAÇÃO: Quebrar mensagens longas em múltiplas
             // Best practice: WhatsApp, Intercom, Drift quebram a cada 2-3 parágrafos ou 400 chars
-            const messageParts = splitMessageHumanLike(aiResponse);
+            // Buscar configuração de tamanho de bolha
+            const agentConfig = await storage.getAgentConfig(userId);
+            const maxChars = agentConfig?.messageSplitChars ?? 400;
+            const messageParts = splitMessageHumanLike(aiResponse, maxChars);
             
             console.log(`[AI Agent] Sending to original JID: ${jid} (${messageParts.length} parts)`);
             
