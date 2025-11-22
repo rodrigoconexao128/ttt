@@ -66,18 +66,32 @@ async function parseRemoteJid(remoteJid: string, contactsCache?: Map<string, Con
   const rawUser = decoded?.user || remoteJid.split("@")[0] || "";
   let jidSuffix = decoded?.server || remoteJid.split("@")[1]?.split(":")[0] || DEFAULT_JID_SUFFIX;
 
+  console.log(`\n🔍 [parseRemoteJid] ========== DEBUG START ==========`);
+  console.log(`   Input remoteJid: ${remoteJid}`);
+  console.log(`   Decoded user: ${rawUser}`);
+  console.log(`   Decoded server: ${jidSuffix}`);
+  console.log(`   Is @lid?: ${remoteJid.includes("@lid")}`);
+  console.log(`   Cache size: ${contactsCache?.size || 0}`);
+  console.log(`   ConnectionId provided: ${connectionId || "N/A"}`);
+
   // FIX LID 2025: Se for @lid, tentar buscar número real via contactsCache
   let contactNumber = cleanContactNumber(rawUser);
   
   if (remoteJid.includes("@lid") && contactsCache) {
+    console.log(`   🚨 DETECTADO @LID - Iniciando resolução...`);
+    
     // Tentativa 1: Buscar no cache em memória (rápido)
     let contact = contactsCache.get(remoteJid);
+    console.log(`   [Tentativa 1] Cache lookup para "${remoteJid}":`, contact ? "✅ ENCONTRADO" : "❌ NÃO ENCONTRADO");
     
     // Tentativa 2: Se cache miss, buscar no banco Supabase (fallback)
     if (!contact?.phoneNumber && connectionId) {
-      console.log(`[LID FALLBACK] Cache miss for ${remoteJid}, querying Supabase...`);
+      console.log(`   [Tentativa 2] Cache miss - Buscando no Supabase...`);
+      console.log(`      Query: getContactByLid("${remoteJid}", "${connectionId}")`);
       try {
         const dbContact = await storage.getContactByLid(remoteJid, connectionId);
+        console.log(`      Resultado DB:`, dbContact ? JSON.stringify(dbContact, null, 2) : "❌ NULL");
+        
         if (dbContact?.phoneNumber) {
           // Encontrou no DB! Atualizar cache para próxima vez
           contact = {
@@ -88,32 +102,48 @@ async function parseRemoteJid(remoteJid: string, contactsCache?: Map<string, Con
           };
           contactsCache.set(remoteJid, contact);
           contactsCache.set(dbContact.contactId, contact);
-          console.log(`[LID FALLBACK] ✅ Found in DB: ${remoteJid} → ${dbContact.phoneNumber}`);
+          console.log(`   ✅ [LID FALLBACK] SUCESSO: ${remoteJid} → ${dbContact.phoneNumber}`);
+          console.log(`      Cache atualizado com o resultado do DB`);
         } else {
-          console.log(`[LID FALLBACK] ❌ Not found in DB: ${remoteJid}`);
+          console.log(`   ❌ [LID FALLBACK] NÃO ENCONTRADO NO DB: ${remoteJid}`);
+          console.log(`      ⚠️ Verificar se tabela whatsapp_contacts existe e tem dados`);
         }
       } catch (error) {
-        console.error(`[LID FALLBACK] DB query failed:`, error);
+        console.error(`   ❌ [LID FALLBACK] ERRO na query DB:`, error);
       }
     }
     
     if (contact?.phoneNumber) {
       // Encontrou mapeamento LID → Phone Number!
       const realNumber = cleanContactNumber(contact.phoneNumber.split("@")[0]);
+      console.log(`   [Tentativa 3] Extraindo número real de phoneNumber: ${contact.phoneNumber}`);
+      console.log(`      Número limpo: ${realNumber}`);
+      
       if (realNumber) {
-        console.log(`[LID FIX] Mapped ${remoteJid} → ${contact.phoneNumber} (${realNumber})`);
+        console.log(`   🎯 [LID FIX] SUCESSO! Mapeamento encontrado:`);
+        console.log(`      LID: ${remoteJid}`);
+        console.log(`      → phoneNumber: ${contact.phoneNumber}`);
+        console.log(`      → Número limpo: ${realNumber}`);
         contactNumber = realNumber;
         // ✅ FORÇAR uso do número real (não continuar com @lid)
         jidSuffix = "s.whatsapp.net";
       }
     } else {
-      console.log(`[LID WARNING] No phone number mapping found for ${remoteJid} (cache + DB)`);
+      console.log(`   ⚠️ [LID WARNING] NENHUM MAPEAMENTO ENCONTRADO!`);
+      console.log(`      Tentativas: Cache (❌) + DB (❌)`);
+      console.log(`      O sistema vai usar o LID diretamente (comportamento incorreto)`);
     }
   }
 
   const normalizedJid = contactNumber
     ? jidNormalizedUser(`${contactNumber}@${jidSuffix}`)
     : jidNormalizedUser(remoteJid);
+
+  console.log(`   📤 [parseRemoteJid] Resultado final:`);
+  console.log(`      contactNumber: ${contactNumber}`);
+  console.log(`      jidSuffix: ${jidSuffix}`);
+  console.log(`      normalizedJid: ${normalizedJid}`);
+  console.log(`   ========== DEBUG END ==========\n`);
 
   return { contactNumber, jidSuffix, normalizedJid };
 }
@@ -269,18 +299,31 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     // FIX LID 2025 - SALVAR CONTATOS NO DB SUPABASE (Híbrido: Cache + DB)
     // ======================================================================
     sock.ev.on("contacts.upsert", async (contacts) => {
-      console.log(`[CONTACTS SYNC] Received ${contacts.length} contacts from Baileys`);
+      console.log(`\n========================================`);
+      console.log(`[CONTACTS SYNC] ⚡ Baileys emitiu ${contacts.length} contatos`);
+      console.log(`[CONTACTS SYNC] Connection ID: ${connection.id}`);
+      console.log(`========================================\n`);
       
       for (const contact of contacts) {
+        // 🔍 DEBUG EXTREMO: Mostrar TUDO sobre o contato
+        console.log(`\n🔍 [CONTACT DEBUG] Processando contato:`);
+        console.log(`   - ID: ${contact.id}`);
+        console.log(`   - LID: ${contact.lid || "N/A"}`);
+        console.log(`   - phoneNumber: ${contact.phoneNumber || "N/A"}`);
+        console.log(`   - name: ${contact.name || "N/A"}`);
+        console.log(`   - imgUrl: ${contact.imgUrl ? "Presente" : "N/A"}`);
+        console.log(`   - Raw contact object:`, JSON.stringify(contact, null, 2));
+        
         // 1. Atualizar cache em memória (performance)
         contactsCache.set(contact.id, contact);
         if (contact.lid) {
           contactsCache.set(contact.lid, contact);
+          console.log(`   ✅ Adicionado ao cache com LID: ${contact.lid}`);
         }
         
         // 2. Salvar no banco Supabase (persistência)
         try {
-          await storage.upsertContact({
+          const savedContact = await storage.upsertContact({
             connectionId: connection.id,
             contactId: contact.id,
             lid: contact.lid || null,
@@ -289,7 +332,8 @@ export async function connectWhatsApp(userId: string): Promise<void> {
             imgUrl: contact.imgUrl || null,
           });
           
-          console.log(`[DB SAVE] ✅ ${contact.id}${contact.phoneNumber ? ` → ${contact.phoneNumber}` : ""} ${contact.lid ? `(LID: ${contact.lid})` : ""}`);
+          console.log(`   ✅ [DB SAVE] Salvo no Supabase com sucesso!`);
+          console.log(`   📊 Dados salvos:`, JSON.stringify(savedContact, null, 2));
         } catch (error) {
           console.error(`[DB SAVE] ❌ Failed to save contact ${contact.id}:`, error);
         }
