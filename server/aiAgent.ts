@@ -43,33 +43,32 @@ export async function generateAIResponse(
     console.log(`   Prompt (primeiros 100 chars): ${agentConfig.prompt?.substring(0, 100) || 'N/A'}...`);
 
     // Validação de trigger phrases: se configuradas, verifica se alguma aparece na conversa
-    // EXCEÇÃO: Se é a PRIMEIRA mensagem da conversa (conversationHistory vazio), SEMPRE responde
-    const isFirstMessage = conversationHistory.length === 0;
-    
-    if (agentConfig.triggerPhrases && agentConfig.triggerPhrases.length > 0 && !isFirstMessage) {
-      console.log(`🔍 [AI Agent] Verificando trigger phrases (conversa com ${conversationHistory.length} mensagens)`);
+    if (agentConfig.triggerPhrases && agentConfig.triggerPhrases.length > 0) {
+      console.log(`🔍 [AI Agent] Verificando trigger phrases (${agentConfig.triggerPhrases.length} configuradas)`);
+      console.log(`   Trigger phrases: ${agentConfig.triggerPhrases.join(', ')}`);
       
       // Concatena todas as mensagens da conversa (histórico + nova mensagem)
       const allMessages = [
         ...conversationHistory.map(m => m.text || ""),
         newMessageText
       ].join(" ").toLowerCase();
+      
+      console.log(`   Texto completo da conversa (lowercase): "${allMessages}"`);
 
-      // Verifica se alguma trigger phrase está presente
-      const hasTrigger = agentConfig.triggerPhrases.some(phrase => 
-        allMessages.includes(phrase.toLowerCase())
-      );
+      // Verifica se alguma trigger phrase está presente (case insensitive)
+      const hasTrigger = agentConfig.triggerPhrases.some(phrase => {
+        const phraseLower = phrase.toLowerCase();
+        const found = allMessages.includes(phraseLower);
+        console.log(`   Procurando "${phrase}" → "${phraseLower}" → ${found ? '✅ ENCONTRADO' : '❌ não encontrado'}`);
+        return found;
+      });
 
       if (!hasTrigger) {
         console.log(`⏸️ [AI Agent] Skipping response - no trigger phrase found for user ${userId}`);
-        console.log(`   Trigger phrases configuradas: ${agentConfig.triggerPhrases.join(', ')}`);
-        console.log(`   Mensagem recebida: "${newMessageText}"`);
         return null;
       }
 
       console.log(`✅ [AI Agent] Trigger phrase detected for user ${userId}, proceeding with response`);
-    } else if (isFirstMessage) {
-      console.log(`👋 [AI Agent] Primeira mensagem da conversa - respondendo sempre (ignora trigger phrases)`);
     }
 
     const messages: Array<{ role: string; content: string }> = [
