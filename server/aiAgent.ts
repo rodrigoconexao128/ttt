@@ -100,6 +100,16 @@ export async function generateAIResponse(
       });
     });
 
+    // ✅ FIX: Garantir que última mensagem seja do user (Mistral exige isso)
+    // Se última mensagem do histórico for do assistant, adicionar a nova mensagem do user
+    if (messages.length > 1 && messages[messages.length - 1].role === "assistant") {
+      console.log(`⚠️ [AI Agent] Última mensagem era assistant, adicionando nova mensagem do user: "${newMessageText.substring(0, 50)}..."`);
+      messages.push({
+        role: "user",
+        content: newMessageText,
+      });
+    }
+
     const mistral = await getMistralClient();
     const chatResponse = await mistral.chat.complete({
       model: agentConfig.model,
