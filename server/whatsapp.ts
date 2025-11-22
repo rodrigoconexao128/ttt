@@ -366,8 +366,18 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     sock.ev.on("messages.upsert", async (m) => {
       const message = m.messages[0];
       
-      // Ignorar mensagens enviadas por mim
-      if (!message.message || message.key.fromMe) return;
+      if (!message.message) return;
+      
+      // 🔄 NOVA LÓGICA: Capturar mensagens enviadas pelo próprio usuário (fromMe: true)
+      if (message.key.fromMe) {
+        console.log(`📱 [FROM ME] Mensagem enviada pelo dono no WhatsApp detectada`);
+        try {
+          await handleOutgoingMessage(session, message);
+        } catch (err) {
+          console.error("Error handling outgoing message:", err);
+        }
+        return;
+      }
       
       // VerificaÃ§Ã£o extra: ignorar se o remoteJid Ã© o prÃ³prio nÃºmero
       if (message.key.remoteJid && session.phoneNumber) {
@@ -390,6 +400,127 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     console.error("Error connecting WhatsApp:", error);
     throw error;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📱 NOVA FUNÇÃO: Processar mensagens enviadas pelo DONO no WhatsApp
+// ═══════════════════════════════════════════════════════════════════════
+// Quando o dono responde direto no WhatsApp (fromMe: true),
+// precisamos salvar essa mensagem no sistema para evitar "buracos"
+// na conversa quando a IA voltar a responder.
+// ═══════════════════════════════════════════════════════════════════════
+async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMessage) {
+  const remoteJid = waMessage.key.remoteJid;
+  if (!remoteJid) return;
+
+  // Filtrar grupos e status
+  if (remoteJid.includes("@g.us") || remoteJid.includes("@broadcast")) {
+    console.log(`📱 [FROM ME] Ignoring group/status message`);
+    return;
+  }
+
+  const isIndividualJid =
+    remoteJid.includes("@s.whatsapp.net") || remoteJid.includes("@lid");
+
+  if (!isIndividualJid) {
+    console.log(`📱 [FROM ME] Ignoring non-individual message`);
+    return;
+  }
+
+  // Resolver contactNumber usando mesma lógica do handleIncomingMessage
+  let contactNumber: string;
+  let normalizedJid: string;
+
+  if (remoteJid.includes("@lid") && (waMessage.key as any).remoteJidAlt) {
+    const realJid = (waMessage.key as any).remoteJidAlt;
+    contactNumber = cleanContactNumber(realJid);
+    normalizedJid = realJid;
+    console.log(`📱 [FROM ME] LID resolvido: ${remoteJid} → ${realJid}`);
+  } else {
+    const parsed = await parseRemoteJid(remoteJid, session.contactsCache, session.connectionId);
+    contactNumber = parsed.contactNumber;
+    normalizedJid = parsed.normalizedJid;
+  }
+
+  if (!contactNumber) {
+    console.log(`📱 [FROM ME] Could not extract contact number from JID: ${remoteJid}`);
+    return;
+  }
+
+  // Extrair texto da mensagem
+  const msg = waMessage.message;
+  let messageText = "";
+  let mediaType: string | null = null;
+
+  if (msg?.conversation) {
+    messageText = msg.conversation;
+  } else if (msg?.extendedTextMessage?.text) {
+    messageText = msg.extendedTextMessage.text;
+  } else if (msg?.imageMessage?.caption) {
+    messageText = msg.imageMessage.caption;
+    mediaType = "image";
+  } else if (msg?.videoMessage?.caption) {
+    messageText = msg.videoMessage.caption;
+    mediaType = "video";
+  } else if (msg?.audioMessage) {
+    messageText = "🎤 Áudio";
+    mediaType = "audio";
+  } else if (msg?.documentMessage?.caption) {
+    messageText = msg.documentMessage.caption;
+    mediaType = "document";
+  } else {
+    console.log(`📱 [FROM ME] Unsupported message type, skipping`);
+    return;
+  }
+
+  // Buscar/criar conversa
+  let conversation = await storage.getConversationByContactNumber(
+    session.connectionId,
+    contactNumber
+  );
+
+  if (!conversation) {
+    console.log(`📱 [FROM ME] Creating new conversation for ${contactNumber}`);
+    conversation = await storage.createConversation({
+      connectionId: session.connectionId,
+      contactNumber,
+      remoteJid: normalizedJid,
+      jidSuffix: "s.whatsapp.net",
+      contactName: contactNumber,
+      contactAvatar: null,
+      lastMessageText: messageText,
+      lastMessageTime: new Date(),
+      unreadCount: 0,
+    });
+  }
+
+  // Salvar mensagem como fromMe: true
+  await storage.createMessage({
+    conversationId: conversation.id,
+    messageId: waMessage.key.id!,
+    fromMe: true,
+    text: messageText,
+    timestamp: new Date(Number(waMessage.messageTimestamp) * 1000),
+    isFromAgent: false,
+    mediaType,
+  });
+
+  // Atualizar conversa
+  await storage.updateConversation(conversation.id, {
+    lastMessageText: messageText,
+    lastMessageTime: new Date(),
+    unreadCount: 0, // Mensagens do dono não geram unread
+  });
+
+  // Broadcast para atualizar UI em tempo real
+  broadcastToUser(session.userId, {
+    type: "new_message",
+    conversationId: conversation.id,
+    message: messageText,
+    mediaType,
+  });
+
+  console.log(`📱 [FROM ME] Mensagem sincronizada: ${contactNumber} - "${messageText}"`);
 }
 
 async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMessage) {
@@ -639,6 +770,9 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       mediaCaption,
     });
 
+    // 🎤 FIX CRÍTICO: savedMessage.text pode conter transcrição de áudio!
+    // createMessage() transcreve automaticamente áudios ANTES de retornar.
+    // Por isso SEMPRE usamos savedMessage.text (e não messageText original).
     const effectiveText = savedMessage.text || messageText;
 
     // Se a mensagem de mídia (ex: áudio) tiver sido transcrita ao salvar,
@@ -648,13 +782,12 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
         lastMessageText: effectiveText,
         lastMessageTime: new Date(),
       });
-      messageText = effectiveText;
     }
 
     broadcastToUser(session.userId, {
       type: "new_message",
       conversationId: conversation.id,
-      message: messageText,
+      message: effectiveText, // ✅ Usar texto transcrito (se for áudio)
       mediaType,
   });
 
@@ -666,7 +799,9 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       const userId = session.userId; // Salva userId antes do setTimeout
       const conversationId = conversation.id; // Salva conversationId
       const targetNumber = contactNumber; // CRÍTICO: Salva o número do contato para evitar closure incorreto
-      console.log(`Scheduling AI response for ${targetNumber} in 30 seconds...`);
+      const finalText = effectiveText; // 🎤 CRÍTICO: Salvar texto transcrito (não original)
+      console.log(`⏱️ [AI AGENT] Aguardando 30s para responder ${targetNumber}...`);
+      console.log(`📝 [AI AGENT] Texto a processar: "${finalText}"`);
       
       // Aguardar 30 segundos antes de responder
       setTimeout(async () => {
@@ -682,7 +817,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
           const aiResponse = await generateAIResponse(
             userId,
             conversationHistory,
-            messageText
+            finalText // ✅ Usar texto transcrito (crítico para áudios!)
           );
 
           if (aiResponse) {
