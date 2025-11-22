@@ -206,7 +206,21 @@ export function ConversationsList({
               >
                 <div className="flex items-start gap-3">
                   <Avatar className="w-12 h-12 flex-shrink-0">
-                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                    {conversation.contactAvatar ? (
+                      <img 
+                        src={conversation.contactAvatar} 
+                        alt={conversation.contactName || displayNumber}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback para inicial se imagem falhar
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <AvatarFallback 
+                      className={`bg-primary/10 text-primary font-semibold ${conversation.contactAvatar ? 'hidden' : ''}`}
+                    >
                       {conversation.contactName
                         ? conversation.contactName.charAt(0).toUpperCase()
                         : displayNumber.charAt(0)}

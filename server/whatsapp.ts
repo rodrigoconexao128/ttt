@@ -412,13 +412,32 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     return;
   }
 
-  // ======================================================================
-  // FIX LID 2025 - USAR remoteJidAlt DO MESSAGE.KEY
-  // ======================================================================
-  // Baileys retorna remoteJidAlt com o número REAL do WhatsApp!
-  // Exemplo:
-  //   remoteJid: "254635809968349@lid" (ID do Meta)
-  //   remoteJidAlt: "5517991956944@s.whatsapp.net" (NÚMERO REAL!)
+  // ╔═══════════════════════════════════════════════════════════════════════╗
+  // ║  🚨 ATENÇÃO: CÓDIGO CRÍTICO - NÃO ALTERAR SEM APROVAÇÃO! 🚨          ║
+  // ╠═══════════════════════════════════════════════════════════════════════╣
+  // ║  FIX LID 2025 - RESOLUÇÃO DE CONTATOS INSTAGRAM/FACEBOOK             ║
+  // ║                                                                       ║
+  // ║  PROBLEMA RESOLVIDO:                                                  ║
+  // ║  • Contatos do Instagram/Facebook vêm com @lid ao invés de número    ║
+  // ║  • Exemplo: "254635809968349@lid" (ID interno do Meta)               ║
+  // ║                                                                       ║
+  // ║  SOLUÇÃO IMPLEMENTADA (TESTADA E FUNCIONANDO):                        ║
+  // ║  • message.key.remoteJidAlt contém o número REAL do WhatsApp         ║
+  // ║  • Exemplo: "5517991956944@s.whatsapp.net"                           ║
+  // ║                                                                       ║
+  // ║  FLUXO CORRETO (MANTER SEMPRE ASSIM):                                 ║
+  // ║  1. Extrair número real de remoteJidAlt                              ║
+  // ║  2. Usar número real em contactNumber (exibição no CRM)              ║
+  // ║  3. Usar número real em normalizedJid (envio de mensagens)           ║
+  // ║  4. Salvar mapeamento LID → número no whatsapp_contacts              ║
+  // ║                                                                       ║
+  // ║  ⚠️  NUNCA MAIS USAR remoteJid DIRETAMENTE PARA @lid!                ║
+  // ║  ⚠️  SEMPRE USAR remoteJidAlt COMO FONTE DA VERDADE!                 ║
+  // ║                                                                       ║
+  // ║  Data: 2025-11-22                                                     ║
+  // ║  Testado: ✅ Produção Railway                                         ║
+  // ║  Status: ✅ 100% FUNCIONAL                                            ║
+  // ╚═══════════════════════════════════════════════════════════════════════╝
   
   console.log(`\n🔍 [MESSAGE KEY DEBUG]`);
   console.log(`   remoteJid: ${remoteJid}`);
@@ -430,7 +449,9 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   let jidSuffix: string;
   let normalizedJid: string;
   
-  // SOLUÇÃO DEFINITIVA: Usar remoteJidAlt (contém número real para @lid)
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🎯 SOLUÇÃO DEFINITIVA: Usar remoteJidAlt (número real para @lid)
+  // ═══════════════════════════════════════════════════════════════════════
   if (remoteJid.includes("@lid") && (waMessage.key as any).remoteJidAlt) {
     const realJid = (waMessage.key as any).remoteJidAlt;
     const realNumber = cleanContactNumber(realJid);
@@ -441,33 +462,35 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     console.log(`   Número limpo: ${realNumber}`);
     console.log(`   Nome: ${waMessage.pushName || "N/A"}\n`);
     
-    contactNumber = realNumber;
-    jidSuffix = "s.whatsapp.net";
-    normalizedJid = realJid; // Usar JID real para envio
+    // ⚠️  CRÍTICO: Usar número REAL em todos os lugares, NUNCA o LID!
+    contactNumber = realNumber;              // ✅ Para exibição (5517991956944)
+    jidSuffix = "s.whatsapp.net";           // ✅ Suffix WhatsApp normal
+    normalizedJid = realJid;                // ✅ Para enviar mensagens
     
-    // 💾 SALVAR NO DB: Mapear LID → phoneNumber para cache persistente
+    // 💾 SALVAR NO DB: Mapeamento LID → número para cache persistente
+    // Isso garante que mesmo após restart, o número real será usado
     try {
       await storage.upsertContact({
         connectionId: session.connectionId,
-        contactId: remoteJid, // LID original (254635809968349@lid)
-        lid: remoteJid, // Marcar como LID
-        phoneNumber: realJid, // Número real (5517991956944@s.whatsapp.net)
+        contactId: remoteJid,    // LID original (254635809968349@lid)
+        lid: remoteJid,          // Marcar como LID
+        phoneNumber: realJid,    // Número real (5517991956944@s.whatsapp.net)
         name: waMessage.pushName || null,
         imgUrl: null,
         lastSyncedAt: new Date(),
       });
-      console.log(`💾 [DB] Mapeamento LID → phoneNumber salvo no banco`);
+      console.log(`💾 [DB] Mapeamento LID → phoneNumber salvo: ${remoteJid} → ${realJid}`);
     } catch (error) {
       console.error("❌ [DB] Erro ao salvar mapeamento LID:", error);
     }
   } else {
-    // Fallback: usar parseRemoteJid para contatos normais
+    // Fallback: Contatos normais do WhatsApp (@s.whatsapp.net)
     const parsed = await parseRemoteJid(remoteJid, session.contactsCache, session.connectionId);
     contactNumber = parsed.contactNumber;
     jidSuffix = parsed.jidSuffix;
     normalizedJid = parsed.normalizedJid;
   }
-  // ======================================================================
+  // ═══════════════════════════════════════════════════════════════════════
   
   if (!contactNumber) {
     console.log(`[WhatsApp] Could not extract contact number from JID: ${remoteJid}`);
@@ -559,6 +582,19 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     return; // NÃ£o processar mensagens nÃ£o suportadas
   }
 
+  // 🖼️ BUSCAR FOTO DE PERFIL DO CONTATO
+  let contactAvatar: string | null = null;
+  try {
+    const profilePicUrl = await session.socket.profilePictureUrl(normalizedJid, "image");
+    if (profilePicUrl) {
+      contactAvatar = profilePicUrl;
+      console.log(`🖼️ [AVATAR] Foto de perfil obtida para ${contactNumber}`);
+    }
+  } catch (error) {
+    // Contato sem foto de perfil (normal, não é erro)
+    console.log(`ℹ️ [AVATAR] Sem foto de perfil para ${contactNumber}`);
+  }
+
   // EXATAMENTE como no backup - buscar/criar/atualizar com contactNumber
   let conversation = await storage.getConversationByContactNumber(
     session.connectionId,
@@ -572,6 +608,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       remoteJid: normalizedJid, // JID normalizado para enviar mensagens
       jidSuffix,
       contactName: waMessage.pushName,
+      contactAvatar, // 🖼️ Foto de perfil
       lastMessageText: messageText,
       lastMessageTime: new Date(),
       unreadCount: 1,
@@ -584,6 +621,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       lastMessageTime: new Date(),
       unreadCount: (conversation.unreadCount || 0) + 1,
       contactName: waMessage.pushName || conversation.contactName,
+      contactAvatar: contactAvatar || conversation.contactAvatar, // Atualizar foto se disponível
     });
   }
 

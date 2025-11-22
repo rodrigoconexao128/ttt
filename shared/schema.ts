@@ -93,6 +93,8 @@ export const conversations = pgTable("conversations", {
   // Sufixo/domínio do JID usado para enviar mensagens (ex: s.whatsapp.net, lid)
   jidSuffix: varchar("jid_suffix", { length: 32 }).default("s.whatsapp.net"),
   contactName: varchar("contact_name"),
+  // URL da foto de perfil do contato (Base64 ou URL do Baileys)
+  contactAvatar: text("contact_avatar"),
   lastMessageText: text("last_message_text"),
   lastMessageTime: timestamp("last_message_time"),
   unreadCount: integer("unread_count").default(0).notNull(),

@@ -246,7 +246,20 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
       {/* Chat Header */}
       <div className="p-4 border-b flex items-center gap-3">
         <Avatar className="w-10 h-10">
-          <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+          {conversation?.contactAvatar ? (
+            <img 
+              src={conversation.contactAvatar} 
+              alt={conversation.contactName || displayNumber}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+          ) : null}
+          <AvatarFallback 
+            className={`bg-primary/10 text-primary font-semibold ${conversation?.contactAvatar ? 'hidden' : ''}`}
+          >
             {conversation?.contactName
               ? conversation.contactName.charAt(0).toUpperCase()
               : (displayNumber || "?").charAt(0)}
