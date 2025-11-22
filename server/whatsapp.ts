@@ -878,6 +878,16 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   try {
     const isAgentDisabled = await storage.isAgentDisabledForConversation(conversation.id);
     
+    // ⚠️ CRÍTICO: Verificar se última mensagem foi do cliente (não do agente)
+    // Se última mensagem for do agente, NÃO responder (evita loop)
+    const recentMessages = await storage.getMessagesByConversationId(conversation.id);
+    const lastMessage = recentMessages[recentMessages.length - 1];
+    
+    if (lastMessage && lastMessage.fromMe) {
+      console.log(`⏸️ [AI AGENT] Última mensagem foi do agente, não respondendo (evita loop)`);
+      return;
+    }
+    
     if (!isAgentDisabled) {
       const userId = session.userId; // Salva userId antes do setTimeout
       const conversationId = conversation.id; // Salva conversationId
