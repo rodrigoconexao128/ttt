@@ -3,7 +3,7 @@ import { db } from "./db";
 import { systemConfig } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-async function resolveApiKey(): Promise<string> {
+export async function resolveApiKey(): Promise<string> {
   const config = await db
     .select()
     .from(systemConfig)
