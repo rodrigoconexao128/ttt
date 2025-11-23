@@ -121,7 +121,7 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// AI Agent Configuration table
+// AI Agent Configuration table (LEGACY - mantido para backward compatibility)
 export const aiAgentConfig = pgTable("ai_agent_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
@@ -130,6 +130,78 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   model: varchar("model", { length: 100 }).default("mistral-small-latest").notNull(),
   triggerPhrases: text("trigger_phrases").array(),
   messageSplitChars: integer("message_split_chars").default(400),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Business Agent Configuration table (NEW - Sistema avançado de configuração)
+export const businessAgentConfigs = pgTable("business_agent_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Identity Layer
+  agentName: varchar("agent_name", { length: 100 }).notNull(),
+  agentRole: varchar("agent_role", { length: 200 }).notNull(),
+  companyName: varchar("company_name", { length: 200 }).notNull(),
+  companyDescription: text("company_description"),
+  personality: varchar("personality", { length: 100 }).default("profissional e prestativo").notNull(),
+  
+  // Knowledge Layer (JSONB para flexibilidade)
+  productsServices: jsonb("products_services").$type<Array<{
+    name: string;
+    description: string;
+    price?: string;
+    features?: string[];
+  }>>().default([]),
+  businessInfo: jsonb("business_info").$type<{
+    horarioFuncionamento?: string;
+    endereco?: string;
+    telefone?: string;
+    email?: string;
+    website?: string;
+    redesSociais?: Record<string, string>;
+    formasContato?: string[];
+    metodosEntrega?: string[];
+  }>().default({}),
+  faqItems: jsonb("faq_items").$type<Array<{
+    pergunta: string;
+    resposta: string;
+    categoria?: string;
+  }>>().default([]),
+  policies: jsonb("policies").$type<{
+    trocasDevolucoes?: string;
+    garantia?: string;
+    privacidade?: string;
+    termos?: string;
+  }>().default({}),
+  
+  // Guardrails Layer
+  allowedTopics: text("allowed_topics").array().default([]),
+  prohibitedTopics: text("prohibited_topics").array().default([]),
+  allowedActions: text("allowed_actions").array().default([]),
+  prohibitedActions: text("prohibited_actions").array().default([]),
+  
+  // Personality Layer
+  toneOfVoice: varchar("tone_of_voice", { length: 50 }).default("amigável").notNull(),
+  communicationStyle: varchar("communication_style", { length: 50 }).default("claro e direto").notNull(),
+  emojiUsage: varchar("emoji_usage", { length: 20 }).default("moderado").notNull(), // nunca, raro, moderado, frequente
+  formalityLevel: integer("formality_level").default(5).notNull(), // 1-10 scale
+  
+  // Behavior Configuration
+  maxResponseLength: integer("max_response_length").default(400).notNull(),
+  useCustomerName: boolean("use_customer_name").default(true).notNull(),
+  offerNextSteps: boolean("offer_next_steps").default(true).notNull(),
+  escalateToHuman: boolean("escalate_to_human").default(true).notNull(),
+  escalationKeywords: text("escalation_keywords").array().default([]),
+  
+  // System Configuration
+  isActive: boolean("is_active").default(false).notNull(),
+  model: varchar("model", { length: 100 }).default("mistral-small-latest").notNull(),
+  triggerPhrases: text("trigger_phrases").array().default([]),
+  templateType: varchar("template_type", { length: 50 }), // ecommerce, professional, health, education, realestate
+  
+  // Metadata
+  version: integer("version").default(1).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -217,6 +289,10 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   aiAgentConfig: one(aiAgentConfig, {
     fields: [users.id],
     references: [aiAgentConfig.userId],
+  }),
+  businessAgentConfig: one(businessAgentConfigs, {
+    fields: [users.id],
+    references: [businessAgentConfigs.userId],
   }),
   subscriptions: many(subscriptions),
 }));
@@ -403,3 +479,78 @@ export const insertAdminWhatsappConnectionSchema = createInsertSchema(adminWhats
 });
 export type InsertAdminWhatsappConnection = z.infer<typeof insertAdminWhatsappConnectionSchema>;
 export type AdminWhatsappConnection = typeof adminWhatsappConnection.$inferSelect;
+
+// Business Agent Configuration schemas and types
+export const insertBusinessAgentConfigSchema = createInsertSchema(businessAgentConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Zod schemas detalhados para validação
+export const businessAgentConfigSchema = z.object({
+  userId: z.string(),
+  agentName: z.string().min(1, "Nome do agente é obrigatório"),
+  agentRole: z.string().min(1, "Função do agente é obrigatória"),
+  companyName: z.string().min(1, "Nome da empresa é obrigatório"),
+  companyDescription: z.string().optional(),
+  personality: z.string().default("profissional e prestativo"),
+  
+  productsServices: z.array(z.object({
+    name: z.string(),
+    description: z.string(),
+    price: z.string().optional(),
+    features: z.array(z.string()).optional(),
+  })).default([]),
+  
+  businessInfo: z.object({
+    horarioFuncionamento: z.string().optional(),
+    endereco: z.string().optional(),
+    telefone: z.string().optional(),
+    email: z.string().email().optional(),
+    website: z.string().url().optional(),
+    redesSociais: z.record(z.string()).optional(),
+    formasContato: z.array(z.string()).optional(),
+    metodosEntrega: z.array(z.string()).optional(),
+  }).default({}),
+  
+  faqItems: z.array(z.object({
+    pergunta: z.string(),
+    resposta: z.string(),
+    categoria: z.string().optional(),
+  })).default([]),
+  
+  policies: z.object({
+    trocasDevolucoes: z.string().optional(),
+    garantia: z.string().optional(),
+    privacidade: z.string().optional(),
+    termos: z.string().optional(),
+  }).default({}),
+  
+  allowedTopics: z.array(z.string()).default([]),
+  prohibitedTopics: z.array(z.string()).default([]),
+  allowedActions: z.array(z.string()).default([]),
+  prohibitedActions: z.array(z.string()).default([]),
+  
+  toneOfVoice: z.string().default("amigável"),
+  communicationStyle: z.string().default("claro e direto"),
+  emojiUsage: z.enum(["nunca", "raro", "moderado", "frequente"]).default("moderado"),
+  formalityLevel: z.number().min(1).max(10).default(5),
+  
+  maxResponseLength: z.number().default(400),
+  useCustomerName: z.boolean().default(true),
+  offerNextSteps: z.boolean().default(true),
+  escalateToHuman: z.boolean().default(true),
+  escalationKeywords: z.array(z.string()).default([]),
+  
+  isActive: z.boolean().default(false),
+  model: z.string().default("mistral-small-latest"),
+  triggerPhrases: z.array(z.string()).default([]),
+  templateType: z.enum(["ecommerce", "professional", "health", "education", "realestate", "custom"]).optional(),
+  
+  version: z.number().default(1),
+});
+
+export type InsertBusinessAgentConfig = z.infer<typeof insertBusinessAgentConfigSchema>;
+export type BusinessAgentConfig = typeof businessAgentConfigs.$inferSelect;
+export type BusinessAgentConfigInput = z.infer<typeof businessAgentConfigSchema>;

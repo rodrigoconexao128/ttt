@@ -481,6 +481,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== BUSINESS AGENT CONFIG ROUTES (🆕 ADVANCED SYSTEM) ====================
+  
+  // Get business agent configuration
+  app.get("/api/agent/business-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const config = await storage.getBusinessAgentConfig?.(userId);
+      
+      if (!config) {
+        return res.json({ config: null, hasAdvancedConfig: false });
+      }
+      
+      res.json({ config, hasAdvancedConfig: true });
+    } catch (error) {
+      console.error("Error getting business agent config:", error);
+      res.status(500).json({ message: "Failed to get business agent configuration" });
+    }
+  });
+
+  // Save/Update business agent configuration
+  app.post("/api/agent/business-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const configData = req.body;
+      
+      // Validar dados básicos
+      if (!configData.agentName || !configData.agentRole || !configData.companyName) {
+        return res.status(400).json({ 
+          message: "Missing required fields: agentName, agentRole, companyName" 
+        });
+      }
+      
+      const config = await storage.upsertBusinessAgentConfig?.(userId, {
+        ...configData,
+        userId,
+      });
+      
+      res.json({ config, message: "Business agent configuration saved successfully" });
+    } catch (error) {
+      console.error("Error saving business agent config:", error);
+      res.status(500).json({ message: "Failed to save business agent configuration" });
+    }
+  });
+
+  // Get available templates
+  app.get("/api/agent/templates", isAuthenticated, async (_req: any, res) => {
+    try {
+      const { getAllTemplates } = await import("./businessTemplates");
+      const templates = getAllTemplates();
+      res.json({ templates });
+    } catch (error) {
+      console.error("Error getting templates:", error);
+      res.status(500).json({ message: "Failed to get templates" });
+    }
+  });
+
+  // Test business agent configuration (preview response)
+  app.post("/api/agent/test-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const { config, testMessage } = req.body;
+      
+      if (!config || !testMessage) {
+        return res.status(400).json({ message: "Missing config or testMessage" });
+      }
+      
+      // Gerar prompt de teste
+      const { generateSystemPrompt } = await import("./promptTemplates");
+      const systemPrompt = generateSystemPrompt(config, {
+        currentTime: new Date(),
+      });
+      
+      // Chamar Mistral para teste
+      const { getMistralClient } = await import("./mistralClient");
+      const mistral = await getMistralClient();
+      
+      const response = await mistral.chat.complete({
+        model: config.model || "mistral-small-latest",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: testMessage },
+        ],
+        maxTokens: 400,
+        temperature: 0.7,
+      });
+      
+      const aiResponse = response.choices?.[0]?.message?.content || "Erro ao gerar resposta";
+      
+      res.json({ 
+        response: aiResponse,
+        promptPreview: systemPrompt.substring(0, 500) + "..." 
+      });
+    } catch (error) {
+      console.error("Error testing agent config:", error);
+      res.status(500).json({ message: "Failed to test agent configuration" });
+    }
+  });
+
+  // Preview generated prompt
+  app.post("/api/agent/preview-prompt", isAuthenticated, async (req: any, res) => {
+    try {
+      const { config } = req.body;
+      
+      if (!config) {
+        return res.status(400).json({ message: "Missing config" });
+      }
+      
+      const { generateSystemPrompt } = await import("./promptTemplates");
+      const systemPrompt = generateSystemPrompt(config, {
+        currentTime: new Date(),
+      });
+      
+      res.json({ 
+        prompt: systemPrompt,
+        length: systemPrompt.length,
+        estimatedTokens: Math.ceil(systemPrompt.length / 4),
+      });
+    } catch (error) {
+      console.error("Error previewing prompt:", error);
+      res.status(500).json({ message: "Failed to preview prompt" });
+    }
+  });
+
   // ==================== PLANOS ROUTES ====================
   // Get all active plans (public)
   app.get("/api/plans", async (_req, res) => {

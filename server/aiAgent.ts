@@ -1,6 +1,19 @@
 import { storage } from "./storage";
 import type { Message } from "@shared/schema";
 import { getMistralClient } from "./mistralClient";
+import { generateSystemPrompt, type PromptContext } from "./promptTemplates";
+import {
+  detectOffTopic,
+  detectJailbreak,
+  generateOffTopicResponse,
+  validateAgentResponse,
+} from "./agentValidation";
+import {
+  humanizeResponse,
+  detectEmotion,
+  adjustToneForEmotion,
+  type HumanizationOptions,
+} from "./humanization";
 
 // 📝 Converter formatação Markdown para WhatsApp
 // WhatsApp usa: *negrito* _itálico_ ~tachado~ ```mono```
@@ -28,11 +41,24 @@ export async function generateAIResponse(
   newMessageText: string
 ): Promise<string | null> {
   try {
+    // 🆕 TENTAR BUSCAR BUSINESS CONFIG PRIMEIRO (novo sistema)
+    let businessConfig = await storage.getBusinessAgentConfig?.(userId);
+    
+    // 🔄 FALLBACK: Buscar config legado se novo não existir
     const agentConfig = await storage.getAgentConfig(userId);
 
     if (!agentConfig || !agentConfig.isActive) {
       console.log(`[AI Agent] Config not found or inactive for user ${userId}`);
       return null;
+    }
+    
+    // 🎯 USAR BUSINESS CONFIG SE DISPONÍVEL (novo sistema avançado)
+    const useAdvancedSystem = businessConfig && businessConfig.isActive;
+    
+    if (useAdvancedSystem) {
+      console.log(`🚀 [AI Agent] Using ADVANCED system for user ${userId}`);
+    } else {
+      console.log(`📝 [AI Agent] Using LEGACY system for user ${userId}`);
     }
 
     // 📝 DEBUG: Log do config do agente para verificar se prompt está correto
@@ -42,8 +68,27 @@ export async function generateAIResponse(
     console.log(`   Trigger phrases: ${agentConfig.triggerPhrases?.length || 0}`);
     console.log(`   Prompt (primeiros 100 chars): ${agentConfig.prompt?.substring(0, 100) || 'N/A'}...`);
 
+    // 🛡️ DETECÇÃO DE JAILBREAK (apenas no sistema avançado)
+    if (useAdvancedSystem && businessConfig) {
+      const jailbreakResult = detectJailbreak(newMessageText);
+      
+      if (jailbreakResult.isJailbreakAttempt) {
+        console.log(`🚨 [AI Agent] Jailbreak attempt detected! Type: ${jailbreakResult.type}, Severity: ${jailbreakResult.severity}`);
+        
+        // Log para análise (poderia salvar em DB para monitoramento)
+        console.log(`   User ${userId} - Message: "${newMessageText.substring(0, 100)}..."`);
+        
+        // Retornar resposta educada recusando
+        return `Desculpe, não posso ajudar com esse tipo de solicitação. Como ${businessConfig.agentName}, estou aqui para auxiliar com ${businessConfig.allowedTopics?.[0] || "nossos serviços"}. Como posso te ajudar?`;
+      }
+    }
+
     // Validação de trigger phrases: se configuradas, verifica com normalização robusta
-    if (agentConfig.triggerPhrases && agentConfig.triggerPhrases.length > 0) {
+    const triggerPhrases = useAdvancedSystem && businessConfig?.triggerPhrases 
+      ? businessConfig.triggerPhrases 
+      : agentConfig.triggerPhrases;
+      
+    if (triggerPhrases && triggerPhrases.length > 0) {
       // Normalizador: lower, remove acentos, colapsa espaços
       const normalize = (s: string) => (s || "")
         .toLowerCase()
@@ -61,8 +106,8 @@ export async function generateAIResponse(
         return h.includes(n) || hNoSpace.includes(nNoSpace);
       };
 
-      console.log(`🔍 [AI Agent] Verificando trigger phrases (${agentConfig.triggerPhrases.length} configuradas)`);
-      console.log(`   Trigger phrases: ${agentConfig.triggerPhrases.join(', ')}`);
+      console.log(`🔍 [AI Agent] Verificando trigger phrases (${triggerPhrases.length} configuradas)`);
+      console.log(`   Trigger phrases: ${triggerPhrases.join(', ')}`);
 
       const lastText = newMessageText || "";
       const allMessages = [
@@ -72,7 +117,7 @@ export async function generateAIResponse(
 
       // Checa primeiro só a última mensagem, depois o histórico completo
       let foundIn = "none";
-      const hasTrigger = agentConfig.triggerPhrases.some(phrase => {
+      const hasTrigger = triggerPhrases.some(phrase => {
         const inLast = includesNormalized(lastText, phrase);
         const inAll = inLast ? false : includesNormalized(allMessages, phrase);
         if (inLast) foundIn = "last"; else if (inAll) foundIn = "history";
@@ -87,11 +132,48 @@ export async function generateAIResponse(
 
       console.log(`✅ [AI Agent] Trigger phrase detected (${foundIn}) for user ${userId}, proceeding with response`);
     }
+    
+    // 🎯 DETECÇÃO OFF-TOPIC (apenas no sistema avançado)
+    if (useAdvancedSystem && businessConfig) {
+      try {
+        const offTopicResult = await detectOffTopic(
+          newMessageText,
+          businessConfig.allowedTopics || [],
+          businessConfig.prohibitedTopics || [],
+          businessConfig
+        );
+        
+        if (offTopicResult.isOffTopic && offTopicResult.confidence > 0.7) {
+          console.log(`⚠️ [AI Agent] Off-topic detected (confidence: ${offTopicResult.confidence}): ${offTopicResult.reason}`);
+          
+          // Retornar resposta de redirecionamento
+          return generateOffTopicResponse(businessConfig, offTopicResult);
+        }
+      } catch (error) {
+        console.error(`❌ [AI Agent] Error detecting off-topic:`, error);
+        // Continuar mesmo se detecção falhar
+      }
+    }
 
-     const messages: Array<{ role: string; content: string }> = [
-      {
-        role: "system",
-        content: agentConfig.prompt + `
+     // 🎨 GERAR SYSTEM PROMPT
+     let systemPrompt: string;
+     
+     if (useAdvancedSystem && businessConfig) {
+       // 🆕 NOVO SISTEMA: Usar template avançado com contexto
+       const promptContext: PromptContext = {
+         customerName: undefined, // TODO: extrair nome do contato se disponível
+         conversationHistory: conversationHistory.slice(-6).map(m => ({
+           role: m.fromMe ? "assistant" : "user",
+           content: m.text || "",
+         })),
+         currentTime: new Date(),
+       };
+       
+       systemPrompt = generateSystemPrompt(businessConfig, promptContext);
+       console.log(`🎨 [AI Agent] Generated advanced prompt (${systemPrompt.length} chars)`);
+     } else {
+       // 📝 SISTEMA LEGADO: Usar prompt manual com guardrails básicos
+       systemPrompt = agentConfig.prompt + `
 
   ---
 
@@ -110,7 +192,14 @@ export async function generateAIResponse(
     - Evite formato de manual técnico (##, ###, listas longas).
     - Responda de forma natural, objetiva e curta (2–5 linhas), com uma ideia por vez.
     - Se não souber, diga que não tem a informação e ofereça alternativa no escopo.
-  `,
+  `;
+       console.log(`📝 [AI Agent] Using legacy prompt (${systemPrompt.length} chars)`);
+     }
+     
+     const messages: Array<{ role: string; content: string }> = [
+      {
+        role: "system",
+        content: systemPrompt,
       },
      ];
 
@@ -196,18 +285,30 @@ export async function generateAIResponse(
 
     const mistral = await getMistralClient();
     
-    // Ajustar maxTokens baseado na pergunta
+    // Ajustar maxTokens baseado na pergunta e config
     // Perguntas curtas (< 20 chars) = respostas curtas (150 tokens ≈ 450 chars)
     // Perguntas médias = respostas médias (300 tokens ≈ 900 chars)
     const questionLength = newMessageText.length;
-    const maxTokens = questionLength < 20 ? 150 : questionLength < 50 ? 250 : 400;
+    const baseMaxTokens = questionLength < 20 ? 150 : questionLength < 50 ? 250 : 400;
     
-    console.log(`🎯 [AI Agent] Pergunta: ${questionLength} chars → maxTokens: ${maxTokens}`);
+    // 🆕 Se usar sistema avançado, respeitar maxResponseLength configurado
+    const configMaxTokens = useAdvancedSystem && businessConfig?.maxResponseLength
+      ? Math.ceil(businessConfig.maxResponseLength / 3) // aprox 3 chars por token
+      : baseMaxTokens;
+    
+    const maxTokens = Math.min(configMaxTokens, baseMaxTokens);
+    
+    console.log(`🎯 [AI Agent] Pergunta: ${questionLength} chars → maxTokens: ${maxTokens} (config: ${configMaxTokens}, base: ${baseMaxTokens})`);
+    
+    // Determinar modelo (usar config do business ou legacy)
+    const model = useAdvancedSystem && businessConfig?.model 
+      ? businessConfig.model 
+      : agentConfig.model;
     
     const chatResponse = await mistral.chat.complete({
-      model: agentConfig.model,
+      model,
       messages: messages as any,
-      maxTokens, // Dinâmico baseado na pergunta
+      maxTokens, // Dinâmico baseado na pergunta e config
       temperature: 0.7, // Menos criativo = mais consistente
     });
 
@@ -251,6 +352,58 @@ export async function generateAIResponse(
         responseText = firstParagraphs.length > 200 ? firstParagraphs : responseText.substring(0, 500) + '...';
         
         console.log(`✂️ [AI Agent] Resposta truncada de ${responseText.length} para ${firstParagraphs.length} chars`);
+      }
+      
+      // 🛡️ VALIDAÇÃO DE RESPOSTA (apenas no sistema avançado)
+      if (useAdvancedSystem && businessConfig) {
+        const validation = validateAgentResponse(responseText, businessConfig);
+        
+        if (!validation.isValid) {
+          console.log(`⚠️ [AI Agent] Response validation FAILED:`);
+          console.log(`   Maintains identity: ${validation.maintainsIdentity}`);
+          console.log(`   Stays in scope: ${validation.staysInScope}`);
+          console.log(`   Issues: ${validation.issues.join(', ')}`);
+          
+          // Se violou identidade, rejeitar resposta e retornar fallback
+          if (!validation.maintainsIdentity) {
+            console.log(`🚨 [AI Agent] CRITICAL: Response breaks identity! Using fallback.`);
+            return `Desculpe, tive um problema ao processar sua mensagem. Sou ${businessConfig.agentName} da ${businessConfig.companyName}. Como posso te ajudar com ${businessConfig.allowedTopics?.[0] || "nossos serviços"}?`;
+          }
+          
+          // Se saiu do escopo mas mantém identidade, apenas logar
+          if (!validation.staysInScope) {
+            console.log(`⚠️ [AI Agent] WARNING: Response may be out of scope. Proceeding anyway.`);
+          }
+        } else {
+          console.log(`✅ [AI Agent] Response validation PASSED`);
+        }
+        
+        // 🎭 HUMANIZAÇÃO DA RESPOSTA (apenas no sistema avançado)
+        try {
+          // Detectar emoção da mensagem do usuário
+          const emotion = detectEmotion(newMessageText);
+          console.log(`🎭 [AI Agent] Detected emotion: ${emotion}`);
+          
+          // Ajustar tom baseado na emoção
+          if (emotion !== "neutral") {
+            responseText = adjustToneForEmotion(responseText, emotion, businessConfig.formalityLevel);
+          }
+          
+          // Aplicar humanização (saudações, conectores, emojis)
+          const isFirstMessage = conversationHistory.length === 0;
+          const humanizationOptions: HumanizationOptions = {
+            formalityLevel: businessConfig.formalityLevel,
+            useEmojis: businessConfig.emojiUsage as any,
+            customerName: undefined, // TODO: extrair do contato se disponível
+            isFirstMessage,
+          };
+          
+          responseText = humanizeResponse(responseText, humanizationOptions);
+          console.log(`✨ [AI Agent] Response humanized`);
+        } catch (error) {
+          console.error(`❌ [AI Agent] Error humanizing response:`, error);
+          // Continuar com resposta não humanizada
+        }
       }
       
       console.log(`✅ [AI Agent] Resposta gerada: ${responseText.substring(0, 100)}...`);

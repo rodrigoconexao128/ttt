@@ -6,6 +6,7 @@ import {
   conversations,
   messages,
   aiAgentConfig,
+  businessAgentConfigs,
   agentDisabledConversations,
   plans,
   subscriptions,
@@ -24,6 +25,8 @@ import {
   type InsertMessage,
   type AiAgentConfig,
   type InsertAiAgentConfig,
+  type BusinessAgentConfig,
+  type InsertBusinessAgentConfig,
   type Plan,
   type InsertPlan,
   type Subscription,
@@ -64,9 +67,16 @@ export interface IStorage {
   getTodayMessagesCount(connectionId: string): Promise<number>;
   getAgentMessagesCount(connectionId: string): Promise<number>;
 
-  // AI Agent operations
+  // AI Agent operations (legacy)
   getAgentConfig(userId: string): Promise<AiAgentConfig | undefined>;
   upsertAgentConfig(userId: string, data: Partial<InsertAiAgentConfig>): Promise<AiAgentConfig>;
+  
+  // Business Agent operations (new advanced system)
+  getBusinessAgentConfig(userId: string): Promise<BusinessAgentConfig | undefined>;
+  upsertBusinessAgentConfig(userId: string, data: Partial<InsertBusinessAgentConfig>): Promise<BusinessAgentConfig>;
+  deleteBusinessAgentConfig(userId: string): Promise<void>;
+  
+  // Agent conversation control
   isAgentDisabledForConversation(conversationId: string): Promise<boolean>;
   disableAgentForConversation(conversationId: string): Promise<void>;
   enableAgentForConversation(conversationId: string): Promise<void>;
@@ -350,6 +360,36 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return config;
+  }
+
+  // 🆕 Business Agent Configuration operations (Advanced System)
+  async getBusinessAgentConfig(userId: string): Promise<BusinessAgentConfig | undefined> {
+    const [config] = await db
+      .select()
+      .from(businessAgentConfigs)
+      .where(eq(businessAgentConfigs.userId, userId));
+    return config;
+  }
+
+  async upsertBusinessAgentConfig(userId: string, data: Partial<InsertBusinessAgentConfig>): Promise<BusinessAgentConfig> {
+    const [config] = await db
+      .insert(businessAgentConfigs)
+      .values({ userId, ...data } as InsertBusinessAgentConfig)
+      .onConflictDoUpdate({
+        target: businessAgentConfigs.userId,
+        set: {
+          ...data,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return config;
+  }
+
+  async deleteBusinessAgentConfig(userId: string): Promise<void> {
+    await db
+      .delete(businessAgentConfigs)
+      .where(eq(businessAgentConfigs.userId, userId));
   }
 
   async isAgentDisabledForConversation(conversationId: string): Promise<boolean> {
