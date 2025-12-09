@@ -1,8 +1,34 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import multer from "multer";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
+
+// Configurar multer para upload em memória (depois envia pro Supabase Storage)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB max
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'audio/ogg', 'audio/opus', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm', 'audio/mp4',
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/webm', 'video/quicktime',
+      'application/pdf', 'application/msword', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain', // Aceitar arquivos .txt
+      'application/vnd.ms-excel', // Excel .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // Excel .xlsx
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Tipo de arquivo não suportado: ${file.mimetype}`));
+    }
+  }
+});
 import { isAdmin } from "./middleware";
 import {
   connectWhatsApp,
@@ -16,9 +42,18 @@ import {
   insertPlanSchema,
   insertSubscriptionSchema,
   insertPaymentSchema,
+  agentMediaSchema,
 } from "@shared/schema";
 import { testAgentResponse } from "./aiAgent";
 import { generatePixQRCode } from "./pixService";
+import {
+  getAgentMediaLibrary,
+  getMediaByName,
+  insertAgentMedia,
+  updateAgentMedia,
+  deleteAgentMedia,
+  transcribeAudio,
+} from "./mediaService";
 import { z } from "zod";
 
 // Helper to get userId from authenticated request
@@ -371,13 +406,253 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid request" });
       }
 
-      const response = await testAgentResponse(userId, result.data.message);
-      res.json({ response });
+      const testResult = await testAgentResponse(userId, result.data.message);
+      res.json({ 
+        response: testResult.text,
+        mediaActions: testResult.mediaActions || []
+      });
     } catch (error: any) {
       console.error("Error testing agent:", error);
       res.status(500).json({ message: error.message || "Failed to test agent" });
     }
   });
+
+  // ==========================================================================
+  // AGENT MEDIA LIBRARY ROUTES
+  // ==========================================================================
+
+  // Lista todas as mídias do agente
+  app.get("/api/agent/media", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const mediaList = await getAgentMediaLibrary(userId);
+      res.json(mediaList);
+    } catch (error) {
+      console.error("Error fetching agent media:", error);
+      res.status(500).json({ message: "Failed to fetch agent media" });
+    }
+  });
+
+  // Busca uma mídia específica por nome
+  app.get("/api/agent/media/:name", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name } = req.params;
+      const media = await getMediaByName(userId, name);
+      
+      if (!media) {
+        return res.status(404).json({ message: "Media not found" });
+      }
+      
+      res.json(media);
+    } catch (error) {
+      console.error("Error fetching agent media:", error);
+      res.status(500).json({ message: "Failed to fetch agent media" });
+    }
+  });
+
+  // Cria uma nova mídia (auto-incrementa nome se já existir)
+  app.post("/api/agent/media", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const result = agentMediaSchema.safeParse({ ...req.body, userId });
+
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: "Invalid request", 
+          errors: result.error.errors 
+        });
+      }
+
+      const media = await insertAgentMedia(result.data);
+      
+      if (!media) {
+        return res.status(500).json({ message: "Failed to save media" });
+      }
+
+      res.json(media);
+    } catch (error) {
+      console.error("Error saving agent media:", error);
+      res.status(500).json({ message: "Failed to save agent media" });
+    }
+  });
+
+  // Atualiza uma mídia existente
+  app.put("/api/agent/media/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      const result = agentMediaSchema.partial().safeParse(req.body);
+
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: "Invalid request", 
+          errors: result.error.errors 
+        });
+      }
+
+      const media = await updateAgentMedia(id, userId, result.data);
+      
+      if (!media) {
+        return res.status(404).json({ message: "Media not found" });
+      }
+
+      res.json(media);
+    } catch (error: any) {
+      console.error("Error updating agent media:", error);
+      // Se for erro de nome duplicado, retorna 400
+      if (error.message?.includes('já existe')) {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to update agent media" });
+    }
+  });
+
+  // Deleta uma mídia
+  app.delete("/api/agent/media/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const success = await deleteAgentMedia(userId, id);
+      
+      if (!success) {
+        return res.status(500).json({ message: "Failed to delete media" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting agent media:", error);
+      res.status(500).json({ message: "Failed to delete agent media" });
+    }
+  });
+
+  // =============================================
+  // UPLOAD DE ARQUIVO PARA BIBLIOTECA DE MÍDIAS
+  // =============================================
+  app.post("/api/agent/media/upload", isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const file = req.file;
+      
+      if (!file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      // Determinar tipo de mídia baseado no mimetype
+      let mediaType: 'audio' | 'image' | 'video' | 'document' = 'document';
+      if (file.mimetype.startsWith('audio/')) mediaType = 'audio';
+      else if (file.mimetype.startsWith('image/')) mediaType = 'image';
+      else if (file.mimetype.startsWith('video/')) mediaType = 'video';
+
+      // Gerar nome único para o arquivo
+      const timestamp = Date.now();
+      const safeFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const storagePath = `media/${userId}/${timestamp}_${safeFileName}`;
+
+      // Upload para Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('agent-media')
+        .upload(storagePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error("Supabase upload error:", uploadError);
+        
+        // Se o bucket não existir, tentar criar
+        if (uploadError.message?.includes('Bucket not found')) {
+          // Criar bucket
+          const { error: createError } = await supabase.storage.createBucket('agent-media', {
+            public: true,
+            fileSizeLimit: 52428800 // 50MB
+          });
+          
+          if (createError && !createError.message?.includes('already exists')) {
+            return res.status(500).json({ message: "Failed to create storage bucket", error: createError.message });
+          }
+
+          // Tentar upload novamente
+          const { data: retryData, error: retryError } = await supabase.storage
+            .from('agent-media')
+            .upload(storagePath, file.buffer, {
+              contentType: file.mimetype,
+              upsert: false
+            });
+
+          if (retryError) {
+            return res.status(500).json({ message: "Failed to upload file", error: retryError.message });
+          }
+        } else {
+          return res.status(500).json({ message: "Failed to upload file", error: uploadError.message });
+        }
+      }
+
+      // Obter URL pública do arquivo
+      const { data: urlData } = supabase.storage
+        .from('agent-media')
+        .getPublicUrl(storagePath);
+
+      const publicUrl = urlData.publicUrl;
+
+      // Se for áudio, fazer transcrição automática
+      let transcription: string | null = null;
+      if (mediaType === 'audio') {
+        try {
+          console.log(`[Routes] Iniciando transcrição automática para áudio: ${file.originalname}`);
+          transcription = await transcribeAudio(publicUrl, file.mimetype);
+          if (transcription) {
+            console.log(`[Routes] Transcrição concluída: ${transcription.substring(0, 100)}...`);
+          }
+        } catch (error) {
+          console.error('[Routes] Erro ao transcrever áudio:', error);
+          // Não falhar o upload se a transcrição falhar
+        }
+      }
+
+      res.json({
+        success: true,
+        storageUrl: publicUrl,
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        mediaType: mediaType,
+        transcription: transcription || undefined
+      });
+
+    } catch (error: any) {
+      console.error("Error uploading file:", error);
+      res.status(500).json({ message: "Failed to upload file", error: error.message });
+    }
+  });
+
+  // Transcreve um áudio (para preencher automaticamente a descrição)
+  app.post("/api/agent/media/transcribe", isAuthenticated, async (req: any, res) => {
+    try {
+      const { audioUrl, mimeType } = req.body;
+      
+      if (!audioUrl) {
+        return res.status(400).json({ message: "audioUrl is required" });
+      }
+
+      const transcription = await transcribeAudio(audioUrl, mimeType);
+      
+      if (!transcription) {
+        return res.status(500).json({ message: "Failed to transcribe audio" });
+      }
+
+      res.json({ transcription });
+    } catch (error) {
+      console.error("Error transcribing audio:", error);
+      res.status(500).json({ message: "Failed to transcribe audio" });
+    }
+  });
+
+  // ==========================================================================
+  // END AGENT MEDIA LIBRARY ROUTES
+  // ==========================================================================
 
   app.post("/api/agent/disable/:conversationId", isAuthenticated, async (req: any, res) => {
     try {
@@ -1157,6 +1432,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error handling WebSocket connection:", error);
       ws.close(1011, "Internal server error");
+    }
+  });
+
+  // ============================================================================
+  // 🧪 ROTA DE TESTE: Enviar áudio diretamente via Baileys
+  // ============================================================================
+  app.post("/api/debug/send-audio", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(400).json({ error: "User not found" });
+      }
+
+      const { audioUrl, jid, isPtt = false, synthetic = false, mimetype } = req.body;
+
+      if (!jid) {
+        return res.status(400).json({ error: "jid required" });
+      }
+      if (!synthetic && !audioUrl) {
+        return res.status(400).json({ error: "audioUrl required when synthetic=false" });
+      }
+
+      // Obter sessão WhatsApp
+      const { getSessions } = await import("./whatsapp");
+      const sessions = getSessions();
+      const session = sessions.get(userId);
+
+      if (!session?.socket) {
+        return res.status(400).json({ error: "WhatsApp not connected for this user" });
+      }
+
+      console.log(`\n🧪 [DEBUG] Teste de envio de áudio`);
+      console.log(`📥 audioUrl: ${audioUrl}`);
+      console.log(`📥 jid: ${jid}`);
+      console.log(`📥 isPtt: ${isPtt}`);
+      console.log(`📥 synthetic: ${synthetic}`);
+
+      let audioBuffer: Buffer;
+
+      if (synthetic) {
+        console.log(`🧪 Gerando áudio WAV sintético (beep)...`);
+        const { generateTestWavBuffer } = await import("./mediaService");
+        audioBuffer = generateTestWavBuffer();
+      } else {
+        // Baixar áudio real
+        const response = await fetch(audioUrl);
+        if (!response.ok) {
+          return res.status(400).json({ error: `Failed to download audio: ${response.status}` });
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        audioBuffer = Buffer.from(arrayBuffer);
+      }
+
+      console.log(`📊 Audio buffer size: ${audioBuffer.length} bytes`);
+
+      // Validar buffer
+      const { validateAudioBuffer } = await import("./mediaService");
+      const mime = mimetype || (synthetic ? 'audio/wav' : 'audio/ogg');
+      const validation = await validateAudioBuffer(audioBuffer, mime);
+
+      console.log(`🔍 Audio validation result:`, validation);
+
+      // Enviar áudio
+      const messageContent = {
+        audio: audioBuffer,
+        mimetype: mime,
+        ptt: isPtt,
+      };
+
+      console.log(`🚀 Enviando áudio (PTT: ${messageContent.ptt})...`);
+
+      const result = await session.socket.sendMessage(jid, messageContent);
+
+      if (result?.key?.id) {
+        console.log(`✅ Audio sent! MessageId: ${result.key.id}`);
+        return res.json({ 
+          success: true, 
+          messageId: result.key.id,
+          validation,
+          debug: {
+            audioSize: audioBuffer.length,
+            ptt: messageContent.ptt,
+            jid
+          }
+        });
+      } else {
+        console.log(`❌ Baileys não retornou MessageId:`, result);
+        return res.status(400).json({ 
+          error: "No message ID returned from Baileys",
+          validation,
+          result 
+        });
+      }
+    } catch (error) {
+      console.error("Error in /api/debug/send-audio:", error);
+      return res.status(500).json({ error: String(error) });
     }
   });
 

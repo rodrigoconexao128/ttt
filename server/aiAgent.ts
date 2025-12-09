@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import type { Message } from "@shared/schema";
+import type { Message, MistralResponse } from "@shared/schema";
 import { getMistralClient } from "./mistralClient";
 import { generateSystemPrompt, type PromptContext } from "./promptTemplates";
 import {
@@ -14,6 +14,18 @@ import {
   adjustToneForEmotion,
   type HumanizationOptions,
 } from "./humanization";
+import {
+  getAgentMediaLibrary,
+  generateMediaPromptBlock,
+  parseMistralResponse,
+  executeMediaActions,
+} from "./mediaService";
+
+// Tipo de retorno expandido para incluir ações de mídia
+export interface AIResponseResult {
+  text: string | null;
+  mediaActions?: MistralResponse['actions'];
+}
 
 // 📝 Converter formatação Markdown para WhatsApp
 // WhatsApp usa: *negrito* _itálico_ ~tachado~ ```mono```
@@ -39,7 +51,7 @@ export async function generateAIResponse(
   userId: string,
   conversationHistory: Message[],
   newMessageText: string
-): Promise<string | null> {
+): Promise<AIResponseResult | null> {
   try {
     // 🆕 TENTAR BUSCAR BUSINESS CONFIG PRIMEIRO (novo sistema)
     let businessConfig = await storage.getBusinessAgentConfig?.(userId);
@@ -50,6 +62,14 @@ export async function generateAIResponse(
     if (!agentConfig || !agentConfig.isActive) {
       console.log(`[AI Agent] Config not found or inactive for user ${userId}`);
       return null;
+    }
+    
+    // 📁 BUSCAR BIBLIOTECA DE MÍDIAS DO AGENTE
+    const mediaLibrary = await getAgentMediaLibrary(userId);
+    const hasMedia = mediaLibrary.length > 0;
+    
+    if (hasMedia) {
+      console.log(`📁 [AI Agent] Found ${mediaLibrary.length} media items for user ${userId}`);
     }
     
     // 🎯 USAR BUSINESS CONFIG SE DISPONÍVEL (novo sistema avançado)
@@ -79,7 +99,10 @@ export async function generateAIResponse(
         console.log(`   User ${userId} - Message: "${newMessageText.substring(0, 100)}..."`);
         
         // Retornar resposta educada recusando
-        return `Desculpe, não posso ajudar com esse tipo de solicitação. Como ${businessConfig.agentName}, estou aqui para auxiliar com ${businessConfig.allowedTopics?.[0] || "nossos serviços"}. Como posso te ajudar?`;
+        return {
+          text: `Desculpe, não posso ajudar com esse tipo de solicitação. Como ${businessConfig.agentName}, estou aqui para auxiliar com ${businessConfig.allowedTopics?.[0] || "nossos serviços"}. Como posso te ajudar?`,
+          mediaActions: [],
+        };
       }
     }
 
@@ -147,7 +170,10 @@ export async function generateAIResponse(
           console.log(`⚠️ [AI Agent] Off-topic detected (confidence: ${offTopicResult.confidence}): ${offTopicResult.reason}`);
           
           // Retornar resposta de redirecionamento
-          return generateOffTopicResponse(businessConfig, offTopicResult);
+          return {
+            text: generateOffTopicResponse(businessConfig, offTopicResult),
+            mediaActions: [],
+          };
         }
       } catch (error) {
         console.error(`❌ [AI Agent] Error detecting off-topic:`, error);
@@ -157,6 +183,9 @@ export async function generateAIResponse(
 
      // 🎨 GERAR SYSTEM PROMPT
      let systemPrompt: string;
+     
+     // 📁 GERAR BLOCO DE MÍDIAS SE DISPONÍVEL
+     const mediaPromptBlock = hasMedia ? generateMediaPromptBlock(mediaLibrary) : '';
      
      if (useAdvancedSystem && businessConfig) {
        // 🆕 NOVO SISTEMA: Usar template avançado com contexto
@@ -170,7 +199,13 @@ export async function generateAIResponse(
        };
        
        systemPrompt = generateSystemPrompt(businessConfig, promptContext);
-       console.log(`🎨 [AI Agent] Generated advanced prompt (${systemPrompt.length} chars)`);
+       
+       // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT
+       if (mediaPromptBlock) {
+         systemPrompt += mediaPromptBlock;
+       }
+       
+       console.log(`🎨 [AI Agent] Generated advanced prompt (${systemPrompt.length} chars)${hasMedia ? ' + media library' : ''}`);
      } else {
        // 📝 SISTEMA LEGADO: Usar prompt manual com guardrails básicos
        systemPrompt = agentConfig.prompt + `
@@ -193,6 +228,11 @@ export async function generateAIResponse(
     - Responda de forma natural, objetiva e curta (2–5 linhas), com uma ideia por vez.
     - Se não souber, diga que não tem a informação e ofereça alternativa no escopo.
   `;
+       // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT LEGADO TAMBÉM
+       if (mediaPromptBlock) {
+         systemPrompt += mediaPromptBlock;
+         console.log(`📁 [AI Agent] Added media block to legacy prompt (${mediaPromptBlock.length} chars)`);
+       }
        console.log(`📝 [AI Agent] Using legacy prompt (${systemPrompt.length} chars)`);
      }
      
@@ -367,7 +407,10 @@ export async function generateAIResponse(
           // Se violou identidade, rejeitar resposta e retornar fallback
           if (!validation.maintainsIdentity) {
             console.log(`🚨 [AI Agent] CRITICAL: Response breaks identity! Using fallback.`);
-            return `Desculpe, tive um problema ao processar sua mensagem. Sou ${businessConfig.agentName} da ${businessConfig.companyName}. Como posso te ajudar com ${businessConfig.allowedTopics?.[0] || "nossos serviços"}?`;
+            return {
+              text: `Desculpe, tive um problema ao processar sua mensagem. Sou ${businessConfig.agentName} da ${businessConfig.companyName}. Como posso te ajudar com ${businessConfig.allowedTopics?.[0] || "nossos serviços"}?`,
+              mediaActions: [],
+            };
           }
           
           // Se saiu do escopo mas mantém identidade, apenas logar
@@ -409,7 +452,33 @@ export async function generateAIResponse(
       console.log(`✅ [AI Agent] Resposta gerada: ${responseText.substring(0, 100)}...`);
     }
     
-    return responseText;
+    // 📁 PROCESSAR MÍDIAS: Detectar tags [ENVIAR_MIDIA:NOME] na resposta
+    let mediaActions: MistralResponse['actions'] = [];
+    
+    if (hasMedia && responseText) {
+      const parsedResponse = parseMistralResponse(responseText);
+      
+      if (parsedResponse) {
+        // Extrair ações de mídia detectadas pelas tags
+        mediaActions = parsedResponse.actions || [];
+        
+        // Usar o texto limpo (sem as tags de mídia)
+        if (parsedResponse.messages && parsedResponse.messages.length > 0) {
+          responseText = parsedResponse.messages.map(m => m.content).join('\n\n');
+          // Limpar espaços extras que podem sobrar
+          responseText = responseText.replace(/\s+/g, ' ').trim();
+        }
+        
+        if (mediaActions.length > 0) {
+          console.log(`📁 [AI Agent] Tags de mídia detectadas: ${mediaActions.map(a => a.media_name).join(', ')}`);
+        }
+      }
+    }
+    
+    return {
+      text: responseText,
+      mediaActions,
+    };
   } catch (error) {
     console.error("Error generating AI response:", error);
     return null;
@@ -419,18 +488,29 @@ export async function generateAIResponse(
 export async function testAgentResponse(
   userId: string,
   testMessage: string
-): Promise<string | null> {
+): Promise<{ text: string | null; mediaActions: MistralResponse['actions'] }> {
   try {
     const agentConfig = await storage.getAgentConfig(userId);
 
     if (!agentConfig) {
       throw new Error("Agent not configured");
     }
+    
+    // 📁 CARREGAR BIBLIOTECA DE MÍDIA
+    const mediaLibrary = await getAgentMediaLibrary(userId);
+    const hasMedia = mediaLibrary && mediaLibrary.length > 0;
+    const mediaPromptBlock = hasMedia ? generateMediaPromptBlock(mediaLibrary) : '';
+    
+    // Construir prompt com mídia
+    let systemPrompt = agentConfig.prompt;
+    if (mediaPromptBlock) {
+      systemPrompt += mediaPromptBlock;
+    }
 
     const messages = [
       {
         role: "system",
-        content: agentConfig.prompt,
+        content: systemPrompt,
       },
       {
         role: "user",
@@ -438,6 +518,8 @@ export async function testAgentResponse(
       },
     ];
 
+    console.log(`🧪 [TEST] System prompt length: ${systemPrompt.length} chars${hasMedia ? ` + ${mediaLibrary.length} mídias` : ''}`);
+    
     const mistral = await getMistralClient();
     const chatResponse = await mistral.chat.complete({
       model: agentConfig.model,
@@ -446,7 +528,22 @@ export async function testAgentResponse(
 
     const content = chatResponse.choices?.[0]?.message?.content;
     const responseText = typeof content === 'string' ? content : null;
-    return responseText;
+    
+    // 📁 DETECTAR AÇÕES DE MÍDIA NA RESPOSTA
+    let mediaActions: MistralResponse['actions'] = [];
+    let cleanedText = responseText;
+    
+    if (responseText && hasMedia) {
+      const parseResult = parseMistralResponse(responseText);
+      cleanedText = parseResult?.messages?.[0]?.content || responseText;
+      mediaActions = parseResult?.actions || [];
+      
+      if (mediaActions.length > 0) {
+        console.log(`🧪 [TEST] ${mediaActions.length} ações de mídia detectadas: ${mediaActions.map(a => a.media_name).join(', ')}`);
+      }
+    }
+    
+    return { text: cleanedText, mediaActions };
   } catch (error) {
     console.error("Error testing agent:", error);
     throw error;

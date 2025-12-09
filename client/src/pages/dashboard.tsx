@@ -2,7 +2,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ import IntegrationsPage from "@/pages/integrations";
 import SchedulingPage from "@/pages/scheduling";
 import ReservationsPage from "@/pages/reservations";
 import LeadQualificationPage from "@/pages/lead-qualification";
+import MediaLibraryPage from "@/pages/media-library";
 import { useLocation } from "wouter";
 import type { WhatsappConnection, AiAgentConfig } from "@shared/schema";
 import { supabase } from "@/lib/supabase";
@@ -56,6 +57,7 @@ export default function Dashboard() {
   const isConversasRoute = location.startsWith("/conversas");
   const isConexaoRoute = location.startsWith("/conexao");
   const isMeuAgenteRoute = location.startsWith("/meu-agente-ia");
+  const isMediaLibraryRoute = location.startsWith("/biblioteca-midias");
   const isPlansRoute = location.startsWith("/plans");
   const isSettingsRoute = location.startsWith("/settings");
   const isSubscribeRoute = location.startsWith("/subscribe/");
@@ -73,6 +75,7 @@ export default function Dashboard() {
     !isConversasRoute &&
     !isConexaoRoute &&
     !isMeuAgenteRoute &&
+    !isMediaLibraryRoute &&
     !isPlansRoute &&
     !isSettingsRoute &&
     !isSubscribeRoute &&
@@ -206,6 +209,7 @@ const toolsNavigation: ToolNavItem[] = [
       goToSection("agent");
     },
   },
+  { label: "Biblioteca de Mídias", href: "/biblioteca-midias", icon: Upload, tooltip: "Áudios, imagens e vídeos do agente", isActive: isMediaLibraryRoute, testId: "button-nav-media-library" },
   { label: "Qualificação de Lead", href: "/qualificacao", icon: Brain, tooltip: "Análise por IA das conversas", isActive: isLeadQualificationRoute, testId: "button-nav-lead-qualification" },
   { label: "Envio em Massa", href: "/envio-em-massa", icon: Send, tooltip: "Envio em massa", isActive: isMassSendRoute, testId: "button-nav-masssend" },
   { label: "Campanhas", href: "/campanhas", icon: Megaphone, tooltip: "Campanhas", isActive: isCampaignsRoute, testId: "button-nav-campaigns" },
@@ -405,6 +409,11 @@ const toolsNavigation: ToolNavItem[] = [
           {isLeadQualificationRoute && (
             <div className="flex-1 overflow-auto">
               <LeadQualificationPage />
+            </div>
+          )}
+          {isMediaLibraryRoute && (
+            <div className="flex-1 overflow-auto p-6">
+              <MediaLibraryPage />
             </div>
           )}
           {isSchedulingRoute && (

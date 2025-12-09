@@ -11,6 +11,7 @@ import Dashboard from "@/pages/dashboard";
 import AdminPanel from "@/pages/admin";
 import AdminLogin from "@/pages/admin-login";
 import AgentConfig from "@/pages/agent-config";
+import MediaLibrary from "@/pages/media-library";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
 
@@ -46,6 +47,7 @@ function Router() {
           <Route path="/subscribe/:id" component={Dashboard} />
           <Route path="/settings" component={Dashboard} />
           <Route path="/agent-config" component={AgentConfig} />
+          <Route path="/biblioteca-midias" component={Dashboard} />
         </>
       )}
       <Route component={NotFound} />

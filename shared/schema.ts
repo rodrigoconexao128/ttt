@@ -130,9 +130,56 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   model: varchar("model", { length: 100 }).default("mistral-small-latest").notNull(),
   triggerPhrases: text("trigger_phrases").array(),
   messageSplitChars: integer("message_split_chars").default(400),
+  responseDelaySeconds: integer("response_delay_seconds").default(30), // Tempo de espera antes de responder (acumulação de mensagens)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Agent Media Library table (NEW - Sistema de mídias do agente)
+// Cada agente pode ter áudios, imagens, vídeos que o Mistral decide quando enviar
+export const agentMediaLibrary = pgTable("agent_media_library", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Identificação da mídia (usado no prompt para o Mistral)
+  name: varchar("name", { length: 100 }).notNull(), // Ex: "AUDIO_PRECO", "IMG_BOAS_VINDAS"
+  
+  // Tipo da mídia
+  mediaType: varchar("media_type", { length: 20 }).notNull(), // 'audio', 'image', 'video', 'document'
+  
+  // Armazenamento
+  storageUrl: text("storage_url").notNull(), // URL pública ou base64
+  fileName: varchar("file_name", { length: 255 }),
+  fileSize: integer("file_size"), // Tamanho em bytes
+  mimeType: varchar("mime_type", { length: 100 }),
+  durationSeconds: integer("duration_seconds"), // Duração para áudio/vídeo
+  
+  // Contexto para o Mistral (CRÍTICO)
+  description: text("description").notNull(), // "Explica o preço do produto X" - usado pela IA para decidir
+  whenToUse: text("when_to_use"), // "Quando o cliente perguntar sobre preço"
+  caption: text("caption"), // Legenda que vai junto com a imagem/vídeo no WhatsApp
+  transcription: text("transcription"), // Transcrição automática de áudios
+  
+  // Opções de áudio
+  isPtt: boolean("is_ptt").default(true), // PTT = Push-to-talk (mensagem de voz gravada)
+  
+  // Opção de envio combinado
+  sendAlone: boolean("send_alone").default(false), // true = enviar sozinha, false = pode ser combinada com outras
+  
+  // Ordenação e status
+  isActive: boolean("is_active").default(true).notNull(),
+  displayOrder: integer("display_order").default(0),
+  
+  // W-API integration
+  wapiMediaId: varchar("wapi_media_id", { length: 255 }),
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_agent_media_user_id").on(table.userId),
+  uniqueIndex("idx_agent_media_unique_name").on(table.userId, table.name),
+]);
 
 // Business Agent Configuration table (NEW - Sistema avançado de configuração)
 export const businessAgentConfigs = pgTable("business_agent_configs", {
@@ -554,3 +601,61 @@ export const businessAgentConfigSchema = z.object({
 export type InsertBusinessAgentConfig = z.infer<typeof insertBusinessAgentConfigSchema>;
 export type BusinessAgentConfig = typeof businessAgentConfigs.$inferSelect;
 export type BusinessAgentConfigInput = z.infer<typeof businessAgentConfigSchema>;
+
+// Agent Media Library schemas and types
+export const insertAgentMediaSchema = createInsertSchema(agentMediaLibrary).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const agentMediaSchema = z.object({
+  userId: z.string(),
+  name: z.string().min(1, "Nome da mídia é obrigatório").max(100).regex(/^[A-Z0-9_]+$/, "Nome deve ser em MAIÚSCULAS com underscores (ex: AUDIO_PRECO)"),
+  mediaType: z.enum(["audio", "image", "video", "document"]),
+  storageUrl: z.string().min(1, "URL de armazenamento é obrigatória"),
+  fileName: z.string().optional(),
+  fileSize: z.number().optional(),
+  mimeType: z.string().optional(),
+  durationSeconds: z.number().optional(),
+  description: z.string().min(1, "Descrição é obrigatória"),
+  whenToUse: z.string().optional(),
+  caption: z.string().optional(), // Legenda que vai com a imagem/vídeo
+  transcription: z.string().optional(),
+  isPtt: z.boolean().default(true), // Push-to-talk (áudio aparece como gravado)
+  sendAlone: z.boolean().default(false), // Enviar sozinha ou pode combinar com outras
+  isActive: z.boolean().default(true),
+  displayOrder: z.number().default(0),
+  wapiMediaId: z.string().optional(),
+});
+
+export type InsertAgentMedia = z.infer<typeof insertAgentMediaSchema>;
+export type AgentMedia = typeof agentMediaLibrary.$inferSelect;
+export type AgentMediaInput = z.infer<typeof agentMediaSchema>;
+
+// Agent Media Library relations
+export const agentMediaLibraryRelations = relations(agentMediaLibrary, ({ one }) => ({
+  user: one(users, {
+    fields: [agentMediaLibrary.userId],
+    references: [users.id],
+  }),
+}));
+
+// =============================================================================
+// STRUCTURED RESPONSE FORMAT FOR MISTRAL (Media Actions)
+// =============================================================================
+
+// Schema para resposta estruturada do Mistral com ações de mídia
+export const mistralResponseSchema = z.object({
+  messages: z.array(z.object({
+    type: z.literal("text"),
+    content: z.string(),
+  })),
+  actions: z.array(z.object({
+    type: z.literal("send_media"),
+    media_name: z.string(), // Nome da mídia na biblioteca (ex: AUDIO_PRECO)
+    delay_seconds: z.number().optional(), // Delay antes de enviar (opcional)
+  })).optional().default([]),
+});
+
+export type MistralResponse = z.infer<typeof mistralResponseSchema>;

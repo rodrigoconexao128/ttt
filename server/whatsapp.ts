@@ -14,7 +14,8 @@ import path from "path";
 import fs from "fs/promises";
 import { storage } from "./storage";
 import WebSocket from "ws";
-import { generateAIResponse } from "./aiAgent";
+import { generateAIResponse, type AIResponseResult } from "./aiAgent";
+import { executeMediaActions } from "./mediaService";
 
 // Cache manual de contatos para mapear @lid → phoneNumber
 interface Contact {
@@ -54,6 +55,19 @@ const DEFAULT_JID_SUFFIX = "s.whatsapp.net";
 // 🚫 Set para rastrear IDs de mensagens enviadas pelo agente/usuário via sendMessage
 // Evita duplicatas quando Baileys dispara evento fromMe após socket.sendMessage()
 const agentMessageIds = new Set<string>();
+
+// 🎯 SISTEMA DE ACUMULAÇÃO DE MENSAGENS
+// Rastreia timeouts pendentes e mensagens acumuladas por conversa
+interface PendingResponse {
+  timeout: NodeJS.Timeout;
+  messages: string[];
+  conversationId: string;
+  userId: string;
+  contactNumber: string;
+  jidSuffix: string;
+  startTime: number;
+}
+const pendingResponses = new Map<string, PendingResponse>(); // key: conversationId
 
 // 🤖 HUMANIZAÇÃO: Quebra mensagem longa em partes menores
 // Best practices: WhatsApp, Intercom, Drift quebram a cada 2-3 parágrafos ou 300-500 chars
@@ -874,7 +888,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       mediaType,
   });
 
-  // AI Agent Auto-Response com delay de 30 segundos
+  // 🎯 AI Agent Auto-Response com SISTEMA DE ACUMULAÇÃO DE MENSAGENS
   try {
     const isAgentDisabled = await storage.isAgentDisabledForConversation(conversation.id);
     
@@ -889,101 +903,181 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     }
     
     if (!isAgentDisabled) {
-      const userId = session.userId; // Salva userId antes do setTimeout
-      const conversationId = conversation.id; // Salva conversationId
-      const targetNumber = contactNumber; // CRÍTICO: Salva o número do contato para evitar closure incorreto
-      const finalText = effectiveText; // 🎤 CRÍTICO: Salvar texto transcrito (não original)
-      console.log(`⏱️ [AI AGENT] Aguardando 30s para responder ${targetNumber}...`);
-      console.log(`📝 [AI AGENT] Texto a processar: "${finalText}"`);
+      const userId = session.userId;
+      const conversationId = conversation.id;
+      const targetNumber = contactNumber;
+      const finalText = effectiveText;
       
-      // Aguardar 30 segundos antes de responder
-      setTimeout(async () => {
-        try {
-          // IMPORTANTE: Busca sessão atualizada no momento do envio
-          const currentSession = sessions.get(userId);
-          if (!currentSession?.socket) {
-            console.log(`[AI Agent] Session not available for user ${userId}, skipping response`);
-            return;
-          }
-
-          const conversationHistory = await storage.getMessagesByConversationId(conversationId);
-          const aiResponse = await generateAIResponse(
-            userId,
-            conversationHistory,
-            finalText // ✅ Usar texto transcrito (crítico para áudios!)
-          );
-
-          console.log(`🔍 [AI Agent] generateAIResponse retornou: ${aiResponse ? `"${aiResponse.substring(0, 100)}..."` : 'NULL'}`);
-
-          if (aiResponse) {
-            // Buscar remoteJid original do banco
-            const conversationData = await storage.getConversation(conversationId);
-            const jid = conversationData
-              ? buildSendJid(conversationData)
-              : `${targetNumber}@${jidSuffix || DEFAULT_JID_SUFFIX}`;
-            
-            // 🤖 HUMANIZAÇÃO: Quebrar mensagens longas em múltiplas
-            // Best practice: WhatsApp, Intercom, Drift quebram a cada 2-3 parágrafos ou 400 chars
-            // Buscar configuração de tamanho de bolha
-            const agentConfig = await storage.getAgentConfig(userId);
-            const maxChars = agentConfig?.messageSplitChars ?? 400;
-            const messageParts = splitMessageHumanLike(aiResponse, maxChars);
-            
-            console.log(`[AI Agent] Sending to original JID: ${jid} (${messageParts.length} parts)`);
-            
-            for (let i = 0; i < messageParts.length; i++) {
-              const part = messageParts[i];
-              const isLast = i === messageParts.length - 1;
-              
-              // Delay entre mensagens (2-4 segundos) para simular digitação
-              if (i > 0) {
-                await new Promise(resolve => setTimeout(resolve, 2500 + Math.random() * 1500));
-              }
-              
-              const sentMessage = await currentSession.socket.sendMessage(jid, { text: part });
-
-              // ⚠️ IMPORTANTE: Registrar messageId para evitar duplicata em handleOutgoingMessage
-              if (sentMessage?.key.id) {
-                agentMessageIds.add(sentMessage.key.id);
-                console.log(`🔒 [AI Agent] MessageId registrado (parte ${i+1}/${messageParts.length}): ${sentMessage.key.id}`);
-              }
-
-              await storage.createMessage({
-                conversationId: conversationId,
-                messageId: sentMessage?.key.id || `${Date.now()}-${i}`,
-                fromMe: true,
-                text: part,
-                timestamp: new Date(),
-                status: "sent",
-                isFromAgent: true,
-              });
-
-              // Só atualizar conversa na última parte
-              if (isLast) {
-                await storage.updateConversation(conversationId, {
-                  lastMessageText: part,
-                  lastMessageTime: new Date(),
-                });
-
-                broadcastToUser(userId, {
-                  type: "agent_response",
-                  conversationId: conversationId,
-                  message: aiResponse, // Mensagem completa para broadcast
-                });
-              }
-
-              console.log(`[AI Agent] Part ${i+1}/${messageParts.length} SENT to WhatsApp ${targetNumber}`);
-            }
-          } else {
-            console.log(`[AI Agent] No response generated (trigger phrase check or agent inactive)`);
-          }
-        } catch (error) {
-          console.error("Error generating delayed AI response:", error);
-        }
-      }, 30000); // 30 segundos = 30000 milissegundos
+      // 🎯 SISTEMA DE ACUMULAÇÃO: Buscar delay configurado
+      const agentConfig = await storage.getAgentConfig(userId);
+      const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
+      const responseDelayMs = responseDelaySeconds * 1000;
+      
+      // Verificar se já existe um timeout pendente para esta conversa
+      const existingPending = pendingResponses.get(conversationId);
+      
+      if (existingPending) {
+        // ✅ ACUMULAÇÃO: Nova mensagem chegou - cancelar timeout anterior e acumular
+        clearTimeout(existingPending.timeout);
+        existingPending.messages.push(finalText);
+        console.log(`🔄 [AI AGENT] Mensagem acumulada (${existingPending.messages.length} mensagens) para ${targetNumber}`);
+        console.log(`📝 [AI AGENT] Mensagens acumuladas: ${existingPending.messages.map(m => `"${m.substring(0, 30)}..."`).join(' | ')}`);
+        
+        // Criar novo timeout com as mensagens acumuladas
+        existingPending.timeout = setTimeout(async () => {
+          await processAccumulatedMessages(existingPending);
+        }, responseDelayMs);
+        
+        console.log(`⏱️ [AI AGENT] Timer reiniciado: ${responseDelaySeconds}s para ${targetNumber}`);
+      } else {
+        // Nova conversa - criar entrada de acumulação
+        console.log(`⏱️ [AI AGENT] Novo timer de ${responseDelaySeconds}s para ${targetNumber}...`);
+        console.log(`📝 [AI AGENT] Primeira mensagem: "${finalText}"`);
+        
+        const pending: PendingResponse = {
+          timeout: null as any,
+          messages: [finalText],
+          conversationId,
+          userId,
+          contactNumber: targetNumber,
+          jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
+          startTime: Date.now(),
+        };
+        
+        pending.timeout = setTimeout(async () => {
+          await processAccumulatedMessages(pending);
+        }, responseDelayMs);
+        
+        pendingResponses.set(conversationId, pending);
+      }
     }
   } catch (error) {
     console.error("Error scheduling AI response:", error);
+  }
+}
+
+// 🎯 FUNÇÃO PARA PROCESSAR MENSAGENS ACUMULADAS
+async function processAccumulatedMessages(pending: PendingResponse): Promise<void> {
+  const { conversationId, userId, contactNumber, jidSuffix, messages } = pending;
+  
+  // Remover da fila de pendentes
+  pendingResponses.delete(conversationId);
+  
+  const totalWaitTime = ((Date.now() - pending.startTime) / 1000).toFixed(1);
+  console.log(`\n🤖 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========`);
+  console.log(`   📊 Aguardou ${totalWaitTime}s | ${messages.length} mensagem(s) acumulada(s)`);
+  console.log(`   📱 Contato: ${contactNumber}`);
+  
+  try {
+    const currentSession = sessions.get(userId);
+    if (!currentSession?.socket) {
+      console.log(`[AI Agent] Session not available for user ${userId}, skipping response`);
+      return;
+    }
+    
+    // Combinar todas as mensagens acumuladas
+    const combinedText = messages.join('\n\n');
+    console.log(`   📝 Texto combinado: "${combinedText.substring(0, 150)}..."`);
+
+    const conversationHistory = await storage.getMessagesByConversationId(conversationId);
+    const aiResult = await generateAIResponse(
+      userId,
+      conversationHistory,
+      combinedText // ✅ Todas as mensagens combinadas
+    );
+
+    // 📁 Extrair texto e ações de mídia da resposta
+    const aiResponse = aiResult?.text || null;
+    const mediaActions = aiResult?.mediaActions || [];
+
+    console.log(`🔍 [AI Agent] generateAIResponse retornou: ${aiResponse ? `"${aiResponse.substring(0, 100)}..."` : 'NULL'}`);
+    if (mediaActions.length > 0) {
+      console.log(`📁 [AI Agent] ${mediaActions.length} ações de mídia: ${mediaActions.map(a => a.media_name).join(', ')}`);
+    }
+
+    if (aiResponse) {
+      // Buscar remoteJid original do banco
+      const conversationData = await storage.getConversation(conversationId);
+      const jid = conversationData
+        ? buildSendJid(conversationData)
+        : `${contactNumber}@${jidSuffix || DEFAULT_JID_SUFFIX}`;
+      
+      // 🤖 HUMANIZAÇÃO: Quebrar mensagens longas em múltiplas
+      const agentConfig = await storage.getAgentConfig(userId);
+      const maxChars = agentConfig?.messageSplitChars ?? 400;
+      const messageParts = splitMessageHumanLike(aiResponse, maxChars);
+      
+      console.log(`[AI Agent] Sending to original JID: ${jid} (${messageParts.length} parts)`);
+      
+      for (let i = 0; i < messageParts.length; i++) {
+        const part = messageParts[i];
+        const isLast = i === messageParts.length - 1;
+        
+        // Delay entre mensagens (2-4 segundos) para simular digitação
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 2500 + Math.random() * 1500));
+        }
+        
+        const sentMessage = await currentSession.socket.sendMessage(jid, { text: part });
+
+        // ⚠️ IMPORTANTE: Registrar messageId para evitar duplicata em handleOutgoingMessage
+        if (sentMessage?.key.id) {
+          agentMessageIds.add(sentMessage.key.id);
+          console.log(`🔒 [AI Agent] MessageId registrado (parte ${i+1}/${messageParts.length}): ${sentMessage.key.id}`);
+        }
+
+        await storage.createMessage({
+          conversationId: conversationId,
+          messageId: sentMessage?.key.id || `${Date.now()}-${i}`,
+          fromMe: true,
+          text: part,
+          timestamp: new Date(),
+          status: "sent",
+          isFromAgent: true,
+        });
+
+        // Só atualizar conversa na última parte
+        if (isLast) {
+          await storage.updateConversation(conversationId, {
+            lastMessageText: part,
+            lastMessageTime: new Date(),
+          });
+
+          broadcastToUser(userId, {
+            type: "agent_response",
+            conversationId: conversationId,
+            message: aiResponse,
+          });
+        }
+
+        console.log(`[AI Agent] Part ${i+1}/${messageParts.length} SENT to WhatsApp ${contactNumber}`);
+      }
+      
+      // 📁 EXECUTAR AÇÕES DE MÍDIA (enviar áudios, imagens, vídeos)
+      if (mediaActions.length > 0) {
+        console.log(`📁 [AI Agent] Executando ${mediaActions.length} ações de mídia...`);
+        
+        const conversationDataForMedia = await storage.getConversation(conversationId);
+        const mediaJid = conversationDataForMedia
+          ? buildSendJid(conversationDataForMedia)
+          : jid;
+        
+        await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1000));
+        
+        await executeMediaActions({
+          userId,
+          jid: mediaJid,
+          actions: mediaActions,
+          socket: currentSession.socket,
+        });
+        
+        console.log(`📁 [AI Agent] Mídias enviadas com sucesso!`);
+      }
+    } else {
+      console.log(`[AI Agent] No response generated (trigger phrase check or agent inactive)`);
+    }
+  } catch (error) {
+    console.error("Error generating AI response:", error);
   }
 }
 

@@ -2,8 +2,14 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import dotenv from "dotenv";
+
+// Ensure build-time envs (Supabase keys) are loaded from repo root
+dotenv.config({ path: path.resolve(import.meta.dirname, ".env") });
 
 export default defineConfig({
+  // Load env from repo root (not client/) so Vite sees Supabase keys
+  envDir: path.resolve(import.meta.dirname),
   define: {
     'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL || 'https://bnfpcuzjvycudccycqqt.supabase.co'),
     'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.SUPABASE_ANON_KEY || ''),
