@@ -35,6 +35,7 @@ import {
   disconnectWhatsApp,
   sendMessage as whatsappSendMessage,
   addWebSocketClient,
+  addAdminWebSocketClient,
 } from "./whatsapp";
 import { 
   sendMessageSchema, 
@@ -1332,6 +1333,416 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== BULK SEND / ENVIO EM MASSA ROUTES ====================
+  
+  // Envio em massa para múltiplos números - COM SUPORTE A [nome] e variação IA
+  app.post("/api/whatsapp/bulk-send", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { phones, message, contacts, settings } = req.body;
+
+      if (!phones || !Array.isArray(phones) || phones.length === 0) {
+        return res.status(400).json({ message: "Lista de telefones é obrigatória" });
+      }
+
+      if (!message || typeof message !== "string" || !message.trim()) {
+        return res.status(400).json({ message: "Mensagem é obrigatória" });
+      }
+
+      // Verificar conexão WhatsApp
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || !connection.isConnected) {
+        return res.status(400).json({ message: "WhatsApp não está conectado" });
+      }
+
+      // Importar função de envio aprimorada
+      const { sendBulkMessagesAdvanced } = await import("./whatsapp");
+      
+      // Preparar contatos com nomes
+      const contactsWithNames: { phone: string; name: string }[] = [];
+      for (let i = 0; i < phones.length; i++) {
+        const cleanPhone = String(phones[i]).replace(/\D/g, '');
+        if (cleanPhone.length >= 10 && cleanPhone.length <= 15) {
+          const contactData = contacts?.find((c: any) => 
+            String(c.phone).replace(/\D/g, '') === cleanPhone
+          );
+          contactsWithNames.push({
+            phone: cleanPhone,
+            name: contactData?.name || ''
+          });
+        }
+      }
+
+      if (contactsWithNames.length === 0) {
+        return res.status(400).json({ message: "Nenhum número válido encontrado" });
+      }
+
+      console.log(`[BULK SEND] Iniciando envio para ${contactsWithNames.length} números`);
+      
+      // Configurações de delay
+      const delayMin = settings?.delayMin || 5;
+      const delayMax = settings?.delayMax || 15;
+      const useAI = settings?.useAI || false;
+      
+      // Criar campanha com status "running" para rastreamento
+      const campaignName = `Envio ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+      const campaignId = `campaign_${Date.now()}`;
+      
+      await storage.createCampaign?.({
+        id: campaignId,
+        userId,
+        name: campaignName,
+        message,
+        recipients: contactsWithNames.map(c => c.phone),
+        recipientNames: contactsWithNames.reduce((acc, c) => ({ ...acc, [c.phone]: c.name }), {}),
+        status: 'running',
+        totalSent: 0,
+        totalFailed: 0,
+        executedAt: new Date(),
+        createdAt: new Date(),
+        delayProfile: delayMin <= 7 ? 'normal' : delayMin <= 12 ? 'humano' : 'conservador',
+        useAiVariation: useAI,
+      });
+      
+      // RESPONDER IMEDIATAMENTE - envio continua em background
+      res.json({
+        success: true,
+        total: contactsWithNames.length,
+        sent: 0,
+        failed: 0,
+        campaignId,
+        progress: {
+          total: contactsWithNames.length,
+          sent: 0,
+          failed: 0,
+          status: 'running'
+        },
+        message: 'Envio iniciado em background. Você pode fechar a página que o envio continuará.'
+      });
+      
+      // EXECUTAR ENVIO EM BACKGROUND (não bloqueia a resposta)
+      setImmediate(async () => {
+        try {
+          console.log(`[BULK SEND BACKGROUND] Executando campanha ${campaignId} em background`);
+          
+          const result = await sendBulkMessagesAdvanced(userId, contactsWithNames, message, {
+            delayMin: delayMin * 1000,
+            delayMax: delayMax * 1000,
+            useAI,
+          });
+          
+          // Atualizar campanha com resultado final
+          await storage.updateCampaign?.(userId, campaignId, {
+            status: 'completed',
+            totalSent: result.sent,
+            totalFailed: result.failed,
+            results: result.details,
+            completedAt: new Date(),
+          });
+          
+          console.log(`[BULK SEND BACKGROUND] Campanha ${campaignId} concluída: ${result.sent} enviados, ${result.failed} falharam`);
+        } catch (error: any) {
+          console.error(`[BULK SEND BACKGROUND] Erro na campanha ${campaignId}:`, error);
+          await storage.updateCampaign?.(userId, campaignId, {
+            status: 'error',
+            errorMessage: error.message,
+          });
+        }
+      });
+    } catch (error: any) {
+      console.error("Error in bulk send:", error);
+      res.status(500).json({ message: error.message || "Falha no envio em massa" });
+    }
+  });
+
+  // ==================== CONTACTS / LISTAS DE CONTATOS ROUTES ====================
+  
+  // Buscar listas de contatos
+  app.get("/api/contacts/lists", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const lists = await storage.getContactLists?.(userId) || [];
+      res.json(lists);
+    } catch (error) {
+      console.error("Error fetching contact lists:", error);
+      res.status(500).json({ message: "Failed to fetch contact lists" });
+    }
+  });
+
+  // Criar lista de contatos - COM SUPORTE A CONTATOS
+  app.post("/api/contacts/lists", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, description, contacts } = req.body;
+
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ message: "Nome da lista é obrigatório" });
+      }
+
+      // Criar lista com contatos se fornecidos
+      const list = await storage.createContactList?.({
+        userId,
+        name,
+        description: description || "",
+        contacts: contacts || [],
+      });
+
+      res.json(list || { id: Date.now().toString(), name, description, contacts: contacts || [] });
+    } catch (error) {
+      console.error("Error creating contact list:", error);
+      res.status(500).json({ message: "Failed to create contact list" });
+    }
+  });
+
+  // Sincronizar contatos do WhatsApp
+  app.post("/api/contacts/sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Verificar conexão WhatsApp
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || !connection.isConnected) {
+        return res.status(400).json({ message: "WhatsApp não está conectado" });
+      }
+
+      // Buscar conversas existentes
+      const conversations = await storage.getConversationsByConnectionId(connection.id);
+      
+      // Extrair contatos únicos (devagarinho para não derrubar o servidor)
+      const contacts = conversations
+        .filter(conv => conv.contactNumber && !conv.contactNumber.includes('@lid'))
+        .map(conv => ({
+          id: conv.id,
+          name: conv.contactName || conv.contactNumber || '',
+          phone: conv.contactNumber || '',
+          lastMessage: conv.lastMessageTime,
+        }))
+        .filter((contact, index, self) => 
+          index === self.findIndex(c => c.phone === contact.phone)
+        );
+
+      // Salvar contatos sincronizados (se a função existir)
+      if (storage.saveSyncedContacts) {
+        await storage.saveSyncedContacts(userId, contacts);
+      }
+
+      res.json({ 
+        success: true, 
+        count: contacts.length,
+        contacts 
+      });
+    } catch (error) {
+      console.error("Error syncing contacts:", error);
+      res.status(500).json({ message: "Failed to sync contacts" });
+    }
+  });
+
+  // Buscar contatos sincronizados
+  app.get("/api/contacts/synced", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Buscar conexão do usuário
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.json([]);
+      }
+
+      // Buscar conversas e extrair contatos
+      const conversations = await storage.getConversationsByConnectionId(connection.id);
+      
+      const contacts = conversations
+        .filter(conv => conv.contactNumber)
+        .map(conv => ({
+          id: conv.id,
+          name: conv.contactName || '',
+          phone: conv.contactNumber || '',
+        }))
+        .filter((contact, index, self) => 
+          index === self.findIndex(c => c.phone === contact.phone)
+        );
+
+      res.json(contacts);
+    } catch (error) {
+      console.error("Error fetching synced contacts:", error);
+      res.status(500).json({ message: "Failed to fetch synced contacts" });
+    }
+  });
+
+  // Adicionar contatos a uma lista
+  app.post("/api/contacts/lists/:listId/contacts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { listId } = req.params;
+      const { contacts } = req.body;
+
+      if (!contacts || !Array.isArray(contacts)) {
+        return res.status(400).json({ message: "Lista de contatos é obrigatória" });
+      }
+
+      const result = await storage.addContactsToList?.(userId, listId, contacts);
+      res.json(result || { success: true });
+    } catch (error) {
+      console.error("Error adding contacts to list:", error);
+      res.status(500).json({ message: "Failed to add contacts to list" });
+    }
+  });
+
+  // ==================== CAMPAIGNS ROUTES ====================
+  
+  // Get all campaigns for user
+  app.get("/api/campaigns", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const campaigns = await storage.getCampaigns?.(userId) || [];
+      res.json(campaigns);
+    } catch (error) {
+      console.error("Error fetching campaigns:", error);
+      res.status(500).json({ message: "Failed to fetch campaigns" });
+    }
+  });
+
+  // Create campaign
+  app.post("/api/campaigns", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, message, recipients, scheduledAt, listId } = req.body;
+
+      if (!name || !message) {
+        return res.status(400).json({ message: "Nome e mensagem são obrigatórios" });
+      }
+
+      const campaign = await storage.createCampaign?.({
+        userId,
+        name,
+        message,
+        recipients: recipients || [],
+        listId: listId || null,
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+        status: scheduledAt ? "scheduled" : "draft",
+        createdAt: new Date(),
+      });
+
+      res.json(campaign || { id: Date.now().toString(), success: true });
+    } catch (error) {
+      console.error("Error creating campaign:", error);
+      res.status(500).json({ message: "Failed to create campaign" });
+    }
+  });
+
+  // Get single campaign
+  app.get("/api/campaigns/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const campaign = await storage.getCampaign?.(userId, id);
+      
+      if (!campaign) {
+        return res.status(404).json({ message: "Campanha não encontrada" });
+      }
+      
+      res.json(campaign);
+    } catch (error) {
+      console.error("Error fetching campaign:", error);
+      res.status(500).json({ message: "Failed to fetch campaign" });
+    }
+  });
+
+  // Update campaign
+  app.put("/api/campaigns/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const updates = req.body;
+
+      const campaign = await storage.updateCampaign?.(userId, id, updates);
+      res.json(campaign || { success: true });
+    } catch (error) {
+      console.error("Error updating campaign:", error);
+      res.status(500).json({ message: "Failed to update campaign" });
+    }
+  });
+
+  // Delete campaign
+  app.delete("/api/campaigns/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      await storage.deleteCampaign?.(userId, id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting campaign:", error);
+      res.status(500).json({ message: "Failed to delete campaign" });
+    }
+  });
+
+  // Execute campaign now
+  app.post("/api/campaigns/:id/execute", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      // Get campaign
+      const campaign = await storage.getCampaign?.(userId, id);
+      if (!campaign) {
+        return res.status(404).json({ message: "Campanha não encontrada" });
+      }
+
+      // Get user's WhatsApp connection (use getConnectionByUserId as fallback)
+      let connection = await storage.getUserActiveConnection?.(userId);
+      if (!connection) {
+        // Fallback to any connection for this user
+        connection = await storage.getConnectionByUserId(userId);
+      }
+      
+      if (!connection) {
+        return res.status(400).json({ message: "Nenhuma conexão WhatsApp encontrada" });
+      }
+
+      // Import sendBulkMessages
+      const { sendBulkMessages } = await import("./whatsapp");
+
+      // Get recipients - from listId or direct recipients
+      let recipients = campaign.recipients || [];
+      
+      if (campaign.listId) {
+        const list = await storage.getContactList?.(userId, campaign.listId);
+        if (list?.contacts) {
+          recipients = list.contacts.map((c: any) => c.phone || c.telefone);
+        }
+      }
+
+      if (recipients.length === 0) {
+        return res.status(400).json({ message: "Nenhum destinatário na campanha" });
+      }
+
+      // Execute bulk send - use userId, not connection.id (session key is userId)
+      const result = await sendBulkMessages(
+        userId,
+        recipients,
+        campaign.message
+      );
+
+      // Update campaign status
+      await storage.updateCampaign?.(userId, id, {
+        status: "completed",
+        executedAt: new Date(),
+        sentCount: result.sent,
+        failedCount: result.failed,
+      });
+
+      res.json({
+        success: true,
+        message: `Campanha executada: ${result.sent} enviados, ${result.failed} falharam`,
+        result,
+      });
+    } catch (error) {
+      console.error("Error executing campaign:", error);
+      res.status(500).json({ message: "Failed to execute campaign" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket server
@@ -1345,7 +1756,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const pathname = url.pathname;
 
     if (pathname !== "/ws") {
-      socket.destroy();
+      // Importante: não destruir upgrades que não são /ws.
+      // Em desenvolvimento, o Vite HMR usa WebSocket em "/" (ex: /?token=...).
+      // Se destruirmos aqui, o navegador tenta reconectar e pode ficar dando refresh.
       return;
     }
 
@@ -1411,7 +1824,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isAdmin && adminId) {
         // Admin WebSocket connection
         console.log(`WebSocket admin client connected: ${adminId}`);
-        const { addAdminWebSocketClient } = require("./whatsapp");
         addAdminWebSocketClient(ws as any, adminId);
 
         ws.on("close", () => {
@@ -1530,6 +1942,489 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ error: String(error) });
     }
   });
+
+  // ==================== ADMIN AGENT IA ROUTES ====================
+  // Rotas para configurar o Agente IA do Administrador (mesmo sistema que os usuários têm)
+
+  // In-memory storage for admin agent config and media (pode ser movido para DB depois)
+  const adminAgentConfig: {
+    prompt: string;
+    isActive: boolean;
+    triggerPhrases: string[];
+    messageSplitChars: number;
+    responseDelaySeconds: number;
+    typingDelayMin: number;
+    typingDelayMax: number;
+    messageIntervalMin: number;
+    messageIntervalMax: number;
+  } = {
+    prompt: "",
+    isActive: false,
+    triggerPhrases: [],
+    messageSplitChars: 400,
+    responseDelaySeconds: 30,
+    typingDelayMin: 2,
+    typingDelayMax: 5,
+    messageIntervalMin: 3,
+    messageIntervalMax: 8,
+  };
+
+  const adminMediaLibrary: Map<string, {
+    id: string;
+    adminId: string;
+    name: string;
+    mediaType: "audio" | "image" | "video" | "document";
+    storageUrl: string;
+    fileName?: string;
+    fileSize?: number;
+    mimeType?: string;
+    durationSeconds?: number;
+    description: string;
+    whenToUse?: string;
+    caption?: string;
+    transcription?: string;
+    isActive: boolean;
+    sendAlone: boolean;
+    displayOrder: number;
+    createdAt: string;
+  }> = new Map();
+
+  // GET - Obter configuração do agente admin
+  app.get("/api/admin/agent/config", isAdmin, async (req: any, res) => {
+    try {
+      // Tentar carregar do banco primeiro
+      const [prompt, isActive, triggerPhrases, messageSplitChars, responseDelaySeconds,
+             typingDelayMin, typingDelayMax, messageIntervalMin, messageIntervalMax] = await Promise.all([
+        storage.getSystemConfig("admin_agent_prompt"),
+        storage.getSystemConfig("admin_agent_is_active"),
+        storage.getSystemConfig("admin_agent_trigger_phrases"),
+        storage.getSystemConfig("admin_agent_message_split_chars"),
+        storage.getSystemConfig("admin_agent_response_delay_seconds"),
+        storage.getSystemConfig("admin_agent_typing_delay_min"),
+        storage.getSystemConfig("admin_agent_typing_delay_max"),
+        storage.getSystemConfig("admin_agent_message_interval_min"),
+        storage.getSystemConfig("admin_agent_message_interval_max"),
+      ]);
+
+      res.json({
+        prompt: prompt?.valor || adminAgentConfig.prompt,
+        isActive: isActive?.valor === "true" || adminAgentConfig.isActive,
+        triggerPhrases: triggerPhrases?.valor ? JSON.parse(triggerPhrases.valor) : adminAgentConfig.triggerPhrases,
+        messageSplitChars: messageSplitChars?.valor ? parseInt(messageSplitChars.valor) : adminAgentConfig.messageSplitChars,
+        responseDelaySeconds: responseDelaySeconds?.valor ? parseInt(responseDelaySeconds.valor) : adminAgentConfig.responseDelaySeconds,
+        typingDelayMin: typingDelayMin?.valor ? parseInt(typingDelayMin.valor) : adminAgentConfig.typingDelayMin,
+        typingDelayMax: typingDelayMax?.valor ? parseInt(typingDelayMax.valor) : adminAgentConfig.typingDelayMax,
+        messageIntervalMin: messageIntervalMin?.valor ? parseInt(messageIntervalMin.valor) : adminAgentConfig.messageIntervalMin,
+        messageIntervalMax: messageIntervalMax?.valor ? parseInt(messageIntervalMax.valor) : adminAgentConfig.messageIntervalMax,
+      });
+    } catch (error) {
+      console.error("Error fetching admin agent config:", error);
+      res.status(500).json({ message: "Failed to fetch admin agent config" });
+    }
+  });
+
+  // POST - Salvar configuração do agente admin
+  app.post("/api/admin/agent/config", isAdmin, async (req: any, res) => {
+    try {
+      const { prompt, isActive, triggerPhrases, messageSplitChars, responseDelaySeconds,
+              typingDelayMin, typingDelayMax, messageIntervalMin, messageIntervalMax } = req.body;
+
+      // Salvar no banco
+      await Promise.all([
+        storage.updateSystemConfig("admin_agent_prompt", prompt || ""),
+        storage.updateSystemConfig("admin_agent_is_active", isActive ? "true" : "false"),
+        storage.updateSystemConfig("admin_agent_trigger_phrases", JSON.stringify(triggerPhrases || [])),
+        storage.updateSystemConfig("admin_agent_message_split_chars", String(messageSplitChars || 400)),
+        storage.updateSystemConfig("admin_agent_response_delay_seconds", String(responseDelaySeconds || 30)),
+        storage.updateSystemConfig("admin_agent_typing_delay_min", String(typingDelayMin || 2)),
+        storage.updateSystemConfig("admin_agent_typing_delay_max", String(typingDelayMax || 5)),
+        storage.updateSystemConfig("admin_agent_message_interval_min", String(messageIntervalMin || 3)),
+        storage.updateSystemConfig("admin_agent_message_interval_max", String(messageIntervalMax || 8)),
+      ]);
+
+      // Atualizar in-memory também
+      Object.assign(adminAgentConfig, {
+        prompt: prompt || "",
+        isActive: !!isActive,
+        triggerPhrases: triggerPhrases || [],
+        messageSplitChars: messageSplitChars || 400,
+        responseDelaySeconds: responseDelaySeconds || 30,
+        typingDelayMin: typingDelayMin || 2,
+        typingDelayMax: typingDelayMax || 5,
+        messageIntervalMin: messageIntervalMin || 3,
+        messageIntervalMax: messageIntervalMax || 8,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving admin agent config:", error);
+      res.status(500).json({ message: "Failed to save admin agent config" });
+    }
+  });
+
+  // POST - Testar agente admin
+  app.post("/api/admin/agent/test", isAdmin, async (req: any, res) => {
+    try {
+      const { message } = req.body;
+
+      if (!message) {
+        return res.status(400).json({ message: "Message is required" });
+      }
+
+      // Buscar prompt do admin
+      const promptConfig = await storage.getSystemConfig("admin_agent_prompt");
+      const prompt = promptConfig?.valor || adminAgentConfig.prompt;
+
+      if (!prompt) {
+        return res.json({ response: "Agente não configurado. Configure o prompt primeiro." });
+      }
+
+      // Testar com AI
+      const response = await testAgentResponse(message, prompt);
+      res.json({ response });
+    } catch (error) {
+      console.error("Error testing admin agent:", error);
+      res.status(500).json({ message: "Failed to test admin agent" });
+    }
+  });
+
+  // GET - Listar mídias do admin
+  app.get("/api/admin/agent/media", isAdmin, async (req: any, res) => {
+    try {
+      const mediaList = Array.from(adminMediaLibrary.values());
+      res.json(mediaList);
+    } catch (error) {
+      console.error("Error fetching admin media:", error);
+      res.status(500).json({ message: "Failed to fetch admin media" });
+    }
+  });
+
+  // POST - Adicionar mídia do admin
+  app.post("/api/admin/agent/media", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId || "admin";
+      const { name, mediaType, storageUrl, fileName, fileSize, mimeType, 
+              description, whenToUse, caption, transcription, isActive, sendAlone } = req.body;
+
+      if (!name || !description || !storageUrl) {
+        return res.status(400).json({ message: "name, description e storageUrl são obrigatórios" });
+      }
+
+      const id = crypto.randomUUID();
+      const media = {
+        id,
+        adminId,
+        name: name.toUpperCase().replace(/\s+/g, '_'),
+        mediaType: mediaType || "audio",
+        storageUrl,
+        fileName,
+        fileSize,
+        mimeType,
+        description,
+        whenToUse,
+        caption,
+        transcription,
+        isActive: isActive !== false,
+        sendAlone: sendAlone || false,
+        displayOrder: adminMediaLibrary.size,
+        createdAt: new Date().toISOString(),
+      };
+
+      adminMediaLibrary.set(id, media);
+      res.json(media);
+    } catch (error) {
+      console.error("Error adding admin media:", error);
+      res.status(500).json({ message: "Failed to add admin media" });
+    }
+  });
+
+  // PUT - Atualizar mídia do admin
+  app.put("/api/admin/agent/media/:id", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const existing = adminMediaLibrary.get(id);
+
+      if (!existing) {
+        return res.status(404).json({ message: "Media not found" });
+      }
+
+      const updated = { ...existing, ...req.body };
+      if (req.body.name) {
+        updated.name = req.body.name.toUpperCase().replace(/\s+/g, '_');
+      }
+
+      adminMediaLibrary.set(id, updated);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating admin media:", error);
+      res.status(500).json({ message: "Failed to update admin media" });
+    }
+  });
+
+  // DELETE - Remover mídia do admin
+  app.delete("/api/admin/agent/media/:id", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      if (!adminMediaLibrary.has(id)) {
+        return res.status(404).json({ message: "Media not found" });
+      }
+
+      adminMediaLibrary.delete(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting admin media:", error);
+      res.status(500).json({ message: "Failed to delete admin media" });
+    }
+  });
+
+  // POST - Upload de arquivo para mídia do admin
+  app.post("/api/admin/agent/media/upload", isAdmin, upload.single('file'), async (req: any, res) => {
+    try {
+      const file = req.file;
+      
+      if (!file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      // Determinar tipo de mídia baseado no mimetype
+      let mediaType: 'audio' | 'image' | 'video' | 'document' = 'document';
+      if (file.mimetype.startsWith('audio/')) mediaType = 'audio';
+      else if (file.mimetype.startsWith('image/')) mediaType = 'image';
+      else if (file.mimetype.startsWith('video/')) mediaType = 'video';
+
+      // Gerar nome único para o arquivo
+      const timestamp = Date.now();
+      const safeFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const storagePath = `admin-media/${timestamp}_${safeFileName}`;
+
+      // Upload para Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('agent-media')
+        .upload(storagePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error("Supabase upload error:", uploadError);
+        
+        // Se o bucket não existir, tentar criar
+        if (uploadError.message?.includes('Bucket not found')) {
+          const { error: createError } = await supabase.storage.createBucket('agent-media', {
+            public: true,
+            fileSizeLimit: 52428800
+          });
+          
+          if (createError && !createError.message?.includes('already exists')) {
+            return res.status(500).json({ message: "Failed to create storage bucket", error: createError.message });
+          }
+
+          // Retry upload
+          const { error: retryError } = await supabase.storage
+            .from('agent-media')
+            .upload(storagePath, file.buffer, {
+              contentType: file.mimetype,
+              upsert: false
+            });
+
+          if (retryError) {
+            return res.status(500).json({ message: "Failed to upload file", error: retryError.message });
+          }
+        } else {
+          return res.status(500).json({ message: "Failed to upload file", error: uploadError.message });
+        }
+      }
+
+      // Obter URL pública
+      const { data: urlData } = supabase.storage
+        .from('agent-media')
+        .getPublicUrl(storagePath);
+
+      const publicUrl = urlData.publicUrl;
+
+      // Transcrição automática para áudio
+      let transcription: string | null = null;
+      if (mediaType === 'audio') {
+        try {
+          transcription = await transcribeAudio(publicUrl, file.mimetype);
+        } catch (error) {
+          console.error('Error transcribing admin audio:', error);
+        }
+      }
+
+      res.json({
+        success: true,
+        storageUrl: publicUrl,
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        mediaType,
+        transcription: transcription || undefined
+      });
+    } catch (error: any) {
+      console.error("Error uploading admin file:", error);
+      res.status(500).json({ message: "Failed to upload file", error: error.message });
+    }
+  });
+
+  // POST - Transcrever áudio do admin
+  app.post("/api/admin/agent/media/transcribe", isAdmin, async (req: any, res) => {
+    try {
+      const { audioUrl, mimeType } = req.body;
+      
+      if (!audioUrl) {
+        return res.status(400).json({ message: "audioUrl is required" });
+      }
+
+      const transcription = await transcribeAudio(audioUrl, mimeType);
+      
+      if (!transcription) {
+        return res.status(500).json({ message: "Failed to transcribe audio" });
+      }
+
+      res.json({ transcription });
+    } catch (error) {
+      console.error("Error transcribing admin audio:", error);
+      res.status(500).json({ message: "Failed to transcribe audio" });
+    }
+  });
+
+  // ==================== ADMIN AUTO-ATENDIMENTO ROUTES ====================
+  
+  // GET - Configuração do atendimento automatizado
+  app.get("/api/admin/auto-atendimento/config", isAdmin, async (req: any, res) => {
+    try {
+      const [enabled, prompt, ownerNumber] = await Promise.all([
+        storage.getSystemConfig("admin_agent_enabled"),
+        storage.getSystemConfig("admin_agent_prompt"),
+        storage.getSystemConfig("owner_notification_number"),
+      ]);
+
+      res.json({
+        enabled: enabled?.valor === "true",
+        prompt: prompt?.valor || "",
+        ownerNotificationNumber: ownerNumber?.valor || "5517991956944",
+      });
+    } catch (error) {
+      console.error("Error fetching auto-atendimento config:", error);
+      res.status(500).json({ message: "Failed to fetch config" });
+    }
+  });
+
+  // POST - Salvar configuração do atendimento automatizado
+  app.post("/api/admin/auto-atendimento/config", isAdmin, async (req: any, res) => {
+    try {
+      const { enabled, prompt, ownerNotificationNumber } = req.body;
+
+      if (typeof enabled === "boolean") {
+        await storage.updateSystemConfig("admin_agent_enabled", enabled ? "true" : "false");
+      }
+      
+      if (typeof prompt === "string") {
+        await storage.updateSystemConfig("admin_agent_prompt", prompt);
+      }
+      
+      if (typeof ownerNotificationNumber === "string") {
+        await storage.updateSystemConfig("owner_notification_number", ownerNotificationNumber);
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving auto-atendimento config:", error);
+      res.status(500).json({ message: "Failed to save config" });
+    }
+  });
+
+  // GET - Sessões de clientes em atendimento
+  app.get("/api/admin/auto-atendimento/sessions", isAdmin, async (req: any, res) => {
+    try {
+      const { getClientSession } = await import("./adminAgentService");
+      // Este endpoint pode ser expandido para listar todas as sessões
+      res.json({ message: "Use individual session lookups" });
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+      res.status(500).json({ message: "Failed to fetch sessions" });
+    }
+  });
+
+  // ==================== PAIRING CODE ROUTES ====================
+  
+  // POST - Gerar código de pareamento para um cliente
+  app.post("/api/admin/pairing-code/request", isAdmin, async (req: any, res) => {
+    try {
+      const { userId, phoneNumber } = req.body;
+
+      if (!userId || !phoneNumber) {
+        return res.status(400).json({ message: "userId and phoneNumber are required" });
+      }
+
+      const { requestClientPairingCode } = await import("./whatsapp");
+      const code = await requestClientPairingCode(userId, phoneNumber);
+
+      if (!code) {
+        return res.status(500).json({ message: "Failed to generate pairing code" });
+      }
+
+      res.json({ success: true, code });
+    } catch (error) {
+      console.error("Error generating pairing code:", error);
+      res.status(500).json({ message: "Failed to generate pairing code" });
+    }
+  });
+
+  // POST - Enviar mensagem via WhatsApp do admin
+  app.post("/api/admin/whatsapp/send", isAdmin, async (req: any, res) => {
+    try {
+      const { toNumber, text } = req.body;
+
+      if (!toNumber || !text) {
+        return res.status(400).json({ message: "toNumber and text are required" });
+      }
+
+      const { sendAdminMessage } = await import("./whatsapp");
+      const success = await sendAdminMessage(toNumber, text);
+
+      if (!success) {
+        return res.status(500).json({ message: "Failed to send message" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error sending admin message:", error);
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // ==================== CLIENT SELF-SERVICE ROUTES ====================
+  
+  // POST - Cliente solicita pairing code (página /conexao)
+  app.post("/api/whatsapp/pairing-code", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { phoneNumber } = req.body;
+
+      if (!phoneNumber) {
+        return res.status(400).json({ message: "phoneNumber is required" });
+      }
+
+      const { requestClientPairingCode } = await import("./whatsapp");
+      const code = await requestClientPairingCode(userId, phoneNumber);
+
+      if (!code) {
+        return res.status(500).json({ message: "Failed to generate pairing code" });
+      }
+
+      res.json({ success: true, code });
+    } catch (error) {
+      console.error("Error generating client pairing code:", error);
+      res.status(500).json({ message: "Failed to generate pairing code" });
+    }
+  });
+
+  // Exportar configuração do admin para uso no WhatsApp handler
+  (app as any).getAdminAgentConfig = () => adminAgentConfig;
+  (app as any).getAdminMediaLibrary = () => Array.from(adminMediaLibrary.values());
 
   return httpServer;
 }

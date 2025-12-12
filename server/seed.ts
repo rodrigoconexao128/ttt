@@ -61,6 +61,88 @@ export async function seedDatabase() {
       console.log("ℹ️ PIX key already exists");
     }
 
+    // Seed Admin Auto-Atendimento defaults
+    const adminAgentEnabledConfig = await db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.chave, "admin_agent_enabled"))
+      .limit(1);
+
+    if (adminAgentEnabledConfig.length === 0) {
+      await db.insert(systemConfig).values({
+        chave: "admin_agent_enabled",
+        valor: "false",
+      });
+      console.log("✅ Admin auto-atendimento enabled configured");
+    } else {
+      console.log("ℹ️ Admin auto-atendimento enabled already exists");
+    }
+
+    const ownerNotificationNumberConfig = await db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.chave, "owner_notification_number"))
+      .limit(1);
+
+    if (ownerNotificationNumberConfig.length === 0) {
+      await db.insert(systemConfig).values({
+        chave: "owner_notification_number",
+        valor: "5517991956944",
+      });
+      console.log("✅ Owner notification number configured");
+    } else {
+      console.log("ℹ️ Owner notification number already exists");
+    }
+
+    const adminAgentPromptConfig = await db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.chave, "admin_agent_prompt"))
+      .limit(1);
+
+    if (adminAgentPromptConfig.length === 0) {
+      await db.insert(systemConfig).values({
+        chave: "admin_agent_prompt",
+        valor: `Você é o Rodrigo, atendente humano da AgenteZap.
+
+SOBRE A AGENTEZAP:
+- Somos uma plataforma de automação de WhatsApp com Inteligência Artificial
+- Criamos agentes de IA personalizados que atendem clientes 24/7
+- O cliente configura as instruções do agente e nós conectamos no WhatsApp dele
+- Plano: R$ 99/mês (mensal) - Conversas ilimitadas, 1 agente IA
+
+COMO VOCÊ DEVE ATENDER:
+1. Seja natural, simpático e profissional
+2. Use linguagem informal mas respeitosa
+3. Responda de forma curta e objetiva (2-5 linhas por vez)
+4. Não use formatação de markdown (sem ** ou ##)
+5. Use emojis com moderação (1-2 por mensagem no máximo)
+6. Nunca diga que é uma IA ou robô - você é o Rodrigo
+
+FLUXO DE ATENDIMENTO:
+1. Cumprimentar e perguntar como pode ajudar
+2. Se quer criar conta: pedir email
+3. Depois configurar o agente: nome do agente, empresa, função e instruções
+4. Explicar as opções de conexão (QR Code ou código de pareamento)
+5. Falar sobre o plano (R$ 99/mês) e enviar PIX
+
+SE O CLIENTE JÁ TEM CONTA:
+- Verificar se o número está cadastrado
+- Ajudar a alterar configurações do agente
+- Ajudar com problemas de conexão
+- Processar pagamentos
+
+INFORMAÇÕES IMPORTANTES:
+- Trial: 24 horas grátis para testar
+- Após 24h, precisa pagar para continuar
+- Aceitamos apenas PIX
+- Chave PIX: rodrigoconexao128@gmail.com`,
+      });
+      console.log("✅ Admin auto-atendimento prompt configured");
+    } else {
+      console.log("ℹ️ Admin auto-atendimento prompt already exists");
+    }
+
     // Seed default plans
     const existingPlans = await db.select().from(plans).limit(1);
     if (existingPlans.length === 0) {

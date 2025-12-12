@@ -2,7 +2,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ import MassSendPage from "@/pages/mass-send";
 import CampaignsPage from "@/pages/campaigns";
 import KanbanPage from "@/pages/kanban";
 import ContactsPage from "@/pages/contacts";
+import SyncedContactsPage from "@/pages/synced-contacts";
 import TagsPage from "@/pages/tags";
 import FunnelPage from "@/pages/funnel";
 import IntegrationsPage from "@/pages/integrations";
@@ -42,6 +43,7 @@ import SchedulingPage from "@/pages/scheduling";
 import ReservationsPage from "@/pages/reservations";
 import LeadQualificationPage from "@/pages/lead-qualification";
 import MediaLibraryPage from "@/pages/media-library";
+import ContactListsPage from "@/pages/contact-lists";
 import { useLocation } from "wouter";
 import type { WhatsappConnection, AiAgentConfig } from "@shared/schema";
 import { supabase } from "@/lib/supabase";
@@ -64,13 +66,15 @@ export default function Dashboard() {
   const isMassSendRoute = location.startsWith("/envio-em-massa");
   const isCampaignsRoute = location.startsWith("/campanhas");
   const isKanbanRoute = location.startsWith("/kanban");
-  const isContactsRoute = location.startsWith("/contatos");
+  const isContactsRoute = location.startsWith("/contatos") && !location.startsWith("/contatos-sincronizados");
+  const isSyncedContactsRoute = location.startsWith("/contatos-sincronizados");
   const isTagsRoute = location.startsWith("/etiquetas");
   const isFunnelRoute = location.startsWith("/funil");
   const isIntegrationsRoute = location.startsWith("/integracoes");
   const isSchedulingRoute = location.startsWith("/agendamentos");
   const isReservationsRoute = location.startsWith("/reservas");
   const isLeadQualificationRoute = location.startsWith("/qualificacao");
+  const isContactListsRoute = location.startsWith("/listas-contatos");
   const isDashboardMode =
     !isConversasRoute &&
     !isConexaoRoute &&
@@ -83,12 +87,14 @@ export default function Dashboard() {
     !isCampaignsRoute &&
     !isKanbanRoute &&
     !isContactsRoute &&
+    !isSyncedContactsRoute &&
     !isTagsRoute &&
     !isFunnelRoute &&
     !isIntegrationsRoute &&
     !isSchedulingRoute &&
     !isReservationsRoute &&
-    !isLeadQualificationRoute;
+    !isLeadQualificationRoute &&
+    !isContactListsRoute;
   const isToolsRoute =
     isPlansRoute ||
     isSettingsRoute ||
@@ -97,12 +103,14 @@ export default function Dashboard() {
     isCampaignsRoute ||
     isKanbanRoute ||
     isContactsRoute ||
+    isSyncedContactsRoute ||
     isTagsRoute ||
     isFunnelRoute ||
     isIntegrationsRoute ||
     isSchedulingRoute ||
     isReservationsRoute ||
-    isLeadQualificationRoute;
+    isLeadQualificationRoute ||
+    isContactListsRoute;
   // Start tools collapsed by default; open only when user clicks or route requires it
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toolsPickerOpen, setToolsPickerOpen] = useState(false);
@@ -212,9 +220,11 @@ const toolsNavigation: ToolNavItem[] = [
   { label: "Biblioteca de Mídias", href: "/biblioteca-midias", icon: Upload, tooltip: "Áudios, imagens e vídeos do agente", isActive: isMediaLibraryRoute, testId: "button-nav-media-library" },
   { label: "Qualificação de Lead", href: "/qualificacao", icon: Brain, tooltip: "Análise por IA das conversas", isActive: isLeadQualificationRoute, testId: "button-nav-lead-qualification" },
   { label: "Envio em Massa", href: "/envio-em-massa", icon: Send, tooltip: "Envio em massa", isActive: isMassSendRoute, testId: "button-nav-masssend" },
+  { label: "Listas de Contatos", href: "/listas-contatos", icon: BookUser, tooltip: "Gerenciar listas de contatos", isActive: isContactListsRoute, testId: "button-nav-contact-lists" },
   { label: "Campanhas", href: "/campanhas", icon: Megaphone, tooltip: "Campanhas", isActive: isCampaignsRoute, testId: "button-nav-campaigns" },
   { label: "Kanban", href: "/kanban", icon: Kanban, tooltip: "Kanban", isActive: isKanbanRoute, testId: "button-nav-kanban" },
     { label: "Contatos", href: "/contatos", icon: Users, tooltip: "Contatos", isActive: isContactsRoute, testId: "button-nav-contacts" },
+    { label: "Contatos Sincronizados", href: "/contatos-sincronizados", icon: Smartphone, tooltip: "Contatos do WhatsApp", isActive: isSyncedContactsRoute, testId: "button-nav-synced-contacts" },
     { label: "Etiquetas", href: "/etiquetas", icon: Tags, tooltip: "Etiquetas", isActive: isTagsRoute, testId: "button-nav-tags" },
     { label: "Funil", href: "/funil", icon: Filter, tooltip: "Funil de vendas", isActive: isFunnelRoute, testId: "button-nav-funnel" },
     { label: "Integrações", href: "/integracoes", icon: Plug, tooltip: "Integrações", isActive: isIntegrationsRoute, testId: "button-nav-integrations" },
@@ -310,7 +320,7 @@ const toolsNavigation: ToolNavItem[] = [
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-1 pt-1">
                     {toolsNavigation.map((item) => (
-                      <SidebarMenuItem key={item.label} className="pl-4">
+                      <div key={item.label} className="pl-4">
                         {item.href ? (
                           <SidebarMenuButton
                             asChild
@@ -342,7 +352,7 @@ const toolsNavigation: ToolNavItem[] = [
                             </span>
                           </SidebarMenuButton>
                         )}
-                      </SidebarMenuItem>
+                      </div>
                     ))}
                   </CollapsibleContent>
                 </Collapsible>
@@ -376,6 +386,11 @@ const toolsNavigation: ToolNavItem[] = [
               <MassSendPage />
             </div>
           )}
+          {isContactListsRoute && (
+            <div className="flex-1 overflow-auto">
+              <ContactListsPage />
+            </div>
+          )}
           {isCampaignsRoute && (
             <div className="flex-1 overflow-auto">
               <CampaignsPage />
@@ -389,6 +404,11 @@ const toolsNavigation: ToolNavItem[] = [
           {isContactsRoute && (
             <div className="flex-1 overflow-auto">
               <ContactsPage />
+            </div>
+          )}
+          {isSyncedContactsRoute && (
+            <div className="flex-1 overflow-auto">
+              <SyncedContactsPage />
             </div>
           )}
           {isTagsRoute && (

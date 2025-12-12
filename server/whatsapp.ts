@@ -813,10 +813,12 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   // 🖼️ BUSCAR FOTO DE PERFIL DO CONTATO
   let contactAvatar: string | null = null;
   try {
-    const profilePicUrl = await session.socket.profilePictureUrl(normalizedJid, "image");
-    if (profilePicUrl) {
-      contactAvatar = profilePicUrl;
-      console.log(`🖼️ [AVATAR] Foto de perfil obtida para ${contactNumber}`);
+    if (session.socket) {
+      const profilePicUrl = await session.socket.profilePictureUrl(normalizedJid, "image");
+      if (profilePicUrl) {
+        contactAvatar = profilePicUrl;
+        console.log(`🖼️ [AVATAR] Foto de perfil obtida para ${contactNumber}`);
+      }
     }
   } catch (error) {
     // Contato sem foto de perfil (normal, não é erro)
@@ -1131,6 +1133,311 @@ export async function sendMessage(userId: string, conversationId: string, text: 
   });
 }
 
+// ==================== BULK SEND / ENVIO EM MASSA ====================
+export async function sendBulkMessages(
+  userId: string, 
+  phones: string[], 
+  message: string
+): Promise<{ sent: number; failed: number; errors: string[] }> {
+  const session = sessions.get(userId);
+  if (!session?.socket) {
+    throw new Error("WhatsApp não conectado");
+  }
+
+  let sent = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  console.log(`[BULK SEND] Iniciando envio para ${phones.length} números`);
+
+  for (const phone of phones) {
+    try {
+      // Formatar número para JID
+      const cleanPhone = phone.replace(/\D/g, '');
+      
+      // Adicionar código do país se necessário (Brasil = 55)
+      let formattedPhone = cleanPhone;
+      if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+        formattedPhone = '55' + cleanPhone;
+      }
+      
+      const jid = `${formattedPhone}@s.whatsapp.net`;
+      
+      console.log(`[BULK SEND] Enviando para: ${jid}`);
+      
+      // Enviar mensagem
+      const sentMessage = await session.socket.sendMessage(jid, { text: message });
+      
+      if (sentMessage?.key.id) {
+        // Registrar messageId para evitar duplicatas
+        agentMessageIds.add(sentMessage.key.id);
+        sent++;
+        console.log(`[BULK SEND] ✅ Enviado para ${phone} - MessageId: ${sentMessage.key.id}`);
+      } else {
+        failed++;
+        errors.push(`${phone}: Sem ID de mensagem retornado`);
+        console.log(`[BULK SEND] ❌ Falha ao enviar para ${phone}: Sem ID`);
+      }
+
+      // Delay entre mensagens para evitar bloqueio (2-5 segundos aleatório)
+      const delay = 2000 + Math.random() * 3000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+    } catch (error: any) {
+      failed++;
+      const errorMsg = error.message || 'Erro desconhecido';
+      errors.push(`${phone}: ${errorMsg}`);
+      console.log(`[BULK SEND] ❌ Erro ao enviar para ${phone}: ${errorMsg}`);
+      
+      // Delay extra em caso de erro (pode ser rate limit)
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+  }
+
+  console.log(`[BULK SEND] Concluído: ${sent} enviados, ${failed} falharam`);
+  
+  return { sent, failed, errors };
+}
+
+// ==================== BULK SEND ADVANCED - COM [nome] E IA ====================
+export async function sendBulkMessagesAdvanced(
+  userId: string, 
+  contacts: { phone: string; name: string }[], 
+  messageTemplate: string,
+  options: {
+    delayMin?: number;
+    delayMax?: number;
+    useAI?: boolean;
+  } = {}
+): Promise<{ 
+  sent: number; 
+  failed: number; 
+  errors: string[];
+  details: {
+    sent: { phone: string; name?: string; timestamp: string; message: string }[];
+    failed: { phone: string; name?: string; error: string; timestamp: string }[];
+  };
+}> {
+  const session = sessions.get(userId);
+  if (!session?.socket) {
+    throw new Error("WhatsApp não conectado");
+  }
+
+  const delayMin = options.delayMin || 5000;
+  const delayMax = options.delayMax || 15000;
+  const useAI = options.useAI || false;
+
+  let sent = 0;
+  let failed = 0;
+  const errors: string[] = [];
+  const details = {
+    sent: [] as { phone: string; name?: string; timestamp: string; message: string }[],
+    failed: [] as { phone: string; name?: string; error: string; timestamp: string }[],
+  };
+
+  console.log(`[BULK SEND ADVANCED] Iniciando envio para ${contacts.length} contatos`);
+  console.log(`[BULK SEND ADVANCED] Delay: ${delayMin/1000}-${delayMax/1000}s, IA: ${useAI}`);
+
+  // Função para aplicar template [nome]
+  const applyTemplate = (template: string, name: string): string => {
+    return template.replace(/\[nome\]/gi, name || 'Cliente');
+  };
+
+  // Função para gerar variação com IA (paráfrase e sinônimos)
+  const generateVariation = async (message: string, contactIndex: number): Promise<string> => {
+    if (!useAI) return message;
+    
+    try {
+      // Sinônimos comuns em português
+      const synonyms: Record<string, string[]> = {
+        'olá': ['oi', 'eae', 'e aí', 'hey'],
+        'oi': ['olá', 'eae', 'e aí', 'hey'],
+        'tudo bem': ['como vai', 'tudo certo', 'tudo ok', 'como você está'],
+        'como vai': ['tudo bem', 'tudo certo', 'como está', 'tudo ok'],
+        'obrigado': ['valeu', 'grato', 'agradeço', 'muito obrigado'],
+        'obrigada': ['valeu', 'grata', 'agradeço', 'muito obrigada'],
+        'por favor': ['poderia', 'seria possível', 'gentilmente', 'se possível'],
+        'aqui': ['por aqui', 'neste momento', 'agora'],
+        'agora': ['neste momento', 'atualmente', 'no momento'],
+        'hoje': ['neste dia', 'agora', 'no dia de hoje'],
+        'gostaria': ['queria', 'preciso', 'necessito', 'adoraria'],
+        'pode': ['consegue', 'seria possível', 'poderia', 'daria para'],
+        'grande': ['enorme', 'imenso', 'vasto', 'extenso'],
+        'pequeno': ['menor', 'reduzido', 'compacto', 'mínimo'],
+        'bom': ['ótimo', 'excelente', 'legal', 'incrível'],
+        'bonito': ['lindo', 'maravilhoso', 'belo', 'encantador'],
+        'rápido': ['veloz', 'ágil', 'ligeiro', 'imediato'],
+        'ajudar': ['auxiliar', 'apoiar', 'assistir', 'dar uma força'],
+        'entrar em contato': ['falar com você', 'te contatar', 'enviar mensagem', 'me comunicar'],
+        'informações': ['detalhes', 'dados', 'informes', 'esclarecimentos'],
+        'produto': ['item', 'mercadoria', 'artigo', 'oferta'],
+        'serviço': ['atendimento', 'solução', 'suporte', 'trabalho'],
+        'empresa': ['companhia', 'negócio', 'organização', 'firma'],
+        'cliente': ['consumidor', 'comprador', 'parceiro', 'usuário'],
+        'qualidade': ['excelência', 'padrão', 'nível', 'categoria'],
+        'preço': ['valor', 'custo', 'investimento', 'oferta'],
+        'desconto': ['promoção', 'oferta especial', 'condição especial', 'vantagem'],
+        'interessado': ['curioso', 'interessando', 'querendo saber', 'buscando'],
+      };
+      
+      // Prefixos variados para humanizar
+      const prefixes = ['', '', '', '🙂 ', '😊 ', '👋 ', '💬 ', 'Hey, ', 'Ei, '];
+      // Sufixos variados
+      const suffixes = ['', '', '', ' 😊', ' 🙏', ' ✨', '!', '.', ' Abraços!', ' Att.'];
+      // Estruturas de abertura alternativas
+      const openings: Record<string, string[]> = {
+        'olá [nome]': ['Oi [nome]', 'E aí [nome]', 'Ei [nome]', '[nome], tudo bem?', 'Fala [nome]'],
+        'oi [nome]': ['Olá [nome]', 'E aí [nome]', 'Ei [nome]', '[nome], como vai?', 'Fala [nome]'],
+        'bom dia': ['Bom dia!', 'Dia!', 'Bom diaa', 'Ótimo dia'],
+        'boa tarde': ['Boa tarde!', 'Tarde!', 'Boa tardee', 'Ótima tarde'],
+        'boa noite': ['Boa noite!', 'Noite!', 'Boa noitee', 'Ótima noite'],
+      };
+      
+      let varied = message;
+      
+      // 1. Aplicar substituições de abertura
+      for (const [pattern, replacements] of Object.entries(openings)) {
+        const regex = new RegExp(pattern, 'gi');
+        if (regex.test(varied)) {
+          const randomReplacement = replacements[Math.floor(Math.random() * replacements.length)];
+          varied = varied.replace(regex, randomReplacement);
+          break; // Só substitui uma abertura
+        }
+      }
+      
+      // 2. Aplicar 1-3 substituições de sinônimos aleatoriamente
+      const wordsToReplace = Math.floor(Math.random() * 3) + 1;
+      let replacedCount = 0;
+      
+      for (const [word, syns] of Object.entries(synonyms)) {
+        if (replacedCount >= wordsToReplace) break;
+        const regex = new RegExp(`\\b${word}\\b`, 'gi');
+        if (regex.test(varied)) {
+          const randomSyn = syns[Math.floor(Math.random() * syns.length)];
+          varied = varied.replace(regex, randomSyn);
+          replacedCount++;
+        }
+      }
+      
+      // 3. Adicionar variação de pontuação
+      if (Math.random() > 0.7) {
+        varied = varied.replace(/\!$/g, '.');
+      } else if (Math.random() > 0.8) {
+        varied = varied.replace(/\.$/g, '!');
+      }
+      
+      // 4. Usar índice para variar prefixo/sufixo de forma distribuída
+      const prefixIndex = (contactIndex + Math.floor(Math.random() * 3)) % prefixes.length;
+      const suffixIndex = (contactIndex + Math.floor(Math.random() * 3)) % suffixes.length;
+      
+      // Não adicionar prefixo/sufixo se já começar com emoji ou terminar com emoji
+      // Usa regex sem flag 'u' para compatibilidade com ES5
+      const emojiPattern = /[\uD83C-\uDBFF][\uDC00-\uDFFF]/;
+      const startsWithEmoji = emojiPattern.test(varied.slice(0, 2));
+      const endsWithEmoji = emojiPattern.test(varied.slice(-2));
+      
+      if (!startsWithEmoji && prefixes[prefixIndex]) {
+        varied = prefixes[prefixIndex] + varied;
+      }
+      if (!endsWithEmoji && suffixes[suffixIndex] && !varied.endsWith(suffixes[suffixIndex])) {
+        // Remover pontuação final antes de adicionar sufixo
+        if (suffixes[suffixIndex].match(/^[.!?]/) || suffixes[suffixIndex].match(/^\s*[A-Za-z]/)) {
+          varied = varied.replace(/[.!?]+$/, '');
+        }
+        varied = varied + suffixes[suffixIndex];
+      }
+      
+      console.log(`[BULK SEND AI] Variação #${contactIndex + 1}: "${varied.substring(0, 60)}..."`);
+      return varied;
+    } catch (error) {
+      console.error('[BULK SEND] Erro ao gerar variação IA:', error);
+      return message;
+    }
+  };
+
+  let contactIndex = 0;
+  for (const contact of contacts) {
+    try {
+      // Formatar número para JID
+      const cleanPhone = contact.phone.replace(/\D/g, '');
+      
+      // Adicionar código do país se necessário (Brasil = 55)
+      let formattedPhone = cleanPhone;
+      if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+        formattedPhone = '55' + cleanPhone;
+      }
+      
+      const jid = `${formattedPhone}@s.whatsapp.net`;
+      
+      // Aplicar template [nome] e variação IA
+      let finalMessage = applyTemplate(messageTemplate, contact.name);
+      if (useAI) {
+        finalMessage = await generateVariation(finalMessage, contactIndex);
+      }
+      
+      console.log(`[BULK SEND ADVANCED] Enviando para: ${contact.name || contact.phone} (${jid})`);
+      console.log(`[BULK SEND ADVANCED] Mensagem: ${finalMessage.substring(0, 50)}...`);
+      
+      // Enviar mensagem
+      const sentMessage = await session.socket.sendMessage(jid, { text: finalMessage });
+      
+      if (sentMessage?.key.id) {
+        // Registrar messageId para evitar duplicatas
+        agentMessageIds.add(sentMessage.key.id);
+        sent++;
+        details.sent.push({
+          phone: contact.phone,
+          name: contact.name,
+          timestamp: new Date().toISOString(),
+          message: finalMessage,
+        });
+        console.log(`[BULK SEND ADVANCED] ✅ Enviado para ${contact.name || contact.phone}`);
+      } else {
+        failed++;
+        const errorMsg = 'Sem ID de mensagem retornado';
+        errors.push(`${contact.phone}: ${errorMsg}`);
+        details.failed.push({
+          phone: contact.phone,
+          name: contact.name,
+          error: errorMsg,
+          timestamp: new Date().toISOString(),
+        });
+        console.log(`[BULK SEND ADVANCED] ❌ Falha: ${contact.phone}`);
+      }
+
+      // Delay humanizado entre mensagens
+      const delay = delayMin + Math.random() * (delayMax - delayMin);
+      console.log(`[BULK SEND ADVANCED] Aguardando ${(delay/1000).toFixed(1)}s...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+    } catch (error: any) {
+      failed++;
+      const errorMsg = error.message || 'Erro desconhecido';
+      errors.push(`${contact.phone}: ${errorMsg}`);
+      details.failed.push({
+        phone: contact.phone,
+        name: contact.name,
+        error: errorMsg,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`[BULK SEND ADVANCED] ❌ Erro: ${contact.phone} - ${errorMsg}`);
+      
+      // Delay extra em caso de erro
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    contactIndex++;
+  }
+
+  console.log(`[BULK SEND ADVANCED] Concluído: ${sent} enviados, ${failed} falharam`);
+  
+  return { sent, failed, errors, details };
+}
+
+// Função auxiliar para obter sessões (usado em rotas de debug)
+export function getSessions(): Map<string, WhatsAppSession> {
+  return sessions;
+}
+
 export async function disconnectWhatsApp(userId: string): Promise<void> {
   const session = sessions.get(userId);
   if (session?.socket) {
@@ -1209,6 +1516,131 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     });
 
     socket.ev.on("creds.update", saveCreds);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🤖 HANDLER DE MENSAGENS DO ADMIN - ATENDIMENTO AUTOMATIZADO
+    // ═══════════════════════════════════════════════════════════════════════
+    socket.ev.on("messages.upsert", async (m) => {
+      const message = m.messages[0];
+      
+      if (!message.message) return;
+      
+      // Ignorar mensagens enviadas pelo próprio admin (fromMe: true)
+      if (message.key.fromMe) {
+        console.log(`📱 [ADMIN] Mensagem enviada pelo admin, ignorando processamento automático`);
+        return;
+      }
+      
+      const remoteJid = message.key.remoteJid;
+      if (!remoteJid) return;
+      
+      // Filtrar grupos e status
+      if (remoteJid.includes("@g.us") || remoteJid.includes("@broadcast")) {
+        console.log(`📱 [ADMIN] Ignorando mensagem de grupo/status`);
+        return;
+      }
+      
+      try {
+        // Importar dinamicamente para evitar circular dependency
+        const { processAdminMessage, notifyOwnerAboutPayment, getOwnerNotificationNumber } = await import("./adminAgentService");
+        
+        // Extrair número do contato
+        const contactNumber = cleanContactNumber(remoteJid);
+        if (!contactNumber) {
+          console.log(`📱 [ADMIN] Não foi possível extrair número de: ${remoteJid}`);
+          return;
+        }
+        
+        // Extrair texto e mídia da mensagem
+        let messageText = "";
+        let mediaType: string | undefined;
+        let mediaUrl: string | undefined;
+        
+        const msg = message.message;
+        
+        if (msg?.conversation) {
+          messageText = msg.conversation;
+        } else if (msg?.extendedTextMessage?.text) {
+          messageText = msg.extendedTextMessage.text;
+        } else if (msg?.imageMessage) {
+          mediaType = "image";
+          messageText = msg.imageMessage.caption || "📷 Imagem";
+          try {
+            const buffer = await downloadMediaMessage(message, "buffer", {});
+            mediaUrl = `data:${msg.imageMessage.mimetype || "image/jpeg"};base64,${buffer.toString("base64")}`;
+          } catch (err) {
+            console.error("[ADMIN] Erro ao baixar imagem:", err);
+          }
+        } else if (msg?.audioMessage) {
+          mediaType = "audio";
+          messageText = "🎵 Áudio";
+        } else if (msg?.videoMessage) {
+          mediaType = "video";
+          messageText = msg.videoMessage.caption || "🎥 Vídeo";
+        } else if (msg?.documentMessage) {
+          mediaType = "document";
+          messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
+        } else {
+          console.log(`📱 [ADMIN] Tipo de mensagem não suportado:`, Object.keys(msg || {}));
+          return;
+        }
+        
+        console.log(`\n🤖 [ADMIN AGENT] ========================================`);
+        console.log(`   📱 De: ${contactNumber}`);
+        console.log(`   💬 Mensagem: ${messageText.substring(0, 100)}...`);
+        console.log(`   🖼️ Mídia: ${mediaType || "nenhuma"}`);
+        console.log(`   ========================================\n`);
+        
+        // Verificar se é mensagem para atendimento automatizado
+        const adminAgentEnabled = await storage.getSystemConfig("admin_agent_enabled");
+        
+        if (adminAgentEnabled?.valor !== "true") {
+          console.log(`📱 [ADMIN] Agente admin desativado, não processando`);
+          return;
+        }
+        
+        // Processar mensagem com o serviço de atendimento
+        const response = await processAdminMessage(contactNumber, messageText, mediaType, mediaUrl);
+        
+        // Enviar resposta
+        if (response.text) {
+          // Simular digitação (delay humanizado)
+          const typingDelay = Math.min(response.text.length * 30, 3000); // máx 3 segundos
+          await new Promise(resolve => setTimeout(resolve, typingDelay));
+          
+          await socket.sendMessage(remoteJid, { text: response.text });
+          console.log(`✅ [ADMIN AGENT] Resposta enviada para ${contactNumber}`);
+        }
+        
+        // Executar ações especiais
+        if (response.actions?.notifyOwner) {
+          const ownerNumber = await getOwnerNotificationNumber();
+          const ownerJid = `${ownerNumber}@s.whatsapp.net`;
+          
+          const notificationText = `💰 *NOTIFICAÇÃO DE PAGAMENTO*\n\n📱 Cliente: ${contactNumber}\n⏰ ${new Date().toLocaleString("pt-BR")}\n\n⚠️ Verificar comprovante e liberar conta`;
+          
+          await socket.sendMessage(ownerJid, { text: notificationText });
+          console.log(`📢 [ADMIN AGENT] Notificação enviada para ${ownerNumber}`);
+          
+          // Se tem imagem do comprovante, encaminhar
+          if (mediaType === "image" && mediaUrl) {
+            try {
+              const base64Data = mediaUrl.split(",")[1];
+              const buffer = Buffer.from(base64Data, "base64");
+              await socket.sendMessage(ownerJid, { 
+                image: buffer, 
+                caption: `📸 Comprovante do cliente ${contactNumber}` 
+              });
+            } catch (err) {
+              console.error("[ADMIN AGENT] Erro ao encaminhar comprovante:", err);
+            }
+          }
+        }
+        
+      } catch (error) {
+        console.error(`❌ [ADMIN AGENT] Erro ao processar mensagem:`, error);
+      }
+    });
 
     socket.ev.on("connection.update", async (update) => {
       const { connection: connStatus, lastDisconnect, qr } = update;
@@ -1431,5 +1863,204 @@ export async function restoreAdminSessions(): Promise<void> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// 📲 CONEXÃO VIA PAIRING CODE (SEM QR CODE)
+// ═══════════════════════════════════════════════════════════════════════
+// Baileys suporta conexão via código de pareamento de 8 dígitos
+// Isso permite conectar pelo celular sem precisar escanear QR Code
+// ═══════════════════════════════════════════════════════════════════════
+
+export async function requestClientPairingCode(userId: string, phoneNumber: string): Promise<string | null> {
+  try {
+    console.log(`📲 [PAIRING] Solicitando código para ${phoneNumber} (user: ${userId})`);
+    
+    // Limpar sessão anterior se existir
+    const existingSession = sessions.get(userId);
+    if (existingSession?.socket) {
+      try {
+        await existingSession.socket.logout();
+      } catch (e) {
+        // Ignorar erro de logout
+      }
+      sessions.delete(userId);
+    }
+    
+    // Criar/obter conexão
+    let connection = await storage.getConnectionByUserId(userId);
+    
+    if (!connection) {
+      connection = await storage.createConnection({
+        userId,
+        isConnected: false,
+      });
+    }
+    
+    const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+    
+    // Limpar auth anterior para começar do zero
+    await clearAuthFiles(userAuthPath);
+    
+    const { state, saveCreds } = await useMultiFileAuthState(userAuthPath);
+    
+    const sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: false,
+      logger: pino({ level: "silent" }),
+    });
+    
+    const contactsCache = new Map<string, Contact>();
+    
+    const session: WhatsAppSession = {
+      socket: sock,
+      userId,
+      connectionId: connection.id,
+      contactsCache,
+    };
+    
+    sessions.set(userId, session);
+    
+    sock.ev.on("creds.update", saveCreds);
+    
+    // Handler de conexão
+    sock.ev.on("connection.update", async (update) => {
+      const { connection: conn, lastDisconnect } = update;
+      
+      if (conn === "open") {
+        const phoneNum = sock.user?.id?.split(":")[0] || "";
+        session.phoneNumber = phoneNum;
+        
+        await storage.updateConnection(session.connectionId, {
+          isConnected: true,
+          phoneNumber: phoneNum,
+          qrCode: null,
+        });
+        
+        console.log(`✅ [PAIRING] WhatsApp conectado: ${phoneNum}`);
+        broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum });
+      }
+      
+      if (conn === "close") {
+        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+        if (statusCode !== DisconnectReason.loggedOut) {
+          console.log(`📲 [PAIRING] Desconectado temporariamente, aguardando...`);
+        }
+      }
+    });
+    
+    // Handler de mensagens
+    sock.ev.on("messages.upsert", async (m) => {
+      const message = m.messages[0];
+      if (!message.message) return;
+      
+      if (message.key.fromMe) {
+        try {
+          await handleOutgoingMessage(session, message);
+        } catch (err) {
+          console.error("Error handling outgoing message:", err);
+        }
+        return;
+      }
+      
+      try {
+        await handleIncomingMessage(session, message);
+      } catch (err) {
+        console.error("Error handling incoming message:", err);
+      }
+    });
+    
+    // Formatar número para pairing (sem + e sem @)
+    const cleanNumber = phoneNumber.replace(/\D/g, "");
+    
+    // Solicitar código de pareamento
+    // O código será enviado via WhatsApp para o número informado
+    const code = await sock.requestPairingCode(cleanNumber);
+    
+    console.log(`📲 [PAIRING] Código gerado: ${code}`);
+    
+    return code;
+  } catch (error) {
+    console.error(`📲 [PAIRING] Erro ao solicitar código:`, error);
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📤 ENVIAR MENSAGEM VIA WHATSAPP DO ADMIN
+// ═══════════════════════════════════════════════════════════════════════
+
+export async function sendAdminMessage(
+  toNumber: string, 
+  text: string,
+  media?: {
+    type: "image" | "audio" | "video" | "document";
+    buffer: Buffer;
+    mimetype: string;
+    filename?: string;
+    caption?: string;
+  }
+): Promise<boolean> {
+  try {
+    const allAdmins = await storage.getAllAdmins();
+    const adminUser = allAdmins.find(a => a.role === 'owner');
+    
+    if (!adminUser) {
+      console.error("[ADMIN MSG] Admin não encontrado");
+      return false;
+    }
+    
+    const adminSession = adminSessions.get(adminUser.id);
+    
+    if (!adminSession?.socket) {
+      console.error("[ADMIN MSG] Sessão do admin não encontrada");
+      return false;
+    }
+    
+    const cleanNumber = toNumber.replace(/\D/g, "");
+    const jid = `${cleanNumber}@${DEFAULT_JID_SUFFIX}`;
+    
+    if (media) {
+      // Enviar mídia
+      switch (media.type) {
+        case "image":
+          await adminSession.socket.sendMessage(jid, {
+            image: media.buffer,
+            caption: media.caption || text,
+            mimetype: media.mimetype,
+          });
+          break;
+        case "audio":
+          await adminSession.socket.sendMessage(jid, {
+            audio: media.buffer,
+            mimetype: media.mimetype,
+            ptt: true, // Enviar como áudio de voz
+          });
+          break;
+        case "video":
+          await adminSession.socket.sendMessage(jid, {
+            video: media.buffer,
+            caption: media.caption || text,
+            mimetype: media.mimetype,
+          });
+          break;
+        case "document":
+          await adminSession.socket.sendMessage(jid, {
+            document: media.buffer,
+            fileName: media.filename || "documento",
+            mimetype: media.mimetype,
+          });
+          break;
+      }
+    } else {
+      // Enviar apenas texto
+      await adminSession.socket.sendMessage(jid, { text });
+    }
+    
+    console.log(`✅ [ADMIN MSG] Mensagem enviada para ${cleanNumber}`);
+    return true;
+  } catch (error) {
+    console.error("[ADMIN MSG] Erro ao enviar mensagem:", error);
+    return false;
+  }
+}
 
 

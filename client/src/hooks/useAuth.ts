@@ -1,9 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
-import { fetchWithAuth } from "@/lib/supabase";
+import { fetchWithAuth, getAuthToken } from "@/lib/supabase";
 
 async function fetchUser(): Promise<User | null> {
   try {
+    const token = await getAuthToken();
+    if (!token) {
+      return null;
+    }
+
     const response = await fetchWithAuth("/api/auth/user");
 
     if (!response.ok) {

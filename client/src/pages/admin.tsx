@@ -28,10 +28,11 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
+import AdminAgentConfig from "@/components/admin-agent-config";
 
 export default function AdminPanel() {
   const { toast } = useToast();
@@ -96,6 +97,10 @@ export default function AdminPanel() {
             <TabsTrigger value="whatsapp" data-testid="tab-whatsapp">
               <MessageCircle className="w-4 h-4 mr-2" />
               WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="agent" data-testid="tab-agent">
+              <Bot className="w-4 h-4 mr-2" />
+              Agente IA
             </TabsTrigger>
             <TabsTrigger value="config" data-testid="tab-config">Configurações</TabsTrigger>
           </TabsList>
@@ -192,6 +197,10 @@ export default function AdminPanel() {
               <AdminWhatsappPanel />
               <WelcomeMessageConfig />
             </div>
+          </TabsContent>
+
+          <TabsContent value="agent" className="space-y-4">
+            <AdminAgentConfig />
           </TabsContent>
 
           <TabsContent value="config" className="space-y-4">

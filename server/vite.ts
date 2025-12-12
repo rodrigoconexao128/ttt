@@ -20,9 +20,17 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
+  const port = Number(process.env.PORT) || 5000;
+  const hmrHost = process.env.HMR_HOST || "localhost";
   const serverOptions = {
     middlewareMode: true,
-    hmr: { server },
+    hmr: {
+      server,
+      host: hmrHost,
+      port,
+      protocol: "ws",
+      clientPort: port,
+    },
     allowedHosts: true as const,
   };
 

@@ -12,11 +12,17 @@ import AdminPanel from "@/pages/admin";
 import AdminLogin from "@/pages/admin-login";
 import AgentConfig from "@/pages/agent-config";
 import MediaLibrary from "@/pages/media-library";
+import LoadingScreen from "@/components/LoadingScreen";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Se está carregando, não mostrar rota 404, mostrar loading
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Switch>
@@ -24,7 +30,7 @@ function Router() {
       <Route path="/admin" component={AdminPanel} />
       <Route path="/login" component={Login} />
       <Route path="/cadastro" component={Register} />
-      {isLoading || !isAuthenticated ? (
+      {!isAuthenticated ? (
         <Route path="/" component={LandingStatic} />
       ) : (
         <>
@@ -38,6 +44,7 @@ function Router() {
           <Route path="/campanhas" component={Dashboard} />
           <Route path="/kanban" component={Dashboard} />
           <Route path="/contatos" component={Dashboard} />
+          <Route path="/contatos-sincronizados" component={Dashboard} />
           <Route path="/etiquetas" component={Dashboard} />
           <Route path="/funil" component={Dashboard} />
           <Route path="/integracoes" component={Dashboard} />

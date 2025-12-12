@@ -127,7 +127,30 @@ export interface IStorage {
   getContactById(contactId: string, connectionId: string): Promise<WhatsappContact | undefined>;
   getContactsByConnectionId(connectionId: string): Promise<WhatsappContact[]>;
   deleteOldContacts(daysOld: number): Promise<number>;
+
+  // Campaign operations (in-memory for now)
+  getCampaigns?(userId: string): Promise<any[]>;
+  getCampaign?(userId: string, id: string): Promise<any | undefined>;
+  createCampaign?(campaign: any): Promise<any>;
+  updateCampaign?(userId: string, id: string, data: any): Promise<any>;
+  deleteCampaign?(userId: string, id: string): Promise<void>;
+  
+  // Contact List operations (in-memory for now)
+  getContactLists?(userId: string): Promise<any[]>;
+  getContactList?(userId: string, id: string): Promise<any | undefined>;
+  createContactList?(list: any): Promise<any>;
+  updateContactList?(userId: string, id: string, data: any): Promise<any>;
+  deleteContactList?(userId: string, id: string): Promise<void>;
+  addContactsToList?(userId: string, listId: string, contacts: any[]): Promise<any>;
+  getSyncedContacts?(userId: string): Promise<any[]>;
+  saveSyncedContacts?(userId: string, contacts: any[]): Promise<void>;
+  getUserActiveConnection?(userId: string): Promise<any | undefined>;
 }
+
+// In-memory storage for campaigns and contact lists
+const campaignsStore: Map<string, any[]> = new Map();
+const contactListsStore: Map<string, any[]> = new Map();
+const syncedContactsStore: Map<string, any[]> = new Map();
 
 export class DatabaseStorage implements IStorage {
   // User operations
@@ -783,6 +806,137 @@ export class DatabaseStorage implements IStorage {
 
     console.log(`[DB] Deleted contacts from ${connectionIds.length} inactive connections (${daysOld}+ days old)`);
     return deleted.rowCount || 0;
+  }
+
+  // ==================== CAMPAIGN OPERATIONS (In-Memory) ====================
+
+  async getCampaigns(userId: string): Promise<any[]> {
+    return campaignsStore.get(userId) || [];
+  }
+
+  async getCampaign(userId: string, id: string): Promise<any | undefined> {
+    const campaigns = campaignsStore.get(userId) || [];
+    return campaigns.find(c => c.id === id);
+  }
+
+  async createCampaign(campaign: any): Promise<any> {
+    const userId = campaign.userId;
+    const campaigns = campaignsStore.get(userId) || [];
+    const newCampaign = {
+      ...campaign,
+      id: `campaign_${Date.now()}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    campaigns.push(newCampaign);
+    campaignsStore.set(userId, campaigns);
+    return newCampaign;
+  }
+
+  async updateCampaign(userId: string, id: string, data: any): Promise<any> {
+    const campaigns = campaignsStore.get(userId) || [];
+    const index = campaigns.findIndex(c => c.id === id);
+    if (index !== -1) {
+      campaigns[index] = { ...campaigns[index], ...data, updatedAt: new Date() };
+      campaignsStore.set(userId, campaigns);
+      return campaigns[index];
+    }
+    return null;
+  }
+
+  async deleteCampaign(userId: string, id: string): Promise<void> {
+    const campaigns = campaignsStore.get(userId) || [];
+    const filtered = campaigns.filter(c => c.id !== id);
+    campaignsStore.set(userId, filtered);
+  }
+
+  // ==================== CONTACT LIST OPERATIONS (In-Memory) ====================
+
+  async getContactLists(userId: string): Promise<any[]> {
+    return contactListsStore.get(userId) || [];
+  }
+
+  async getContactList(userId: string, id: string): Promise<any | undefined> {
+    const lists = contactListsStore.get(userId) || [];
+    return lists.find(l => l.id === id);
+  }
+
+  async createContactList(list: any): Promise<any> {
+    const userId = list.userId;
+    const lists = contactListsStore.get(userId) || [];
+    const newList = {
+      ...list,
+      id: `list_${Date.now()}`,
+      contacts: list.contacts || [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    lists.push(newList);
+    contactListsStore.set(userId, lists);
+    return newList;
+  }
+
+  async updateContactList(userId: string, id: string, data: any): Promise<any> {
+    const lists = contactListsStore.get(userId) || [];
+    const index = lists.findIndex(l => l.id === id);
+    if (index !== -1) {
+      lists[index] = { ...lists[index], ...data, updatedAt: new Date() };
+      contactListsStore.set(userId, lists);
+      return lists[index];
+    }
+    return null;
+  }
+
+  async deleteContactList(userId: string, id: string): Promise<void> {
+    const lists = contactListsStore.get(userId) || [];
+    const filtered = lists.filter(l => l.id !== id);
+    contactListsStore.set(userId, filtered);
+  }
+
+  async addContactsToList(userId: string, listId: string, contacts: any[]): Promise<any> {
+    const lists = contactListsStore.get(userId) || [];
+    const index = lists.findIndex(l => l.id === listId);
+    if (index !== -1) {
+      const existingContacts = lists[index].contacts || [];
+      lists[index].contacts = [...existingContacts, ...contacts];
+      lists[index].updatedAt = new Date();
+      contactListsStore.set(userId, lists);
+      return { success: true, totalContacts: lists[index].contacts.length };
+    }
+    return { success: false };
+  }
+
+  async getSyncedContacts(userId: string): Promise<any[]> {
+    return syncedContactsStore.get(userId) || [];
+  }
+
+  async saveSyncedContacts(userId: string, contacts: any[]): Promise<void> {
+    const existing = syncedContactsStore.get(userId) || [];
+    const merged = [...existing];
+    
+    for (const contact of contacts) {
+      const existingIndex = merged.findIndex(c => c.phone === contact.phone);
+      if (existingIndex === -1) {
+        merged.push(contact);
+      } else {
+        merged[existingIndex] = { ...merged[existingIndex], ...contact };
+      }
+    }
+    
+    syncedContactsStore.set(userId, merged);
+  }
+
+  async getUserActiveConnection(userId: string): Promise<any | undefined> {
+    const [connection] = await db
+      .select()
+      .from(whatsappConnections)
+      .where(and(
+        eq(whatsappConnections.userId, userId),
+        eq(whatsappConnections.isConnected, true)
+      ))
+      .orderBy(desc(whatsappConnections.createdAt))
+      .limit(1);
+    return connection;
   }
 }
 

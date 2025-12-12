@@ -360,7 +360,7 @@ export default function LandingStatic() {
           <div className="row justify-content-center">
             <div className="col-12 col-md-10">
               <div className="rounded-lg shadow-sm" style={{ overflow: 'hidden' }}>
-                <video id="local-video" className="w-100" controls preload="metadata" playsinline style={{ maxHeight: '640px', width: '100%', height: 'auto', display: 'block', borderRadius: '8px' }}>
+                <video id="local-video" className="w-100" controls preload="metadata" playsInline style={{ maxHeight: '640px', width: '100%', height: 'auto', display: 'block', borderRadius: '8px' }}>
                   <source src="assets/img/iadeatendimento.mp4" type="video/mp4" />
                   Your browser does not support the video tag. <a href="assets/img/iadeatendimento.mp4">Download / Abrir vídeo</a>
                 </video>
