@@ -69,6 +69,187 @@ interface PendingResponse {
 }
 const pendingResponses = new Map<string, PendingResponse>(); // key: conversationId
 
+// 🎯 SISTEMA DE ACUMULAÇÃO (ADMIN AUTO-ATENDIMENTO)
+interface PendingAdminResponse {
+  timeout: NodeJS.Timeout | null;
+  messages: string[];
+  remoteJid: string;
+  contactNumber: string;
+  generation: number;
+  startTime: number;
+}
+const pendingAdminResponses = new Map<string, PendingAdminResponse>(); // key: contactNumber
+
+function clampInt(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
+function randomBetween(minMs: number, maxMs: number): number {
+  if (maxMs <= minMs) return minMs;
+  return minMs + Math.floor(Math.random() * (maxMs - minMs));
+}
+
+async function getAdminAgentRuntimeConfig(): Promise<{
+  responseDelayMs: number;
+  messageSplitChars: number;
+  typingDelayMinMs: number;
+  typingDelayMaxMs: number;
+  messageIntervalMinMs: number;
+  messageIntervalMaxMs: number;
+}> {
+  try {
+    const [splitChars, responseDelay, typingMin, typingMax, intervalMin, intervalMax] = await Promise.all([
+      storage.getSystemConfig("admin_agent_message_split_chars"),
+      storage.getSystemConfig("admin_agent_response_delay_seconds"),
+      storage.getSystemConfig("admin_agent_typing_delay_min"),
+      storage.getSystemConfig("admin_agent_typing_delay_max"),
+      storage.getSystemConfig("admin_agent_message_interval_min"),
+      storage.getSystemConfig("admin_agent_message_interval_max"),
+    ]);
+
+    const messageSplitChars = clampInt(parseInt(splitChars?.valor || "400", 10) || 400, 0, 5000);
+    const responseDelaySeconds = clampInt(parseInt(responseDelay?.valor || "30", 10) || 30, 1, 180);
+    const typingDelayMin = clampInt(parseInt(typingMin?.valor || "2", 10) || 2, 0, 60);
+    const typingDelayMax = clampInt(parseInt(typingMax?.valor || "5", 10) || 5, typingDelayMin, 120);
+    const messageIntervalMin = clampInt(parseInt(intervalMin?.valor || "3", 10) || 3, 0, 120);
+    const messageIntervalMax = clampInt(parseInt(intervalMax?.valor || "8", 10) || 8, messageIntervalMin, 240);
+
+    return {
+      responseDelayMs: responseDelaySeconds * 1000,
+      messageSplitChars,
+      typingDelayMinMs: typingDelayMin * 1000,
+      typingDelayMaxMs: typingDelayMax * 1000,
+      messageIntervalMinMs: messageIntervalMin * 1000,
+      messageIntervalMaxMs: messageIntervalMax * 1000,
+    };
+  } catch (error) {
+    console.error("[ADMIN AGENT] Failed to load runtime config, using defaults", error);
+    return {
+      responseDelayMs: 30000,
+      messageSplitChars: 400,
+      typingDelayMinMs: 2000,
+      typingDelayMaxMs: 5000,
+      messageIntervalMinMs: 3000,
+      messageIntervalMaxMs: 8000,
+    };
+  }
+}
+
+async function scheduleAdminAccumulatedResponse(params: {
+  socket: WASocket;
+  remoteJid: string;
+  contactNumber: string;
+  messageText: string;
+}): Promise<void> {
+  const { socket, remoteJid, contactNumber, messageText } = params;
+  const config = await getAdminAgentRuntimeConfig();
+  const key = contactNumber;
+
+  const existing = pendingAdminResponses.get(key);
+  if (existing) {
+    if (existing.timeout) {
+      clearTimeout(existing.timeout);
+    }
+    existing.messages.push(messageText);
+    existing.generation += 1;
+    existing.timeout = setTimeout(() => {
+      void processAdminAccumulatedMessages({ socket, key, generation: existing.generation });
+    }, config.responseDelayMs);
+    return;
+  }
+
+  const pending: PendingAdminResponse = {
+    timeout: null,
+    messages: [messageText],
+    remoteJid,
+    contactNumber,
+    generation: 1,
+    startTime: Date.now(),
+  };
+
+  pending.timeout = setTimeout(() => {
+    void processAdminAccumulatedMessages({ socket, key, generation: pending.generation });
+  }, config.responseDelayMs);
+
+  pendingAdminResponses.set(key, pending);
+}
+
+async function processAdminAccumulatedMessages(params: {
+  socket: WASocket;
+  key: string;
+  generation: number;
+}): Promise<void> {
+  const { socket, key, generation } = params;
+  const pending = pendingAdminResponses.get(key);
+  if (!pending) return;
+  if (pending.generation !== generation) return;
+
+  // Mark timer as consumed
+  pending.timeout = null;
+
+  const config = await getAdminAgentRuntimeConfig();
+  const combinedText = pending.messages.join("\n\n");
+
+  const waitSeconds = ((Date.now() - pending.startTime) / 1000).toFixed(1);
+  console.log(`\n🤖 [ADMIN AGENT] =========== PROCESSANDO RESPOSTA ==========`);
+  console.log(`   ⏱️ Aguardou ${waitSeconds}s | ${pending.messages.length} msg(s) acumulada(s)`);
+  console.log(`   📱 Cliente: ${pending.contactNumber}`);
+
+  try {
+    const { processAdminMessage, getOwnerNotificationNumber } = await import("./adminAgentService");
+
+    const response = await processAdminMessage(pending.contactNumber, combinedText);
+
+    // Se novas mensagens chegaram enquanto a IA processava, cancela este envio
+    const stillCurrent = pendingAdminResponses.get(key);
+    if (!stillCurrent || stillCurrent.generation !== generation) {
+      console.log(`🔄 [ADMIN AGENT] Nova mensagem chegou durante processamento; descartando resposta antiga`);
+      return;
+    }
+
+    // Delay de digitação humanizada
+    const typingDelay = randomBetween(config.typingDelayMinMs, config.typingDelayMaxMs);
+    await new Promise((r) => setTimeout(r, typingDelay));
+
+    // Quebrar mensagem longa em partes
+    const parts = splitMessageHumanLike(response.text || "", config.messageSplitChars);
+
+    for (let i = 0; i < parts.length; i++) {
+      const current = pendingAdminResponses.get(key);
+      if (!current || current.generation !== generation) {
+        console.log(`🔄 [ADMIN AGENT] Cancelando envio (mensagens novas chegaram)`);
+        return;
+      }
+
+      if (i > 0) {
+        const interval = randomBetween(config.messageIntervalMinMs, config.messageIntervalMaxMs);
+        await new Promise((r) => setTimeout(r, interval));
+      }
+
+      await socket.sendMessage(pending.remoteJid, { text: parts[i] });
+    }
+
+    console.log(`✅ [ADMIN AGENT] Resposta enviada para ${pending.contactNumber}`);
+
+    // Notificação de pagamento
+    if (response.actions?.notifyOwner) {
+      const ownerNumber = await getOwnerNotificationNumber();
+      const ownerJid = `${ownerNumber}@s.whatsapp.net`;
+      const notificationText = `💰 *NOTIFICAÇÃO DE PAGAMENTO*\n\n📱 Cliente: ${pending.contactNumber}\n⏰ ${new Date().toLocaleString("pt-BR")}\n\n⚠️ Verificar comprovante e liberar conta`;
+      await socket.sendMessage(ownerJid, { text: notificationText });
+      console.log(`📢 [ADMIN AGENT] Notificação enviada para ${ownerNumber}`);
+    }
+
+    // Limpar fila (somente se ainda for a geração atual)
+    const current = pendingAdminResponses.get(key);
+    if (current && current.generation === generation) {
+      pendingAdminResponses.delete(key);
+    }
+  } catch (error) {
+    console.error("❌ [ADMIN AGENT] Erro ao processar mensagens acumuladas:", error);
+  }
+}
+
 // 🤖 HUMANIZAÇÃO: Quebra mensagem longa em partes menores
 // Best practices: WhatsApp, Intercom, Drift quebram a cada 2-3 parágrafos ou 300-500 chars
 // Fonte: https://www.drift.com/blog/conversational-marketing-best-practices/
@@ -1561,7 +1742,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       
       try {
         // Importar dinamicamente para evitar circular dependency
-        const { processAdminMessage, notifyOwnerAboutPayment, getOwnerNotificationNumber } = await import("./adminAgentService");
+        const { processAdminMessage, getOwnerNotificationNumber } = await import("./adminAgentService");
         
         // Extrair número do contato
         const contactNumber = cleanContactNumber(remoteJid);
@@ -1618,37 +1799,51 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           return;
         }
         
-        // Processar mensagem com o serviço de atendimento
+        // Para mídias (ex: comprovante) processar imediatamente.
+        // Para textos (inclusive várias mensagens em linhas separadas), acumular e responder uma vez.
+        if (!mediaType) {
+          await scheduleAdminAccumulatedResponse({
+            socket,
+            remoteJid,
+            contactNumber,
+            messageText,
+          });
+          return;
+        }
+
         const response = await processAdminMessage(contactNumber, messageText, mediaType, mediaUrl);
-        
-        // Enviar resposta
+
         if (response.text) {
-          // Simular digitação (delay humanizado)
-          const typingDelay = Math.min(response.text.length * 30, 3000); // máx 3 segundos
+          const cfg = await getAdminAgentRuntimeConfig();
+          const typingDelay = randomBetween(cfg.typingDelayMinMs, cfg.typingDelayMaxMs);
           await new Promise(resolve => setTimeout(resolve, typingDelay));
-          
-          await socket.sendMessage(remoteJid, { text: response.text });
+
+          const parts = splitMessageHumanLike(response.text, cfg.messageSplitChars);
+          for (let i = 0; i < parts.length; i++) {
+            if (i > 0) {
+              const interval = randomBetween(cfg.messageIntervalMinMs, cfg.messageIntervalMaxMs);
+              await new Promise(resolve => setTimeout(resolve, interval));
+            }
+            await socket.sendMessage(remoteJid, { text: parts[i] });
+          }
           console.log(`✅ [ADMIN AGENT] Resposta enviada para ${contactNumber}`);
         }
-        
-        // Executar ações especiais
+
         if (response.actions?.notifyOwner) {
           const ownerNumber = await getOwnerNotificationNumber();
           const ownerJid = `${ownerNumber}@s.whatsapp.net`;
-          
+
           const notificationText = `💰 *NOTIFICAÇÃO DE PAGAMENTO*\n\n📱 Cliente: ${contactNumber}\n⏰ ${new Date().toLocaleString("pt-BR")}\n\n⚠️ Verificar comprovante e liberar conta`;
-          
           await socket.sendMessage(ownerJid, { text: notificationText });
           console.log(`📢 [ADMIN AGENT] Notificação enviada para ${ownerNumber}`);
-          
-          // Se tem imagem do comprovante, encaminhar
+
           if (mediaType === "image" && mediaUrl) {
             try {
               const base64Data = mediaUrl.split(",")[1];
               const buffer = Buffer.from(base64Data, "base64");
-              await socket.sendMessage(ownerJid, { 
-                image: buffer, 
-                caption: `📸 Comprovante do cliente ${contactNumber}` 
+              await socket.sendMessage(ownerJid, {
+                image: buffer,
+                caption: `📸 Comprovante do cliente ${contactNumber}`,
               });
             } catch (err) {
               console.error("[ADMIN AGENT] Erro ao encaminhar comprovante:", err);

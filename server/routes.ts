@@ -1996,7 +1996,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [prompt, isActive, triggerPhrases, messageSplitChars, responseDelaySeconds,
              typingDelayMin, typingDelayMax, messageIntervalMin, messageIntervalMax] = await Promise.all([
         storage.getSystemConfig("admin_agent_prompt"),
-        storage.getSystemConfig("admin_agent_is_active"),
+        // Single source of truth: admin_agent_enabled (used by WhatsApp auto-atendimento)
+        storage.getSystemConfig("admin_agent_enabled"),
         storage.getSystemConfig("admin_agent_trigger_phrases"),
         storage.getSystemConfig("admin_agent_message_split_chars"),
         storage.getSystemConfig("admin_agent_response_delay_seconds"),
@@ -2029,31 +2030,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { prompt, isActive, triggerPhrases, messageSplitChars, responseDelaySeconds,
               typingDelayMin, typingDelayMax, messageIntervalMin, messageIntervalMax } = req.body;
 
-      // Salvar no banco
-      await Promise.all([
-        storage.updateSystemConfig("admin_agent_prompt", prompt || ""),
-        storage.updateSystemConfig("admin_agent_is_active", isActive ? "true" : "false"),
-        storage.updateSystemConfig("admin_agent_trigger_phrases", JSON.stringify(triggerPhrases || [])),
-        storage.updateSystemConfig("admin_agent_message_split_chars", String(messageSplitChars || 400)),
-        storage.updateSystemConfig("admin_agent_response_delay_seconds", String(responseDelaySeconds || 30)),
-        storage.updateSystemConfig("admin_agent_typing_delay_min", String(typingDelayMin || 2)),
-        storage.updateSystemConfig("admin_agent_typing_delay_max", String(typingDelayMax || 5)),
-        storage.updateSystemConfig("admin_agent_message_interval_min", String(messageIntervalMin || 3)),
-        storage.updateSystemConfig("admin_agent_message_interval_max", String(messageIntervalMax || 8)),
-      ]);
+      const updates: Array<Promise<any>> = [];
 
-      // Atualizar in-memory também
-      Object.assign(adminAgentConfig, {
-        prompt: prompt || "",
-        isActive: !!isActive,
-        triggerPhrases: triggerPhrases || [],
-        messageSplitChars: messageSplitChars || 400,
-        responseDelaySeconds: responseDelaySeconds || 30,
-        typingDelayMin: typingDelayMin || 2,
-        typingDelayMax: typingDelayMax || 5,
-        messageIntervalMin: messageIntervalMin || 3,
-        messageIntervalMax: messageIntervalMax || 8,
-      });
+      if (typeof prompt === "string") {
+        updates.push(storage.updateSystemConfig("admin_agent_prompt", prompt));
+        adminAgentConfig.prompt = prompt;
+      }
+
+      if (typeof isActive === "boolean") {
+        // Keep both keys in sync (legacy + new)
+        const activeValue = isActive ? "true" : "false";
+        updates.push(storage.updateSystemConfig("admin_agent_enabled", activeValue));
+        updates.push(storage.updateSystemConfig("admin_agent_is_active", activeValue));
+        adminAgentConfig.isActive = isActive;
+      }
+
+      if (Array.isArray(triggerPhrases)) {
+        updates.push(storage.updateSystemConfig("admin_agent_trigger_phrases", JSON.stringify(triggerPhrases)));
+        adminAgentConfig.triggerPhrases = triggerPhrases;
+      }
+
+      if (typeof messageSplitChars === "number") {
+        updates.push(storage.updateSystemConfig("admin_agent_message_split_chars", String(messageSplitChars)));
+        adminAgentConfig.messageSplitChars = messageSplitChars;
+      }
+
+      if (typeof responseDelaySeconds === "number") {
+        updates.push(storage.updateSystemConfig("admin_agent_response_delay_seconds", String(responseDelaySeconds)));
+        adminAgentConfig.responseDelaySeconds = responseDelaySeconds;
+      }
+
+      if (typeof typingDelayMin === "number") {
+        updates.push(storage.updateSystemConfig("admin_agent_typing_delay_min", String(typingDelayMin)));
+        adminAgentConfig.typingDelayMin = typingDelayMin;
+      }
+      if (typeof typingDelayMax === "number") {
+        updates.push(storage.updateSystemConfig("admin_agent_typing_delay_max", String(typingDelayMax)));
+        adminAgentConfig.typingDelayMax = typingDelayMax;
+      }
+      if (typeof messageIntervalMin === "number") {
+        updates.push(storage.updateSystemConfig("admin_agent_message_interval_min", String(messageIntervalMin)));
+        adminAgentConfig.messageIntervalMin = messageIntervalMin;
+      }
+      if (typeof messageIntervalMax === "number") {
+        updates.push(storage.updateSystemConfig("admin_agent_message_interval_max", String(messageIntervalMax)));
+        adminAgentConfig.messageIntervalMax = messageIntervalMax;
+      }
+
+      await Promise.all(updates);
 
       res.json({ success: true });
     } catch (error) {

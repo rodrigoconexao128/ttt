@@ -41,16 +41,32 @@ export default function AdminPanel() {
   // Extrair tab da URL
   const getTabFromUrl = () => {
     const hash = window.location.hash.replace('#', '');
-    if (hash) return hash;
+    if (hash) return hash.split('/')[0] || 'dashboard';
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('tab') || 'dashboard';
   };
   
   const [activeTab, setActiveTab] = useState(getTabFromUrl);
+
+  // Sincronizar aba com mudanças de hash (back/forward ou deep link)
+  useEffect(() => {
+    const onHashChange = () => setActiveTab(getTabFromUrl());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
   
   // Sincronizar aba com URL
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
+
+    if (tab === 'agent') {
+      const hash = window.location.hash.replace('#', '');
+      const parts = hash.split('/');
+      const subTab = parts[0] === 'agent' ? (parts[1] || 'atendimento') : 'atendimento';
+      window.history.replaceState(null, '', `/admin#agent/${subTab}`);
+      return;
+    }
+
     window.history.replaceState(null, '', `/admin#${tab}`);
   };
 

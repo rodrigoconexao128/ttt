@@ -102,6 +102,13 @@ export default function AdminAgentConfig() {
   };
   
   const [activeTab, setActiveTab] = useState(getSubTabFromUrl);
+
+  // Atualizar sub-aba se o hash mudar (back/forward ou deep link)
+  useEffect(() => {
+    const onHashChange = () => setActiveTab(getSubTabFromUrl());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
   
   // Sincronizar sub-aba com URL
   const handleSubTabChange = (tab: string) => {
@@ -123,9 +130,7 @@ export default function AdminAgentConfig() {
   const [messageIntervalMin, setMessageIntervalMin] = useState(3);
   const [messageIntervalMax, setMessageIntervalMax] = useState(8);
   
-  // Estado do atendimento automatizado
-  const [autoAtendimentoEnabled, setAutoAtendimentoEnabled] = useState(false);
-  const [autoAtendimentoPrompt, setAutoAtendimentoPrompt] = useState("");
+  // Estado do atendimento automatizado (config adicional)
   const [ownerNotificationNumber, setOwnerNotificationNumber] = useState("5517991956944");
   const [isAdminWhatsAppConnected, setIsAdminWhatsAppConnected] = useState(false);
   
@@ -168,8 +173,6 @@ export default function AdminAgentConfig() {
   // Carregar configuração do atendimento automatizado
   useEffect(() => {
     if (autoAtendimentoConfig) {
-      setAutoAtendimentoEnabled(autoAtendimentoConfig.enabled);
-      setAutoAtendimentoPrompt(autoAtendimentoConfig.prompt || "");
       setOwnerNotificationNumber(autoAtendimentoConfig.ownerNotificationNumber || "5517991956944");
     }
   }, [autoAtendimentoConfig]);
@@ -181,39 +184,7 @@ export default function AdminAgentConfig() {
     }
   }, [whatsappConnection]);
 
-  // Handlers do atendimento automatizado
-  const handleToggleAutoAtendimento = async (enabled: boolean) => {
-    try {
-      await fetch("/api/admin/auto-atendimento/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ enabled }),
-      });
-      setAutoAtendimentoEnabled(enabled);
-      toast({
-        title: enabled ? "Atendimento ativado" : "Atendimento desativado",
-        description: enabled ? "O agente Rodrigo agora responderá mensagens automaticamente." : "O atendimento automático foi desativado.",
-      });
-    } catch (error) {
-      toast({ title: "Erro ao alterar configuração", variant: "destructive" });
-    }
-  };
-
-  const handleSaveAutoAtendimentoPrompt = async () => {
-    try {
-      await fetch("/api/admin/auto-atendimento/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ prompt: autoAtendimentoPrompt }),
-      });
-      toast({ title: "Instruções salvas!", description: "As instruções do agente foram atualizadas." });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/auto-atendimento/config"] });
-    } catch (error) {
-      toast({ title: "Erro ao salvar instruções", variant: "destructive" });
-    }
-  };
+  // Handler adicional do atendimento automatizado
 
   const handleSaveNotificationNumber = async () => {
     try {
@@ -299,6 +270,32 @@ export default function AdminAgentConfig() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao salvar",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Toggle rápido (não exige salvar todo o formulário)
+  const toggleActiveMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const response = await fetch("/api/admin/agent/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ isActive: enabled }),
+      });
+      if (!response.ok) throw new Error("Failed to update active state");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agent/config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/auto-atendimento/config"] });
+    },
+    onError: (error: Error, enabled: boolean) => {
+      setIsActive(!enabled);
+      toast({
+        title: "Erro ao alterar status",
         description: error.message,
         variant: "destructive",
       });
@@ -544,7 +541,10 @@ export default function AdminAgentConfig() {
             </Badge>
             <Switch
               checked={isActive}
-              onCheckedChange={setIsActive}
+              onCheckedChange={(enabled) => {
+                setIsActive(enabled);
+                toggleActiveMutation.mutate(enabled);
+              }}
               className="scale-125"
             />
           </div>
@@ -624,18 +624,17 @@ export default function AdminAgentConfig() {
                 </div>
               </div>
 
-              {/* Status de ativação */}
+              {/* Status (o toggle único fica no topo) */}
               <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
                 <div className="space-y-1">
-                  <Label className="font-medium">Ativar Atendimento Automatizado</Label>
+                  <Label className="font-medium">Status do Atendimento Automatizado</Label>
                   <p className="text-xs text-muted-foreground">
-                    Este toggle liga o fluxo de atendimento (onboarding, conexão por código e cobrança). O toggle "Ativo/Inativo" no topo é do Agente IA do Admin (respostas e mídias).
+                    Use o toggle "Ativo/Inativo" no topo para ligar/desligar o atendimento automático.
                   </p>
                 </div>
-                <Switch 
-                  checked={autoAtendimentoEnabled}
-                  onCheckedChange={handleToggleAutoAtendimento}
-                />
+                <Badge variant={isActive ? "default" : "secondary"} className={isActive ? 'bg-green-500 hover:bg-green-600' : ''}>
+                  {isActive ? "Ativo" : "Inativo"}
+                </Badge>
               </div>
 
               {/* Número para notificações */}
@@ -658,32 +657,7 @@ export default function AdminAgentConfig() {
                 </p>
               </div>
 
-              {/* Instruções do Agente Rodrigo */}
-              <div className="space-y-2">
-                <Label>Instruções do Agente (Rodrigo)</Label>
-                <Textarea
-                  placeholder={`Você é o Rodrigo, atendente da AgenteZap.
-
-SOBRE A AGENTEZAP:
-- Plataforma de automação de WhatsApp com IA
-- Plano: R$ 99/mês
-- 24h de teste grátis
-
-COMO ATENDER:
-- Seja natural e simpático
-- Ajude a criar conta e configurar o agente
-- Explique como conectar o WhatsApp
-- Processe pagamentos via PIX`}
-                  value={autoAtendimentoPrompt}
-                  onChange={(e) => setAutoAtendimentoPrompt(e.target.value)}
-                  rows={12}
-                  className="font-mono text-sm"
-                />
-                <Button onClick={handleSaveAutoAtendimentoPrompt} className="w-full">
-                  <Save className="w-4 h-4 mr-2" />
-                  Salvar Instruções do Atendimento
-                </Button>
-              </div>
+              {/* Instruções do Rodrigo ficam na aba "Instruções" (Prompt) */}
 
               {/* Fluxo de Atendimento */}
               <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
