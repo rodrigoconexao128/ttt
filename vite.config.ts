@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import dotenv from "dotenv";
 
 // Ensure build-time envs (Supabase keys) are loaded from repo root
@@ -16,18 +15,25 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
-          ),
-          await import("@replit/vite-plugin-dev-banner").then((m) =>
-            m.devBanner(),
-          ),
-        ]
-      : []),
+    ...(
+      process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined
+        ? [
+            // Plugins exclusivos do Replit (não devem quebrar build fora do Replit)
+            ...(await import("@replit/vite-plugin-cartographer").then((m) => [m.cartographer()])),
+            ...(await import("@replit/vite-plugin-dev-banner").then((m) => [m.devBanner()])),
+            ...(
+              await (async () => {
+                try {
+                  const mod = await import("@replit/vite-plugin-runtime-error-modal");
+                  return [mod.default()];
+                } catch {
+                  return [];
+                }
+              })()
+            ),
+          ]
+        : []
+    ),
   ],
   resolve: {
     alias: {
