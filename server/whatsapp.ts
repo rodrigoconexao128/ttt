@@ -130,6 +130,23 @@ function splitMessageHumanLike(message: string, maxChars: number = 400): string[
 // to persist sessions between deploys and avoid baking them into the image.
 const SESSIONS_BASE = process.env.SESSIONS_DIR || "./";
 
+async function ensureDirExists(dirPath: string): Promise<void> {
+  try {
+    await fs.mkdir(dirPath, { recursive: true });
+  } catch (error) {
+    console.error(`[WHATSAPP] Failed to ensure sessions directory exists: ${dirPath}`, error);
+  }
+}
+
+// Best-effort: ensure the base dir exists when configured via env.
+// This helps confirm Railway volumes are mounted and writable.
+if (process.env.SESSIONS_DIR) {
+  console.log(`[WHATSAPP] Using SESSIONS_DIR=${SESSIONS_BASE}`);
+  void ensureDirExists(SESSIONS_BASE);
+} else {
+  console.log(`[WHATSAPP] Using default sessions dir (ephemeral): ${SESSIONS_BASE}`);
+}
+
 function cleanContactNumber(input?: string | null): string {
   return (input?.split(":")[0] || "").replace(/\D/g, "");
 }
@@ -268,6 +285,7 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     }
 
     const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+    await ensureDirExists(userAuthPath);
     const { state, saveCreds } = await useMultiFileAuthState(userAuthPath);
 
     // FIX LID 2025: Cache manual para mapear @lid → phone number
@@ -1487,6 +1505,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     }
 
     const adminAuthPath = path.join(SESSIONS_BASE, `auth_admin_${adminId}`);
+    await ensureDirExists(adminAuthPath);
     const { state, saveCreds } = await useMultiFileAuthState(adminAuthPath);
 
     // FIX LID 2025: Cache manual para mapear @lid → phone number
