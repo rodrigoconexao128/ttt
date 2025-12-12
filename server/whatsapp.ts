@@ -591,7 +591,7 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       }
 
       if (conn === "close") {
-        const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
+        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode; const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
         // Sempre deletar a sessÃ£o primeiro
         sessions.delete(userId);
@@ -1713,13 +1713,23 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     });
 
     // Listener para cachear contatos quando Baileys emitir contacts.upsert
+    let contactCacheCount = 0;
     socket.ev.on("contacts.upsert", (contacts) => {
       for (const contact of contacts) {
         contactsCache.set(contact.id, contact);
         if (contact.lid) {
           contactsCache.set(contact.lid, contact);
         }
-        console.log(`[ADMIN CONTACT CACHE] Added: ${contact.id}${contact.phoneNumber ? ` (phoneNumber: ${contact.phoneNumber})` : ""}`);
+        // Log apenas primeiros 50 contatos para evitar rate limit
+        if (contactCacheCount < 50) {
+          console.log(`[ADMIN CONTACT CACHE] Added: ${contact.id}`);
+          contactCacheCount++;
+        }
+      }
+      // Log resumo final
+      if (contacts.length > 0 && contactCacheCount >= 50) {
+        console.log(`[ADMIN CONTACT CACHE] Total cached: ${contactsCache.size} contacts (logs suppressed after 50)`);
+        contactCacheCount = 51; // Prevenir log repetido
       }
     });
 
@@ -1789,7 +1799,11 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           mediaType = "document";
           messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
         } else {
-          console.log(`📱 [ADMIN] Tipo de mensagem não suportado:`, Object.keys(msg || {}));
+          // Suprimir logs de protocolMessage (system messages) para evitar spam
+          const msgTypes = Object.keys(msg || {});
+          if (!msgTypes.includes("protocolMessage")) {
+            console.log(`📱 [ADMIN] Tipo de mensagem não suportado:`, msgTypes);
+          }
           return;
         }
         
@@ -1900,7 +1914,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       }
 
       if (connStatus === "close") {
-        const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
+        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode; const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
         // Sempre deletar a sessÃ£o primeiro
         adminSessions.delete(adminId);
@@ -1912,9 +1926,9 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         });
 
         if (shouldReconnect) {
-          console.log(`Admin ${adminId} WhatsApp disconnected temporarily, reconnecting...`);
+          if (statusCode !== 428 && statusCode !== 401) { console.log(`Admin ${adminId} WhatsApp disconnected (code: ${statusCode}), reconnecting...`); }
           broadcastToAdmin(adminId, { type: "disconnected" });
-          setTimeout(() => connectAdminWhatsApp(adminId), 3000);
+          setTimeout(() => connectAdminWhatsApp(adminId), 5000);
         } else {
           // Foi logout (desconectado pelo celular), limpar TUDO
           console.log(`Admin ${adminId} logged out from device, clearing all auth files...`);
