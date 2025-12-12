@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch, useRoute } from "wouter";
 import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
@@ -36,8 +36,23 @@ import AdminAgentConfig from "@/components/admin-agent-config";
 
 export default function AdminPanel() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  
+  // Extrair tab da URL
+  const getTabFromUrl = () => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash) return hash;
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('tab') || 'dashboard';
+  };
+  
+  const [activeTab, setActiveTab] = useState(getTabFromUrl);
+  
+  // Sincronizar aba com URL
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    window.history.replaceState(null, '', `/admin#${tab}`);
+  };
 
   // Guard: exige sessão de admin
   useEffect(() => {
@@ -87,7 +102,7 @@ export default function AdminPanel() {
           <p className="text-muted-foreground">Gerenciar planos, usuários e pagamentos</p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList data-testid="tabs-admin">
             <TabsTrigger value="dashboard" data-testid="tab-dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="users" data-testid="tab-users">Usuários</TabsTrigger>

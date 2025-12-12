@@ -2065,23 +2065,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST - Testar agente admin
   app.post("/api/admin/agent/test", isAdmin, async (req: any, res) => {
     try {
-      const { message } = req.body;
+      const { message, phoneNumber } = req.body;
 
       if (!message) {
         return res.status(400).json({ message: "Message is required" });
       }
 
-      // Buscar prompt do admin
-      const promptConfig = await storage.getSystemConfig("admin_agent_prompt");
-      const prompt = promptConfig?.valor || adminAgentConfig.prompt;
-
-      if (!prompt) {
-        return res.json({ response: "Agente não configurado. Configure o prompt primeiro." });
-      }
-
-      // Testar com AI
-      const response = await testAgentResponse(message, prompt);
-      res.json({ response });
+      // Usar o serviço de IA do admin agent
+      const { processAdminMessage } = await import("./adminAgentService");
+      
+      // Usar phoneNumber de teste se não fornecido
+      const testPhone = phoneNumber || "5500000000000";
+      
+      const response = await processAdminMessage(testPhone, message);
+      res.json({ response: response.text });
     } catch (error) {
       console.error("Error testing admin agent:", error);
       res.status(500).json({ message: "Failed to test admin agent" });

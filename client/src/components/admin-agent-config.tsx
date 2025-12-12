@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -92,7 +93,21 @@ const mediaTypeIcons = {
 export default function AdminAgentConfig() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("atendimento");
+  
+  // Extrair sub-tab da URL
+  const getSubTabFromUrl = () => {
+    const hash = window.location.hash.replace('#', '');
+    const parts = hash.split('/');
+    return parts[1] || 'atendimento';
+  };
+  
+  const [activeTab, setActiveTab] = useState(getSubTabFromUrl);
+  
+  // Sincronizar sub-aba com URL
+  const handleSubTabChange = (tab: string) => {
+    setActiveTab(tab);
+    window.history.replaceState(null, '', `/admin#agent/${tab}`);
+  };
   
   // Estado do formulário principal
   const [prompt, setPrompt] = useState("");
@@ -566,7 +581,7 @@ export default function AdminAgentConfig() {
       </div>
 
       {/* ============== TABS PRINCIPAIS ============== */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleSubTabChange} className="space-y-6">
         <TabsList className="grid w-full grid-cols-5 h-14">
           <TabsTrigger value="atendimento" className="gap-2 text-sm">
             <Zap className="w-4 h-4" />
