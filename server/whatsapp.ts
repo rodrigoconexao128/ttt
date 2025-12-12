@@ -198,7 +198,15 @@ async function processAdminAccumulatedMessages(params: {
   try {
     const { processAdminMessage, getOwnerNotificationNumber } = await import("./adminAgentService");
 
-    const response = await processAdminMessage(pending.contactNumber, combinedText);
+    // skipTriggerCheck = false para aplicar validação de frases gatilho no WhatsApp real
+    const response = await processAdminMessage(pending.contactNumber, combinedText, undefined, undefined, false);
+
+    // Se response é null, significa que não passou na validação de frase gatilho
+    if (response === null) {
+      console.log(`⏸️ [ADMIN AGENT] Mensagem ignorada - sem frase gatilho`);
+      pendingAdminResponses.delete(key);
+      return;
+    }
 
     // Se novas mensagens chegaram enquanto a IA processava, cancela este envio
     const stillCurrent = pendingAdminResponses.get(key);
@@ -1811,9 +1819,10 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           return;
         }
 
-        const response = await processAdminMessage(contactNumber, messageText, mediaType, mediaUrl);
+        // Para mídias, skipTriggerCheck = true pois comprovantes são sempre processados
+        const response = await processAdminMessage(contactNumber, messageText, mediaType, mediaUrl, true);
 
-        if (response.text) {
+        if (response && response.text) {
           const cfg = await getAdminAgentRuntimeConfig();
           const typingDelay = randomBetween(cfg.typingDelayMinMs, cfg.typingDelayMaxMs);
           await new Promise(resolve => setTimeout(resolve, typingDelay));
@@ -1829,7 +1838,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           console.log(`✅ [ADMIN AGENT] Resposta enviada para ${contactNumber}`);
         }
 
-        if (response.actions?.notifyOwner) {
+        if (response && response.actions?.notifyOwner) {
           const ownerNumber = await getOwnerNotificationNumber();
           const ownerJid = `${ownerNumber}@s.whatsapp.net`;
 

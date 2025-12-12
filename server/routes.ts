@@ -2089,7 +2089,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST - Testar agente admin
   app.post("/api/admin/agent/test", isAdmin, async (req: any, res) => {
     try {
-      const { message, phoneNumber } = req.body;
+      const { message, phoneNumber, testTrigger } = req.body;
 
       if (!message) {
         return res.status(400).json({ message: "Message is required" });
@@ -2101,8 +2101,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Usar phoneNumber de teste se não fornecido
       const testPhone = phoneNumber || "5500000000000";
       
-      const response = await processAdminMessage(testPhone, message);
-      res.json({ response: response.text });
+      // Se testTrigger=true, verifica frases gatilho; se false, skipTriggerCheck=true para testes
+      const skipTriggerCheck = testTrigger !== true;
+      
+      const response = await processAdminMessage(testPhone, message, undefined, undefined, skipTriggerCheck);
+      
+      if (response === null) {
+        // Não passou na validação de frase gatilho
+        res.json({ 
+          response: null, 
+          skipped: true,
+          reason: "Mensagem não contém frase gatilho configurada"
+        });
+      } else {
+        res.json({ response: response.text, skipped: false });
+      }
     } catch (error) {
       console.error("Error testing admin agent:", error);
       res.status(500).json({ message: "Failed to test admin agent" });

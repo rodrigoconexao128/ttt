@@ -354,18 +354,128 @@ export interface AdminAgentResponse {
   };
 }
 
+// Função auxiliar para buscar configurações do admin agent
+async function getAdminAgentConfig(): Promise<{
+  triggerPhrases: string[];
+  messageSplitChars: number;
+  responseDelaySeconds: number;
+  isActive: boolean;
+}> {
+  try {
+    const triggerPhrasesConfig = await storage.getSystemConfig("admin_agent_trigger_phrases");
+    const splitCharsConfig = await storage.getSystemConfig("admin_agent_message_split_chars");
+    const delayConfig = await storage.getSystemConfig("admin_agent_response_delay_seconds");
+    const isActiveConfig = await storage.getSystemConfig("admin_agent_is_active");
+    
+    let triggerPhrases: string[] = [];
+    if (triggerPhrasesConfig?.valor) {
+      try {
+        triggerPhrases = JSON.parse(triggerPhrasesConfig.valor);
+      } catch {
+        triggerPhrases = [];
+      }
+    }
+    
+    return {
+      triggerPhrases,
+      messageSplitChars: parseInt(splitCharsConfig?.valor || "400", 10),
+      responseDelaySeconds: parseInt(delayConfig?.valor || "30", 10),
+      isActive: isActiveConfig?.valor === "true",
+    };
+  } catch (error) {
+    console.error("[ADMIN AGENT] Erro ao buscar config:", error);
+    return {
+      triggerPhrases: [],
+      messageSplitChars: 400,
+      responseDelaySeconds: 30,
+      isActive: true,
+    };
+  }
+}
+
+// Função para verificar se mensagem contém frase gatilho (mesma lógica do aiAgent.ts)
+function checkTriggerPhrases(
+  message: string,
+  conversationHistory: Array<{ content: string }>,
+  triggerPhrases: string[]
+): { hasTrigger: boolean; foundIn: string } {
+  if (!triggerPhrases || triggerPhrases.length === 0) {
+    // Se não há frases gatilho configuradas, responde a tudo
+    return { hasTrigger: true, foundIn: "no-filter" };
+  }
+  
+  // Normalizador: lower, remove acentos, colapsa espaços
+  const normalize = (s: string) => (s || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const includesNormalized = (haystack: string, needle: string) => {
+    const h = normalize(haystack);
+    const n = normalize(needle);
+    if (!n) return false;
+    // também tolera ausência/presença de espaços
+    const hNoSpace = h.replace(/\s+/g, "");
+    const nNoSpace = n.replace(/\s+/g, "");
+    return h.includes(n) || hNoSpace.includes(nNoSpace);
+  };
+
+  console.log(`🔍 [ADMIN AGENT] Verificando trigger phrases (${triggerPhrases.length} configuradas)`);
+  console.log(`   Trigger phrases: ${triggerPhrases.join(', ')}`);
+
+  const allMessages = [
+    ...conversationHistory.map(m => m.content || ""),
+    message
+  ].join(" ");
+
+  // Checa primeiro só a última mensagem, depois o histórico completo
+  let foundIn = "none";
+  const hasTrigger = triggerPhrases.some(phrase => {
+    const inLast = includesNormalized(message, phrase);
+    const inAll = inLast ? false : includesNormalized(allMessages, phrase);
+    if (inLast) foundIn = "last"; else if (inAll) foundIn = "history";
+    console.log(`   Procurando "${phrase}" → last:${inLast ? '✅' : '❌'} | history:${inAll ? '✅' : '❌'}`);
+    return inLast || inAll;
+  });
+
+  return { hasTrigger, foundIn };
+}
+
 export async function processAdminMessage(
   phoneNumber: string,
   messageText: string,
   mediaType?: string,
-  mediaUrl?: string
-): Promise<AdminAgentResponse> {
+  mediaUrl?: string,
+  skipTriggerCheck: boolean = false
+): Promise<AdminAgentResponse | null> {
   const cleanPhone = phoneNumber.replace(/\D/g, "");
   
   // Obter ou criar sessão
   let session = getClientSession(cleanPhone);
   if (!session) {
     session = createClientSession(cleanPhone);
+  }
+  
+  // Buscar configurações do admin agent
+  const adminConfig = await getAdminAgentConfig();
+  
+  // Verificar frases gatilho (a menos que seja skipTriggerCheck para testes)
+  if (!skipTriggerCheck) {
+    const triggerResult = checkTriggerPhrases(
+      messageText,
+      session.conversationHistory,
+      adminConfig.triggerPhrases
+    );
+    
+    if (!triggerResult.hasTrigger) {
+      console.log(`⏸️ [ADMIN AGENT] Skipping response - no trigger phrase found for ${cleanPhone}`);
+      // Ainda adiciona ao histórico mas não responde
+      addToConversationHistory(cleanPhone, "user", messageText);
+      return null;
+    }
+    
+    console.log(`✅ [ADMIN AGENT] Trigger phrase detected (${triggerResult.foundIn}) for ${cleanPhone}`);
   }
   
   // Adicionar mensagem ao histórico
