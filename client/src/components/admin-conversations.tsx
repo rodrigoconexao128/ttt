@@ -27,6 +27,7 @@ interface AdminConversation {
   id: string;
   adminId: string;
   contactNumber: string;
+  remoteJid?: string | null;
   contactName?: string | null;
   contactAvatar?: string | null;
   lastMessageText?: string | null;
@@ -50,6 +51,35 @@ interface AdminMessage {
   mediaUrl?: string | null;
   mediaCaption?: string | null;
   createdAt: string;
+}
+
+// Função para extrair número do telefone de forma consistente (mesma lógica de /conversas)
+function getDisplayNumber(conv: AdminConversation): string {
+  // Prioridade: contactNumber > remoteJid (extraindo apenas a parte do número)
+  if (conv.contactNumber) {
+    return conv.contactNumber;
+  }
+  if (conv.remoteJid) {
+    // Formato: 5517991234567@s.whatsapp.net ou 5517991234567:12@s.whatsapp.net
+    return conv.remoteJid.split("@")[0].split(":")[0];
+  }
+  return "?";
+}
+
+// Função para formatar número para exibição
+function formatPhoneNumber(number: string): string {
+  // Remove tudo que não é dígito
+  const digits = number.replace(/\D/g, "");
+  
+  // Formato brasileiro: +55 (17) 99123-4567
+  if (digits.length === 13 && digits.startsWith("55")) {
+    return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  }
+  if (digits.length === 12 && digits.startsWith("55")) {
+    return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  }
+  
+  return number;
 }
 
 export default function AdminConversations() {
@@ -142,11 +172,12 @@ export default function AdminConversations() {
     });
   };
 
-  // Filtrar conversas por busca
+  // Filtrar conversas por busca (usando mesma lógica de /conversas)
   const filteredConversations = conversations.filter((conv) => {
     const query = searchQuery.toLowerCase();
+    const displayNumber = getDisplayNumber(conv);
     return (
-      conv.contactNumber.includes(query) ||
+      displayNumber.includes(query) ||
       (conv.contactName?.toLowerCase().includes(query)) ||
       (conv.lastMessageText?.toLowerCase().includes(query))
     );
@@ -154,6 +185,7 @@ export default function AdminConversations() {
 
   // Conversa selecionada
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+  const selectedDisplayNumber = selectedConversation ? getDisplayNumber(selectedConversation) : "";
 
   return (
     <div className="space-y-4">
@@ -207,7 +239,9 @@ export default function AdminConversations() {
                   </div>
                 ) : (
                   <div className="divide-y">
-                    {filteredConversations.map((conv) => (
+                    {filteredConversations.map((conv) => {
+                      const displayNumber = getDisplayNumber(conv);
+                      return (
                       <div
                         key={conv.id}
                         onClick={() => setSelectedConversationId(conv.id)}
@@ -217,14 +251,26 @@ export default function AdminConversations() {
                       >
                         <div className="flex items-start gap-3">
                           <Avatar className="h-10 w-10">
-                            <AvatarFallback>
-                              {conv.contactNumber.slice(-2)}
+                            {conv.contactAvatar ? (
+                              <img 
+                                src={conv.contactAvatar} 
+                                alt={conv.contactName || displayNumber}
+                                className="w-full h-full object-cover rounded-full"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : null}
+                            <AvatarFallback className={conv.contactAvatar ? 'hidden' : ''}>
+                              {conv.contactName 
+                                ? conv.contactName.charAt(0).toUpperCase() 
+                                : displayNumber.slice(-2)}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
                               <p className="font-medium truncate">
-                                {conv.contactName || conv.contactNumber}
+                                {conv.contactName || formatPhoneNumber(displayNumber)}
                               </p>
                               {conv.unreadCount > 0 && (
                                 <Badge variant="default" className="ml-2">
@@ -258,7 +304,8 @@ export default function AdminConversations() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </ScrollArea>
@@ -276,17 +323,29 @@ export default function AdminConversations() {
                   {/* Header da conversa */}
                   <div className="p-3 border-b flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarFallback>
-                          {selectedConversation?.contactNumber.slice(-2)}
+                      <Avatar className="h-10 w-10">
+                        {selectedConversation?.contactAvatar ? (
+                          <img 
+                            src={selectedConversation.contactAvatar} 
+                            alt={selectedConversation.contactName || selectedDisplayNumber}
+                            className="w-full h-full object-cover rounded-full"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : null}
+                        <AvatarFallback className={selectedConversation?.contactAvatar ? 'hidden' : ''}>
+                          {selectedConversation?.contactName 
+                            ? selectedConversation.contactName.charAt(0).toUpperCase() 
+                            : selectedDisplayNumber.slice(-2)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <p className="font-medium">
-                          {selectedConversation?.contactName || selectedConversation?.contactNumber}
+                          {selectedConversation?.contactName || formatPhoneNumber(selectedDisplayNumber)}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {selectedConversation?.contactNumber}
+                          {formatPhoneNumber(selectedDisplayNumber)}
                         </p>
                       </div>
                     </div>

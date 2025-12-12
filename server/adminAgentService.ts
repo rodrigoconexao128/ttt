@@ -234,8 +234,16 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
   notifyOwner?: boolean;
   connectWhatsApp?: boolean;
   sendPix?: boolean;
+  sendQrCode?: boolean;
+  pairingCode?: string;
 }> {
-  const results: { notifyOwner?: boolean; connectWhatsApp?: boolean; sendPix?: boolean } = {};
+  const results: { 
+    notifyOwner?: boolean; 
+    connectWhatsApp?: boolean; 
+    sendPix?: boolean;
+    sendQrCode?: boolean;
+    pairingCode?: string;
+  } = {};
   
   for (const action of actions) {
     console.log(`🔧 [ADMIN AGENT] Executando ação: ${action.type}`, action.params);
@@ -272,6 +280,12 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
       case "SOLICITAR_CODIGO_PAREAMENTO":
         updateClientSession(session.phoneNumber, { pairingCodeRequested: true });
         results.connectWhatsApp = true;
+        // O código será gerado e enviado pelo whatsapp.ts
+        break;
+        
+      case "ENVIAR_QRCODE":
+        results.sendQrCode = true;
+        // O QR Code será gerado e enviado como imagem pelo whatsapp.ts
         break;
         
       case "ENVIAR_PIX":
@@ -351,6 +365,8 @@ export interface AdminAgentResponse {
     sendPix?: boolean;
     connectWhatsApp?: boolean;
     notifyOwner?: boolean;
+    sendQrCode?: boolean;
+    pairingCode?: string;
   };
 }
 

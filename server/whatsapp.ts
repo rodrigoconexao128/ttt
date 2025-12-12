@@ -276,6 +276,85 @@ async function processAdminAccumulatedMessages(params: {
       console.log(`📢 [ADMIN AGENT] Notificação enviada para ${ownerNumber}`);
     }
 
+    // 📲 Enviar código de pareamento se solicitado
+    if (response.actions?.connectWhatsApp) {
+      try {
+        // Buscar userId da sessão do cliente
+        const { getClientSession } = await import("./adminAgentService");
+        const clientSession = getClientSession(pending.contactNumber);
+        
+        if (clientSession?.userId) {
+          const code = await requestClientPairingCode(clientSession.userId, pending.contactNumber);
+          
+          if (code) {
+            const codeFormatted = code.match(/.{1,4}/g)?.join("-") || code;
+            const codeMessage = `Aqui está seu código de 8 dígitos:\n\n🔑 ${codeFormatted}\n\nAgora é só abrir o WhatsApp no celular, ir em Configurações > Aparelhos Conectados > Conectar Aparelho, tocar em "Conectar com número de telefone" e digitar esse código!`;
+            
+            await socket.sendMessage(pending.remoteJid, { text: codeMessage });
+            console.log(`📲 [ADMIN AGENT] Código de pareamento enviado: ${codeFormatted}`);
+          } else {
+            await socket.sendMessage(pending.remoteJid, { text: "Opa, tive um problema pra gerar o código. Pode tentar de novo em alguns segundos?" });
+          }
+        } else {
+          await socket.sendMessage(pending.remoteJid, { text: "Antes de conectar, preciso criar sua conta. Me passa seu email?" });
+        }
+      } catch (codeError) {
+        console.error("❌ [ADMIN AGENT] Erro ao gerar código de pareamento:", codeError);
+        await socket.sendMessage(pending.remoteJid, { text: "Desculpa, tive um problema técnico. Pode tentar novamente?" });
+      }
+    }
+
+    // 📷 Enviar QR Code como imagem se solicitado
+    if (response.actions?.sendQrCode) {
+      try {
+        const { getClientSession } = await import("./adminAgentService");
+        const clientSession = getClientSession(pending.contactNumber);
+        
+        if (clientSession?.userId) {
+          // Iniciar conexão para gerar QR Code
+          const connection = await storage.getConnectionByUserId(clientSession.userId);
+          
+          if (connection?.qrCode) {
+            // Converter data URL para buffer
+            const base64Data = connection.qrCode.split(",")[1];
+            const qrBuffer = Buffer.from(base64Data, "base64");
+            
+            await socket.sendMessage(pending.remoteJid, {
+              image: qrBuffer,
+              caption: "📱 Escaneie este QR Code!\n\nAbra o WhatsApp no celular, vá em Configurações > Aparelhos Conectados > Conectar Aparelho e aponte a câmera pro QR Code!",
+            });
+            console.log(`📷 [ADMIN AGENT] QR Code enviado para ${pending.contactNumber}`);
+          } else {
+            // Precisa iniciar conexão primeiro
+            await connectWhatsApp(clientSession.userId);
+            await socket.sendMessage(pending.remoteJid, { text: "Estou gerando seu QR Code... Um momento! 📱" });
+            
+            // Aguardar QR Code ser gerado (máximo 10 segundos)
+            for (let i = 0; i < 10; i++) {
+              await new Promise(r => setTimeout(r, 1000));
+              const updatedConnection = await storage.getConnectionByUserId(clientSession.userId);
+              if (updatedConnection?.qrCode) {
+                const base64Data = updatedConnection.qrCode.split(",")[1];
+                const qrBuffer = Buffer.from(base64Data, "base64");
+                
+                await socket.sendMessage(pending.remoteJid, {
+                  image: qrBuffer,
+                  caption: "📱 Aqui está o QR Code!\n\nAbra o WhatsApp, vá em Configurações > Aparelhos Conectados > Conectar Aparelho e escaneie!",
+                });
+                console.log(`📷 [ADMIN AGENT] QR Code enviado para ${pending.contactNumber}`);
+                break;
+              }
+            }
+          }
+        } else {
+          await socket.sendMessage(pending.remoteJid, { text: "Antes de conectar, preciso criar sua conta. Me passa seu email?" });
+        }
+      } catch (qrError) {
+        console.error("❌ [ADMIN AGENT] Erro ao enviar QR Code:", qrError);
+        await socket.sendMessage(pending.remoteJid, { text: "Desculpa, tive um problema pra gerar o QR Code. Quer tentar pelo código de 8 dígitos?" });
+      }
+    }
+
     // Limpar fila (somente se ainda for a geração atual)
     const current = pendingAdminResponses.get(key);
     if (current && current.generation === generation) {
