@@ -282,6 +282,47 @@ export const adminWhatsappConnection = pgTable("admin_whatsapp_connection", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Admin Conversations table - Conversas do WhatsApp do admin com clientes do sistema
+export const adminConversations = pgTable("admin_conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminId: varchar("admin_id").notNull().references(() => admins.id, { onDelete: 'cascade' }),
+  contactNumber: varchar("contact_number").notNull(),
+  remoteJid: text("remote_jid"),
+  contactName: varchar("contact_name"),
+  contactAvatar: text("contact_avatar"),
+  lastMessageText: text("last_message_text"),
+  lastMessageTime: timestamp("last_message_time"),
+  unreadCount: integer("unread_count").default(0).notNull(),
+  // Controle de IA - se false, admin responde manualmente
+  isAgentEnabled: boolean("is_agent_enabled").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_admin_conversations_admin").on(table.adminId),
+  index("idx_admin_conversations_contact").on(table.contactNumber),
+]);
+
+// Admin Messages table - Mensagens das conversas do admin
+export const adminMessages = pgTable("admin_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => adminConversations.id, { onDelete: 'cascade' }),
+  messageId: varchar("message_id").notNull(),
+  fromMe: boolean("from_me").notNull(),
+  text: text("text"),
+  timestamp: timestamp("timestamp").notNull(),
+  status: varchar("status", { length: 50 }),
+  isFromAgent: boolean("is_from_agent").default(false).notNull(),
+  // Media fields
+  mediaType: varchar("media_type", { length: 50 }),
+  mediaUrl: text("media_url"),
+  mediaMimeType: varchar("media_mime_type", { length: 100 }),
+  mediaCaption: text("media_caption"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_admin_messages_conversation").on(table.conversationId),
+  index("idx_admin_messages_timestamp").on(table.timestamp),
+]);
+
 // Plans table
 export const plans = pgTable("plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -526,6 +567,23 @@ export const insertAdminWhatsappConnectionSchema = createInsertSchema(adminWhats
 });
 export type InsertAdminWhatsappConnection = z.infer<typeof insertAdminWhatsappConnectionSchema>;
 export type AdminWhatsappConnection = typeof adminWhatsappConnection.$inferSelect;
+
+// Admin Conversations schemas and types
+export const insertAdminConversationSchema = createInsertSchema(adminConversations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertAdminConversation = z.infer<typeof insertAdminConversationSchema>;
+export type AdminConversation = typeof adminConversations.$inferSelect;
+
+// Admin Messages schemas and types
+export const insertAdminMessageSchema = createInsertSchema(adminMessages).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAdminMessage = z.infer<typeof insertAdminMessageSchema>;
+export type AdminMessage = typeof adminMessages.$inferSelect;
 
 // Business Agent Configuration schemas and types
 export const insertBusinessAgentConfigSchema = createInsertSchema(businessAgentConfigs).omit({

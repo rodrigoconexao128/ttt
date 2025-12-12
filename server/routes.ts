@@ -1295,6 +1295,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========================================================================
+  // ADMIN CONVERSATIONS - Visualizar e gerenciar conversas do WhatsApp admin
+  // ========================================================================
+
+  // GET - Listar todas as conversas do admin
+  app.get("/api/admin/conversations", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const conversations = await storage.getAdminConversations(adminId);
+      res.json(conversations);
+    } catch (error) {
+      console.error("Error fetching admin conversations:", error);
+      res.status(500).json({ message: "Failed to fetch conversations" });
+    }
+  });
+
+  // GET - Obter mensagens de uma conversa específica
+  app.get("/api/admin/conversations/:id/messages", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const messages = await storage.getAdminMessages(id);
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching admin messages:", error);
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // GET - Obter detalhes de uma conversa
+  app.get("/api/admin/conversations/:id", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const conversation = await storage.getAdminConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      res.json(conversation);
+    } catch (error) {
+      console.error("Error fetching admin conversation:", error);
+      res.status(500).json({ message: "Failed to fetch conversation" });
+    }
+  });
+
+  // PATCH - Atualizar conversa (pausar/continuar IA)
+  app.patch("/api/admin/conversations/:id", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { isAgentEnabled, contactName } = req.body;
+      
+      const updates: any = {};
+      if (typeof isAgentEnabled === 'boolean') {
+        updates.isAgentEnabled = isAgentEnabled;
+      }
+      if (contactName !== undefined) {
+        updates.contactName = contactName;
+      }
+      
+      const conversation = await storage.updateAdminConversation(id, updates);
+      res.json(conversation);
+    } catch (error) {
+      console.error("Error updating admin conversation:", error);
+      res.status(500).json({ message: "Failed to update conversation" });
+    }
+  });
+
+  // POST - Pausar IA para uma conversa específica
+  app.post("/api/admin/conversations/:id/pause-agent", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const conversation = await storage.toggleAdminConversationAgent(id, false);
+      res.json({ success: true, conversation });
+    } catch (error) {
+      console.error("Error pausing admin agent:", error);
+      res.status(500).json({ message: "Failed to pause agent" });
+    }
+  });
+
+  // POST - Continuar IA para uma conversa específica
+  app.post("/api/admin/conversations/:id/resume-agent", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const conversation = await storage.toggleAdminConversationAgent(id, true);
+      res.json({ success: true, conversation });
+    } catch (error) {
+      console.error("Error resuming admin agent:", error);
+      res.status(500).json({ message: "Failed to resume agent" });
+    }
+  });
+
+  // POST - Enviar mensagem manual (como admin, não como IA)
+  app.post("/api/admin/conversations/:id/send", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+      const { text } = req.body;
+      
+      if (!text) {
+        return res.status(400).json({ message: "Text is required" });
+      }
+      
+      const conversation = await storage.getAdminConversation(id);
+      if (!conversation || !conversation.remoteJid) {
+        return res.status(404).json({ message: "Conversation not found or no remoteJid" });
+      }
+      
+      const { getAdminSession } = await import("./whatsapp");
+      const session = getAdminSession(adminId);
+      
+      if (!session?.socket) {
+        return res.status(400).json({ message: "Admin WhatsApp not connected" });
+      }
+      
+      // Enviar mensagem
+      const sent = await session.socket.sendMessage(conversation.remoteJid, { text });
+      
+      // Salvar mensagem no banco
+      await storage.createAdminMessage({
+        conversationId: id,
+        messageId: sent?.key?.id || crypto.randomUUID(),
+        fromMe: true,
+        text,
+        timestamp: new Date(),
+        status: "sent",
+        isFromAgent: false, // Mensagem manual do admin
+      });
+      
+      // Atualizar última mensagem da conversa
+      await storage.updateAdminConversation(id, {
+        lastMessageText: text,
+        lastMessageTime: new Date(),
+      });
+      
+      res.json({ success: true, messageId: sent?.key?.id });
+    } catch (error) {
+      console.error("Error sending admin message:", error);
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // GET - Marcar conversa como lida
+  app.post("/api/admin/conversations/:id/read", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.updateAdminConversation(id, { unreadCount: 0 });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking conversation as read:", error);
+      res.status(500).json({ message: "Failed to mark as read" });
+    }
+  });
+
   // Get welcome message config
   app.get("/api/admin/welcome-message", isAdmin, async (_req, res) => {
     try {

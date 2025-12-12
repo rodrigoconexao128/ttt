@@ -13,6 +13,8 @@ import {
   payments,
   systemConfig,
   whatsappContacts,
+  adminConversations,
+  adminMessages,
   type User,
   type UpsertUser,
   type WhatsappConnection,
@@ -937,6 +939,148 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(whatsappConnections.createdAt))
       .limit(1);
     return connection;
+  }
+
+  // ========================================================================
+  // ADMIN CONVERSATIONS - Conversas do WhatsApp do admin com clientes
+  // ========================================================================
+
+  async getAdminConversations(adminId: string): Promise<any[]> {
+    const result = await db
+      .select()
+      .from(adminConversations)
+      .where(eq(adminConversations.adminId, adminId))
+      .orderBy(desc(adminConversations.lastMessageTime));
+    return result;
+  }
+
+  async getAdminConversation(id: string): Promise<any | undefined> {
+    const [result] = await db
+      .select()
+      .from(adminConversations)
+      .where(eq(adminConversations.id, id));
+    return result;
+  }
+
+  async getAdminConversationByContact(adminId: string, contactNumber: string): Promise<any | undefined> {
+    const [result] = await db
+      .select()
+      .from(adminConversations)
+      .where(and(
+        eq(adminConversations.adminId, adminId),
+        eq(adminConversations.contactNumber, contactNumber)
+      ));
+    return result;
+  }
+
+  async createAdminConversation(data: {
+    adminId: string;
+    contactNumber: string;
+    remoteJid?: string;
+    contactName?: string;
+    contactAvatar?: string;
+    isAgentEnabled?: boolean;
+  }): Promise<any> {
+    const [result] = await db
+      .insert(adminConversations)
+      .values({
+        adminId: data.adminId,
+        contactNumber: data.contactNumber,
+        remoteJid: data.remoteJid,
+        contactName: data.contactName,
+        contactAvatar: data.contactAvatar,
+        isAgentEnabled: data.isAgentEnabled ?? true,
+        unreadCount: 0,
+      })
+      .returning();
+    return result;
+  }
+
+  async updateAdminConversation(id: string, data: Partial<{
+    contactName: string;
+    contactAvatar: string;
+    lastMessageText: string;
+    lastMessageTime: Date;
+    unreadCount: number;
+    isAgentEnabled: boolean;
+  }>): Promise<any> {
+    const [result] = await db
+      .update(adminConversations)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(adminConversations.id, id))
+      .returning();
+    return result;
+  }
+
+  async getOrCreateAdminConversation(adminId: string, contactNumber: string, remoteJid?: string): Promise<any> {
+    let conversation = await this.getAdminConversationByContact(adminId, contactNumber);
+    if (!conversation) {
+      conversation = await this.createAdminConversation({
+        adminId,
+        contactNumber,
+        remoteJid,
+      });
+    }
+    return conversation;
+  }
+
+  // Admin Messages
+  async getAdminMessages(conversationId: string): Promise<any[]> {
+    const result = await db
+      .select()
+      .from(adminMessages)
+      .where(eq(adminMessages.conversationId, conversationId))
+      .orderBy(adminMessages.timestamp);
+    return result;
+  }
+
+  async createAdminMessage(data: {
+    conversationId: string;
+    messageId: string;
+    fromMe: boolean;
+    text?: string;
+    timestamp: Date;
+    status?: string;
+    isFromAgent?: boolean;
+    mediaType?: string;
+    mediaUrl?: string;
+    mediaMimeType?: string;
+    mediaCaption?: string;
+  }): Promise<any> {
+    const [result] = await db
+      .insert(adminMessages)
+      .values({
+        conversationId: data.conversationId,
+        messageId: data.messageId,
+        fromMe: data.fromMe,
+        text: data.text,
+        timestamp: data.timestamp,
+        status: data.status,
+        isFromAgent: data.isFromAgent ?? false,
+        mediaType: data.mediaType,
+        mediaUrl: data.mediaUrl,
+        mediaMimeType: data.mediaMimeType,
+        mediaCaption: data.mediaCaption,
+      })
+      .returning();
+    return result;
+  }
+
+  async toggleAdminConversationAgent(conversationId: string, enabled: boolean): Promise<any> {
+    const [result] = await db
+      .update(adminConversations)
+      .set({ isAgentEnabled: enabled, updatedAt: new Date() })
+      .where(eq(adminConversations.id, conversationId))
+      .returning();
+    return result;
+  }
+
+  async isAdminAgentEnabledForConversation(conversationId: string): Promise<boolean> {
+    const [conversation] = await db
+      .select({ isAgentEnabled: adminConversations.isAgentEnabled })
+      .from(adminConversations)
+      .where(eq(adminConversations.id, conversationId));
+    return conversation?.isAgentEnabled ?? true;
   }
 }
 

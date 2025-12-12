@@ -33,6 +33,7 @@ import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
 import AdminAgentConfig from "@/components/admin-agent-config";
+import AdminConversations from "@/components/admin-conversations";
 
 export default function AdminPanel() {
   const { toast } = useToast();
@@ -133,6 +134,10 @@ export default function AdminPanel() {
               <Bot className="w-4 h-4 mr-2" />
               Agente IA
             </TabsTrigger>
+            <TabsTrigger value="conversations" data-testid="tab-conversations">
+              <MessageCircle className="w-4 h-4 mr-2" />
+              Conversas
+            </TabsTrigger>
             <TabsTrigger value="config" data-testid="tab-config">Configurações</TabsTrigger>
           </TabsList>
 
@@ -232,6 +237,10 @@ export default function AdminPanel() {
 
           <TabsContent value="agent" className="space-y-4">
             <AdminAgentConfig />
+          </TabsContent>
+
+          <TabsContent value="conversations" className="space-y-4">
+            <AdminConversations />
           </TabsContent>
 
           <TabsContent value="config" className="space-y-4">

@@ -77,6 +77,7 @@ interface PendingAdminResponse {
   contactNumber: string;
   generation: number;
   startTime: number;
+  conversationId?: string;
 }
 const pendingAdminResponses = new Map<string, PendingAdminResponse>(); // key: contactNumber
 
@@ -140,8 +141,9 @@ async function scheduleAdminAccumulatedResponse(params: {
   remoteJid: string;
   contactNumber: string;
   messageText: string;
+  conversationId?: string;
 }): Promise<void> {
-  const { socket, remoteJid, contactNumber, messageText } = params;
+  const { socket, remoteJid, contactNumber, messageText, conversationId } = params;
   const config = await getAdminAgentRuntimeConfig();
   const key = contactNumber;
 
@@ -165,6 +167,7 @@ async function scheduleAdminAccumulatedResponse(params: {
     contactNumber,
     generation: 1,
     startTime: Date.now(),
+    conversationId,
   };
 
   pending.timeout = setTimeout(() => {
@@ -238,6 +241,31 @@ async function processAdminAccumulatedMessages(params: {
     }
 
     console.log(`✅ [ADMIN AGENT] Resposta enviada para ${pending.contactNumber}`);
+
+    // 💾 Salvar resposta do agente no banco de dados
+    if (pending.conversationId && response.text) {
+      try {
+        await storage.createAdminMessage({
+          conversationId: pending.conversationId,
+          messageId: `agent_${Date.now()}`,
+          fromMe: true,
+          text: response.text,
+          timestamp: new Date(),
+          status: "sent",
+          isFromAgent: true,
+        });
+        
+        // Atualizar última mensagem da conversa
+        await storage.updateAdminConversation(pending.conversationId, {
+          lastMessageText: response.text.substring(0, 255),
+          lastMessageTime: new Date(),
+        });
+        
+        console.log(`💾 [ADMIN AGENT] Resposta salva na conversa ${pending.conversationId}`);
+      } catch (dbError) {
+        console.error(`❌ [ADMIN AGENT] Erro ao salvar resposta no banco:`, dbError);
+      }
+    }
 
     // Notificação de pagamento
     if (response.actions?.notifyOwner) {
@@ -1813,6 +1841,49 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         console.log(`   🖼️ Mídia: ${mediaType || "nenhuma"}`);
         console.log(`   ========================================\n`);
         
+        // ═══════════════════════════════════════════════════════════════════════
+        // 💾 SALVAR CONVERSA E MENSAGEM NO BANCO DE DADOS
+        // ═══════════════════════════════════════════════════════════════════════
+        let conversation;
+        try {
+          conversation = await storage.getOrCreateAdminConversation(adminId, contactNumber, remoteJid);
+          
+          // Salvar a mensagem recebida
+          await storage.createAdminMessage({
+            conversationId: conversation.id,
+            messageId: message.key.id || `msg_${Date.now()}`,
+            fromMe: false,
+            text: messageText,
+            timestamp: new Date(),
+            status: "received",
+            isFromAgent: false,
+            mediaType,
+            mediaUrl,
+          });
+          
+          // Atualizar última mensagem da conversa
+          await storage.updateAdminConversation(conversation.id, {
+            lastMessageText: messageText.substring(0, 255),
+            lastMessageTime: new Date(),
+          });
+          
+          console.log(`💾 [ADMIN] Mensagem salva na conversa ${conversation.id}`);
+        } catch (dbError) {
+          console.error(`❌ [ADMIN] Erro ao salvar mensagem no banco:`, dbError);
+          // Continuar processamento mesmo com erro no banco
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // 🔒 VERIFICAR SE AGENTE ESTÁ HABILITADO PARA ESTA CONVERSA
+        // ═══════════════════════════════════════════════════════════════════════
+        if (conversation) {
+          const isAgentEnabled = await storage.isAdminAgentEnabledForConversation(conversation.id);
+          if (!isAgentEnabled) {
+            console.log(`⏸️ [ADMIN] Agente pausado para conversa ${conversation.id} (${contactNumber})`);
+            return;
+          }
+        }
+        
         // Verificar se é mensagem para atendimento automatizado
         const adminAgentEnabled = await storage.getSystemConfig("admin_agent_enabled");
         
@@ -1829,6 +1900,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             remoteJid,
             contactNumber,
             messageText,
+            conversationId: conversation?.id,
           });
           return;
         }
@@ -1850,6 +1922,30 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             await socket.sendMessage(remoteJid, { text: parts[i] });
           }
           console.log(`✅ [ADMIN AGENT] Resposta enviada para ${contactNumber}`);
+          
+          // 💾 Salvar resposta do agente no banco de dados
+          if (conversation?.id) {
+            try {
+              await storage.createAdminMessage({
+                conversationId: conversation.id,
+                messageId: `agent_media_${Date.now()}`,
+                fromMe: true,
+                text: response.text,
+                timestamp: new Date(),
+                status: "sent",
+                isFromAgent: true,
+              });
+              
+              await storage.updateAdminConversation(conversation.id, {
+                lastMessageText: response.text.substring(0, 255),
+                lastMessageTime: new Date(),
+              });
+              
+              console.log(`💾 [ADMIN AGENT] Resposta (mídia) salva na conversa ${conversation.id}`);
+            } catch (dbError) {
+              console.error(`❌ [ADMIN AGENT] Erro ao salvar resposta no banco:`, dbError);
+            }
+          }
         }
 
         if (response && response.actions?.notifyOwner) {
