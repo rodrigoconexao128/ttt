@@ -2149,25 +2149,29 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         
         // Para mídias (ex: comprovante) processar imediatamente.
         // Para textos (inclusive várias mensagens em linhas separadas), acumular e responder uma vez.
-        if (!mediaType) {
+        // ÁUDIOS: Tratar como TEXTO pois são transcritos - mesmas regras de acumulação, delay, trigger
+        // IMAGENS: Processar imediatamente pois podem ser comprovantes de pagamento
+        const shouldAccumulate = !mediaType || mediaType === 'audio';
+        
+        if (shouldAccumulate) {
+          // Áudios e textos usam o sistema de acumulação
+          // Isso garante: tempo de resposta, delay humanizado, verificação de trigger
           await scheduleAdminAccumulatedResponse({
             socket,
             remoteJid: realRemoteJid,  // IMPORTANTE: Usar JID real para envio
             contactNumber,
-            messageText,
+            messageText,  // Para áudios, já é o texto transcrito
             conversationId: conversation?.id,
           });
           return;
         }
 
-        // Para mídias:
-        // - ÁUDIOS: verificar trigger pois são apenas texto falado (skipTriggerCheck = false)
-        // - IMAGENS: não verificar trigger pois podem ser comprovantes (skipTriggerCheck = true)
-        // - OUTROS: verificar trigger por segurança
-        const skipTriggerForMedia = mediaType === 'image';
-        console.log(`📁 [ADMIN] Mídia ${mediaType} - skipTriggerCheck: ${skipTriggerForMedia}`);
+        // Para IMAGENS APENAS:
+        // - Não acumular (processar imediatamente)
+        // - Não verificar trigger (podem ser comprovantes)
+        console.log(`📁 [ADMIN] Mídia ${mediaType} - processamento imediato (possível comprovante)`);
         
-        const response = await processAdminMessage(contactNumber, messageText, mediaType, mediaUrl, skipTriggerForMedia);
+        const response = await processAdminMessage(contactNumber, messageText, mediaType, mediaUrl, true);
 
         if (response && response.text) {
           const cfg = await getAdminAgentRuntimeConfig();
