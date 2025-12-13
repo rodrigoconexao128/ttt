@@ -380,9 +380,22 @@ async function processAdminAccumulatedMessages(params: {
       console.log(`📲 [ADMIN AGENT] Ação connectWhatsApp (código pareamento) detectada!`);
       try {
         // Buscar userId da sessão do cliente
-        const { getClientSession, createClientAccount } = await import("./adminAgentService");
+        const { getClientSession, createClientAccount, updateClientSession } = await import("./adminAgentService");
         let clientSession = getClientSession(pending.contactNumber);
         console.log(`📲 [ADMIN AGENT] Sessão do cliente para pareamento:`, clientSession ? `userId=${clientSession.userId}, email=${clientSession.email}` : "não encontrada");
+        
+        // 🔄 BUSCAR NO BANCO SE NÃO TEM userId NA SESSÃO
+        if (!clientSession?.userId) {
+          const cleanPhone = "+" + pending.contactNumber.replace(/\D/g, "");
+          console.log(`📲 [ADMIN AGENT] Buscando usuário no banco pelo telefone: ${cleanPhone}`);
+          const existingUser = await storage.getUserByPhone(cleanPhone);
+          if (existingUser) {
+            console.log(`📲 [ADMIN AGENT] Usuário encontrado no banco: ${existingUser.id}`);
+            // Atualizar sessão com userId do banco
+            updateClientSession(pending.contactNumber, { userId: existingUser.id, email: existingUser.email || undefined });
+            clientSession = getClientSession(pending.contactNumber);
+          }
+        }
         
         // Se não tem userId mas tem email, criar conta automaticamente
         if (!clientSession?.userId && clientSession?.email) {
@@ -442,9 +455,22 @@ async function processAdminAccumulatedMessages(params: {
     if (response.actions?.sendQrCode) {
       console.log(`📷 [ADMIN AGENT] Ação sendQrCode detectada! Iniciando processo...`);
       try {
-        const { getClientSession, createClientAccount } = await import("./adminAgentService");
+        const { getClientSession, createClientAccount, updateClientSession } = await import("./adminAgentService");
         let clientSession = getClientSession(pending.contactNumber);
         console.log(`📷 [ADMIN AGENT] Sessão do cliente:`, clientSession ? `userId=${clientSession.userId}, email=${clientSession.email}` : "não encontrada");
+        
+        // 🔄 BUSCAR NO BANCO SE NÃO TEM userId NA SESSÃO
+        if (!clientSession?.userId) {
+          const cleanPhone = "+" + pending.contactNumber.replace(/\D/g, "");
+          console.log(`📷 [ADMIN AGENT] Buscando usuário no banco pelo telefone: ${cleanPhone}`);
+          const existingUser = await storage.getUserByPhone(cleanPhone);
+          if (existingUser) {
+            console.log(`📷 [ADMIN AGENT] Usuário encontrado no banco: ${existingUser.id}`);
+            // Atualizar sessão com userId do banco
+            updateClientSession(pending.contactNumber, { userId: existingUser.id, email: existingUser.email || undefined });
+            clientSession = getClientSession(pending.contactNumber);
+          }
+        }
         
         // Se não tem userId mas tem email, criar conta automaticamente
         if (!clientSession?.userId && clientSession?.email) {
