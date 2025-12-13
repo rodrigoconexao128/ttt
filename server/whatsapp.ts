@@ -168,6 +168,10 @@ async function scheduleAdminAccumulatedResponse(params: {
     return;
   }
 
+  // Verificar se conversa já existe no banco
+  const existingConversation = conversationId ? await storage.getAdminConversation(conversationId) : null;
+  const isNewConversation = !existingConversation;
+
   const pending: PendingAdminResponse = {
     timeout: null,
     messages: [messageText],
@@ -178,7 +182,12 @@ async function scheduleAdminAccumulatedResponse(params: {
     conversationId,
   };
 
-  console.log(`   🆕 Nova conversa. Timer de ${config.responseDelayMs}ms iniciado`);
+  if (isNewConversation) {
+    console.log(`   🆕 Nova conversa. Timer de ${config.responseDelayMs}ms iniciado`);
+  } else {
+    console.log(`   🔄 Conversa existente. Timer de ${config.responseDelayMs}ms iniciado`);
+  }
+  
   pending.timeout = setTimeout(() => {
     void processAdminAccumulatedMessages({ socket, key, generation: pending.generation });
   }, config.responseDelayMs);
@@ -1934,6 +1943,18 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       contactsCache,
     });
 
+    // Verificar se já está conectado ao criar o socket (sessão restaurada)
+    if (socket.user) {
+      const phoneNumber = socket.user.id.split(':')[0];
+      console.log(`✅ [ADMIN] Socket criado já conectado (sessão restaurada): ${phoneNumber}`);
+      await storage.updateAdminWhatsappConnection(adminId, {
+        isConnected: true,
+        phoneNumber,
+        qrCode: null,
+      });
+      broadcastToAdmin(adminId, { type: "connected", phoneNumber });
+    }
+
     // Listener para cachear contatos quando Baileys emitir contacts.upsert
     let contactCacheCount = 0;
     socket.ev.on("contacts.upsert", (contacts) => {
@@ -2297,6 +2318,8 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
 
       if (connStatus === "open") {
         const phoneNumber = socket.user?.id.split(":")[0];
+        console.log(`✅ [ADMIN] WhatsApp conectado: ${phoneNumber}`);
+        
         await storage.updateAdminWhatsappConnection(adminId, {
           isConnected: true,
           phoneNumber,
@@ -2309,7 +2332,6 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         }
 
         broadcastToAdmin(adminId, { type: "connected", phoneNumber });
-        console.log(`Admin ${adminId} WhatsApp connected: ${phoneNumber}`);
       }
 
       if (connStatus === "close") {
