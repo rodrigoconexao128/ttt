@@ -2228,52 +2228,93 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         // 📁 Enviar mídias se houver (para handler de mídia)
         if (response && response.mediaActions && response.mediaActions.length > 0) {
           console.log(`📁 [ADMIN AGENT MEDIA] Enviando ${response.mediaActions.length} mídia(s)...`);
+          console.log(`📁 [ADMIN AGENT MEDIA] JID de destino: ${realRemoteJid}`);
           
           for (const action of response.mediaActions) {
             if (action.mediaData) {
               try {
                 const media = action.mediaData;
-                console.log(`📁 [ADMIN AGENT MEDIA] Enviando mídia: ${media.name} (${media.mediaType})`);
+                console.log(`📁 [ADMIN AGENT MEDIA] ========================================`);
+                console.log(`📁 [ADMIN AGENT MEDIA] Preparando envio de mídia:`);
+                console.log(`   - Nome: ${media.name}`);
+                console.log(`   - Tipo: ${media.mediaType}`);
+                console.log(`   - MimeType: ${media.mimeType}`);
+                console.log(`   - URL: ${media.storageUrl}`);
                 
                 const mediaBuffer = await downloadMediaAsBuffer(media.storageUrl);
                 
                 if (mediaBuffer) {
+                  console.log(`📁 [ADMIN AGENT MEDIA] Buffer baixado: ${mediaBuffer.length} bytes`);
+                  
+                  let sendResult: any;
+                  
                   switch (media.mediaType) {
                     case 'image':
-                      await socket.sendMessage(realRemoteJid, {
+                      console.log(`📁 [ADMIN AGENT MEDIA] Enviando como IMAGEM...`);
+                      sendResult = await socket.sendMessage(realRemoteJid, {
                         image: mediaBuffer,
                         caption: media.caption || undefined,
                       });
                       break;
                     case 'audio':
-                      await socket.sendMessage(realRemoteJid, {
-                        audio: mediaBuffer,
-                        mimetype: media.mimeType || 'audio/ogg; codecs=opus',
-                        ptt: true,
-                      });
+                      console.log(`📁 [ADMIN AGENT MEDIA] Enviando como ÁUDIO PTT...`);
+                      // Tentar enviar como áudio com diferentes formatos
+                      try {
+                        sendResult = await socket.sendMessage(realRemoteJid, {
+                          audio: mediaBuffer,
+                          mimetype: media.mimeType || 'audio/ogg; codecs=opus',
+                          ptt: true,
+                        });
+                      } catch (audioErr: any) {
+                        console.log(`⚠️ [ADMIN AGENT MEDIA] Erro ao enviar como PTT, tentando como audio normal...`);
+                        console.log(`   Erro: ${audioErr.message}`);
+                        // Tentar sem PTT
+                        sendResult = await socket.sendMessage(realRemoteJid, {
+                          audio: mediaBuffer,
+                          mimetype: 'audio/mpeg',
+                        });
+                      }
                       break;
                     case 'video':
-                      await socket.sendMessage(realRemoteJid, {
+                      console.log(`📁 [ADMIN AGENT MEDIA] Enviando como VÍDEO...`);
+                      sendResult = await socket.sendMessage(realRemoteJid, {
                         video: mediaBuffer,
                         caption: media.caption || undefined,
                       });
                       break;
                     case 'document':
-                      await socket.sendMessage(realRemoteJid, {
+                      console.log(`📁 [ADMIN AGENT MEDIA] Enviando como DOCUMENTO...`);
+                      sendResult = await socket.sendMessage(realRemoteJid, {
                         document: mediaBuffer,
-                        fileName: media.fileName || 'document',
+                        fileName: media.fileName || media.name || 'document',
                         mimetype: media.mimeType || 'application/octet-stream',
                       });
                       break;
+                    default:
+                      console.log(`⚠️ [ADMIN AGENT MEDIA] Tipo de mídia não suportado: ${media.mediaType}`);
                   }
-                  console.log(`✅ [ADMIN AGENT MEDIA] Mídia ${media.name} enviada com sucesso`);
+                  
+                  if (sendResult) {
+                    console.log(`✅ [ADMIN AGENT MEDIA] Mídia ${media.name} enviada com sucesso!`);
+                    console.log(`   - Message ID: ${sendResult.key?.id || 'N/A'}`);
+                    console.log(`   - Status: ${sendResult.status || 'N/A'}`);
+                  } else {
+                    console.log(`⚠️ [ADMIN AGENT MEDIA] sendMessage retornou null/undefined para ${media.name}`);
+                  }
+                } else {
+                  console.log(`❌ [ADMIN AGENT MEDIA] Falha ao baixar mídia: buffer vazio`);
                 }
-              } catch (mediaError) {
-                console.error(`❌ [ADMIN AGENT MEDIA] Erro ao enviar mídia ${action.media_name}:`, mediaError);
+              } catch (mediaError: any) {
+                console.error(`❌ [ADMIN AGENT MEDIA] Erro ao enviar mídia ${action.media_name}:`);
+                console.error(`   - Mensagem: ${mediaError.message}`);
+                console.error(`   - Stack: ${mediaError.stack?.substring(0, 300)}`);
               }
               await new Promise(r => setTimeout(r, 500));
+            } else {
+              console.log(`⚠️ [ADMIN AGENT MEDIA] action.mediaData é null para ${action.media_name}`);
             }
           }
+          console.log(`📁 [ADMIN AGENT MEDIA] ========================================`);
         }
 
         // 🔌 Desconectar WhatsApp se solicitado (para handler de mídia)

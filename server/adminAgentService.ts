@@ -708,56 +708,55 @@ export async function processAdminMessage(
   console.log(`📝 [ADMIN AGENT] Mensagem: "${messageText.substring(0, 100)}${messageText.length > 100 ? '...' : ''}"`);
   console.log(`💾 [ADMIN AGENT] Sessão atual: ${session.conversationHistory.length} mensagens em memória`);
   
-  // Verificar frases gatilho (a menos que seja skipTriggerCheck para testes)
-  if (!skipTriggerCheck) {
-    // Se a sessão em memória está vazia, carregar histórico COMPLETO do banco
-    let historyForTriggerCheck = session.conversationHistory;
-    
-    // Carregar histórico do banco se sessão está vazia (após restart do servidor)
-    if (historyForTriggerCheck.length === 0) {
-      try {
-        console.log(`📚 [ADMIN AGENT] Sessão vazia, buscando HISTÓRICO COMPLETO do banco para ${cleanPhone}...`);
-        const conversation = await storage.getAdminConversationByPhone(cleanPhone);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🧠 PERSISTÊNCIA DE MEMÓRIA - SEMPRE CARREGAR HISTÓRICO DO BANCO
+  // Garante que o agente NUNCA esqueça do cliente, mesmo após deploy/restart
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (session.conversationHistory.length === 0) {
+    try {
+      console.log(`📚 [ADMIN AGENT] 🧠 Sessão vazia em memória, restaurando do banco...`);
+      const conversation = await storage.getAdminConversationByPhone(cleanPhone);
+      
+      if (conversation) {
+        console.log(`📚 [ADMIN AGENT] Conversa encontrada: ${conversation.id}`);
+        const messages = await storage.getAdminMessages(conversation.id);
         
-        if (conversation) {
-          console.log(`📚 [ADMIN AGENT] Conversa encontrada: ${conversation.id}`);
-          const messages = await storage.getAdminMessages(conversation.id);
-          
-          console.log(`📚 [ADMIN AGENT] Total de ${messages.length} mensagens no histórico`);
-          
-          // Para verificar trigger: buscar em TODO o histórico (não limitar)
-          const fullHistory = messages.map((msg: any) => ({
-            role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
-            content: msg.text || "",
-            timestamp: msg.timestamp || new Date(),
-          }));
-          
-          // Para contexto da IA: últimas 30 mensagens (evitar prompt muito grande)
-          historyForTriggerCheck = fullHistory.slice(-30);
-          
-          // Atualizar sessão com histórico do banco
-          session.conversationHistory = historyForTriggerCheck;
-          console.log(`📚 [ADMIN AGENT] ${historyForTriggerCheck.length} mensagens carregadas para contexto`);
-          
-          // Debug: verificar se trigger existe em ALGUM momento do histórico completo
-          const triggerWords = adminConfig.triggerPhrases || [];
-          const foundTriggerInHistory = fullHistory.some(msg => 
-            triggerWords.some(trigger => 
-              msg.content.toLowerCase().includes(trigger.toLowerCase())
-            )
-          );
-          
-          if (foundTriggerInHistory) {
-            console.log(`✅ [ADMIN AGENT] Trigger encontrada no histórico completo - cliente já interagiu antes`);
-          } else {
-            console.log(`⚠️ [ADMIN AGENT] Trigger NÃO encontrada no histórico - primeira interação do cliente`);
-          }
-        } else {
-          console.log(`📚 [ADMIN AGENT] Nenhuma conversa anterior encontrada para ${cleanPhone}`);
-        }
-      } catch (dbError) {
-        console.error(`❌ [ADMIN AGENT] Erro ao carregar histórico do banco:`, dbError);
+        console.log(`📚 [ADMIN AGENT] Total de ${messages.length} mensagens no histórico do banco`);
+        
+        // Carregar histórico completo
+        const fullHistory = messages.map((msg: any) => ({
+          role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
+          content: msg.text || "",
+          timestamp: msg.timestamp || new Date(),
+        }));
+        
+        // Para contexto da IA: últimas 30 mensagens (evitar prompt muito grande)
+        session.conversationHistory = fullHistory.slice(-30);
+        console.log(`📚 [ADMIN AGENT] 🧠 ${session.conversationHistory.length} mensagens restauradas do banco!`);
+        console.log(`   Primeira msg: ${messages[0]?.timestamp ? new Date(messages[0].timestamp).toLocaleDateString('pt-BR') : 'N/A'}`);
+        console.log(`   Última msg: ${messages[messages.length-1]?.timestamp ? new Date(messages[messages.length-1].timestamp).toLocaleDateString('pt-BR') : 'N/A'}`);
+      } else {
+        console.log(`📚 [ADMIN AGENT] Nenhuma conversa anterior encontrada - cliente novo`);
       }
+    } catch (dbError) {
+      console.error(`❌ [ADMIN AGENT] Erro ao carregar histórico do banco:`, dbError);
+    }
+  }
+  
+  // Verificar frases gatilho (a menos que seja skipTriggerCheck para mídias/comprovantes)
+  if (!skipTriggerCheck) {
+    const historyForTriggerCheck = session.conversationHistory;
+    
+    // Debug: verificar se trigger existe no histórico
+    const triggerWords = adminConfig.triggerPhrases || [];
+    const foundTriggerInHistory = historyForTriggerCheck.some(msg => 
+      triggerWords.some(trigger => 
+        msg.content.toLowerCase().includes(trigger.toLowerCase())
+      )
+    );
+    
+    if (foundTriggerInHistory) {
+      console.log(`✅ [ADMIN AGENT] Trigger encontrada no histórico - cliente já interagiu antes`);
     }
     
     const triggerResult = checkTriggerPhrases(

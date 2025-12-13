@@ -79,16 +79,19 @@ async function reloadCache(adminId?: string): Promise<void> {
 
 /**
  * Obtém todas as mídias ativas do admin (com cache)
+ * @param adminId - ID do admin (opcional para sistema single-admin)
  */
-export async function getAdminMediaList(adminId: string): Promise<AdminMedia[]> {
+export async function getAdminMediaList(adminId?: string): Promise<AdminMedia[]> {
   await reloadCache(adminId);
   return Array.from(adminMediaCache.values()).filter(m => m.isActive);
 }
 
 /**
  * Obtém uma mídia por nome (com cache)
+ * @param adminId - ID do admin (opcional para sistema single-admin)
+ * @param name - Nome da mídia
  */
-export async function getAdminMediaByName(adminId: string, name: string): Promise<AdminMedia | undefined> {
+export async function getAdminMediaByName(adminId: string | undefined, name: string): Promise<AdminMedia | undefined> {
   await reloadCache(adminId);
   
   const normalizedName = name.toUpperCase().replace(/\s+/g, '_');
