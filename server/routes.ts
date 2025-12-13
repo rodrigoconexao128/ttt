@@ -2166,31 +2166,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET - Obter configuração do agente admin
   app.get("/api/admin/agent/config", isAdmin, async (req: any, res) => {
     try {
-      // Tentar carregar do banco primeiro
-      const [prompt, isActive, triggerPhrases, messageSplitChars, responseDelaySeconds,
-             typingDelayMin, typingDelayMax, messageIntervalMin, messageIntervalMax] = await Promise.all([
-        storage.getSystemConfig("admin_agent_prompt"),
-        // Single source of truth: admin_agent_enabled (used by WhatsApp auto-atendimento)
-        storage.getSystemConfig("admin_agent_enabled"),
-        storage.getSystemConfig("admin_agent_trigger_phrases"),
-        storage.getSystemConfig("admin_agent_message_split_chars"),
-        storage.getSystemConfig("admin_agent_response_delay_seconds"),
-        storage.getSystemConfig("admin_agent_typing_delay_min"),
-        storage.getSystemConfig("admin_agent_typing_delay_max"),
-        storage.getSystemConfig("admin_agent_message_interval_min"),
-        storage.getSystemConfig("admin_agent_message_interval_max"),
-      ]);
+      // Buscar todas as configurações de uma vez (uma única query)
+      const configKeys = [
+        "admin_agent_prompt",
+        "admin_agent_enabled",
+        "admin_agent_trigger_phrases",
+        "admin_agent_message_split_chars",
+        "admin_agent_response_delay_seconds",
+        "admin_agent_typing_delay_min",
+        "admin_agent_typing_delay_max",
+        "admin_agent_message_interval_min",
+        "admin_agent_message_interval_max",
+      ];
+      
+      const configs = await storage.getSystemConfigs(configKeys);
 
       res.json({
-        prompt: prompt?.valor || adminAgentConfig.prompt,
-        isActive: isActive?.valor === "true" || adminAgentConfig.isActive,
-        triggerPhrases: triggerPhrases?.valor ? JSON.parse(triggerPhrases.valor) : adminAgentConfig.triggerPhrases,
-        messageSplitChars: messageSplitChars?.valor ? parseInt(messageSplitChars.valor) : adminAgentConfig.messageSplitChars,
-        responseDelaySeconds: responseDelaySeconds?.valor ? parseInt(responseDelaySeconds.valor) : adminAgentConfig.responseDelaySeconds,
-        typingDelayMin: typingDelayMin?.valor ? parseInt(typingDelayMin.valor) : adminAgentConfig.typingDelayMin,
-        typingDelayMax: typingDelayMax?.valor ? parseInt(typingDelayMax.valor) : adminAgentConfig.typingDelayMax,
-        messageIntervalMin: messageIntervalMin?.valor ? parseInt(messageIntervalMin.valor) : adminAgentConfig.messageIntervalMin,
-        messageIntervalMax: messageIntervalMax?.valor ? parseInt(messageIntervalMax.valor) : adminAgentConfig.messageIntervalMax,
+        prompt: configs.get("admin_agent_prompt") || adminAgentConfig.prompt,
+        isActive: configs.get("admin_agent_enabled") === "true" || adminAgentConfig.isActive,
+        triggerPhrases: configs.has("admin_agent_trigger_phrases") 
+          ? JSON.parse(configs.get("admin_agent_trigger_phrases")!) 
+          : adminAgentConfig.triggerPhrases,
+        messageSplitChars: configs.has("admin_agent_message_split_chars") 
+          ? parseInt(configs.get("admin_agent_message_split_chars")!) 
+          : adminAgentConfig.messageSplitChars,
+        responseDelaySeconds: configs.has("admin_agent_response_delay_seconds") 
+          ? parseInt(configs.get("admin_agent_response_delay_seconds")!) 
+          : adminAgentConfig.responseDelaySeconds,
+        typingDelayMin: configs.has("admin_agent_typing_delay_min") 
+          ? parseInt(configs.get("admin_agent_typing_delay_min")!) 
+          : adminAgentConfig.typingDelayMin,
+        typingDelayMax: configs.has("admin_agent_typing_delay_max") 
+          ? parseInt(configs.get("admin_agent_typing_delay_max")!) 
+          : adminAgentConfig.typingDelayMax,
+        messageIntervalMin: configs.has("admin_agent_message_interval_min") 
+          ? parseInt(configs.get("admin_agent_message_interval_min")!) 
+          : adminAgentConfig.messageIntervalMin,
+        messageIntervalMax: configs.has("admin_agent_message_interval_max") 
+          ? parseInt(configs.get("admin_agent_message_interval_max")!) 
+          : adminAgentConfig.messageIntervalMax,
       });
     } catch (error) {
       console.error("Error fetching admin agent config:", error);

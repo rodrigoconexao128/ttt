@@ -1,7 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,12 +27,26 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
 import AdminAgentConfig from "@/components/admin-agent-config";
 import AdminConversations from "@/components/admin-conversations";
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarFooter,
+  SidebarInset,
+  SidebarSeparator,
+} from "@/components/ui/sidebar";
 
 export default function AdminPanel() {
   const { toast } = useToast();
@@ -111,114 +124,196 @@ export default function AdminPanel() {
     queryKey: ["/api/admin/config"],
   });
 
-  return (
-    <div className="flex-1 overflow-auto p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="text-admin-title">Admin Panel</h1>
-          <p className="text-muted-foreground">Gerenciar planos, usuários e pagamentos</p>
-        </div>
+  const renderContent = () => {
+    switch (activeTab) {
+      case "dashboard":
+        return (
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card data-testid="card-stat-users">
+              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Usuários</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold" data-testid="text-total-users">
+                  {stats?.totalUsers || 0}
+                </div>
+              </CardContent>
+            </Card>
 
-        <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList data-testid="tabs-admin">
-            <TabsTrigger value="dashboard" data-testid="tab-dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="users" data-testid="tab-users">Usuários</TabsTrigger>
-            <TabsTrigger value="manage" data-testid="tab-manage">Gerenciar Clientes</TabsTrigger>
-            <TabsTrigger value="plans" data-testid="tab-plans">Planos</TabsTrigger>
-            <TabsTrigger value="payments" data-testid="tab-payments">Pagamentos</TabsTrigger>
-            <TabsTrigger value="whatsapp" data-testid="tab-whatsapp">
-              <MessageCircle className="w-4 h-4 mr-2" />
-              WhatsApp
-            </TabsTrigger>
-            <TabsTrigger value="agent" data-testid="tab-agent">
-              <Bot className="w-4 h-4 mr-2" />
-              Agente IA
-            </TabsTrigger>
-            <TabsTrigger value="conversations" data-testid="tab-conversations">
-              <MessageCircle className="w-4 h-4 mr-2" />
-              Conversas
-            </TabsTrigger>
-            <TabsTrigger value="config" data-testid="tab-config">Configurações</TabsTrigger>
-          </TabsList>
+            <Card data-testid="card-stat-revenue">
+              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold" data-testid="text-total-revenue">
+                  R$ {stats?.totalRevenue?.toFixed(2) || "0.00"}
+                </div>
+              </CardContent>
+            </Card>
 
-          <TabsContent value="dashboard" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
-              <Card data-testid="card-stat-users">
-                <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Usuários</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold" data-testid="text-total-users">
-                    {stats?.totalUsers || 0}
-                  </div>
-                </CardContent>
-              </Card>
+            <Card data-testid="card-stat-subscriptions">
+              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Assinaturas Ativas</CardTitle>
+                <CreditCard className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold" data-testid="text-active-subscriptions">
+                  {stats?.activeSubscriptions || 0}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      case "users":
+        return <UsersManager users={users} />;
+      case "manage":
+        return <ClientManager users={users} plans={plans} subscriptions={subscriptions} />;
+      case "plans":
+        return <PlansManager plans={plans} />;
+      case "payments":
+        return <PaymentsManager pendingPayments={pendingPayments} />;
+      case "whatsapp":
+        return (
+          <div className="grid gap-4">
+            <AdminWhatsappPanel />
+            <WelcomeMessageConfig />
+          </div>
+        );
+      case "agent":
+        return <AdminAgentConfig />;
+      case "conversations":
+        return null; // Renderizado fora do container
+      case "config":
+        return <ConfigManager config={config} />;
+      default:
+        return null;
+    }
+  };
 
-              <Card data-testid="card-stat-revenue">
-                <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold" data-testid="text-total-revenue">
-                    R$ {stats?.totalRevenue?.toFixed(2) || "0.00"}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card data-testid="card-stat-subscriptions">
-                <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Assinaturas Ativas</CardTitle>
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold" data-testid="text-active-subscriptions">
-                    {stats?.activeSubscriptions || 0}
-                  </div>
-                </CardContent>
-              </Card>
+  // Para conversas, usar layout full-screen sem o inset
+  if (activeTab === "conversations") {
+    return (
+      <SidebarProvider>
+        <Sidebar>
+          <SidebarHeader>
+            <div className="px-2 py-1.5 text-sm font-semibold flex items-center gap-2">
+              <Bot className="w-4 h-4 text-muted-foreground" />
+              <span>Admin Panel</span>
             </div>
-          </TabsContent>
-
-          <TabsContent value="users" className="space-y-4">
-            <UsersManager users={users} />
-          </TabsContent>
-
-          <TabsContent value="manage" className="space-y-4">
-            <ClientManager users={users} plans={plans} subscriptions={subscriptions} />
-          </TabsContent>
-
-          <TabsContent value="plans" className="space-y-4">
-            <PlansManager plans={plans} />
-          </TabsContent>
-
-          <TabsContent value="payments" className="space-y-4">
-            <PaymentsManager pendingPayments={pendingPayments} />
-          </TabsContent>
-
-          <TabsContent value="whatsapp" className="space-y-4">
-            <div className="grid gap-4">
-              <AdminWhatsappPanel />
-              <WelcomeMessageConfig />
+          </SidebarHeader>
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("dashboard")}
+                    isActive={activeTab === "dashboard"}
+                    tooltip="Dashboard"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span>Dashboard</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("users")}
+                    isActive={activeTab === "users"}
+                    tooltip="Usuários"
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Usuários</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("manage")}
+                    isActive={activeTab === "manage"}
+                    tooltip="Gerenciar Clientes"
+                  >
+                    <UserCog className="w-4 h-4" />
+                    <span>Gerenciar Clientes</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("plans")}
+                    isActive={activeTab === "plans"}
+                    tooltip="Planos"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>Planos</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("payments")}
+                    isActive={activeTab === "payments"}
+                    tooltip="Pagamentos"
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    <span>Pagamentos</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("whatsapp")}
+                    isActive={activeTab === "whatsapp"}
+                    tooltip="WhatsApp"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>WhatsApp</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("agent")}
+                    isActive={activeTab === "agent"}
+                    tooltip="Agente IA"
+                  >
+                    <Bot className="w-4 h-4" />
+                    <span>Agente IA</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("conversations")}
+                    isActive={activeTab === "conversations"}
+                    tooltip="Conversas"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Conversas</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("config")}
+                    isActive={activeTab === "config"}
+                    tooltip="Configurações"
+                  >
+                    <Settings className="w-4 h-4" />
+                    <span>Configurações</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroup>
+          </SidebarContent>
+          <SidebarFooter>
+            <div className="p-4 text-xs text-muted-foreground text-center">
+              Admin Panel v1.0
             </div>
-          </TabsContent>
-
-          <TabsContent value="agent" className="space-y-4">
-            <AdminAgentConfig />
-          </TabsContent>
-
-          <TabsContent value="conversations" className="space-y-4">
+          </SidebarFooter>
+        </Sidebar>
+        <SidebarInset className="h-screen overflow-hidden">
+          <div className="flex h-full overflow-hidden">
             <AdminConversations />
-          </TabsContent>
-
-          <TabsContent value="config" className="space-y-4">
-            <ConfigManager config={config} />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
-  );
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    );
+  }
 }
 
 // Users Manager Component with delete functionality

@@ -41,7 +41,7 @@ import {
   type InsertWhatsappContact,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, sql, inArray } from "drizzle-orm";
 import { transcribeAudioWithMistral } from "./mistralClient";
 
 export interface IStorage {
@@ -107,6 +107,7 @@ export interface IStorage {
 
   // System config operations
   getSystemConfig(key: string): Promise<SystemConfig | undefined>;
+  getSystemConfigs(keys: string[]): Promise<Map<string, string>>;
   updateSystemConfig(key: string, value: string): Promise<SystemConfig>;
 
   // Admin operations
@@ -629,6 +630,19 @@ export class DatabaseStorage implements IStorage {
       .from(systemConfig)
       .where(eq(systemConfig.chave, key));
     return config;
+  }
+
+  async getSystemConfigs(keys: string[]): Promise<Map<string, string>> {
+    const configs = await db
+      .select()
+      .from(systemConfig)
+      .where(inArray(systemConfig.chave, keys));
+    
+    const result = new Map<string, string>();
+    for (const config of configs) {
+      result.set(config.chave, config.valor);
+    }
+    return result;
   }
 
   async updateSystemConfig(key: string, value: string): Promise<SystemConfig> {

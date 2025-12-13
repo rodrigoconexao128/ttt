@@ -1,529 +1,456 @@
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useEffect, useRef } from "react";
-import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
+import { Send, MessageCircle, Search, Smartphone, Bot, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Search, 
-  MessageCircle, 
-  Loader2, 
-  Send, 
-  Bot, 
-  User, 
-  RefreshCw,
-  PauseCircle,
-  PlayCircle,
-  Phone
-} from "lucide-react";
-import { formatDistanceToNow, format } from "date-fns";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import type { Conversation, AiAgentConfig, AdminMessage } from "@shared/schema";
+import { MessageImage } from "@/components/message-image";
+import { MessageAudio } from "@/components/message-audio";
 
-interface AdminConversation {
-  id: string;
-  adminId: string;
-  contactNumber: string;
-  remoteJid?: string | null;
-  contactName?: string | null;
-  contactAvatar?: string | null;
-  lastMessageText?: string | null;
-  lastMessageTime?: string | null;
-  unreadCount: number;
-  isAgentEnabled: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface AdminMessage {
-  id: string;
-  conversationId: string;
-  messageId: string;
-  fromMe: boolean;
-  text?: string | null;
-  timestamp: string;
-  status?: string | null;
-  isFromAgent: boolean;
-  mediaType?: string | null;
-  mediaUrl?: string | null;
-  mediaCaption?: string | null;
-  createdAt: string;
-}
-
-// Função para extrair número do telefone de forma consistente
-function getDisplayNumber(conv: AdminConversation): string {
-  if (conv.contactNumber) {
-    return conv.contactNumber;
-  }
-  if (conv.remoteJid) {
-    return conv.remoteJid.split("@")[0].split(":")[0];
-  }
-  return "?";
-}
-
-// Função para formatar número para exibição
-function formatPhoneNumber(number: string): string {
-  const digits = number.replace(/\D/g, "");
-  
-  if (digits.length === 13 && digits.startsWith("55")) {
-    return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
-  }
-  if (digits.length === 12 && digits.startsWith("55")) {
-    return `+${digits.slice(0, 2)} (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
-  }
-  
-  return number;
-}
-
-// Gera cor consistente baseada no número
-function getAvatarColor(identifier: string): string {
-  const colors = [
-    "bg-emerald-500", "bg-blue-500", "bg-purple-500", "bg-pink-500", 
-    "bg-orange-500", "bg-teal-500", "bg-indigo-500", "bg-rose-500"
-  ];
-  const hash = identifier.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-  return colors[hash % colors.length];
+interface AdminConversation extends Conversation {
+  userId?: string;
 }
 
 export default function AdminConversations() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const [newMessage, setNewMessage] = useState("");
+  const [messageText, setMessageText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false);
+  const [avatarModalImage, setAvatarModalImage] = useState("");
+  const [avatarModalName, setAvatarModalName] = useState("");
 
-  // Buscar lista de conversas
-  const { data: conversations = [], isLoading: loadingConversations, refetch: refetchConversations } = useQuery<AdminConversation[]>({
+  // Fetch all conversations from admin endpoint
+  const { data: conversations = [], isLoading } = useQuery<AdminConversation[]>({
     queryKey: ["/api/admin/conversations"],
     refetchInterval: 5000,
   });
 
-  // Buscar mensagens da conversa selecionada
-  const { data: messages = [], isLoading: loadingMessages, refetch: refetchMessages } = useQuery<AdminMessage[]>({
-    queryKey: ["/api/admin/conversations", selectedConversationId, "messages"],
+  const { data: selectedConversation } = useQuery<AdminConversation>({
+    queryKey: ["/api/admin/conversation", selectedConversationId],
+    enabled: !!selectedConversationId,
+  });
+
+  const { data: messages = [], isLoading: messagesLoading } = useQuery<AdminMessage[]>({
+    queryKey: ["/api/admin/messages", selectedConversationId],
+    enabled: !!selectedConversationId,
     queryFn: async () => {
       if (!selectedConversationId) return [];
-      const res = await fetch(`/api/admin/conversations/${selectedConversationId}/messages`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Erro ao buscar mensagens");
+      const res = await fetch(`/api/admin/conversations/${selectedConversationId}/messages`);
+      if (!res.ok) throw new Error("Failed to fetch messages");
       return res.json();
     },
+    refetchInterval: 2000,
+  });
+
+  const { data: agentConfig } = useQuery<AiAgentConfig | null>({
+    queryKey: ["/api/agent/config"],
+  });
+
+  const { data: agentStatus } = useQuery<{ isDisabled: boolean }>({
+    queryKey: ["/api/agent/status", selectedConversationId],
     enabled: !!selectedConversationId,
-    refetchInterval: 3000,
   });
 
-  // Mutation para pausar/continuar agente
+  // Filter conversations based on search
+  const filteredConversations = conversations.filter((conv) => {
+    const searchLower = searchQuery.toLowerCase();
+    const normalizedNumber =
+      conv.contactNumber ||
+      (conv.remoteJid || `${conv.contactNumber}@s.whatsapp.net`)
+        .split("@")[0]
+        .split(":")[0];
+    return (
+      conv.contactName?.toLowerCase().includes(searchLower) ||
+      normalizedNumber.includes(searchLower) ||
+      conv.lastMessageText?.toLowerCase().includes(searchLower)
+    );
+  });
+
   const toggleAgentMutation = useMutation({
-    mutationFn: async ({ conversationId, pause }: { conversationId: string; pause: boolean }) => {
-      const endpoint = pause ? "pause-agent" : "resume-agent";
-      const res = await fetch(`/api/admin/conversations/${conversationId}/${endpoint}`, {
-        method: "POST",
-        credentials: "include",
+    mutationFn: async (disable: boolean) => {
+      return await apiRequest("POST", `/api/agent/toggle/${selectedConversationId}`, {
+        disable,
       });
-      if (!res.ok) throw new Error("Erro ao alterar agente");
-      return res.json();
-    },
-    onSuccess: (data, { pause }) => {
-      toast({
-        title: pause ? "🤖 Agente Pausado" : "🤖 Agente Retomado",
-        description: pause 
-          ? "Você assumiu a conversa. O agente não responderá automaticamente."
-          : "O agente voltou a responder automaticamente.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Não foi possível alterar o status do agente",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Mutation para enviar mensagem
-  const sendMessageMutation = useMutation({
-    mutationFn: async ({ conversationId, message }: { conversationId: string; message: string }) => {
-      const res = await fetch(`/api/admin/conversations/${conversationId}/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ text: message }),
-      });
-      if (!res.ok) throw new Error("Erro ao enviar mensagem");
-      return res.json();
     },
     onSuccess: () => {
-      setNewMessage("");
-      refetchMessages();
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
-    },
-    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/status", selectedConversationId] });
       toast({
-        title: "Erro",
-        description: "Não foi possível enviar a mensagem",
+        title: agentStatus?.isDisabled ? "Agente Ativado" : "Agente Desativado",
+        description: agentStatus?.isDisabled 
+          ? "O agente voltara a responder automaticamente" 
+          : "O agente nao respondera mais nesta conversa",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao alterar agente",
+        description: error.message,
         variant: "destructive",
       });
     },
   });
 
-  // Auto-scroll para última mensagem
+  const sendMutation = useMutation({
+    mutationFn: async (text: string) => {
+      return await apiRequest("POST", `/api/admin/conversations/${selectedConversationId}/send`, {
+        text,
+      });
+    },
+    onSuccess: () => {
+      setMessageText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/messages", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao enviar mensagem",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSend = () => {
+    if (!messageText.trim() || !selectedConversationId) return;
+    sendMutation.mutate(messageText);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (!selectedConversationId || !newMessage.trim()) return;
-    sendMessageMutation.mutate({
-      conversationId: selectedConversationId,
-      message: newMessage.trim(),
-    });
-  };
+  // Auto-scroll when opening new conversation
+  useEffect(() => {
+    if (selectedConversationId) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      }, 100);
+    }
+  }, [selectedConversationId]);
 
-  // Filtrar conversas por busca
-  const filteredConversations = conversations.filter((conv) => {
-    const query = searchQuery.toLowerCase();
-    const displayNumber = getDisplayNumber(conv);
-    return (
-      displayNumber.includes(query) ||
-      (conv.contactName?.toLowerCase().includes(query)) ||
-      (conv.lastMessageText?.toLowerCase().includes(query))
-    );
-  });
-
-  // Conversa selecionada
-  const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
-  const selectedDisplayNumber = selectedConversation ? getDisplayNumber(selectedConversation) : "";
+  const displayNumber =
+    selectedConversation?.contactNumber ||
+    (selectedConversation?.remoteJid
+      ? selectedConversation.remoteJid.split("@")[0].split(":")[0]
+      : "");
 
   return (
-    <div className="h-[calc(100vh-200px)] min-h-[600px] flex bg-background rounded-xl border shadow-lg overflow-hidden">
-      {/* Sidebar - Lista de Conversas */}
-      <div className="w-[380px] border-r flex flex-col bg-card">
-        {/* Header da Sidebar */}
-        <div className="p-4 border-b bg-gradient-to-r from-emerald-600 to-emerald-500">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <MessageCircle className="h-5 w-5" />
-              Conversas
-            </h2>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => refetchConversations()}
-              className="text-white hover:bg-white/20"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
+    <div className="flex w-full h-full gap-0 bg-background">
+      {/* Conversations List */}
+      <div className="w-80 border-r bg-card flex flex-col h-full overflow-hidden">
+        <div className="p-4 border-b space-y-4 flex-shrink-0">
+          <h2 className="font-semibold text-lg">Conversas</h2>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar ou começar uma nova conversa"
+              placeholder="Buscar conversas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-white/95 border-0 focus-visible:ring-2 focus-visible:ring-white/50"
+              className="pl-9"
+              data-testid="input-search-admin-conversations"
             />
           </div>
         </div>
 
-        {/* Lista de Conversas */}
-        <ScrollArea className="flex-1">
-          {loadingConversations ? (
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          {isLoading ? (
             <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
+              <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           ) : filteredConversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground p-6 text-center">
-              <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
-              <p className="font-medium">Nenhuma conversa</p>
-              <p className="text-sm">As conversas aparecerão aqui</p>
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+              <MessageCircle className="w-12 h-12 text-muted-foreground mb-4" />
+              <h3 className="font-medium text-sm mb-2">
+                {searchQuery ? "Nenhuma conversa encontrada" : "Nenhuma conversa"}
+              </h3>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                {searchQuery
+                  ? "Tente buscar por outro termo"
+                  : "As conversas aparecerão aqui quando houver atividade"}
+              </p>
             </div>
           ) : (
-            <div className="divide-y">
-              {filteredConversations.map((conv) => {
-                const displayNumber = getDisplayNumber(conv);
-                const avatarColor = getAvatarColor(displayNumber);
-                const isSelected = selectedConversationId === conv.id;
-                
+            <div className="divide-y" data-testid="list-admin-conversations">
+              {filteredConversations.map((conversation) => {
+                const displayNum =
+                  conversation.contactNumber ||
+                  (conversation.remoteJid || "").split("@")[0].split(":")[0] ||
+                  "?";
+
                 return (
-                  <div
-                    key={conv.id}
-                    onClick={() => setSelectedConversationId(conv.id)}
-                    className={`p-4 cursor-pointer transition-all duration-200 hover:bg-muted/50 ${
-                      isSelected ? "bg-emerald-50 dark:bg-emerald-950/30 border-l-4 border-emerald-500" : ""
+                  <button
+                    key={conversation.id}
+                    onClick={() => setSelectedConversationId(conversation.id)}
+                    className={`w-full p-4 text-left hover:bg-accent transition-colors ${
+                      selectedConversationId === conversation.id
+                        ? "bg-sidebar-accent"
+                        : ""
                     }`}
+                    data-testid={`admin-conversation-item-${conversation.id}`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="relative">
-                        <Avatar className={`h-12 w-12 ${avatarColor}`}>
-                          {conv.contactAvatar ? (
-                            <img 
-                              src={conv.contactAvatar} 
-                              alt={conv.contactName || displayNumber}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          ) : null}
-                          <AvatarFallback className={`${avatarColor} text-white font-semibold ${conv.contactAvatar ? 'hidden' : ''}`}>
-                            {conv.contactName 
-                              ? conv.contactName.charAt(0).toUpperCase() 
-                              : displayNumber.slice(-2)}
-                          </AvatarFallback>
-                        </Avatar>
-                        {/* Status indicator */}
-                        <div className={`absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-white flex items-center justify-center ${
-                          conv.isAgentEnabled ? "bg-emerald-500" : "bg-amber-500"
-                        }`}>
-                          {conv.isAgentEnabled ? (
-                            <Bot className="h-2.5 w-2.5 text-white" />
-                          ) : (
-                            <User className="h-2.5 w-2.5 text-white" />
+                      <Avatar className="w-12 h-12 flex-shrink-0">
+                        {conversation.contactAvatar ? (
+                          <img 
+                            src={conversation.contactAvatar} 
+                            alt={conversation.contactName || displayNum}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <AvatarFallback 
+                          className={`bg-primary/10 text-primary font-semibold ${conversation.contactAvatar ? 'hidden' : ''}`}
+                        >
+                          {conversation.contactName
+                            ? conversation.contactName.charAt(0).toUpperCase()
+                            : displayNum.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <h3 className="font-semibold text-sm truncate">
+                            {conversation.contactName || displayNum}
+                          </h3>
+                          {conversation.lastMessageTime && (
+                            <span className="text-xs text-muted-foreground flex-shrink-0">
+                              {formatDistanceToNow(
+                                new Date(conversation.lastMessageTime),
+                                {
+                                  addSuffix: true,
+                                  locale: ptBR,
+                                },
+                              )}
+                            </span>
                           )}
                         </div>
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="font-semibold text-sm truncate">
-                            {conv.contactName || formatPhoneNumber(displayNumber)}
+                          <p className="text-xs text-muted-foreground truncate">
+                            {conversation.lastMessageText || "Sem mensagens"}
                           </p>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            {conv.lastMessageTime && (
-                              <span className={`text-xs ${conv.unreadCount > 0 ? 'text-emerald-600 font-medium' : 'text-muted-foreground'}`}>
-                                {formatDistanceToNow(new Date(conv.lastMessageTime), {
-                                  addSuffix: false,
-                                  locale: ptBR,
-                                })}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-between gap-2 mt-1">
-                          <p className="text-sm text-muted-foreground truncate flex-1">
-                            {conv.lastMessageText || "Sem mensagens"}
-                          </p>
-                          {conv.unreadCount > 0 && (
-                            <Badge className="bg-emerald-500 hover:bg-emerald-500 text-white text-xs px-2 min-w-[20px] justify-center">
-                              {conv.unreadCount}
+                          {conversation.unreadCount > 0 && (
+                            <Badge
+                              variant="default"
+                              className="flex-shrink-0 h-5 min-w-5 px-1.5 text-xs"
+                              data-testid={`admin-badge-unread-${conversation.id}`}
+                            >
+                              {conversation.unreadCount}
                             </Badge>
                           )}
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
 
-      {/* Área Principal - Chat */}
-      <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900/50">
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {!selectedConversationId ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-            <div className="bg-background/80 backdrop-blur-sm rounded-2xl p-8 text-center shadow-lg">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-                <MessageCircle className="h-10 w-10 text-white" />
+          <div className="flex items-center justify-center h-full bg-muted/20">
+            <div className="text-center space-y-4 max-w-sm p-8">
+              <MessageCircle className="w-16 h-16 mx-auto text-muted-foreground" />
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg">Selecione uma conversa</h3>
+                <p className="text-sm text-muted-foreground">
+                  Escolha uma conversa na lista para começar a visualizar as mensagens.
+                </p>
               </div>
-              <h3 className="text-xl font-semibold mb-2">AgentZap Admin</h3>
-              <p className="text-sm max-w-xs">
-                Selecione uma conversa para visualizar e gerenciar o atendimento
-              </p>
             </div>
           </div>
         ) : (
           <>
-            {/* Header do Chat */}
-            <div className="px-4 py-3 border-b bg-card flex items-center justify-between">
+            {/* Chat Header */}
+            <div className="border-b p-4 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
-                <Avatar className={`h-10 w-10 ${getAvatarColor(selectedDisplayNumber)}`}>
+                <Avatar className="w-10 h-10">
                   {selectedConversation?.contactAvatar ? (
                     <img 
-                      src={selectedConversation.contactAvatar} 
-                      alt={selectedConversation.contactName || selectedDisplayNumber}
+                      src={selectedConversation.contactAvatar}
+                      alt={selectedConversation.contactName || displayNumber}
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
+                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
                       }}
                     />
                   ) : null}
-                  <AvatarFallback className={`${getAvatarColor(selectedDisplayNumber)} text-white font-semibold ${selectedConversation?.contactAvatar ? 'hidden' : ''}`}>
-                    {selectedConversation?.contactName 
-                      ? selectedConversation.contactName.charAt(0).toUpperCase() 
-                      : selectedDisplayNumber.slice(-2)}
+                  <AvatarFallback className={`bg-primary/10 text-primary ${selectedConversation?.contactAvatar ? 'hidden' : ''}`}>
+                    {selectedConversation?.contactName
+                      ? selectedConversation.contactName.charAt(0).toUpperCase()
+                      : displayNumber.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-semibold">
-                    {selectedConversation?.contactName || formatPhoneNumber(selectedDisplayNumber)}
-                  </p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Phone className="h-3 w-3" />
-                    {formatPhoneNumber(selectedDisplayNumber)}
-                  </p>
+                  <h3 className="font-semibold">
+                    {selectedConversation?.contactName || displayNumber}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">{displayNumber}</p>
                 </div>
               </div>
-              
               <div className="flex items-center gap-2">
-                <Badge 
-                  variant="outline"
-                  className={`${
-                    selectedConversation?.isAgentEnabled 
-                      ? "border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50" 
-                      : "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/50"
-                  }`}
-                >
-                  {selectedConversation?.isAgentEnabled ? (
-                    <><Bot className="h-3 w-3 mr-1" /> IA Ativa</>
-                  ) : (
-                    <><User className="h-3 w-3 mr-1" /> Modo Manual</>
-                  )}
-                </Badge>
-                
-                <Button
-                  variant={selectedConversation?.isAgentEnabled ? "outline" : "default"}
-                  size="sm"
-                  onClick={() => {
-                    if (selectedConversation) {
-                      toggleAgentMutation.mutate({
-                        conversationId: selectedConversation.id,
-                        pause: selectedConversation.isAgentEnabled,
-                      });
-                    }
-                  }}
-                  disabled={toggleAgentMutation.isPending}
-                  className={!selectedConversation?.isAgentEnabled ? "bg-emerald-500 hover:bg-emerald-600" : ""}
-                >
-                  {toggleAgentMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : selectedConversation?.isAgentEnabled ? (
-                    <>
-                      <PauseCircle className="h-4 w-4 mr-2" />
-                      Assumir
-                    </>
-                  ) : (
-                    <>
-                      <PlayCircle className="h-4 w-4 mr-2" />
-                      Retomar IA
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Badge variant={agentStatus?.isDisabled ? "secondary" : "default"}>
+                    {agentStatus?.isDisabled ? "Agente Desativado" : "Agente Ativo"}
+                  </Badge>
+                  <Switch
+                    checked={!agentStatus?.isDisabled}
+                    onCheckedChange={(checked) => toggleAgentMutation.mutate(!checked)}
+                    disabled={toggleAgentMutation.isPending}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Área de Mensagens */}
-            <ScrollArea className="flex-1 p-4">
-              {loadingMessages ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4" data-testid="container-admin-messages">
+              {messagesLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
-                  <MessageCircle className="h-8 w-8 mb-2 opacity-50" />
-                  <p>Nenhuma mensagem ainda</p>
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <p>Nenhuma mensagem nesta conversa</p>
                 </div>
               ) : (
-                <div className="space-y-2 max-w-3xl mx-auto">
-                  {messages.map((msg, index) => {
-                    const showDate = index === 0 || 
-                      format(new Date(msg.timestamp), 'yyyy-MM-dd') !== 
-                      format(new Date(messages[index - 1].timestamp), 'yyyy-MM-dd');
-                    
-                    return (
-                      <div key={msg.id}>
-                        {showDate && (
-                          <div className="flex justify-center my-4">
-                            <Badge variant="secondary" className="bg-white/80 dark:bg-gray-800/80 shadow-sm">
-                              {format(new Date(msg.timestamp), "d 'de' MMMM", { locale: ptBR })}
-                            </Badge>
-                          </div>
-                        )}
-                        <div className={`flex ${msg.fromMe ? "justify-end" : "justify-start"}`}>
-                          <div
-                            className={`max-w-[70%] rounded-lg px-3 py-2 shadow-sm relative ${
-                              msg.fromMe
-                                ? msg.isFromAgent
-                                  ? "bg-blue-100 dark:bg-blue-900/50 rounded-tr-none"
-                                  : "bg-emerald-100 dark:bg-emerald-900/50 rounded-tr-none"
-                                : "bg-white dark:bg-gray-800 rounded-tl-none"
-                            }`}
-                          >
-                            {msg.fromMe && msg.isFromAgent && (
-                              <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 mb-1 font-medium">
-                                <Bot className="h-3 w-3" />
-                                Agente IA
-                              </div>
-                            )}
-                            {msg.mediaType && msg.mediaUrl && msg.mediaType === "image" && (
-                              <img 
-                                src={msg.mediaUrl} 
-                                alt="Mídia" 
-                                className="max-w-full rounded mb-2"
-                              />
-                            )}
-                            <p className="whitespace-pre-wrap text-sm">{msg.text}</p>
-                            <p className={`text-[10px] mt-1 text-right ${
-                              msg.fromMe ? "text-gray-500" : "text-gray-400"
-                            }`}>
-                              {format(new Date(msg.timestamp), "HH:mm")}
-                            </p>
-                          </div>
+                messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${
+                      message.fromMe ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-md rounded-md px-4 py-2 ${
+                        message.fromMe
+                          ? "bg-primary text-primary-foreground ml-auto"
+                          : "bg-muted mr-auto"
+                      }`}
+                    >
+                      {message.isFromAgent && (
+                        <div className="flex items-center gap-1 mb-1">
+                          <Bot className="w-3 h-3 text-primary" />
+                          <span className="text-xs font-semibold text-primary">Agente IA</span>
                         </div>
-                      </div>
-                    );
-                  })}
-                  <div ref={messagesEndRef} />
-                </div>
+                      )}
+                      
+                      {/* Render media content */}
+                      {message.mediaType === "image" && message.mediaUrl ? (
+                        <MessageImage 
+                          src={message.mediaUrl} 
+                          caption={message.mediaCaption}
+                          alt="Imagem do WhatsApp"
+                        />
+                      ) : message.mediaType === "audio" && message.mediaUrl ? (
+                        <div className="space-y-2">
+                          <MessageAudio 
+                            src={message.mediaUrl}
+                            fromMe={message.fromMe}
+                          />
+                          {message.text && (
+                            <p className="text-sm whitespace-pre-wrap break-words">
+                              {message.text}
+                            </p>
+                          )}
+                        </div>
+                      ) : message.mediaType === "video" && message.mediaUrl ? (
+                        <div className="space-y-2">
+                          <video 
+                            src={message.mediaUrl} 
+                            controls 
+                            className="max-w-[280px] max-h-[280px] rounded-lg"
+                          />
+                          {message.mediaCaption && (
+                            <p className="text-sm whitespace-pre-wrap break-words">{message.mediaCaption}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+                      )}
+                      
+                      <p
+                        className={`text-xs mt-1 ${
+                          message.fromMe ? "text-primary-foreground/70" : "text-muted-foreground"
+                        }`}
+                      >
+                        {new Date(message.timestamp || message.createdAt).toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))
               )}
-            </ScrollArea>
+              <div ref={messagesEndRef} />
+            </div>
 
-            {/* Input de Mensagem */}
-            <div className="p-3 border-t bg-card">
-              {!selectedConversation?.isAgentEnabled && (
-                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-2 flex items-center gap-2 text-sm">
-                  <PauseCircle className="h-4 w-4 text-amber-600" />
-                  <span className="text-amber-700 dark:text-amber-300">
-                    Você assumiu esta conversa. Suas mensagens serão enviadas manualmente.
-                  </span>
-                </div>
-              )}
+            {/* Message Input */}
+            <div className="border-t p-4 flex-shrink-0 space-y-2">
               <div className="flex gap-2">
-                <Input
+                <Textarea
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  onKeyPress={handleKeyPress}
                   placeholder="Digite sua mensagem..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  disabled={sendMessageMutation.isPending}
-                  className="flex-1"
+                  className="flex-1 min-h-12 resize-none"
+                  data-testid="textarea-admin-message"
                 />
                 <Button
-                  onClick={handleSendMessage}
-                  disabled={!newMessage.trim() || sendMessageMutation.isPending}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-6"
+                  onClick={handleSend}
+                  disabled={sendMutation.isPending || !messageText.trim()}
+                  size="icon"
+                  data-testid="button-admin-send-message"
                 >
-                  {sendMessageMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
+                  <Send className="w-4 h-4" />
                 </Button>
               </div>
             </div>
           </>
         )}
       </div>
+
+      {/* Avatar Modal */}
+      <Dialog open={avatarModalOpen} onOpenChange={setAvatarModalOpen}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden bg-black/90">
+          <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10">
+            <X className="h-6 w-6 text-white" />
+            <span className="sr-only">Fechar</span>
+          </DialogClose>
+          {avatarModalImage && (
+            <div className="flex flex-col items-center justify-center p-4">
+              <h3 className="text-white font-semibold mb-4 text-lg">{avatarModalName}</h3>
+              <img 
+                src={avatarModalImage} 
+                alt={avatarModalName}
+                className="max-w-full max-h-[70vh] object-contain rounded-lg"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
