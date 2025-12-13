@@ -87,6 +87,17 @@ export function updateClientSession(phoneNumber: string, updates: Partial<Client
   return session;
 }
 
+// Limpar sessão de um cliente (para testes)
+export function clearClientSession(phoneNumber: string): boolean {
+  const cleanPhone = phoneNumber.replace(/\D/g, "");
+  const existed = clientSessions.has(cleanPhone);
+  clientSessions.delete(cleanPhone);
+  if (existed) {
+    console.log(`🗑️ [ADMIN AGENT] Sessão do cliente ${cleanPhone} removida da memória`);
+  }
+  return existed;
+}
+
 export function addToConversationHistory(phoneNumber: string, role: "user" | "assistant", content: string) {
   const cleanPhone = phoneNumber.replace(/\D/g, "");
   const session = clientSessions.get(cleanPhone);

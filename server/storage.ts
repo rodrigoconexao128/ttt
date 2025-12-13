@@ -1267,6 +1267,135 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return result;
   }
+
+  /**
+   * Reset completo de um cliente pelo número de telefone
+   * Exclui: conversa admin, mensagens admin, sessão em memória, user (se existir)
+   * Usado para testes - permite testar como cliente novo
+   */
+  async resetClientByPhone(phoneNumber: string): Promise<{
+    conversationDeleted: boolean;
+    messagesDeleted: number;
+    userDeleted: boolean;
+    connectionDeleted: boolean;
+    subscriptionDeleted: boolean;
+    agentConfigDeleted: boolean;
+  }> {
+    const result = {
+      conversationDeleted: false,
+      messagesDeleted: 0,
+      userDeleted: false,
+      connectionDeleted: false,
+      subscriptionDeleted: false,
+      agentConfigDeleted: false,
+    };
+
+    console.log(`🗑️ [RESET CLIENT] Iniciando reset para ${phoneNumber}...`);
+
+    try {
+      // 1. Buscar conversa admin pelo número
+      const adminConv = await this.getAdminConversationByPhone(phoneNumber);
+      if (adminConv) {
+        // Deletar todas as mensagens da conversa
+        const messagesResult = await db
+          .delete(adminMessages)
+          .where(eq(adminMessages.conversationId, adminConv.id));
+        result.messagesDeleted = messagesResult.rowCount || 0;
+        console.log(`🗑️ [RESET CLIENT] ${result.messagesDeleted} mensagens admin excluídas`);
+
+        // Deletar a conversa
+        await db
+          .delete(adminConversations)
+          .where(eq(adminConversations.id, adminConv.id));
+        result.conversationDeleted = true;
+        console.log(`🗑️ [RESET CLIENT] Conversa admin excluída`);
+      }
+
+      // 2. Buscar user pelo telefone
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.phone, phoneNumber));
+
+      if (user) {
+        // Deletar config do agente
+        const agentResult = await db
+          .delete(aiAgentConfig)
+          .where(eq(aiAgentConfig.userId, user.id));
+        result.agentConfigDeleted = (agentResult.rowCount || 0) > 0;
+        if (result.agentConfigDeleted) {
+          console.log(`🗑️ [RESET CLIENT] Config do agente excluída`);
+        }
+
+        // Buscar conexão do usuário
+        const [connection] = await db
+          .select()
+          .from(whatsappConnections)
+          .where(eq(whatsappConnections.userId, user.id));
+
+        if (connection) {
+          // Buscar conversas do usuário
+          const userConversations = await db
+            .select()
+            .from(conversations)
+            .where(eq(conversations.connectionId, connection.id));
+
+          // Deletar mensagens das conversas do usuário
+          for (const conv of userConversations) {
+            await db
+              .delete(messages)
+              .where(eq(messages.conversationId, conv.id));
+          }
+
+          // Deletar conversas do usuário
+          await db
+            .delete(conversations)
+            .where(eq(conversations.connectionId, connection.id));
+
+          // Deletar conexão
+          await db
+            .delete(whatsappConnections)
+            .where(eq(whatsappConnections.id, connection.id));
+          result.connectionDeleted = true;
+          console.log(`🗑️ [RESET CLIENT] Conexão WhatsApp excluída`);
+        }
+
+        // Buscar e deletar subscription
+        const [subscription] = await db
+          .select()
+          .from(subscriptions)
+          .where(eq(subscriptions.userId, user.id));
+
+        if (subscription) {
+          // Deletar pagamentos
+          await db
+            .delete(payments)
+            .where(eq(payments.subscriptionId, subscription.id));
+
+          // Deletar subscription
+          await db
+            .delete(subscriptions)
+            .where(eq(subscriptions.id, subscription.id));
+          result.subscriptionDeleted = true;
+          console.log(`🗑️ [RESET CLIENT] Subscription excluída`);
+        }
+
+        // Finalmente, deletar o usuário
+        await db
+          .delete(users)
+          .where(eq(users.id, user.id));
+        result.userDeleted = true;
+        console.log(`🗑️ [RESET CLIENT] Usuário excluído`);
+      }
+
+      console.log(`✅ [RESET CLIENT] Reset completo para ${phoneNumber}`, result);
+      return result;
+
+    } catch (error) {
+      console.error(`❌ [RESET CLIENT] Erro ao resetar cliente:`, error);
+      throw error;
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();

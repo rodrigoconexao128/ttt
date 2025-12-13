@@ -1233,6 +1233,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reset cliente completo por telefone (para testes)
+  // Exclui: conversa admin, mensagens, user, conexão, subscription, config agente
+  app.delete("/api/admin/reset-client/:phone", isAdmin, async (req, res) => {
+    try {
+      const { phone } = req.params;
+      
+      // Limpar número (remover caracteres não numéricos)
+      const cleanPhone = phone.replace(/\D/g, "");
+      
+      if (!cleanPhone || cleanPhone.length < 10) {
+        return res.status(400).json({ message: "Número de telefone inválido" });
+      }
+
+      console.log(`🗑️ [ADMIN] Iniciando reset completo do cliente: ${cleanPhone}`);
+
+      // Limpar sessão em memória (do adminAgentService)
+      const { clearClientSession } = await import("./adminAgentService");
+      clearClientSession(cleanPhone);
+      
+      // Resetar todos os dados no banco
+      const result = await storage.resetClientByPhone(cleanPhone);
+
+      console.log(`✅ [ADMIN] Cliente ${cleanPhone} resetado completamente`, result);
+
+      res.json({ 
+        success: true, 
+        message: `Cliente ${cleanPhone} resetado com sucesso`,
+        details: result
+      });
+    } catch (error) {
+      console.error("Erro ao resetar cliente:", error);
+      res.status(500).json({ message: "Falha ao resetar cliente" });
+    }
+  });
+
   // Get admin stats
   app.get("/api/admin/stats", isAdmin, async (_req, res) => {
     try {
