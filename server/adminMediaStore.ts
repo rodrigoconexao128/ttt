@@ -311,7 +311,22 @@ export async function generateAdminMediaPromptBlock(adminId?: string): Promise<s
 📁 SISTEMA DE ENVIO DE MÍDIAS - INSTRUÇÕES OBRIGATÓRIAS
 ═══════════════════════════════════════════════════════════════════════════════
 
-Você tem as seguintes mídias disponíveis para enviar: ${allMediaNames}
+⚠️⚠️⚠️ REGRA ABSOLUTA - LEIA COM ATENÇÃO ⚠️⚠️⚠️
+
+VOCÊ SÓ PODE USAR ESTAS MÍDIAS (e NENHUMA outra):
+${allMediaNames}
+
+🚫 PROIBIDO INVENTAR MÍDIAS! 
+- NÃO existe QR_CODE como mídia (QR Code é uma AÇÃO: [AÇÃO:ENVIAR_QRCODE])
+- NÃO existe nenhuma mídia que não esteja listada acima
+- Se o nome não está na lista, NÃO USE!
+
+⚠️ DIFERENÇA IMPORTANTE:
+- [ENVIAR_MIDIA:...] = Arquivos pré-gravados (imagens, áudios, vídeos, PDFs)
+- [AÇÃO:...] = Funcionalidades do sistema (criar conta, gerar QR Code, etc)
+
+Para QR CODE DO WHATSAPP: Use [AÇÃO:ENVIAR_QRCODE] (É UMA AÇÃO, NÃO MÍDIA!)
+Para CÓDIGO DE 8 DÍGITOS: Use [AÇÃO:SOLICITAR_CODIGO_PAREAMENTO]
 
 `;
 
@@ -432,6 +447,11 @@ Analise o "QUANDO USAR" de cada mídia. Se a pergunta do cliente COMBINA
 com a instrução, ENVIE essa mídia. Você pode enviar MÚLTIPLAS se fizer sentido!
 
 ⚠️ Tags [ENVIAR_MIDIA:NOME] sempre NO FINAL da resposta!
+
+🚫🚫🚫 NUNCA INVENTE MÍDIAS 🚫🚫🚫
+Mídias válidas: ${allMediaNames}
+Se não está na lista acima, NÃO USE!
+QR CODE = [AÇÃO:ENVIAR_QRCODE] (é ação, não mídia!)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
 
