@@ -9,42 +9,19 @@ if (!process.env.DATABASE_URL) {
 }
 
 // Detectar se está usando Supabase Pooler (porta 6543)
+// NOTA: NÃO derivamos automaticamente a URL direta porque:
+// 1) O Supabase direct (db.<ref>.supabase.co) resolve para IPv6, que o Railway não alcança (ENETUNREACH)
+// 2) O Pooler (pooler.supabase.com:6543) funciona bem e resolve IPv4
+// Se você quiser forçar conexão direta, defina DATABASE_URL_DIRECT no Railway.
 const rawDbUrl = process.env.DATABASE_URL;
 const directDbUrl = process.env.DATABASE_URL_DIRECT;
 
-const shouldPreferDirect =
-  process.env.SUPABASE_PREFER_DIRECT === 'true' ||
-  (process.env.NODE_ENV === 'production' && process.env.SUPABASE_PREFER_DIRECT !== 'false');
-
-function buildDirectSupabaseUrlFromPooler(url: string): string | null {
-  try {
-    const parsed = new URL(url);
-
-    const username = decodeURIComponent(parsed.username);
-    const match = username.match(/^postgres\.([a-z0-9]+)$/i);
-    const projectRef = match?.[1];
-    if (!projectRef) return null;
-
-    // Pooler usa usuário postgres.<ref>, mas conexão direta usa "postgres".
-    parsed.username = 'postgres';
-    parsed.hostname = `db.${projectRef}.supabase.co`;
-    parsed.port = '5432';
-    return parsed.toString();
-  } catch {
-    return null;
-  }
-}
-
-const isPoolerConnectionRaw = rawDbUrl.includes(':6543') || rawDbUrl.includes('pooler.supabase.com');
-const derivedDirectDbUrl = isPoolerConnectionRaw ? buildDirectSupabaseUrlFromPooler(rawDbUrl) : null;
-const dbUrl = (shouldPreferDirect && (directDbUrl || derivedDirectDbUrl))
-  ? (directDbUrl || derivedDirectDbUrl)!
-  : rawDbUrl;
-const usingDerivedDirect = shouldPreferDirect && !directDbUrl && !!derivedDirectDbUrl;
-const isPoolerConnectionFinal = dbUrl.includes(':6543') || dbUrl.includes('pooler.supabase.com');
+// Só usa direct se explicitamente fornecido via DATABASE_URL_DIRECT
+const dbUrl = directDbUrl || rawDbUrl;
+const isPoolerConnection = dbUrl.includes(':6543') || dbUrl.includes('pooler.supabase.com');
 
 console.log(
-  `[DB] Modo de conexão: ${isPoolerConnectionFinal ? 'Supabase Pooler (PgBouncer)' : 'Direct Connection'}${usingDerivedDirect ? ' (derived direct URL)' : ''}`,
+  `[DB] Modo de conexão: ${isPoolerConnection ? 'Supabase Pooler (PgBouncer)' : 'Direct Connection'}`,
 );
 
 // Configurações otimizadas para Supabase
@@ -57,10 +34,10 @@ const poolConfig: any = {
   // Pool configurado para funcionar com PgBouncer
   // Em produção o painel faz várias requisições em paralelo.
   // Com max=1 essas requisições ficam na fila e estouram connectionTimeoutMillis (erro: "timeout exceeded when trying to connect").
-  max: isPoolerConnectionFinal ? 3 : 5,
+  max: isPoolerConnection ? 3 : 5,
   min: 0,
-  idleTimeoutMillis: isPoolerConnectionFinal ? 10000 : 30000,
-  connectionTimeoutMillis: isPoolerConnectionFinal ? 120000 : 30000,
+  idleTimeoutMillis: isPoolerConnection ? 10000 : 30000,
+  connectionTimeoutMillis: isPoolerConnection ? 120000 : 30000,
   allowExitOnIdle: true,
 };
 

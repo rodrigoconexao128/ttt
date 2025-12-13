@@ -1,6 +1,6 @@
 param(
   [int]$Rounds = 3,
-  [string]$BaseUrl = "http://localhost:5000",
+  [string]$BaseUrl = "http://127.0.0.1:5000",
   [string]$Email = "rodrigoconexao128@gmail.com",
   [string]$Password = "Ibira2019!"
 )
@@ -16,7 +16,7 @@ function Wait-ForServer([string]$url, [int]$timeoutSeconds = 30) {
   $deadline = (Get-Date).AddSeconds($timeoutSeconds)
   while ((Get-Date) -lt $deadline) {
     try {
-      $ok = Test-NetConnection -ComputerName $hostName -Port $port -InformationLevel Quiet
+      $ok = Test-NetConnection -ComputerName $hostName -Port $port -InformationLevel Quiet -WarningAction SilentlyContinue
       if ($ok) { return }
     } catch {
       # ignore and retry
