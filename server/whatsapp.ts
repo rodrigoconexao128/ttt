@@ -15,7 +15,7 @@ import fs from "fs/promises";
 import { storage } from "./storage";
 import WebSocket from "ws";
 import { generateAIResponse, type AIResponseResult } from "./aiAgent";
-import { executeMediaActions } from "./mediaService";
+import { executeMediaActions, downloadMediaAsBuffer } from "./mediaService";
 
 // Cache manual de contatos para mapear @lid → phoneNumber
 interface Contact {
@@ -284,6 +284,82 @@ async function processAdminAccumulatedMessages(params: {
       const notificationText = `💰 *NOTIFICAÇÃO DE PAGAMENTO*\n\n📱 Cliente: ${pending.contactNumber}\n⏰ ${new Date().toLocaleString("pt-BR")}\n\n⚠️ Verificar comprovante e liberar conta`;
       await socket.sendMessage(ownerJid, { text: notificationText });
       console.log(`📢 [ADMIN AGENT] Notificação enviada para ${ownerNumber}`);
+    }
+
+    // 📁 Enviar mídias se houver
+    if (response.mediaActions && response.mediaActions.length > 0) {
+      console.log(`📁 [ADMIN AGENT] Enviando ${response.mediaActions.length} mídia(s)...`);
+      
+      for (const action of response.mediaActions) {
+        if (action.mediaData) {
+          try {
+            const media = action.mediaData;
+            console.log(`📁 [ADMIN AGENT] Enviando mídia: ${media.name} (${media.mediaType})`);
+            
+            // Baixar mídia da URL
+            const mediaBuffer = await downloadMediaAsBuffer(media.storageUrl);
+            
+            if (mediaBuffer) {
+              switch (media.mediaType) {
+                case 'image':
+                  await socket.sendMessage(pending.remoteJid, {
+                    image: mediaBuffer,
+                    caption: media.caption || undefined,
+                  });
+                  break;
+                case 'audio':
+                  await socket.sendMessage(pending.remoteJid, {
+                    audio: mediaBuffer,
+                    mimetype: media.mimeType || 'audio/ogg; codecs=opus',
+                    ptt: true, // Voice message
+                  });
+                  break;
+                case 'video':
+                  await socket.sendMessage(pending.remoteJid, {
+                    video: mediaBuffer,
+                    caption: media.caption || undefined,
+                  });
+                  break;
+                case 'document':
+                  await socket.sendMessage(pending.remoteJid, {
+                    document: mediaBuffer,
+                    fileName: media.fileName || 'document',
+                    mimetype: media.mimeType || 'application/octet-stream',
+                  });
+                  break;
+              }
+              console.log(`✅ [ADMIN AGENT] Mídia ${media.name} enviada com sucesso`);
+            } else {
+              console.error(`❌ [ADMIN AGENT] Falha ao baixar mídia: ${media.storageUrl}`);
+            }
+          } catch (mediaError) {
+            console.error(`❌ [ADMIN AGENT] Erro ao enviar mídia ${action.media_name}:`, mediaError);
+          }
+          
+          // Pequeno delay entre mídias
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+    }
+
+    // 🔌 Desconectar WhatsApp se solicitado
+    if (response.actions?.disconnectWhatsApp) {
+      try {
+        const { getClientSession } = await import("./adminAgentService");
+        const clientSession = getClientSession(pending.contactNumber);
+        
+        if (clientSession?.userId) {
+          console.log(`🔌 [ADMIN AGENT] Desconectando WhatsApp do usuário ${clientSession.userId}...`);
+          await disconnectWhatsApp(clientSession.userId);
+          await socket.sendMessage(pending.remoteJid, { text: "Pronto! 🔌 Seu WhatsApp foi desconectado. Quando quiser reconectar, é só me avisar!" });
+          console.log(`✅ [ADMIN AGENT] WhatsApp desconectado para ${clientSession.userId}`);
+        } else {
+          await socket.sendMessage(pending.remoteJid, { text: "Não encontrei uma conexão ativa para desconectar. Você já está desconectado!" });
+        }
+      } catch (disconnectError) {
+        console.error("❌ [ADMIN AGENT] Erro ao desconectar WhatsApp:", disconnectError);
+        await socket.sendMessage(pending.remoteJid, { text: "Tive um problema ao tentar desconectar. Pode tentar de novo?" });
+      }
     }
 
     // 📲 Enviar código de pareamento se solicitado
@@ -2114,6 +2190,75 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             } catch (err) {
               console.error("[ADMIN AGENT] Erro ao encaminhar comprovante:", err);
             }
+          }
+        }
+        
+        // 📁 Enviar mídias se houver (para handler de mídia)
+        if (response && response.mediaActions && response.mediaActions.length > 0) {
+          console.log(`📁 [ADMIN AGENT MEDIA] Enviando ${response.mediaActions.length} mídia(s)...`);
+          
+          for (const action of response.mediaActions) {
+            if (action.mediaData) {
+              try {
+                const media = action.mediaData;
+                console.log(`📁 [ADMIN AGENT MEDIA] Enviando mídia: ${media.name} (${media.mediaType})`);
+                
+                const mediaBuffer = await downloadMediaAsBuffer(media.storageUrl);
+                
+                if (mediaBuffer) {
+                  switch (media.mediaType) {
+                    case 'image':
+                      await socket.sendMessage(realRemoteJid, {
+                        image: mediaBuffer,
+                        caption: media.caption || undefined,
+                      });
+                      break;
+                    case 'audio':
+                      await socket.sendMessage(realRemoteJid, {
+                        audio: mediaBuffer,
+                        mimetype: media.mimeType || 'audio/ogg; codecs=opus',
+                        ptt: true,
+                      });
+                      break;
+                    case 'video':
+                      await socket.sendMessage(realRemoteJid, {
+                        video: mediaBuffer,
+                        caption: media.caption || undefined,
+                      });
+                      break;
+                    case 'document':
+                      await socket.sendMessage(realRemoteJid, {
+                        document: mediaBuffer,
+                        fileName: media.fileName || 'document',
+                        mimetype: media.mimeType || 'application/octet-stream',
+                      });
+                      break;
+                  }
+                  console.log(`✅ [ADMIN AGENT MEDIA] Mídia ${media.name} enviada com sucesso`);
+                }
+              } catch (mediaError) {
+                console.error(`❌ [ADMIN AGENT MEDIA] Erro ao enviar mídia ${action.media_name}:`, mediaError);
+              }
+              await new Promise(r => setTimeout(r, 500));
+            }
+          }
+        }
+
+        // 🔌 Desconectar WhatsApp se solicitado (para handler de mídia)
+        if (response && response.actions?.disconnectWhatsApp) {
+          try {
+            const { getClientSession } = await import("./adminAgentService");
+            const clientSession = getClientSession(contactNumber);
+            
+            if (clientSession?.userId) {
+              console.log(`🔌 [ADMIN AGENT MEDIA] Desconectando WhatsApp do usuário ${clientSession.userId}...`);
+              await disconnectWhatsApp(clientSession.userId);
+              await socket.sendMessage(realRemoteJid, { text: "Pronto! 🔌 Seu WhatsApp foi desconectado. Quando quiser reconectar, é só me avisar!" });
+            } else {
+              await socket.sendMessage(realRemoteJid, { text: "Não encontrei uma conexão ativa para desconectar." });
+            }
+          } catch (disconnectError) {
+            console.error("❌ [ADMIN AGENT MEDIA] Erro ao desconectar WhatsApp:", disconnectError);
           }
         }
         

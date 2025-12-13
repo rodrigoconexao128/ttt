@@ -508,7 +508,7 @@ export async function sendMediaViaWApi(
  * Baixa arquivo da URL e retorna como Buffer
  * Essencial para enviar áudio PTT que precisa de buffer, não URL
  */
-async function downloadMediaAsBuffer(url: string): Promise<Buffer> {
+export async function downloadMediaAsBuffer(url: string): Promise<Buffer> {
   console.log(`[MediaService] Downloading media from: ${url}`);
   const response = await fetch(url);
   

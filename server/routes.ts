@@ -56,6 +56,16 @@ import {
   deleteAgentMedia,
   transcribeAudio,
 } from "./mediaService";
+import {
+  addAdminMedia,
+  updateAdminMedia as updateAdminMediaStore,
+  deleteAdminMedia as deleteAdminMediaStore,
+  getAdminMediaList,
+  getAdminMediaById,
+  hasAdminMedia,
+  getAdminMediaCount,
+  type AdminMedia,
+} from "./adminMediaStore";
 import { z } from "zod";
 
 // Helper to get userId from authenticated request
@@ -2149,25 +2159,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     messageIntervalMax: 8,
   };
 
-  const adminMediaLibrary: Map<string, {
-    id: string;
-    adminId: string;
-    name: string;
-    mediaType: "audio" | "image" | "video" | "document";
-    storageUrl: string;
-    fileName?: string;
-    fileSize?: number;
-    mimeType?: string;
-    durationSeconds?: number;
-    description: string;
-    whenToUse?: string;
-    caption?: string;
-    transcription?: string;
-    isActive: boolean;
-    sendAlone: boolean;
-    displayOrder: number;
-    createdAt: string;
-  }> = new Map();
+  // Usando adminMediaStore para armazenamento global de mídias do admin
+  // Importado de ./adminMediaStore
 
   // GET - Obter configuração do agente admin
   app.get("/api/admin/agent/config", isAdmin, async (req: any, res) => {
@@ -2420,7 +2413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET - Listar mídias do admin
   app.get("/api/admin/agent/media", isAdmin, async (req: any, res) => {
     try {
-      const mediaList = Array.from(adminMediaLibrary.values());
+      const mediaList = getAdminMediaList();
       res.json(mediaList);
     } catch (error) {
       console.error("Error fetching admin media:", error);
@@ -2440,7 +2433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const id = crypto.randomUUID();
-      const media = {
+      const media: AdminMedia = {
         id,
         adminId,
         name: name.toUpperCase().replace(/\s+/g, '_'),
@@ -2455,11 +2448,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         transcription,
         isActive: isActive !== false,
         sendAlone: sendAlone || false,
-        displayOrder: adminMediaLibrary.size,
+        displayOrder: getAdminMediaCount(),
         createdAt: new Date().toISOString(),
       };
 
-      adminMediaLibrary.set(id, media);
+      addAdminMedia(media);
       res.json(media);
     } catch (error) {
       console.error("Error adding admin media:", error);
@@ -2471,18 +2464,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/admin/agent/media/:id", isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const existing = adminMediaLibrary.get(id);
+      const existing = getAdminMediaById(id);
 
       if (!existing) {
         return res.status(404).json({ message: "Media not found" });
       }
 
-      const updated = { ...existing, ...req.body };
+      const updates = { ...req.body };
       if (req.body.name) {
-        updated.name = req.body.name.toUpperCase().replace(/\s+/g, '_');
+        updates.name = req.body.name.toUpperCase().replace(/\s+/g, '_');
       }
 
-      adminMediaLibrary.set(id, updated);
+      const updated = updateAdminMediaStore(id, updates);
       res.json(updated);
     } catch (error) {
       console.error("Error updating admin media:", error);
@@ -2495,11 +2488,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       
-      if (!adminMediaLibrary.has(id)) {
+      if (!hasAdminMedia(id)) {
         return res.status(404).json({ message: "Media not found" });
       }
 
-      adminMediaLibrary.delete(id);
+      deleteAdminMediaStore(id);
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting admin media:", error);
@@ -2896,7 +2889,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // Exportar configuração do admin para uso no WhatsApp handler
   (app as any).getAdminAgentConfig = () => adminAgentConfig;
-  (app as any).getAdminMediaLibrary = () => Array.from(adminMediaLibrary.values());
+  (app as any).getAdminMediaLibrary = () => getAdminMediaList();
 
   return httpServer;
 }

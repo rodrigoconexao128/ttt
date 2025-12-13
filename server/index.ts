@@ -55,23 +55,11 @@ app.use((req, res, next) => {
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    if (res.headersSent) return;
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
 
-    const status = err?.status || err?.statusCode || 500;
-
-    // Body-parser JSON errors (malformed JSON). Avoid noisy stack traces.
-    const isJsonParseError =
-      status === 400 &&
-      (err?.type === 'entity.parse.failed' ||
-        (err instanceof SyntaxError && typeof err?.message === 'string' && err.message.toLowerCase().includes('json')));
-
-    if (isJsonParseError) {
-      return res.status(400).json({ message: 'Invalid JSON body' });
-    }
-
-    const message = err?.message || 'Internal Server Error';
-    console.error('❌ [API] Unhandled error:', err);
-    return res.status(status).json({ message });
+    res.status(status).json({ message });
+    throw err;
   });
 
   // Serve static assets from findeas theme

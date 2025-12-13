@@ -5,6 +5,7 @@
  * A IA analisa cada mensagem e decide:
  * - O que responder
  * - Quais ações executar (criar conta, configurar agente, etc.)
+ * - Quais mídias enviar (imagens, áudios, vídeos, documentos)
  * 
  * NÃO é um chatbot com fluxos fixos - é IA conversacional.
  */
@@ -13,6 +14,12 @@ import { storage } from "./storage";
 import { generatePixQRCode } from "./pixService";
 import { getMistralClient } from "./mistralClient";
 import { v4 as uuidv4 } from "uuid";
+import { 
+  generateAdminMediaPromptBlock, 
+  parseAdminMediaTags, 
+  getAdminMediaByName,
+  type AdminMedia 
+} from "./adminMediaStore";
 
 // ============================================================================
 // TIPOS E INTERFACES
@@ -138,8 +145,8 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
     try {
       const connection = await storage.getConnectionByUserId(session.userId);
       if (connection) {
-        connectionStatus = connection.is_connected 
-          ? `✅ WhatsApp CONECTADO (número: ${connection.phone_number})`
+        connectionStatus = connection.isConnected 
+          ? `✅ WhatsApp CONECTADO (número: ${connection.phoneNumber})`
           : `❌ WhatsApp DESCONECTADO (precisa reconectar)`;
       } else {
         connectionStatus = `⚠️ WhatsApp nunca foi conectado`;
@@ -153,14 +160,14 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
       const subscription = await storage.getUserSubscription(session.userId);
       if (subscription) {
         const now = new Date();
-        const endDate = subscription.data_fim ? new Date(subscription.data_fim) : null;
+        const endDate = subscription.dataFim ? new Date(subscription.dataFim) : null;
         const isActive = subscription.status === 'active' || subscription.status === 'trialing';
         const isExpired = endDate && endDate < now;
         
         if (subscription.status === 'trialing') {
           subscriptionStatus = `🆓 Em período de TRIAL (termina em: ${endDate?.toLocaleDateString('pt-BR') || 'não definido'})`;
         } else if (subscription.status === 'active' && !isExpired) {
-          subscriptionStatus = `✅ Assinatura ATIVA (plano: ${subscription.plan?.name || 'padrão'}, válida até: ${endDate?.toLocaleDateString('pt-BR') || 'indefinido'})`;
+          subscriptionStatus = `✅ Assinatura ATIVA (plano: ${subscription.plan?.nome || 'padrão'}, válida até: ${endDate?.toLocaleDateString('pt-BR') || 'indefinido'})`;
         } else if (subscription.status === 'pending') {
           subscriptionStatus = `⏳ Pagamento PENDENTE - cliente precisa pagar R$ 99 via PIX`;
         } else {
@@ -178,7 +185,7 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
       const agentConfig = await storage.getAgentConfig(session.userId);
       if (agentConfig) {
         const hasPrompt = agentConfig.prompt && agentConfig.prompt.length > 10;
-        const isAgentActive = agentConfig.is_active;
+        const isAgentActive = agentConfig.isActive;
         
         agentConfigStatus = `
   - Agente configurado: ${hasPrompt ? 'SIM' : 'NÃO (precisa definir instruções)'}
@@ -298,6 +305,7 @@ Quando quiser executar uma ação, SEMPRE inclua no final da sua resposta em uma
 [AÇÃO:ENVIAR_QRCODE] - SEMPRE use quando cliente pedir QR Code ou computador
 [AÇÃO:ENVIAR_PIX]
 [AÇÃO:NOTIFICAR_PAGAMENTO]
+[AÇÃO:DESCONECTAR_WHATSAPP] - Use quando cliente pedir para desconectar o WhatsApp
 
 Essas ações são processadas automaticamente - não mencione elas para o cliente.
 
@@ -305,6 +313,13 @@ INFORMAÇÕES DO PIX:
 - Valor: R$ 99,00
 - Chave PIX (email): rodrigoconexao128@gmail.com
 - Nome: Rodrigo
+
+${generateAdminMediaPromptBlock()}
+
+SE O CLIENTE JÁ TEM CONTA E PEDIR PARA ACESSAR:
+- Informe o email da conta: ${session.email || "[não definido ainda]"}
+- Diga que a senha foi gerada automaticamente ou pode redefinir
+- Oriente a acessar o painel: https://agentezap.com/login
 
 IMPORTANTE: Responda como se estivesse digitando no WhatsApp, de forma natural e humana.`;
 }
@@ -350,6 +365,7 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
   sendPix?: boolean;
   sendQrCode?: boolean;
   pairingCode?: string;
+  disconnectWhatsApp?: boolean;
 }> {
   const results: { 
     notifyOwner?: boolean; 
@@ -357,6 +373,7 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
     sendPix?: boolean;
     sendQrCode?: boolean;
     pairingCode?: string;
+    disconnectWhatsApp?: boolean;
   } = {};
   
   for (const action of actions) {
@@ -418,6 +435,11 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
         
       case "NOTIFICAR_PAGAMENTO":
         results.notifyOwner = true;
+        break;
+        
+      case "DESCONECTAR_WHATSAPP":
+        results.disconnectWhatsApp = true;
+        console.log(`🔌 [ADMIN AGENT] Solicitação de desconexão de WhatsApp para ${session.phoneNumber}`);
         break;
     }
   }
@@ -483,6 +505,12 @@ export interface AdminAgentResponse {
     url: string;
     caption?: string;
   };
+  // Nova propriedade para múltiplas mídias
+  mediaActions?: Array<{
+    type: 'send_media';
+    media_name: string;
+    mediaData?: AdminMedia;
+  }>;
   actions?: {
     createUser?: boolean;
     sendPix?: boolean;
@@ -490,6 +518,7 @@ export interface AdminAgentResponse {
     notifyOwner?: boolean;
     sendQrCode?: boolean;
     pairingCode?: string;
+    disconnectWhatsApp?: boolean;
   };
 }
 
@@ -546,7 +575,7 @@ function checkTriggerPhrases(
   // Normalizador: lower, remove acentos, colapsa espaços
   const normalize = (s: string) => (s || "")
     .toLowerCase()
-    .normalize("NFD").replace(/\p{Diacritic}/gu, "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -643,7 +672,31 @@ export async function processAdminMessage(
   const aiResponse = await generateAIResponse(session, messageText);
   
   // Parse ações da resposta
-  const { cleanText, actions } = parseActions(aiResponse);
+  const { cleanText: textWithoutActions, actions } = parseActions(aiResponse);
+  
+  // Parse tags de mídia da resposta
+  const { cleanText, mediaActions } = parseAdminMediaTags(textWithoutActions);
+  
+  // Processar mídias encontradas
+  const processedMediaActions: Array<{
+    type: 'send_media';
+    media_name: string;
+    mediaData?: AdminMedia;
+  }> = [];
+  
+  for (const action of mediaActions) {
+    const mediaData = getAdminMediaByName(action.media_name);
+    if (mediaData) {
+      processedMediaActions.push({
+        type: 'send_media',
+        media_name: action.media_name,
+        mediaData,
+      });
+      console.log(`📁 [ADMIN AGENT] Mídia encontrada: ${action.media_name} (${mediaData.mediaType})`);
+    } else {
+      console.log(`⚠️ [ADMIN AGENT] Mídia não encontrada: ${action.media_name}`);
+    }
+  }
   
   // Executar ações
   const actionResults = await executeActions(session, actions);
@@ -656,6 +709,7 @@ export async function processAdminMessage(
   
   return {
     text: cleanText,
+    mediaActions: processedMediaActions.length > 0 ? processedMediaActions : undefined,
     actions: actionResults,
   };
 }
