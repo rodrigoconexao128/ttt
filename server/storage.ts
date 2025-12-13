@@ -1031,6 +1031,15 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  // Busca conversa do admin pelo número de telefone (sistema single-admin)
+  async getAdminConversationByPhone(contactNumber: string): Promise<any | undefined> {
+    const [result] = await db
+      .select()
+      .from(adminConversations)
+      .where(eq(adminConversations.contactNumber, contactNumber));
+    return result;
+  }
+
   async getAdminConversationByContact(adminId: string, contactNumber: string): Promise<any | undefined> {
     const [result] = await db
       .select()

@@ -647,23 +647,37 @@ export async function processAdminMessage(
     // Se a sessão em memória está vazia, carregar histórico do banco
     let historyForTriggerCheck = session.conversationHistory;
     
-    // TODO: Implementar carregamento do histórico do banco
-    // if (historyForTriggerCheck.length === 0) {
-    //   try {
-    //     const conversation = await storage.getAdminConversationByPhone(cleanPhone);
-    //     if (conversation) {
-    //       const messages = await storage.getAdminConversationMessages(conversation.id);
-    //       historyForTriggerCheck = messages.slice(-30).map((msg: any) => ({
-    //         role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
-    //         content: msg.text || "",
-    //         timestamp: msg.timestamp || new Date(),
-    //       }));
-    //       session.conversationHistory = historyForTriggerCheck;
-    //     }
-    //   } catch (dbError) {
-    //     console.error(`❌ [ADMIN AGENT] Erro ao carregar histórico do banco:`, dbError);
-    //   }
-    // }
+    // Carregar histórico do banco se sessão está vazia (após restart do servidor)
+    if (historyForTriggerCheck.length === 0) {
+      try {
+        console.log(`📚 [ADMIN AGENT] Sessão vazia, buscando histórico do banco para ${cleanPhone}...`);
+        const conversation = await storage.getAdminConversationByPhone(cleanPhone);
+        
+        if (conversation) {
+          console.log(`📚 [ADMIN AGENT] Conversa encontrada: ${conversation.id}`);
+          const messages = await storage.getAdminMessages(conversation.id);
+          
+          // Converter para formato do histórico (últimas 30 mensagens)
+          historyForTriggerCheck = messages.slice(-30).map((msg: any) => ({
+            role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
+            content: msg.text || "",
+            timestamp: msg.timestamp || new Date(),
+          }));
+          
+          // Atualizar sessão com histórico do banco
+          session.conversationHistory = historyForTriggerCheck;
+          console.log(`📚 [ADMIN AGENT] ${historyForTriggerCheck.length} mensagens carregadas do banco`);
+          
+          // Debug: mostrar últimas mensagens para verificar trigger
+          const lastMsgs = historyForTriggerCheck.slice(-5).map(m => m.content.substring(0, 50));
+          console.log(`📚 [ADMIN AGENT] Últimas 5 msgs: ${JSON.stringify(lastMsgs)}`);
+        } else {
+          console.log(`📚 [ADMIN AGENT] Nenhuma conversa anterior encontrada para ${cleanPhone}`);
+        }
+      } catch (dbError) {
+        console.error(`❌ [ADMIN AGENT] Erro ao carregar histórico do banco:`, dbError);
+      }
+    }
     
     const triggerResult = checkTriggerPhrases(
       messageText,
