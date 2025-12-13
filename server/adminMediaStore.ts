@@ -347,23 +347,32 @@ Mídias disponíveis para enviar: ${allMediaNames}
 
   mediaBlock += `
 ═══════════════════════════════════════════════════════════════════════════════
-📌 COMO ENVIAR MÍDIA - MUITO IMPORTANTE!
+📌 COMO ENVIAR MÍDIA - MUITO IMPORTANTE! LEIA COM ATENÇÃO!
 ═══════════════════════════════════════════════════════════════════════════════
+
+🚨 REGRA OBRIGATÓRIA: Se existe uma mídia relevante para o que o cliente está
+   perguntando, VOCÊ DEVE ENVIÁ-LA! Não responda só com texto.
 
 Quando quiser enviar uma mídia, ADICIONE A TAG no final da sua resposta:
 
 [ENVIAR_MIDIA:NOME_DA_MIDIA]
 
-EXEMPLOS:
-- Cliente pede foto: "Claro! Vou te mandar! [ENVIAR_MIDIA:FOTO_PRODUTO]"
-- Cliente pede áudio: "Segue o áudio! [ENVIAR_MIDIA:AUDIO_EXPLICACAO]"
-- Cliente pede vídeo: "Vou enviar o vídeo! [ENVIAR_MIDIA:VIDEO_DEMO]"
+EXEMPLOS DE USO:
+- Se cliente pergunta "como funciona" e existe mídia COMO_FUNCIONA:
+  "Deixa eu te explicar! Vou te mandar um áudio explicando melhor 🎙️ [ENVIAR_MIDIA:COMO_FUNCIONA]"
 
-⚠️ REGRAS:
-- Use o NOME EXATO da mídia listada acima
-- A tag deve estar NO FINAL da mensagem
-- Pode enviar MÚLTIPLAS mídias: [ENVIAR_MIDIA:X] [ENVIAR_MIDIA:Y]
-- NÃO mencione a tag para o cliente, ela é processada automaticamente
+- Se cliente pede foto de produto e existe mídia FOTO_PRODUTO:
+  "Claro! Segue a foto! [ENVIAR_MIDIA:FOTO_PRODUTO]"
+
+⚠️ REGRAS IMPORTANTES:
+1. Use o NOME EXATO da mídia listada acima (MAIÚSCULAS com underline)
+2. A tag deve estar NO FINAL da mensagem
+3. Pode enviar MÚLTIPLAS mídias: [ENVIAR_MIDIA:X] [ENVIAR_MIDIA:Y]
+4. NÃO mencione a tag para o cliente - ela é invisível
+5. SEMPRE envie mídia quando o assunto combina com a descrição/quando usar
+
+💡 DICA: Se o cliente perguntar sobre um assunto e você tem uma mídia sobre isso,
+   SEMPRE envie junto com sua explicação em texto!
 ═══════════════════════════════════════════════════════════════════════════════
 `;
 
