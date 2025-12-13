@@ -314,7 +314,14 @@ INFORMAÇÕES DO PIX:
 - Chave PIX (email): rodrigoconexao128@gmail.com
 - Nome: Rodrigo
 
-${generateAdminMediaPromptBlock()}
+${(() => {
+  const mediaBlock = generateAdminMediaPromptBlock();
+  console.log(`📁 [ADMIN AGENT] Bloco de mídias gerado (${mediaBlock.length} chars)`);
+  if (mediaBlock.length > 0) {
+    console.log(`📁 [ADMIN AGENT] Primeiros 200 chars: ${mediaBlock.substring(0, 200)}...`);
+  }
+  return mediaBlock;
+})()}
 
 SE O CLIENTE JÁ TEM CONTA E PEDIR PARA ACESSAR:
 - Informe o email da conta: ${session.email || "[não definido ainda]"}
@@ -636,9 +643,37 @@ export async function processAdminMessage(
   
   // Verificar frases gatilho (a menos que seja skipTriggerCheck para testes)
   if (!skipTriggerCheck) {
+    // Se a sessão em memória está vazia, carregar histórico do banco
+    let historyForTriggerCheck = session.conversationHistory;
+    
+    if (historyForTriggerCheck.length === 0) {
+      try {
+        // Buscar conversa no banco pelo número
+        const conversation = await storage.getAdminConversationByPhone(cleanPhone);
+        
+        if (conversation) {
+          console.log(`📚 [ADMIN AGENT] Carregando histórico do banco para ${cleanPhone}...`);
+          const messages = await storage.getAdminConversationMessages(conversation.id);
+          
+          // Converter para formato do histórico (últimas 30 mensagens)
+          historyForTriggerCheck = messages.slice(-30).map(msg => ({
+            role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
+            content: msg.text || "",
+            timestamp: msg.timestamp || new Date(),
+          }));
+          
+          // Atualizar sessão com histórico do banco
+          session.conversationHistory = historyForTriggerCheck;
+          console.log(`📚 [ADMIN AGENT] ${historyForTriggerCheck.length} mensagens carregadas do banco`);
+        }
+      } catch (dbError) {
+        console.error(`❌ [ADMIN AGENT] Erro ao carregar histórico do banco:`, dbError);
+      }
+    }
+    
     const triggerResult = checkTriggerPhrases(
       messageText,
-      session.conversationHistory,
+      historyForTriggerCheck,
       adminConfig.triggerPhrases
     );
     
@@ -670,12 +705,19 @@ export async function processAdminMessage(
   
   // Gerar resposta com IA
   const aiResponse = await generateAIResponse(session, messageText);
+  console.log(`🤖 [ADMIN AGENT] Resposta da IA (primeiros 500 chars): ${aiResponse.substring(0, 500)}`);
   
   // Parse ações da resposta
   const { cleanText: textWithoutActions, actions } = parseActions(aiResponse);
+  console.log(`🔧 [ADMIN AGENT] Ações encontradas: ${actions.length}`);
   
   // Parse tags de mídia da resposta
   const { cleanText, mediaActions } = parseAdminMediaTags(textWithoutActions);
+  console.log(`📁 [ADMIN AGENT] Tags de mídia encontradas: ${mediaActions.length}`);
+  
+  if (mediaActions.length > 0) {
+    console.log(`📁 [ADMIN AGENT] Nomes das mídias: ${mediaActions.map(a => a.media_name).join(', ')}`);
+  }
   
   // Processar mídias encontradas
   const processedMediaActions: Array<{
@@ -692,9 +734,9 @@ export async function processAdminMessage(
         media_name: action.media_name,
         mediaData,
       });
-      console.log(`📁 [ADMIN AGENT] Mídia encontrada: ${action.media_name} (${mediaData.mediaType})`);
+      console.log(`✅ [ADMIN AGENT] Mídia encontrada e preparada: ${action.media_name} (${mediaData.mediaType})`);
     } else {
-      console.log(`⚠️ [ADMIN AGENT] Mídia não encontrada: ${action.media_name}`);
+      console.log(`⚠️ [ADMIN AGENT] Mídia não encontrada no store: ${action.media_name}`);
     }
   }
   
