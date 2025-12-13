@@ -2160,8 +2160,14 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           return;
         }
 
-        // Para mídias, skipTriggerCheck = true pois comprovantes são sempre processados
-        const response = await processAdminMessage(contactNumber, messageText, mediaType, mediaUrl, true);
+        // Para mídias:
+        // - ÁUDIOS: verificar trigger pois são apenas texto falado (skipTriggerCheck = false)
+        // - IMAGENS: não verificar trigger pois podem ser comprovantes (skipTriggerCheck = true)
+        // - OUTROS: verificar trigger por segurança
+        const skipTriggerForMedia = mediaType === 'image';
+        console.log(`📁 [ADMIN] Mídia ${mediaType} - skipTriggerCheck: ${skipTriggerForMedia}`);
+        
+        const response = await processAdminMessage(contactNumber, messageText, mediaType, mediaUrl, skipTriggerForMedia);
 
         if (response && response.text) {
           const cfg = await getAdminAgentRuntimeConfig();
