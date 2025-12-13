@@ -405,12 +405,31 @@ interface ParsedAction {
 }
 
 function parseActions(response: string): { cleanText: string; actions: ParsedAction[] } {
-  const actionRegex = /\[AÇÃO:(\w+)([^\]]*)\]/g;
+  // Aceita AMBOS os formatos: [AÇÃO:ENVIAR_QRCODE] e [ENVIAR_QRCODE]
+  const actionRegex = /\[(?:AÇÃO:)?([A-Z_]+)([^\]]*)\]/g;
   const actions: ParsedAction[] = [];
+  
+  // Lista de ações válidas para evitar confusão com mídias
+  const validActions = [
+    "CRIAR_CONTA",
+    "SALVAR_CONFIG", 
+    "SALVAR_PROMPT",
+    "SOLICITAR_CODIGO_PAREAMENTO",
+    "ENVIAR_QRCODE",
+    "ENVIAR_PIX",
+    "NOTIFICAR_PAGAMENTO",
+    "DESCONECTAR_WHATSAPP"
+  ];
   
   let match;
   while ((match = actionRegex.exec(response)) !== null) {
     const type = match[1];
+    
+    // Só processa se for uma ação válida (ignora mídias)
+    if (!validActions.includes(type)) {
+      continue;
+    }
+    
     const paramsStr = match[2];
     const params: Record<string, string> = {};
     
@@ -422,10 +441,13 @@ function parseActions(response: string): { cleanText: string; actions: ParsedAct
     }
     
     actions.push({ type, params });
+    console.log(`🔧 [ADMIN AGENT] Ação detectada: ${type}`, params);
   }
   
-  // Remove action tags from text
-  const cleanText = response.replace(/\[AÇÃO:[^\]]+\]/g, "").trim();
+  // Remove action tags from text (ambos formatos)
+  const cleanText = response.replace(/\[(?:AÇÃO:)?[A-Z_]+[^\]]*\]/g, "").trim();
+  
+  return { cleanText, actions };
   
   return { cleanText, actions };
 }
