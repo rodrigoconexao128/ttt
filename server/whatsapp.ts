@@ -381,6 +381,7 @@ async function processAdminAccumulatedMessages(params: {
       try {
         // Buscar userId da sessão do cliente
         const { getClientSession, createClientAccount, updateClientSession } = await import("./adminAgentService");
+        const { ensurePairingCodeSentToClient } = await import("./adminConnectionFlows");
         let clientSession = getClientSession(pending.contactNumber);
         console.log(`📲 [ADMIN AGENT] Sessão do cliente para pareamento:`, clientSession ? `userId=${clientSession.userId}, email=${clientSession.email}` : "não encontrada");
         
@@ -408,38 +409,13 @@ async function processAdminAccumulatedMessages(params: {
         }
         
         if (clientSession?.userId) {
-          // VERIFICAR SE JÁ ESTÁ CONECTADO
-          const existingConnection = await storage.getConnectionByUserId(clientSession.userId);
-          console.log(`📲 [ADMIN AGENT] Conexão existente (pareamento):`, existingConnection ? `is_connected=${existingConnection.isConnected}` : "nenhuma");
-          
-          if (existingConnection?.isConnected) {
-            // Já está conectado - avisar o cliente
-            await socket.sendMessage(pending.remoteJid, { 
-              text: "✅ Seu WhatsApp já está conectado e funcionando!\n\nSe quiser desconectar para gerar um novo código, é só digitar 'desconectar'." 
-            });
-            console.log(`📲 [ADMIN AGENT] Cliente ${clientSession.userId} já está conectado (pareamento)`);
-          } else {
-            // Usar o número do cliente que está conversando
-            const clientPhone = pending.contactNumber;
-            console.log(`📲 [ADMIN AGENT] Gerando código de pareamento para ${clientPhone}...`);
-            
-            // Avisar que está gerando
-            await socket.sendMessage(pending.remoteJid, { text: "🔄 Gerando seu código de pareamento... Só um momento!" });
-            
-            const code = await requestClientPairingCode(clientSession.userId, clientPhone);
-            
-            if (code) {
-              const codeFormatted = code.match(/.{1,4}/g)?.join("-") || code;
-              const codeMessage = `🔑 Seu código de pareamento:\n\n*${codeFormatted}*\n\nAgora é só:\n1️⃣ Abrir o WhatsApp no celular\n2️⃣ Ir em Configurações > Aparelhos Conectados\n3️⃣ Tocar em "Conectar Aparelho"\n4️⃣ Tocar em "Conectar com número de telefone"\n5️⃣ Digitar esse código!\n\n⏰ O código expira em alguns minutos, então use logo!`;
-              
-              // Pequeno delay para garantir que a mensagem chegue
-              await new Promise(r => setTimeout(r, 500));
-              await socket.sendMessage(pending.remoteJid, { text: codeMessage });
-              console.log(`📲 [ADMIN AGENT] Código de pareamento enviado: ${codeFormatted}`);
-            } else {
-              await socket.sendMessage(pending.remoteJid, { text: "Opa, tive um problema pra gerar o código. Pode tentar de novo em alguns segundos?" });
-            }
-          }
+          await ensurePairingCodeSentToClient({
+            userId: clientSession.userId,
+            contactNumber: pending.contactNumber,
+            getConnectionByUserId: (userId) => storage.getConnectionByUserId(userId),
+            requestPairingCode: requestClientPairingCode,
+            sendText: (text) => socket.sendMessage(pending.remoteJid, { text }).then(() => undefined),
+          });
         } else {
           await socket.sendMessage(pending.remoteJid, { text: "Antes de conectar, preciso criar sua conta. Me passa seu email?" });
         }
@@ -447,7 +423,9 @@ async function processAdminAccumulatedMessages(params: {
         console.error("❌ [ADMIN AGENT] Erro ao gerar código de pareamento:", codeError);
         const errorMsg = (codeError as Error).message || String(codeError);
         console.error("❌ [ADMIN AGENT] Detalhes do erro:", errorMsg);
-        await socket.sendMessage(pending.remoteJid, { text: "Desculpa, tive um problema técnico ao gerar o código. Vamos tentar pelo QR Code? Digite 'quero QR Code' se preferir!" });
+        await socket.sendMessage(pending.remoteJid, {
+          text: "Desculpa, tive um problema técnico ao gerar o código agora. Eu continuo tentando e te envio automaticamente assim que sair.\n\nSe preferir, também posso conectar por QR Code.",
+        });
       }
     }
 
@@ -456,6 +434,7 @@ async function processAdminAccumulatedMessages(params: {
       console.log(`📷 [ADMIN AGENT] Ação sendQrCode detectada! Iniciando processo...`);
       try {
         const { getClientSession, createClientAccount, updateClientSession } = await import("./adminAgentService");
+        const { ensureQrCodeSentToClient } = await import("./adminConnectionFlows");
         let clientSession = getClientSession(pending.contactNumber);
         console.log(`📷 [ADMIN AGENT] Sessão do cliente:`, clientSession ? `userId=${clientSession.userId}, email=${clientSession.email}` : "não encontrada");
         
@@ -483,53 +462,23 @@ async function processAdminAccumulatedMessages(params: {
         }
         
         if (clientSession?.userId) {
-          // VERIFICAR SE JÁ ESTÁ CONECTADO
-          const existingConnection = await storage.getConnectionByUserId(clientSession.userId);
-          console.log(`📷 [ADMIN AGENT] Conexão existente:`, existingConnection ? `is_connected=${existingConnection.isConnected}` : "nenhuma");
-          
-          if (existingConnection?.isConnected) {
-            // Já está conectado - avisar o cliente
-            await socket.sendMessage(pending.remoteJid, { 
-              text: "✅ Seu WhatsApp já está conectado e funcionando!\n\nSe quiser desconectar para gerar um novo QR Code, é só digitar 'desconectar'." 
-            });
-            console.log(`📷 [ADMIN AGENT] Cliente ${clientSession.userId} já está conectado`);
-          } else {
-            // Não está conectado - gerar QR Code
-            console.log(`📷 [ADMIN AGENT] Gerando QR Code para usuário ${clientSession.userId}...`);
-          
-            // Sempre iniciar nova conexão para obter QR Code fresco
-            await connectWhatsApp(clientSession.userId);
-            await socket.sendMessage(pending.remoteJid, { text: "Gerando seu QR Code... Um momento! 📱" });
-            
-            // Aguardar QR Code ser gerado (máximo 15 segundos)
-            let qrSent = false;
-            for (let i = 0; i < 15; i++) {
-              await new Promise(r => setTimeout(r, 1000));
-              const updatedConnection = await storage.getConnectionByUserId(clientSession.userId);
-              if (updatedConnection?.qrCode) {
-                const base64Data = updatedConnection.qrCode.split(",")[1];
-                const qrBuffer = Buffer.from(base64Data, "base64");
-                
-                await socket.sendMessage(pending.remoteJid, {
-                  image: qrBuffer,
-                  caption: "📱 Aqui está o QR Code!\n\n1️⃣ Abra o WhatsApp no celular\n2️⃣ Vá em Configurações > Aparelhos Conectados\n3️⃣ Toque em 'Conectar Aparelho'\n4️⃣ Escaneie este QR Code!\n\n⏰ O QR Code expira em alguns minutos!",
-                });
-                console.log(`📷 [ADMIN AGENT] QR Code enviado para ${pending.contactNumber}`);
-                qrSent = true;
-                break;
-              }
-            }
-            
-            if (!qrSent) {
-              await socket.sendMessage(pending.remoteJid, { text: "Demorou mais do que o esperado pra gerar o QR Code. Quer tentar pelo código de 8 dígitos? É mais rápido pelo celular!" });
-            }
-          }
+          await ensureQrCodeSentToClient({
+            userId: clientSession.userId,
+            contactNumber: pending.contactNumber,
+            getConnectionByUserId: (userId) => storage.getConnectionByUserId(userId),
+            connectWhatsApp,
+            sendText: (text) => socket.sendMessage(pending.remoteJid, { text }).then(() => undefined),
+            sendImage: (image, caption) =>
+              socket.sendMessage(pending.remoteJid, { image, caption }).then(() => undefined),
+          });
         } else {
           await socket.sendMessage(pending.remoteJid, { text: "Antes de conectar, preciso criar sua conta. Me passa seu email?" });
         }
       } catch (qrError) {
         console.error("❌ [ADMIN AGENT] Erro ao enviar QR Code:", qrError);
-        await socket.sendMessage(pending.remoteJid, { text: "Desculpa, tive um problema pra gerar o QR Code. Quer tentar pelo código de 8 dígitos?" });
+        await socket.sendMessage(pending.remoteJid, {
+          text: "Desculpa, tive um problema pra gerar o QR Code agora. Eu continuo tentando e te envio automaticamente assim que aparecer.\n\nSe preferir, também posso conectar pelo código de 8 dígitos.",
+        });
       }
     }
 
@@ -899,6 +848,14 @@ export async function connectWhatsApp(userId: string): Promise<void> {
           await clearAuthFiles(userAuthPath);
 
           broadcastToUser(userId, { type: "disconnected", reason: "logout" });
+
+          // IMPORTANTE: após logout, as credenciais foram apagadas.
+          // Para gerar um novo QR Code automaticamente, reiniciar a conexão.
+          setTimeout(() => {
+            connectWhatsApp(userId).catch((err) => {
+              console.error(`Error reconnecting WhatsApp after logout for ${userId}:`, err);
+            });
+          }, 1500);
         }
       } else if (conn === "open") {
         const phoneNumber = sock.user?.id?.split(":")[0] || "";
@@ -2672,6 +2629,9 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
     
     // Limpar auth anterior para começar do zero
     await clearAuthFiles(userAuthPath);
+
+    // Recriar a pasta para o multi-file auth state
+    await ensureDirExists(userAuthPath);
     
     const { state, saveCreds } = await useMultiFileAuthState(userAuthPath);
     

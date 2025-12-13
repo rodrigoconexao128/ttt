@@ -293,6 +293,7 @@ SE O CLIENTE PEDIR PARA CONECTAR:
 - Pergunte se prefere QR Code (computador) ou código de 8 dígitos (celular)
 - Use [AÇÃO:ENVIAR_QRCODE] para QR Code
 - Use [AÇÃO:SOLICITAR_CODIGO_PAREAMENTO] para código de 8 dígitos
+- NUNCA pergunte "quer que eu tente de novo" ou diga "se não aparecer" — o sistema tenta automaticamente e envia assim que gerar
 ═══════════════════════════════════════════════════════════════`;
   } else if (session.email) {
     // Tem email mas ainda não tem userId (em processo de criar conta)
@@ -358,6 +359,7 @@ PARA CONECTAR/RECONECTAR WHATSAPP DE CLIENTE EXISTENTE:
 - OBRIGATÓRIO: Se cliente pedir QR Code/computador: INCLUA [AÇÃO:ENVIAR_QRCODE] no final
 - OBRIGATÓRIO: Se cliente pedir código/celular: INCLUA [AÇÃO:SOLICITAR_CODIGO_PAREAMENTO] no final
 - O cliente pode mudar de ideia e pedir outro método - isso é normal, atenda!
+- Quando usar uma dessas ações, apenas diga que vai gerar/enviar e peça para aguardar; NÃO peça para o cliente tentar novamente (o sistema continua tentando sozinho)
 
 AÇÕES DISPONÍVEIS (SEMPRE INCLUA A AÇÃO CORRESPONDENTE):
 Quando quiser executar uma ação, SEMPRE inclua no final da sua resposta em uma linha separada:
