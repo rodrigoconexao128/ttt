@@ -56,6 +56,10 @@ const DEFAULT_JID_SUFFIX = "s.whatsapp.net";
 // Evita duplicatas quando Baileys dispara evento fromMe após socket.sendMessage()
 const agentMessageIds = new Set<string>();
 
+// 🔒 Map para rastrear solicitações de código de pareamento em andamento
+// Evita múltiplas solicitações simultâneas para o mesmo usuário
+const pendingPairingRequests = new Map<string, Promise<string | null>>();
+
 // 🎯 SISTEMA DE ACUMULAÇÃO DE MENSAGENS
 // Rastreia timeouts pendentes e mensagens acumuladas por conversa
 interface PendingResponse {
@@ -384,12 +388,17 @@ async function processAdminAccumulatedMessages(params: {
           const clientPhone = pending.contactNumber;
           console.log(`📲 [ADMIN AGENT] Gerando código de pareamento para ${clientPhone}...`);
           
+          // Avisar que está gerando
+          await socket.sendMessage(pending.remoteJid, { text: "🔄 Gerando seu código de pareamento... Só um momento!" });
+          
           const code = await requestClientPairingCode(clientSession.userId, clientPhone);
           
           if (code) {
             const codeFormatted = code.match(/.{1,4}/g)?.join("-") || code;
             const codeMessage = `🔑 Seu código de pareamento:\n\n*${codeFormatted}*\n\nAgora é só:\n1️⃣ Abrir o WhatsApp no celular\n2️⃣ Ir em Configurações > Aparelhos Conectados\n3️⃣ Tocar em "Conectar Aparelho"\n4️⃣ Tocar em "Conectar com número de telefone"\n5️⃣ Digitar esse código!\n\n⏰ O código expira em alguns minutos, então use logo!`;
             
+            // Pequeno delay para garantir que a mensagem chegue
+            await new Promise(r => setTimeout(r, 500));
             await socket.sendMessage(pending.remoteJid, { text: codeMessage });
             console.log(`📲 [ADMIN AGENT] Código de pareamento enviado: ${codeFormatted}`);
           } else {
@@ -400,7 +409,9 @@ async function processAdminAccumulatedMessages(params: {
         }
       } catch (codeError) {
         console.error("❌ [ADMIN AGENT] Erro ao gerar código de pareamento:", codeError);
-        await socket.sendMessage(pending.remoteJid, { text: "Desculpa, tive um problema técnico. Pode tentar novamente?" });
+        const errorMsg = (codeError as Error).message || String(codeError);
+        console.error("❌ [ADMIN AGENT] Detalhes do erro:", errorMsg);
+        await socket.sendMessage(pending.remoteJid, { text: "Desculpa, tive um problema técnico ao gerar o código. Vamos tentar pelo QR Code? Digite 'quero QR Code' se preferir!" });
       }
     }
 
@@ -2496,19 +2507,29 @@ export async function restoreAdminSessions(): Promise<void> {
 // ═══════════════════════════════════════════════════════════════════════
 
 export async function requestClientPairingCode(userId: string, phoneNumber: string): Promise<string | null> {
-  try {
-    console.log(`📲 [PAIRING] Solicitando código para ${phoneNumber} (user: ${userId})`);
-    
-    // Limpar sessão anterior se existir
-    const existingSession = sessions.get(userId);
-    if (existingSession?.socket) {
-      try {
-        await existingSession.socket.logout();
-      } catch (e) {
-        // Ignorar erro de logout
+  // Verificar se já há uma solicitação em andamento para este usuário
+  const existingRequest = pendingPairingRequests.get(userId);
+  if (existingRequest) {
+    console.log(`⏳ [PAIRING] Já existe solicitação em andamento para ${userId}, aguardando...`);
+    return existingRequest;
+  }
+  
+  // Criar Promise da solicitação
+  const requestPromise = (async () => {
+    try {
+      console.log(`📲 [PAIRING] Solicitando código para ${phoneNumber} (user: ${userId})`);
+      
+      // Limpar sessão anterior se existir
+      const existingSession = sessions.get(userId);
+      if (existingSession?.socket) {
+        try {
+          console.log(`🔄 [PAIRING] Limpando sessão anterior...`);
+          await existingSession.socket.logout();
+        } catch (e) {
+          console.log(`⚠️ [PAIRING] Erro ao fazer logout da sessão anterior (ignorando):`, e);
+        }
+        sessions.delete(userId);
       }
-      sessions.delete(userId);
-    }
     
     // Criar/obter conexão
     let connection = await storage.getConnectionByUserId(userId);
@@ -2595,18 +2616,43 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
     
     // Formatar número para pairing (sem + e sem @)
     const cleanNumber = phoneNumber.replace(/\D/g, "");
+    console.log(`📲 [PAIRING] Número formatado para pareamento: ${cleanNumber}`);
     
     // Solicitar código de pareamento
     // O código será enviado via WhatsApp para o número informado
-    const code = await sock.requestPairingCode(cleanNumber);
-    
-    console.log(`📲 [PAIRING] Código gerado: ${code}`);
-    
-    return code;
+    try {
+      const code = await sock.requestPairingCode(cleanNumber);
+      
+      console.log(`✅ [PAIRING] Código gerado com sucesso: ${code}`);
+      
+      // Aguardar um pouco para garantir que o código foi processado
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      return code;
+    } catch (pairingError) {
+      console.error(`❌ [PAIRING] Erro ao chamar requestPairingCode:`, pairingError);
+      console.error(`❌ [PAIRING] Stack trace:`, (pairingError as Error).stack);
+      throw pairingError;
+    }
   } catch (error) {
-    console.error(`📲 [PAIRING] Erro ao solicitar código:`, error);
+    console.error(`📲 [PAIRING] Erro geral ao solicitar código:`, error);
+    console.error(`📲 [PAIRING] Tipo de erro:`, typeof error);
+    console.error(`📲 [PAIRING] Mensagem:`, (error as Error).message);
+    
+    // Limpar sessão em caso de erro
+    sessions.delete(userId);
+    
     return null;
+  } finally {
+    // Remover da fila de pendentes
+    pendingPairingRequests.delete(userId);
   }
+  })();
+  
+  // Adicionar à fila de pendentes
+  pendingPairingRequests.set(userId, requestPromise);
+  
+  return requestPromise;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
