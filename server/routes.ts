@@ -2413,7 +2413,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET - Listar mídias do admin
   app.get("/api/admin/agent/media", isAdmin, async (req: any, res) => {
     try {
-      const mediaList = await getAdminMediaList(req.adminId);
+      const adminId = req.admin?.id || "admin";
+      const mediaList = await getAdminMediaList(adminId);
       res.json(mediaList);
     } catch (error) {
       console.error("Error fetching admin media:", error);
@@ -2424,7 +2425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // POST - Adicionar mídia do admin
   app.post("/api/admin/agent/media", isAdmin, async (req: any, res) => {
     try {
-      const adminId = (req.session as any)?.adminId || "admin";
+      const adminId = req.admin?.id || "admin";
       const { name, mediaType, storageUrl, fileName, fileSize, mimeType, 
               description, whenToUse, caption, transcription, isActive, sendAlone } = req.body;
 
@@ -2484,7 +2485,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/admin/agent/media/:id", isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const adminId = req.adminId;
+      const adminId = req.admin?.id || "admin";
       
       if (!(await hasAdminMedia(id, adminId))) {
         return res.status(404).json({ message: "Media not found" });
@@ -2887,7 +2888,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // Exportar configuração do admin para uso no WhatsApp handler
   (app as any).getAdminAgentConfig = () => adminAgentConfig;
-  (app as any).getAdminMediaLibrary = async (adminId: string) => await getAdminMediaList(adminId);
+  (app as any).getAdminMediaLibrary = async () => await getAdminMediaList("admin");
 
   return httpServer;
 }

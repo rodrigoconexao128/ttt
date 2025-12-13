@@ -1189,14 +1189,12 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(adminAgentMedia.displayOrder), desc(adminAgentMedia.createdAt));
   }
 
-  async getActiveAdminMedia(adminId: string): Promise<AdminAgentMedia[]> {
+  async getActiveAdminMedia(adminId?: string): Promise<AdminAgentMedia[]> {
+    // Sistema single-admin: busca de qualquer admin se não especificar
     return await db
       .select()
       .from(adminAgentMedia)
-      .where(and(
-        eq(adminAgentMedia.adminId, adminId),
-        eq(adminAgentMedia.isActive, true)
-      ))
+      .where(eq(adminAgentMedia.isActive, true))
       .orderBy(desc(adminAgentMedia.displayOrder), desc(adminAgentMedia.createdAt));
   }
 
@@ -1208,13 +1206,13 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getAdminMediaByName(adminId: string, name: string): Promise<AdminAgentMedia | undefined> {
+  async getAdminMediaByName(adminId: string | undefined, name: string): Promise<AdminAgentMedia | undefined> {
     const normalizedName = name.toUpperCase().replace(/\s+/g, '_');
+    // Sistema single-admin: busca de qualquer admin
     const [result] = await db
       .select()
       .from(adminAgentMedia)
       .where(and(
-        eq(adminAgentMedia.adminId, adminId),
         eq(adminAgentMedia.name, normalizedName),
         eq(adminAgentMedia.isActive, true)
       ));

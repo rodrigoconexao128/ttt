@@ -315,8 +315,8 @@ INFORMAÇÕES DO PIX:
 - Nome: Rodrigo
 
 ${await (async () => {
-  const adminId = "admin"; // TODO: pegar adminId correto
-  const mediaBlock = await generateAdminMediaPromptBlock(adminId);
+  // Sistema single-admin: não precisa especificar adminId
+  const mediaBlock = await generateAdminMediaPromptBlock();
   console.log(`📁 [ADMIN AGENT] Bloco de mídias gerado (${mediaBlock.length} chars)`);
   if (mediaBlock.length > 0) {
     console.log(`📁 [ADMIN AGENT] Primeiros 200 chars: ${mediaBlock.substring(0, 200)}...`);
@@ -720,9 +720,9 @@ export async function processAdminMessage(
     mediaData?: AdminMedia;
   }> = [];
   
-  const adminId = "admin"; // TODO: pegar adminId correto
+  // Sistema single-admin: não precisa especificar adminId
   for (const action of mediaActions) {
-    const mediaData = await getAdminMediaByName(adminId, action.media_name);
+    const mediaData = await getAdminMediaByName(undefined, action.media_name);
     if (mediaData) {
       processedMediaActions.push({
         type: 'send_media',

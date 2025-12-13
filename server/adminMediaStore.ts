@@ -34,9 +34,10 @@ const CACHE_TTL = 60000; // 1 minuto
 /**
  * Recarrega o cache do banco de dados
  */
-async function reloadCache(adminId: string): Promise<void> {
+async function reloadCache(adminId?: string): Promise<void> {
   const now = Date.now();
-  const lastUpdate = lastCacheUpdate.get(adminId) || 0;
+  const cacheKey = adminId || 'default';
+  const lastUpdate = lastCacheUpdate.get(cacheKey) || 0;
   
   // Se cache ainda é válido, não recarregar
   if (now - lastUpdate < CACHE_TTL && adminMediaCache.size > 0) {
@@ -44,7 +45,8 @@ async function reloadCache(adminId: string): Promise<void> {
   }
 
   try {
-    const mediaList = await storage.getActiveAdminMedia(adminId);
+    // Sistema single-admin: busca todas as mídias ativas
+    const mediaList = await storage.getActiveAdminMedia();
     
     for (const media of mediaList) {
       adminMediaCache.set(media.id!, {
@@ -68,7 +70,7 @@ async function reloadCache(adminId: string): Promise<void> {
       });
     }
     
-    lastCacheUpdate.set(adminId, now);
+    lastCacheUpdate.set(cacheKey, now);
     console.log(`📁 [AdminMediaStore] Cache recarregado: ${mediaList.length} mídias`);
   } catch (error) {
     console.error("📁 [AdminMediaStore] Erro ao recarregar cache:", error);
@@ -103,7 +105,7 @@ export async function getAdminMediaByName(adminId: string, name: string): Promis
 /**
  * Obtém mídias que correspondem a um padrão de nome
  */
-export async function getAdminMediasByPattern(adminId: string, pattern: string): Promise<AdminMedia[]> {
+export async function getAdminMediasByPattern(adminId: string | undefined, pattern: string): Promise<AdminMedia[]> {
   await reloadCache(adminId);
   
   const normalizedPattern = pattern.toUpperCase().replace(/\s+/g, '_');
@@ -284,7 +286,7 @@ export async function forceReloadCache(adminId: string): Promise<void> {
  * Gera o bloco de prompt para as mídias do admin
  * Similar ao generateMediaPromptBlock do mediaService
  */
-export async function generateAdminMediaPromptBlock(adminId: string): Promise<string> {
+export async function generateAdminMediaPromptBlock(adminId?: string): Promise<string> {
   const mediaList = await getAdminMediaList(adminId);
   
   if (mediaList.length === 0) {
