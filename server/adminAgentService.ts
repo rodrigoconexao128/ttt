@@ -314,8 +314,9 @@ INFORMAÇÕES DO PIX:
 - Chave PIX (email): rodrigoconexao128@gmail.com
 - Nome: Rodrigo
 
-${(() => {
-  const mediaBlock = generateAdminMediaPromptBlock();
+${await (async () => {
+  const adminId = "admin"; // TODO: pegar adminId correto
+  const mediaBlock = await generateAdminMediaPromptBlock(adminId);
   console.log(`📁 [ADMIN AGENT] Bloco de mídias gerado (${mediaBlock.length} chars)`);
   if (mediaBlock.length > 0) {
     console.log(`📁 [ADMIN AGENT] Primeiros 200 chars: ${mediaBlock.substring(0, 200)}...`);
@@ -646,30 +647,23 @@ export async function processAdminMessage(
     // Se a sessão em memória está vazia, carregar histórico do banco
     let historyForTriggerCheck = session.conversationHistory;
     
-    if (historyForTriggerCheck.length === 0) {
-      try {
-        // Buscar conversa no banco pelo número
-        const conversation = await storage.getAdminConversationByPhone(cleanPhone);
-        
-        if (conversation) {
-          console.log(`📚 [ADMIN AGENT] Carregando histórico do banco para ${cleanPhone}...`);
-          const messages = await storage.getAdminConversationMessages(conversation.id);
-          
-          // Converter para formato do histórico (últimas 30 mensagens)
-          historyForTriggerCheck = messages.slice(-30).map(msg => ({
-            role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
-            content: msg.text || "",
-            timestamp: msg.timestamp || new Date(),
-          }));
-          
-          // Atualizar sessão com histórico do banco
-          session.conversationHistory = historyForTriggerCheck;
-          console.log(`📚 [ADMIN AGENT] ${historyForTriggerCheck.length} mensagens carregadas do banco`);
-        }
-      } catch (dbError) {
-        console.error(`❌ [ADMIN AGENT] Erro ao carregar histórico do banco:`, dbError);
-      }
-    }
+    // TODO: Implementar carregamento do histórico do banco
+    // if (historyForTriggerCheck.length === 0) {
+    //   try {
+    //     const conversation = await storage.getAdminConversationByPhone(cleanPhone);
+    //     if (conversation) {
+    //       const messages = await storage.getAdminConversationMessages(conversation.id);
+    //       historyForTriggerCheck = messages.slice(-30).map((msg: any) => ({
+    //         role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
+    //         content: msg.text || "",
+    //         timestamp: msg.timestamp || new Date(),
+    //       }));
+    //       session.conversationHistory = historyForTriggerCheck;
+    //     }
+    //   } catch (dbError) {
+    //     console.error(`❌ [ADMIN AGENT] Erro ao carregar histórico do banco:`, dbError);
+    //   }
+    // }
     
     const triggerResult = checkTriggerPhrases(
       messageText,
@@ -726,8 +720,9 @@ export async function processAdminMessage(
     mediaData?: AdminMedia;
   }> = [];
   
+  const adminId = "admin"; // TODO: pegar adminId correto
   for (const action of mediaActions) {
-    const mediaData = getAdminMediaByName(action.media_name);
+    const mediaData = await getAdminMediaByName(adminId, action.media_name);
     if (mediaData) {
       processedMediaActions.push({
         type: 'send_media',

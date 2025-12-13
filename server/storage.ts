@@ -15,6 +15,7 @@ import {
   whatsappContacts,
   adminConversations,
   adminMessages,
+  adminAgentMedia,
   type User,
   type UpsertUser,
   type WhatsappConnection,
@@ -39,6 +40,8 @@ import {
   type InsertSystemConfig,
   type WhatsappContact,
   type InsertWhatsappContact,
+  type AdminAgentMedia,
+  type InsertAdminAgentMedia,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray } from "drizzle-orm";
@@ -1172,6 +1175,90 @@ export class DatabaseStorage implements IStorage {
       .from(adminConversations)
       .where(eq(adminConversations.id, conversationId));
     return conversation?.isAgentEnabled ?? true;
+  }
+
+  // =============================================================================
+  // ADMIN AGENT MEDIA - Persistência de mídias do admin agent
+  // =============================================================================
+
+  async getAllAdminMedia(adminId: string): Promise<AdminAgentMedia[]> {
+    return await db
+      .select()
+      .from(adminAgentMedia)
+      .where(eq(adminAgentMedia.adminId, adminId))
+      .orderBy(desc(adminAgentMedia.displayOrder), desc(adminAgentMedia.createdAt));
+  }
+
+  async getActiveAdminMedia(adminId: string): Promise<AdminAgentMedia[]> {
+    return await db
+      .select()
+      .from(adminAgentMedia)
+      .where(and(
+        eq(adminAgentMedia.adminId, adminId),
+        eq(adminAgentMedia.isActive, true)
+      ))
+      .orderBy(desc(adminAgentMedia.displayOrder), desc(adminAgentMedia.createdAt));
+  }
+
+  async getAdminMediaById(id: string): Promise<AdminAgentMedia | undefined> {
+    const [result] = await db
+      .select()
+      .from(adminAgentMedia)
+      .where(eq(adminAgentMedia.id, id));
+    return result;
+  }
+
+  async getAdminMediaByName(adminId: string, name: string): Promise<AdminAgentMedia | undefined> {
+    const normalizedName = name.toUpperCase().replace(/\s+/g, '_');
+    const [result] = await db
+      .select()
+      .from(adminAgentMedia)
+      .where(and(
+        eq(adminAgentMedia.adminId, adminId),
+        eq(adminAgentMedia.name, normalizedName),
+        eq(adminAgentMedia.isActive, true)
+      ));
+    return result;
+  }
+
+  async createAdminMedia(mediaData: InsertAdminAgentMedia): Promise<AdminAgentMedia> {
+    const [result] = await db
+      .insert(adminAgentMedia)
+      .values({
+        ...mediaData,
+        name: mediaData.name.toUpperCase().replace(/\s+/g, '_'), // Normalizar nome
+      })
+      .returning();
+    return result;
+  }
+
+  async updateAdminMedia(id: string, mediaData: Partial<InsertAdminAgentMedia>): Promise<AdminAgentMedia | undefined> {
+    const [result] = await db
+      .update(adminAgentMedia)
+      .set({
+        ...mediaData,
+        name: mediaData.name ? mediaData.name.toUpperCase().replace(/\s+/g, '_') : undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(adminAgentMedia.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteAdminMedia(id: string): Promise<boolean> {
+    const result = await db
+      .delete(adminAgentMedia)
+      .where(eq(adminAgentMedia.id, id));
+    return result.rowCount! > 0;
+  }
+
+  async toggleAdminMediaActive(id: string, isActive: boolean): Promise<AdminAgentMedia | undefined> {
+    const [result] = await db
+      .update(adminAgentMedia)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(adminAgentMedia.id, id))
+      .returning();
+    return result;
   }
 }
 

@@ -323,6 +323,32 @@ export const adminMessages = pgTable("admin_messages", {
   index("idx_admin_messages_timestamp").on(table.timestamp),
 ]);
 
+// Admin Agent Media table
+export const adminAgentMedia = pgTable("admin_agent_media", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminId: varchar("admin_id").notNull().references(() => admins.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 255 }).notNull(),
+  mediaType: varchar("media_type", { length: 50 }).notNull(),
+  storageUrl: text("storage_url").notNull(),
+  fileName: varchar("file_name", { length: 500 }),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type", { length: 100 }),
+  durationSeconds: integer("duration_seconds"),
+  description: text("description").notNull(),
+  whenToUse: text("when_to_use"),
+  caption: text("caption"),
+  transcription: text("transcription"),
+  isActive: boolean("is_active").default(true).notNull(),
+  sendAlone: boolean("send_alone").default(true).notNull(),
+  displayOrder: integer("display_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_admin_agent_media_admin_id").on(table.adminId),
+  index("idx_admin_agent_media_name").on(table.name),
+  index("idx_admin_agent_media_active").on(table.isActive),
+]);
+
 // Plans table
 export const plans = pgTable("plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -696,6 +722,43 @@ export const agentMediaLibraryRelations = relations(agentMediaLibrary, ({ one })
   user: one(users, {
     fields: [agentMediaLibrary.userId],
     references: [users.id],
+  }),
+}));
+
+// Admin Agent Media schemas and types
+export const insertAdminAgentMediaSchema = createInsertSchema(adminAgentMedia).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const adminAgentMediaSchema = z.object({
+  adminId: z.string(),
+  name: z.string().min(1, "Nome da mídia é obrigatório").max(100).regex(/^[A-Z0-9_]+$/, "Nome deve ser em MAIÚSCULAS com underscores (ex: COMO_FUNCIONA)"),
+  mediaType: z.enum(["audio", "image", "video", "document"]),
+  storageUrl: z.string().min(1, "URL de armazenamento é obrigatória"),
+  fileName: z.string().optional(),
+  fileSize: z.number().optional(),
+  mimeType: z.string().optional(),
+  durationSeconds: z.number().optional(),
+  description: z.string().min(1, "Descrição é obrigatória"),
+  whenToUse: z.string().optional(),
+  caption: z.string().optional(),
+  transcription: z.string().optional(),
+  isActive: z.boolean().default(true),
+  sendAlone: z.boolean().default(true),
+  displayOrder: z.number().default(0),
+});
+
+export type InsertAdminAgentMedia = z.infer<typeof insertAdminAgentMediaSchema>;
+export type AdminAgentMedia = typeof adminAgentMedia.$inferSelect;
+export type AdminAgentMediaInput = z.infer<typeof adminAgentMediaSchema>;
+
+// Admin Agent Media relations
+export const adminAgentMediaRelations = relations(adminAgentMedia, ({ one }) => ({
+  admin: one(admins, {
+    fields: [adminAgentMedia.adminId],
+    references: [admins.id],
   }),
 }));
 

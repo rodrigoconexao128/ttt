@@ -2413,7 +2413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET - Listar mídias do admin
   app.get("/api/admin/agent/media", isAdmin, async (req: any, res) => {
     try {
-      const mediaList = getAdminMediaList();
+      const mediaList = await getAdminMediaList(req.adminId);
       res.json(mediaList);
     } catch (error) {
       console.error("Error fetching admin media:", error);
@@ -2432,9 +2432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "name, description e storageUrl são obrigatórios" });
       }
 
-      const id = crypto.randomUUID();
-      const media: AdminMedia = {
-        id,
+      const media = {
         adminId,
         name: name.toUpperCase().replace(/\s+/g, '_'),
         mediaType: mediaType || "audio",
@@ -2449,11 +2447,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: isActive !== false,
         sendAlone: sendAlone || false,
         displayOrder: getAdminMediaCount(),
-        createdAt: new Date().toISOString(),
       };
 
-      addAdminMedia(media);
-      res.json(media);
+      const saved = await addAdminMedia(media);
+      res.json(saved);
     } catch (error) {
       console.error("Error adding admin media:", error);
       res.status(500).json({ message: "Failed to add admin media" });
@@ -2464,7 +2461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/admin/agent/media/:id", isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const existing = getAdminMediaById(id);
+      const existing = await getAdminMediaById(id);
 
       if (!existing) {
         return res.status(404).json({ message: "Media not found" });
@@ -2475,7 +2472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.name = req.body.name.toUpperCase().replace(/\s+/g, '_');
       }
 
-      const updated = updateAdminMediaStore(id, updates);
+      const updated = await updateAdminMediaStore(id, updates);
       res.json(updated);
     } catch (error) {
       console.error("Error updating admin media:", error);
@@ -2487,12 +2484,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/admin/agent/media/:id", isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
+      const adminId = req.adminId;
       
-      if (!hasAdminMedia(id)) {
+      if (!(await hasAdminMedia(id, adminId))) {
         return res.status(404).json({ message: "Media not found" });
       }
 
-      deleteAdminMediaStore(id);
+      await deleteAdminMediaStore(id, adminId);
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting admin media:", error);
@@ -2889,7 +2887,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // Exportar configuração do admin para uso no WhatsApp handler
   (app as any).getAdminAgentConfig = () => adminAgentConfig;
-  (app as any).getAdminMediaLibrary = () => getAdminMediaList();
+  (app as any).getAdminMediaLibrary = async (adminId: string) => await getAdminMediaList(adminId);
 
   return httpServer;
 }
