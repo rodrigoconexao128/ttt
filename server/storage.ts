@@ -49,6 +49,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUser(id: string, data: Partial<UpsertUser>): Promise<User>;
+  deleteUser(id: string): Promise<void>;
 
   // WhatsApp connection operations
   getConnectionByUserId(userId: string): Promise<WhatsappConnection | undefined>;
@@ -180,6 +181,53 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  // Delete user and all related data (cascade)
+  async deleteUser(id: string): Promise<void> {
+    console.log(`[STORAGE] Deleting user ${id} and all related data...`);
+    
+    // Get user's connection first
+    const connection = await this.getConnectionByUserId(id);
+    
+    if (connection) {
+      // Delete all messages from conversations
+      const userConversations = await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.connectionId, connection.id));
+      
+      for (const conv of userConversations) {
+        await db.delete(messages).where(eq(messages.conversationId, conv.id));
+      }
+      
+      // Delete conversations
+      await db.delete(conversations).where(eq(conversations.connectionId, connection.id));
+      
+      // Delete whatsapp contacts cache
+      await db.delete(whatsappContacts).where(eq(whatsappContacts.connectionId, connection.id));
+      
+      // Delete the connection itself
+      await db.delete(whatsappConnections).where(eq(whatsappConnections.id, connection.id));
+    }
+    
+    // Delete AI agent config
+    await db.delete(aiAgentConfigs).where(eq(aiAgentConfigs.userId, id));
+    
+    // Delete business agent config
+    await db.delete(businessAgentConfigs).where(eq(businessAgentConfigs.userId, id));
+    
+    // Delete user's subscription and payments
+    const subscription = await db.select().from(subscriptions).where(eq(subscriptions.userId, id));
+    if (subscription.length > 0) {
+      await db.delete(payments).where(eq(payments.subscriptionId, subscription[0].id));
+      await db.delete(subscriptions).where(eq(subscriptions.userId, id));
+    }
+    
+    // Finally delete the user
+    await db.delete(users).where(eq(users.id, id));
+    
+    console.log(`[STORAGE] User ${id} and all related data deleted successfully`);
   }
 
   // WhatsApp connection operations

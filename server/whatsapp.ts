@@ -1897,8 +1897,31 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         // Importar dinamicamente para evitar circular dependency
         const { processAdminMessage, getOwnerNotificationNumber } = await import("./adminAgentService");
         
-        // Extrair número do contato
-        const contactNumber = cleanContactNumber(remoteJid);
+        // ═══════════════════════════════════════════════════════════════════════
+        // 🎯 FIX LID 2025: Resolver @lid para número real usando remoteJidAlt
+        // ═══════════════════════════════════════════════════════════════════════
+        let contactNumber: string;
+        let realRemoteJid = remoteJid;  // JID real para envio de mensagens
+        
+        if (remoteJid.includes("@lid") && (message.key as any).remoteJidAlt) {
+          const realJid = (message.key as any).remoteJidAlt;
+          contactNumber = cleanContactNumber(realJid);
+          realRemoteJid = realJid;
+          
+          console.log(`\n✅ [ADMIN LID RESOLVIDO] Número real encontrado via remoteJidAlt!`);
+          console.log(`   LID: ${remoteJid}`);
+          console.log(`   JID WhatsApp REAL: ${realJid}`);
+          console.log(`   Número limpo: ${contactNumber}\n`);
+          
+          // Salvar mapeamento LID → número no cache do admin
+          contactsCache.set(remoteJid, {
+            id: remoteJid,
+            name: message.pushName || undefined,
+          });
+        } else {
+          contactNumber = cleanContactNumber(remoteJid);
+        }
+        
         if (!contactNumber) {
           console.log(`📱 [ADMIN] Não foi possível extrair número de: ${remoteJid}`);
           return;
@@ -1953,7 +1976,8 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         // ═══════════════════════════════════════════════════════════════════════
         let conversation;
         try {
-          conversation = await storage.getOrCreateAdminConversation(adminId, contactNumber, remoteJid);
+          // IMPORTANTE: Usar realRemoteJid (número real) para envio de respostas
+          conversation = await storage.getOrCreateAdminConversation(adminId, contactNumber, realRemoteJid);
           
           // Salvar a mensagem recebida
           await storage.createAdminMessage({
@@ -2004,7 +2028,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         if (!mediaType) {
           await scheduleAdminAccumulatedResponse({
             socket,
-            remoteJid,
+            remoteJid: realRemoteJid,  // IMPORTANTE: Usar JID real para envio
             contactNumber,
             messageText,
             conversationId: conversation?.id,
@@ -2026,7 +2050,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
               const interval = randomBetween(cfg.messageIntervalMinMs, cfg.messageIntervalMaxMs);
               await new Promise(resolve => setTimeout(resolve, interval));
             }
-            await socket.sendMessage(remoteJid, { text: parts[i] });
+            await socket.sendMessage(realRemoteJid, { text: parts[i] });  // IMPORTANTE: Usar JID real
           }
           console.log(`✅ [ADMIN AGENT] Resposta enviada para ${contactNumber}`);
           

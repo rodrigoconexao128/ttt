@@ -182,38 +182,7 @@ export default function AdminPanel() {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-4">
-            <Card data-testid="card-users-list">
-              <CardHeader>
-                <CardTitle>Usuários Cadastrados</CardTitle>
-                <CardDescription>Lista completa de usuários do sistema</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Cadastro</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users?.map((user: User) => (
-                      <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
-                        <TableCell data-testid={`text-email-${user.id}`}>{user.email}</TableCell>
-                        <TableCell>{user.name}</TableCell>
-                        <TableCell>
-                          <Badge variant={user.role === "owner" ? "default" : "secondary"}>
-                            {user.role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{user.createdAt ? new Date(user.createdAt).toLocaleDateString("pt-BR") : "-"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            <UsersManager users={users} />
           </TabsContent>
 
           <TabsContent value="manage" className="space-y-4">
@@ -249,6 +218,156 @@ export default function AdminPanel() {
         </Tabs>
       </div>
     </div>
+  );
+}
+
+// Users Manager Component with delete functionality
+function UsersManager({ users }: { users: User[] | undefined }) {
+  const { toast } = useToast();
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete user");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      setConfirmDeleteUser(null);
+      toast({ 
+        title: "✅ Usuário excluído",
+        description: "O usuário e todos os dados relacionados foram removidos."
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Erro ao excluir usuário", 
+        description: "Não foi possível excluir o usuário. Tente novamente.",
+        variant: "destructive" 
+      });
+    },
+  });
+
+  return (
+    <Card data-testid="card-users-list">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-5 w-5" />
+          Usuários Cadastrados
+        </CardTitle>
+        <CardDescription>
+          Lista completa de usuários do sistema. Exclua usuários de teste quando necessário.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Email</TableHead>
+              <TableHead>Nome</TableHead>
+              <TableHead>Telefone</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Cadastro</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users?.map((user: User) => (
+              <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
+                <TableCell data-testid={`text-email-${user.id}`}>{user.email}</TableCell>
+                <TableCell>{user.name || "-"}</TableCell>
+                <TableCell>{user.whatsappNumber || user.phone || "-"}</TableCell>
+                <TableCell>
+                  <Badge variant={user.role === "owner" ? "default" : "secondary"}>
+                    {user.role}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {user.createdAt ? new Date(user.createdAt).toLocaleDateString("pt-BR") : "-"}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Dialog open={confirmDeleteUser?.id === user.id} onOpenChange={(open) => !open && setConfirmDeleteUser(null)}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => setConfirmDeleteUser(user)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                          <Trash2 className="h-5 w-5" />
+                          Confirmar Exclusão
+                        </DialogTitle>
+                        <DialogDescription className="space-y-3">
+                          <p>
+                            Você está prestes a excluir permanentemente o usuário:
+                          </p>
+                          <div className="bg-muted p-3 rounded-lg">
+                            <p className="font-semibold">{confirmDeleteUser?.email}</p>
+                            {confirmDeleteUser?.name && <p className="text-sm">{confirmDeleteUser.name}</p>}
+                          </div>
+                          <p className="text-red-600 font-medium">
+                            ⚠️ Esta ação irá remover:
+                          </p>
+                          <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                            <li>Conexão WhatsApp do usuário</li>
+                            <li>Todas as conversas e mensagens</li>
+                            <li>Configurações do agente IA</li>
+                            <li>Assinatura e pagamentos</li>
+                            <li>Todos os dados relacionados</li>
+                          </ul>
+                          <p className="text-red-600 text-sm font-medium">
+                            Esta ação não pode ser desfeita!
+                          </p>
+                        </DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter className="gap-2">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setConfirmDeleteUser(null)}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button 
+                          variant="destructive"
+                          onClick={() => confirmDeleteUser && deleteUserMutation.mutate(confirmDeleteUser.id)}
+                          disabled={deleteUserMutation.isPending}
+                        >
+                          {deleteUserMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Trash2 className="h-4 w-4 mr-2" />
+                          )}
+                          Excluir Permanentemente
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        
+        {(!users || users.length === 0) && (
+          <div className="text-center py-8 text-muted-foreground">
+            <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Nenhum usuário cadastrado</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
