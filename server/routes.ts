@@ -2265,7 +2265,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           reason: "Mensagem não contém frase gatilho configurada"
         });
       } else {
-        res.json({ response: response.text, skipped: false });
+        res.json({ 
+          response: response.text, 
+          skipped: false,
+          actions: response.actions || {} 
+        });
       }
     } catch (error) {
       console.error("Error testing admin agent:", error);

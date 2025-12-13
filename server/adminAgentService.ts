@@ -182,6 +182,7 @@ Quando quiser executar uma ação, inclua no final da sua resposta em uma linha 
 [AÇÃO:SALVAR_CONFIG nome="Laura" empresa="Loja X" funcao="Atendente"]
 [AÇÃO:SALVAR_PROMPT prompt="texto das instruções"]
 [AÇÃO:SOLICITAR_CODIGO_PAREAMENTO]
+[AÇÃO:ENVIAR_QRCODE]
 [AÇÃO:ENVIAR_PIX]
 [AÇÃO:NOTIFICAR_PAGAMENTO]
 
@@ -252,7 +253,14 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
       case "CRIAR_CONTA":
         if (action.params.email) {
           updateClientSession(session.phoneNumber, { email: action.params.email });
-          // Criar conta será feito quando tiver todas as informações
+          // Criar conta imediatamente com o email para ter userId disponível
+          const updatedSession = getClientSession(session.phoneNumber);
+          if (updatedSession) {
+            const result = await createClientAccount(updatedSession);
+            if (result.success) {
+              console.log(`✅ [ADMIN AGENT] Conta criada com email: ${action.params.email} (ID: ${result.userId})`);
+            }
+          }
         }
         break;
         
@@ -270,9 +278,11 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
           config.prompt = action.params.prompt;
           updateClientSession(session.phoneNumber, { agentConfig: config });
           
-          // Se tem todos os dados, criar a conta
-          if (session.email && config.name && config.company) {
-            await createClientAccount(session);
+          // Se tem todos os dados e tem userId, atualizar agente
+          const currentSession = getClientSession(session.phoneNumber);
+          if (currentSession?.userId && config.name && config.company) {
+            // Atualizar configuração do agente com o prompt
+            await updateAgentWithPrompt(currentSession);
           }
         }
         break;
@@ -559,6 +569,37 @@ async function findUserByEmail(email: string): Promise<any | undefined> {
   } catch (error) {
     console.error("[ADMIN AGENT] Erro ao buscar usuário por email:", error);
     return undefined;
+  }
+}
+
+// Atualiza configuração do agente com o prompt coletado
+async function updateAgentWithPrompt(session: ClientSession): Promise<void> {
+  try {
+    if (!session.userId || !session.agentConfig?.prompt) return;
+    
+    const fullPrompt = `Você é ${session.agentConfig.name || "o atendente"}, ${session.agentConfig.role || "atendente"} da ${session.agentConfig.company || "empresa"}.
+
+${session.agentConfig.prompt}
+
+REGRAS DE ATENDIMENTO:
+- Seja sempre educado e prestativo
+- Responda de forma curta e objetiva
+- Use linguagem natural e amigável
+- Não invente informações que não foram fornecidas
+- Se não souber algo, diga que vai verificar`;
+
+    await storage.upsertAgentConfig(session.userId, {
+      prompt: fullPrompt,
+      isActive: true,
+      model: "mistral-small-latest",
+      triggerPhrases: [],
+      messageSplitChars: 400,
+      responseDelaySeconds: 30,
+    });
+    
+    console.log(`✅ [ADMIN AGENT] Prompt do agente atualizado para usuário ${session.userId}`);
+  } catch (error) {
+    console.error("[ADMIN AGENT] Erro ao atualizar prompt do agente:", error);
   }
 }
 

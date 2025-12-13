@@ -290,15 +290,29 @@ async function processAdminAccumulatedMessages(params: {
     if (response.actions?.connectWhatsApp) {
       try {
         // Buscar userId da sessão do cliente
-        const { getClientSession } = await import("./adminAgentService");
-        const clientSession = getClientSession(pending.contactNumber);
+        const { getClientSession, createClientAccount } = await import("./adminAgentService");
+        let clientSession = getClientSession(pending.contactNumber);
+        
+        // Se não tem userId mas tem email, criar conta automaticamente
+        if (!clientSession?.userId && clientSession?.email) {
+          console.log(`📲 [ADMIN AGENT] Criando conta para ${clientSession.email} antes de gerar código...`);
+          const result = await createClientAccount(clientSession);
+          if (result.success) {
+            clientSession = getClientSession(pending.contactNumber); // Recarregar sessão atualizada
+            console.log(`✅ [ADMIN AGENT] Conta criada com ID: ${result.userId}`);
+          }
+        }
         
         if (clientSession?.userId) {
-          const code = await requestClientPairingCode(clientSession.userId, pending.contactNumber);
+          // Usar o número do cliente que está conversando
+          const clientPhone = pending.contactNumber;
+          console.log(`📲 [ADMIN AGENT] Gerando código de pareamento para ${clientPhone}...`);
+          
+          const code = await requestClientPairingCode(clientSession.userId, clientPhone);
           
           if (code) {
             const codeFormatted = code.match(/.{1,4}/g)?.join("-") || code;
-            const codeMessage = `Aqui está seu código de 8 dígitos:\n\n🔑 ${codeFormatted}\n\nAgora é só abrir o WhatsApp no celular, ir em Configurações > Aparelhos Conectados > Conectar Aparelho, tocar em "Conectar com número de telefone" e digitar esse código!`;
+            const codeMessage = `🔑 Seu código de pareamento:\n\n*${codeFormatted}*\n\nAgora é só:\n1️⃣ Abrir o WhatsApp no celular\n2️⃣ Ir em Configurações > Aparelhos Conectados\n3️⃣ Tocar em "Conectar Aparelho"\n4️⃣ Tocar em "Conectar com número de telefone"\n5️⃣ Digitar esse código!\n\n⏰ O código expira em alguns minutos, então use logo!`;
             
             await socket.sendMessage(pending.remoteJid, { text: codeMessage });
             console.log(`📲 [ADMIN AGENT] Código de pareamento enviado: ${codeFormatted}`);
@@ -317,44 +331,48 @@ async function processAdminAccumulatedMessages(params: {
     // 📷 Enviar QR Code como imagem se solicitado
     if (response.actions?.sendQrCode) {
       try {
-        const { getClientSession } = await import("./adminAgentService");
-        const clientSession = getClientSession(pending.contactNumber);
+        const { getClientSession, createClientAccount } = await import("./adminAgentService");
+        let clientSession = getClientSession(pending.contactNumber);
+        
+        // Se não tem userId mas tem email, criar conta automaticamente
+        if (!clientSession?.userId && clientSession?.email) {
+          console.log(`📷 [ADMIN AGENT] Criando conta para ${clientSession.email} antes de gerar QR Code...`);
+          const result = await createClientAccount(clientSession);
+          if (result.success) {
+            clientSession = getClientSession(pending.contactNumber); // Recarregar sessão atualizada
+            console.log(`✅ [ADMIN AGENT] Conta criada com ID: ${result.userId}`);
+          }
+        }
         
         if (clientSession?.userId) {
           // Iniciar conexão para gerar QR Code
-          const connection = await storage.getConnectionByUserId(clientSession.userId);
+          console.log(`📷 [ADMIN AGENT] Gerando QR Code para usuário ${clientSession.userId}...`);
           
-          if (connection?.qrCode) {
-            // Converter data URL para buffer
-            const base64Data = connection.qrCode.split(",")[1];
-            const qrBuffer = Buffer.from(base64Data, "base64");
-            
-            await socket.sendMessage(pending.remoteJid, {
-              image: qrBuffer,
-              caption: "📱 Escaneie este QR Code!\n\nAbra o WhatsApp no celular, vá em Configurações > Aparelhos Conectados > Conectar Aparelho e aponte a câmera pro QR Code!",
-            });
-            console.log(`📷 [ADMIN AGENT] QR Code enviado para ${pending.contactNumber}`);
-          } else {
-            // Precisa iniciar conexão primeiro
-            await connectWhatsApp(clientSession.userId);
-            await socket.sendMessage(pending.remoteJid, { text: "Estou gerando seu QR Code... Um momento! 📱" });
-            
-            // Aguardar QR Code ser gerado (máximo 10 segundos)
-            for (let i = 0; i < 10; i++) {
-              await new Promise(r => setTimeout(r, 1000));
-              const updatedConnection = await storage.getConnectionByUserId(clientSession.userId);
-              if (updatedConnection?.qrCode) {
-                const base64Data = updatedConnection.qrCode.split(",")[1];
-                const qrBuffer = Buffer.from(base64Data, "base64");
-                
-                await socket.sendMessage(pending.remoteJid, {
-                  image: qrBuffer,
-                  caption: "📱 Aqui está o QR Code!\n\nAbra o WhatsApp, vá em Configurações > Aparelhos Conectados > Conectar Aparelho e escaneie!",
-                });
-                console.log(`📷 [ADMIN AGENT] QR Code enviado para ${pending.contactNumber}`);
-                break;
-              }
+          // Sempre iniciar nova conexão para obter QR Code fresco
+          await connectWhatsApp(clientSession.userId);
+          await socket.sendMessage(pending.remoteJid, { text: "Gerando seu QR Code... Um momento! 📱" });
+          
+          // Aguardar QR Code ser gerado (máximo 15 segundos)
+          let qrSent = false;
+          for (let i = 0; i < 15; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            const updatedConnection = await storage.getConnectionByUserId(clientSession.userId);
+            if (updatedConnection?.qrCode) {
+              const base64Data = updatedConnection.qrCode.split(",")[1];
+              const qrBuffer = Buffer.from(base64Data, "base64");
+              
+              await socket.sendMessage(pending.remoteJid, {
+                image: qrBuffer,
+                caption: "📱 Aqui está o QR Code!\n\n1️⃣ Abra o WhatsApp no celular\n2️⃣ Vá em Configurações > Aparelhos Conectados\n3️⃣ Toque em 'Conectar Aparelho'\n4️⃣ Escaneie este QR Code!\n\n⏰ O QR Code expira em alguns minutos!",
+              });
+              console.log(`📷 [ADMIN AGENT] QR Code enviado para ${pending.contactNumber}`);
+              qrSent = true;
+              break;
             }
+          }
+          
+          if (!qrSent) {
+            await socket.sendMessage(pending.remoteJid, { text: "Demorou mais do que o esperado pra gerar o QR Code. Quer tentar pelo código de 8 dígitos? É mais rápido pelo celular!" });
           }
         } else {
           await socket.sendMessage(pending.remoteJid, { text: "Antes de conectar, preciso criar sua conta. Me passa seu email?" });
