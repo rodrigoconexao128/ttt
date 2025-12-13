@@ -147,6 +147,9 @@ async function scheduleAdminAccumulatedResponse(params: {
   const config = await getAdminAgentRuntimeConfig();
   const key = contactNumber;
 
+  console.log(`\n📥 [ADMIN AGENT] Mensagem recebida de ${contactNumber}`);
+  console.log(`   ⏱️ Delay configurado: ${config.responseDelayMs}ms (${config.responseDelayMs/1000}s)`);
+
   const existing = pendingAdminResponses.get(key);
   if (existing) {
     if (existing.timeout) {
@@ -154,6 +157,7 @@ async function scheduleAdminAccumulatedResponse(params: {
     }
     existing.messages.push(messageText);
     existing.generation += 1;
+    console.log(`   📝 Acumulando msg ${existing.messages.length}. Reset do timer para ${config.responseDelayMs}ms`);
     existing.timeout = setTimeout(() => {
       void processAdminAccumulatedMessages({ socket, key, generation: existing.generation });
     }, config.responseDelayMs);
@@ -170,6 +174,7 @@ async function scheduleAdminAccumulatedResponse(params: {
     conversationId,
   };
 
+  console.log(`   🆕 Nova conversa. Timer de ${config.responseDelayMs}ms iniciado`);
   pending.timeout = setTimeout(() => {
     void processAdminAccumulatedMessages({ socket, key, generation: pending.generation });
   }, config.responseDelayMs);
@@ -197,6 +202,11 @@ async function processAdminAccumulatedMessages(params: {
   console.log(`\n🤖 [ADMIN AGENT] =========== PROCESSANDO RESPOSTA ==========`);
   console.log(`   ⏱️ Aguardou ${waitSeconds}s | ${pending.messages.length} msg(s) acumulada(s)`);
   console.log(`   📱 Cliente: ${pending.contactNumber}`);
+  console.log(`   📊 Config carregada:`);
+  console.log(`      - Tempo resposta: ${config.responseDelayMs}ms`);
+  console.log(`      - Typing delay: ${config.typingDelayMinMs}-${config.typingDelayMaxMs}ms`);
+  console.log(`      - Split chars: ${config.messageSplitChars}`);
+  console.log(`      - Intervalo blocos: ${config.messageIntervalMinMs}-${config.messageIntervalMaxMs}ms`);
 
   try {
     const { processAdminMessage, getOwnerNotificationNumber } = await import("./adminAgentService");

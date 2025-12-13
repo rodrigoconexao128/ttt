@@ -949,54 +949,6 @@ O QUE NÃO FAZER:
             </div>
           </Card>
 
-          {/* Intervalo entre Mensagens */}
-          <Card className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                  <MessageSquare className="w-5 h-5 text-purple-600" />
-                </div>
-                <div className="flex-1">
-                  <Label className="text-base font-semibold">Intervalo entre Blocos</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Pausa entre uma mensagem e outra quando há múltiplos blocos
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm">Mínimo (segundos)</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={10}
-                      value={messageIntervalMin}
-                      onChange={(e) => setMessageIntervalMin(Number(e.target.value))}
-                      className="w-20"
-                    />
-                    <span className="text-muted-foreground">s</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Máximo (segundos)</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={2}
-                      max={20}
-                      value={messageIntervalMax}
-                      onChange={(e) => setMessageIntervalMax(Number(e.target.value))}
-                      className="w-20"
-                    />
-                    <span className="text-muted-foreground">s</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-
           {/* Tamanho das Bolhas */}
           <Card className="p-6">
             <div className="space-y-4">

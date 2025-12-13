@@ -476,6 +476,12 @@ export async function processAdminMessage(
   // Buscar configurações do admin agent
   const adminConfig = await getAdminAgentConfig();
   
+  console.log(`🔧 [ADMIN AGENT] Configurações carregadas:`);
+  console.log(`   - Trigger phrases: ${JSON.stringify(adminConfig.triggerPhrases)}`);
+  console.log(`   - Split chars: ${adminConfig.messageSplitChars}`);
+  console.log(`   - Response delay: ${adminConfig.responseDelaySeconds}s`);
+  console.log(`   - Is active: ${adminConfig.isActive}`);
+  
   // Verificar frases gatilho (a menos que seja skipTriggerCheck para testes)
   if (!skipTriggerCheck) {
     const triggerResult = checkTriggerPhrases(
@@ -486,6 +492,7 @@ export async function processAdminMessage(
     
     if (!triggerResult.hasTrigger) {
       console.log(`⏸️ [ADMIN AGENT] Skipping response - no trigger phrase found for ${cleanPhone}`);
+      console.log(`   Mensagem recebida: "${messageText.substring(0, 100)}..."`);
       // Ainda adiciona ao histórico mas não responde
       addToConversationHistory(cleanPhone, "user", messageText);
       return null;
