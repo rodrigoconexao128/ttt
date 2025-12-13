@@ -287,7 +287,7 @@ export async function forceReloadCache(adminId: string): Promise<void> {
 
 /**
  * Gera o bloco de prompt para as mídias do admin
- * Similar ao generateMediaPromptBlock do mediaService
+ * COPIADO DO mediaService.ts QUE FUNCIONA CORRETAMENTE
  */
 export async function generateAdminMediaPromptBlock(adminId?: string): Promise<string> {
   const mediaList = await getAdminMediaList(adminId);
@@ -296,84 +296,143 @@ export async function generateAdminMediaPromptBlock(adminId?: string): Promise<s
     return '';
   }
 
+  // Organizar mídias por tipo
   const audioMidias = mediaList.filter(m => m.mediaType === 'audio');
   const imageMidias = mediaList.filter(m => m.mediaType === 'image');
   const videoMidias = mediaList.filter(m => m.mediaType === 'video');
   const documentMidias = mediaList.filter(m => m.mediaType === 'document');
-  
+
+  // Construir lista de mídias disponíveis
   const allMediaNames = mediaList.map(m => m.name).join(', ');
 
   let mediaBlock = `
 
 ═══════════════════════════════════════════════════════════════════════════════
-📁 SISTEMA DE ENVIO DE MÍDIAS - VOCÊ TEM ARQUIVOS DISPONÍVEIS!
+📁 SISTEMA DE ENVIO DE MÍDIAS - INSTRUÇÕES OBRIGATÓRIAS
 ═══════════════════════════════════════════════════════════════════════════════
 
-Mídias disponíveis para enviar: ${allMediaNames}
+Você tem as seguintes mídias disponíveis para enviar: ${allMediaNames}
 
 `;
 
   if (imageMidias.length > 0) {
-    mediaBlock += `🖼️ IMAGENS:\n`;
+    mediaBlock += `🖼️ IMAGENS DISPONÍVEIS:
+`;
     for (const m of imageMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Imagem'}\n     Enviar quando: ${m.whenToUse || 'cliente pedir'}\n`;
+      mediaBlock += `   • ${m.name} - ${m.description || 'Imagem'}
+     Enviar quando: ${m.whenToUse || 'cliente pedir catálogo, foto, imagem'}
+`;
     }
     mediaBlock += '\n';
   }
 
   if (audioMidias.length > 0) {
-    mediaBlock += `🎵 ÁUDIOS:\n`;
+    mediaBlock += `🎵 ÁUDIOS DISPONÍVEIS:
+`;
     for (const m of audioMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Áudio'}\n     Enviar quando: ${m.whenToUse || 'cliente pedir'}\n`;
+      mediaBlock += `   • ${m.name} - ${m.description || 'Áudio'}
+     Enviar quando: ${m.whenToUse || 'cliente pedir áudio, explicação por voz'}
+`;
     }
     mediaBlock += '\n';
   }
 
   if (videoMidias.length > 0) {
-    mediaBlock += `🎬 VÍDEOS:\n`;
+    mediaBlock += `🎬 VÍDEOS DISPONÍVEIS:
+`;
     for (const m of videoMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Vídeo'}\n     Enviar quando: ${m.whenToUse || 'cliente pedir'}\n`;
+      mediaBlock += `   • ${m.name} - ${m.description || 'Vídeo'}
+     Enviar quando: ${m.whenToUse || 'cliente pedir vídeo, demonstração'}
+`;
     }
     mediaBlock += '\n';
   }
 
   if (documentMidias.length > 0) {
-    mediaBlock += `📄 DOCUMENTOS:\n`;
+    mediaBlock += `📄 DOCUMENTOS DISPONÍVEIS:
+`;
     for (const m of documentMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Documento'}\n     Enviar quando: ${m.whenToUse || 'cliente pedir'}\n`;
+      mediaBlock += `   • ${m.name} - ${m.description || 'Documento'}
+     Enviar quando: ${m.whenToUse || 'cliente pedir documento, PDF, contrato'}
+`;
     }
     mediaBlock += '\n';
   }
 
   mediaBlock += `
 ═══════════════════════════════════════════════════════════════════════════════
-📌 COMO ENVIAR MÍDIA - MUITO IMPORTANTE! LEIA COM ATENÇÃO!
+⚠️ REGRA CRÍTICA: COMO ENVIAR MÍDIA (OBRIGATÓRIO)
 ═══════════════════════════════════════════════════════════════════════════════
 
-🚨 REGRA OBRIGATÓRIA: Se existe uma mídia relevante para o que o cliente está
-   perguntando, VOCÊ DEVE ENVIÁ-LA! Não responda só com texto.
+Quando o cliente pedir uma mídia ou o assunto combinar, você DEVE:
+1. Responder confirmando o envio
+2. ADICIONAR A TAG NO FINAL: [ENVIAR_MIDIA:NOME_EXATO_DA_MIDIA]
 
-Quando quiser enviar uma mídia, ADICIONE A TAG no final da sua resposta:
+EXEMPLOS OBRIGATÓRIOS (copie este formato):
 
-[ENVIAR_MIDIA:NOME_DA_MIDIA]
+CLIENTE: "como funciona o sistema?"
+SUA RESPOSTA: "Vou te explicar como funciona! [ENVIAR_MIDIA:COMO_FUNCIONA]"
 
-EXEMPLOS DE USO:
-- Se cliente pergunta "como funciona" e existe mídia COMO_FUNCIONA:
-  "Deixa eu te explicar! Vou te mandar um áudio explicando melhor 🎙️ [ENVIAR_MIDIA:COMO_FUNCIONA]"
+CLIENTE: "me explica melhor"  
+SUA RESPOSTA: "Claro! Vou te enviar uma explicação. [ENVIAR_MIDIA:COMO_FUNCIONA]"
 
-- Se cliente pede foto de produto e existe mídia FOTO_PRODUTO:
-  "Claro! Segue a foto! [ENVIAR_MIDIA:FOTO_PRODUTO]"
+CLIENTE: "manda um áudio"
+SUA RESPOSTA: "Vou te enviar o áudio agora! [ENVIAR_MIDIA:COMO_FUNCIONA]"
 
-⚠️ REGRAS IMPORTANTES:
-1. Use o NOME EXATO da mídia listada acima (MAIÚSCULAS com underline)
-2. A tag deve estar NO FINAL da mensagem
-3. Pode enviar MÚLTIPLAS mídias: [ENVIAR_MIDIA:X] [ENVIAR_MIDIA:Y]
-4. NÃO mencione a tag para o cliente - ela é invisível
-5. SEMPRE envie mídia quando o assunto combina com a descrição/quando usar
+CLIENTE: "quero saber mais"
+SUA RESPOSTA: "Vou te mostrar! [ENVIAR_MIDIA:COMO_FUNCIONA]"
 
-💡 DICA: Se o cliente perguntar sobre um assunto e você tem uma mídia sobre isso,
-   SEMPRE envie junto com sua explicação em texto!
 ═══════════════════════════════════════════════════════════════════════════════
+❌ QUANDO NÃO ENVIAR (apenas responda normalmente SEM tag):
+═══════════════════════════════════════════════════════════════════════════════
+- "Oi", "Bom dia" → responder saudação SEM mídia
+- "Obrigado" → responder agradecimento SEM mídia  
+- "Ok", "Fechado" → confirmar SEM mídia
+
+═══════════════════════════════════════════════════════════════════════════════
+🎯 MAPEAMENTO DE PALAVRAS → MÍDIAS:
+═══════════════════════════════════════════════════════════════════════════════
+`;
+
+  // Lista DETALHADA de cada mídia com INSTRUÇÕES para a IA decidir
+  mediaBlock += `
+📋 BIBLIOTECA DE MÍDIAS DISPONÍVEIS:
+`;
+
+  // Listar TODAS as mídias com suas INSTRUÇÕES (descrição e quando usar)
+  for (const media of mediaList) {
+    const tipo = media.mediaType === 'audio' ? '🎤 ÁUDIO' :
+                 media.mediaType === 'video' ? '🎥 VÍDEO' :
+                 media.mediaType === 'image' ? '🖼️ IMAGEM' : '📄 DOCUMENTO';
+    
+    const podeComOutras = media.sendAlone ? '⚠️ ENVIAR SOZINHA (não combinar)' : '✅ Pode combinar com outras';
+    
+    mediaBlock += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${tipo} → Para enviar use: [ENVIAR_MIDIA:${media.name}]
+📝 DESCRIÇÃO: ${media.description || 'Sem descrição'}
+🎯 QUANDO USAR: ${media.whenToUse || 'Quando for relevante ao contexto'}
+${podeComOutras}
+`;
+  }
+
+  mediaBlock += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📌 INSTRUÇÕES DE USO:
+
+1. LEIA a pergunta do cliente
+2. COMPARE com o campo "QUANDO USAR" de cada mídia acima
+3. Se a mídia é relevante → INCLUA a tag [ENVIAR_MIDIA:NOME] na resposta
+4. Se várias mídias são relevantes E podem ser combinadas → ENVIE TODAS!
+5. Se a mídia tem "ENVIAR SOZINHA" → NÃO combine com outras
+
+🔑 REGRA PRINCIPAL:
+Analise o "QUANDO USAR" de cada mídia. Se a pergunta do cliente COMBINA 
+com a instrução, ENVIE essa mídia. Você pode enviar MÚLTIPLAS se fizer sentido!
+
+⚠️ Tags [ENVIAR_MIDIA:NOME] sempre NO FINAL da resposta!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
 
   return mediaBlock;
