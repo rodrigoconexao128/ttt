@@ -40,7 +40,7 @@ import {
   type WhatsappContact,
   type InsertWhatsappContact,
 } from "@shared/schema";
-import { db } from "./db";
+import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray } from "drizzle-orm";
 import { transcribeAudioWithMistral } from "./mistralClient";
 
@@ -243,10 +243,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllConnections(): Promise<WhatsappConnection[]> {
-    const connections = await db
-      .select()
-      .from(whatsappConnections)
-      .orderBy(desc(whatsappConnections.createdAt));
+    const connections = await withRetry(() =>
+      db
+        .select()
+        .from(whatsappConnections)
+        .orderBy(desc(whatsappConnections.createdAt))
+    );
     return connections;
   }
 
@@ -667,7 +669,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllAdmins(): Promise<any[]> {
-    return await db.select().from(admins);
+    return await withRetry(() => db.select().from(admins));
   }
 
   // Admin WhatsApp connection operations

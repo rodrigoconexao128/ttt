@@ -49,8 +49,8 @@ pool.on('remove', () => {
 // Função helper para executar query com retry automático
 export async function withRetry<T>(
   operation: () => Promise<T>,
-  maxRetries: number = 3,
-  delayMs: number = 1000
+  maxRetries: number = 5,
+  delayMs: number = 2000
 ): Promise<T> {
   let lastError: Error | undefined;
   
@@ -65,12 +65,14 @@ export async function withRetry<T>(
         error.message?.includes('timeout') ||
         error.message?.includes('ECONNRESET') ||
         error.message?.includes('connection timeout') ||
+        error.message?.includes('Query read timeout') ||
+        error.message?.includes('unexpectedly') ||
         error.code === 'ECONNRESET' ||
         error.code === 'ETIMEDOUT' ||
         error.code === '57P01'; // admin_shutdown
       
       if (isRetryable && attempt < maxRetries) {
-        const waitTime = delayMs * Math.pow(2, attempt - 1); // Exponential backoff
+        const waitTime = delayMs * attempt; // Linear backoff (2s, 4s, 6s, 8s)
         console.warn(`⚠️ [DB] Query falhou (tentativa ${attempt}/${maxRetries}), retry em ${waitTime}ms: ${error.message}`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         continue;

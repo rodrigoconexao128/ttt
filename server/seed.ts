@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, withRetry } from "./db";
 import { admins, systemConfig, plans, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -10,100 +10,123 @@ export async function seedDatabase() {
     const adminEmail = "rodrigoconexao128@gmail.com";
     const adminPassword = "Ibira2019!";
 
-    const existingAdmin = await db
-      .select()
-      .from(admins)
-      .where(eq(admins.email, adminEmail))
-      .limit(1);
+    const existingAdmin = await withRetry(() => 
+      db
+        .select()
+        .from(admins)
+        .where(eq(admins.email, adminEmail))
+        .limit(1)
+    );
 
     if (existingAdmin.length === 0) {
       const passwordHash = await bcrypt.hash(adminPassword, 10);
-      await db.insert(admins).values({
-        email: adminEmail,
-        passwordHash,
-        role: "owner",
-      });
+      await withRetry(() => 
+        db.insert(admins).values({
+          email: adminEmail,
+          passwordHash,
+          role: "owner",
+        })
+      );
       console.log("✅ Admin owner created:", adminEmail);
     } else {
       console.log("ℹ️ Admin owner already exists");
     }
 
-    const mistralKeyConfig = await db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.chave, "mistral_api_key"))
-      .limit(1);
+    const mistralKeyConfig = await withRetry(() =>
+      db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.chave, "mistral_api_key"))
+        .limit(1)
+    );
 
     if (mistralKeyConfig.length === 0) {
-      await db.insert(systemConfig).values({
-        chave: "mistral_api_key",
-        valor: "9rYWr97uytmbYIkXRJXK5Kqx73qPHDxe",
-      });
+      await withRetry(() =>
+        db.insert(systemConfig).values({
+          chave: "mistral_api_key",
+          valor: "9rYWr97uytmbYIkXRJXK5Kqx73qPHDxe",
+        })
+      );
       console.log("✅ Mistral API Key configured");
     } else {
       console.log("ℹ️ Mistral API Key already exists");
     }
 
     // Seed PIX key
-    const pixKeyConfig = await db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.chave, "pix_key"))
-      .limit(1);
+    const pixKeyConfig = await withRetry(() =>
+      db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.chave, "pix_key"))
+        .limit(1)
+    );
 
     if (pixKeyConfig.length === 0) {
-      await db.insert(systemConfig).values({
-        chave: "pix_key",
-        valor: "rodrigoconexao128@gmail.com",
-      });
+      await withRetry(() =>
+        db.insert(systemConfig).values({
+          chave: "pix_key",
+          valor: "rodrigoconexao128@gmail.com",
+        })
+      );
       console.log("✅ PIX key configured");
     } else {
       console.log("ℹ️ PIX key already exists");
     }
 
     // Seed Admin Auto-Atendimento defaults
-    const adminAgentEnabledConfig = await db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.chave, "admin_agent_enabled"))
-      .limit(1);
+    const adminAgentEnabledConfig = await withRetry(() =>
+      db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.chave, "admin_agent_enabled"))
+        .limit(1)
+    );
 
     if (adminAgentEnabledConfig.length === 0) {
-      await db.insert(systemConfig).values({
-        chave: "admin_agent_enabled",
-        valor: "false",
-      });
+      await withRetry(() =>
+        db.insert(systemConfig).values({
+          chave: "admin_agent_enabled",
+          valor: "false",
+        })
+      );
       console.log("✅ Admin auto-atendimento enabled configured");
     } else {
       console.log("ℹ️ Admin auto-atendimento enabled already exists");
     }
 
-    const ownerNotificationNumberConfig = await db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.chave, "owner_notification_number"))
-      .limit(1);
+    const ownerNotificationNumberConfig = await withRetry(() =>
+      db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.chave, "owner_notification_number"))
+        .limit(1)
+    );
 
     if (ownerNotificationNumberConfig.length === 0) {
-      await db.insert(systemConfig).values({
-        chave: "owner_notification_number",
-        valor: "5517991956944",
-      });
+      await withRetry(() =>
+        db.insert(systemConfig).values({
+          chave: "owner_notification_number",
+          valor: "5517991956944",
+        })
+      );
       console.log("✅ Owner notification number configured");
     } else {
       console.log("ℹ️ Owner notification number already exists");
     }
 
-    const adminAgentPromptConfig = await db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.chave, "admin_agent_prompt"))
-      .limit(1);
+    const adminAgentPromptConfig = await withRetry(() =>
+      db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.chave, "admin_agent_prompt"))
+        .limit(1)
+    );
 
     if (adminAgentPromptConfig.length === 0) {
-      await db.insert(systemConfig).values({
-        chave: "admin_agent_prompt",
-        valor: `Você é o Rodrigo, atendente humano da AgenteZap.
+      await withRetry(() =>
+        db.insert(systemConfig).values({
+          chave: "admin_agent_prompt",
+          valor: `Você é o Rodrigo, atendente humano da AgenteZap.
 
 SOBRE A AGENTEZAP:
 - Somos uma plataforma de automação de WhatsApp com Inteligência Artificial
@@ -137,44 +160,49 @@ INFORMAÇÕES IMPORTANTES:
 - Após 24h, precisa pagar para continuar
 - Aceitamos apenas PIX
 - Chave PIX: rodrigoconexao128@gmail.com`,
-      });
+        })
+      );
       console.log("✅ Admin auto-atendimento prompt configured");
     } else {
       console.log("ℹ️ Admin auto-atendimento prompt already exists");
     }
 
     // Seed default plans
-    const existingPlans = await db.select().from(plans).limit(1);
+    const existingPlans = await withRetry(() => db.select().from(plans).limit(1));
     if (existingPlans.length === 0) {
-      await db.insert(plans).values([
-        {
-          nome: "Pro",
-          valor: "299.90",
-          periodicidade: "mensal",
-          limiteConversas: -1,
-          limiteAgentes: -1,
-          ativo: true,
-        },
-      ]);
+      await withRetry(() =>
+        db.insert(plans).values([
+          {
+            nome: "Pro",
+            valor: "299.90",
+            periodicidade: "mensal",
+            limiteConversas: -1,
+            limiteAgentes: -1,
+            ativo: true,
+          },
+        ])
+      );
       console.log("✅ Default plan Pro created");
     } else {
       console.log("ℹ️ Plans already exist");
     }
 
     // Ensure admin owner user exists in users table (for Replit Auth integration)
-    const adminUser = await db.select().from(users).where(eq(users.email, adminEmail)).limit(1);
+    const adminUser = await withRetry(() => db.select().from(users).where(eq(users.email, adminEmail)).limit(1));
     if (adminUser.length === 0) {
-      await db.insert(users).values({
-        email: adminEmail,
-        role: "owner",
-        name: "Rodrigo Admin",
-        phone: "",
+      await withRetry(() =>
+        db.insert(users).values({
+          email: adminEmail,
+          role: "owner",
+          name: "Rodrigo Admin",
+          phone: "",
         onboardingCompleted: true,
-      });
+        })
+      );
       console.log("✅ Admin user created in users table");
     } else {
       // Update role to owner if exists
-      await db.update(users).set({ role: "owner" }).where(eq(users.email, adminEmail));
+      await withRetry(() => db.update(users).set({ role: "owner" }).where(eq(users.email, adminEmail)));
       console.log("ℹ️ Admin user role updated to owner");
     }
 

@@ -111,12 +111,20 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Seed database with initial data
+    // Aguardar um pouco antes de iniciar operações de banco
+    // Isso dá tempo para o pool de conexões estabilizar
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Seed database with initial data (com retry interno)
     try {
       await seedDatabase();
     } catch (error) {
       console.error("Failed to seed database:", error);
+      // Não crashar - continuar mesmo se seed falhar
     }
+    
+    // Aguardar mais um pouco antes de restaurar sessões
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Restore WhatsApp sessions after server starts
     restoreExistingSessions().catch((error) => {
