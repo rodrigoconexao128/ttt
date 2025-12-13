@@ -9,15 +9,21 @@ $ErrorActionPreference = 'Stop'
 $cookie = Join-Path $env:TEMP "agentezap_admin_cookies.txt"
 
 function Wait-ForServer([string]$url, [int]$timeoutSeconds = 30) {
+  $uri = [Uri]$url
+  $hostName = $uri.Host
+  $port = if ($uri.Port -gt 0) { $uri.Port } else { 80 }
+
   $deadline = (Get-Date).AddSeconds($timeoutSeconds)
   while ((Get-Date) -lt $deadline) {
     try {
-      Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 2 | Out-Null
-      return
+      $ok = Test-NetConnection -ComputerName $hostName -Port $port -InformationLevel Quiet
+      if ($ok) { return }
     } catch {
-      Start-Sleep -Milliseconds 500
+      # ignore and retry
     }
+    Start-Sleep -Milliseconds 300
   }
+
   throw "Server not reachable at $url"
 }
 
@@ -25,9 +31,9 @@ function Test-AdminBurst([int]$round) {
   Remove-Item -Force $cookie -ErrorAction SilentlyContinue
   Write-Host "\n=== ROUND $round ==="
 
-  Wait-ForServer "$BaseUrl/api/health"
+  Wait-ForServer "$BaseUrl/api/admin/session"
 
-  $loginBody = "{\"email\":\"$Email\",\"password\":\"$Password\"}"
+  $loginBody = @{ email = $Email; password = $Password } | ConvertTo-Json -Compress
   $loginSw = [System.Diagnostics.Stopwatch]::StartNew()
   $null = & curl.exe -s -c $cookie -H "Content-Type: application/json" -d $loginBody "$BaseUrl/api/admin/login"
   $loginSw.Stop()

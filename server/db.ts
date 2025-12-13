@@ -25,6 +25,8 @@ function buildDirectSupabaseUrlFromPooler(url: string): string | null {
     const projectRef = match?.[1];
     if (!projectRef) return null;
 
+    // Pooler usa usuário postgres.<ref>, mas conexão direta usa "postgres".
+    parsed.username = 'postgres';
     parsed.hostname = `db.${projectRef}.supabase.co`;
     parsed.port = '5432';
     return parsed.toString();
@@ -33,13 +35,16 @@ function buildDirectSupabaseUrlFromPooler(url: string): string | null {
   }
 }
 
-const isPoolerConnection = rawDbUrl.includes(':6543') || rawDbUrl.includes('pooler.supabase.com');
-const derivedDirectDbUrl = isPoolerConnection ? buildDirectSupabaseUrlFromPooler(rawDbUrl) : null;
-const dbUrl = (shouldPreferDirect && (directDbUrl || derivedDirectDbUrl)) ? (directDbUrl || derivedDirectDbUrl)! : rawDbUrl;
+const isPoolerConnectionRaw = rawDbUrl.includes(':6543') || rawDbUrl.includes('pooler.supabase.com');
+const derivedDirectDbUrl = isPoolerConnectionRaw ? buildDirectSupabaseUrlFromPooler(rawDbUrl) : null;
+const dbUrl = (shouldPreferDirect && (directDbUrl || derivedDirectDbUrl))
+  ? (directDbUrl || derivedDirectDbUrl)!
+  : rawDbUrl;
 const usingDerivedDirect = shouldPreferDirect && !directDbUrl && !!derivedDirectDbUrl;
+const isPoolerConnectionFinal = dbUrl.includes(':6543') || dbUrl.includes('pooler.supabase.com');
 
 console.log(
-  `[DB] Modo de conexão: ${isPoolerConnection ? 'Supabase Pooler (PgBouncer)' : 'Direct Connection'}${usingDerivedDirect ? ' (derived direct URL)' : ''}`,
+  `[DB] Modo de conexão: ${isPoolerConnectionFinal ? 'Supabase Pooler (PgBouncer)' : 'Direct Connection'}${usingDerivedDirect ? ' (derived direct URL)' : ''}`,
 );
 
 // Configurações otimizadas para Supabase
@@ -52,36 +57,14 @@ const poolConfig: any = {
   // Pool configurado para funcionar com PgBouncer
   // Em produção o painel faz várias requisições em paralelo.
   // Com max=1 essas requisições ficam na fila e estouram connectionTimeoutMillis (erro: "timeout exceeded when trying to connect").
-  max: isPoolerConnection ? 3 : 5,
+  max: isPoolerConnectionFinal ? 3 : 5,
   min: 0,
-  idleTimeoutMillis: isPoolerConnection ? 10000 : 30000,
-  connectionTimeoutMillis: isPoolerConnection ? 120000 : 30000,
+  idleTimeoutMillis: isPoolerConnectionFinal ? 10000 : 30000,
+  connectionTimeoutMillis: isPoolerConnectionFinal ? 120000 : 30000,
   allowExitOnIdle: true,
 };
 
 export const pool = new Pool(poolConfig);
-
-// PgBouncer (transaction pooling) pode falhar com prepared statements.
-// Forçamos o protocolo "simple" quando estiver usando o pooler, para reduzir "DbHandler exited" e instabilidade.
-if (isPoolerConnection) {
-  const originalQuery = pool.query.bind(pool);
-
-  (pool as any).query = (queryTextOrConfig: any, valuesOrCallback?: any, callback?: any) => {
-    // pg suporta overloads: query(text, values?, cb?) e query(config, cb?)
-    if (typeof queryTextOrConfig === 'string') {
-      const values = Array.isArray(valuesOrCallback) ? valuesOrCallback : undefined;
-      const cb = typeof valuesOrCallback === 'function' ? valuesOrCallback : callback;
-      return originalQuery({ text: queryTextOrConfig, values, queryMode: 'simple' } as any, cb);
-    }
-
-    if (queryTextOrConfig && typeof queryTextOrConfig === 'object' && typeof queryTextOrConfig.text === 'string') {
-      const cb = typeof valuesOrCallback === 'function' ? valuesOrCallback : callback;
-      return originalQuery({ ...queryTextOrConfig, queryMode: 'simple' } as any, cb);
-    }
-
-    return originalQuery(queryTextOrConfig as any, valuesOrCallback as any, callback as any);
-  };
-}
 
 // Tratamento de erros do pool - NÃO crashar o servidor
 pool.on('error', (err) => {
