@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
+import { withRetry } from "./db";
 
 // Configurar multer para upload em memória (depois envia pro Supabase Storage)
 const upload = multer({
@@ -1131,7 +1132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get pending payments (admin only)
   app.get("/api/admin/payments/pending", isAdmin, async (_req, res) => {
     try {
-      const payments = await storage.getPendingPayments();
+      const payments = await withRetry(() => storage.getPendingPayments());
       res.json(payments);
     } catch (error) {
       console.error("Error fetching pending payments:", error);
@@ -1225,11 +1226,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get admin stats
   app.get("/api/admin/stats", isAdmin, async (_req, res) => {
     try {
-      const [users, totalRevenue, activeSubscriptions] = await Promise.all([
-        storage.getAllUsers(),
-        storage.getTotalRevenue(),
-        storage.getActiveSubscriptionsCount(),
-      ]);
+      // Usar withRetry para evitar falhas de conexão
+      const [users, totalRevenue, activeSubscriptions] = await withRetry(() => 
+        Promise.all([
+          storage.getAllUsers(),
+          storage.getTotalRevenue(),
+          storage.getActiveSubscriptionsCount(),
+        ])
+      );
 
       res.json({
         totalUsers: users.length,
@@ -1245,10 +1249,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get system config
   app.get("/api/admin/config", isAdmin, async (_req, res) => {
     try {
-      const [mistralKey, pixKey] = await Promise.all([
-        storage.getSystemConfig("mistral_api_key"),
-        storage.getSystemConfig("pix_key"),
-      ]);
+      const [mistralKey, pixKey] = await withRetry(() => 
+        Promise.all([
+          storage.getSystemConfig("mistral_api_key"),
+          storage.getSystemConfig("pix_key"),
+        ])
+      );
       res.json({
         mistral_api_key: mistralKey?.valor || "",
         pix_key: pixKey?.valor || "",

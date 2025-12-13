@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { db } from "./db";
+import { db, withRetry } from "./db";
 import { admins } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -20,11 +20,13 @@ export async function isAdmin(req: Request, res: Response, next: NextFunction) {
       console.log('[isAdmin] path', req.path, 'adminId', adminId);
     }
     if (adminId) {
-      const [admin] = await db
-        .select()
-        .from(admins)
-        .where(eq(admins.id, adminId))
-        .limit(1);
+      const [admin] = await withRetry(() => 
+        db
+          .select()
+          .from(admins)
+          .where(eq(admins.id, adminId))
+          .limit(1)
+      );
       
       if (admin) {
         (req as any).admin = admin;
@@ -43,11 +45,13 @@ export async function isAdmin(req: Request, res: Response, next: NextFunction) {
       return res.status(401).json({ message: "Unauthorized - No email found" });
     }
 
-    const [admin] = await db
-      .select()
-      .from(admins)
-      .where(eq(admins.email, userEmail))
-      .limit(1);
+    const [admin] = await withRetry(() =>
+      db
+        .select()
+        .from(admins)
+        .where(eq(admins.email, userEmail))
+        .limit(1)
+    );
 
     if (!admin) {
       return res.status(403).json({ message: "Forbidden - Admin access required" });

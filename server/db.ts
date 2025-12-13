@@ -9,84 +9,73 @@ if (!process.env.DATABASE_URL) {
 }
 
 // Configurações otimizadas para Supabase Pooler (PgBouncer) no Railway
+// IMPORTANTE: Supabase usa PgBouncer em modo "transaction" que requer configurações especiais
 const poolConfig = {
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
   },
-  // Pool otimizado para PgBouncer/Supabase
-  max: 5, // Reduzido para evitar sobrecarregar o PgBouncer
-  min: 1, // Manter pelo menos 1 conexão ativa
-  idleTimeoutMillis: 20000, // Fechar conexões idle após 20s
-  connectionTimeoutMillis: 15000, // Timeout mais generoso para conexão
-  allowExitOnIdle: false, // Manter pool ativo
-  // Retry de conexão
+  // Pool muito conservador para evitar problemas com PgBouncer
+  max: 3, // Reduzido ainda mais - PgBouncer já faz pooling
+  min: 0, // Não manter conexões mínimas - deixar PgBouncer gerenciar
+  idleTimeoutMillis: 10000, // Fechar conexões idle rapidamente (10s)
+  connectionTimeoutMillis: 30000, // Timeout generoso de 30s para conexão
+  allowExitOnIdle: true, // Permitir fechar quando idle
+  // Keep-alive para evitar drops de conexão
   keepAlive: true,
-  keepAliveInitialDelayMillis: 10000,
+  keepAliveInitialDelayMillis: 5000,
+  // Query timeout - importante para PgBouncer
+  query_timeout: 30000,
+  statement_timeout: 30000,
 };
 
 export const pool = new Pool(poolConfig);
 
-// Contador de reconexões
-let reconnectCount = 0;
-const MAX_RECONNECTS = 5;
-
-// Tratamento de erros do pool para evitar crash do servidor
-pool.on('error', async (err) => {
-  console.error('❌ [DB Pool] Erro inesperado na conexão idle:', err.message);
-  
-  // Tentar reconectar se for erro de conexão
-  if (err.message.includes('Connection terminated') || err.message.includes('timeout')) {
-    if (reconnectCount < MAX_RECONNECTS) {
-      reconnectCount++;
-      console.log(`🔄 [DB Pool] Tentando reconectar (${reconnectCount}/${MAX_RECONNECTS})...`);
-      
-      // Aguarda um pouco antes de reconectar
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      try {
-        // Tenta obter uma nova conexão para testar
-        const client = await pool.connect();
-        await client.query('SELECT 1');
-        client.release();
-        console.log('✅ [DB Pool] Reconexão bem sucedida!');
-        reconnectCount = 0; // Reset contador
-      } catch (reconnectError: any) {
-        console.error('❌ [DB Pool] Falha na reconexão:', reconnectError.message);
-      }
-    }
-  }
+// Tratamento de erros do pool - NÃO crashar o servidor
+pool.on('error', (err) => {
+  console.error('❌ [DB Pool] Erro na conexão idle:', err.message);
+  // Não propagar o erro - deixar o pool se recuperar sozinho
 });
 
 // Log de conexão para debug
-pool.on('connect', (client: PoolClient) => {
-  reconnectCount = 0; // Reset ao conectar com sucesso
+pool.on('connect', (_client: PoolClient) => {
   console.log('🔗 [DB Pool] Nova conexão estabelecida');
 });
 
-// Função de query com retry automático
-export async function executeWithRetry<T>(
-  queryFn: () => Promise<T>,
-  retries: number = 3
+pool.on('remove', () => {
+  console.log('🔌 [DB Pool] Conexão removida do pool');
+});
+
+// Função helper para executar query com retry automático
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 1000
 ): Promise<T> {
-  let lastError: any;
+  let lastError: Error | undefined;
   
-  for (let attempt = 1; attempt <= retries; attempt++) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      return await queryFn();
+      return await operation();
     } catch (error: any) {
       lastError = error;
-      const isConnectionError = 
+      
+      const isRetryable = 
         error.message?.includes('Connection terminated') ||
         error.message?.includes('timeout') ||
         error.message?.includes('ECONNRESET') ||
-        error.code === 'ECONNRESET';
+        error.message?.includes('connection timeout') ||
+        error.code === 'ECONNRESET' ||
+        error.code === 'ETIMEDOUT' ||
+        error.code === '57P01'; // admin_shutdown
       
-      if (isConnectionError && attempt < retries) {
-        console.warn(`⚠️ [DB] Query falhou (tentativa ${attempt}/${retries}): ${error.message}`);
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Backoff exponencial
+      if (isRetryable && attempt < maxRetries) {
+        const waitTime = delayMs * Math.pow(2, attempt - 1); // Exponential backoff
+        console.warn(`⚠️ [DB] Query falhou (tentativa ${attempt}/${maxRetries}), retry em ${waitTime}ms: ${error.message}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
         continue;
       }
+      
       throw error;
     }
   }
@@ -94,8 +83,8 @@ export async function executeWithRetry<T>(
   throw lastError;
 }
 
-// Teste de conexão inicial
-(async () => {
+// Teste de conexão inicial (não-bloqueante)
+setTimeout(async () => {
   try {
     const client = await pool.connect();
     await client.query('SELECT 1');
@@ -103,7 +92,8 @@ export async function executeWithRetry<T>(
     console.log('✅ [DB] Conexão inicial com o banco de dados OK');
   } catch (error: any) {
     console.error('❌ [DB] Falha na conexão inicial:', error.message);
+    // Não crashar - o app pode se recuperar depois
   }
-})();
+}, 1000);
 
 export const db = drizzle({ client: pool, schema });
