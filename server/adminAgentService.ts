@@ -107,37 +107,140 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   const configPrompt = await storage.getSystemConfig("admin_agent_prompt");
   const customInstructions = configPrompt?.valor || "";
   
-  // Verificar se cliente já existe
-  let clientInfo = "";
-  if (session.userId) {
-    clientInfo = `
-CLIENTE EXISTENTE:
-- ID: ${session.userId}
-- Email: ${session.email || "não informado"}
-- Este cliente já tem conta no sistema.`;
-  } else if (session.email) {
-    clientInfo = `
-DADOS COLETADOS ATÉ AGORA:
-- Email: ${session.email}
-- Nome do agente: ${session.agentConfig?.name || "não definido"}
-- Empresa: ${session.agentConfig?.company || "não definida"}
-- Função: ${session.agentConfig?.role || "não definida"}
-- Instruções: ${session.agentConfig?.prompt ? "já configuradas" : "não configuradas"}`;
-  }
-
-  // Buscar se usuário existe pelo telefone
+  console.log(`📱 [ADMIN AGENT] getMasterPrompt para telefone: ${session.phoneNumber}`);
+  console.log(`📱 [ADMIN AGENT] Session userId atual: ${session.userId}`);
+  
+  // Verificar se cliente já existe pelo telefone
   const existingUser = await findUserByPhone(session.phoneNumber);
+  console.log(`📱 [ADMIN AGENT] findUserByPhone resultado:`, existingUser ? `${existingUser.email} (${existingUser.id})` : "não encontrado");
+  
+  // Se encontrou usuário e não está na sessão, atualizar sessão
   if (existingUser && !session.userId) {
+    console.log(`📱 [ADMIN AGENT] Atualizando sessão com userId: ${existingUser.id}`);
     updateClientSession(session.phoneNumber, { 
       userId: existingUser.id,
       email: existingUser.email 
     });
+    session.userId = existingUser.id;
+    session.email = existingUser.email;
+  }
+  
+  // ============================================================================
+  // BUSCAR CONTEXTO COMPLETO DO CLIENTE NO BANCO DE DADOS
+  // ============================================================================
+  let clientInfo = "";
+  let connectionStatus = "";
+  let subscriptionStatus = "";
+  let agentConfigStatus = "";
+  
+  if (session.userId) {
+    // Buscar conexão WhatsApp
+    try {
+      const connection = await storage.getConnectionByUserId(session.userId);
+      if (connection) {
+        connectionStatus = connection.is_connected 
+          ? `✅ WhatsApp CONECTADO (número: ${connection.phone_number})`
+          : `❌ WhatsApp DESCONECTADO (precisa reconectar)`;
+      } else {
+        connectionStatus = `⚠️ WhatsApp nunca foi conectado`;
+      }
+    } catch (e) {
+      connectionStatus = `⚠️ Status da conexão não verificado`;
+    }
+    
+    // Buscar assinatura
+    try {
+      const subscription = await storage.getUserSubscription(session.userId);
+      if (subscription) {
+        const now = new Date();
+        const endDate = subscription.data_fim ? new Date(subscription.data_fim) : null;
+        const isActive = subscription.status === 'active' || subscription.status === 'trialing';
+        const isExpired = endDate && endDate < now;
+        
+        if (subscription.status === 'trialing') {
+          subscriptionStatus = `🆓 Em período de TRIAL (termina em: ${endDate?.toLocaleDateString('pt-BR') || 'não definido'})`;
+        } else if (subscription.status === 'active' && !isExpired) {
+          subscriptionStatus = `✅ Assinatura ATIVA (plano: ${subscription.plan?.name || 'padrão'}, válida até: ${endDate?.toLocaleDateString('pt-BR') || 'indefinido'})`;
+        } else if (subscription.status === 'pending') {
+          subscriptionStatus = `⏳ Pagamento PENDENTE - cliente precisa pagar R$ 99 via PIX`;
+        } else {
+          subscriptionStatus = `❌ Assinatura EXPIRADA/INATIVA - precisa renovar pagamento`;
+        }
+      } else {
+        subscriptionStatus = `⚠️ Sem assinatura - oferecer trial de 24h ou pagamento`;
+      }
+    } catch (e) {
+      subscriptionStatus = `⚠️ Status da assinatura não verificado`;
+    }
+    
+    // Buscar configuração do agente
+    try {
+      const agentConfig = await storage.getAgentConfig(session.userId);
+      if (agentConfig) {
+        const hasPrompt = agentConfig.prompt && agentConfig.prompt.length > 10;
+        const isAgentActive = agentConfig.is_active;
+        
+        agentConfigStatus = `
+  - Agente configurado: ${hasPrompt ? 'SIM' : 'NÃO (precisa definir instruções)'}
+  - Agente ativo: ${isAgentActive ? 'SIM' : 'NÃO (desativado)'}
+  - Modelo IA: ${agentConfig.model || 'padrão'}`;
+      } else {
+        agentConfigStatus = `⚠️ Agente IA ainda não configurado`;
+      }
+    } catch (e) {
+      agentConfigStatus = `⚠️ Configuração do agente não verificada`;
+    }
+    
+    // Montar informação completa do cliente EXISTENTE
     clientInfo = `
-CLIENTE ENCONTRADO NO SISTEMA:
-- ID: ${existingUser.id}
-- Email: ${existingUser.email}
-- Nome: ${existingUser.name || "não informado"}
-- Este cliente já é cadastrado! Pode ajudar com alterações, suporte ou pagamentos.`;
+═══════════════════════════════════════════════════════════════
+🔴 ATENÇÃO: ESTE CLIENTE JÁ POSSUI CONTA NO SISTEMA! 🔴
+═══════════════════════════════════════════════════════════════
+
+DADOS DA CONTA:
+- ID do usuário: ${session.userId}
+- Email: ${session.email || existingUser?.email || "não informado"}
+- Nome: ${existingUser?.name || "não informado"}
+
+STATUS ATUAL:
+- ${connectionStatus}
+- ${subscriptionStatus}
+${agentConfigStatus}
+
+🚫 IMPORTANTE - NÃO FAÇA ISSO:
+- NÃO pergunte o email novamente (já tem)
+- NÃO ofereça criar conta nova (já tem)
+- NÃO inicie o fluxo de onboarding (já concluiu)
+
+✅ O QUE VOCÊ PODE FAZER:
+- Ajudar a RECONECTAR o WhatsApp (oferecer QR Code ou código de 8 dígitos)
+- Ajudar a ALTERAR configurações do agente
+- Processar PAGAMENTOS ou renovações
+- Resolver problemas técnicos
+- Reativar o agente se estiver desativado
+
+SE O CLIENTE PEDIR PARA CONECTAR:
+- Pergunte se prefere QR Code (computador) ou código de 8 dígitos (celular)
+- Use [AÇÃO:ENVIAR_QRCODE] para QR Code
+- Use [AÇÃO:SOLICITAR_CODIGO_PAREAMENTO] para código de 8 dígitos
+═══════════════════════════════════════════════════════════════`;
+  } else if (session.email) {
+    // Tem email mas ainda não tem userId (em processo de criar conta)
+    clientInfo = `
+DADOS COLETADOS ATÉ AGORA (CONTA EM CRIAÇÃO):
+- Email: ${session.email}
+- Nome do agente: ${session.agentConfig?.name || "não definido"}
+- Empresa: ${session.agentConfig?.company || "não definida"}
+- Função: ${session.agentConfig?.role || "não definida"}
+- Instruções: ${session.agentConfig?.prompt ? "já configuradas" : "não configuradas"}
+
+Continue o fluxo de configuração normalmente.`;
+  } else {
+    // Cliente novo - sem email e sem userId
+    clientInfo = `
+CLIENTE NOVO - PRIMEIRO CONTATO
+Este cliente ainda não tem conta no sistema.
+Inicie o fluxo de onboarding pedindo o email primeiro.`;
   }
 
   return `Você é o Rodrigo, atendente HUMANO da AgenteZap. Você NÃO é um robô ou IA - você é uma pessoa real atendendo pelo WhatsApp.
@@ -162,7 +265,7 @@ COMO VOCÊ ATENDE:
 8. Seja paciente e ajude clientes que não entendem de tecnologia
 ${clientInfo}
 
-FLUXO NATURAL DE ATENDIMENTO:
+FLUXO NATURAL DE ATENDIMENTO (APENAS PARA CLIENTES NOVOS SEM CONTA):
 - Se novo cliente quer criar conta: peça email primeiro
 - Depois do email confirmado: pergunte nome do agente IA
 - Depois: pergunte nome da empresa
@@ -171,18 +274,28 @@ FLUXO NATURAL DE ATENDIMENTO:
 - Por fim: ofereça conectar o WhatsApp (QR Code ou código de 8 dígitos)
 - Mencione o trial de 24h grátis e o pagamento de R$ 99/mês
 
-SE CLIENTE JÁ TEM CONTA:
+SE CLIENTE JÁ TEM CONTA (verifique a seção "CLIENTE JÁ POSSUI CONTA" acima):
+- NUNCA pergunte o email novamente
+- NUNCA ofereça criar conta nova  
+- NUNCA inicie o fluxo de onboarding
+- Ajude a RECONECTAR WhatsApp quando solicitado
 - Ajude a alterar configurações do agente
 - Ajude com problemas de conexão
 - Processe pagamentos (peça comprovante)
 
-AÇÕES DISPONÍVEIS (use quando necessário):
-Quando quiser executar uma ação, inclua no final da sua resposta em uma linha separada:
+PARA CONECTAR/RECONECTAR WHATSAPP DE CLIENTE EXISTENTE:
+- Sempre pergunte se prefere QR Code (computador) ou código de 8 dígitos (celular)
+- OBRIGATÓRIO: Se cliente pedir QR Code/computador: INCLUA [AÇÃO:ENVIAR_QRCODE] no final
+- OBRIGATÓRIO: Se cliente pedir código/celular: INCLUA [AÇÃO:SOLICITAR_CODIGO_PAREAMENTO] no final
+- O cliente pode mudar de ideia e pedir outro método - isso é normal, atenda!
+
+AÇÕES DISPONÍVEIS (SEMPRE INCLUA A AÇÃO CORRESPONDENTE):
+Quando quiser executar uma ação, SEMPRE inclua no final da sua resposta em uma linha separada:
 [AÇÃO:CRIAR_CONTA email="email@exemplo.com"]
 [AÇÃO:SALVAR_CONFIG nome="Laura" empresa="Loja X" funcao="Atendente"]
 [AÇÃO:SALVAR_PROMPT prompt="texto das instruções"]
-[AÇÃO:SOLICITAR_CODIGO_PAREAMENTO]
-[AÇÃO:ENVIAR_QRCODE]
+[AÇÃO:SOLICITAR_CODIGO_PAREAMENTO] - SEMPRE use quando cliente pedir código de 8 dígitos ou celular
+[AÇÃO:ENVIAR_QRCODE] - SEMPRE use quando cliente pedir QR Code ou computador
 [AÇÃO:ENVIAR_PIX]
 [AÇÃO:NOTIFICAR_PAGAMENTO]
 
@@ -554,8 +667,30 @@ export async function processAdminMessage(
 async function findUserByPhone(phone: string): Promise<any | undefined> {
   try {
     const cleanPhone = phone.replace(/\D/g, "");
+    
+    // Primeiro, buscar na tabela users pelo campo phone
     const users = await storage.getAllUsers();
-    return users.find(u => u.phone?.replace(/\D/g, "") === cleanPhone);
+    let user = users.find(u => u.phone?.replace(/\D/g, "") === cleanPhone);
+    
+    if (user) {
+      return user;
+    }
+    
+    // Se não encontrou, buscar na tabela whatsapp_connections pelo phone_number
+    // e retornar o usuário correspondente
+    const connections = await storage.getAllConnections();
+    const connection = connections.find(c => c.phoneNumber?.replace(/\D/g, "") === cleanPhone);
+    
+    if (connection) {
+      // Buscar o usuário pelo userId da conexão
+      const connectedUser = users.find(u => u.id === connection.userId);
+      if (connectedUser) {
+        console.log(`📱 [ADMIN AGENT] Usuário encontrado via whatsapp_connections: ${connectedUser.email}`);
+        return connectedUser;
+      }
+    }
+    
+    return undefined;
   } catch (error) {
     console.error("[ADMIN AGENT] Erro ao buscar usuário por telefone:", error);
     return undefined;

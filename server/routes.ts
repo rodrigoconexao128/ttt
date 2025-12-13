@@ -2277,6 +2277,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // POST - Testar agente admin (SEM autenticação para desenvolvimento local)
+  app.post("/api/dev/admin-agent/test", async (req: any, res) => {
+    try {
+      const { message, phoneNumber, testTrigger } = req.body;
+
+      if (!message) {
+        return res.status(400).json({ message: "Message is required" });
+      }
+
+      // Usar o serviço de IA do admin agent
+      const { processAdminMessage } = await import("./adminAgentService");
+      
+      // Usar phoneNumber de teste se não fornecido
+      const testPhone = phoneNumber || "5500000000000";
+      
+      // Se testTrigger=true, verifica frases gatilho; se false, skipTriggerCheck=true para testes
+      const skipTriggerCheck = testTrigger !== true;
+      
+      const response = await processAdminMessage(testPhone, message, undefined, undefined, skipTriggerCheck);
+      
+      if (response === null) {
+        res.json({ 
+          response: null, 
+          skipped: true,
+          reason: "Mensagem não contém frase gatilho configurada"
+        });
+      } else {
+        res.json({ 
+          response: response.text, 
+          skipped: false,
+          actions: response.actions || {},
+          debugInfo: response.debugInfo || null
+        });
+      }
+    } catch (error) {
+      console.error("Error testing admin agent (dev):", error);
+      res.status(500).json({ message: "Failed to test admin agent" });
+    }
+  });
+
+  // GET - Debug: Verificar se usuário existe por telefone
+  app.get("/api/dev/check-user/:phone", async (req: any, res) => {
+    try {
+      const { phone } = req.params;
+      const cleanPhone = phone.replace(/\D/g, "");
+      
+      console.log(`🔍 [DEBUG] Buscando usuário por telefone: ${cleanPhone}`);
+      
+      // Buscar em users
+      const users = await storage.getAllUsers();
+      console.log(`🔍 [DEBUG] Total de usuários: ${users.length}`);
+      
+      const userByPhone = users.find(u => u.phone?.replace(/\D/g, "") === cleanPhone);
+      console.log(`🔍 [DEBUG] Usuário por phone: ${userByPhone ? userByPhone.email : 'não encontrado'}`);
+      
+      // Buscar em whatsapp_connections
+      const connections = await storage.getAllConnections();
+      console.log(`🔍 [DEBUG] Total de conexões: ${connections.length}`);
+      
+      // Debug: mostrar as primeiras conexões para ver o formato
+      const sampleConnections = connections.slice(0, 3).map(c => ({
+        id: c.id,
+        userId: c.userId,
+        phoneNumber: c.phoneNumber,
+        // Tentar acessar como snake_case também
+        phone_number_alt: (c as any).phone_number
+      }));
+      console.log(`🔍 [DEBUG] Sample connections:`, JSON.stringify(sampleConnections));
+      
+      const connection = connections.find(c => {
+        const connPhone = c.phoneNumber?.replace(/\D/g, "") || "";
+        console.log(`🔍 [DEBUG] Comparando: ${connPhone} === ${cleanPhone}`);
+        return connPhone === cleanPhone;
+      });
+      console.log(`🔍 [DEBUG] Conexão por phoneNumber: ${connection ? connection.userId : 'não encontrada'}`);
+      
+      let userByConnection = null;
+      if (connection) {
+        userByConnection = users.find(u => u.id === connection.userId);
+        console.log(`🔍 [DEBUG] Usuário por conexão: ${userByConnection ? userByConnection.email : 'não encontrado'}`);
+      }
+      
+      res.json({
+        phone: cleanPhone,
+        totalUsers: users.length,
+        totalConnections: connections.length,
+        sampleConnections,
+        foundInUsers: userByPhone ? { id: userByPhone.id, email: userByPhone.email } : null,
+        foundInConnections: connection ? { userId: connection.userId, phoneNumber: connection.phoneNumber } : null,
+        userFromConnection: userByConnection ? { id: userByConnection.id, email: userByConnection.email } : null
+      });
+    } catch (error) {
+      console.error("Error checking user:", error);
+      res.status(500).json({ message: "Failed to check user", error: String(error) });
+    }
+  });
+
   // GET - Listar mídias do admin
   app.get("/api/admin/agent/media", isAdmin, async (req: any, res) => {
     try {
