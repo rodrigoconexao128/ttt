@@ -314,6 +314,129 @@ export default function AdminPanel() {
       </SidebarProvider>
     );
   }
+
+  // Layout principal para todas as outras tabs
+  return (
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader>
+          <div className="px-2 py-1.5 text-sm font-semibold flex items-center gap-2">
+            <Bot className="w-4 h-4 text-muted-foreground" />
+            <span>Admin Panel</span>
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("dashboard")}
+                  isActive={activeTab === "dashboard"}
+                  tooltip="Dashboard"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span>Dashboard</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("users")}
+                  isActive={activeTab === "users"}
+                  tooltip="Usuários"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Usuários</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("manage")}
+                  isActive={activeTab === "manage"}
+                  tooltip="Gerenciar Clientes"
+                >
+                  <UserCog className="w-4 h-4" />
+                  <span>Gerenciar Clientes</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("plans")}
+                  isActive={activeTab === "plans"}
+                  tooltip="Planos"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>Planos</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("payments")}
+                  isActive={activeTab === "payments"}
+                  tooltip="Pagamentos"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>Pagamentos</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("whatsapp")}
+                  isActive={activeTab === "whatsapp"}
+                  tooltip="WhatsApp"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>WhatsApp</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("agent")}
+                  isActive={activeTab === "agent"}
+                  tooltip="Agente IA"
+                >
+                  <Bot className="w-4 h-4" />
+                  <span>Agente IA</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("conversations")}
+                  isActive={activeTab === "conversations"}
+                  tooltip="Conversas"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>Conversas</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("config")}
+                  isActive={activeTab === "config"}
+                  tooltip="Configurações"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Configurações</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <div className="p-4 text-xs text-muted-foreground text-center">
+            Admin Panel v1.0
+          </div>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>
+        <div className="flex-1 overflow-auto p-6">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {renderContent()}
+          </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  );
 }
 
 // Users Manager Component with delete functionality
