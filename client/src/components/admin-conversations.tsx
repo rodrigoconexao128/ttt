@@ -208,7 +208,17 @@ export default function AdminConversations() {
                     data-testid={`admin-conversation-item-${conversation.id}`}
                   >
                     <div className="flex items-start gap-3">
-                      <Avatar className="w-12 h-12 flex-shrink-0">
+                      <Avatar 
+                        className="w-12 h-12 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (conversation.contactAvatar) {
+                            setAvatarModalImage(conversation.contactAvatar);
+                            setAvatarModalName(conversation.contactName || displayNum);
+                            setAvatarModalOpen(true);
+                          }
+                        }}
+                      >
                         {conversation.contactAvatar ? (
                           <img 
                             src={conversation.contactAvatar} 
@@ -288,7 +298,17 @@ export default function AdminConversations() {
             {/* Chat Header */}
             <div className="border-b p-4 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
-                <Avatar className="w-10 h-10">
+                <Avatar 
+                  className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (selectedConversation?.contactAvatar) {
+                      setAvatarModalImage(selectedConversation.contactAvatar);
+                      setAvatarModalName(selectedConversation.contactName || displayNumber);
+                      setAvatarModalOpen(true);
+                    }
+                  }}
+                >
                   {selectedConversation?.contactAvatar ? (
                     <img 
                       src={selectedConversation.contactAvatar}

@@ -1949,7 +1949,16 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           }
         } else if (msg?.audioMessage) {
           mediaType = "audio";
-          messageText = "🎵 Áudio";
+          messageText = "🎵 Áudio"; // Texto inicial, será substituído pela transcrição
+          // 🎤 Baixar áudio para transcrição (será transcrito em createAdminMessage)
+          try {
+            const buffer = await downloadMediaMessage(message, "buffer", {});
+            const mimeType = msg.audioMessage.mimetype || "audio/ogg; codecs=opus";
+            mediaUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
+            console.log(`[ADMIN] Áudio baixado: ${buffer.length} bytes (${mimeType})`);
+          } catch (err) {
+            console.error("[ADMIN] Erro ao baixar áudio:", err);
+          }
         } else if (msg?.videoMessage) {
           mediaType = "video";
           messageText = msg.videoMessage.caption || "🎥 Vídeo";
@@ -1975,12 +1984,13 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         // 💾 SALVAR CONVERSA E MENSAGEM NO BANCO DE DADOS
         // ═══════════════════════════════════════════════════════════════════════
         let conversation;
+        let savedMessage: any = null;
         try {
           // IMPORTANTE: Usar realRemoteJid (número real) para envio de respostas
           conversation = await storage.getOrCreateAdminConversation(adminId, contactNumber, realRemoteJid);
           
-          // Salvar a mensagem recebida
-          await storage.createAdminMessage({
+          // Salvar a mensagem recebida (transcrição de áudio acontece dentro)
+          savedMessage = await storage.createAdminMessage({
             conversationId: conversation.id,
             messageId: message.key.id || `msg_${Date.now()}`,
             fromMe: false,
@@ -1991,6 +2001,12 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             mediaType,
             mediaUrl,
           });
+          
+          // 🎤 Se foi áudio e temos transcrição, usar o texto transcrito
+          if (savedMessage?.text && savedMessage.text !== messageText) {
+            console.log(`[ADMIN] 🎤 Texto atualizado com transcrição: ${savedMessage.text.substring(0, 100)}...`);
+            messageText = savedMessage.text;
+          }
           
           // Atualizar última mensagem da conversa
           await storage.updateAdminConversation(conversation.id, {

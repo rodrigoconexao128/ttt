@@ -1113,20 +1113,45 @@ export class DatabaseStorage implements IStorage {
     mediaMimeType?: string;
     mediaCaption?: string;
   }): Promise<any> {
+    // Criar cópia para permitir modificação
+    const messageData = { ...data };
+
+    // 🎤 Transcrição automática para áudios do admin (igual ao createMessage)
+    if (messageData.mediaType === "audio" && messageData.mediaUrl && !messageData.fromMe) {
+      try {
+        const base64Part = messageData.mediaUrl.split(",")[1];
+        if (base64Part) {
+          const audioBuffer = Buffer.from(base64Part, "base64");
+          console.log(`[Storage] Transcrevendo áudio do admin (${audioBuffer.length} bytes)...`);
+          
+          const transcription = await transcribeAudioWithMistral(audioBuffer, {
+            fileName: "admin-whatsapp-audio.ogg",
+          });
+
+          if (transcription && transcription.length > 0) {
+            console.log(`[Storage] Transcrição do admin: ${transcription.substring(0, 100)}...`);
+            messageData.text = transcription;
+          }
+        }
+      } catch (error) {
+        console.error("[Storage] Erro ao transcrever áudio do admin:", error);
+      }
+    }
+
     const [result] = await db
       .insert(adminMessages)
       .values({
-        conversationId: data.conversationId,
-        messageId: data.messageId,
-        fromMe: data.fromMe,
-        text: data.text,
-        timestamp: data.timestamp,
-        status: data.status,
-        isFromAgent: data.isFromAgent ?? false,
-        mediaType: data.mediaType,
-        mediaUrl: data.mediaUrl,
-        mediaMimeType: data.mediaMimeType,
-        mediaCaption: data.mediaCaption,
+        conversationId: messageData.conversationId,
+        messageId: messageData.messageId,
+        fromMe: messageData.fromMe,
+        text: messageData.text,
+        timestamp: messageData.timestamp,
+        status: messageData.status,
+        isFromAgent: messageData.isFromAgent ?? false,
+        mediaType: messageData.mediaType,
+        mediaUrl: messageData.mediaUrl,
+        mediaMimeType: messageData.mediaMimeType,
+        mediaCaption: messageData.mediaCaption,
       })
       .returning();
     return result;
