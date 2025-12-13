@@ -491,7 +491,7 @@ export class DatabaseStorage implements IStorage {
 
   // Plan operations
   async getAllPlans(): Promise<Plan[]> {
-    return await db.select().from(plans).orderBy(desc(plans.createdAt));
+    return await withRetry(() => db.select().from(plans).orderBy(desc(plans.createdAt)));
   }
 
   async getActivePlans(): Promise<Plan[]> {
@@ -544,12 +544,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllSubscriptions(): Promise<(Subscription & { plan: Plan; user: User })[]> {
-    const result = await db
-      .select()
-      .from(subscriptions)
-      .innerJoin(plans, eq(subscriptions.planId, plans.id))
-      .innerJoin(users, eq(subscriptions.userId, users.id))
-      .orderBy(desc(subscriptions.createdAt));
+    const result = await withRetry(() =>
+      db
+        .select()
+        .from(subscriptions)
+        .innerJoin(plans, eq(subscriptions.planId, plans.id))
+        .innerJoin(users, eq(subscriptions.userId, users.id))
+        .orderBy(desc(subscriptions.createdAt))
+    );
 
     return result.map((row) => ({
       ...row.subscriptions,
@@ -700,7 +702,7 @@ export class DatabaseStorage implements IStorage {
 
   // Admin stats
   async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(desc(users.createdAt));
+    return await withRetry(() => db.select().from(users).orderBy(desc(users.createdAt)));
   }
 
   async getTotalRevenue(): Promise<number> {
