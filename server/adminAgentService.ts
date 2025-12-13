@@ -121,6 +121,16 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   const existingUser = await findUserByPhone(session.phoneNumber);
   console.log(`📱 [ADMIN AGENT] findUserByPhone resultado:`, existingUser ? `${existingUser.email} (${existingUser.id})` : "não encontrado");
   
+  if (existingUser) {
+    console.log(`✅ [ADMIN AGENT] CLIENTE IDENTIFICADO:`);
+    console.log(`   - Nome: ${existingUser.name || 'não informado'}`);
+    console.log(`   - Email: ${existingUser.email}`);
+    console.log(`   - ID: ${existingUser.id}`);
+    console.log(`   - Telefone verificado: ${existingUser.phone === session.phoneNumber ? '✅ SIM (autenticado)' : '⚠️ diferente'}`);
+  } else {
+    console.log(`🆕 [ADMIN AGENT] Cliente novo - sem conta no sistema`);
+  }
+  
   // Se encontrou usuário e não está na sessão, atualizar sessão
   if (existingUser && !session.userId) {
     console.log(`📱 [ADMIN AGENT] Atualizando sessão com userId: ${existingUser.id}`);
@@ -139,6 +149,34 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   let connectionStatus = "";
   let subscriptionStatus = "";
   let agentConfigStatus = "";
+  
+  // Buscar histórico de conversas para contexto adicional
+  let conversationHistory = "";
+  try {
+    const conversation = await storage.getAdminConversationByPhone(session.phoneNumber);
+    if (conversation) {
+      const messages = await storage.getAdminMessages(conversation.id);
+      const totalMessages = messages.length;
+      const firstMessage = messages[0];
+      const firstDate = firstMessage?.timestamp ? new Date(firstMessage.timestamp).toLocaleDateString('pt-BR') : 'desconhecida';
+      
+      console.log(`📊 [ADMIN AGENT] Histórico carregado do banco:`);
+      console.log(`   - Conversation ID: ${conversation.id}`);
+      console.log(`   - Total de mensagens: ${totalMessages}`);
+      console.log(`   - Primeira conversa: ${firstDate}`);
+      
+      conversationHistory = `
+📊 HISTÓRICO DE CONVERSAS:
+- Total de mensagens trocadas: ${totalMessages}
+- Primeira conversa: ${firstDate}
+- Cliente já conhece a AgenteZap: SIM (não precisa explicar tudo novamente)
+- Contexto: Cliente retornando, seja direto e objetivo`;
+    } else {
+      console.log(`📊 [ADMIN AGENT] Nenhum histórico encontrado - primeira conversa`);
+    }
+  } catch (e) {
+    console.log(`⚠️ [ADMIN AGENT] Erro ao buscar histórico:`, e);
+  }
   
   if (session.userId) {
     // Buscar conexão WhatsApp
@@ -208,6 +246,9 @@ DADOS DA CONTA:
 - ID do usuário: ${session.userId}
 - Email: ${session.email || existingUser?.email || "não informado"}
 - Nome: ${existingUser?.name || "não informado"}
+- Telefone: ${session.phoneNumber}
+- 🔐 NÚMERO VERIFICADO: ✅ SIM (este é o número que criou a conta)
+${conversationHistory}
 
 STATUS ATUAL:
 - ${connectionStatus}
@@ -218,13 +259,24 @@ ${agentConfigStatus}
 - NÃO pergunte o email novamente (já tem)
 - NÃO ofereça criar conta nova (já tem)
 - NÃO inicie o fluxo de onboarding (já concluiu)
+- NÃO explique tudo do zero (cliente já conhece o sistema)
 
-✅ O QUE VOCÊ PODE FAZER:
+✅ O QUE VOCÊ PODE FAZER (CLIENTE AUTENTICADO POR NÚMERO):
 - Ajudar a RECONECTAR o WhatsApp (oferecer QR Code ou código de 8 dígitos)
-- Ajudar a ALTERAR configurações do agente
+- Ajudar a ALTERAR configurações do agente (nome, instruções, personalidade)
+- ATIVAR ou DESATIVAR o agente
+- VER e ALTERAR dados da conta (nome, email)
 - Processar PAGAMENTOS ou renovações
+- Fazer UPGRADE ou DOWNGRADE de plano
+- Ver histórico de conversas e estatísticas
 - Resolver problemas técnicos
 - Reativar o agente se estiver desativado
+
+💡 COMO AGIR:
+- Seja DIRETO e OBJETIVO (cliente já conhece a AgenteZap)
+- Foque em RESOLVER o problema atual
+- Use o contexto do histórico para continuar conversas anteriores
+- Como está AUTENTICADO por número, pode fazer TUDO pelo WhatsApp
 
 SE O CLIENTE PEDIR PARA CONECTAR:
 - Pergunte se prefere QR Code (computador) ou código de 8 dígitos (celular)
@@ -641,36 +693,54 @@ export async function processAdminMessage(
   console.log(`   - Split chars: ${adminConfig.messageSplitChars}`);
   console.log(`   - Response delay: ${adminConfig.responseDelaySeconds}s`);
   console.log(`   - Is active: ${adminConfig.isActive}`);
+  console.log(`📱 [ADMIN AGENT] Número: ${cleanPhone}`);
+  console.log(`📝 [ADMIN AGENT] Mensagem: "${messageText.substring(0, 100)}${messageText.length > 100 ? '...' : ''}"`);
+  console.log(`💾 [ADMIN AGENT] Sessão atual: ${session.conversationHistory.length} mensagens em memória`);
   
   // Verificar frases gatilho (a menos que seja skipTriggerCheck para testes)
   if (!skipTriggerCheck) {
-    // Se a sessão em memória está vazia, carregar histórico do banco
+    // Se a sessão em memória está vazia, carregar histórico COMPLETO do banco
     let historyForTriggerCheck = session.conversationHistory;
     
     // Carregar histórico do banco se sessão está vazia (após restart do servidor)
     if (historyForTriggerCheck.length === 0) {
       try {
-        console.log(`📚 [ADMIN AGENT] Sessão vazia, buscando histórico do banco para ${cleanPhone}...`);
+        console.log(`📚 [ADMIN AGENT] Sessão vazia, buscando HISTÓRICO COMPLETO do banco para ${cleanPhone}...`);
         const conversation = await storage.getAdminConversationByPhone(cleanPhone);
         
         if (conversation) {
           console.log(`📚 [ADMIN AGENT] Conversa encontrada: ${conversation.id}`);
           const messages = await storage.getAdminMessages(conversation.id);
           
-          // Converter para formato do histórico (últimas 30 mensagens)
-          historyForTriggerCheck = messages.slice(-30).map((msg: any) => ({
+          console.log(`📚 [ADMIN AGENT] Total de ${messages.length} mensagens no histórico`);
+          
+          // Para verificar trigger: buscar em TODO o histórico (não limitar)
+          const fullHistory = messages.map((msg: any) => ({
             role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
             content: msg.text || "",
             timestamp: msg.timestamp || new Date(),
           }));
           
+          // Para contexto da IA: últimas 30 mensagens (evitar prompt muito grande)
+          historyForTriggerCheck = fullHistory.slice(-30);
+          
           // Atualizar sessão com histórico do banco
           session.conversationHistory = historyForTriggerCheck;
-          console.log(`📚 [ADMIN AGENT] ${historyForTriggerCheck.length} mensagens carregadas do banco`);
+          console.log(`📚 [ADMIN AGENT] ${historyForTriggerCheck.length} mensagens carregadas para contexto`);
           
-          // Debug: mostrar últimas mensagens para verificar trigger
-          const lastMsgs = historyForTriggerCheck.slice(-5).map(m => m.content.substring(0, 50));
-          console.log(`📚 [ADMIN AGENT] Últimas 5 msgs: ${JSON.stringify(lastMsgs)}`);
+          // Debug: verificar se trigger existe em ALGUM momento do histórico completo
+          const triggerWords = adminConfig.triggerPhrases || [];
+          const foundTriggerInHistory = fullHistory.some(msg => 
+            triggerWords.some(trigger => 
+              msg.content.toLowerCase().includes(trigger.toLowerCase())
+            )
+          );
+          
+          if (foundTriggerInHistory) {
+            console.log(`✅ [ADMIN AGENT] Trigger encontrada no histórico completo - cliente já interagiu antes`);
+          } else {
+            console.log(`⚠️ [ADMIN AGENT] Trigger NÃO encontrada no histórico - primeira interação do cliente`);
+          }
         } else {
           console.log(`📚 [ADMIN AGENT] Nenhuma conversa anterior encontrada para ${cleanPhone}`);
         }
@@ -688,6 +758,7 @@ export async function processAdminMessage(
     if (!triggerResult.hasTrigger) {
       console.log(`⏸️ [ADMIN AGENT] Skipping response - no trigger phrase found for ${cleanPhone}`);
       console.log(`   Mensagem recebida: "${messageText.substring(0, 100)}..."`);
+      console.log(`   💡 Cliente precisa mencionar uma das palavras: ${adminConfig.triggerPhrases?.join(', ')}`);
       // Ainda adiciona ao histórico mas não responde
       addToConversationHistory(cleanPhone, "user", messageText);
       return null;
