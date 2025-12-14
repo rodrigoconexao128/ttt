@@ -1369,6 +1369,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clear all admin WhatsApp history (conversations + messages)
+  app.post("/api/admin/whatsapp/clear-history", isAdmin, async (req, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { clearAdminConversations } = await import("./storage");
+      const success = await clearAdminConversations(adminId);
+      if (!success) return res.status(500).json({ success: false, message: "Failed to clear history" });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error clearing admin history:", error);
+      res.status(500).json({ success: false, message: "Error clearing history" });
+    }
+  });
+
   // ========================================================================
   // ADMIN CONVERSATIONS - Visualizar e gerenciar conversas do WhatsApp admin
   // ========================================================================

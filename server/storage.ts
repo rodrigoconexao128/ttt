@@ -1408,6 +1408,28 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
+
+  async clearAdminConversations(adminId: string): Promise<boolean> {
+    try {
+      // Deletar mensagens relacionadas primeiro
+      const convs = await db
+        .select({ id: adminConversations.id })
+        .from(adminConversations)
+        .where(eq(adminConversations.adminId, adminId));
+
+      const convIds = convs.map((c: any) => c.id);
+
+      if (convIds.length > 0) {
+        await db.delete(adminMessages).where(inArray(adminMessages.conversationId, convIds));
+        await db.delete(adminConversations).where(inArray(adminConversations.id, convIds));
+      }
+
+      return true;
+    } catch (error) {
+      console.error('[Storage] Erro ao limpar conversas do admin:', error);
+      return false;
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();
