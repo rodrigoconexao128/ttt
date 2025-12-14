@@ -132,6 +132,152 @@ function generateTempEmail(phoneNumber: string): string {
   return `cliente_${cleanPhone}_${emailCounter}@agentezap.temp`;
 }
 
+/**
+ * Gera senha temporária aleatória
+ */
+function generateTempPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let password = 'AZ-';
+  for (let i = 0; i < 6; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
+
+/**
+ * Cria conta de teste e retorna credenciais
+ */
+export async function createTestAccountWithCredentials(session: ClientSession): Promise<{
+  success: boolean;
+  email?: string;
+  password?: string;
+  loginUrl?: string;
+  error?: string;
+}> {
+  try {
+    const email = generateTempEmail(session.phoneNumber);
+    const password = generateTempPassword();
+    
+    // Importar supabase para criar usuário
+    const { supabase } = await import("./supabaseAuth");
+    
+    // Verificar se já existe usuário com esse telefone
+    const users = await storage.getAllUsers();
+    const existing = users.find(u => u.phone?.replace(/\D/g, "") === session.phoneNumber.replace(/\D/g, ""));
+    
+    if (existing) {
+      // Usuário já existe, gerar nova senha
+      const { error: updateError } = await supabase.auth.admin.updateUserById(existing.id, {
+        password: password
+      });
+      
+      if (updateError) {
+        console.error("[SALES] Erro ao atualizar senha:", updateError);
+        // Continuar mesmo assim, pode ser que a conta funcione
+      }
+      
+      updateClientSession(session.phoneNumber, { 
+        userId: existing.id, 
+        email: existing.email,
+        flowState: 'post_test'
+      });
+      
+      return {
+        success: true,
+        email: existing.email || email,
+        password: password,
+        loginUrl: process.env.APP_URL || 'https://agentezap.com'
+      };
+    }
+    
+    // Criar novo usuário no Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email: email,
+      password: password,
+      email_confirm: true,
+      user_metadata: {
+        name: session.agentConfig?.company || "Cliente Teste",
+        phone: session.phoneNumber,
+      }
+    });
+    
+    if (authError) {
+      console.error("[SALES] Erro ao criar usuário Supabase:", authError);
+      return { success: false, error: authError.message };
+    }
+    
+    if (!authData.user) {
+      return { success: false, error: "Falha ao criar usuário" };
+    }
+    
+    // Criar usuário no banco de dados
+    const user = await storage.upsertUser({
+      id: authData.user.id,
+      email: email,
+      name: session.agentConfig?.company || "Cliente Teste",
+      phone: session.phoneNumber,
+      role: "user",
+    });
+    
+    // Criar config do agente se tiver
+    if (session.agentConfig?.prompt || session.agentConfig?.name) {
+      const fullPrompt = `Você é ${session.agentConfig.name || "o atendente"}, ${session.agentConfig.role || "atendente"} da ${session.agentConfig.company || "empresa"}.
+
+${session.agentConfig.prompt || "Atenda os clientes de forma educada e prestativa."}
+
+REGRAS:
+- Seja educado e prestativo
+- Respostas curtas e objetivas
+- Linguagem natural
+- Não invente informações`;
+
+      await storage.upsertAgentConfig(user.id, {
+        prompt: fullPrompt,
+        isActive: true,
+        model: "mistral-small-latest",
+        triggerPhrases: [],
+        messageSplitChars: 400,
+        responseDelaySeconds: 30,
+      });
+    }
+    
+    // Criar trial de 24h
+    const plans = await storage.getActivePlans();
+    const basicPlan = plans[0];
+    
+    if (basicPlan) {
+      const trialEnd = new Date();
+      trialEnd.setHours(trialEnd.getHours() + 24);
+      
+      await storage.createSubscription({
+        userId: user.id,
+        planId: basicPlan.id,
+        status: "trialing",
+        dataInicio: new Date(),
+        dataFim: trialEnd,
+      });
+    }
+    
+    updateClientSession(session.phoneNumber, { 
+      userId: user.id, 
+      email: email,
+      flowState: 'post_test'
+    });
+    
+    console.log(`✅ [SALES] Conta de teste criada: ${email} (ID: ${user.id})`);
+    
+    return {
+      success: true,
+      email: email,
+      password: password,
+      loginUrl: process.env.APP_URL || 'https://agentezap.com'
+    };
+  } catch (error) {
+    console.error("[SALES] Erro ao criar conta de teste:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
 export function addToConversationHistory(phoneNumber: string, role: "user" | "assistant", content: string) {
   const cleanPhone = phoneNumber.replace(/\D/g, "");
   const session = clientSessions.get(cleanPhone);
@@ -177,16 +323,14 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   // Montar contexto baseado no estado
   let stateContext = "";
   
-  if (session.flowState === 'test_mode') {
-    // MODO DE TESTE: IA responde como o agente configurado
-    return getTestModePrompt(session);
-  }
+  // REMOVIDO: test_mode - agora usamos CRIAR_CONTA_TESTE que gera credenciais
+  // O cliente testa no painel web, não no WhatsApp
   
   if (session.flowState === 'active' && session.userId) {
     // Cliente ativo - já tem conta
     stateContext = await getActiveClientContext(session);
   } else {
-    // Novo cliente - fluxo de vendas
+    // Novo cliente - fluxo de vendas (inclui post_test)
     stateContext = getOnboardingContext(session);
   }
   
@@ -229,24 +373,37 @@ NUNCA FAÇA:
    - Mostre IMPLICAÇÕES ("imagina quantos clientes vão pro concorrente...")
    - Crie NECESSIDADE de solução ("e se tivesse alguém atendendo 24h?")
 
-2. GATILHOS MENTAIS:
-   - ESCASSEZ: "hoje é o último dia do valor promocional"
-   - URGÊNCIA: "quanto antes ativar, antes começa a vender no automático"
-   - PROVA SOCIAL: "já ajudei várias lojas/clínicas/empresas como a sua"
-   - AUTORIDADE: "estou nesse mercado há anos, já vi de tudo"
-   - RECIPROCIDADE: "deixa eu te mostrar algo especial" (enviar mídia)
-   - COMPROMISSO: "vamos fazer assim..." (pequenos acordos)
+2. GATILHOS MENTAIS (use com moderação e naturalidade):
+   - ESCASSEZ: "O teste gratuito é por tempo limitado"
+   - URGÊNCIA: "Quanto antes ativar, antes começa a vender no automático"
+   - PROVA SOCIAL: "Já ajudei várias lojas/clínicas/empresas como a sua"
+   - AUTORIDADE: "Estou nesse mercado há anos, já vi de tudo"
+   - RECIPROCIDADE: "Vou criar sua conta de teste sem nenhum compromisso"
+   - COMPROMISSO: "Vamos fazer assim..." (pequenos acordos progressivos)
+   - ANTECIPAÇÃO: "Imagina daqui uma semana, você acordando e vendo que vendeu de madrugada"
 
-3. RAPPORT E CONEXÃO:
-   - Espelhe o jeito de falar do cliente
-   - Use o nome da empresa/loja dele
-   - Demonstre que ENTENDEU a dor dele
-   - Diga coisas como "entendo perfeitamente", "já passei por isso"
+3. RAPPORT E CONEXÃO GENUÍNA:
+   - Espelhe o jeito de falar do cliente (formal ou informal)
+   - Use o nome da empresa/loja dele sempre que puder
+   - Demonstre que ENTENDEU profundamente a dor dele
+   - Celebre pequenas vitórias: "Isso! Nome perfeito pro agente!"
+   - Valide os medos: "É normal ter essa dúvida, todo mundo pergunta isso"
 
-4. STORYTELLING:
-   - "Teve um cliente meu que tinha o mesmo problema..."
-   - "Imagina só: você acorda às 3h da manhã e a IA vendeu 5 produtos..."
-   - "Sabe aquele cliente chato que manda 20 áudios? A IA responde tudo..."
+4. STORYTELLING ENVOLVENTE:
+   - "Teve um cliente meu que tinha o MESMO problema que você..."
+   - "Imagina só: são 3h da manhã, você dormindo, e a IA acabou de fechar uma venda..."
+   - "Sabe aquele cliente chato que manda 20 áudios? A IA responde TUDO!"
+   - "Outro dia um cliente me mandou print: vendeu R$ 2.000 no domingo de madrugada"
+
+5. FRAMEWORK PAS (Problema-Agitação-Solução):
+   - PROBLEMA: "Você perde vendas quando não consegue responder rápido?"
+   - AGITAÇÃO: "E o pior: o cliente vai direto pro concorrente que respondeu primeiro..."
+   - SOLUÇÃO: "Com o agente IA, você responde em segundos, 24h por dia"
+
+6. OBJEÇÕES = OPORTUNIDADES:
+   - Quando cliente diz "é caro" → "Entendo! Mas me conta, quanto você perde por mês em vendas que não fechou porque demorou responder?"
+   - Quando cliente diz "vou pensar" → "Claro! Mas enquanto pensa, posso criar seu teste grátis? Sem compromisso, só pra você experimentar"
+   - Quando cliente diz "já tentei chatbot" → "Chatbot de botão é MUITO diferente! Isso aqui é IA de verdade, conversa igual gente"
 
 ═══════════════════════════════════════════════════════════════════════════════
 🚀 SOBRE A AGENTEZAP
@@ -300,10 +457,13 @@ ${mediaBlock}
 Use no FINAL da sua resposta (processadas automaticamente - não mencione):
 [AÇÃO:SALVAR_CONFIG nome="Laura" empresa="Loja X" funcao="Atendente"]
 [AÇÃO:SALVAR_PROMPT prompt="texto das instruções"]
-[AÇÃO:INICIAR_TESTE] - Ativa modo de teste
+[AÇÃO:CRIAR_CONTA_TESTE] - Cria conta e envia credenciais de acesso ao painel
 [AÇÃO:ENVIAR_PIX]
 [AÇÃO:NOTIFICAR_PAGAMENTO]
 [AÇÃO:AGENDAR_CONTATO data="amanhã 14h" motivo="retornar contato"]
+
+⚠️ IMPORTANTE: NÃO use [AÇÃO:INICIAR_TESTE] - está depreciada!
+Use [AÇÃO:CRIAR_CONTA_TESTE] para gerar link de acesso ao painel.
 
 INFORMAÇÕES DO PIX:
 • Valor: R$ 99,00
@@ -322,30 +482,6 @@ Cada mensagem sua deve:
 
 LEMBRE-SE: Você está AJUDANDO o cliente a resolver um problema real.
 A venda é consequência de uma boa conversa, não o objetivo principal.`;
-}
-
-/**
- * Prompt para modo de teste - IA responde como o agente configurado
- */
-function getTestModePrompt(session: ClientSession): string {
-  const config = session.agentConfig || {};
-  
-  return `Você é ${config.name || "o atendente"}, ${config.role || "atendente"} da ${config.company || "empresa"}.
-
-${config.prompt || "Atenda os clientes de forma educada e prestativa."}
-
-REGRAS DE ATENDIMENTO:
-- Seja educado e prestativo
-- Respostas curtas e objetivas (2-4 linhas)
-- Linguagem natural e amigável
-- Use emojis com moderação
-- NÃO use markdown
-- NÃO invente informações não fornecidas
-- Se não souber algo, diga que vai verificar
-
-⚠️ IMPORTANTE: Você está em MODO DE TESTE.
-O cliente está testando como você atenderia os clientes dele.
-Responda como se fosse um cliente real entrando em contato.`;
 }
 
 /**
@@ -399,13 +535,27 @@ Colete UM POR VEZ, de forma conversacional:
 4. INSTRUÇÕES → "Agora a parte mais importante: o que seu agente precisa saber? Preços, produtos, horários, políticas... pode mandar tudo!"
 
 PASSO 4 - TESTE (quando tiver os 4 dados)
-👉 Objetivo: Fazer ele EXPERIMENTAR antes de pagar
-• "Tá tudo configurado! Agora vem a parte mais legal: você pode TESTAR agora!"
-• "Eu vou virar seu agente e você conversa comigo como se fosse um cliente"
-• "Pra sair é só digitar #sair, aí você me conta o que achou!"
-• Use [AÇÃO:INICIAR_TESTE]
+👉 Objetivo: Fazer ele EXPERIMENTAR no PAINEL WEB
+• "Tá tudo configurado! Agora vou criar sua conta de teste e te mandar o acesso!"
+• NÃO simule o agente aqui no WhatsApp, CRIE A CONTA com [AÇÃO:CRIAR_CONTA_TESTE]
+• Explique que ele vai acessar o painel web para conectar o WhatsApp dele
+• O teste é GRÁTIS por 24 horas
 
-PASSO 5 - FECHAMENTO (após o teste, quando sair com #sair)
+IMPORTANTE: Quando usar [AÇÃO:CRIAR_CONTA_TESTE], o sistema vai:
+1. Criar a conta automaticamente
+2. Inserir as credenciais (email + senha) na sua resposta
+3. Você deve explicar como acessar
+
+Exemplo de mensagem após coletar os 4 dados:
+"Perfeito! Tá tudo configurado! 🎉
+
+Vou criar sua conta de teste agora...
+
+[AÇÃO:CRIAR_CONTA_TESTE]
+
+Lá você conecta seu WhatsApp e vê o agente funcionando de verdade! O teste é GRÁTIS por 24 horas 🕐"
+
+PASSO 5 - FECHAMENTO (após criar a conta)
 👉 Objetivo: Converter para pagamento
 • Pergunte o que achou
 • Reforce os benefícios
@@ -415,14 +565,17 @@ PASSO 5 - FECHAMENTO (após o teste, quando sair com #sair)
 
 ${hasAllConfig ? `
 ╔═══════════════════════════════════════════════════════════════════════════╗
-║ ✅ CONFIGURAÇÃO COMPLETA! Agora ofereça o TESTE do agente!               ║
+║ ✅ CONFIGURAÇÃO COMPLETA! Agora CRIE A CONTA DE TESTE!                   ║
 ║                                                                           ║
 ║ Diga algo como:                                                           ║
-║ "Perfeito! Tá tudo configurado! Agora vem a parte mais legal: você pode  ║
-║ testar seu agente agora mesmo! Eu vou virar o ${config.name || 'agente'} e você conversa       ║
-║ comigo como se fosse um cliente da ${config.company || 'sua empresa'}. Quer testar?"          ║
+║ "Perfeito! Tá tudo configurado! 🎉                                       ║
+║ Vou criar sua conta de teste agora para você experimentar!"              ║
 ║                                                                           ║
-║ Quando ele aceitar, use [AÇÃO:INICIAR_TESTE]                             ║
+║ Use [AÇÃO:CRIAR_CONTA_TESTE] para gerar as credenciais de acesso.        ║
+║                                                                           ║
+║ O sistema vai inserir automaticamente o email, senha e link de acesso.   ║
+║ Após isso, o cliente acessa o painel web, conecta o WhatsApp dele e      ║
+║ testa o agente funcionando DE VERDADE!                                   ║
 ╚═══════════════════════════════════════════════════════════════════════════╝
 ` : ""}
 
@@ -511,7 +664,7 @@ function parseActions(response: string): { cleanText: string; actions: ParsedAct
   const validActions = [
     "SALVAR_CONFIG",
     "SALVAR_PROMPT",
-    "INICIAR_TESTE",
+    "CRIAR_CONTA_TESTE",
     "ENVIAR_PIX",
     "NOTIFICAR_PAGAMENTO",
     "AGENDAR_CONTATO",
@@ -546,11 +699,13 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
   sendPix?: boolean;
   notifyOwner?: boolean;
   startTestMode?: boolean;
+  testAccountCredentials?: { email: string; password: string; loginUrl: string };
 }> {
   const results: { 
     sendPix?: boolean; 
     notifyOwner?: boolean;
     startTestMode?: boolean;
+    testAccountCredentials?: { email: string; password: string; loginUrl: string };
   } = {};
   
   for (const action of actions) {
@@ -575,10 +730,19 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
         }
         break;
         
-      case "INICIAR_TESTE":
-        updateClientSession(session.phoneNumber, { flowState: 'test_mode' });
-        results.startTestMode = true;
-        console.log(`🧪 [SALES] Modo de teste ATIVADO para ${session.phoneNumber}`);
+      case "CRIAR_CONTA_TESTE":
+        // Nova ação: criar conta de teste e retornar credenciais
+        const testResult = await createTestAccountWithCredentials(session);
+        if (testResult.success && testResult.email && testResult.password) {
+          results.testAccountCredentials = {
+            email: testResult.email,
+            password: testResult.password,
+            loginUrl: testResult.loginUrl || 'https://agentezap.com'
+          };
+          console.log(`🎉 [SALES] Conta de teste criada: ${testResult.email}`);
+        } else {
+          console.error(`❌ [SALES] Erro ao criar conta de teste:`, testResult.error);
+        }
         break;
         
       case "ENVIAR_PIX":
@@ -682,6 +846,7 @@ export interface AdminAgentResponse {
     sendPix?: boolean;
     notifyOwner?: boolean;
     startTestMode?: boolean;
+    testAccountCredentials?: { email: string; password: string; loginUrl: string };
   };
 }
 
@@ -877,16 +1042,38 @@ export async function processAdminMessage(
   // Executar ações
   const actionResults = await executeActions(session, actions);
   
-  // Adicionar resposta ao histórico
-  addToConversationHistory(cleanPhone, "assistant", cleanText);
+  // Montar texto final - incluir credenciais se houver
+  let finalText = cleanText;
   
-  // Agendar follow-up automático (10 minutos)
-  if (session.flowState !== 'test_mode' && session.flowState !== 'active') {
-    scheduleAutoFollowUp(cleanPhone, 10, `Cliente estava em: ${session.flowState}`);
+  if (actionResults.testAccountCredentials) {
+    const { email, password, loginUrl } = actionResults.testAccountCredentials;
+    const credentialsBlock = `
+
+📱 *ACESSE SEU PAINEL DE TESTE*
+
+🔗 Link: ${loginUrl}/login
+📧 Email: ${email}
+🔑 Senha: ${password}
+
+⏰ Teste GRÁTIS por 24 horas!
+
+Lá você conecta seu WhatsApp e vê o agente funcionando de verdade! 🚀`;
+    
+    finalText = finalText + credentialsBlock;
+    console.log(`🎉 [SALES] Credenciais inseridas na resposta`);
+  }
+  
+  // Adicionar resposta ao histórico
+  addToConversationHistory(cleanPhone, "assistant", finalText);
+  
+  // Agendar follow-up automático (60 minutos, não 10)
+  // Só agendar se não for cliente ativo
+  if (session.flowState !== 'active') {
+    scheduleAutoFollowUp(cleanPhone, 60, `Cliente estava em: ${session.flowState}`);
   }
   
   return {
-    text: cleanText,
+    text: finalText,
     mediaActions: processedMediaActions.length > 0 ? processedMediaActions : undefined,
     actions: actionResults,
   };
