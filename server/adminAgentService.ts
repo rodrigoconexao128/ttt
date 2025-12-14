@@ -714,6 +714,50 @@ export async function processAdminMessage(
 ): Promise<AdminAgentResponse | null> {
   const cleanPhone = phoneNumber.replace(/\D/g, "");
   
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🎯 NOVO FLUXO DE VENDAS 2025: Verificar se é cliente novo (sem conta)
+  // Se não tem conta real, usar salesFlowHandler para onboarding/teste
+  // ═══════════════════════════════════════════════════════════════════════════
+  try {
+    // Verificar se novo fluxo de vendas está habilitado
+    const salesFlowEnabled = await storage.getSystemConfig("sales_flow_enabled");
+    
+    if (salesFlowEnabled?.valor === "true") {
+      // Verificar se cliente tem conta real (email real, não temporário)
+      const existingUser = await storage.getUserByPhone(cleanPhone);
+      
+      if (!existingUser) {
+        // Cliente sem conta - usar novo fluxo de vendas
+        console.log(`🎯 [SALES FLOW] Cliente novo detectado: ${cleanPhone}`);
+        
+        const { salesFlowHandler } = await import("./salesFlowHandler");
+        const result = await salesFlowHandler.processMessage(
+          cleanPhone,
+          messageText,
+          mediaType,
+          mediaUrl
+        );
+        
+        console.log(`🎯 [SALES FLOW] Resposta gerada para ${cleanPhone}`);
+        
+        return {
+          text: result.response,
+          actions: result.shouldNotifyOwner ? { notifyOwner: true } : undefined,
+          mediaActions: result.mediaActions,
+        };
+      } else {
+        console.log(`📱 [ADMIN AGENT] Cliente existente: ${cleanPhone} (${existingUser.email})`);
+      }
+    }
+  } catch (salesFlowError) {
+    console.error(`❌ [SALES FLOW] Erro:`, salesFlowError);
+    // Continuar com fluxo padrão em caso de erro
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FLUXO PADRÃO: Cliente já tem conta ou novo fluxo desabilitado
+  // ═══════════════════════════════════════════════════════════════════════════
+  
   // Obter ou criar sessão
   let session = getClientSession(cleanPhone);
   if (!session) {

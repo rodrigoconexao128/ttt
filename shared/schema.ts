@@ -780,3 +780,89 @@ export const mistralResponseSchema = z.object({
 });
 
 export type MistralResponse = z.infer<typeof mistralResponseSchema>;
+
+// =============================================================================
+// TEMP CLIENTS - Clientes em fase de teste (sem conta real ainda)
+// =============================================================================
+
+export const tempClients = pgTable("temp_clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phoneNumber: varchar("phone_number").unique().notNull(),
+  // Email fictício auto-gerado: temp_000001@agentezap.temp
+  tempEmail: varchar("temp_email").unique().notNull(),
+  // Dados coletados durante onboarding
+  businessName: varchar("business_name"),
+  businessType: varchar("business_type"),
+  agentName: varchar("agent_name"),
+  agentRole: varchar("agent_role"),
+  agentPrompt: text("agent_prompt"),
+  // Estado do onboarding
+  onboardingStep: varchar("onboarding_step").default("initial").notNull(),
+  // Controle de follow-up
+  lastInteractionAt: timestamp("last_interaction_at").defaultNow(),
+  nextFollowUpAt: timestamp("next_follow_up_at"),
+  followUpCount: integer("follow_up_count").default(0).notNull(),
+  // Modo teste
+  isInTestMode: boolean("is_in_test_mode").default(false).notNull(),
+  testStartedAt: timestamp("test_started_at"),
+  testMessagesCount: integer("test_messages_count").default(0).notNull(),
+  // Conversão
+  paymentReceived: boolean("payment_received").default(false).notNull(),
+  convertedToRealUser: boolean("converted_to_real_user").default(false).notNull(),
+  realUserId: varchar("real_user_id"),
+  // Histórico de conversa (JSON array)
+  conversationHistory: jsonb("conversation_history").default([]),
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_temp_clients_phone").on(table.phoneNumber),
+  index("idx_temp_clients_step").on(table.onboardingStep),
+  index("idx_temp_clients_test_mode").on(table.isInTestMode),
+]);
+
+// =============================================================================
+// SCHEDULED FOLLOW-UPS - Agendamentos de retorno automático
+// =============================================================================
+
+export const scheduledFollowUps = pgTable("scheduled_follow_ups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Pode ser temp_client ou user (após conversão)
+  tempClientId: varchar("temp_client_id"),
+  userId: varchar("user_id"),
+  phoneNumber: varchar("phone_number").notNull(),
+  // Tipo de follow-up
+  type: varchar("type").notNull(), // "auto_10min", "auto_1h", "auto_24h", "scheduled", "manual"
+  // Mensagem customizada (IA gera baseado no contexto)
+  message: text("message"),
+  // Quando executar
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  // Status
+  status: varchar("status").default("pending").notNull(), // "pending", "sent", "cancelled", "failed"
+  // Contexto para IA gerar mensagem contextualizada
+  context: jsonb("context"),
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  executedAt: timestamp("executed_at"),
+}, (table) => [
+  index("idx_follow_ups_scheduled").on(table.scheduledFor),
+  index("idx_follow_ups_status").on(table.status),
+  index("idx_follow_ups_phone").on(table.phoneNumber),
+]);
+
+// Temp Clients schemas and types
+export const insertTempClientSchema = createInsertSchema(tempClients).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertTempClient = z.infer<typeof insertTempClientSchema>;
+export type TempClient = typeof tempClients.$inferSelect;
+
+// Scheduled Follow-ups schemas and types
+export const insertScheduledFollowUpSchema = createInsertSchema(scheduledFollowUps).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertScheduledFollowUp = z.infer<typeof insertScheduledFollowUpSchema>;
+export type ScheduledFollowUp = typeof scheduledFollowUps.$inferSelect;
