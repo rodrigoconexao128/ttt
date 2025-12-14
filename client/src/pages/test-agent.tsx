@@ -29,6 +29,7 @@ export default function TestAgent() {
   const [isTyping, setIsTyping] = useState(false);
   const [agentName, setAgentName] = useState("Agente IA");
   const [agentCompany, setAgentCompany] = useState("AgenteZap");
+  const [userId, setUserId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -48,6 +49,9 @@ export default function TestAgent() {
     if (agentInfo) {
       setAgentName(agentInfo.agentName || "Agente IA");
       setAgentCompany(agentInfo.company || "AgenteZap");
+      if (agentInfo.userId) {
+        setUserId(agentInfo.userId);
+      }
     }
   }, [agentInfo]);
 
@@ -80,6 +84,7 @@ export default function TestAgent() {
         body: JSON.stringify({ 
           message: text,
           token: token || "demo",
+          userId: userId, // Enviar userId para usar o agente do cliente
           history: messages.slice(-10).map(m => ({
             role: m.fromMe ? "user" : "assistant",
             content: m.text

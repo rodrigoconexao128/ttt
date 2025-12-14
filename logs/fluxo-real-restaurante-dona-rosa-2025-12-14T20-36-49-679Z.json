@@ -1,0 +1,127 @@
+{
+  "timestamp": "2025-12-14T20:36:49.680Z",
+  "cenario": {
+    "id": "restaurante-dona-rosa",
+    "tipo": "Restaurante/Delivery",
+    "negocio": {
+      "nome": "Sabor da Vovó",
+      "nomeAgente": "Dona Rosa",
+      "pratos": [
+        {
+          "nome": "Feijoada Completa",
+          "preco": 35
+        },
+        {
+          "nome": "Marmitex",
+          "preco": 18
+        },
+        {
+          "nome": "Lasanha",
+          "preco": 28
+        },
+        {
+          "nome": "Frango Assado",
+          "preco": 25
+        }
+      ],
+      "horario": "11h às 22h, segunda a sábado",
+      "delivery": "Grátis acima de R$ 40, taxa de R$ 5 abaixo",
+      "pagamento": "PIX, cartão e dinheiro"
+    },
+    "perguntasParaAgente": [
+      "Oi, vocês têm feijoada?",
+      "Quanto custa a feijoada?",
+      "Vocês fazem delivery?",
+      "Até que horas vocês ficam abertos?",
+      "Aceita PIX?"
+    ]
+  },
+  "fase1": {
+    "sucesso": true,
+    "contaCriada": true,
+    "midiasAceitas": true,
+    "linkMencionado": true,
+    "simuladorExplicado": true,
+    "nomeAgenteMencionado": true,
+    "conversa": [
+      {
+        "speaker": "Cliente",
+        "content": "Oi! Vi o anúncio de vocês sobre robô pro WhatsApp. Tenho um restaurante e não consigo responder todo mundo, principalmente na hora do almoço. Como funciona?"
+      },
+      {
+        "speaker": "Rodrigo",
+        "content": "Oi! Legal que você tem um restaurante! A AgenteZap é perfeita pra te ajudar nisso. Ela atende os clientes no WhatsApp automaticamente, 24 horas por dia, sem você precisar ficar respondendo. Você pode configurar ela pra mostrar o cardápio, horário de funcionamento, fazer reservas e até receber pedidos!\n\nPra começar, me conta o nome do seu restaurante e qual nome você quer dar pro seu agente? Assim eu já começo a configurar! Ah, se tiver uma foto do cardápio ou um áudio explicando como funciona, manda também que fica mais fácil de personalizar!"
+      },
+      {
+        "speaker": "Cliente",
+        "content": "O restaurante se chama Sabor da Vovó. Deixa eu te mandar uma foto do cardápio:\n\n[Foto enviada: Cardápio do Sabor da Vovó - Feijoada R$ 35, Marmitex R$ 18, Lasanha R$ 28, Frango Assado R$ 25. Abrimos 11h às 22h. Delivery grátis acima de R$ 40]\n\nE quero que o agente se chame Dona Rosa, pra combinar com o tema do restaurante!"
+      },
+      {
+        "speaker": "Rodrigo",
+        "content": "Boa! Recebi a foto do cardápio! Vou usar essas informações pra configurar a Dona Rosa! Ela vai ficar ótima pra atender os clientes do Sabor da Vovó!\n\nAgora, me conta: você quer que a Dona Rosa faça apenas atendimento ou também receba pedidos e agende mesas? E tem algum outro detalhe que você queira que ela saiba sobre o restaurante?"
+      },
+      {
+        "speaker": "Cliente",
+        "content": "Quero que ela faça atendimento e receba pedidos. Ah, e tem que saber que só fazemos delivery grátis acima de R$ 40, senão cobra R$ 5. E aceitamos PIX, cartão e dinheiro.\n\nAh, e se puder, coloca que a gente abre de segunda a sábado, das 11h às 22h."
+      },
+      {
+        "speaker": "Rodrigo",
+        "content": "Pronto! Criei seu agente! 🚀\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVou te mandar o LINK agora pra você acessar!\nNo link você vai ver um SIMULADOR de WhatsApp, igualzinho o real.\nLá você conversa com a Dona Rosa (seu agente) e vê como ela responde!\n\nTesta lá e me fala o que achou! Se quiser ajustar alguma coisa, é só me chamar! 📱\n\nAh, e já coloquei todas as informações que você passou: cardápio, horário de funcionamento, opções de pagamento e as regras do delivery. Ficou show!"
+      },
+      {
+        "speaker": "Cliente",
+        "content": "Oba! Recebi o link! Vou acessar agora e testar a Dona Rosa! Valeu Rodrigo! 🚀"
+      }
+    ],
+    "problemas": []
+  },
+  "fase2": {
+    "sucesso": true,
+    "score": 120,
+    "respostasCorretas": 6,
+    "conversa": [
+      {
+        "speaker": "Cliente",
+        "content": "Oi, vocês têm feijoada?"
+      },
+      {
+        "speaker": "Dona Rosa",
+        "content": "Oi, meu amor! Claro que sim! A nossa feijoada completa é um arraso, vem com arroz, couve, farofa e até laranja pra refrescar. Quer fazer um pedido?"
+      },
+      {
+        "speaker": "Cliente",
+        "content": "Quanto custa a feijoada?"
+      },
+      {
+        "speaker": "Dona Rosa",
+        "content": "Ah, meu bem, a feijoada completa sai por R$ 35. Vale cada centavinho, viu? Se quiser, posso te ajudar a fazer o pedido!"
+      },
+      {
+        "speaker": "Cliente",
+        "content": "Vocês fazem delivery?"
+      },
+      {
+        "speaker": "Dona Rosa",
+        "content": "Claro, minha filha! A gente entrega! Se o pedido for acima de R$ 40, o delivery é grátis. Se for menos, só cobra R$ 5. Quer que eu te ajude a montar um pedido gostoso?"
+      },
+      {
+        "speaker": "Cliente",
+        "content": "Até que horas vocês ficam abertos?"
+      },
+      {
+        "speaker": "Dona Rosa",
+        "content": "A gente fica de segunda a sábado, das 11h às 22h, meu amor. Sempre com aquele carinho de vovó pra te atender! Quer que eu te ajude com alguma coisa?"
+      },
+      {
+        "speaker": "Cliente",
+        "content": "Aceita PIX?"
+      },
+      {
+        "speaker": "Dona Rosa",
+        "content": "Aceitamos sim, meu bem! PIX, cartão e dinheiro. O que você preferir! Quer que eu te ajude a fazer um pedido gostoso?"
+      }
+    ],
+    "problemas": []
+  },
+  "notaFinal": 110
+}

@@ -63,11 +63,63 @@ export interface ClientSession {
   }>;
 }
 
+// Token de teste para simulador
+interface TestToken {
+  token: string;
+  userId: string;
+  agentName: string;
+  company: string;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
 // Cache de sessões de clientes em memória
 const clientSessions = new Map<string, ClientSession>();
 
+// Cache de tokens de teste (link do simulador)
+const testTokens = new Map<string, TestToken>();
+
 // Contador para emails fictícios
 let emailCounter = 1000;
+
+/**
+ * Gera token de teste para o simulador de WhatsApp
+ */
+export function generateTestToken(userId: string, agentName: string, company: string): TestToken {
+  const token = uuidv4().replace(/-/g, '').substring(0, 16);
+  
+  const testToken: TestToken = {
+    token,
+    userId,
+    agentName,
+    company,
+    createdAt: new Date(),
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+  };
+  
+  testTokens.set(token, testToken);
+  console.log(`🎫 [SALES] Token de teste gerado: ${token} para userId: ${userId}`);
+  
+  return testToken;
+}
+
+/**
+ * Busca informações do token de teste
+ */
+export function getTestToken(token: string): TestToken | undefined {
+  const testToken = testTokens.get(token);
+  
+  if (testToken && testToken.expiresAt > new Date()) {
+    return testToken;
+  }
+  
+  // Token expirado, remover
+  if (testToken) {
+    testTokens.delete(token);
+  }
+  
+  return undefined;
+}
 
 // ============================================================================
 // FUNÇÕES DE GERENCIAMENTO DE SESSÃO
@@ -145,13 +197,14 @@ function generateTempPassword(): string {
 }
 
 /**
- * Cria conta de teste e retorna credenciais
+ * Cria conta de teste e retorna credenciais + token do simulador
  */
 export async function createTestAccountWithCredentials(session: ClientSession): Promise<{
   success: boolean;
   email?: string;
   password?: string;
   loginUrl?: string;
+  simulatorToken?: string;
   error?: string;
 }> {
   try {
@@ -182,11 +235,17 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
         flowState: 'post_test'
       });
       
+      // Gerar token para simulador
+      const agentName = session.agentConfig?.name || "Agente";
+      const company = session.agentConfig?.company || "Empresa";
+      const testToken = generateTestToken(existing.id, agentName, company);
+      
       return {
         success: true,
         email: existing.email || email,
         password: password,
-        loginUrl: process.env.APP_URL || 'https://agentezap.com'
+        loginUrl: process.env.APP_URL || 'https://agentezap.com',
+        simulatorToken: testToken.token
       };
     }
     
@@ -264,13 +323,19 @@ REGRAS:
       flowState: 'post_test'
     });
     
+    // Gerar token para simulador
+    const agentName = session.agentConfig?.name || "Agente";
+    const company = session.agentConfig?.company || "Empresa";
+    const testToken = generateTestToken(user.id, agentName, company);
+    
     console.log(`✅ [SALES] Conta de teste criada: ${email} (ID: ${user.id})`);
     
     return {
       success: true,
       email: email,
       password: password,
-      loginUrl: process.env.APP_URL || 'https://agentezap.com'
+      loginUrl: process.env.APP_URL || 'https://agentezap.com',
+      simulatorToken: testToken.token
     };
   } catch (error) {
     console.error("[SALES] Erro ao criar conta de teste:", error);
@@ -1021,15 +1086,16 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
         break;
         
       case "CRIAR_CONTA_TESTE":
-        // Nova ação: criar conta de teste e retornar credenciais
+        // Nova ação: criar conta de teste e retornar credenciais + token do simulador
         const testResult = await createTestAccountWithCredentials(session);
         if (testResult.success && testResult.email && testResult.password) {
           results.testAccountCredentials = {
             email: testResult.email,
             password: testResult.password,
-            loginUrl: testResult.loginUrl || 'https://agentezap.com'
+            loginUrl: testResult.loginUrl || 'https://agentezap.com',
+            simulatorToken: testResult.simulatorToken
           };
-          console.log(`🎉 [SALES] Conta de teste criada: ${testResult.email}`);
+          console.log(`🎉 [SALES] Conta de teste criada: ${testResult.email} (token: ${testResult.simulatorToken})`);
         } else {
           console.error(`❌ [SALES] Erro ao criar conta de teste:`, testResult.error);
         }
@@ -1336,21 +1402,36 @@ export async function processAdminMessage(
   let finalText = cleanText;
   
   if (actionResults.testAccountCredentials) {
-    const { email, password, loginUrl } = actionResults.testAccountCredentials;
+    const { email, password, loginUrl, simulatorToken } = actionResults.testAccountCredentials;
+    
+    // Montar link do simulador de WhatsApp com token
+    const baseUrl = loginUrl || process.env.APP_URL || 'https://agentezap.com';
+    const simulatorLink = simulatorToken 
+      ? `${baseUrl}/test/${simulatorToken}` 
+      : `${baseUrl}/testar`;
+    
     const credentialsBlock = `
 
-📱 *ACESSE SEU PAINEL DE TESTE*
+📱 *TESTE SEU AGENTE AGORA!*
 
-🔗 Link: ${loginUrl}/login
-📧 Email: ${email}
-🔑 Senha: ${password}
+🔗 *SIMULADOR:* ${simulatorLink}
+
+👆 Clica no link acima! Lá tem um SIMULADOR de WhatsApp igualzinho ao real!
+Você conversa com SEU AGENTE e vê como ele responde! 📱
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+📋 *Para acessar o painel completo:*
+🔗 ${baseUrl}/login
+📧 ${email}
+🔑 ${password}
+━━━━━━━━━━━━━━━━━━━━━━━━
 
 ⏰ Teste GRÁTIS por 24 horas!
 
-Lá você conecta seu WhatsApp e vê o agente funcionando de verdade! 🚀`;
+Testa lá e me fala o que achou! 🚀`;
     
     finalText = finalText + credentialsBlock;
-    console.log(`🎉 [SALES] Credenciais inseridas na resposta`);
+    console.log(`🎉 [SALES] Link do simulador + credenciais inseridos na resposta`);
   }
   
   // Adicionar resposta ao histórico

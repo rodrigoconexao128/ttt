@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-12-14T20:41:40.652Z",
+  "scenario": {
+    "id": "restaurante-com-midia",
+    "businessType": "Restaurante",
+    "businessName": "Sabor Caseiro",
+    "owner": "Carlos"
+  },
+  "conversation": [
+    {
+      "speaker": "Cliente",
+      "content": "Oi Rodrigo, tudo bem? Me explica como funciona esse atendente IA pro WhatsApp?"
+    },
+    {
+      "speaker": "Rodrigo",
+      "content": "Oi! Tudo ótimo e com você? 😊\n\nEsse atendente IA é um assistente virtual que funciona no WhatsApp e pode ajudar seu negócio a vender mais sem você precisar ficar 24h no celular! Ele atende clientes, tira dúvidas, mostra produtos e até fecha pedidos sozinho!\n\nQuer ver como ele funciona? Posso criar um teste pra você! É só me dizer o nome da sua empresa e o que você quer que ele faça. Pode mandar foto do cardápio/catálogo também! 📸\n\nO teste é grátis por 7 dias e depois é só R$ 99/mês. Topa?"
+    },
+    {
+      "speaker": "Cliente",
+      "content": "Oi Rodrigo, tudo bem.\n\nEntendi, e o preço é só R$ 99/mês?\n\nMeu restaurante é o Sabor Caseiro, ele pode mostrar o cardápio e atender pedidos.\n\n[Foto enviada: cardápio com pratos do dia - Feijoada R$ 25, Frango R$ 18, Marmitex R$ 15]\n\nVamos testar?"
+    },
+    {
+      "speaker": "Rodrigo",
+      "content": "Oi! Tudo ótimo, obrigado! 😊\n\nSim, o preço é fixo de R$ 99/mês, e o teste é grátis por 7 dias!\n\nRecebi a foto do cardápio! Vou usar pra configurar seu agente! 📸\n\nPra criar o agente do Sabor Caseiro, me manda:\n🤖 Nome do agente (ex: Bia, Pedro...)\n📝 Infos que ele precisa saber (horários de funcionamento, se tem entrega, etc...)\n\nPronto! Agora é só testar e me falar o que achou! 📱"
+    },
+    {
+      "speaker": "Cliente",
+      "content": "Vamos de \"Maria\" como nome.\n\nO restaurante abre das 11h às 22h, faz delivery grátis acima de R$ 30.\n\n[Foto enviada: cardápio com pratos do dia - Feijoada R$ 25, Frango R$ 18, Marmitex R$ 15]\n\nManda o link do simulador pra eu testar."
+    },
+    {
+      "speaker": "Rodrigo",
+      "content": "Pronto! Criei seu agente! 🚀\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVou te mandar o LINK agora!\n\nQuando você abrir, vai ver um SIMULADOR de WhatsApp igualzinho o real!\nLá você conversa com SEU AGENTE e vê como ele responde.\n\nTesta lá e me fala o que achou! Se precisar ajustar algo, a gente faz na hora! 📱"
+    },
+    {
+      "speaker": "Cliente",
+      "content": "Obrigado Rodrigo, vou testar o simulador e te falo depois!"
+    }
+  ],
+  "metrics": {
+    "accountCreated": true,
+    "mediaAccepted": true,
+    "linkMentioned": true,
+    "simulatorExplained": true,
+    "ownAgentExplained": true,
+    "noEmailMentioned": true
+  },
+  "score": 100,
+  "details": [
+    "✅ Conta criada com [AÇÃO:CRIAR_CONTA_TESTE] (+20)",
+    "✅ Mídia do cliente foi aceita (+20)",
+    "✅ Mencionou LINK (não email!) (+20)",
+    "✅ Explicou que é um SIMULADOR de WhatsApp (+15)",
+    "✅ Explicou que cliente conversa com SEU AGENTE (+15)",
+    "✅ Não mencionou email (correto!) (+10)"
+  ]
+}

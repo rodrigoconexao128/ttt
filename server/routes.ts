@@ -3141,29 +3141,76 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   /**
    * Endpoint para testar o agente via interface web
    * POST /api/test-agent/message
-   * Não requer autenticação - é para clientes testarem
+   * Não requer autenticação - é para clientes testarem SEU AGENTE
    */
   app.post("/api/test-agent/message", async (req: any, res) => {
     try {
-      const { message, token, history } = req.body;
+      const { message, token, history, userId } = req.body;
       
       if (!message) {
         return res.status(400).json({ error: "Mensagem obrigatória" });
       }
       
-      // Importar processador
-      const { processAdminMessage, getClientSession, createClientSession, addToConversationHistory } = await import("./adminAgentService");
+      // Se tem userId, buscar agente configurado do cliente
+      // Senão, usar agente de vendas (Rodrigo) como demo
+      if (userId) {
+        // Cliente com conta - usar SEU AGENTE configurado
+        try {
+          const agentConfig = await storage.getAgentConfig(userId);
+          
+          if (agentConfig?.prompt) {
+            // Usar o agente do cliente
+            const mistral = await getMistralClient();
+            
+            // Montar histórico
+            const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+              { role: "system", content: agentConfig.prompt },
+            ];
+            
+            // Adicionar histórico se houver
+            if (history && Array.isArray(history)) {
+              for (const msg of history.slice(-10)) {
+                messages.push({
+                  role: msg.role === "user" ? "user" : "assistant",
+                  content: msg.content,
+                });
+              }
+            }
+            
+            messages.push({ role: "user", content: message });
+            
+            const aiResponse = await mistral.chat.complete({
+              model: agentConfig.model || "mistral-small-latest",
+              messages: messages,
+              maxTokens: 600,
+              temperature: 0.85,
+            });
+            
+            const responseText = aiResponse.choices?.[0]?.message?.content || "Desculpe, não consegui processar.";
+            
+            console.log(`🤖 [TEST-AGENT] Resposta do agente do usuário ${userId}`);
+            
+            return res.json({
+              response: typeof responseText === "string" ? responseText : String(responseText),
+            });
+          }
+        } catch (e) {
+          console.error("[TEST-AGENT] Erro ao buscar agente do cliente:", e);
+          // Continuar para usar Rodrigo como fallback
+        }
+      }
       
-      // Usar token como identificador de sessão ou gerar um temporário
+      // Fallback: Usar Rodrigo (agente de vendas) como demo
+      const { processAdminMessage } = await import("./adminAgentService");
+      
       const sessionId = token || `test_${Date.now()}`;
       
-      // Processar mensagem usando o agente de vendas
       const response = await processAdminMessage(
         sessionId,
         message,
         undefined,
         undefined,
-        true // skipTriggerCheck - sempre responder no modo teste
+        true
       );
       
       if (!response) {
@@ -3193,12 +3240,26 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     try {
       const { token } = req.params;
       
-      // Por enquanto, retornar info padrão
-      // Futuramente, podemos ter tokens específicos por agente configurado
+      // Buscar token de teste gerado pelo adminAgentService
+      const { getTestToken } = await import("./adminAgentService");
+      const testToken = getTestToken(token);
+      
+      if (testToken) {
+        // Token válido - retornar info do agente do cliente
+        return res.json({
+          agentName: testToken.agentName,
+          company: testToken.company,
+          userId: testToken.userId,
+          description: `Agente de ${testToken.company}`,
+        });
+      }
+      
+      // Token não encontrado ou expirado - retornar demo (Rodrigo)
       res.json({
         agentName: "Rodrigo",
         company: "AgenteZap",
-        description: "Agente de vendas inteligente",
+        description: "Agente de vendas inteligente (demo)",
+        isDemo: true,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
