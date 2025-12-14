@@ -16,6 +16,7 @@ import { storage } from "./storage";
 import WebSocket from "ws";
 import { generateAIResponse, type AIResponseResult } from "./aiAgent";
 import { executeMediaActions, downloadMediaAsBuffer } from "./mediaService";
+import { registerFollowUpCallback, registerScheduledContactCallback } from "./followUpService";
 
 // Cache manual de contatos para mapear @lid → phoneNumber
 interface Contact {
@@ -2820,5 +2821,31 @@ export async function sendAdminMessage(
     return false;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔁 INTEGRAÇÃO: FOLLOW-UPS / AGENDAMENTOS → ENVIO PELO WHATSAPP DO ADMIN
+// ═══════════════════════════════════════════════════════════════════════
+
+registerFollowUpCallback(async (phoneNumber: string, context: string) => {
+  try {
+    const { generateFollowUpResponse } = await import("./adminAgentService");
+    const text = await generateFollowUpResponse(phoneNumber, context);
+    if (!text?.trim()) return;
+    await sendAdminMessage(phoneNumber, text);
+  } catch (error) {
+    console.error("[FOLLOW-UP] Erro ao executar callback de follow-up:", error);
+  }
+});
+
+registerScheduledContactCallback(async (phoneNumber: string, reason: string) => {
+  try {
+    const { generateScheduledContactResponse } = await import("./adminAgentService");
+    const text = await generateScheduledContactResponse(phoneNumber, reason);
+    if (!text?.trim()) return;
+    await sendAdminMessage(phoneNumber, text);
+  } catch (error) {
+    console.error("[AGENDAMENTO] Erro ao executar callback de agendamento:", error);
+  }
+});
 
 
