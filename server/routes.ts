@@ -1510,6 +1510,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // DELETE - Reset COMPLETO de conta de teste (histórico + usuário + tudo)
+  app.delete("/api/admin/conversations/:id/complete", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const conversation = await storage.getAdminConversation(id);
+      
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+      
+      // Extrair telefone da conversa
+      const phone = conversation.contactNumber || conversation.remoteJid?.split('@')[0]?.split(':')[0];
+      if (!phone) {
+        return res.status(400).json({ message: "Número de telefone não encontrado na conversa" });
+      }
+      
+      console.log(`🚨 [ADMIN] Solicitação de RESET COMPLETO para ${phone}`);
+      
+      // Limpar sessão em memória primeiro
+      const { clearClientSession } = await import("./adminAgentService");
+      clearClientSession(phone);
+      
+      // Cancelar follow-ups
+      const { cancelFollowUp } = await import("./followUpService");
+      cancelFollowUp(phone);
+      
+      // Executar reset seguro com validações
+      const result = await storage.resetTestAccountSafely(phone);
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: result.error || "Não foi possível resetar a conta",
+          error: result.error 
+        });
+      }
+      
+      res.json({ 
+        success: true, 
+        message: "Reset completo realizado com sucesso",
+        details: result.result 
+      });
+    } catch (error: any) {
+      console.error("Error resetting account completely:", error);
+      res.status(500).json({ 
+        message: "Falha ao resetar conta",
+        error: error.message 
+      });
+    }
+  });
+
   // POST - Enviar mensagem manual (como admin, não como IA)
   app.post("/api/admin/conversations/:id/send", isAdmin, async (req: any, res) => {
     try {

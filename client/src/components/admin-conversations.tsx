@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
-import { Send, MessageCircle, Search, Smartphone, Bot, X, Trash2 } from "lucide-react";
+import { Send, MessageCircle, Search, Smartphone, Bot, X, Trash2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
@@ -29,6 +29,8 @@ export default function AdminConversations() {
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   const [avatarModalImage, setAvatarModalImage] = useState("");
   const [avatarModalName, setAvatarModalName] = useState("");
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
 
   // Fetch all conversations from admin endpoint
   const { data: conversations = [], isLoading } = useQuery<AdminConversation[]>({
@@ -142,6 +144,39 @@ export default function AdminConversations() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao limpar histórico",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para reset completo (deleta tudo do banco)
+  const resetCompleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/admin/conversations/${selectedConversationId}/complete`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Falha ao resetar conta");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/messages", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+      setSelectedConversationId(null);
+      setResetDialogOpen(false);
+      setResetConfirmText("");
+      toast({
+        title: "Reset Completo!",
+        description: "Conta deletada completamente do banco de dados. Você pode testar novamente do zero.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao resetar conta",
         description: error.message,
         variant: "destructive",
       });
@@ -384,6 +419,19 @@ export default function AdminConversations() {
                 >
                   <Trash2 className="w-4 h-4 text-destructive" />
                 </Button>
+                {/* Botão Reset Completo - só aparece para contas @agentezap.temp */}
+                {selectedConversation?.userId && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setResetDialogOpen(true)}
+                    disabled={resetCompleteMutation.isPending}
+                    title="DELETAR TUDO do banco - só para contas de teste"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -509,6 +557,65 @@ export default function AdminConversations() {
               />
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Complete Dialog */}
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent className="max-w-md">
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="font-semibold text-lg">⚠️ ATENÇÃO - Reset Completo</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Esta ação é IRREVERSÍVEL e vai DELETAR TUDO do banco de dados:
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <ul className="text-sm space-y-1 text-red-800">
+                <li>✗ Conta do usuário (users)</li>
+                <li>✗ Assinatura (subscriptions)</li>
+                <li>✗ Configurações do agente (agent_config)</li>
+                <li>✗ Conexões WhatsApp (whatsapp_connections)</li>
+                <li>✗ Todas as conversas e mensagens</li>
+                <li>✗ Follow-ups agendados</li>
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">
+                Para confirmar, digite: <span className="font-mono font-bold text-red-600">DELETAR</span>
+              </p>
+              <Input
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                placeholder="Digite DELETAR para confirmar"
+                className="font-mono"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setResetDialogOpen(false);
+                  setResetConfirmText("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => resetCompleteMutation.mutate()}
+                disabled={resetConfirmText !== "DELETAR" || resetCompleteMutation.isPending}
+              >
+                {resetCompleteMutation.isPending ? "Deletando..." : "Confirmar Delete"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

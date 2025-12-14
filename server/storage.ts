@@ -123,6 +123,13 @@ export interface IStorage {
   createAdminWhatsappConnection(connection: InsertAdminWhatsappConnection): Promise<AdminWhatsappConnection>;
   updateAdminWhatsappConnection(adminId: string, data: Partial<InsertAdminWhatsappConnection>): Promise<AdminWhatsappConnection>;
 
+  // Safe test account reset with validation
+  resetTestAccountSafely(phoneNumber: string): Promise<{ 
+    success: boolean; 
+    error?: string;
+    result?: any;
+  }>;
+
   // Admin stats
   getAllUsers(): Promise<User[]>;
   getTotalRevenue(): Promise<number>;
@@ -1426,6 +1433,133 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error(`❌ [RESET CLIENT] Erro ao resetar cliente:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Reset SEGURO de conta de teste com validações rigorosas
+   * Só permite deletar se for REALMENTE uma conta de teste
+   */
+  async resetTestAccountSafely(phoneNumber: string): Promise<{ 
+    success: boolean; 
+    error?: string;
+    result?: any;
+  }> {
+    try {
+      console.log(`🔍 [SAFE RESET] Verificando segurança para ${phoneNumber}...`);
+
+      // 1. Buscar usuário pelo telefone
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.phone, phoneNumber));
+
+      if (!user) {
+        console.log(`⚠️ [SAFE RESET] Nenhum usuário encontrado para ${phoneNumber}`);
+        // Se não tem usuário, apenas limpa conversas admin
+        const adminConv = await this.getAdminConversationByPhone(phoneNumber);
+        if (adminConv) {
+          await db.delete(adminMessages).where(eq(adminMessages.conversationId, adminConv.id));
+          await db.delete(adminConversations).where(eq(adminConversations.id, adminConv.id));
+        }
+        return { 
+          success: true, 
+          result: { userDeleted: false, conversationDeleted: !!adminConv } 
+        };
+      }
+
+      // 2. VALIDAÇÕES DE SEGURANÇA
+      
+      // Validação 1: Email deve ser @agentezap.temp (conta gerada automaticamente)
+      if (!user.email?.endsWith('@agentezap.temp')) {
+        return {
+          success: false,
+          error: `⛔ Não é uma conta de teste! Email: ${user.email || 'não definido'}. Apenas contas @agentezap.temp podem ser deletadas.`
+        };
+      }
+
+      // Validação 2: Verificar conexão WhatsApp
+      const [connection] = await db
+        .select()
+        .from(whatsappConnections)
+        .where(eq(whatsappConnections.userId, user.id));
+
+      if (connection && connection.isConnected) {
+        return {
+          success: false,
+          error: '⛔ Usuário tem WhatsApp conectado ativamente! Não pode deletar conta com conexão ativa.'
+        };
+      }
+
+      // Validação 3: Verificar se tem mensagens reais (conversas com clientes)
+      if (connection) {
+        const [hasRealConversations] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(conversations)
+          .where(eq(conversations.connectionId, connection.id));
+        
+        if (hasRealConversations && Number(hasRealConversations.count) > 0) {
+          return {
+            success: false,
+            error: '⛔ Usuário tem conversas reais no WhatsApp! Não pode deletar conta com histórico de clientes.'
+          };
+        }
+      }
+
+      // Validação 4: Verificar subscription (só pode deletar se for trial ou inexistente)
+      const [subscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, user.id));
+
+      if (subscription && subscription.status !== 'trialing' && subscription.status !== 'inactive') {
+        return {
+          success: false,
+          error: `⛔ Usuário tem assinatura ativa (${subscription.status})! Não pode deletar conta com pagamento ativo.`
+        };
+      }
+
+      // Validação 5: Verificar se tem pagamentos realizados
+      if (subscription) {
+        const [hasPayments] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(payments)
+          .where(eq(payments.subscriptionId, subscription.id));
+
+        if (hasPayments && Number(hasPayments.count) > 0) {
+          return {
+            success: false,
+            error: '⛔ Usuário tem pagamentos registrados! Não pode deletar conta com histórico financeiro.'
+          };
+        }
+      }
+
+      // Validação 6: Verificar idade da conta (segurança extra)
+      const accountAge = Date.now() - new Date(user.createdAt).getTime();
+      const daysOld = accountAge / (1000 * 60 * 60 * 24);
+      if (daysOld > 30) {
+        return {
+          success: false,
+          error: `⛔ Conta tem mais de 30 dias (${Math.floor(daysOld)} dias). Muito antiga para reset automático.`
+        };
+      }
+
+      // ✅ TODAS AS VALIDAÇÕES PASSARAM - SAFE TO DELETE
+      console.log(`✅ [SAFE RESET] Validações OK para ${phoneNumber}. Procedendo com reset...`);
+      
+      const result = await this.resetClientByPhone(phoneNumber);
+      
+      return {
+        success: true,
+        result
+      };
+
+    } catch (error: any) {
+      console.error(`❌ [SAFE RESET] Erro ao resetar:`, error);
+      return {
+        success: false,
+        error: `Erro técnico: ${error.message}`
+      };
     }
   }
 }
