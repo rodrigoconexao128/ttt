@@ -1,0 +1,348 @@
+{
+  "business": {
+    "name": "Moda Fashion",
+    "type": "Loja de Roupas Online",
+    "owner": "Carlos",
+    "description": "Loja de roupas femininas e masculinas, vende pelo Instagram e WhatsApp"
+  },
+  "startTime": "2025-12-14T19:22:22.392Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Opa, tudo bem? Eu sou o Carlos, dono da Moda Fashion. Vi falando da AgenteZap aí, mas confesso que tô meio na dúvida se vale a pena. Como é que funciona essa parada?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:23.655Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Opa, Carlos! Tudo ótimo! Imagina a AgenteZap como uma vendedora 24/7 para a sua Moda Fashion. Ela responde clientes, mostra as roupas, tira dúvidas de tamanho e até fecha vendas pelo WhatsApp, mesmo quando você não está online. Quer ver como é? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:24.855Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "\"Tá, mas como que ela mostra as roupas? Manda foto sozinha? E se o cliente perguntar sobre promoção, ela sabe responder?\"\n\n(Se ele repetir a explicação inicial, você fala: \"Pô, você só repete a mesma coisa, não tá entendendo minha dúvida!\")",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:26.626Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "Entendi sua dúvida, Carlos! A AgenteZap não só manda fotos das roupas, mas também pode criar catálogos interativos com os produtos da Moda Fashion. Se o cliente perguntar sobre promoções, ela responde com as ofertas atuais, igual um vendedor humano faria. Quer ver uma demonstração de como isso funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:27.879Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "Tá, mas como que funciona isso de catálogo interativo? Já vi outros sistemas que falam que fazem isso mas não entregam. E esse vídeo aí, mostra mesmo como funciona na prática?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:29.397Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "Carlos, entendo sua preocupação! O catálogo interativo da AgenteZap é personalizado para a Moda Fashion. A IA mostra as roupas, os preços e até as promoções em tempo real, tudo integrado ao WhatsApp. O vídeo que te enviei mostra exatamente como funciona na prática, com exemplos reais de lojas como a sua. Quer ver a tabela de preços? [ENVIAR_MIDIA:TABELA_PRECOS]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:30.986Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "Tá, mas como é que esse catálogo interativo funciona na prática? Tipo, se um cliente perguntar sobre uma calça jeans específica, como a IA vai responder?\n\nJá vi outros sistemas que só mandam links ou fotos genéricas, não quero isso pra minha loja.\n\nE esse preço tá alto, viu? Tem alguma promoção ou desconto?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:33.227Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "Carlos, entendi perfeitamente! A AgenteZap não manda links ou fotos genéricas. Se um cliente perguntar sobre uma calça jeans específica, a IA envia a foto exata do produto, com descrição, preço e opções de tamanho. Tudo personalizado para a Moda Fashion.\n\nSobre o preço, infelizmente não temos promoções no momento, mas o valor de R$ 99/mês já inclui tudo: atendimento 24/7, catálogo interativo e suporte. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:34.596Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "Tá, mas como é que vc garante que a IA não vai mandar a foto errada? Já vi isso acontecer antes...\n\nE esse vídeo que vc mandou, é um caso real ou é só demonstração?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:37.694Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "Carlos, a AgenteZap usa inteligência artificial avançada para garantir que as respostas sejam precisas. Ela é treinada para entender o contexto e enviar sempre a foto correta do produto. O vídeo que te enviei é um caso real de uma loja de roupas que usa o sistema. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:38.856Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "Tá, mas como é que essa IA sabe exatamente qual produto a cliente quer? Já vi chatbot que manda foto errada e ainda piora a situação.\n\nE esse teste grátis, tem algum compromisso depois?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:40.560Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "Carlos, a AgenteZap é treinada para entender o contexto da conversa. Se o cliente perguntar sobre uma calça jeans, por exemplo, a IA envia apenas as opções de calças jeans disponíveis na Moda Fashion. E não, o teste grátis de 7 dias não tem compromisso. Você pode cancelar a qualquer momento sem pagar nada.\n\nQuer testar e ver como funciona na prática? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:41.442Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "\"Tá, mas e se o cliente perguntar sobre um tamanho específico ou cor? A IA consegue filtrar isso também? E o que acontece se o cliente quiser um desconto? A IA sabe negociar?\"\n\n(Observação: Ele não repetiu nada, respondeu a dúvida sobre o teste grátis e mostrou interesse em me convencer. Vou testar mais um pouco antes de decidir.)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:43.263Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "Carlos, a AgenteZap consegue filtrar tamanho e cor também! Se o cliente perguntar sobre um tamanho específico ou cor, a IA mostra apenas as opções disponíveis na Moda Fashion. Sobre descontos, a IA pode oferecer promoções pré-definidas por você, mas não negocia valores. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:44.337Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "Tá, mas como é que vc garante que a IA vai entender direito as perguntas dos clientes? Já tentei chatbot antes e era um desastre.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:45.860Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "Carlos, entendo sua preocupação! A AgenteZap é diferente porque usa IA avançada para entender o contexto das perguntas. Ela foi treinada para atender lojas de roupas como a sua, então entende termos como \"tamanho\", \"cor\", \"promoção\" e muito mais. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:46.922Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "Tá, mas como que isso vai ajudar minha loja de roupas? Quero ver exemplo prático, não só um vídeo.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:48.383Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "Carlos, imagina só: um cliente manda uma mensagem no WhatsApp perguntando sobre uma calça jeans azul tamanho 42. A AgenteZap responde imediatamente mostrando a foto exata da calça, com a descrição, o preço e a opção de compra. Tudo isso enquanto você está ocupado ou até dormindo!\n\nQuer ver um exemplo real de como isso funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:49.431Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "\"Tá, mas e se o cliente perguntar algo que não tá no sistema? Como a IA vai lidar com isso?\"\n\n(Observação: Ele não repetiu nada, então não reclamei. Fiz uma objeção específica para testar o conhecimento dele sobre limites da IA)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:51.186Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "Carlos, ótima pergunta! Se o cliente perguntar algo que não está no sistema, a AgenteZap tem duas opções: ela pode pedir para o cliente esclarecer melhor a dúvida ou encaminhar a mensagem para você. Assim, nada fica sem resposta.\n\nQuer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:52.267Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "Tá, mas e se o cliente perguntar algo super específico sobre um produto? Tipo, \"qual o tamanho exato do decote dessa blusa\"? A IA vai saber responder ou vai só me encaminhar?\n\nE esse vídeo de demonstração, é de uma loja de roupas igual a minha? Quero ver algo real, não só um exemplo genérico.\n\nE aí, quanto custa mesmo? Você ainda não me passou o preço.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:55.019Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "Carlos, a AgenteZap foi treinada para entender detalhes específicos de produtos, como tamanho de decote, composição do tecido e outras características. Se a informação estiver no catálogo da Moda Fashion, ela responde na hora. Caso contrário, encaminha para você.\n\nO preço é R$ 99/mês, mas você pode testar grátis por 7 dias. Quer ver um vídeo real de uma loja de roupas? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:56.170Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "\"Tá, mas como é que ela sabe se a roupa é pra festa ou pra dia a dia? Já tentei chatbot antes e não funcionou. E esse preço de R$ 99 tá um pouco salgado, não acha?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:22:57.765Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "Carlos, a AgenteZap entende o contexto da conversa. Se o cliente perguntar sobre uma roupa para festa, a IA mostra opções mais formais do catálogo da Moda Fashion. Para dia a dia, ela prioriza peças casuais. Sobre o preço, entendo que R$ 99/mês pode parecer um investimento, mas pense na economia de tempo e no aumento de vendas que você terá com um atendimento 24/7.\n\nQuer ver como é na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:22:59.438Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "Tá, mas como é que ela sabe se a roupa é pra festa ou dia a dia? O cliente vai ter que falar isso?\n\nE esse preço de R$ 99, é fixo ou tem desconto se eu pagar anual?\n\nJá tentei chatbot antes e não funcionou, por que seria diferente agora?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:23:01.125Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "Carlos, a AgenteZap entende o contexto da conversa. Se o cliente mencionar \"festa\" ou \"casamento\", a IA já sabe que é para uma ocasião especial e mostra as opções adequadas. Para dia a dia, ela prioriza peças casuais. Sobre o preço, infelizmente não temos desconto anual, mas o valor é fixo em R$ 99/mês.\n\nE sobre os chatbots que você já testou, a AgenteZap é diferente porque usa IA avançada e é treinada especificamente para lojas de roupas como a sua. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:23:02.450Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "Tá, mas como que ela entende se o cliente não fala nada específico? Tipo, se ele só manda \"oi\"?\n\nE esse preço de R$ 99 é só pra começar ou tem outros custos escondidos?\n\nJá tentei chatbot antes e foi um fracasso, como que vou saber que esse aqui é diferente?\n\nVou pensar, mas tá caro pra mim.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:23:04.244Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "Carlos, se o cliente mandar só \"oi\", a AgenteZap responde com uma mensagem de boas-vindas e mostra as opções de catálogo da Moda Fashion. Sobre o preço, R$ 99/mês já inclui tudo: atendimento 24/7, catálogo interativo e suporte. Não tem custos escondidos!\n\nE sobre os chatbots que você já testou, a AgenteZap é diferente porque usa IA avançada e é treinada especificamente para lojas de roupas como a sua. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:23:05.739Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "\"Tá, mas e se o cliente quiser um tamanho específico ou cor? A AgenteZap consegue entender isso?\"\n\n(Espero que ele explique como a IA lida com detalhes de produtos)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:23:07.292Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "Carlos, a AgenteZap entende perfeitamente quando o cliente pede um tamanho específico ou cor. Por exemplo, se ele perguntar sobre uma blusa azul tamanho P, a IA mostra apenas as opções disponíveis no catálogo da Moda Fashion que atendem a essa solicitação. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:23:08.514Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    ],
+    "actionsUsed": [
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]"
+    ],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

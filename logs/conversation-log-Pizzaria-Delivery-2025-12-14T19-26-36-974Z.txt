@@ -1,0 +1,244 @@
+
+════════════════════════════════════════════════════════════════════════════════
+📋 LOG DE CONVERSA - Sabor & Arte Pizzaria (Pizzaria Delivery)
+════════════════════════════════════════════════════════════════════════════════
+Data: 2025-12-14T19:25:52.799Z
+Cliente: João
+Total de Mensagens: 30
+
+════════════════════════════════════════════════════════════════════════════════
+💬 CONVERSA COMPLETA
+════════════════════════════════════════════════════════════════════════════════
+
+👤 [1] João:
+Oi, vi um anúncio da AgenteZap. Como é que funciona esse negócio de IA pro WhatsApp?
+
+────────────────────────────────────────────────────────────
+
+🤖 [2] Rodrigo:
+Opa, João! Legal que você viu nosso anúncio! A AgenteZap é uma IA que atende seus clientes no WhatsApp 24/7, como se fosse um humano. Ela tira dúvidas, envia o cardápio da Sabor & Arte, agenda pedidos e até fecha vendas enquanto você está ocupado ou dormindo. Super prático pra quem tem um delivery, né?
+
+Quer que eu te mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+O que acha de testar por 7 dias sem compromisso?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [3] João:
+"Tá, mas como que essa IA vai saber do meu cardápio que muda toda semana? E se o cliente pedir algo que não tem?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [4] Rodrigo:
+Boa pergunta, João! A AgenteZap é super flexível. Você pode atualizar o cardápio no sistema sempre que quiser, e a IA vai refletir essas mudanças. Se um cliente pedir algo que não tem, a IA avisa educadamente e sugere opções similares. Ela também aprende com as interações, então fica cada vez mais eficiente.
+
+Quer que eu te mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+Qual sua maior dúvida ainda?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [5] João:
+"Ah, mas e se o cliente pedir algo super específico que não tem nada parecido no cardápio? A IA vai saber lidar? E quanto custa isso aí?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [6] Rodrigo:
+João, a AgenteZap é treinada pra ser bem humana mesmo! Se o cliente pedir algo muito específico que não tem no cardápio, a IA pode sugerir alternativas ou encaminhar pra você. Ela é bem inteligente e sabe lidar com situações diferentes.
+
+O valor é R$ 99/mês, e tem um teste grátis de 7 dias pra você experimentar sem compromisso. O que te impede de testar agora? [ENVIAR_MIDIA:TABELA_PRECOS]
+   📁 Mídias: [ENVIAR_MIDIA:TABELA_PRECOS]
+
+────────────────────────────────────────────────────────────
+
+👤 [7] João:
+"Tá, mas como é que ela vai saber que o cardápio muda toda semana? E se o cliente pedir uma pizza que não tem mais? Ela vai saber direitinho ou vai enrolar?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [8] Rodrigo:
+João, a AgenteZap é super fácil de atualizar! Você só precisa entrar no sistema e atualizar o cardápio sempre que mudar. A IA fica sempre atualizada e sabe exatamente o que tem disponível. Se um cliente pedir algo que não tem mais, ela avisa educadamente e sugere outras opções.
+
+Quer que eu te mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+Bora começar o teste?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [9] João:
+"Tá, mas como é que funciona na prática? Se um cliente pedir uma pizza que não tem mais, tipo, ela sugere outra igual ou qualquer uma aleatória?"
+
+(Observação: Ele não repetiu nada, então você demonstra interesse, mas ainda desconfiado, pedindo detalhes específicos do seu negócio)
+
+────────────────────────────────────────────────────────────
+
+🤖 [10] Rodrigo:
+João, entendi sua preocupação! A AgenteZap não sugere nada aleatório, não. Ela é programada pra ser inteligente. Se um cliente pedir uma pizza que não tem mais, a IA avisa que aquela opção não está disponível e sugere outras similares, baseada no cardápio atualizado. Por exemplo, se o cliente pedir uma pizza de frango, e você não tem mais, ela pode sugerir uma pizza de frango com catupiry ou outra opção parecida.
+
+Quer que eu te mostre como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Quantos pedidos vocês recebem por dia no WhatsApp?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [11] João:
+Tá, mas como que ela sabe que a pizza de frango não tem mais? Ela atualiza automaticamente ou eu tenho que fazer isso manualmente? E quanto custa isso tudo?
+
+────────────────────────────────────────────────────────────
+
+🤖 [12] Rodrigo:
+João, a AgenteZap é bem prática! Você atualiza o cardápio no sistema sempre que mudar, e a IA fica sempre com as informações certas. Se você tira uma pizza de frango do cardápio, a IA já sabe que não tem mais e sugere outras opções. Não é automático, mas é super rápido de atualizar.
+
+O valor é R$ 99/mês, e tem um teste grátis de 7 dias pra você experimentar sem compromisso. O que te impede de testar agora? [ENVIAR_MIDIA:TABELA_PRECOS]
+   📁 Mídias: [ENVIAR_MIDIA:TABELA_PRECOS]
+
+────────────────────────────────────────────────────────────
+
+👤 [13] João:
+Tá, mas e se eu quiser colocar uma promoção de pizza vegana? A IA vai entender que é temporário e não vai sugerir depois que a promoção acabar?
+
+────────────────────────────────────────────────────────────
+
+🤖 [14] Rodrigo:
+João, a AgenteZap é super flexível! Você pode criar promoções temporárias no sistema, e a IA sabe exatamente quando elas começam e terminam. Quando a promoção de pizza vegana acabar, a IA para de sugerir automaticamente. É só você configurar as datas e pronto!
+
+Quer que eu te mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+Qual horário mais pega fogo aí na loja?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [15] João:
+Tá, mas como é que a IA entende que a promoção de pizza vegana acabou? Ela fica monitorando o estoque ou como? E o horário que mais pega fogo é entre 19h e 21h, mas ainda não vi como isso ajuda na minha pizzaria.
+
+────────────────────────────────────────────────────────────
+
+🤖 [16] Rodrigo:
+João, a AgenteZap não monitora estoque, mas você configura as datas da promoção no sistema. Quando a data acabar, a IA para de sugerir automaticamente. No horário de pico (19h-21h), a AgenteZap pode ajudar a atender mais clientes no WhatsApp, tirando dúvidas e fechando pedidos enquanto você e sua equipe focam na produção.
+
+Faz sentido pra você?
+
+────────────────────────────────────────────────────────────
+
+👤 [17] João:
+Tá, mas e se eu quiser promover um sabor específico durante o horário de pico? A IA vai entender isso?
+
+────────────────────────────────────────────────────────────
+
+🤖 [18] Rodrigo:
+João, a AgenteZap pode ser programada pra promover sabores específicos em horários específicos! Você configura no sistema qual sabor quer destacar e em qual horário, e a IA faz a promoção automaticamente. Por exemplo, você pode destacar uma pizza especial entre 19h e 21h, que é o horário de pico da Sabor & Arte.
+
+Ficou alguma dúvida?
+
+────────────────────────────────────────────────────────────
+
+👤 [19] João:
+Ué, mas vc já tinha falado isso antes... tá repetindo ou eu não entendi mesmo?
+
+E como que eu sei que essa promoção vai vender mesmo? Já tentei fazer promoção no WhatsApp e não deu certo.
+
+────────────────────────────────────────────────────────────
+
+🤖 [20] Rodrigo:
+João, desculpa se pareceu repetição! O que eu quero dizer é que a AgenteZap pode ajudar a promover sabores específicos no horário de pico, mas o sucesso da promoção depende de vários fatores, como o sabor escolhido e como a promoção é comunicada.
+
+A diferença agora é que a IA pode ajudar a divulgar a promoção de forma mais eficiente, respondendo dúvidas e fechando pedidos. Quer que eu te mostre como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+O que te impede de testar agora?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [21] João:
+Tá, mas e se o sabor do dia não for popular? A IA vai conseguir vender mesmo assim?
+
+Já tentei chatbot antes e não deu certo, o que muda agora?
+
+E esse vídeo, tem alguma coisa específica pra pizzaria?
+
+────────────────────────────────────────────────────────────
+
+🤖 [22] Rodrigo:
+João, a AgenteZap é diferente de chatbots comuns! Ela é uma IA inteligente que entende o contexto e pode sugerir opções similares se o sabor do dia não for popular. Por exemplo, se o sabor do dia for uma pizza de abacaxi com presunto e o cliente não gostar, a IA pode sugerir outras opções de pizza doces ou salgadas.
+
+O vídeo que eu vou te enviar tem exemplos específicos pra pizzarias, mostrando como a AgenteZap pode ajudar no atendimento. Quer que eu te mostre? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+O que acha de testar por 7 dias sem compromisso?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [23] João:
+"Ah, tá... mas como que ela sabe se o sabor do dia não é popular? Ela tem acesso a dados do meu cardápio ou algo assim? E esse teste de 7 dias, tem algum custo escondido?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [24] Rodrigo:
+João, a AgenteZap não tem acesso a dados históricos do seu cardápio, mas você pode configurar as promoções com base no que você conhece do seu público. Se o sabor do dia não for popular, a IA pode sugerir outras opções.
+
+O teste de 7 dias é grátis, sem custo escondido! É só pra você experimentar e ver se funciona pra sua pizzaria.
+
+Posso criar seu acesso agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [25] João:
+"Tá, mas como é que essa IA vai saber sugerir pizza se ela não conhece meu cardápio? E esse teste grátis, tem algum limite de pedidos?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [26] Rodrigo:
+João, você configura o cardápio da Sabor & Arte na AgenteZap, e a IA usa essas informações pra sugerir pizzas. Se um cliente pedir algo que não tem, ela sugere opções similares.
+
+O teste grátis de 7 dias não tem limite de pedidos! É pra você testar sem preocupação.
+
+Quer que eu explique algum detalhe?
+
+────────────────────────────────────────────────────────────
+
+👤 [27] João:
+"Tá, mas como a IA entende que uma pizza é similar a outra? Se eu tenho uma de berinjela e outro de abobrinha, ela vai sugerir certo? E o preço, quanto custa?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [28] Rodrigo:
+João, a AgenteZap é programada pra entender categorias e ingredientes. Se um cliente pedir uma pizza de berinjela e você só tem de abobrinha, a IA pode sugerir a de abobrinha como uma opção similar, já que ambas são vegetais.
+
+O valor é R$ 99/mês, e tem um teste grátis de 7 dias pra você experimentar sem compromisso.
+
+Tá pronto pra dar esse passo? [ENVIAR_MIDIA:TABELA_PRECOS]
+   📁 Mídias: [ENVIAR_MIDIA:TABELA_PRECOS]
+
+────────────────────────────────────────────────────────────
+
+👤 [29] João:
+"Ah, mas vc já tinha falado isso antes... e esse preço é fixo mesmo? Não tem desconto pra pizzaria pequena?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [30] Rodrigo:
+João, desculpa se repeti! O preço é fixo, mas o teste de 7 dias é grátis e sem compromisso. Assim você pode testar e ver se a AgenteZap funciona pra sua pizzaria antes de decidir.
+
+Me conta mais sobre seu negócio... Quantos pedidos vocês atendem por dia no WhatsApp?
+
+────────────────────────────────────────────────────────────
+
+
+════════════════════════════════════════════════════════════════════════════════
+📊 ESTATÍSTICAS
+════════════════════════════════════════════════════════════════════════════════
+Mídias Usadas: [ENVIAR_MIDIA:COMO_FUNCIONA], [ENVIAR_MIDIA:TABELA_PRECOS], [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+Ações Usadas: [AÇÃO:CRIAR_CONTA_TESTE]
+Total de Tags de Mídia: 10
+Total de Ações: 1
+
+════════════════════════════════════════════════════════════════════════════════
+🔍 ANÁLISE PENDENTE
+════════════════════════════════════════════════════════════════════════════════
+(Análise será feita pelo agente após revisão do log)

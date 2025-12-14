@@ -1,0 +1,302 @@
+{
+  "business": {
+    "name": "Fit & Strong",
+    "type": "Academia",
+    "owner": "Marcos",
+    "description": "Academia com musculação, crossfit, aulas coletivas e personal trainer. Foco em resultados."
+  },
+  "startTime": "2025-12-14T19:30:24.791Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Oi, tudo bem? Vi que vc vende esse tal de AgenteZap. Como que funciona esse negócio?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:25.507Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Oi Marcos! Tudo ótimo e com você? O AgenteZap é um assistente de IA que atende seus clientes 24/7 pelo WhatsApp. Ele responde perguntas, agenda aulas, tira dúvidas sobre planos e até fecha matrículas sem você precisar ficar no celular. É como se fosse um atendente humano, mas que nunca dorme!\n\nQuer ver como ele funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:26.979Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "Opa, tudo bom. Mas como que ele agenda aula mesmo? É automático? E se o cliente quiser mudar de plano?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:28.497Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "Exato! O AgenteZap agenda aulas de forma automática. Quando um cliente pergunta sobre horários disponíveis, ele mostra as opções e agenda diretamente no seu sistema. Se o cliente quiser mudar de plano, a IA também ajuda nisso, explicando as diferenças e facilitando a alteração.\n\nQuer ver uma demonstração de como isso funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQuantos clientes vocês atendem por dia no WhatsApp?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:29.646Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "Tá, mas e se o cliente quiser cancelar? O chatbot consegue lidar com isso? E o preço, vc ainda não me disse quanto custa...",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:31.199Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "Sim, o AgenteZap lida com cancelamentos também! Ele segue um fluxo que você define, explicando as políticas da academia e, se necessário, encaminhando para um atendente humano. É tudo personalizado para o seu negócio.\n\nO valor é R$ 99/mês, e você ainda tem 7 dias de teste grátis para ver como funciona na prática. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:32.376Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "\"Tá, mas como é que esse negócio de cancelamento funciona na prática? Se o cliente quiser cancelar, ele vai falar com o bot ou com um humano direto? E se o bot não entender direito, o que acontece?\"\n\n(Repetindo a pergunta para testar se ele repete a resposta igual)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:34.183Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "Já falei sobre isso! O AgenteZap pode ser configurado para lidar com cancelamentos de duas formas: ou ele mesmo conduz o processo seguindo suas regras, ou encaminha para um humano se a situação for complexa.\n\nO legal é que ele aprende com cada interação, então com o tempo, ele fica cada vez mais eficiente.\n\nQuer que eu explique algum detalhe específico?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:35.131Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "Tá, mas como é que ele vai aprender com as interações? Ele grava as conversas? E se o cliente falar algo que não tem nada a ver com a academia?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:36.597Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "O AgenteZap aprende com as interações analisando padrões de conversas, não gravando áudios ou imagens. Se o cliente falar algo fora do contexto, ele identifica e encaminha para um humano, evitando respostas inadequadas.\n\nQuer ver como ele funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:37.425Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "Já entendi essa parte, mas ainda não vi como ele vai ajudar na minha academia. Como ele vai lidar com perguntas sobre horários de aula, planos e personal trainer?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:39.001Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "O AgenteZap vai responder tudo isso de forma automática! Ele pode mostrar os horários disponíveis, explicar os planos e até ajudar a agendar uma consulta com um personal trainer. Tudo isso sem você precisar ficar no celular.\n\nQuer ver um exemplo de como ele faz isso? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nQual horário mais pega fogo aí na loja?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:39.883Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "\"Ah, mas como é que ele sabe os horários disponíveis? Ele atualiza sozinho ou eu tenho que fazer manual?\"\n\n(Espero que ele explique como funciona o sincronismo de horários)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:41.405Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "Já falei sobre isso! O AgenteZap se integra com seu sistema de agendamento. Você configura os horários disponíveis uma vez, e ele atualiza automaticamente, mostrando apenas os horários que estão livres.\n\nBora começar o teste? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:30:42.203Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "\"Ah, mas e se eu quiser alterar os horários depois? O chatbot atualiza na hora ou demora?\"\n\n(Nota: O vendedor não repetiu a explicação, então você está fazendo uma pergunta nova para testar o conhecimento dele sobre o sistema.)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:43.934Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "Se você alterar os horários no sistema, o AgenteZap atualiza na hora! Ele fica sempre sincronizado com as informações mais recentes da sua academia.\n\nMe conta mais sobre seu negócio... Quantos clientes vocês atendem por dia no WhatsApp?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:44.616Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "\"Ah, legal, mas como ele faz isso? Tipo, se eu mudar a grade de aulas, ele já entende sozinho?\"\n\n(Se ele explicar bem)\n\"Mhm... e se o cliente perguntar sobre um horário que não tá na grade? Ele sabe direcionar?\"\n\n(Se ele repetir algo)\n\"Pô, vc tá repetindo a mesma coisa! Me explica diferente, senão não entendi nada!\"\n\n(Se ele não responder minha dúvida)\n\"E aí, vc não respondeu! Quantos clientes atendem por dia no WhatsApp? É muito ou pouco?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:47.153Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "O AgenteZap se integra diretamente com seu sistema de agendamento. Quando você atualiza a grade de aulas, ele automaticamente reflete essas mudanças. Se um cliente perguntar sobre um horário que não está disponível, ele informa que não há vagas e sugere outros horários ou planos alternativos.\n\nFaz sentido pra você?\n\nQuantos clientes vocês atendem por dia no WhatsApp?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:48.092Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "\"Ah, mas vc já tinha falado isso antes... tá repetindo de novo? E essa parte de quantos clientes atendem por dia no WhatsApp, vc não respondeu. É muito? Pouco? Como que funciona isso?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:49.718Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "Desculpa a repetição! Vamos focar no que importa: o AgenteZap pode atender quantos clientes forem necessários, 24/7. Se você tem muitos clientes no WhatsApp, ele ajuda a organizar e responder tudo sem sobrecarregar sua equipe.\n\nO que te impede de testar agora? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:30:50.613Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "Tá, mas e se eu quiser algo mais personalizado? Tipo, como ele vai lidar com as perguntas específicas da minha academia?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:52.278Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "O AgenteZap é totalmente personalizável! Você configura as respostas de acordo com as necessidades específicas da sua academia, como horários de aula, tipos de planos e até promoções exclusivas.\n\nQuer que eu explique algum detalhe específico?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:52.996Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "\"Tá, mas como é que isso funciona na prática? Se eu quiser que o bot responda sobre a aula de crossfit das 19h, como eu faço? E se o cliente perguntar sobre um plano que não existe mais, o que acontece?\"\n\n(Espero que ele explique direitinho e não fique só na teoria)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:30:58.450Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "Você configura as respostas no painel do AgenteZap. Para a aula de crossfit das 19h, por exemplo, você define o horário e a descrição da aula. Se um cliente perguntar sobre um plano que não existe mais, o AgenteZap informa que o plano não está disponível e sugere alternativas.\n\nFicou alguma dúvida?\n\nTá pronto pra dar esse passo? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:30:59.705Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "\"Tá, mas e se o cliente perguntar algo que não tá no painel? Tipo, 'qual a roupa ideal pra crossfit'? O chatbot vai saber responder?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:01.279Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "O AgenteZap tem uma inteligência que permite responder perguntas gerais, como a roupa ideal para crossfit, com base em informações que você fornece. Se a pergunta for muito específica, ele encaminha para um humano.\n\nQuer ver como ele funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que acha de testar por 7 dias sem compromisso? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:31:02.429Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "Tá, mas como é que isso vai ajudar a minha academia especificamente? Não tô vendo muito benefício ainda.\n\nE esse vídeo aí, mostra mesmo como funciona ou é só propaganda?\n\nE aí, quanto custa mesmo esse negócio?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:04.217Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "O AgenteZap vai ajudar sua academia a atender mais clientes, agendar aulas e responder dúvidas 24/7, aumentando suas vendas e reduzindo o trabalho manual. O vídeo mostra como ele funciona no dia a dia, não é só propaganda. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO valor é R$ 99/mês, e você tem 7 dias de teste grátis. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que te impede de testar agora? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:31:05.398Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "Tá, mas como que esse negócio de IA vai entender que a gente tem aulas de crossfit, musculação e personal trainer? Não é só um chatbot genérico?\n\nE esse preço aí, R$ 99, é fixo ou tem desconto se eu pagar anual? Já vi outro sistema mais barato, mas não sei se era bom.\n\nVou pensar, mas se eu testar, como que eu faço pra cancelar se não gostar?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:07.544Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "O AgenteZap é personalizável! Você configura as informações específicas da sua academia, como aulas de crossfit, musculação e personal trainer. Ele não é genérico, é adaptado para o seu negócio.\n\nO preço é fixo, mas se você pagar anual, tem um desconto. E sobre o teste, é sem compromisso. Se não gostar, é só cancelar quando quiser.\n\nPosso criar seu acesso agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:31:08.693Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]"
+    ],
+    "actionsUsed": [
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]"
+    ],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

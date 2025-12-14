@@ -308,36 +308,48 @@ export async function generateAdminMediaPromptBlock(adminId?: string): Promise<s
   let mediaBlock = `
 
 ═══════════════════════════════════════════════════════════════════════════════
-📁 SISTEMA DE ENVIO DE MÍDIAS - INSTRUÇÕES CRÍTICAS E OBRIGATÓRIAS
+📁 SISTEMA DE MÍDIAS - REGRAS OBRIGATÓRIAS (LEIA TUDO!)
 ═══════════════════════════════════════════════════════════════════════════════
 
-🚨🚨🚨 ATENÇÃO: REGRAS MAIS IMPORTANTES DO SISTEMA 🚨🚨🚨
+🚨 GATILHOS AUTOMÁTICOS DE MÍDIA 🚨
 
-ANTES DE ENVIAR SUA RESPOSTA, VERIFIQUE:
-✓ Se você MENCIONOU "como funciona" → ADICIONE [ENVIAR_MIDIA:COMO_FUNCIONA]
-✓ Se você MENCIONOU "demonstr" ou "mostrar" → ADICIONE [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] 
-✓ Se você MENCIONOU "preço" ou "custa" → ADICIONE [ENVIAR_MIDIA:TABELA_PRECOS]
-✓ Se você MENCIONOU "contrato" → ADICIONE [ENVIAR_MIDIA:PDF_CONTRATO]
+Se sua resposta contém QUALQUER destas palavras/frases, VOCÊ DEVE incluir a tag:
 
-❌ ERRO COMUM: Falar sobre "como funciona" SEM enviar a tag
-✅ CORRETO: "Vou te explicar! [ENVIAR_MIDIA:COMO_FUNCIONA]"
+┌────────────────────────────┬─────────────────────────────────────────┐
+│ SE VOCÊ ESCREVEU...        │ ENTÃO ADICIONE NO FINAL:                │
+├────────────────────────────┼─────────────────────────────────────────┤
+│ "como funciona"            │ [ENVIAR_MIDIA:COMO_FUNCIONA]            │
+│ "funciona assim"           │ [ENVIAR_MIDIA:COMO_FUNCIONA]            │
+│ "deixa eu explicar"        │ [ENVIAR_MIDIA:COMO_FUNCIONA]            │
+│ "vou te explicar"          │ [ENVIAR_MIDIA:COMO_FUNCIONA]            │
+│ "te explico"               │ [ENVIAR_MIDIA:COMO_FUNCIONA]            │
+├────────────────────────────┼─────────────────────────────────────────┤
+│ "vídeo"                    │ [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]       │
+│ "demonstra"                │ [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]       │
+│ "ver na prática"           │ [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]       │
+│ "te mostro"                │ [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]       │
+├────────────────────────────┼─────────────────────────────────────────┤
+│ "preço"                    │ [ENVIAR_MIDIA:TABELA_PRECOS]            │
+│ "quanto custa"             │ [ENVIAR_MIDIA:TABELA_PRECOS]            │
+│ "valor"                    │ [ENVIAR_MIDIA:TABELA_PRECOS]            │
+│ "investimento"             │ [ENVIAR_MIDIA:TABELA_PRECOS]            │
+├────────────────────────────┼─────────────────────────────────────────┤
+│ "contrato"                 │ [ENVIAR_MIDIA:PDF_CONTRATO]             │
+│ "termos"                   │ [ENVIAR_MIDIA:PDF_CONTRATO]             │
+│ "documento"                │ [ENVIAR_MIDIA:PDF_CONTRATO]             │
+└────────────────────────────┴─────────────────────────────────────────┘
 
-⚠️⚠️⚠️ REGRA ABSOLUTA - LEIA COM ATENÇÃO ⚠️⚠️⚠️
+EXEMPLO CORRETO:
+❌ ERRADO: "Vou te explicar como funciona! Basicamente..."
+✅ CERTO: "Vou te explicar como funciona! Basicamente... [ENVIAR_MIDIA:COMO_FUNCIONA]"
 
-VOCÊ SÓ PODE USAR ESTAS MÍDIAS (e NENHUMA outra):
+📋 MÍDIAS DISPONÍVEIS (só use estas):
 ${allMediaNames}
 
-🚫 PROIBIDO INVENTAR MÍDIAS! 
-- NÃO existe QR_CODE como mídia (QR Code é uma AÇÃO: [AÇÃO:ENVIAR_QRCODE])
-- NÃO existe nenhuma mídia que não esteja listada acima
-- Se o nome não está na lista, NÃO USE!
-
-⚠️ DIFERENÇA IMPORTANTE:
-- [ENVIAR_MIDIA:...] = Arquivos pré-gravados (imagens, áudios, vídeos, PDFs)
-- [AÇÃO:...] = Funcionalidades do sistema (criar conta, gerar QR Code, etc)
-
-Para QR CODE DO WHATSAPP: Use [AÇÃO:ENVIAR_QRCODE] (É UMA AÇÃO, NÃO MÍDIA!)
-Para CÓDIGO DE 8 DÍGITOS: Use [AÇÃO:SOLICITAR_CODIGO_PAREAMENTO]
+🚫 PROIBIDO:
+- Inventar mídias que não existem
+- QR_CODE como mídia (use [AÇÃO:ENVIAR_QRCODE])
+- Esquecer a tag quando mencionar as palavras acima
 
 `;
 
@@ -386,40 +398,9 @@ Para CÓDIGO DE 8 DÍGITOS: Use [AÇÃO:SOLICITAR_CODIGO_PAREAMENTO]
   }
 
   mediaBlock += `
-═══════════════════════════════════════════════════════════════════════════════
-⚠️ REGRA CRÍTICA: COMO ENVIAR MÍDIA (CHECKLIST OBRIGATÓRIO)
-═══════════════════════════════════════════════════════════════════════════════
-
-⚠️ ANTES DE ENVIAR SUA RESPOSTA, FAÇA ESTE CHECKLIST:
-
-□ Você mencionou "como funciona"? → SIM = [ENVIAR_MIDIA:COMO_FUNCIONA] OBRIGATÓRIO!
-□ Você mencionou "vídeo" ou "demonstr"? → SIM = [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] OBRIGATÓRIO!
-□ Você mencionou "preço" ou "custa"? → SIM = [ENVIAR_MIDIA:TABELA_PRECOS] OBRIGATÓRIO!
-□ Você já explicou isso antes? → SIM = NÃO REPITA! Avance para próximo assunto!
-
-FORMATO CORRETO DAS TAGS:
-
-CLIENTE: "como funciona o sistema?"
-SUA RESPOSTA: "Vou te explicar como funciona! [ENVIAR_MIDIA:COMO_FUNCIONA]"
-
-CLIENTE: "me explica melhor"  
-SUA RESPOSTA: "Claro! Vou te enviar uma explicação. [ENVIAR_MIDIA:COMO_FUNCIONA]"
-
-CLIENTE: "manda um áudio"
-SUA RESPOSTA: "Vou te enviar o áudio agora! [ENVIAR_MIDIA:COMO_FUNCIONA]"
-
-CLIENTE: "quero saber mais"
-SUA RESPOSTA: "Vou te mostrar! [ENVIAR_MIDIA:COMO_FUNCIONA]"
 
 ═══════════════════════════════════════════════════════════════════════════════
-❌ QUANDO NÃO ENVIAR (apenas responda normalmente SEM tag):
-═══════════════════════════════════════════════════════════════════════════════
-- "Oi", "Bom dia" → responder saudação SEM mídia
-- "Obrigado" → responder agradecimento SEM mídia  
-- "Ok", "Fechado" → confirmar SEM mídia
-
-═══════════════════════════════════════════════════════════════════════════════
-🎯 MAPEAMENTO DE PALAVRAS → MÍDIAS:
+📁 DETALHES DAS MÍDIAS (quando usar cada uma)
 ═══════════════════════════════════════════════════════════════════════════════
 `;
 
