@@ -27,12 +27,13 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
 import AdminAgentConfig from "@/components/admin-agent-config";
 import AdminConversations from "@/components/admin-conversations";
+import FollowUpCalendar from "@/components/follow-up-calendar";
 import {
   SidebarProvider,
   Sidebar,
@@ -185,6 +186,8 @@ export default function AdminPanel() {
         return <AdminAgentConfig />;
       case "conversations":
         return null; // Renderizado fora do container
+      case "calendar":
+        return <FollowUpCalendar />;
       case "config":
         return <ConfigManager config={config} />;
       default:
@@ -285,6 +288,16 @@ export default function AdminPanel() {
                   >
                     <MessageCircle className="w-4 h-4" />
                     <span>Conversas</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("calendar")}
+                    isActive={activeTab === "calendar"}
+                    tooltip="Calendário de Follow-ups"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>Calendário</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -407,6 +420,16 @@ export default function AdminPanel() {
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>Conversas</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("calendar")}
+                  isActive={activeTab === "calendar"}
+                  tooltip="Calendário de Follow-ups"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Calendário</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

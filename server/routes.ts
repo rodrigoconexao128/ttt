@@ -3086,5 +3086,167 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     console.log("✅ [DEV] Rotas de teste habilitadas: /api/test/*");
   }
 
+  // ==================== PÁGINA DE TESTE DO AGENTE (PÚBLICA) ====================
+  
+  /**
+   * Endpoint para testar o agente via interface web
+   * POST /api/test-agent/message
+   * Não requer autenticação - é para clientes testarem
+   */
+  app.post("/api/test-agent/message", async (req: any, res) => {
+    try {
+      const { message, token, history } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ error: "Mensagem obrigatória" });
+      }
+      
+      // Importar processador
+      const { processAdminMessage, getClientSession, createClientSession, addToConversationHistory } = await import("./adminAgentService");
+      
+      // Usar token como identificador de sessão ou gerar um temporário
+      const sessionId = token || `test_${Date.now()}`;
+      
+      // Processar mensagem usando o agente de vendas
+      const response = await processAdminMessage(
+        sessionId,
+        message,
+        undefined,
+        undefined,
+        true // skipTriggerCheck - sempre responder no modo teste
+      );
+      
+      if (!response) {
+        return res.json({
+          response: "Desculpa, não consegui processar sua mensagem. Tenta novamente?",
+        });
+      }
+      
+      res.json({
+        response: response.text,
+        mediaActions: response.mediaActions,
+      });
+    } catch (error: any) {
+      console.error("[TEST-AGENT] Erro:", error);
+      res.status(500).json({ 
+        error: error.message,
+        response: "Ops, houve um erro técnico. Por favor, tente novamente."
+      });
+    }
+  });
+  
+  /**
+   * Obter informações do agente para a página de teste
+   * GET /api/test-agent/info/:token
+   */
+  app.get("/api/test-agent/info/:token", async (req: any, res) => {
+    try {
+      const { token } = req.params;
+      
+      // Por enquanto, retornar info padrão
+      // Futuramente, podemos ter tokens específicos por agente configurado
+      res.json({
+        agentName: "Rodrigo",
+        company: "AgenteZap",
+        description: "Agente de vendas inteligente",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  /**
+   * Gerar link de teste único para um cliente
+   * POST /api/admin/test-link/generate (apenas admin)
+   */
+  app.post("/api/admin/test-link/generate", isAdmin, async (req: any, res) => {
+    try {
+      const { phone, agentName, company } = req.body;
+      
+      // Gerar token único
+      const crypto = await import("crypto");
+      const token = crypto.randomBytes(16).toString("hex");
+      
+      // Salvar configuração do link (em memória por enquanto)
+      // TODO: Persistir no banco
+      const testLink = {
+        token,
+        phone,
+        agentName: agentName || "Rodrigo",
+        company: company || "AgenteZap",
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+      };
+      
+      res.json({
+        success: true,
+        token,
+        link: `/test/${token}`,
+        fullLink: `${req.protocol}://${req.get('host')}/test/${token}`,
+        expiresAt: testLink.expiresAt,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== CALENDÁRIO DE FOLLOW-UPS ====================
+  
+  /**
+   * Obter todos os eventos do calendário (follow-ups + agendamentos)
+   * GET /api/admin/calendar/events
+   */
+  app.get("/api/admin/calendar/events", isAdmin, async (req: any, res) => {
+    try {
+      const { getCalendarEvents } = await import("./followUpService");
+      const events = getCalendarEvents();
+      res.json({ events });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  /**
+   * Obter estatísticas de follow-ups
+   * GET /api/admin/calendar/stats
+   */
+  app.get("/api/admin/calendar/stats", isAdmin, async (req: any, res) => {
+    try {
+      const { getFollowUpStats, getBusinessHoursConfig } = await import("./followUpService");
+      const stats = getFollowUpStats();
+      const businessHours = getBusinessHoursConfig();
+      res.json({ stats, businessHours });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  /**
+   * Cancelar um follow-up ou agendamento
+   * DELETE /api/admin/calendar/events/:id
+   */
+  app.delete("/api/admin/calendar/events/:id", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { phone } = req.query;
+      
+      if (!phone) {
+        return res.status(400).json({ error: "phone query param required" });
+      }
+      
+      const { cancelFollowUp, cancelScheduledContact } = await import("./followUpService");
+      
+      // Tentar cancelar como follow-up
+      cancelFollowUp(phone as string);
+      
+      // Tentar cancelar como agendamento
+      cancelScheduledContact(phone as string, id);
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

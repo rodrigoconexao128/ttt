@@ -12,6 +12,7 @@ import AdminPanel from "@/pages/admin";
 import AdminLogin from "@/pages/admin-login";
 import AgentConfig from "@/pages/agent-config";
 import MediaLibrary from "@/pages/media-library";
+import TestAgent from "@/pages/test-agent";
 import LoadingScreen from "@/components/LoadingScreen";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
@@ -26,6 +27,10 @@ function Router() {
 
   return (
     <Switch>
+      {/* Rota de teste do agente - pública */}
+      <Route path="/test/:token?" component={TestAgent} />
+      <Route path="/testar" component={TestAgent} />
+      
       <Route path="/admin-login" component={AdminLogin} />
       <Route path="/admin" component={AdminPanel} />
       <Route path="/login" component={Login} />
