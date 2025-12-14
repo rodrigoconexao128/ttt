@@ -1,0 +1,118 @@
+{
+  "business": {
+    "name": "Restaurante Sabor Caseiro",
+    "type": "Restaurante/Delivery",
+    "owner": "Dona Maria",
+    "description": "Restaurante de comida caseira com delivery. Marmitas, almoço executivo, pratos feitos.",
+    "scenario": "restaurante",
+    "mediaToSend": "foto"
+  },
+  "analysis": {
+    "score": 85,
+    "criarContaTeste": 8,
+    "mediasEnviadas": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+    ],
+    "aceitouMidiaCliente": false,
+    "mencionouAudio": false,
+    "contextoCorreto": true,
+    "problemas": [
+      "Não demonstrou aceitar mídia do cliente",
+      "Mídia [ENVIAR_MIDIA:COMO_FUNCIONA] enviada 8x (máx 2)"
+    ],
+    "destaques": [
+      "Ofereceu teste 8x - ótimo!"
+    ]
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Oi Rodrigo, vi seu anúncio falando sobre atendimento por WhatsApp. Como é que funciona mesmo?"
+    },
+    {
+      "role": "assistant",
+      "content": "Oi Dona Maria!\n\nObrigado por perguntar! A AgenteZap é um sistema de atendimento por WhatsApp que usa inteligência artificial para ajudar no seu restaurante. Ela pode responder perguntas sobre o cardápio, horários de funcionamento, fazer pedidos e até enviar o link para o delivery!\n\nQuer que eu explique melhor como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, interessante... Mas como ela sabe os preços do meu cardápio? Eu mudo eles de vez em quando, sabe?"
+    },
+    {
+      "role": "assistant",
+      "content": "Entendi, Dona Maria! A AgenteZap é super flexível! Você pode atualizar os preços e o cardápio sempre que quiser. A gente configura tudo junto com você, e a IA fica atualizada com as informações do seu restaurante. Até mesmo os horários de funcionamento e promoções podem ser ajustados facilmente.\n\nQuer que eu mostre um vídeo de como funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    },
+    {
+      "role": "user",
+      "content": "Mas e se o cliente quiser pedir algo fora do cardápio? Tipo, \"sem cebola\" ou \"com mais arroz\"? Ela consegue anotar isso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ótima pergunta, Dona Maria! A AgenteZap consegue lidar com pedidos personalizados! Ela pode anotar observações como \"sem cebola\" ou \"com mais arroz\" e passar tudo direitinho para você. Além disso, ela pode confirmar os detalhes do pedido com o cliente para evitar erros.\n\nQuer que eu mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nE aí, o que achou? Se quiser testar, é só me avisar! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal... Mas e no horário de pico? A gente atende muito cliente ao mesmo tempo, sabe? Será que ela dá conta?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a AgenteZap é perfeita para horários de pico! Ela atende vários clientes ao mesmo tempo, sem fila e sem demora. Enquanto ela cuida dos pedidos e dúvidas, você e sua equipe podem focar na cozinha e no preparo dos pratos.\n\nQuer ver os preços e planos disponíveis? [ENVIAR_MIDIA:TABELA_PRECOS]\n\nSe quiser testar, é só me avisar! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então é isso mesmo? Mas como ela sabe o que eu tenho no cardápio? Eu mudo os pratos toda semana, viu?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a AgenteZap é super adaptável! Você pode atualizar o cardápio sempre que quiser, e a IA fica com as informações sempre atualizadas. A gente configura tudo junto com você, e ela fica pronta para atender os clientes com as opções mais recentes.\n\nQuer que eu mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nSe quiser testar, é só me avisar! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então ela é bem flexível mesmo... Mas e se o cliente pedir algo que não tem no cardápio? Tipo, \"quer um prato que não tá no cardápio\"? Ela sabe lidar com isso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a AgenteZap é treinada para lidar com situações como essa! Se o cliente pedir algo que não está no cardápio, ela pode informar que aquele item não está disponível e sugerir opções similares. Ela também pode passar a dúvida para você, se preferir.\n\nQuer que eu mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nSe quiser testar, é só me avisar! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então ela é bem esperta mesmo... Mas e se o cliente quiser fazer um pedido de última hora? Tipo, \"quero pra daqui a 10 minutos\"? Ela consegue anotar isso direito?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a AgenteZap é super eficiente com pedidos de última hora! Ela pode anotar o pedido e o prazo solicitado, e até avisar o cliente se o tempo for muito apertado. Ela também pode enviar confirmações e atualizações sobre o status do pedido.\n\nQuer que eu mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nSe quiser testar, é só me avisar! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então ela é bem completa mesmo... Mas e se o cliente quiser trocar o endereço depois que já fez o pedido? Ela consegue lidar com isso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a AgenteZap lida muito bem com mudanças de última hora! Se o cliente quiser trocar o endereço depois de fazer o pedido, a IA pode anotar a nova informação e passar para você ou sua equipe de entrega.\n\nQuer que eu mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nSe quiser testar, é só me avisar! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então ela é mesmo completa... Mas e se o cliente quiser cancelar o pedido? Ela consegue lidar com isso sem enrolação?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a AgenteZap é super eficiente em cancelamentos também! Ela pode confirmar o cancelamento com o cliente e avisar você ou sua equipe imediatamente, evitando qualquer confusão.\n\nQuer que eu mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nSe quiser testar, é só me avisar! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então ela é mesmo completa... Mas e se o cliente quiser fazer um pedido de última hora? Tipo, \"quero pra daqui a 10 minutos\"? Ela consegue anotar isso direito?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a AgenteZap é super eficiente com pedidos de última hora! Ela pode anotar o pedido e o prazo solicitado, e até avisar o cliente se o tempo for muito apertado. Ela também pode enviar confirmações e atualizações sobre o status do pedido.\n\nQuer que eu mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nSe quiser testar, é só me avisar! [AÇÃO:CRIAR_CONTA_TESTE]"
+    }
+  ]
+}

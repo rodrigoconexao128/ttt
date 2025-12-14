@@ -1,0 +1,115 @@
+{
+  "business": {
+    "name": "Restaurante Sabor Caseiro",
+    "type": "Restaurante/Delivery",
+    "owner": "Dona Maria",
+    "description": "Restaurante de comida caseira com delivery. Marmitas, almoço executivo, pratos feitos.",
+    "scenario": "restaurante",
+    "mediaToSend": "foto"
+  },
+  "analysis": {
+    "score": 95,
+    "criarContaTeste": 9,
+    "mediasEnviadas": [
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    ],
+    "aceitouMidiaCliente": true,
+    "mencionouAudio": true,
+    "contextoCorreto": true,
+    "problemas": [
+      "Mídia [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] enviada 5x (máx 2)"
+    ],
+    "destaques": [
+      "Ofereceu teste 9x - ótimo!",
+      "Aceitou mídia do cliente corretamente",
+      "Mencionou que aceita áudio"
+    ]
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Oi Rodrigo, vi seu anúncio sobre o AgenteZap. Meu restaurante é de comida caseira, delivery e marmitas. Como é que isso funciona mesmo?"
+    },
+    {
+      "role": "assistant",
+      "content": "Oi Dona Maria! Que legal você ter encontrado nosso anúncio! O AgenteZap é um sistema de IA que pode ajudar seu restaurante \"Sabor Caseiro\" a atender os clientes 24 horas por dia, sem precisar ficar no celular o tempo todo.\n\nA IA pode tirar dúvidas sobre o cardápio, receber pedidos, agendar entregas e até mesmo responder perguntas frequentes. Isso vai deixar seu atendimento mais rápido e eficiente, e seus clientes vão adorar a praticidade!\n\nQuer que eu explique mais detalhes ou posso enviar um vídeo demonstrativo para você ver na prática como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, interessante! Mas como ela sabe os preços do meu cardápio? E se o cliente quiser fazer um pedido personalizado, tipo sem cebola ou algo assim?"
+    },
+    {
+      "role": "assistant",
+      "content": "A IA do AgenteZap é super inteligente e pode ser configurada com todas as informações do seu cardápio, Dona Maria! Você cadastra os pratos, os preços e até as opções de personalização. Quando um cliente pedir algo diferente, como \"sem cebola\", a IA já sabe como lidar e pode confirmar o pedido com você antes de finalizar.\n\nAlém disso, a IA aprende com cada interação, então quanto mais ela atender, mais eficiente ela fica. E se o cliente pedir algo que não está no cardápio, a IA pode encaminhar a mensagem para você diretamente, garantindo que nada passe despercebido.\n\nQuer que eu mostre como é fácil configurar tudo isso? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, mas e se o cliente quiser fazer um pedido de delivery? Ela consegue anotar tudo direitinho? E funciona no horário de pico? A gente atende muito cliente ao mesmo tempo."
+    },
+    {
+      "role": "assistant",
+      "content": "Com certeza, Dona Maria! A IA do AgenteZap é perfeita para isso. Ela consegue anotar todos os detalhes do pedido, como endereço, preferências e horário de entrega, e ainda pode enviar confirmações automáticas para os clientes, evitando erros e esquecimentos.\n\nNo horário de pico, a IA não fica sobrecarregada como um atendimento humano. Ela consegue lidar com várias mensagens ao mesmo tempo, garantindo que nenhum pedido fique sem resposta. Além disso, a IA pode priorizar pedidos urgentes e encaminhar os mais complexos para você, se necessário.\n\nQuer que eu te mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA] [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal! Mas como ela sabe os preços do meu cardápio? Olha, mandei uma foto do cardápio pra vc ver como é. E se o cliente quiser algo que não tá no cardápio? Como ela vai lidar?"
+    },
+    {
+      "role": "assistant",
+      "content": "Recebi! Deixa eu analisar...\n\nDona Maria, com a foto do cardápio, fica bem fácil configurar a IA para reconhecer os pratos e preços. A gente cadastra tudo no sistema, e a IA fica pronta para atender os clientes com todas as informações certinhas.\n\nSe o cliente pedir algo que não está no cardápio, a IA pode perguntar se é um pedido especial e encaminhar a mensagem para você. Assim, você decide se aceita ou não, e a IA aprende com essa interação para melhorar o atendimento.\n\nQuer que eu te mostre como é fácil configurar tudo isso? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, entendi! Mas e se o cliente pedir um prato que eu não tenho no cardápio, mas eu aceitar? A IA vai conseguir passar isso pra mim? E se o cliente pedir pra trocar o arroz por purê de batata? Como é que ela vai lidar?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a IA do AgenteZap é super flexível! Se o cliente pedir um prato que não está no cardápio, mas você aceitar, a IA pode ser configurada para encaminhar essa solicitação diretamente para você. Assim, você pode confirmar o pedido e a IA aprende essa nova opção para futuras interações.\n\nPara pedidos com alterações, como trocar arroz por purê de batata, a IA pode perguntar ao cliente: \"Você quer trocar o arroz por purê de batata? (Sim/Não)\". Se o cliente confirmar, a IA já inclui essa informação no pedido e envia para você. Se não tiver certeza, ela encaminha para você decidir.\n\nQuer que eu te mostre como funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, entendi! Mas e se o cliente pedir um prato que eu não tenho no cardápio, mas eu aceitar? A IA vai conseguir passar isso pra mim? E se o cliente pedir pra trocar o arroz por purê de batata? Como é que ela vai lidar?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a IA do AgenteZap é super flexível! Se o cliente pedir um prato que não está no cardápio, mas você aceitar, a IA pode ser configurada para encaminhar essa solicitação diretamente para você. Assim, você pode confirmar o pedido e a IA aprende essa nova opção para futuras interações.\n\nPara pedidos com alterações, como trocar arroz por purê de batata, a IA pode perguntar ao cliente: \"Você quer trocar o arroz por purê de batata? (Sim/Não)\". Se o cliente confirmar, a IA já inclui essa informação no pedido e envia para você. Se não tiver certeza, ela encaminha para você decidir.\n\nQuer que eu te mostre como funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá! Mas e se o cliente pedir um prato que eu não tenho no cardápio, mas eu aceitar? A IA vai conseguir passar isso pra mim? E se o cliente pedir pra trocar o arroz por purê de batata? Como é que ela vai lidar?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a IA do AgenteZap é super flexível! Se o cliente pedir um prato que não está no cardápio, mas você aceitar, a IA pode ser configurada para encaminhar essa solicitação diretamente para você. Assim, você pode confirmar o pedido e a IA aprende essa nova opção para futuras interações.\n\nPara pedidos com alterações, como trocar arroz por purê de batata, a IA pode perguntar ao cliente: \"Você quer trocar o arroz por purê de batata? (Sim/Não)\". Se o cliente confirmar, a IA já inclui essa informação no pedido e envia para você. Se não tiver certeza, ela encaminha para você decidir.\n\nQuer que eu te mostre como funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá! Mas e se o cliente pedir um prato que eu não tenho no cardápio, mas eu aceitar? A IA vai conseguir passar isso pra mim? E se o cliente pedir pra trocar o arroz por purê de batata? Como é que ela vai lidar?\n\nAh, e mais uma coisa... E se o cliente quiser fazer um pedido de delivery? Ela consegue anotar tudo direitinho? E funciona no horário de pico? A gente atende muito cliente ao mesmo tempo."
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a IA do AgenteZap é super flexível e pode ser configurada para lidar com todas essas situações!\n\n1. **Pedidos fora do cardápio**: Se o cliente pedir algo que não está no cardápio, a IA pode perguntar: \"Esse pedido é especial? (Sim/Não)\". Se o cliente confirmar, a IA encaminha a mensagem para você. Assim, você pode aceitar ou não, e a IA aprende essa nova opção para futuras interações.\n\n2. **Alterações no pedido**: Para pedidos com alterações, como trocar arroz por purê de batata, a IA pode perguntar: \"Você quer trocar o arroz por purê de batata? (Sim/Não)\". Se o cliente confirmar, a IA já inclui essa informação no pedido e envia para você. Se não tiver certeza, ela encaminha para você decidir.\n\n3. **Pedidos de delivery**: A IA consegue anotar todos os detalhes do pedido, como endereço, preferências e horário de entrega. Ela também pode enviar confirmações automáticas para os clientes, evitando erros e esquecimentos.\n\n4. **Horário de pico**: No horário de pico, a IA não fica sobrecarregada como um atendimento humano. Ela consegue lidar com várias mensagens ao mesmo tempo, garantindo que nenhum pedido fique sem resposta. Além disso, a IA pode priorizar pedidos urgentes e encaminhar os mais complexos para você, se necessário.\n\nQuer que eu te mostre como funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá! Mas e se o cliente pedir um prato que eu não tenho no cardápio, mas eu aceitar? A IA vai conseguir passar isso pra mim? E se o cliente pedir pra trocar o arroz por purê de batata? Como é que ela vai lidar?\n\nAh, e mais uma coisa... E se o cliente quiser fazer um pedido de delivery? Ela consegue anotar tudo direitinho? E funciona no horário de pico? A gente atende muito cliente ao mesmo tempo.\n\nMas olha, se eu quiser testar, como é que faz? Tem algum custo?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a IA do AgenteZap é super flexível e pode ser configurada para lidar com todas essas situações!\n\n1. **Pedidos fora do cardápio**: Se o cliente pedir algo que não está no cardápio, a IA pode perguntar: \"Esse pedido é especial? (Sim/Não)\". Se o cliente confirmar, a IA encaminha a mensagem para você. Assim, você pode aceitar ou não, e a IA aprende essa nova opção para futuras interações.\n\n2. **Alterações no pedido**: Para pedidos com alterações, como trocar arroz por purê de batata, a IA pode perguntar: \"Você quer trocar o arroz por purê de batata? (Sim/Não)\". Se o cliente confirmar, a IA já inclui essa informação no pedido e envia para você. Se não tiver certeza, ela encaminha para você decidir.\n\n3. **Pedidos de delivery**: A IA consegue anotar todos os detalhes do pedido, como endereço, preferências e horário de entrega. Ela também pode enviar confirmações automáticas para os clientes, evitando erros e esquecimentos.\n\n4. **Horário de pico**: No horário de pico, a IA não fica sobrecarregada como um atendimento humano. Ela consegue lidar com várias mensagens ao mesmo tempo, garantindo que nenhum pedido fique sem resposta. Além disso, a IA pode priorizar pedidos urgentes e encaminhar os mais complexos para você, se necessário.\n\nSobre o teste, Dona Maria, a gente oferece 7 dias grátis para você experimentar todas essas funcionalidades sem compromisso. Depois, se quiser continuar, o valor é R$ 99 por mês. O que acha de eu criar um acesso para você testar? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá! Mas e se o cliente pedir um prato que eu não tenho no cardápio, mas eu aceitar? A IA vai conseguir passar isso pra mim? E se o cliente pedir pra trocar o arroz por purê de batata? Como é que ela vai lidar?\n\nAh, e mais uma coisa... E se o cliente quiser fazer um pedido de delivery? Ela consegue anotar tudo direitinho? E funciona no horário de pico? A gente atende muito cliente ao mesmo tempo.\n\nMas olha, se eu quiser testar, como é que faz? Tem algum custo?\n\nAh, e mais uma coisa... Ela consegue atender em português do jeito que a gente fala aqui? Porque às vezes os clientes mandam mensagem meio \"estranho\", sabe? E se o cliente mandar um áudio? Ela entende?"
+    },
+    {
+      "role": "assistant",
+      "content": "Dona Maria, a IA do AgenteZap é super adaptável e vai ajudar muito no seu restaurante \"Sabor Caseiro\"!\n\n1. **Pedidos fora do cardápio**: Se o cliente pedir algo que não está no cardápio, a IA pode perguntar: \"Esse pedido é especial? (Sim/Não)\". Se o cliente confirmar, a IA encaminha a mensagem para você. Assim, você pode aceitar ou não, e a IA aprende essa nova opção para futuras interações.\n\n2. **Alterações no pedido**: Para pedidos com alterações, como trocar arroz por purê de batata, a IA pode perguntar: \"Você quer trocar o arroz por purê de batata? (Sim/Não)\". Se o cliente confirmar, a IA já inclui essa informação no pedido e envia para você. Se não tiver certeza, ela encaminha para você decidir.\n\n3. **Pedidos de delivery**: A IA consegue anotar todos os detalhes do pedido, como endereço, preferências e horário de entrega. Ela também pode enviar confirmações automáticas para os clientes, evitando erros e esquecimentos.\n\n4. **Horário de pico**: No horário de pico, a IA não fica sobrecarregada como um atendimento humano. Ela consegue lidar com várias mensagens ao mesmo tempo, garantindo que nenhum pedido fique sem resposta. Além disso, a IA pode priorizar pedidos urgentes e encaminhar os mais complexos para você, se necessário.\n\n5. **Atendimento em português**: Sim, a IA entende o português do jeito que a gente fala aqui, mesmo que as mensagens sejam \"estranhas\". Ela também consegue transcrever áudios e responder de forma natural e amigável.\n\nSobre o teste, Dona Maria, a gente oferece 7 dias grátis para você experimentar todas essas funcionalidades sem compromisso. Depois, se quiser continuar, o valor é R$ 99 por mês. O que acha de eu criar um acesso para você testar? [AÇÃO:CRIAR_CONTA_TESTE]"
+    }
+  ]
+}

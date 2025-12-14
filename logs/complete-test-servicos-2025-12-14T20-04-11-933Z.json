@@ -1,0 +1,109 @@
+{
+  "business": {
+    "name": "Consultoria de Marketing",
+    "type": "Serviços B2B",
+    "owner": "Amanda",
+    "description": "Consultoria de marketing digital para pequenas empresas. Pacotes mensais.",
+    "scenario": "servicos",
+    "mediaToSend": "audio"
+  },
+  "analysis": {
+    "score": 90,
+    "criarContaTeste": 8,
+    "mediasEnviadas": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    ],
+    "aceitouMidiaCliente": false,
+    "mencionouAudio": false,
+    "contextoCorreto": true,
+    "problemas": [
+      "Não demonstrou aceitar mídia do cliente"
+    ],
+    "destaques": [
+      "Ofereceu teste 8x - ótimo!"
+    ]
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Oi Rodrigo, vi seu anúncio sobre consultoria de marketing digital. Eu sou dona de uma consultoria B2B e tô curioso pra saber como vc pode me ajudar."
+    },
+    {
+      "role": "assistant",
+      "content": "Oi Amanda! Que legal que você entrou em contato! A AgenteZap é um sistema de IA que pode revolucionar o atendimento da sua consultoria de marketing digital. Como você atende pequenas empresas, imagina só ter um assistente virtual 24h por dia, 7 dias por semana, tirando dúvidas, agendando reuniões e até mesmo vendendo seus pacotes mensais. Isso vai te ajudar a fechar mais negócios e ainda dar um atendimento mais ágil e eficiente para seus clientes. [ENVIAR_MIDIA:COMO_FUNCIONA]"
+    },
+    {
+      "role": "user",
+      "content": "Hmm, interessante... mas como vc explica meus pacotes de serviço pro cliente? Eu tenho pacotes mensais e cada um tem um escopo diferente."
+    },
+    {
+      "role": "assistant",
+      "content": "Amanda, a AgenteZap é super flexível! Você pode programar a IA para explicar cada pacote de forma clara e objetiva, destacando os benefícios e o escopo de cada um. Por exemplo, quando um cliente perguntar sobre os pacotes, a IA pode dizer: \"Temos três opções de pacotes mensais. O básico inclui X, Y e Z, o intermediário inclui tudo do básico mais A, B e C, e o avançado inclui tudo do intermediário mais D, E e F. Qual deles você acha que se encaixa melhor no seu negócio?\" Além disso, a IA pode enviar links para mais informações ou até mesmo agendar uma reunião para você fechar o negócio. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal! E dá pra agendar reuniões/consultas diretamente? Tipo, se o cliente quiser marcar um horário com a gente? E se ele quiser negociar preço? Aí como é que funciona?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Amanda! A AgenteZap pode agendar reuniões e consultas diretamente no seu calendário. Quando um cliente quiser marcar um horário, a IA pode perguntar quais dias e horários são mais convenientes e, em seguida, agendar automaticamente. Quanto à negociação de preço, a IA pode ser programada para direcionar o cliente a você ou a um link de contato, garantindo que você tenha o controle sobre essas conversas mais complexas. Isso mantém a humanização no processo de venda, enquanto a IA cuida da parte operacional. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    },
+    {
+      "role": "user",
+      "content": "Entendi... e ela entende sobre B2B? Porque às vezes o cliente quer algo super específico, tipo um plano de marketing pra um nicho muito específico. Ela consegue lidar com isso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Amanda, a AgenteZap é treinada para entender o contexto B2B e pode lidar com perguntas específicas sobre planos de marketing para nichos. Você pode programar a IA com respostas padrão para perguntas frequentes e, para casos mais complexos, a IA pode direcionar o cliente para você ou para um link de contato. Por exemplo, se um cliente perguntar sobre um plano de marketing para um nicho específico, a IA pode responder: \"Entendi! Vamos agendar uma reunião para discutir melhor as suas necessidades e criar um plano personalizado para o seu nicho. Qual seria o melhor horário para você?\" Isso garante que você consiga fechar mais negócios e ainda manter um atendimento personalizado. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então dá pra testar? Porque eu quero ver na prática como ela se sai com um cliente que pergunta sobre um pacote específico pra um nicho que eu atendo. Tipo, um cliente que quer um plano de marketing pro setor de saúde, por exemplo."
+    },
+    {
+      "role": "assistant",
+      "content": "Claro, Amanda! Você pode testar a AgenteZap gratuitamente por 7 dias. Durante esse período, você pode programar a IA para responder a perguntas específicas sobre planos de marketing para o setor de saúde e ver como ela se sai. Por exemplo, você pode criar uma resposta padrão para quando um cliente perguntar sobre um plano de marketing para o setor de saúde: \"Temos um pacote especial para o setor de saúde que inclui X, Y e Z. Vamos agendar uma reunião para discutir melhor as suas necessidades e criar um plano personalizado para o seu negócio. Qual seria o melhor horário para você?\" Isso vai te dar uma ideia de como a IA pode ajudar no seu dia a dia. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, ótimo! Mas e se o cliente perguntar algo que não tá no script? Tipo, algo super específico que eu não previ? Aí ela consegue redirecionar pra mim ou fica só dando voltas?"
+    },
+    {
+      "role": "assistant",
+      "content": "Amanda, a AgenteZap é inteligente o suficiente para identificar quando uma pergunta está fora do escopo do que foi programado. Nesse caso, ela pode ser configurada para responder algo como: \"Essa é uma pergunta interessante! Vou encaminhar para a Amanda, que é a especialista, para te ajudar da melhor forma possível. Ela entrará em contato em breve. Enquanto isso, posso agendar uma reunião para discutirmos melhor?\" Isso garante que você não perca nenhum cliente e ainda mantenha um atendimento personalizado. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então ela não fica só dando voltas? Porque isso é importante pra mim, porque às vezes o cliente quer algo específico e se a IA não souber responder, ele pode desistir."
+    },
+    {
+      "role": "assistant",
+      "content": "Exatamente, Amanda! A AgenteZap foi desenvolvida para ser eficiente e direcionar o cliente para o atendimento humano quando necessário. Se a pergunta for muito específica e não estiver no script, a IA pode responder de forma profissional e encaminhar a solicitação para você. Por exemplo: \"Obrigado pelo seu interesse! Vou encaminhar sua pergunta para a Amanda, que é nossa especialista em marketing digital. Ela entrará em contato em breve. Enquanto isso, posso agendar uma reunião para discutirmos melhor suas necessidades?\" Isso garante que você não perca nenhum cliente e ainda mantenha um atendimento de qualidade. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então ela não fica só dando voltas? Porque isso é importante pra mim, porque às vezes o cliente quer algo específico e se a IA não souber responder, ele pode desistir.\n\nE aí, como é que funciona esse teste? Eu posso colocar uns exemplos de perguntas que eu recebo e ver como ela responde?"
+    },
+    {
+      "role": "assistant",
+      "content": "Amanda, entendi perfeitamente! A AgenteZap não fica dando voltas, ela é programada para direcionar o cliente para você quando necessário. Sobre o teste, sim! Você pode colocar exemplos de perguntas que recebe e ver como a IA responde. Durante os 7 dias de teste grátis, você pode personalizar as respostas e testar diferentes cenários para ver como a IA se sai. Isso te dá a oportunidade de ajustar tudo antes de começar a usar no seu dia a dia. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então eu posso testar com perguntas reais que eu já recebi? Tipo, \"Quanto custa um plano de marketing pra clínica veterinária?\" ou \"Como funciona o atendimento de emergência?\" Essas coisas que eu já vi clientes perguntarem?"
+    },
+    {
+      "role": "assistant",
+      "content": "Exatamente, Amanda! Você pode testar com perguntas reais que já recebeu. Por exemplo, para a pergunta \"Quanto custa um plano de marketing para clínica veterinária?\", a IA pode responder: \"Temos pacotes específicos para clínicas veterinárias. O pacote básico inclui X, Y e Z por R$ X, e o pacote avançado inclui tudo do básico mais A, B e C por R$ Y. Posso agendar uma reunião para discutirmos melhor as suas necessidades?\" Para a pergunta \"Como funciona o atendimento de emergência?\", a IA pode responder: \"Nosso atendimento de emergência funciona 24h por dia. Você pode entrar em contato conosco a qualquer momento e um de nossos especialistas entrará em contato em até 1 hora. Posso agendar uma reunião para discutirmos melhor como podemos ajudar o seu negócio?\" [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então ela já entende que eu tenho pacotes específicos pra nichos? Tipo, se o cliente perguntar sobre um plano pra escola de idiomas, ela já sabe que eu tenho um pacote pra isso?\n\nE se o cliente quiser negociar o preço? Ela consegue direcionar ele pra mim ou fica tentando argumentar sozinha?"
+    },
+    {
+      "role": "assistant",
+      "content": "Amanda, sim! A AgenteZap pode ser programada para entender que você tem pacotes específicos para nichos como escolas de idiomas. Por exemplo, se um cliente perguntar sobre um plano para uma escola de idiomas, a IA pode responder: \"Temos um pacote especial para escolas de idiomas que inclui X, Y e Z. Posso agendar uma reunião para discutirmos melhor as suas necessidades e criar um plano personalizado para a sua escola?\"\n\nQuanto à negociação de preço, a IA pode ser configurada para direcionar o cliente para você. Por exemplo: \"Entendi que você está interessado em negociar o preço. Vou encaminhar sua solicitação para a Amanda, que é nossa especialista em pacotes personalizados. Ela entrará em contato em breve para discutirmos melhor suas necessidades. Enquanto isso, posso agendar uma reunião?\" Isso garante que você tenha o controle sobre as negociações e ainda mantenha um atendimento personalizado. [AÇÃO:CRIAR_CONTA_TESTE]"
+    }
+  ]
+}

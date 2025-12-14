@@ -1,0 +1,108 @@
+{
+  "business": {
+    "name": "Ebook de Investimentos",
+    "type": "Infoprodutor",
+    "owner": "Rafael",
+    "description": "Vende ebook 'Primeiros Passos nos Investimentos' por R$ 47. Público iniciante.",
+    "scenario": "infoproduto",
+    "mediaToSend": null
+  },
+  "analysis": {
+    "score": 100,
+    "criarContaTeste": 9,
+    "mediasEnviadas": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]"
+    ],
+    "aceitouMidiaCliente": false,
+    "mencionouAudio": false,
+    "contextoCorreto": true,
+    "problemas": [],
+    "destaques": [
+      "Ofereceu teste 9x - ótimo!"
+    ]
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Oi Rodrigo, vi seu anúncio sobre a AgenteZap. Como a IA vai tirar dúvidas sobre meu ebook de investimentos?"
+    },
+    {
+      "role": "assistant",
+      "content": "Oi Rafael! Que bom que você entrou em contato! A IA da AgenteZap pode ser programada para responder perguntas frequentes sobre o seu ebook \"Primeiros Passos nos Investimentos\". Por exemplo, se alguém perguntar sobre o conteúdo do ebook ou como fazer a compra, a IA já tem as respostas prontas e pode até enviar o link de compra direto no WhatsApp. Funciona 24 horas por dia, inclusive aos finais de semana e feriados, então você não perde nenhuma venda! [ENVIAR_MIDIA:COMO_FUNCIONA]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal! E se o cliente perguntar sobre a garantia de 7 dias? A IA consegue responder isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Rafael! A IA pode ser treinada para responder sobre a garantia de 7 dias do seu ebook. Por exemplo, se alguém perguntar sobre a política de reembolso, a IA pode explicar que você oferece 7 dias para o cliente testar o material e, se não gostar, pode solicitar o reembolso. Isso aumenta a confiança do cliente na hora da compra! [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "E se o cliente perguntar sobre os bônus que eu ofereço junto com o ebook? A IA consegue responder sobre isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Com certeza, Rafael! A IA da AgenteZap pode ser configurada para responder sobre os bônus que você oferece junto com o ebook. Por exemplo, se o cliente perguntar sobre os materiais extras, a IA pode explicar que, além do ebook \"Primeiros Passos nos Investimentos\", você oferece um checklist de investimentos e um guia de termos financeiros. Isso ajuda a destacar o valor do seu produto e aumenta as chances de conversão! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "E se eu usar tráfego pago? A galera vem do anúncio, cai no WhatsApp e a IA já tá preparada pra vender?"
+    },
+    {
+      "role": "assistant",
+      "content": "Exatamente, Rafael! A AgenteZap funciona perfeitamente com tráfego pago. Quando os leads vêm do anúncio e caem no WhatsApp, a IA já está preparada para atender. Ela pode tirar dúvidas sobre o ebook, explicar os benefícios, mencionar os bônus e até enviar o link de compra. Isso aumenta muito a conversão, pois o atendimento é imediato e personalizado. [ENVIAR_MIDIA:TABELA_PRECOS] [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, beleza! E se o cliente perguntar sobre o preço? A IA sabe que o ebook custa R$47?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Rafael! A IA da AgenteZap pode ser programada para informar o preço do ebook, que é R$ 47. Além disso, ela pode explicar o valor do investimento e como o conteúdo vai ajudar o cliente a dar os primeiros passos nos investimentos. A IA também pode direcionar o cliente para a página de compra ou oferecer um link direto para facilitar o processo. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, ótimo! E se o cliente perguntar se o ebook é pra iniciante mesmo? A IA consegue explicar que é pra quem tá começando?"
+    },
+    {
+      "role": "assistant",
+      "content": "Com certeza, Rafael! A IA pode ser configurada para explicar que o ebook \"Primeiros Passos nos Investimentos\" é ideal para iniciantes. Ela pode destacar que o conteúdo é acessível, sem jargões complicados, e que foi criado justamente para quem está começando no mundo dos investimentos. Isso ajuda a tranquilizar o cliente e mostrar que o produto é adequado para o nível dele. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, perfeito! E se o cliente perguntar sobre o formato do ebook? É PDF, vídeo ou o quê? A IA consegue responder isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Rafael! A IA pode informar que o ebook \"Primeiros Passos nos Investimentos\" está no formato PDF, fácil de baixar e acessar em qualquer dispositivo. Ela também pode explicar que o PDF é otimizado para leitura em smartphones, tablets e computadores, garantindo uma experiência de aprendizado prática e acessível. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, ótimo! E se o cliente perguntar sobre o prazo de entrega? A IA consegue explicar que é imediato?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Rafael! A IA pode informar que o ebook \"Primeiros Passos nos Investimentos\" é entregue imediatamente após a compra. Assim que o pagamento é confirmado, o cliente recebe o link de download do PDF no WhatsApp. Isso garante que o cliente possa começar a aprender sobre investimentos no mesmo instante, sem esperar. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, perfeito! E se o cliente perguntar se tem algum desconto ou promoção rolando? A IA consegue responder isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Rafael! A IA pode ser programada para informar sobre descontos ou promoções que você estiver oferecendo. Por exemplo, se você tiver uma promoção de lançamento ou um cupom de desconto, a IA pode comunicar isso ao cliente. Isso ajuda a aumentar as vendas e a aproveitar oportunidades de marketing. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal! E se o cliente perguntar sobre o método de pagamento? A IA consegue responder sobre cartão, boleto, PIX, etc.?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Rafael! A IA pode informar os métodos de pagamento disponíveis para a compra do ebook. Ela pode explicar que você aceita cartão de crédito, boleto bancário e PIX, garantindo que o cliente tenha várias opções para realizar a compra de forma conveniente. [AÇÃO:CRIAR_CONTA_TESTE]"
+    }
+  ]
+}
