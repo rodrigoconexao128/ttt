@@ -308,13 +308,19 @@ export async function generateAdminMediaPromptBlock(adminId?: string): Promise<s
   let mediaBlock = `
 
 ═══════════════════════════════════════════════════════════════════════════════
-📁 SISTEMA DE ENVIO DE MÍDIAS - INSTRUÇÕES OBRIGATÓRIAS
+📁 SISTEMA DE ENVIO DE MÍDIAS - INSTRUÇÕES CRÍTICAS E OBRIGATÓRIAS
 ═══════════════════════════════════════════════════════════════════════════════
 
-🔴🔴🔴 REGRA MAIS IMPORTANTE 🔴🔴🔴
-Quando cliente perguntar "como funciona", "me explica", "quero saber mais":
-→ SEMPRE inclua [ENVIAR_MIDIA:COMO_FUNCIONA] na resposta!
-→ Esta tag ENVIA o áudio explicativo automaticamente!
+🚨🚨🚨 ATENÇÃO: REGRAS MAIS IMPORTANTES DO SISTEMA 🚨🚨🚨
+
+ANTES DE ENVIAR SUA RESPOSTA, VERIFIQUE:
+✓ Se você MENCIONOU "como funciona" → ADICIONE [ENVIAR_MIDIA:COMO_FUNCIONA]
+✓ Se você MENCIONOU "demonstr" ou "mostrar" → ADICIONE [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] 
+✓ Se você MENCIONOU "preço" ou "custa" → ADICIONE [ENVIAR_MIDIA:TABELA_PRECOS]
+✓ Se você MENCIONOU "contrato" → ADICIONE [ENVIAR_MIDIA:PDF_CONTRATO]
+
+❌ ERRO COMUM: Falar sobre "como funciona" SEM enviar a tag
+✅ CORRETO: "Vou te explicar! [ENVIAR_MIDIA:COMO_FUNCIONA]"
 
 ⚠️⚠️⚠️ REGRA ABSOLUTA - LEIA COM ATENÇÃO ⚠️⚠️⚠️
 
@@ -381,14 +387,17 @@ Para CÓDIGO DE 8 DÍGITOS: Use [AÇÃO:SOLICITAR_CODIGO_PAREAMENTO]
 
   mediaBlock += `
 ═══════════════════════════════════════════════════════════════════════════════
-⚠️ REGRA CRÍTICA: COMO ENVIAR MÍDIA (OBRIGATÓRIO)
+⚠️ REGRA CRÍTICA: COMO ENVIAR MÍDIA (CHECKLIST OBRIGATÓRIO)
 ═══════════════════════════════════════════════════════════════════════════════
 
-Quando o cliente pedir uma mídia ou o assunto combinar, você DEVE:
-1. Responder confirmando o envio
-2. ADICIONAR A TAG NO FINAL: [ENVIAR_MIDIA:NOME_EXATO_DA_MIDIA]
+⚠️ ANTES DE ENVIAR SUA RESPOSTA, FAÇA ESTE CHECKLIST:
 
-EXEMPLOS OBRIGATÓRIOS (copie este formato):
+□ Você mencionou "como funciona"? → SIM = [ENVIAR_MIDIA:COMO_FUNCIONA] OBRIGATÓRIO!
+□ Você mencionou "vídeo" ou "demonstr"? → SIM = [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] OBRIGATÓRIO!
+□ Você mencionou "preço" ou "custa"? → SIM = [ENVIAR_MIDIA:TABELA_PRECOS] OBRIGATÓRIO!
+□ Você já explicou isso antes? → SIM = NÃO REPITA! Avance para próximo assunto!
+
+FORMATO CORRETO DAS TAGS:
 
 CLIENTE: "como funciona o sistema?"
 SUA RESPOSTA: "Vou te explicar como funciona! [ENVIAR_MIDIA:COMO_FUNCIONA]"
