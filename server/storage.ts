@@ -1190,6 +1190,26 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  async clearAdminConversationMessages(conversationId: string): Promise<number> {
+    // Deletar todas as mensagens da conversa
+    const result = await db
+      .delete(adminMessages)
+      .where(eq(adminMessages.conversationId, conversationId));
+    
+    // Atualizar a conversa para limpar última mensagem
+    await db
+      .update(adminConversations)
+      .set({ 
+        lastMessageText: null, 
+        lastMessageAt: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(adminConversations.id, conversationId));
+    
+    console.log(`🗑️ [STORAGE] Mensagens da conversa ${conversationId} limpas`);
+    return result.rowCount || 0;
+  }
+
   async isAdminAgentEnabledForConversation(conversationId: string): Promise<boolean> {
     const [conversation] = await db
       .select({ isAgentEnabled: adminConversations.isAgentEnabled })
@@ -1406,28 +1426,6 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error(`❌ [RESET CLIENT] Erro ao resetar cliente:`, error);
       throw error;
-    }
-  }
-
-  async clearAdminConversations(adminId: string): Promise<boolean> {
-    try {
-      // Deletar mensagens relacionadas primeiro
-      const convs = await db
-        .select({ id: adminConversations.id })
-        .from(adminConversations)
-        .where(eq(adminConversations.adminId, adminId));
-
-      const convIds = convs.map((c: any) => c.id);
-
-      if (convIds.length > 0) {
-        await db.delete(adminMessages).where(inArray(adminMessages.conversationId, convIds));
-        await db.delete(adminConversations).where(inArray(adminConversations.id, convIds));
-      }
-
-      return true;
-    } catch (error) {
-      console.error('[Storage] Erro ao limpar conversas do admin:', error);
-      return false;
     }
   }
 }

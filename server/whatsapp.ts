@@ -2584,46 +2584,6 @@ export async function restoreAdminSessions(): Promise<void> {
   }
 }
 
-// Reconciler: se o DB indica que admin tem WhatsApp conectado mas a sessão em memória
-// não existe (ex: processo reiniciado, credenciais no disco), tenta restaurar.
-const lastAdminReconnectAttempt = new Map<string, number>();
-async function reconcileAdminSessions(): Promise<void> {
-  try {
-    const admins = await storage.getAllAdmins();
-    for (const admin of admins) {
-      try {
-        const conn = await storage.getAdminWhatsappConnection(admin.id);
-        const hasSession = adminSessions.has(admin.id) && !!adminSessions.get(admin.id)?.socket;
-
-        if (conn && conn.isConnected && !hasSession) {
-          const last = lastAdminReconnectAttempt.get(admin.id) || 0;
-          const now = Date.now();
-          // só tentar reconectar a cada 30s por admin para evitar spam
-          if (now - last > 30000) {
-            console.log(`[RECONCILE] DB says admin ${admin.id} isConnected but no session in memory. Trying restore...`);
-            lastAdminReconnectAttempt.set(admin.id, now);
-            try {
-              await connectAdminWhatsApp(admin.id);
-              console.log(`[RECONCILE] Attempted restore for admin ${admin.id}`);
-            } catch (err) {
-              console.error(`[RECONCILE] Failed to restore admin ${admin.id}:`, err);
-            }
-          }
-        }
-      } catch (innerErr) {
-        console.error('[RECONCILE] error checking admin:', innerErr);
-      }
-    }
-  } catch (err) {
-    console.error('[RECONCILE] error fetching admins:', err);
-  }
-}
-
-// Start periodic reconciler
-setInterval(() => {
-  void reconcileAdminSessions();
-}, 30000);
-
 // ═══════════════════════════════════════════════════════════════════════
 // 📲 CONEXÃO VIA PAIRING CODE (SEM QR CODE)
 // ═══════════════════════════════════════════════════════════════════════

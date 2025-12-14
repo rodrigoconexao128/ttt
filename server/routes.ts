@@ -1331,12 +1331,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== ADMIN WHATSAPP ROUTES ====================
-  // Get admin WhatsApp connection status
+  // Get admin WhatsApp connection status - verifica estado REAL da sessão
   app.get("/api/admin/whatsapp/connection", isAdmin, async (req, res) => {
     try {
       const adminId = (req.session as any)?.adminId;
       const connection = await storage.getAdminWhatsappConnection(adminId);
-      res.json(connection || { isConnected: false });
+      
+      // Verificar estado REAL da sessão na memória
+      const { getAdminSession } = await import("./whatsapp");
+      const activeSession = getAdminSession(adminId);
+      const isReallyConnected = !!(activeSession?.socket?.user);
+      
+      // Se há discrepância entre banco e sessão real, sincronizar
+      if (connection && connection.isConnected !== isReallyConnected) {
+        console.log(`🔄 [ADMIN WS] Sincronizando estado: banco=${connection.isConnected}, real=${isReallyConnected}`);
+        await storage.updateAdminWhatsappConnection(adminId, {
+          isConnected: isReallyConnected,
+          phoneNumber: isReallyConnected ? activeSession?.socket?.user?.id.split(':')[0] : connection.phoneNumber,
+        });
+      }
+      
+      // Retornar estado real
+      const phoneNumber = isReallyConnected 
+        ? activeSession?.socket?.user?.id.split(':')[0] 
+        : connection?.phoneNumber;
+      
+      res.json({
+        ...(connection || {}),
+        isConnected: isReallyConnected,
+        phoneNumber: phoneNumber || connection?.phoneNumber,
+      });
     } catch (error) {
       console.error("Error fetching admin WhatsApp connection:", error);
       res.status(500).json({ message: "Failed to fetch connection" });
@@ -1366,20 +1390,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error disconnecting admin WhatsApp:", error);
       res.status(500).json({ message: "Failed to disconnect WhatsApp" });
-    }
-  });
-
-  // Clear all admin WhatsApp history (conversations + messages)
-  app.post("/api/admin/whatsapp/clear-history", isAdmin, async (req, res) => {
-    try {
-      const adminId = (req.session as any)?.adminId;
-      const { clearAdminConversations } = await import("./storage");
-      const success = await clearAdminConversations(adminId);
-      if (!success) return res.status(500).json({ success: false, message: "Failed to clear history" });
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error clearing admin history:", error);
-      res.status(500).json({ success: false, message: "Error clearing history" });
     }
   });
 
@@ -1469,6 +1479,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error resuming admin agent:", error);
       res.status(500).json({ message: "Failed to resume agent" });
+    }
+  });
+
+  // DELETE - Limpar histórico de mensagens de uma conversa (mantém a conversa, apaga mensagens)
+  app.delete("/api/admin/conversations/:id/history", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const conversation = await storage.getAdminConversation(id);
+      
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+      
+      // Limpar mensagens do banco
+      await storage.clearAdminConversationMessages(id);
+      
+      // Limpar sessão em memória do cliente (baseado no telefone)
+      const phone = conversation.contactNumber || conversation.remoteJid?.split('@')[0]?.split(':')[0];
+      if (phone) {
+        const { clearClientSession } = await import("./adminAgentService");
+        clearClientSession(phone);
+        console.log(`🗑️ [ADMIN] Histórico limpo para conversa ${id} (telefone: ${phone})`);
+      }
+      
+      res.json({ success: true, message: "Histórico limpo com sucesso" });
+    } catch (error) {
+      console.error("Error clearing conversation history:", error);
+      res.status(500).json({ message: "Falha ao limpar histórico" });
     }
   });
 

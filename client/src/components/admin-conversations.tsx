@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
-import { Send, MessageCircle, Search, Smartphone, Bot, X } from "lucide-react";
+import { Send, MessageCircle, Search, Smartphone, Bot, X, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
@@ -115,6 +115,33 @@ export default function AdminConversations() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao enviar mensagem",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para limpar histórico
+  const clearHistoryMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/admin/conversations/${selectedConversationId}/history`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Falha ao limpar histórico");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/messages", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+      toast({
+        title: "Histórico limpo!",
+        description: "Todas as mensagens foram removidas. O cliente será tratado como novo.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao limpar histórico",
         description: error.message,
         variant: "destructive",
       });
@@ -344,6 +371,19 @@ export default function AdminConversations() {
                     disabled={toggleAgentMutation.isPending}
                   />
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm("Limpar todo o histórico? O cliente será tratado como novo na próxima mensagem.")) {
+                      clearHistoryMutation.mutate();
+                    }
+                  }}
+                  disabled={clearHistoryMutation.isPending}
+                  title="Limpar histórico e resetar sessão"
+                >
+                  <Trash2 className="w-4 h-4 text-destructive" />
+                </Button>
               </div>
             </div>
 
