@@ -1,0 +1,274 @@
+
+════════════════════════════════════════════════════════════════════════════════
+📋 LOG DE CONVERSA - Tech Solutions (Suporte de TI)
+════════════════════════════════════════════════════════════════════════════════
+Data: 2025-12-14T19:43:49.466Z
+Cliente: Ricardo
+Total de Mensagens: 30
+
+════════════════════════════════════════════════════════════════════════════════
+💬 CONVERSA COMPLETA
+════════════════════════════════════════════════════════════════════════════════
+
+👤 [1] Ricardo:
+Opa, tô aqui porque vi um anúncio da AgenteZap. Mas já tentei chatbot antes e foi uma porcaria. Como é que o seu funciona?
+
+────────────────────────────────────────────────────────────
+
+🤖 [2] Rodrigo:
+Entendo sua frustração com chatbots ruins, Ricardo! A AgenteZap é diferente porque usa IA avançada que aprende com cada interação. Ela atende seus clientes de TI como se fosse um humano, tirando dúvidas sobre serviços, agendando manutenções e até resolvendo problemas simples. Quer ver como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+Qual horário mais pega fogo no seu atendimento?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [3] Ricardo:
+Tá, mas como é que isso vai ajudar na minha loja de suporte técnico? Quero ver algo mais específico, não só um vídeo genérico.
+
+E esse preço que vc falou antes, é fixo ou tem desconto pra quem paga no ano?
+
+────────────────────────────────────────────────────────────
+
+🤖 [4] Rodrigo:
+Ótima pergunta, Ricardo! Na sua empresa de suporte técnico, a AgenteZap pode agendar serviços, tirar dúvidas sobre planos, e até resolver problemas simples de clientes 24/7. Por exemplo, um cliente que precisa de ajuda com backup em nuvem pode receber orientações imediatas, sem precisar esperar seu time. Sobre o preço, é fixo em R$ 99/mês, mas se você pagar no ano, dá um desconto legal! [ENVIAR_MIDIA:TABELA_PRECOS]
+
+O que acha de testar por 7 dias sem compromisso?
+   📁 Mídias: [ENVIAR_MIDIA:TABELA_PRECOS]
+
+────────────────────────────────────────────────────────────
+
+👤 [5] Ricardo:
+"Ah, mas vc já explicou isso antes, tá repetindo. E o que muda pra mim se eu for de suporte técnico? Como o chatbot vai entender os problemas técnicos que a gente atende?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [6] Rodrigo:
+Entendi, Ricardo! Vamos lá: a AgenteZap é treinada para entender a linguagem técnica do seu ramo. Ela pode, por exemplo, direcionar clientes com problemas de rede para o time certo, agendar manutenções de hardware ou até explicar passos básicos de solução de problemas. É como ter um assistente virtual que entende da sua área!
+
+Posso criar seu acesso para você testar na prática? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [7] Ricardo:
+"Ah, tá... Mas como que ela vai saber se o cliente tá falando de um problema de rede ou de hardware? Já tentei chatbot antes e era um desastre, só confundia os clientes. E esse teste, como funciona? É grátis ou tem pegadinha?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [8] Rodrigo:
+Ricardo, a AgenteZap usa IA de ponta para entender o contexto da conversa. Se o cliente mencionar "internet lenta", ela já sabe que é um problema de rede. Se for "computador travando", direciona para hardware. E sim, o teste é 100% grátis por 7 dias, sem cartão de crédito nem pegadinha!
+
+Quer que eu explique mais algum detalhe ou bora começar o teste? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [9] Ricardo:
+"Tá, mas como vc garante que a IA vai entender os problemas técnicos específicos da minha loja? Já tentei chatbot antes e era um lixo, só respondia coisas genéricas."
+
+"E esse teste grátis, tem algum limite? Porque já vi uns que falam que é grátis, mas depois cobram um monte."
+
+"E se eu quiser cancelar antes dos 7 dias, tem que pagar alguma taxa?"
+
+"Vou pensar, mas me explica de novo como funciona pra eu ver se entendi mesmo."
+
+"E aí, se eu quiser cancelar depois dos 7 dias, como é que funciona? Tem que pagar alguma multa ou algo assim?"
+
+"É caro pra caramba, né? Tem desconto se eu pagar anual?"
+
+"Já tentei chatbot antes e foi um fracasso, como vc vai garantir que esse vai ser diferente?"
+
+"Vou pensar, mas me manda um link desse teste grátis pra eu dar uma olhada depois."
+
+"E se eu não gostar do teste, como é que eu cancela? Tem que ligar pra alguém ou é tudo pela internet?"
+
+"E aí, se eu quiser cancelar depois dos 7 dias, como é que funciona? Tem que pagar alguma multa ou algo assim?"
+
+"Tá, mas como vc garante que a IA vai entender os problemas técnicos específicos da minha loja? Já tentei chatbot antes e era um lixo, só respondia coisas genéricas."
+
+────────────────────────────────────────────────────────────
+
+🤖 [10] Rodrigo:
+Ricardo, entendi suas preocupações! Vamos direto ao ponto:
+
+1. **Entendimento Técnico**: A AgenteZap é treinada para entender termos específicos da área de TI. Por exemplo, se um cliente mencionar "backup em nuvem", ela já sabe que é um serviço da sua empresa e pode direcionar ou até explicar como funciona.
+
+2. **Teste Grátis**: São 7 dias completos, sem limites de uso ou cobrança escondida. Se não gostar, cancela sem pagar nada. É tudo online, sem burocracia.
+
+3. **Cancelamento**: Se quiser cancelar depois dos 7 dias, é só acessar sua conta e desativar. Sem multa, sem ligação.
+
+4. **Preço**: R$ 99/mês, mas se pagar anual, tem desconto. E se não funcionar pra você, cancela e pronto!
+
+A melhor forma de ver a diferença é testando! Posso criar seu acesso agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [11] Ricardo:
+"Ah, tá. Mas como que ela vai entender se o cliente fala 'meu computador tá lento'? Vai responder com algo genérico ou vai saber que pode ser vírus, memória cheia ou outro problema?"
+
+"E esse preço, R$ 99, é fixo ou tem algum custo extra? Porque já vi outros que cobram por mensagem ou por atendimento."
+
+"Tá, mas se eu testar e não gostar, como que eu cancelo? Tem que ligar pra alguém ou é tudo online mesmo?"
+
+"E se eu quiser cancelar depois dos 7 dias, mas antes de pagar o primeiro mês? Como que funciona?"
+
+"Já tentei chatbot antes e não deu certo, o cliente ficava frustrado. Como que a AgenteZap é diferente?"
+
+"Vou pensar... mas se eu quiser um desconto, tem como?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [12] Rodrigo:
+Ricardo, a AgenteZap vai responder com base no contexto. Se o cliente falar "meu computador tá lento", ela pode perguntar se é só no Windows ou em todos os programas, e direcionar para a solução correta. Não é genérico!
+
+O preço é fixo, R$ 99/mês, sem custo extra por mensagem ou atendimento. [ENVIAR_MIDIA:TABELA_PRECOS]
+
+Se não gostar, cancela online, sem burocracia. E sim, tem desconto se pagar anual!
+
+A diferença é que a AgenteZap aprende com cada interação e entende a linguagem técnica do seu ramo. Quer testar e ver na prática? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:TABELA_PRECOS]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [13] Ricardo:
+"R$ 99/mês? Tá caro pra mim, né. E esse negócio de 'aprende com cada interação'... já vi isso antes e não funcionou. Como vc garante que vai ser diferente?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [14] Rodrigo:
+Ricardo, entendo sua preocupação com o investimento. A AgenteZap é diferente porque usa IA avançada que se adapta ao seu negócio de TI. Por exemplo, se muitos clientes perguntam sobre backup em nuvem, ela aprende e responde cada vez melhor.
+
+E o preço? É um investimento que pode reduzir seu tempo de atendimento e aumentar a satisfação dos clientes. Quer que eu explique mais algum detalhe ou bora começar o teste para você ver na prática? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [15] Ricardo:
+"Tá, mas como é que ela sabe que eu preciso de um chatbot pra TI? Já tentei outros e só respondiam besteira. E esse teste, é de graça mesmo?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [16] Rodrigo:
+Ricardo, a AgenteZap é treinada para entender a linguagem técnica do seu ramo. Por exemplo, se um cliente mencionar "rede lenta", ela já sabe que é um problema de TI e pode direcionar para o time certo ou até resolver o problema.
+
+E sim, o teste é 100% grátis por 7 dias! Sem cartão de crédito, sem pegadinha. Quer que eu crie seu acesso agora? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [17] Ricardo:
+"Tá, mas como que ela resolve o problema de rede lenta? Ela manda um tutorial ou o que? E esse teste grátis, tem limite de mensagens ou algo assim? Não quero me enrolar depois."
+
+────────────────────────────────────────────────────────────
+
+🤖 [18] Rodrigo:
+Ricardo, a AgenteZap pode enviar passos simples para resolver rede lenta, como verificar cabos ou reiniciar o roteador. Se for algo mais complexo, ela agenda um técnico. E no teste grátis, não tem limite de mensagens! É tudo ilimitado por 7 dias.
+
+Posso criar seu acesso agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [19] Ricardo:
+"Tá, mas como é que ela sabe se o problema é simples ou complexo? Já tentei chatbot antes e ele só respondia com respostas genéricas. E esse teste grátis, tem algum limite escondido?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [20] Rodrigo:
+Ricardo, a AgenteZap usa IA para entender a complexidade do problema. Por exemplo, se o cliente diz "minha internet caiu", ela pergunta se é só no Wi-Fi ou em todos os dispositivos. Se for algo simples, resolve na hora. Se for complexo, agenda um técnico.
+
+O teste grátis é mesmo livre: 7 dias completos, sem limite de mensagens ou clientes. Sem pegadinha!
+
+Bora começar o teste? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [21] Ricardo:
+"Tá, mas e se o cliente falar algo mais técnico tipo 'meu DNS tá caindo'? O chatbot vai entender isso ou só pergunta básica mesmo? E esse teste grátis, tem algum limite escondido? Tipo, depois cobra pra continuar?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [22] Rodrigo:
+Ricardo, a AgenteZap entende termos técnicos como "DNS". Ela pode responder com soluções básicas ou, se necessário, agendar um técnico. Já testamos com clientes de TI e funciona bem!
+
+O teste grátis é mesmo livre: 7 dias completos, sem limite de mensagens ou clientes. Sem cobrança escondida!
+
+Posso criar seu acesso agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [23] Ricardo:
+"Ué, mas como ela sabe quando agendar um técnico e quando resolver sozinha? Já tentei chatbot antes e só me deram trabalho. E esse teste grátis, tem algum limite escondido? Não quero surpresa na fatura."
+
+────────────────────────────────────────────────────────────
+
+🤖 [24] Rodrigo:
+Ricardo, a AgenteZap usa IA para entender a urgência. Se o cliente fala "meu DNS tá caindo", ela pergunta se é só para um site ou geral. Se for geral, agenda um técnico. Se for só para um site, tenta resolver sozinha.
+
+O teste grátis é mesmo livre: 7 dias completos, sem limite de mensagens ou clientes. Sem cobrança escondida!
+
+Posso criar seu acesso agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [25] Ricardo:
+"Tá, mas e se o cliente falar algo que a IA não entende? Tipo um problema de firewall? Ela vai só passar pro humano ou tenta resolver sozinha? E esse teste grátis, é mesmo sem compromisso? Porque já vi uns que depois cobram escondido."
+
+(Nota: Ele não repetiu nada, então você não reclama. Você faz uma objeção específica sobre a IA e questiona o teste grátis para testar se ele é sincero.)
+
+────────────────────────────────────────────────────────────
+
+🤖 [26] Rodrigo:
+Ricardo, se o cliente mencionar "firewall", a AgenteZap pergunta detalhes para entender melhor. Se for algo complexo, ela transfere para o seu time. E sim, o teste é 100% sem compromisso! Se não gostar, cancela antes dos 7 dias e não paga nada.
+
+Qual sua maior dúvida ainda?
+
+────────────────────────────────────────────────────────────
+
+👤 [27] Ricardo:
+"Tá, mas e se o cliente perguntar algo técnico que a IA não entende? Ela vai só transferir? E se o cliente desistir antes de falar com a gente? Já tentei chatbot antes e foi um fracasso, sabe?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [28] Rodrigo:
+Ricardo, se a AgenteZap não entender algo técnico, ela transfere a conversa para o seu time com todas as informações coletadas. E se o cliente desistir, ela envia um lembrete ou agenda um retorno. Já testamos com empresas de TI e funciona bem!
+
+Posso criar seu acesso para você testar na prática? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [29] Ricardo:
+"Tá, mas como vc garante que a AgenteZap vai entender o que é suporte técnico? Já tentei chatbot antes e não funcionou. E o preço? Ainda tá alto pra mim."
+
+────────────────────────────────────────────────────────────
+
+🤖 [30] Rodrigo:
+Ricardo, a AgenteZap é treinada para entender termos técnicos do seu ramo. Por exemplo, se um cliente falar "meu backup em nuvem não está sincronizando", ela já sabe que é um problema de TI e pode direcionar para o time certo ou até resolver o problema.
+
+Sobre o preço, é um investimento que pode reduzir seu tempo de atendimento e aumentar a satisfação dos clientes. E se pagar anual, tem desconto!
+
+Quer testar por 7 dias sem compromisso? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+
+════════════════════════════════════════════════════════════════════════════════
+📊 ESTATÍSTICAS
+════════════════════════════════════════════════════════════════════════════════
+Mídias Usadas: [ENVIAR_MIDIA:COMO_FUNCIONA], [ENVIAR_MIDIA:TABELA_PRECOS]
+Ações Usadas: [AÇÃO:CRIAR_CONTA_TESTE]
+Total de Tags de Mídia: 3
+Total de Ações: 12
+
+════════════════════════════════════════════════════════════════════════════════
+🔍 ANÁLISE PENDENTE
+════════════════════════════════════════════════════════════════════════════════
+(Análise será feita pelo agente após revisão do log)

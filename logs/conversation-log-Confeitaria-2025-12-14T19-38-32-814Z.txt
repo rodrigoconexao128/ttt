@@ -1,0 +1,258 @@
+
+════════════════════════════════════════════════════════════════════════════════
+📋 LOG DE CONVERSA - Doce Sabor (Confeitaria)
+════════════════════════════════════════════════════════════════════════════════
+Data: 2025-12-14T19:37:51.019Z
+Cliente: Patrícia
+Total de Mensagens: 30
+
+════════════════════════════════════════════════════════════════════════════════
+💬 CONVERSA COMPLETA
+════════════════════════════════════════════════════════════════════════════════
+
+👤 [1] Patrícia:
+Oi, tudo bom? Me chamo Patrícia, dono da Doce Sabor, uma confeitaria. Vi propaganda da AgenteZap e vim saber se vale a pena. Mas já fui enganado por chatbot ruim antes, então não tô muito convencido.
+
+────────────────────────────────────────────────────────────
+
+🤖 [2] Rodrigo:
+Oi Patrícia, tudo ótimo! Entendo sua preocupação, mas a AgenteZap é diferente. Ela usa IA avançada para entender e responder como um humano, sem respostas robóticas. Imagina ela atendendo seus clientes no WhatsApp, tirando dúvidas sobre bolos e doces, até agendando encomendas enquanto você cuida do que é mais importante na confeitaria.
+
+Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+O que acha de testar por 7 dias sem compromisso?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [3] Patrícia:
+Tá, mas como é que ela entende sobre bolos e doces? Não é só um robô que repete frases?
+
+────────────────────────────────────────────────────────────
+
+🤖 [4] Rodrigo:
+A AgenteZap não é um robô comum, Patrícia. Ela aprende com cada interação e se adapta ao seu negócio. Você pode treinar ela com as informações da sua confeitaria, como tipos de bolos, sabores, preços e até fotos dos seus produtos. Assim, ela vai responder com precisão, igual um humano.
+
+Quer que eu mostre um vídeo de como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Qual sua maior dúvida ainda sobre a AgenteZap?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [5] Patrícia:
+Tá, mas como é que ela vai saber, por exemplo, quando o cliente quer um bolo de casamento com cobertura de chocolate e recheio de morango? Ela vai conseguir entender isso tudo sozinha?
+
+(Observação: Estou testando se ele entende as especificidades do meu negócio)
+
+────────────────────────────────────────────────────────────
+
+🤖 [6] Rodrigo:
+Ótima pergunta, Patrícia! A AgenteZap foi treinada para entender combinações complexas como essa. Você pode programar ela com todas as opções de sabores, coberturas e recheios que a Doce Sabor oferece. Assim, quando um cliente pedir um bolo de casamento com cobertura de chocolate e recheio de morango, ela vai entender perfeitamente e até pode sugerir combinações adicionais.
+
+Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+Quantos clientes vocês atendem por dia no WhatsApp?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [7] Patrícia:
+Ah, tá... mas como é que ela entende os detalhes? Tipo, se o cliente pedir um bolo de aniversário com cobertura de brigadeiro e recheio de doce de leite, ela vai saber que tem que perguntar o tamanho do bolo e o nome pra decorar? E quanto custa isso?
+
+────────────────────────────────────────────────────────────
+
+🤖 [8] Rodrigo:
+A AgenteZap é inteligente o suficiente para entender o contexto e pedir os detalhes necessários. Você pode programar ela para perguntar sempre o tamanho do bolo e o nome para decoração, além de calcular automaticamente o preço com base nas opções escolhidas.
+
+Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+Qual horário mais pega fogo aí na loja?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [9] Patrícia:
+Tá, mas como que ele calcula o preço automaticamente? E se o cliente pedir algo que não tá no cardápio? Já tentei chatbot antes e foi um desastre...
+
+────────────────────────────────────────────────────────────
+
+🤖 [10] Rodrigo:
+A AgenteZap se integra com seu catálogo de produtos e calcula o preço automaticamente com base nas opções selecionadas. Se o cliente pedir algo que não está no cardápio, você pode programar ela para pedir mais detalhes ou redirecionar para você.
+
+Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+O que te impede de testar agora?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [11] Patrícia:
+Tá, mas como é que ela entende os pedidos dos clientes? Tipo, se alguém pedir um bolo de chocolate com cobertura de morango, ela sabe o preço certo? E se pedir algo que não tem, como ela redireciona pra mim?
+
+────────────────────────────────────────────────────────────
+
+🤖 [12] Rodrigo:
+A AgenteZap entende os pedidos porque você configura ela com todas as opções e preços da Doce Sabor. Se o cliente pedir um bolo de chocolate com cobertura de morango, ela já sabe o preço e pode até sugerir combinações. Se for algo que não tem, você pode programar ela para perguntar mais detalhes ou transferir a conversa para você.
+
+Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+Bora começar o teste?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [13] Patrícia:
+Tá, mas como é que ela entende os pedidos específicos da minha confeitaria? Tipo, se alguém pedir um bolo de casamento com 3 andares e decoração floral, ela consegue lidar com isso?
+
+────────────────────────────────────────────────────────────
+
+🤖 [14] Rodrigo:
+A AgenteZap é treinada para entender pedidos complexos como esse. Você pode configurar ela com todas as opções de tamanho, andares e decorações que a Doce Sabor oferece. Assim, quando um cliente pedir um bolo de casamento com 3 andares e decoração floral, ela vai entender e até pode sugerir combinações adicionais.
+
+Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+Me conta mais sobre seu negócio...
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [15] Patrícia:
+Tá, mas como é que ela vai entender os detalhes específicos da minha confeitaria? Tipo, se o cliente pedir um bolo de aniversário com tema infantil, como ela vai saber quais opções de decoração eu tenho? E como ela vai lidar com pedidos diferentes, como doces finos pra eventos?
+
+────────────────────────────────────────────────────────────
+
+🤖 [16] Rodrigo:
+A AgenteZap pode ser personalizada com todas as opções de decoração e temas que a Doce Sabor oferece. Você pode treinar ela com fotos e descrições detalhadas, então quando um cliente pedir um bolo de aniversário com tema infantil, ela vai entender e sugerir as opções disponíveis. Para doces finos, você pode configurar ela para perguntar sobre quantidades, sabores e embalagens.
+
+Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+O que acha de testar por 7 dias sem compromisso?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [17] Patrícia:
+"Tá, mas como ela vai saber exatamente o que eu ofereço? Já tentei chatbot antes e não funcionou. É caro pra mim investir nisso de novo."
+
+────────────────────────────────────────────────────────────
+
+🤖 [18] Rodrigo:
+Entendo sua preocupação, Patrícia. A AgenteZap é diferente porque você tem total controle sobre o que ela oferece. Você configura ela com todas as opções da Doce Sabor, desde bolos até doces finos. Ela não vai oferecer nada que você não queira.
+
+Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+O que te impede de testar agora?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [19] Patrícia:
+Tá, mas como é que eu vou configurar ela? Eu não sou muito de tecnologia, sabe? E se eu não entender?
+
+(Repetindo pergunta para ver se ele repete a resposta)
+
+E quanto custa isso? Tá caro pra mim.
+
+────────────────────────────────────────────────────────────
+
+🤖 [20] Rodrigo:
+Já falei sobre como funciona, Patrícia! [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+E sobre o preço, é R$ 99/mês, mas você pode testar por 7 dias sem compromisso. [ENVIAR_MIDIA:TABELA_PRECOS]
+
+O que acha de começar o teste?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA], [ENVIAR_MIDIA:TABELA_PRECOS]
+
+────────────────────────────────────────────────────────────
+
+👤 [21] Patrícia:
+Tá, mas como é que isso vai ajudar minha confeitaria? Quero ver algo mais concreto, não só esse texto genérico.
+
+────────────────────────────────────────────────────────────
+
+🤖 [22] Rodrigo:
+A AgenteZap vai ajudar sua confeitaria a atender mais clientes no WhatsApp, mesmo quando você estiver ocupada. Ela pode responder perguntas sobre bolos, doces, preços e até agendar encomendas. Por exemplo, se um cliente pedir um bolo de casamento, ela pode perguntar sobre o tamanho, sabor e decoração, e até enviar fotos do catálogo.
+
+Quer que eu mostre um vídeo de como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Posso criar seu acesso agora mesmo?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [23] Patrícia:
+Tá, mas como é que ela vai saber responder sobre os sabores que eu tenho na minha confeitaria? Eu já tentei chatbot antes e não deu certo, não.
+
+E esse preço aí? Tá meio alto pra mim, não sei se vale a pena...
+
+────────────────────────────────────────────────────────────
+
+🤖 [24] Rodrigo:
+Já falei sobre como a AgenteZap funciona, Patrícia! [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+Sobre o preço, é R$ 99/mês, mas você pode testar por 7 dias sem compromisso. [ENVIAR_MIDIA:TABELA_PRECOS]
+
+O que te impede de testar agora?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA], [ENVIAR_MIDIA:TABELA_PRECOS]
+
+────────────────────────────────────────────────────────────
+
+👤 [25] Patrícia:
+"Ah, mas vc já me mandou isso antes... E como que isso vai ajudar minha confeitaria? Quero ver um exemplo real, não só teoria."
+
+────────────────────────────────────────────────────────────
+
+🤖 [26] Rodrigo:
+Entendi, Patrícia! Vamos pensar em um exemplo real: Imagine que um cliente manda uma mensagem no WhatsApp perguntando sobre um bolo de casamento. A AgenteZap responde imediatamente, perguntando sobre o tamanho, sabor preferido e decoração. Ela até pode enviar fotos dos bolos que você tem no catálogo. Se o cliente quiser agendar, ela marca a data e hora, e se tiver dúvidas, transfere para você.
+
+Quer que eu mostre um vídeo de como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Qual sua maior dúvida ainda?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [27] Patrícia:
+Hmm, mas como que a AgenteZap sabe responder sobre os bolos da minha confeitaria? Eu já tentei um chatbot antes e ele só sabia responder coisa genérica, tipo "entre em contato".
+
+────────────────────────────────────────────────────────────
+
+🤖 [28] Rodrigo:
+Já falei sobre isso, Patrícia! A AgenteZap é diferente porque você configura ela com todas as informações da sua confeitaria. Você pode treinar ela com os sabores, tamanhos, preços e até fotos dos seus bolos. Assim, ela vai responder com precisão, igual um humano.
+
+Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+O que acha de testar por 7 dias sem compromisso?
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+────────────────────────────────────────────────────────────
+
+👤 [29] Patrícia:
+"Ah, mas vc já explicou isso antes, tá repetindo só. E esse teste de 7 dias? Como que funciona? É grátis mesmo? E se eu não gostar, perco dinheiro?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [30] Rodrigo:
+Entendi, Patrícia! O teste de 7 dias é mesmo grátis, sem cartão de crédito nem nada. Você pode usar a AgenteZap na sua confeitaria e ver se gosta. Se não gostar, é só cancelar e não paga nada. Sem pegadinha!
+
+Quer que eu crie seu acesso agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]
+
+Ficou alguma dúvida?
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+
+════════════════════════════════════════════════════════════════════════════════
+📊 ESTATÍSTICAS
+════════════════════════════════════════════════════════════════════════════════
+Mídias Usadas: [ENVIAR_MIDIA:COMO_FUNCIONA], [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO], [ENVIAR_MIDIA:TABELA_PRECOS]
+Ações Usadas: [AÇÃO:CRIAR_CONTA_TESTE]
+Total de Tags de Mídia: 16
+Total de Ações: 1
+
+════════════════════════════════════════════════════════════════════════════════
+🔍 ANÁLISE PENDENTE
+════════════════════════════════════════════════════════════════════════════════
+(Análise será feita pelo agente após revisão do log)

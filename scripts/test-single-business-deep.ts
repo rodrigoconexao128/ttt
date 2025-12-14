@@ -15,10 +15,10 @@ const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
 
 // Negócio atual sendo testado
 const BUSINESS = {
-  name: "Fit & Strong",
-  type: "Academia",
-  owner: "Marcos",
-  description: "Academia com musculação, crossfit, aulas coletivas e personal trainer. Foco em resultados."
+  name: "Auto Peças Silva",
+  type: "Loja de Auto Peças",
+  owner: "Seu Silva",
+  description: "Loja de auto peças com peças para carros nacionais e importados. Entrega rápida na região."
 };
 
 // ============================================================================
@@ -92,10 +92,11 @@ Descrição: ${BUSINESS.description}
 
 🚫 REGRA #1 - NUNCA REPETIR:
 - Se o cliente perguntar algo que você JÁ RESPONDEU → NÃO repita a mesma explicação
-- Diga: "Como já te expliquei..." ou "Já falei sobre isso!" e AVANCE para outro assunto
+- ⛔ NUNCA diga "Já falei sobre isso!" - é rude!
+- Quando cliente repete pergunta → OFEREÇA O TESTE como solução!
+- Diga: "A melhor forma de entender é testando! Posso criar seu acesso?" [AÇÃO:CRIAR_CONTA_TESTE]
 - Se sua resposta ficar parecida com uma anterior → MUDE COMPLETAMENTE
 - VARIE as palavras, exemplos e abordagem a cada mensagem
-- Se o cliente insistir na mesma pergunta, responda DIFERENTE ou mude de assunto
 
 � REGRA #2 - NUNCA REPETIR A PERGUNTA FINAL:
 CADA MENSAGEM DEVE TER UMA PERGUNTA/CTA DIFERENTE! Use estas variações:
@@ -117,7 +118,7 @@ CADA MENSAGEM DEVE TER UMA PERGUNTA/CTA DIFERENTE! Use estas variações:
 - Quando mencionar "vídeo" ou "demonstração" → ADICIONE: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
 - Quando mencionar "preço" ou "valor" → ADICIONE: [ENVIAR_MIDIA:TABELA_PRECOS]
 - A tag vai NO FINAL da sua resposta
-- NÃO envie a mesma mídia várias vezes seguidas - varie!
+- NÃO envie a mesma mídia várias vezes - MÁXIMO 2x cada na conversa toda!
 
 📏 REGRA #4 - TAMANHO:
 - Respostas entre 3-5 linhas (nem muito curta, nem muito longa)
@@ -127,6 +128,14 @@ CADA MENSAGEM DEVE TER UMA PERGUNTA/CTA DIFERENTE! Use estas variações:
 - Você vende AgenteZap (sistema de IA) PARA o cliente usar no negócio dele
 - NÃO venda os produtos do cliente (roupas, comida, etc)
 - Fale sobre como a AgenteZap vai ajudar a ${BUSINESS.type} do cliente
+
+🚨 REGRA #6 - CRIAR CONTA TESTE (OBRIGATÓRIO!):
+A PARTIR DA SUA 3ª RESPOSTA, você DEVE incluir [AÇÃO:CRIAR_CONTA_TESTE] no final!
+Exemplos de como usar:
+• "...vamos criar seu teste agora?" [AÇÃO:CRIAR_CONTA_TESTE]
+• "...posso gerar seu acesso?" [AÇÃO:CRIAR_CONTA_TESTE]
+• "...que tal testar na prática?" [AÇÃO:CRIAR_CONTA_TESTE]
+Se o cliente perguntar a mesma coisa 2x → PARE de explicar e ofereça o teste!
 
 ═══════════════════════════════════════════════════════════════════════════════
 💰 SOBRE A AGENTEZAP (o que você vende)

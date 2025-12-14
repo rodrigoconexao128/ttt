@@ -1,0 +1,327 @@
+{
+  "business": {
+    "name": "Advocacia Justiça",
+    "type": "Escritório de Advocacia",
+    "owner": "Dr. Marcos",
+    "description": "Escritório de advocacia especializado em direito civil, trabalhista e previdenciário. Consultas online e presenciais."
+  },
+  "startTime": "2025-12-14T19:45:03.583Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Opa, tô aqui porque vi umas coisas sobre a AgenteZap. Mas já fui enganado por chatbot antes, então vou testar bem antes de comprar. Como que funciona essa parada?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:04.439Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Dr. Marcos! A AgenteZap é diferente, ela foi treinada para entender o contexto e responder como um humano, sem respostas robóticas. Ela pode até agendar consultas e tirar dúvidas básicas sobre seus serviços. Quer ver como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nQuer que eu explique mais algum detalhe?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:05.287Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "\"Tá, mas como ela vai agendar consultas pra mim? Eu preciso que entenda que eu tenho horários específicos e tipos de consulta diferentes, tá ligado? E esse preço que vc passou, é fixo ou tem desconto?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:06.900Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "A AgenteZap é super customizável! Você pode programar os horários disponíveis e tipos de consulta, ela vai entender e agendar tudo direitinho. O preço é fixo em R$ 99/mês, mas você pode testar por 7 dias sem compromisso para ver se atende suas expectativas. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nQuantos clientes vocês atendem por dia no WhatsApp? Vamos criar seu teste agora? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:07.902Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "\"99/mês? Tá um pouco salgado pra mim, sabe? Já tentei chatbot antes e não deu certo. Como que essa AgenteZap vai ser diferente pra um escritório de advocacia?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:09.478Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Dr. Marcos. A AgenteZap é diferente porque ela foi treinada especificamente para entender o contexto jurídico e responder de forma humana. Ela pode tirar dúvidas básicas, agendar consultas e até enviar documentos importantes, tudo isso 24/7. Isso vai te ajudar a capturar mais clientes e agilizar o atendimento.\n\nQuer que eu explique mais algum detalhe? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:10.564Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "Tá, mas como é que ela entende o contexto jurídico? Já tentei chatbot antes e ele só respondia besteira.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:12.079Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "A AgenteZap é treinada com um vocabulário específico para o ramo jurídico, então ela entende termos técnicos e contextos comuns em um escritório de advocacia. Ela pode, por exemplo, explicar diferenças entre tipos de ações, prazos processuais e até agendar consultas com base nas suas especialidades.\n\nQuer ver um vídeo de demonstração? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que acha de testar por 7 dias sem compromisso? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:13.350Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai entender as especificidades do meu escritório? Tipo, a gente atende direito civil, trabalhista e previdenciário. Ela vai conseguir diferenciar isso?\n\nE esse teste de 7 dias, tem algum custo ou é mesmo de graça mesmo?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:15.177Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "A AgenteZap pode ser configurada para entender as especificidades do seu escritório. Você pode programar respostas específicas para cada área de atuação, como direito civil, trabalhista e previdenciário. Ela vai direcionar as perguntas dos clientes de acordo com o que você configurar.\n\nO teste de 7 dias é realmente grátis, sem nenhum custo! Você pode testar todas as funcionalidades e ver se atende às suas necessidades. [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nQual sua maior dúvida ainda? Vamos criar seu teste agora? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:16.347Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "Tá, mas como é que ela entende quando o cliente fala de um jeito diferente do que eu configurei? Já vi outros chatbots que só sabem responder o que tá no script.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:17.924Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "A AgenteZap usa inteligência artificial avançada para entender o contexto e a intenção por trás das mensagens, não apenas o texto exato. Ela é treinada para interpretar variações de linguagem e responder de forma natural, mesmo que o cliente não use exatamente as palavras que você configurou.\n\nQuer que eu explique mais algum detalhe? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:18.729Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "\"Tá, mas como é que isso vai ajudar no meu escritório de advocacia? Tipo, os clientes vão perguntar sobre processos, prazos, consultas... Como a IA vai lidar com isso?\"\n\n(Se ele repetir a explicação anterior, vou reclamar que ele não tá entendendo minha dúvida. Se ele explicar algo novo, vou ver se faz sentido pra mim.)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:20.505Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "A AgenteZap pode ser programada para fornecer informações básicas sobre processos, prazos e consultas, além de agendar reuniões e enviar lembretes. Ela pode, por exemplo, explicar os passos de um processo trabalhista ou os documentos necessários para uma consulta previdenciária. Isso vai liberar seu tempo para focar nos casos mais complexos.\n\nQuer ver um vídeo de demonstração? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:21.821Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "Tá, mas como é que ela entende o que o cliente tá perguntando? Não pode ser só decorar respostas, né? Já tentei chatbot antes e era só um monte de texto engessado.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:23.555Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "A AgenteZap usa inteligência artificial para entender a intenção por trás das mensagens, não apenas palavras-chave. Ela analisa o contexto da conversa e responde de forma natural, como um humano faria. Por exemplo, se um cliente perguntar \"Preciso de um advogado para um caso de demissão\", a AgenteZap entende que ele está buscando um advogado trabalhista e pode agendar uma consulta ou fornecer informações relevantes.\n\nQuer que eu explique mais algum detalhe? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:25.289Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "Tá, mas como é que isso funciona na prática? Tipo, se um cliente perguntar sobre um caso de direito previdenciário, ela vai entender e responder certo?\n\nE aí, quanto custa essa AgenteZap? Porque vi outro sistema mais barato...",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:26.901Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "A AgenteZap foi treinada para entender os contextos jurídicos, incluindo direito previdenciário. Ela pode fornecer informações básicas, agendar consultas e até encaminhar o cliente para você, caso a pergunta seja mais complexa. O investimento é de R$ 99/mês, mas o retorno vem com a agilidade no atendimento e a captação de mais clientes. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nQual horário mais pega fogo aí no escritório? Vamos criar seu teste agora? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:28.320Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "Tá, mas como que ela vai entender as minhas dúvidas específicas de direito trabalhista? Já tentei chatbot antes e não funcionou, só atrapalhou. E esse preço de R$ 99 é só o básico?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:29.946Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "A AgenteZap pode ser treinada com informações específicas do seu escritório, incluindo direito trabalhista. Você pode configurar respostas detalhadas sobre prazos, documentos necessários e processos comuns. O preço de R$ 99/mês já inclui todas as funcionalidades, sem custos adicionais. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que acha de testar por 7 dias sem compromisso? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:33.716Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "Tá, mas e se eu quiser perguntar algo mais específico sobre um processo trabalhista? A IA vai conseguir responder?\n\nE esse teste de 7 dias, é mesmo sem compromisso? Porque já vi uns que depois cobram mesmo sem vc querer.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:35.377Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "A AgenteZap pode responder perguntas específicas sobre processos trabalhistas, desde que você configure as respostas ou treine a IA com as informações necessárias. Ela pode fornecer orientações básicas, prazos e documentos necessários, além de agendar consultas.\n\nO teste de 7 dias é realmente sem compromisso! Se você não gostar, pode cancelar sem nenhum custo. [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nTá pronto pra dar esse passo? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:36.726Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "\"Tá, mas como é que eu faço pra treinar essa IA? É complicado? Já tentei um chatbot antes e não deu certo, fiquei com medo de perder tempo.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:38.341Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "Treinar a AgenteZap é mais simples do que você imagina! Você pode configurar respostas padrão para perguntas frequentes ou nos ajudar a treinar a IA com exemplos de conversas. Nosso time de suporte também está sempre à disposição para ajudar.\n\nQuer que eu explique mais algum detalhe? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:39.248Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "\"Ah, tá. Mas como que isso vai funcionar PRA UM ESCRITÓRIO DE ADVOCACIA? Vocês entendem do nosso ramo? Já tentei chatbot antes e foi um fracasso.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:40.851Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "A AgenteZap foi desenvolvida para entender o contexto jurídico e pode ser adaptada especificamente para um escritório de advocacia. Ela pode responder perguntas sobre processos, prazos, agendar consultas e até enviar documentos importantes. Nosso time tem experiência em implementar a AgenteZap em escritórios de advocacia e está pronto para ajudar você a configurar tudo direitinho.\n\nO que acha de testar por 7 dias sem compromisso? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:41.822Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "Hmm, mas como exatamente ela vai entender as especificidades do direito civil, trabalhista e previdenciário? Já tentei chatbots antes e não funcionou.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:43.418Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "A AgenteZap pode ser configurada com respostas específicas para cada área do direito que você atende. Por exemplo, para direito civil, ela pode explicar prazos de prescrição; para trabalhista, pode orientar sobre documentos necessários para ações; e para previdenciário, pode informar sobre benefícios e requisitos. Tudo isso pode ser personalizado para o seu escritório.\n\nQuer que eu explique mais algum detalhe? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:44.767Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "\"Ah, mas e se eu quiser que ela faça algo mais específico, tipo agendar consultas? Ela consegue?\"\n\n(Nota: Essa pergunta é para testar se o vendedor entende as necessidades específicas de um escritório de advocacia e se a AgenteZap pode ser personalizada para tarefas administrativas também.)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:45:46.473Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "Sim, a AgenteZap pode ser configurada para agendar consultas! Você pode programar os horários disponíveis e os tipos de consulta que oferece. Ela vai entender as preferências dos clientes e agendar tudo direitinho, enviando confirmações e lembretes automáticos.\n\nQuer que eu explique mais algum detalhe? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:45:47.339Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+    ],
+    "actionsUsed": [
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]"
+    ],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

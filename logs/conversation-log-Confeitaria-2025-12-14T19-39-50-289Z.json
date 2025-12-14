@@ -1,0 +1,297 @@
+{
+  "business": {
+    "name": "Doce Sabor",
+    "type": "Confeitaria",
+    "owner": "Patrícia",
+    "description": "Confeitaria artesanal com bolos de casamento, aniversário e doces finos. Encomendas personalizadas."
+  },
+  "startTime": "2025-12-14T19:39:08.356Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Oi, Rodrigo. Me chamo Patrícia, sou dona da Doce Sabor, uma confeitaria. Ouvi falar da AgenteZap, mas já fui enganado por chatbots ruins antes. Como funciona mesmo?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:09.178Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Oi Patrícia! Entendo sua preocupação, mas a AgenteZap é diferente. Ela atende seus clientes como um humano, 24/7, respondendo dúvidas, enviando cardápio e até fechando pedidos. Você pode testar por 7 dias sem compromisso e ver a diferença!\n\n[ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:10.178Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "Opa, tá, mas como que isso funciona na prática pra uma confeitaria como a minha? Tipo, como que ela vai entender que o cliente quer bolo de casamento e não de aniversário?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:11.737Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "Ótima pergunta! A AgenteZap é treinada para entender o contexto da conversa. Se o cliente mencionar \"casamento\" ou \"noivado\", ela já direciona para as opções de bolos de casamento. Além disso, você pode personalizar as respostas para cada tipo de pedido, garantindo que o atendimento seja preciso e humano.\n\nQuer que eu explique mais sobre como personalizamos as respostas?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:12.644Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "\"Ah, mas vc já tinha falado isso antes... Tô vendo que a AgenteZap entende sobre casamento, mas e se o cliente quiser algo mais simples, tipo um bolo de aniversário? Ela consegue lidar com isso também? E o preço, quanto custa mesmo?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:14.615Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "Claro, Patrícia! A AgenteZap é super versátil. Ela entende desde pedidos simples, como bolos de aniversário, até encomendas mais elaboradas, como bolos de casamento. Você pode programar respostas específicas para cada tipo de pedido, garantindo que o atendimento seja sempre personalizado e eficiente.\n\nO valor é R$ 99/mês, e você ainda tem 7 dias de teste grátis para experimentar sem compromisso.\n\n[ENVIAR_MIDIA:TABELA_PRECOS]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:15.767Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "R$ 99/mês? Tá, mas como que eu vou saber se vale a pena sem testar? E se eu não gostar depois? Já tentei chatbot antes e não deu certo.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:17.432Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Patrícia! Por isso, oferecemos um teste grátis de 7 dias sem compromisso. Você pode experimentar a AgenteZap na sua confeitaria e ver se ela atende às suas expectativas. Se não gostar, pode cancelar a qualquer momento sem custo.\n\nQuer que eu crie seu acesso agora mesmo para você começar a testar?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:18.307Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "Tá, mas como que eu faço pra testar mesmo? Quero ver se vai funcionar direito pra minha confeitaria, sabe?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:19.830Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "Ótimo, Patrícia! Vou criar seu acesso agora mesmo. Você só precisa me confirmar um e-mail para acessar o painel e configurar a AgenteZap do jeito que sua confeitaria precisa.\n\nMe diz um e-mail que você usa e já começo a configurar!\n\n[AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:39:22.421Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "Ah, mas você ainda não me explicou direito como que isso vai ajudar na minha confeitaria. Eu preciso de algo que realmente me traga mais vendas, sabe?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:23.976Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "Entendi, Patrícia! A AgenteZap vai ajudar sua confeitaria a vender mais, mesmo quando você não estiver disponível. Ela pode:\n\n- Responder dúvidas sobre sabores, preços e opções de personalização\n- Enviar fotos e cardápio automaticamente\n- Agendar pedidos e capturar leads\n- Fechar vendas direto pelo WhatsApp\n\nQuer que eu te mostre um vídeo de como isso funciona na prática?\n\n[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:25.099Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai saber responder sobre os sabores dos bolos? A gente muda de cardápio toda semana, sabe?\n\nAh, e quanto custa isso? Vi um outro sistema mais barato...",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:26.709Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "A AgenteZap é super flexível, Patrícia! Você pode atualizar o cardápio sempre que quiser, e ela vai refletir essas mudanças imediatamente. Além disso, a IA entende o contexto das perguntas e direciona os clientes para as opções disponíveis.\n\nSobre o preço, a AgenteZap custa R$ 99/mês, mas oferecemos um teste grátis de 7 dias para você experimentar sem compromisso.\n\n[ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:27.766Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "\"Tá, mas como é que essa IA vai ajudar especificamente na minha confeitaria? Tipo, se alguém perguntar sobre um bolo de casamento, ela vai entender e mostrar as opções certas? E se eu tiver promoções, ela consegue avisar os clientes automaticamente?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:29.454Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "Exatamente, Patrícia! A AgenteZap pode ser programada para entender quando o cliente quer um bolo de casamento e mostrar as opções disponíveis. Além disso, você pode configurar mensagens automáticas para promoções, como \"Bolo de casamento com 10% de desconto essa semana!\".\n\nQuer que eu te mostre como funciona na prática?\n\n[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nBora começar o teste?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:30.697Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "Tá, mas e se o cliente quiser um bolo personalizado que não tá no catálogo? Como a AgenteZap resolve isso?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:32.238Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "Boa pergunta, Patrícia! Quando o cliente pedir algo personalizado que não está no catálogo, a AgenteZap pode direcionar a conversa para você ou para um atendimento humano. Você configura isso no painel, e a IA encaminha automaticamente quando necessário.\n\nQuer que eu crie seu acesso agora mesmo para você começar a testar?\n\n[AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:39:33.228Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "Tá, mas e se o cliente pedir um bolo de casamento com tema específico? A IA consegue identificar isso e me chamar?\n\n(Nota: Ele já explicou isso antes, então se ele repetir igual, eu reclamo)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:34.898Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "Já falei sobre isso, Patrícia! A AgenteZap pode ser configurada para identificar pedidos específicos, como bolos de casamento com temas especiais, e encaminhar diretamente para você ou sua equipe. Assim, você garante que nenhum detalhe importante seja perdido.\n\nFicou alguma dúvida?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:35.852Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "\"Mas e se o cliente pedir algo super específico, tipo um bolo de casamento com tema Harry Potter? A IA vai entender? Já tentei chatbot antes e não rolou...\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:37.438Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Patrícia! A AgenteZap é diferente porque você pode programar respostas específicas para temas populares como Harry Potter. Se o cliente pedir algo muito específico, a IA pode encaminhar a conversa para você ou sua equipe, garantindo que nada seja perdido.\n\nQuer que eu crie seu acesso agora mesmo para você começar a testar?\n\n[AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:39:38.870Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "Tá, mas como isso vai ajudar na minha confeitaria? Quero ver exemplos práticos, não só Harry Potter.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:40.313Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "Claro, Patrícia! Imagine um cliente perguntando sobre um bolo de aniversário de criança. A AgenteZap pode responder com opções de sabores, tamanhos e até sugerir decorações temáticas. Se o cliente quiser algo personalizado, como um bolo do Homem-Aranha, a IA pode encaminhar a conversa para você.\n\nQuer que eu te mostre um vídeo de como isso funciona na prática?\n\n[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:41.547Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "Tá, mas como é que eu vou saber se a IA entende mesmo o que o cliente quer? Já tentei chatbot antes e foi um desastre, só confundiu tudo.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:43.122Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Patrícia! A AgenteZap é diferente porque você pode treinar a IA com as perguntas mais comuns da sua confeitaria. Além disso, você pode monitorar todas as conversas pelo painel e ajustar as respostas conforme necessário.\n\nQuer que eu crie seu acesso agora mesmo para você começar a testar?\n\n[AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:39:44.094Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "\"Tá, mas como é que isso vai ajudar a vender mais bolos de casamento, por exemplo? E o preço ainda tá alto pra mim.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:45.572Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "A AgenteZap pode ajudar a vender mais bolos de casamento respondendo dúvidas rapidamente, enviando fotos e cardápio, e até fechando pedidos. Você pode configurar mensagens automáticas para promoções e ofertas especiais.\n\nSobre o preço, oferecemos um teste grátis de 7 dias para você experimentar sem compromisso.\n\n[ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:46.602Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "Tá, mas como que isso funciona na prática? Se alguém perguntar sobre um bolo de casamento específico, o chatbot vai conseguir ajudar mesmo? E se for uma dúvida mais complicada, tipo sobre sabor ou decoração?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:48.322Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "A AgenteZap é treinada para entender e responder a perguntas específicas sobre bolos de casamento, incluindo sabores e decorações. Você pode programar respostas detalhadas e até incluir fotos do catálogo para ajudar o cliente a escolher.\n\nQuer que eu te mostre um vídeo de como isso funciona na prática?\n\n[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:39:49.271Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    ],
+    "actionsUsed": [
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]"
+    ],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

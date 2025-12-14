@@ -1,0 +1,305 @@
+{
+  "business": {
+    "name": "Tech Solutions",
+    "type": "Suporte de TI",
+    "owner": "Ricardo",
+    "description": "Empresa de suporte técnico e TI para pequenas empresas. Manutenção de computadores, redes, backup em nuvem."
+  },
+  "startTime": "2025-12-14T19:40:13.761Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Opa, tudo bem? Me chamo Ricardo, dono da Tech Solutions. Vi propaganda da AgenteZap e fiquei curioso. Mas já fui enganado por chatbot antes, então vou perguntar bastante pra ver se vale a pena. Como funciona essa AgenteZap?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:14.653Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Opa, Ricardo! Tudo certo? Entendo sua preocupação, mas a AgenteZap é diferente! Ela é uma IA que atende seus clientes no WhatsApp 24/7, respondendo dúvidas sobre suporte técnico, agendando serviços e até resolvendo problemas simples. Ela aprende com suas respostas e fica cada vez mais humana. Quer ver como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:15.677Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "\"Ah, mas você já me explicou isso antes, cara. Quero saber como ela vai ajudar especificamente no meu negócio de suporte de TI. E esse preço tá meio salgado, hein?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:17.279Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "Entendi, Ricardo! No seu caso, a AgenteZap pode agendar chamados de suporte, responder dúvidas frequentes sobre manutenção, enviar tutoriais rápidos e até cobrar clientes inadiplentes. Ela libera sua equipe para focar nos serviços mais complexos. Sobre o preço, são só R$ 99/mês, e você tem 7 dias de teste grátis para ver o resultado. Vale a pena, né? [ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:18.543Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "\"Ah, mas você já tinha falado isso antes... Tá, mas como é que essa IA entende que um chamado é urgente ou não? E se o cliente pedir algo que ela não sabe responder? Já tentei chatbot antes e era um fracasso.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:20.133Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap prioriza chamados com palavras como \"urgente\", \"emergência\" ou \"não funciona\" e encaminha imediatamente para sua equipe. Se o cliente pedir algo que ela não sabe responder, ela avisa que vai transferir para um humano (seu time) e agenda a chamada. É bem diferente dos chatbots antigos, viu? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQuantos chamados urgentes vocês recebem por dia?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:21.418Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "\"Ah, mas vc não respondeu quantos chamados urgentes a gente recebe por dia. É difícil calcular, mas deve ser uns 10 ou 15. E esse negócio de priorizar, como é que funciona mesmo? Não tô entendendo muito bem ainda.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:23.341Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "Entendi, Ricardo! A AgenteZap analisa as palavras do cliente e, se encontrar termos como \"urgente\" ou \"não funciona\", marca o chamado como prioridade e avisa sua equipe imediatamente. Para os outros, ela responde normalmente ou agenda para o dia seguinte. Assim, você não perde nenhum chamado urgente. Faz sentido pra você? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:24.291Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "\"Tá, mas e se o cliente escrever de um jeito diferente? Tipo 'meu pc tá travando'? Como a IA vai saber que é urgente?\"\n\n(Ele está tentando, mas ainda desconfiado e testando os limites da IA)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:25.974Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "Boa pergunta, Ricardo! A AgenteZap foi treinada para entender variações de linguagem. Se o cliente escrever \"meu pc tá travando\", ela já sabe que é um problema urgente e avisa sua equipe imediatamente. Ela também aprende com cada interação, então fica cada vez mais precisa. Quer ver um exemplo prático? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:29.404Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai saber diferenciar um problema urgente de um não urgente? Meu negócio é suporte de TI, então precisa ser bem específico. E esse preço é pra quanto?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:31.065Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap usa inteligência artificial para analisar o tom e as palavras do cliente. Por exemplo, se ele escrever \"meu pc tá travando\" ou \"não consigo acessar o sistema\", ela já sabe que é urgente. Para problemas menos críticos, como \"quero aprender a usar o Excel\", ela agenda para o dia seguinte. O preço é fixo: R$ 99/mês, com 7 dias de teste grátis. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:32.315Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "Tá, mas como é que ela entende se é problema de hardware ou software? Já tentei chatbot antes e só atrapalharam mais.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:33.788Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap foi treinada para identificar termos específicos. Se o cliente mencionar \"tela quebrada\" ou \"teclado não funciona\", ela já sabe que é hardware. Para \"vírus no sistema\" ou \"programa não abre\", entende que é software. Ela também aprende com suas respostas, então fica cada vez mais precisa. Já falei sobre isso antes, né? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nBora começar o teste?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:34.825Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "Tá, mas e se o cliente falar de algo mais complexo, tipo \"rede instável\" ou \"backup não tá funcionando\"? A AgenteZap entende isso? E como ela sabe se é problema de internet ou do meu servidor?\n\n(Assistindo o vídeo demonstrativo...)\n\nTá, mas e se o cliente falar de algo mais complexo, tipo \"rede instável\" ou \"backup não tá funcionando\"? A AgenteZap entende isso? E como ela sabe se é problema de internet ou do meu servidor?\n\n(Assistindo o vídeo demonstrativo...)\n\nHum... parece que ela entende umas coisas, mas e se o cliente descrever o problema de um jeito diferente? Já tentei chatbot antes e não funcionou, então tô cético.\n\nE esse preço? Tá um pouco salgado, né? Vc não tem um desconto?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:37.351Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap entende termos como \"rede instável\" ou \"backup não tá funcionando\" e já sabe que é um problema de infraestrutura. Ela faz perguntas para identificar se é problema de internet ou servidor, como \"Você está com internet?\" ou \"Outros dispositivos estão com problema?\". Se o cliente descrever de um jeito diferente, ela aprende com cada interação e fica mais precisa. Sobre o preço, são R$ 99/mês, mas você tem 7 dias de teste grátis para ver se vale a pena. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:38.995Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "\"Ah, mas vc já tinha falado isso antes... tá repetindo. E esse preço é fixo ou tem desconto pra anual? Eu já tentei chatbot antes e não deu certo, sabe? Como vc garante que esse vai funcionar?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:40.747Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "Ricardo, entendi sua preocupação. O preço é fixo em R$ 99/mês, mas você pode testar por 7 dias sem compromisso. A diferença da AgenteZap é que ela aprende com cada interação e melhora com o tempo, diferente dos chatbots antigos. Ela também avisa quando não sabe responder e transfere para sua equipe. Quer que eu explique algum detalhe? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nTá pronto pra dar esse passo?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:42.214Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai aprender com meu negócio de suporte de TI? Não é só um chatbot genérico?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:43.791Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap é personalizada para seu negócio. Você treina ela com suas respostas, e ela aprende com cada interação. Por exemplo, se você ensinar como resolver um problema de rede, ela vai responder isso automaticamente da próxima vez. Ela não é um chatbot genérico, é uma IA que se adapta à sua empresa. Quer ver como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:45.162Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "Tá, mas como é que ela diferencia uma pergunta de um cliente de um problema técnico real que precisa da minha equipe?\n\n(Observação: você não mencionou o preço, e eu quero saber se é caro ou não)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:46.826Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap analisa o tom e as palavras do cliente. Se for uma dúvida simples, como \"como faço backup?\", ela responde sozinha. Se for um problema técnico real, como \"meu servidor caiu\", ela transfere imediatamente para sua equipe. Sobre o preço, são R$ 99/mês, mas você tem 7 dias de teste grátis para ver se vale a pena. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:48.169Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "\"Tá, mas como que ela sabe se é um problema técnico real ou não? Já tentei chatbot antes e ele respondia errado pra tudo. E esses R$ 99 é só pra um agente ou pra vários? Tá meio caro pra mim, vou pensar.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:49.891Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap foi treinada para identificar problemas técnicos reais. Se o cliente escrever \"meu servidor caiu\" ou \"não consigo acessar o sistema\", ela já sabe que é urgente e transfere para sua equipe. Para dúvidas simples, como \"como faço backup?\", ela responde sozinha. O preço de R$ 99/mês é para um agente, mas você pode testar por 7 dias sem compromisso. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:51.151Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "\"Tá, mas como vc garante que ela vai entender os termos técnicos que a gente usa? Já tentei chatbot antes e era um desastre. E esse preço de R$ 99 é só pra um agente? Se eu quiser mais, tem desconto?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:53.120Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap foi treinada com termos técnicos específicos de TI. Se você ensinar ela com suas respostas, ela aprende e fica cada vez mais precisa. O preço de R$ 99/mês é para um agente, mas você pode testar por 7 dias sem compromisso. Se quiser mais agentes, podemos conversar sobre um plano personalizado. [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nQuantos clientes vocês atendem por dia no WhatsApp?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:54.293Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "\"Ué, vc não respondeu quantos clientes atendem por dia no WhatsApp... Isso é importante pra saber se dá conta do meu volume. E esse preço de R$ 99/mês é só pra um agente? Quantos atendimentos ele aguenta por dia? Já tentei chatbot antes e foi um fracasso, não quero perder tempo de novo.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:56.216Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap consegue atender ilimitados clientes por dia, 24/7. Ela não fica sobrecarregada como um humano. O preço de R$ 99/mês é para um agente, e ele aguenta todo o volume de atendimento do WhatsApp. Já falei sobre isso antes, né? [ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:57.244Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "\"Ah, mas vc já me passou isso antes... E o que muda pra mim? Como isso vai resolver meus problemas de suporte técnico? Já tentei chatbot e não funcionou, sabe? E esse preço ainda tá alto pra mim.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:58.882Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap vai resolver seus problemas de suporte técnico filtrando chamados urgentes, respondendo dúvidas frequentes e liberando sua equipe para focar nos serviços mais complexos. Ela também aprende com cada interação, diferente dos chatbots antigos. O preço é R$ 99/mês, mas você tem 7 dias de teste grátis para ver se vale a pena. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:40:59.953Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    ],
+    "actionsUsed": [],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

@@ -1,0 +1,335 @@
+{
+  "business": {
+    "name": "Imobiliária Sonho",
+    "type": "Imobiliária",
+    "owner": "Roberto",
+    "description": "Imobiliária com imóveis para venda e aluguel. Atendimento personalizado e visitas agendadas."
+  },
+  "startTime": "2025-12-14T19:31:43.303Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Opa, tudo bem? Tô vendo essa AgenteZap aí, mas confesso que tô meio na dúvida. Como que funciona mesmo?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:44.003Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Opa, Roberto! Tudo ótimo, e com você?\n\nA AgenteZap é uma IA que fica no WhatsApp da sua imobiliária e atende os clientes 24/7. Ela tira dúvidas sobre os imóveis, agenda visitas e até ajuda a fechar negócios. Tudo isso enquanto você e sua equipe estão ocupados ou até mesmo fora do expediente.\n\nQuer que eu explique melhor como ela pode ajudar na sua imobiliária? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:45.385Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "\"Tá, mas como ela entende sobre imóveis? Já tentei chatbot antes e foi um fracasso. Como vc garante que essa é diferente?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:46.983Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "Roberto, entendo sua preocupação! A AgenteZap é diferente porque ela aprende com cada interação. Você treina ela com as informações dos seus imóveis, preços, e até mesmo as perguntas mais comuns que seus clientes fazem.\n\nEla não é um chatbot comum, é uma IA que entende contexto e evolui conforme você usa. Já ajudei várias imobiliárias a melhorarem o atendimento e fechar mais negócios.\n\nQuer que eu mostre um vídeo de como ela funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:48.345Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "Tá, mas como ela aprende? Você já disse isso antes. Quero detalhes, não só \"ela aprende\".\n\nE esse vídeo, é de uma imobiliária mesmo? Quero ver algo real.\n\nE o preço? Você ainda não me passou.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:49.983Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "Roberto, entendi! Vou explicar direto: a AgenteZap aprende com um treinamento inicial que você faz, onde você ensina ela sobre os imóveis, preços, e até mesmo as perguntas mais comuns dos seus clientes.\n\nDepois, com cada interação, ela melhora ainda mais. Por exemplo, se um cliente pergunta sobre um imóvel específico e você corrige alguma resposta dela, ela aprende e não erra de novo.\n\nO vídeo que vou te enviar é de uma imobiliária que usa a AgenteZap no dia a dia. Você vai ver como ela atende os clientes de forma natural e eficiente. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nSobre o preço, é R$ 99/mês, mas você pode testar por 7 dias sem compromisso. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:51.672Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai lidar com perguntas sobre financiamento e documentação? Isso é bem específico pra imobiliária, né? E esse preço de R$99 é só pra começar ou tem mais coisa escondida?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:53.345Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "Roberto, ótima pergunta! A AgenteZap pode ser treinada para lidar com perguntas específicas sobre financiamento e documentação. Você pode ensinar ela sobre os processos da sua imobiliária, prazos, e até mesmo os documentos necessários para cada tipo de imóvel.\n\nQuanto ao preço, é R$ 99/mês, sem taxas escondidas. Esse valor já inclui todo o suporte e atualizações. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nQuantos clientes vocês atendem por dia no WhatsApp? Imagina se a AgenteZap pudesse ajudar nisso!",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:54.703Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "Tá, mas e se eu quiser que ela fale sobre os imóveis em promoção? Ela consegue fazer isso? E quanto a fotos e vídeos?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:56.201Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "Roberto, ótimo ponto! A AgenteZap pode ser treinada para destacar os imóveis em promoção. Você pode programar ela para mencionar essas ofertas automaticamente ou até mesmo criar um menu especial com os imóveis em destaque.\n\nQuanto a fotos e vídeos, ela consegue enviar sim! Você pode integrar ela ao seu catálogo de imóveis e ela vai enviar as imagens e vídeos dos imóveis conforme a necessidade.\n\nQuer que eu explique como funciona essa integração? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nQual horário mais pega fogo aí na loja? A AgenteZap pode ajudar a aliviar essa demanda!",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:58.115Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "\"Tá, mas como é que ela manda foto e vídeo? Explica de novo, porque não entendi direito. E como que ela sabe quais imóveis estão em promoção? Já tentei chatbot antes e não funcionou, não quero gastar e dar prejuízo.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:31:59.827Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "Roberto, entendi sua preocupação! Vou explicar de novo, mas de um jeito diferente.\n\nA AgenteZap pode ser integrada ao seu catálogo de imóveis. Quando um cliente pergunta sobre um imóvel específico, ela envia as fotos e vídeos diretamente do seu catálogo. É como se ela fosse uma assistente virtual mostrando os imóveis para você.\n\nSobre as promoções, você pode criar uma lista de imóveis em promoção e a AgenteZap vai destacar eles automaticamente. Você também pode programar ela para oferecer promoções em momentos específicos, como finais de semana ou feriados.\n\nQuer que eu mostre um exemplo prático de como isso funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora? Você pode testar por 7 dias e ver se realmente funciona para você. [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:32:01.570Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "Tá, mas como que eu faço pra cadastrar os imóveis? É manual ou tem integração com meu sistema?\n\nE esse vídeo que você mandou, é da minha área, de imobiliária? Quero ver algo real mesmo.\n\nE esse teste de 7 dias, é grátis? Porque se eu tiver que pagar depois, não rola.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:32:03.420Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "Roberto, entendi suas dúvidas! Vamos lá:\n\nVocê pode cadastrar os imóveis manualmente ou, se o seu sistema imobiliário tiver API, podemos fazer uma integração para que os dados sejam atualizados automaticamente. Assim, você não precisa fazer nada manualmente.\n\nO vídeo que enviei é de uma imobiliária que usa a AgenteZap no dia a dia. Você vai ver como ela atende os clientes de forma natural e eficiente. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nSim, o teste de 7 dias é completamente grátis! Você só paga se quiser continuar usando depois do período de teste. [AÇÃO:CRIAR_CONTA_TESTE]\n\nFicou alguma dúvida?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:32:06.524Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "Tá, mas como é que o chatbot vai saber atender clientes de imóveis? Tem que entender sobre financiamento, aluguel, documentação... Já tentei chatbot antes e foi um desastre.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:32:08.139Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "Roberto, entendo sua preocupação! A AgenteZap é diferente porque ela é treinada especificamente para o seu negócio. Você pode ensinar ela sobre financiamento, aluguel, documentação e até mesmo os processos específicos da sua imobiliária.\n\nEla aprende com cada interação e melhora conforme você usa. Já ajudou várias imobiliárias a melhorar o atendimento e fechar mais negócios.\n\nQuer que eu mostre um exemplo de como ela atende um cliente interessado em um imóvel? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora? Você pode testar por 7 dias e ver se realmente funciona para você. [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:32:09.774Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai saber responder sobre financiamento imobiliário? Já tentei chatbot antes e foi um desastre, só respondia bobagem.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:32:11.341Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "Roberto, entendi! A AgenteZap é diferente porque você treina ela com as informações específicas da sua imobiliária. Você pode ensinar ela sobre os tipos de financiamento que oferecem, os bancos parceiros, os prazos e até mesmo os documentos necessários.\n\nEla não é um chatbot comum, é uma IA que entende contexto e evolui conforme você usa. Já ajudei várias imobiliárias a melhorar o atendimento e fechar mais negócios.\n\nQuer que eu mostre um exemplo de como ela responde sobre financiamento? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora? Você pode testar por 7 dias e ver se realmente funciona para você. [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:32:13.056Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai entender os detalhes dos imóveis que eu tenho pra vender? Tipo, cada um tem características diferentes, documentos específicos... Como ela vai lidar com isso? E esse vídeo aí, mostra alguma imobiliária usando?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:32:14.860Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "Roberto, entendi! A AgenteZap é treinada com as informações específicas dos seus imóveis. Você pode cadastrar cada imóvel com suas características, documentos necessários e até mesmo fotos e vídeos.\n\nEla aprende com cada interação e melhora conforme você usa. Já ajudou várias imobiliárias a melhorar o atendimento e fechar mais negócios.\n\nO vídeo que vou te enviar mostra uma imobiliária usando a AgenteZap no dia a dia. Você vai ver como ela atende os clientes de forma natural e eficiente. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora? Você pode testar por 7 dias e ver se realmente funciona para você. [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:32:16.273Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "Tá, mas como que ela vai lidar com clientes que perguntam sobre financiamento ou documentação específica? Já vi chatbot que só sabe responder coisas básicas.\n\nE esse teste de 7 dias, é de verdade mesmo? Ou tem pegadinha?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:32:17.873Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "Roberto, entendi sua preocupação! A AgenteZap é diferente porque você treina ela com as informações específicas da sua imobiliária. Você pode ensinar ela sobre os tipos de financiamento, documentação necessária, e até mesmo os processos específicos da sua imobiliária.\n\nEla aprende com cada interação e melhora conforme você usa. Já ajudei várias imobiliárias a melhorar o atendimento e fechar mais negócios.\n\nO teste de 7 dias é de verdade, sem pegadinha! Você só paga se quiser continuar usando depois do período de teste. [AÇÃO:CRIAR_CONTA_TESTE]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:32:20.723Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "Tá, mas como que ela vai entender os detalhes dos imóveis? Tipo, cada um tem características diferentes, como metragem, localização, valor de condomínio... Como ela vai lidar com isso?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:32:22.405Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "Roberto, ótima pergunta! A AgenteZap pode ser treinada com todas as informações detalhadas dos seus imóveis. Você cadastra cada imóvel com suas características específicas: metragem, localização, valor de condomínio, e até mesmo fotos e vídeos.\n\nEla aprende com cada interação e melhora conforme você usa. Já ajudei várias imobiliárias a melhorar o atendimento e fechar mais negócios.\n\nQuer que eu mostre um exemplo de como ela responde sobre os detalhes dos imóveis? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora? Você pode testar por 7 dias e ver se realmente funciona para você. [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:32:24.350Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai entender as diferenças entre um apartamento na praia e um na montanha? Já tentei chatbot antes e foi um fiasco.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:32:26.029Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "Roberto, entendi! A AgenteZap é treinada com as informações específicas de cada imóvel. Você cadastra cada um com suas características únicas, como localização, metragem, valor de condomínio, e até mesmo fotos e vídeos.\n\nEla aprende com cada interação e melhora conforme você usa. Já ajudei várias imobiliárias a melhorar o atendimento e fechar mais negócios.\n\nQuer que eu mostre um exemplo de como ela diferencia os imóveis? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora? Você pode testar por 7 dias e ver se realmente funciona para você. [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:32:27.750Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai saber responder sobre imóveis específicos? Já vi chatbot que só fala besteira.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:32:29.216Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "Roberto, entendi! A AgenteZap é treinada com as informações específicas dos seus imóveis. Você cadastra cada imóvel com suas características únicas, como localização, metragem, valor de condomínio, e até mesmo fotos e vídeos.\n\nEla aprende com cada interação e melhora conforme você usa. Já ajudei várias imobiliárias a melhorar o atendimento e fechar mais negócios.\n\nQuer que eu mostre um exemplo de como ela responde sobre imóveis específicos? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora? Você pode testar por 7 dias e ver se realmente funciona para você. [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:32:30.549Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai saber responder sobre imóveis que eu ainda não cadastrei? Já vi esses vídeos de demonstração, mas sempre parece muito bonito e depois não funciona na prática.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:32:32.045Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "Roberto, entendi sua preocupação! A AgenteZap é treinada para lidar com imóveis não cadastrados também. Quando um cliente pergunta sobre um imóvel que não está no sistema, ela pode direcionar a pergunta para você ou sua equipe, e aprender com essa interação para o futuro.\n\nEla é projetada para ser prática e eficiente, não apenas bonita em demonstrações. Já ajudou várias imobiliárias a melhorar o atendimento e fechar mais negócios.\n\nQuer que eu explique como ela funciona em situações reais? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que te impede de testar agora? Você pode testar por 7 dias e ver se realmente funciona para você. [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:32:33.684Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+    ],
+    "actionsUsed": [
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]"
+    ],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}
