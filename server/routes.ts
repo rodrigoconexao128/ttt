@@ -2925,5 +2925,114 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   (app as any).getAdminAgentConfig = () => adminAgentConfig;
   (app as any).getAdminMediaLibrary = async () => await getAdminMediaList("admin");
 
+  // ==================== TESTE API ROUTES (APENAS DEV) ====================
+  
+  if (process.env.NODE_ENV === "development") {
+    const { 
+      processAdminMessage, 
+      getClientSession, 
+      clearClientSession,
+      generateFollowUpResponse 
+    } = await import("./adminAgentService");
+    
+    // Health check
+    app.get("/api/health", (req, res) => {
+      res.json({ status: "ok", timestamp: new Date().toISOString() });
+    });
+    
+    // Testar mensagem do admin agent
+    app.post("/api/test/admin-message", async (req, res) => {
+      try {
+        const { phone, message, skipTrigger = true } = req.body;
+        if (!phone || !message) {
+          return res.status(400).json({ error: "phone and message required" });
+        }
+        
+        // skipTrigger=true para testes (ignora trigger phrases)
+        const result = await processAdminMessage(phone, message, undefined, undefined, skipTrigger);
+        
+        if (!result) {
+          return res.json({ 
+            response: null,
+            skipped: true,
+            reason: "No trigger phrase detected (normal behavior)"
+          });
+        }
+        
+        res.json({ 
+          response: result.text,
+          mediaActions: result.mediaActions,
+          actions: result.actions
+        });
+      } catch (error: any) {
+        console.error("[TEST] Error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+    
+    // Limpar sessão de cliente
+    app.post("/api/test/clear-session", async (req, res) => {
+      try {
+        const { phone } = req.body;
+        if (!phone) {
+          return res.status(400).json({ error: "phone required" });
+        }
+        
+        const cleared = clearClientSession(phone);
+        res.json({ success: true, existed: cleared });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+    
+    // Obter sessão de cliente
+    app.get("/api/test/session/:phone", async (req, res) => {
+      try {
+        const { phone } = req.params;
+        const session = getClientSession(phone);
+        
+        if (!session) {
+          return res.json({ exists: false });
+        }
+        
+        res.json({
+          exists: true,
+          id: session.id,
+          phoneNumber: session.phoneNumber,
+          flowState: session.flowState,
+          agentConfig: session.agentConfig,
+          userId: session.userId,
+          email: session.email,
+          lastInteraction: session.lastInteraction,
+          historyLength: session.conversationHistory.length
+        });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+    
+    // Testar follow-up
+    app.post("/api/test/followup", async (req, res) => {
+      try {
+        const { phone, context } = req.body;
+        if (!phone) {
+          return res.status(400).json({ error: "phone required" });
+        }
+        
+        const response = await generateFollowUpResponse(phone, context || {
+          type: 'no_response',
+          lastMessage: 'ofereceu teste',
+          minutesSinceLastInteraction: 60
+        });
+        
+        res.json({ response });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+    
+    console.log("✅ [DEV] Rotas de teste habilitadas: /api/test/*");
+  }
+
   return httpServer;
 }
