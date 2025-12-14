@@ -135,22 +135,5 @@ app.use((req, res, next) => {
     restoreAdminSessions().catch((error) => {
       console.error("Failed to restore admin WhatsApp sessions:", error);
     });
-
-    // 🎯 Iniciar Follow-Up Engine para o novo fluxo de vendas
-    try {
-      const { followUpEngine } = await import("./followUpEngine");
-      const { sendAdminMessage } = await import("./whatsapp");
-      
-      // Configurar função de envio
-      followUpEngine.setSendMessageFunction(async (phoneNumber: string, message: string) => {
-        await sendAdminMessage(phoneNumber, message);
-      });
-      
-      // Iniciar engine
-      followUpEngine.start();
-      console.log("✅ Follow-Up Engine iniciado para vendas automáticas");
-    } catch (error) {
-      console.error("Failed to start Follow-Up Engine:", error);
-    }
   });
 })();

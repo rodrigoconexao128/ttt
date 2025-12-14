@@ -187,27 +187,6 @@ INFORMAÇÕES IMPORTANTES:
       console.log("ℹ️ Plans already exist");
     }
 
-    // 🎯 Seed sales_flow_enabled config (Novo Fluxo de Vendas 2025)
-    const salesFlowConfig = await withRetry(() =>
-      db
-        .select()
-        .from(systemConfig)
-        .where(eq(systemConfig.chave, "sales_flow_enabled"))
-        .limit(1)
-    );
-
-    if (salesFlowConfig.length === 0) {
-      await withRetry(() =>
-        db.insert(systemConfig).values({
-          chave: "sales_flow_enabled",
-          valor: "false", // Desabilitado por padrão - habilitar manualmente quando pronto
-        })
-      );
-      console.log("✅ Sales flow config created (disabled by default)");
-    } else {
-      console.log("ℹ️ Sales flow config already exists");
-    }
-
     // Ensure admin owner user exists in users table (for Replit Auth integration)
     const adminUser = await withRetry(() => db.select().from(users).where(eq(users.email, adminEmail)).limit(1));
     if (adminUser.length === 0) {
