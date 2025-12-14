@@ -311,6 +311,11 @@ export async function generateAdminMediaPromptBlock(adminId?: string): Promise<s
 📁 SISTEMA DE ENVIO DE MÍDIAS - INSTRUÇÕES OBRIGATÓRIAS
 ═══════════════════════════════════════════════════════════════════════════════
 
+🔴🔴🔴 REGRA MAIS IMPORTANTE 🔴🔴🔴
+Quando cliente perguntar "como funciona", "me explica", "quero saber mais":
+→ SEMPRE inclua [ENVIAR_MIDIA:COMO_FUNCIONA] na resposta!
+→ Esta tag ENVIA o áudio explicativo automaticamente!
+
 ⚠️⚠️⚠️ REGRA ABSOLUTA - LEIA COM ATENÇÃO ⚠️⚠️⚠️
 
 VOCÊ SÓ PODE USAR ESTAS MÍDIAS (e NENHUMA outra):
