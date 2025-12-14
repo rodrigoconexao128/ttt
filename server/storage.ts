@@ -235,8 +235,8 @@ export class DatabaseStorage implements IStorage {
     }
     
     // Delete AI agent config
-    await db.delete(aiAgentConfigs).where(eq(aiAgentConfigs.userId, id));
-    
+    await db.delete(aiAgentConfig).where(eq(aiAgentConfig.userId, id));
+
     // Delete business agent config
     await db.delete(businessAgentConfigs).where(eq(businessAgentConfigs.userId, id));
     

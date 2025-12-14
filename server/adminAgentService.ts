@@ -308,16 +308,48 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   // Verificar se cliente já existe pelo telefone
   const existingUser = await findUserByPhone(session.phoneNumber);
   
-  // Se encontrou usuário, atualizar sessão
+  // Se encontrou usuário, verificar se realmente é um cliente ATIVO
+  // (tem conexão WhatsApp E assinatura ativa)
   if (existingUser && !session.userId) {
-    updateClientSession(session.phoneNumber, { 
-      userId: existingUser.id,
-      email: existingUser.email,
-      flowState: 'active'
-    });
-    session.userId = existingUser.id;
-    session.email = existingUser.email;
-    session.flowState = 'active';
+    let isReallyActive = false;
+    
+    try {
+      // Verificar se tem conexão ativa
+      const connection = await storage.getConnectionByUserId(existingUser.id);
+      const hasActiveConnection = connection?.isConnected === true;
+      
+      // Verificar se tem assinatura ativa
+      const subscription = await storage.getUserSubscription(existingUser.id);
+      const hasActiveSubscription = subscription?.status === 'active' || subscription?.status === 'trialing';
+      
+      // Só é cliente ativo se tiver conexão E assinatura
+      isReallyActive = hasActiveConnection && hasActiveSubscription;
+    } catch (e) {
+      // Se deu erro, considera como não ativo
+      isReallyActive = false;
+    }
+    
+    if (isReallyActive) {
+      updateClientSession(session.phoneNumber, { 
+        userId: existingUser.id,
+        email: existingUser.email,
+        flowState: 'active'
+      });
+      session.userId = existingUser.id;
+      session.email = existingUser.email;
+      session.flowState = 'active';
+    } else {
+      // Usuário existe mas não está ativo - manter em onboarding
+      // Apenas guardar o userId para referência
+      updateClientSession(session.phoneNumber, { 
+        userId: existingUser.id,
+        email: existingUser.email
+        // NÃO muda flowState - mantém onboarding
+      });
+      session.userId = existingUser.id;
+      session.email = existingUser.email;
+      console.log(`[SALES] Usuário ${existingUser.id} encontrado mas sem conexão/assinatura ativa - mantendo em onboarding`);
+    }
   }
   
   // Montar contexto baseado no estado
