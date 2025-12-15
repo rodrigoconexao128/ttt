@@ -3240,9 +3240,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     try {
       const { token } = req.params;
       
-      // Buscar token de teste gerado pelo adminAgentService
+      // Buscar token de teste gerado pelo adminAgentService (agora persiste no Supabase)
       const { getTestToken } = await import("./adminAgentService");
-      const testToken = getTestToken(token);
+      const testToken = await getTestToken(token);
       
       if (testToken) {
         // Token válido - retornar info do agente do cliente

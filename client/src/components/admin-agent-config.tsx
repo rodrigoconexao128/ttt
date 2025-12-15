@@ -17,7 +17,7 @@ import {
   Bot, Sparkles, TestTube, Save, AlertCircle, CheckCircle2, 
   Plus, X, Zap, Settings2, Image as ImageIcon, Music, Video, 
   FileText, Upload, Trash2, Edit2, Loader2, RefreshCw, Check,
-  Clock, MessageSquare, Filter, Info, ArrowRight
+  Clock, Filter, Info, ArrowRight
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -495,13 +495,12 @@ export default function AdminAgentConfig() {
     }
   };
 
-  // Calcular progresso de configuração
+  // Calcular progresso de configuração (Nuclear 20.0: prompt fixo no código)
   const configProgress = [
-    prompt.length > 50,
     isActive,
     mediaList.length > 0,
   ].filter(Boolean).length;
-  const progressPercent = (configProgress / 3) * 100;
+  const progressPercent = (configProgress / 2) * 100;
 
   if (isLoading) {
     return (
@@ -556,13 +555,12 @@ export default function AdminAgentConfig() {
             <div className="flex-1 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Progresso da configuração</span>
-                <span className="font-medium">{configProgress}/3 etapas</span>
+                <span className="font-medium">{configProgress}/2 etapas</span>
               </div>
               <Progress value={progressPercent} className="h-2" />
             </div>
             <div className="flex gap-2">
               {[
-                { done: prompt.length > 50, label: "Prompt" },
                 { done: isActive, label: "Ativado" },
                 { done: mediaList.length > 0, label: "Mídias" },
               ].map((step, i) => (
@@ -582,14 +580,10 @@ export default function AdminAgentConfig() {
 
       {/* ============== TABS PRINCIPAIS ============== */}
       <Tabs value={activeTab} onValueChange={handleSubTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5 h-14">
+        <TabsList className="grid w-full grid-cols-4 h-14">
           <TabsTrigger value="atendimento" className="gap-2 text-sm">
             <Zap className="w-4 h-4" />
             <span className="hidden sm:inline">Atendimento</span>
-          </TabsTrigger>
-          <TabsTrigger value="prompt" className="gap-2 text-sm">
-            <MessageSquare className="w-4 h-4" />
-            <span className="hidden sm:inline">Instruções</span>
           </TabsTrigger>
           <TabsTrigger value="media" className="gap-2 text-sm">
             <ImageIcon className="w-4 h-4" />
@@ -687,76 +681,6 @@ export default function AdminAgentConfig() {
                     (Conecte o WhatsApp na aba "WhatsApp" para ativar o atendimento)
                   </span>
                 )}
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
-
-        {/* ============== ABA: INSTRUÇÕES ============== */}
-        <TabsContent value="prompt" className="space-y-4">
-          <Card className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Sparkles className="w-5 h-5 text-primary" />
-                </div>
-                <div className="flex-1 space-y-1">
-                  <Label className="text-lg font-semibold">Prompt do Agente</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Defina a personalidade, tom e comportamento do agente do administrador.
-                  </p>
-                </div>
-              </div>
-
-              <Textarea
-                placeholder={`Exemplo:
-Você é um assistente de atendimento oficial do AgentZap.
-
-PERSONALIDADE:
-- Seja simpático, profissional e direto
-- Use emojis com moderação
-- Sempre cumprimente o cliente pelo nome quando possível
-
-INFORMAÇÕES:
-- Sistema de Agentes IA para WhatsApp
-- Planos: Básico, Profissional e Enterprise
-- Suporte: suporte@agentezap.com
-
-O QUE FAZER:
-- Responda dúvidas sobre o sistema
-- Explique funcionalidades e preços
-- Ajude com problemas técnicos básicos
-
-O QUE NÃO FAZER:
-- Não invente informações que não sabe
-- Se não souber, diga que vai verificar e retorna`}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={16}
-                className="resize-none text-base leading-relaxed"
-              />
-
-              <div className="flex items-center justify-between pt-4 border-t">
-                <div className="text-sm text-muted-foreground">
-                  {prompt.length} caracteres
-                  {prompt.length < 50 && (
-                    <span className="text-amber-500 ml-2">
-                      (mínimo recomendado: 50)
-                    </span>
-                  )}
-                </div>
-                <Button
-                  onClick={() => saveConfigMutation.mutate()}
-                  disabled={saveConfigMutation.isPending || !prompt.trim()}
-                  size="lg"
-                >
-                  {saveConfigMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4 mr-2" />
-                  )}
-                  Salvar
-                </Button>
               </div>
             </div>
           </Card>
@@ -954,7 +878,7 @@ O QUE NÃO FAZER:
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <div className="p-2 rounded-lg bg-primary/10">
-                  <MessageSquare className="w-5 h-5 text-primary" />
+                  <FileText className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1">
                   <Label className="text-base font-semibold">Tamanho das Mensagens</Label>
