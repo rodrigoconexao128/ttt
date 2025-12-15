@@ -381,8 +381,9 @@ ${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai 
       if (authError.message?.includes('email') || (authError as any).code === 'email_exists') {
         console.log(`🔄 [SALES] Email já existe, buscando usuário existente...`);
         
-        // Buscar usuário pelo email gerado
-        const existingByEmail = users.find(u => u.email === email);
+        // IMPORTANTE: Buscar lista ATUALIZADA de usuários (não usar a variável 'users' antiga)
+        const freshUsers = await storage.getAllUsers();
+        const existingByEmail = freshUsers.find(u => u.email === email) || freshUsers.find(u => u.email?.includes(cleanPhone.slice(-8)));
         if (existingByEmail) {
           // Atualizar agente e gerar link
           if (session.agentConfig?.prompt || session.agentConfig?.name) {
@@ -585,15 +586,20 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   // NUCLEAR 21.0: Prompt fixo no código, não busca mais do banco
   // Isso garante que a calibração 100% seja mantida e não seja alterada via admin
   
-  // VERIFICAR SE ADMIN LIMPOU HISTÓRICO - Se sim, SEMPRE tratar como cliente novo
+  // VERIFICAR SE ADMIN LIMPOU HISTÓRICO - Se sim, tratar como cliente novo MAS verificar se tem agente
   const forceNew = shouldForceOnboarding(session.phoneNumber);
-  if (forceNew) {
-    console.log(`🔄 [SALES] Telefone ${session.phoneNumber} em forceOnboarding - tratando como cliente NOVO`);
-    // Não buscar usuário existente, ir direto para onboarding
-  }
   
-  // Verificar se cliente já existe pelo telefone (APENAS se não está em forceOnboarding)
-  const existingUser = forceNew ? null : await findUserByPhone(session.phoneNumber);
+  // SEMPRE verificar se existe usuário para poder mostrar info do agente
+  const existingUser = await findUserByPhone(session.phoneNumber);
+  
+  if (forceNew && existingUser) {
+    console.log(`🔄 [SALES] Telefone ${session.phoneNumber} em forceOnboarding - cliente TEM conta mas será tratado como retorno`);
+    // Guardar o userId para poder mostrar info do agente existente
+    session.userId = existingUser.id;
+    session.email = existingUser.email;
+  } else if (forceNew) {
+    console.log(`🔄 [SALES] Telefone ${session.phoneNumber} em forceOnboarding - cliente NOVO sem conta`);
+  }
   
   // Se encontrou usuário, verificar se realmente é um cliente ATIVO
   // (tem conexão WhatsApp E assinatura ativa)
@@ -646,8 +652,12 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   // O cliente testa no painel web, não no WhatsApp
   
   if (session.flowState === 'active' && session.userId) {
-    // Cliente ativo - já tem conta
+    // Cliente ativo - já tem conta e está ativo
     stateContext = await getActiveClientContext(session);
+  } else if (forceNew && existingUser) {
+    // Cliente voltou após limpeza de histórico MAS tem conta
+    // Mostrar info do agente dele e perguntar se quer alterar
+    stateContext = await getReturningClientContext(session, existingUser);
   } else {
     // Novo cliente - fluxo de vendas (inclui post_test)
     stateContext = getOnboardingContext(session);
@@ -838,6 +848,103 @@ E use: [ACAO:CRIAR_CONTA_TESTE]
 
 IMPORTANTE: O agente no simulador deve se comportar como agente DO CLIENTE
 (ex: atendente de loja de calçados, não vendedor do AgenteZap)`;
+}
+
+/**
+ * Contexto para clientes que VOLTARAM após limpar histórico mas já têm conta
+ * Mostra info do agente existente e pergunta se quer alterar
+ */
+async function getReturningClientContext(session: ClientSession, existingUser: any): Promise<string> {
+  let agentInfo = "❌ Nenhum agente configurado";
+  let agentName = "";
+  let agentPrompt = "";
+  let connectionStatus = "❌ Não conectado";
+  let subscriptionStatus = "❌ Sem assinatura";
+  
+  try {
+    // Buscar config do agente
+    const agentConfig = await storage.getAgentConfig(existingUser.id);
+    if (agentConfig?.prompt) {
+      // Extrair nome do agente do prompt
+      const nameMatch = agentConfig.prompt.match(/Você é ([^,]+),/);
+      agentName = nameMatch ? nameMatch[1] : "Agente";
+      
+      // Extrair empresa do prompt
+      const companyMatch = agentConfig.prompt.match(/da ([^.]+)\./);
+      const company = companyMatch ? companyMatch[1] : "Empresa";
+      
+      agentInfo = `✅ Agente: ${agentName} (${company})`;
+      agentPrompt = agentConfig.prompt.substring(0, 300) + "...";
+    }
+    
+    // Verificar conexão
+    const connection = await storage.getConnectionByUserId(existingUser.id);
+    if (connection?.isConnected) {
+      connectionStatus = `✅ Conectado (${connection.phoneNumber})`;
+    }
+    
+    // Verificar assinatura
+    const sub = await storage.getUserSubscription(existingUser.id);
+    if (sub) {
+      const isActive = sub.status === 'active' || sub.status === 'trialing';
+      subscriptionStatus = isActive ? `✅ ${sub.status}` : `⚠️ ${sub.status}`;
+    }
+  } catch (e) {
+    console.error("[SALES] Erro ao buscar info do cliente:", e);
+  }
+  
+  return `
+═══════════════════════════════════════════════════════════════════════════════
+📋 ESTADO ATUAL: CLIENTE VOLTOU (já tem conta no sistema!)
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️ IMPORTANTE: Este cliente JÁ TEM CONTA no AgenteZap!
+NÃO TRATE como cliente novo. Pergunte se quer alterar algo ou precisa de ajuda.
+
+📊 DADOS DO CLIENTE:
+- Telefone: ${session.phoneNumber}
+- Email: ${existingUser.email}
+- ${agentInfo}
+- WhatsApp: ${connectionStatus}
+- Assinatura: ${subscriptionStatus}
+
+${agentPrompt ? `
+📝 RESUMO DO AGENTE CONFIGURADO:
+"${agentPrompt}"
+` : ''}
+
+═══════════════════════════════════════════════════════════════════════════════
+💬 COMO ABORDAR ESTE CLIENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+OPÇÃO 1 - Saudação de retorno:
+"Oi! Você já tem uma conta com a gente! 😊 
+${agentName ? `Seu agente ${agentName} está configurado.` : 'Seu agente está configurado.'}
+Quer alterar algo no agente, ver como está funcionando, ou precisa de ajuda com alguma coisa?"
+
+OPÇÃO 2 - Se cliente mencionou problema:
+"Oi! Vi que você já tem conta aqui. Me conta o que está precisando que eu te ajudo!"
+
+═══════════════════════════════════════════════════════════════════════════════
+✅ O QUE VOCÊ PODE FAZER
+═══════════════════════════════════════════════════════════════════════════════
+
+1. ALTERAR AGENTE: Se cliente quer mudar nome, instruções ou comportamento
+   → Coletar as novas informações e usar [ACAO:CRIAR_CONTA_TESTE] para atualizar
+
+2. VER SIMULADOR: Se cliente quer testar o agente atual
+   → Usar [ACAO:CRIAR_CONTA_TESTE] para gerar novo link do simulador
+
+3. SUPORTE: Se cliente tem problema técnico
+   → Ajudar com conexão, pagamento, etc.
+
+4. DESATIVAR/REATIVAR: Se cliente quer pausar o agente
+   → Orientar como fazer no painel
+
+❌ NÃO FAÇA:
+- NÃO pergunte tudo do zero como se fosse cliente novo
+- NÃO ignore que ele já tem conta
+- NÃO crie conta duplicada`;
 }
 
 /**
