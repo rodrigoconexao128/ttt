@@ -693,7 +693,7 @@ PASSO 1 - DESCOBERTA (se não sabe o negócio):
 
 PASSO 2 - CRIAR IMEDIATAMENTE (assim que souber o negócio):
 "Show! Vou criar um agente top pra você! 🚀
-[ACAO:CRIAR_CONTA_TESTE]"
+[ACAO:CRIAR_CONTA_TESTE empresa="Nome do Negócio" nome="Nome do Agente"]"
 
 Se o cliente passar mais detalhes (nome, preços, etc.), ótimo - use.
 Se não passar, INVENTE valores razoáveis. Ele pode ajustar depois.
@@ -705,12 +705,12 @@ Se não passar, INVENTE valores razoáveis. Ele pode ajustar depois.
 EXEMPLO 1 - Cliente direto ao ponto:
 Cliente: "Tenho loja de calçados"
 Rodrigo: "Perfeito! Vou criar um agente especialista em calçados pra você! 🚀
-[ACAO:CRIAR_CONTA_TESTE]"
+[ACAO:CRIAR_CONTA_TESTE empresa="Loja de Calçados" nome="Atendente"]"
 
 EXEMPLO 2 - Cliente mandou várias infos:
 Cliente: "Tenho pizzaria, atendo de terça a domingo, pizzas de R$35 a R$65"
 Rodrigo: "Que show! Vou criar seu agente agora com tudo isso! 🍕
-[ACAO:CRIAR_CONTA_TESTE]"
+[ACAO:CRIAR_CONTA_TESTE empresa="Pizzaria" nome="Pizzaiolo Virtual"]"
 
 EXEMPLO 3 - Cliente vago:
 Cliente: "quero testar"
@@ -738,6 +738,12 @@ Rodrigo: "Bora! 🚀 Me conta rapidinho: o que você vende ou faz? (tipo: loja d
 NUNCA escreva links inventados. A ÚNICA forma de criar o link é: [ACAO:CRIAR_CONTA_TESTE]
 
 Use a tag assim que souber o tipo de negócio do cliente.
+
+IMPORTANTE: Passe o nome da empresa e do agente DENTRO da tag se souber!
+Ex: [ACAO:CRIAR_CONTA_TESTE empresa="Pizzaria do João" nome="João"]
+Ex: [ACAO:CRIAR_CONTA_TESTE empresa="Clínica Sorriso"]
+
+Se não souber o nome, invente um genérico baseado no negócio (ex: "Loja de Roupas").
 
 ═══════════════════════════════════════════════════════════════════════════════
 ⏰ FOLLOW-UP INTELIGENTE
@@ -1075,6 +1081,16 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
         break;
         
       case "CRIAR_CONTA_TESTE":
+        // Atualizar config se parâmetros foram passados na própria tag
+        if (action.params.empresa || action.params.nome || action.params.funcao) {
+          const agentConfig = { ...session.agentConfig };
+          if (action.params.nome) agentConfig.name = action.params.nome;
+          if (action.params.empresa) agentConfig.company = action.params.empresa;
+          if (action.params.funcao) agentConfig.role = action.params.funcao;
+          updateClientSession(session.phoneNumber, { agentConfig });
+          console.log(`✅ [SALES] Config atualizada via CRIAR_CONTA_TESTE:`, agentConfig);
+        }
+
         // Nova ação: criar conta de teste e retornar credenciais + token do simulador
         const testResult = await createTestAccountWithCredentials(session);
         if (testResult.success && testResult.email && testResult.password) {
