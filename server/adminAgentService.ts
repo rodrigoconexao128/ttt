@@ -989,10 +989,13 @@ function parseActions(response: string): { cleanText: string; actions: ParsedAct
     const paramsStr = match[2];
     const params: Record<string, string> = {};
     
-    const paramRegex = /(\w+)="([^"]*)"/g;
+    // Regex para capturar parâmetros com aspas duplas ou simples
+    const paramRegex = /(\w+)=(?:"([^"]*)"|'([^']*)')/g;
     let paramMatch;
     while ((paramMatch = paramRegex.exec(paramsStr)) !== null) {
-      params[paramMatch[1]] = paramMatch[2];
+      const key = paramMatch[1];
+      const value = paramMatch[2] || paramMatch[3]; // Pega o grupo que deu match
+      params[key] = value;
     }
     
     actions.push({ type, params });
