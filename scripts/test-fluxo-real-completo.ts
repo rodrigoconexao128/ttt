@@ -28,8 +28,12 @@ import { writeFileSync, mkdirSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const MISTRAL_API_KEY = "EMZSjwivLJLrPlJqPuWrTwAAOgp93lhF";
+const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
+
+if (!MISTRAL_API_KEY) {
+  throw new Error("Missing env var MISTRAL_API_KEY");
+}
 
 // ============================================================================
 // CENÁRIO DE TESTE

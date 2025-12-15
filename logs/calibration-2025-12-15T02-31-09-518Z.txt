@@ -1,0 +1,45 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 14/12/2025, 23:31:09
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 80% (4/5 nichos)
+⚠️ BOM, MAS PODE MELHORAR
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ BARGANHADOR: CONVERTEU (6 mensagens)
+
+✅ ENTUSIASTA: CONVERTEU (2 mensagens)
+
+❌ COMPARADOR: NÃO CONVERTEU 
+   📌 Motivo: Cliente desistiu por motivo não identificado
+   💬 Última msg cliente: "Oi Rodrigo, tudo bem?
+
+Eu ainda não sei se vale a pena. O que você me garante que o AgenteZap vai re..."
+
+✅ CÉTICO/CHATO: CONVERTEU (3 mensagens)
+
+✅ INDECISO: CONVERTEU (6 mensagens)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🔧 SUGESTÕES DE AJUSTE
+═══════════════════════════════════════════════════════════════════════════════
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

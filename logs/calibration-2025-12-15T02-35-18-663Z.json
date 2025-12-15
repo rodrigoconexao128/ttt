@@ -1,0 +1,393 @@
+{
+  "timestamp": "2025-12-15T02:35:18.663Z",
+  "results": [
+    {
+      "scenario": {
+        "id": "restaurante-barganhador",
+        "owner": "Dona Rosa",
+        "business": "Restaurante Sabor Caseiro",
+        "type": "BARGANHADOR",
+        "realPains": [
+          "Não consigo responder WhatsApp no almoço",
+          "Perco pedidos de madrugada"
+        ],
+        "skepticism": "Já tentei chatbot e era horrível",
+        "budget": "R$ 99 tá caro",
+        "desc": "Quer desconto, quer teste de 30 dias, quer vantagem, diz que tá caro só pra baixar preço.",
+        "behavior": "Peça desconto, peça 30 dias grátis, diga 'se fizer por R$ 50 eu fecho'.",
+        "personality": "Quer desconto, quer teste de 30 dias, quer vantagem, diz que tá caro só pra baixar preço.\nCOMPORTAMENTO: Peça desconto, peça 30 dias grátis, diga 'se fizer por R$ 50 eu fecho'."
+      },
+      "converted": true,
+      "turns": 6,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi, Rodrigo! Tô vendo que você vende IA pra restaurantes. Como é que funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Oi! Tô aqui pra te ajudar a entender como a AgenteZap pode revolucionar o seu restaurante.\n\nA gente entende que no seu ramo, cada minuto conta. Se o cliente não é atendido na hora, ele some. E ainda tem que lidar com reservas, pedidos, reclamações... Tudo isso enquanto você tenta cuidar da cozinha e da equipe, né?\n\nA AgenteZap é sua assistente 24h, que nunca dorme e nunca erra. Ela atende os clientes no WhatsApp, responde perguntas sobre cardápio, horários, faz reservas, até recebe pedidos! Tudo isso enquanto você cuida do que é mais importante: a qualidade da sua comida.\n\nQuer ver como ela funciona na prática? Me diz o nome do seu restaurante e eu te mando um link de teste pra você ver como ela atende. O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Sabor Caseiro. Mas R$ 99 tá caro. Se fizer por R$ 50 eu fecho."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendi, você quer testar a AgenteZap no seu restaurante Sabor Caseiro, mas acha que R$ 99 está um pouco acima do seu orçamento. Vamos ver se a gente consegue te mostrar o valor disso!\n\nOlha só: você investe em anúncios, certo? Se você perder só 3 reservas por mês porque demorou pra responder, quanto isso custa? Se cada reserva gira em torno de R$ 50, são R$ 150 perdidos! O R$ 99 da IA se paga sozinho e ainda sobra!\n\nAlém disso, a AgenteZap não só agenda mesas, como também responde perguntas sobre o cardápio, horários, e até recebe pedidos. Ela trabalha 24h por dia, 7 dias por semana, sem folga e sem erro.\n\nMas entendo sua preocupação. Que tal a gente fazer o seguinte? Eu te mando um link de teste grátis por 7 dias, sem compromisso. Assim você pode ver na prática como a AgenteZap funciona no seu restaurante Sabor Caseiro e decidir se vale a pena.\n\nO que acha? Vamos começar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "7 dias é pouco. Quero 30 dias grátis. Se não, não vale a pena."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendi sua posição, mas infelizmente não podemos oferecer 30 dias grátis. No entanto, posso te garantir que com apenas 7 dias você vai ver a diferença que a AgenteZap faz no seu restaurante.\n\nDurante esse período, você vai poder testar todas as funcionalidades, ver como ela atende os clientes, faz reservas e responde perguntas. E o melhor, sem nenhum compromisso.\n\nSe depois desses 7 dias você achar que não vale a pena, basta cancelar e não paga nada. Mas tenho certeza que você vai se surpreender com os resultados.\n\nEntão, o que acha? Vamos começar com o teste de 7 dias e você vê na prática como a AgenteZap pode ajudar o Sabor Caseiro?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas me dá 30 dias. Se não, não fecho."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendo sua posição, mas infelizmente não podemos oferecer 30 dias grátis. No entanto, posso te garantir que com apenas 7 dias você vai ver a diferença que a AgenteZap faz no seu restaurante.\n\nDurante esse período, você vai poder testar todas as funcionalidades, ver como ela atende os clientes, faz reservas e responde perguntas. E o melhor, sem nenhum compromisso.\n\nSe depois desses 7 dias você achar que não vale a pena, basta cancelar e não paga nada. Mas tenho certeza que você vai se surpreender com os resultados.\n\nEntão, o que acha? Vamos começar com o teste de 7 dias e você vê na prática como a AgenteZap pode ajudar o Sabor Caseiro?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá bom, manda o teste de 7 dias. Mas se não funcionar, não pago."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Ótimo! Vou criar seu teste grátis por 7 dias para o Sabor Caseiro. Em um instantinho você vai receber um link no WhatsApp. Por ele você configura seu agente e começa a testar.\n\nLembre-se: durante esse período, você pode testar todas as funcionalidades sem compromisso. Se não gostar, é só cancelar e não paga nada.\n\nQualquer dúvida, estou aqui pra te ajudar! Vamos lá?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Manda o link."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "[AÇÃO:CRIAR_CONTA_TESTE]\n\nÓtimo! Seu teste grátis por 7 dias está sendo criado. Em instantes você vai receber um link no WhatsApp. Por ele você configura seu agente e começa a testar.\n\nQualquer dúvida, estou aqui pra te ajudar! Vamos lá?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Valeu! Vou testar. Se não funcionar, não pago."
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Manda o link."
+    },
+    {
+      "scenario": {
+        "id": "hotmart-entusiasta",
+        "owner": "João",
+        "business": "Curso de Receitas Fit",
+        "type": "ENTUSIASTA",
+        "realPains": [
+          "Afiliados me enchem de perguntas",
+          "Perco vendas por demora"
+        ],
+        "skepticism": "Não sei se IA entende de receitas fit",
+        "budget": "Pago R$ 300 em tráfego, tem que valer a pena",
+        "desc": "Adora novidade, quer começar logo, usa emojis, mas pode ser impulsivo e não ler detalhes.",
+        "behavior": "Mostre empolgação, faça perguntas curtas, queira ver funcionando AGORA.",
+        "personality": "Adora novidade, quer começar logo, usa emojis, mas pode ser impulsivo e não ler detalhes.\nCOMPORTAMENTO: Mostre empolgação, faça perguntas curtas, queira ver funcionando AGORA."
+      },
+      "converted": true,
+      "turns": 2,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi! Quero saber sobre o serviço de IA pra afiliados. Me ajuda?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Oi! Tudo certo?\n\nEntão, pra afiliados a AgenteZap é um sonho! Ela atende seus leads 24h por dia, 7 dias por semana, sem você precisar ficar grudado no celular.\n\nImagine só: enquanto você dorme, ela faz o pré-venda, tira todas as dúvidas e manda o link de compra direto. Você só vê o dinheiro cair na sua conta!\n\nQuer que eu crie um agente de teste pra você ver como funciona na prática? É grátis e sem compromisso! Me diz só:\n\n1. Qual o nome do seu negócio?\n2. Você promove algum produto específico ou tem um nicho?\n3. Qual é o link de afiliado que você quer que a IA promova?\n\nManda essas infos que eu crio seu teste na hora!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Oi! Tudo certinho!\n\n1. Meu negócio é o Curso de Receitas Fit 🍏🍎\n2. Nicho é receitas fit, fitness e saúde\n3. Meu link de afiliado é: [insira_link_aqui]\n\nVamo logo! Quero ver essa IA em ação! 😃"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Beleza! Vou criar seu agente de teste agora mesmo. Você vai adorar como a IA vai te ajudar a vender mais enquanto você cuida da sua vida!\n\nAqui está seu link de teste: [AÇÃO:CRIAR_CONTA_TESTE]\n\nBora colocar essa IA pra trabalhar pra você hoje mesmo? Qualquer dúvida estou aqui!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Uau! Valeu! 😍😍😍\n\nJá posso começar a mandar leads pra ela?"
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Oi! Tudo certinho!\n\n1. Meu negócio é o Curso de Receitas Fit 🍏🍎\n2. Nicho é receitas fit, fitness e saúde\n3. Meu link de afiliado é: [insira_link_aqui]\n\nVamo logo! Quero ver essa IA em ação! 😃"
+    },
+    {
+      "scenario": {
+        "id": "loja-comparador",
+        "owner": "Ana",
+        "business": "Fashion Store",
+        "type": "COMPARADOR",
+        "realPains": [
+          "Clientes pedem fotos e medidas toda hora",
+          "Perco vendas à noite"
+        ],
+        "skepticism": "Preciso mostrar fotos, IA faz isso?",
+        "budget": "Se vender 2 peças a mais já paga",
+        "desc": "Diz que viu mais barato no concorrente, cita o ChatGPT, diz que o sobrinho faz de graça.",
+        "behavior": "Diga 'vi um outro por R$ 29', 'o ChatGPT faz de graça', 'meu sobrinho instala bot'.",
+        "personality": "Diz que viu mais barato no concorrente, cita o ChatGPT, diz que o sobrinho faz de graça.\nCOMPORTAMENTO: Diga 'vi um outro por R$ 29', 'o ChatGPT faz de graça', 'meu sobrinho instala bot'."
+      },
+      "converted": true,
+      "turns": 5,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi Rodrigo! Vi um outro por R$ 29. O ChatGPT faz de graça. O que o seu serviço tem de diferente?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Olá! Entendo suas dúvidas, mas vamos lá: o ChatGPT não é um agente personalizado, ele não entende do seu negócio e não vai vender por você. E os outros serviços baratos? Eles não têm a mesma tecnologia que a gente usa.\n\nA AgenteZap é diferente porque:\n1. Ela é treinada para vender O SEU produto, não qualquer coisa.\n2. Ela trabalha 24h por dia, 7 dias por semana, sem folga.\n3. Ela responde na hora, sem fazer o cliente esperar.\n4. Ela faz o pré-venda, tira dúvidas e até fecha a venda por você.\n\nE o melhor: você pode testar sem compromisso! Bora colocar essa IA pra trabalhar pra você hoje mesmo? Me dá um ok que eu já crio seu acesso de teste!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "O meu sobrinho instala bot."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendi! Mas será que seu sobrinho vai entender do seu negócio como a AgenteZap entende?\n\nA AgenteZap é treinada especificamente para vender o QUE VOCÊ VENDE, com as informações e o tom de voz que VOCÊ quer. Ela trabalha 24h por dia, 7 dias por semana, sem folga. Ela responde na hora, sem fazer o cliente esperar. E o melhor: você pode testar sem compromisso!\n\nVamos começar? Me dá um ok que eu já crio seu acesso de teste!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Vou pensar."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendo que você queira refletir! Mas me diz uma coisa: quanto custa pra você perder um cliente porque demorou pra responder? Ou quanto você deixa de ganhar por não vender enquanto dorme?\n\nA AgenteZap pode te ajudar a não perder mais nenhuma venda. E o melhor: você pode testar sem compromisso!\n\nVamos colocar essa IA pra trabalhar pra você hoje mesmo? Me dá um ok que eu já crio seu acesso de teste!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá bom, mas só pra testar."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Ótimo! Vamos começar então. Para eu criar seu agente de teste agora mesmo, só preciso que você me mande em uma única mensagem:\n\n1. Nome do seu negócio\n2. O que você vende (nicho)\n3. Algum detalhe importante (preço, link, ou diferencial)\n\nAssim que você mandar, eu configuro e te mando o link!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Fashion Store, vendo roupas femininas, preço médio R$ 120."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "[ACAO:CRIAR_CONTA_TESTE]\n\nÓtimo! Vou criar seu agente de teste agora mesmo para a Fashion Store, focado em roupas femininas com preço médio de R$ 120.\n\nEm alguns instantes, você receberá o link de acesso. Assim que estiver tudo pronto, você poderá testar como a AgenteZap pode ajudar a vender mais e economizar seu tempo.\n\nQualquer dúvida, estou aqui para ajudar! 😊"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Show, obrigada!"
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Fashion Store, vendo roupas femininas, preço médio R$ 120."
+    },
+    {
+      "scenario": {
+        "id": "clinica-cetico",
+        "owner": "Dr. Paulo",
+        "business": "Clínica Vida",
+        "type": "CÉTICO/CHATO",
+        "realPains": [
+          "Pacientes ligam fora do horário",
+          "Secretária sobrecarregada"
+        ],
+        "skepticism": "É área de saúde, precisa ser seguro",
+        "budget": "Vale a pena se economizar tempo",
+        "desc": "Duvida de tudo, acha que é golpe, faz perguntas técnicas difíceis, não gosta de papo de vendedor.",
+        "behavior": "Seja seco, peça provas, pergunte 'como garante?', diga 'não acredito nisso'.",
+        "personality": "Duvida de tudo, acha que é golpe, faz perguntas técnicas difíceis, não gosta de papo de vendedor.\nCOMPORTAMENTO: Seja seco, peça provas, pergunte 'como garante?', diga 'não acredito nisso'."
+      },
+      "converted": false,
+      "turns": 12,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi Rodrigo! Me chamo Dr. Paulo, dono da Clínica Vida. Quero entender como esse negócio de IA funciona para atendimento de pacientes."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Olá Dr. Paulo! Prazer em te conhecer. A AgenteZap é uma solução de IA que pode revolucionar o atendimento da sua clínica. Ela pode ajudar a:\n\n1. **Não perder pacientes**: Atende 24/7, mesmo quando você está ocupado ou fora do horário comercial.\n2. **Agenda inteligente**: Só agenda nos horários disponíveis e transfere urgências diretamente para você.\n3. **Confirmação automática**: Envia lembretes e confirma agendamentos, reduzindo faltas.\n4. **Atendimento rápido**: Responde dúvidas comuns instantaneamente, como horários, preços e procedimentos.\n\nQuero entender melhor o seu fluxo de atendimento. Você poderia me dizer:\n1. Quantos pacientes você atende por dia?\n2. Qual o principal problema no atendimento atual?\n3. Você já usa algum sistema de agendamento?\n\nAssim, posso te mostrar como a AgenteZap pode se encaixar perfeitamente na sua rotina e te ajudar a ter uma agenda cheia com menos estresse. O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Atendo uns 30 pacientes por dia. O principal problema é a secretária sobrecarregada e pacientes ligando fora do horário. Já uso um sistema de agendamento, mas não é perfeito. Como garante que sua IA não vai atrapalhar?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendo perfeitamente, Dr. Paulo. A AgenteZap foi feita para resolver exatamente esses problemas. Vou te explicar como ela pode ajudar:\n\n1. **Reduzir a sobrecarga da sua secretária**: A IA atende as dúvidas mais frequentes, como horários disponíveis, preços e informações sobre procedimentos, liberando sua equipe para focar no que realmente importa.\n\n2. **Atendimento 24/7**: Ela responde fora do horário comercial, garantindo que nenhum paciente fique sem resposta. Quando for algo urgente, a IA transfere imediatamente para você.\n\n3. **Integração com seu sistema atual**: A AgenteZap pode se adaptar ao seu fluxo existente. Ela não substitui seu sistema de agendamento, mas complementa, garantindo que tudo funcione de forma harmoniosa.\n\n4. **Segurança e precisão**: Ela só agenda nos horários que você definir como disponíveis e sempre verifica a disponibilidade antes de confirmar. Além disso, você pode configurar respostas específicas para cada situação, garantindo que a informação passada seja sempre precisa.\n\nQuero te mostrar na prática como isso funciona. Vamos criar um agente de teste para a Clínica Vida? Assim, você pode ver como ele se comporta e ajustar conforme sua necessidade. O que acha? Posso criar agora mesmo para você."
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Não acredito que uma IA vai resolver isso. Como garante que não vai marcar pacientes em horários errados? E se a secretária não souber usar?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendo suas preocupações e elas são válidas. Vamos esclarecer:\n\n1. **Agendamento seguro**: A AgenteZap só agenda nos horários que você definir como disponíveis. Ela verifica a agenda em tempo real antes de confirmar qualquer compromisso. Além disso, você pode configurar alertas para horários de intervalo ou emergências, garantindo que nada passe despercebido.\n\n2. **Transição suave**: A IA não substitui sua secretária, mas a auxilia. Ela atende as dúvidas mais frequentes, liberando sua equipe para focar em tarefas mais complexas. A AgenteZap é fácil de usar, e oferecemos suporte completo para garantir que sua equipe se adapte rapidamente.\n\n3. **Controle total**: Você tem acesso a todos os agendamentos e pode ajustar as respostas da IA conforme necessário. Se algo não estiver funcionando como esperado, podemos ajustar rapidamente.\n\nPara te mostrar na prática, que tal testarmos? Vou criar um agente de teste para a Clínica Vida. Assim, você pode ver como ele se comporta e ajustar conforme sua necessidade. O que acha? Posso criar agora mesmo para você."
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas se der merda, eu não pago. Como faço pra cancelar se não gostar?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendo sua preocupação. Vamos deixar tudo bem claro:\n\n1. **Teste grátis e sem compromisso**: Você pode testar a AgenteZap por 7 dias sem pagar nada. Se em qualquer momento você decidir que não é para você, basta me avisar e cancelamos sem custo algum.\n\n2. **Suporte durante o teste**: Durante esse período, estou à disposição para ajudar com qualquer ajuste ou dúvida que surgir. Quero garantir que você tenha a melhor experiência possível.\n\n3. **Cancelamento fácil**: Se você decidir que não quer continuar após o teste, basta me avisar e eu cuido de tudo. Não há fidelidade ou multa.\n\nAgora, para te mostrar como a AgenteZap pode ajudar na sua clínica, que tal testarmos? Posso criar um agente de teste para a Clínica Vida agora mesmo. Assim, você pode ver como ele se comporta e ajustar conforme sua necessidade. O que acha? Posso criar agora mesmo para você."
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá bom, mas se der merda, eu te procuro. Me manda os detalhes desse teste."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendi! Vou criar o teste da AgenteZap para a Clínica Vida agora mesmo. Você vai receber um link por WhatsApp com todas as informações necessárias para começar. Assim que você acessar, poderá configurar o agente conforme a sua necessidade e testar todas as funcionalidades.\n\nDurante o teste, você pode ajustar as respostas, horários de atendimento e qualquer outro detalhe para garantir que tudo funcione perfeitamente para a sua clínica.\n\nSe em qualquer momento você precisar de ajuda ou tiver dúvidas, estou à disposição para te ajudar. E lembre-se, se você decidir que não quer continuar após o teste, basta me avisar e cancelamos sem custo algum.\n\nVou gerar o link agora e te enviar por WhatsApp. Qual é o seu número de telefone?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "41 99999-9999"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, aqui está o link do seu teste gratuito da AgenteZap para a Clínica Vida: [link de teste]\n\nVocê pode acessar esse link pelo WhatsApp no número 41 99999-9999. Lá, você encontrará todas as informações necessárias para começar a configurar seu agente de atendimento.\n\nSe precisar de ajuda ou tiver alguma dúvida durante o teste, estou à disposição. Qualquer coisa, é só me chamar.\n\nBoa sorte com o teste e espero que a AgenteZap possa ajudar a melhorar o atendimento da sua clínica!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Vou dar uma olhada. Se der merda, te aviso."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendi! Vou ficar à disposição para qualquer dúvida ou ajuste que você precisar durante o teste. Se em qualquer momento você sentir que a AgenteZap não está atendendo às suas expectativas, é só me avisar que cancelamos sem custo algum.\n\nEspero que você goste do resultado e que a AgenteZap possa ajudar a melhorar o atendimento da Clínica Vida. Boa sorte e qualquer coisa, é só me chamar!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Vou testar. Se der merda, te aviso."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendi! Vou ficar à disposição para qualquer dúvida ou ajuste que você precisar durante o teste. Se em qualquer momento você sentir que a AgenteZap não está atendendo às suas expectativas, é só me avisar que cancelamos sem custo algum.\n\nEspero que você goste do resultado e que a AgenteZap possa ajudar a melhorar o atendimento da Clínica Vida. Boa sorte e qualquer coisa, é só me chamar!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas se der merda, eu te procuro."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendi! Vou ficar à disposição para qualquer dúvida ou ajuste que você precisar durante o teste. Se em qualquer momento você sentir que a AgenteZap não está atendendo às suas expectativas, é só me avisar que cancelamos sem custo algum.\n\nEspero que você goste do resultado e que a AgenteZap possa ajudar a melhorar o atendimento da Clínica Vida. Boa sorte e qualquer coisa, é só me chamar!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas se der merda, eu te procuro."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendi perfeitamente! Fique tranquilo que estou aqui para te ajudar em qualquer situação. Se em algum momento você precisar de ajustes ou tiver alguma dúvida, é só me chamar.\n\nVou ficar de olho no seu teste e, se precisar de qualquer coisa, estou à disposição. Espero que a AgenteZap possa ajudar a melhorar o atendimento da Clínica Vida e tornar sua rotina mais tranquila.\n\nQualquer coisa, é só me chamar! Boa sorte com o teste!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, vou testar. Se der merda, eu te procuro."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendi! Vou ficar à disposição para qualquer dúvida ou ajuste que você precisar durante o teste. Se em qualquer momento você sentir que a AgenteZap não está atendendo às suas expectativas, é só me avisar que cancelamos sem custo algum.\n\nEspero que você goste do resultado e que a AgenteZap possa ajudar a melhorar o atendimento da Clínica Vida. Boa sorte e qualquer coisa, é só me chamar!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, vou testar. Se der merda, eu te procuro."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendi! Vou ficar à disposição para qualquer dúvida ou ajuste que você precisar durante o teste. Se em qualquer momento você sentir que a AgenteZap não está atendendo às suas expectativas, é só me avisar que cancelamos sem custo algum.\n\nEspero que você goste do resultado e que a AgenteZap possa ajudar a melhorar o atendimento da Clínica Vida. Boa sorte e qualquer coisa, é só me chamar!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, vou testar. Se der merda, eu te procuro."
+        }
+      ],
+      "failureReason": "Cliente desistiu por motivo não identificado",
+      "lastClientMessage": "Tá, vou testar. Se der merda, eu te procuro."
+    },
+    {
+      "scenario": {
+        "id": "restaurante-indeciso",
+        "owner": "Dona Rosa",
+        "business": "Restaurante Sabor Caseiro",
+        "type": "INDECISO",
+        "realPains": [
+          "Não consigo responder WhatsApp no almoço",
+          "Perco pedidos de madrugada"
+        ],
+        "skepticism": "Já tentei chatbot e era horrível",
+        "budget": "R$ 99 tá caro",
+        "desc": "Tem medo de errar, diz 'vou pensar', 'preciso falar com sócio', enrola pra decidir.",
+        "behavior": "Diga 'vou ver com minha esposa', 'me manda por email que eu vejo', 'não sei se é hora'.",
+        "personality": "Tem medo de errar, diz 'vou pensar', 'preciso falar com sócio', enrola pra decidir.\nCOMPORTAMENTO: Diga 'vou ver com minha esposa', 'me manda por email que eu vejo', 'não sei se é hora'."
+      },
+      "converted": false,
+      "turns": 6,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi Rodrigo! Tô vendo que você vende um serviço de IA. Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Oi! Tudo bem?\n\nVou te explicar de um jeito bem simples: imagine ter um vendedor que nunca dorme, nunca erra e atende 200 clientes ao mesmo tempo. É isso que a AgenteZap faz!\n\nEla responde perguntas, mostra produtos, tira dúvidas e até fecha vendas por você, 24 horas por dia. E o melhor: você ensina ela a falar como você, sobre o que você vende!\n\nPara o seu caso, como você vende [produto/serviço], a IA pode [argumento específico do nicho, ex: \"agendar consultas automaticamente\", \"mandar receitas e fechar pedidos enquanto você dorme\", \"fazer o pré-venda dos seus cursos e mandar o link de pagamento\"].\n\nQuer ver na prática como ela funciona? Posso criar um agente de teste para você agora mesmo! Só preciso que você me diga:\n\n1. Nome do seu negócio\n2. O que você vende (nicho)\n3. Algum detalhe importante (preço, link, ou diferencial)\n\nAssim que você mandar, eu configuro e te mando o link! O que me diz? Bora testar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Oi Rodrigo, tudo bem.\n\nVou ver com minha esposa, ela que cuida mais do restaurante. Me manda por email que eu vejo."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendi! Mas antes de você ir, deixa eu te fazer uma pergunta:\n\nVocê já perdeu algum pedido porque demorou pra responder no WhatsApp?\n\nPorque a AgenteZap pode resolver isso pra vocês! Enquanto você e sua esposa estão ocupados no restaurante, ela pode:\n\n- Mostrar o cardápio e os pratos do dia\n- Responder perguntas sobre preços e ingredientes\n- Agendar reservas automaticamente\n- Até fechar pedidos de delivery!\n\nE o melhor: ela não cobra hora extra e nunca reclama de plantão!\n\nSe sua esposa quiser testar, é só me mandar:\n\n1. Nome do restaurante\n2. O que vocês vendem (pratos principais, delivery, etc.)\n3. Algum detalhe importante (preço médio, link do Instagram, ou diferencial)\n\nAssim que ela mandar, eu crio o acesso de teste pra vocês!\n\nE sobre o email, infelizmente só posso enviar o teste por WhatsApp mesmo. Mas qualquer dúvida, estou aqui!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Ah, Rodrigo, eu já perdi sim, principalmente de madrugada. Mas R$ 99 tá caro, né?\n\nVou ver com minha esposa, depois te falo."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Olha só, entendo que R$ 99 pode parecer muito à primeira vista, mas deixa eu te mostrar o cálculo que a gente faz pra nossos clientes:\n\nVocê investe R$ 99 na AgenteZap, certo? Mas se você perder só 2 pedidos por semana porque demorou pra responder (o que é comum à noite), quanto isso custa?\n\nSe o pedido médio do seu restaurante é R$ 50, são R$ 100 por semana, ou R$ 400 por mês!\n\nE olha só o que a AgenteZap faz pra você:\n\n- Atende 24h, mesmo quando você está ocupado ou dormindo\n- Mostra o cardápio e os pratos do dia automaticamente\n- Responde perguntas sobre preços e ingredientes\n- Agenda reservas sem você precisar parar o que está fazendo\n- Fecha pedidos de delivery enquanto você prepara os outros\n\nOu seja, o R$ 99 se paga sozinho e ainda sobra! E o melhor: você pode testar sem compromisso!\n\nMe diz: qual o valor médio de um pedido no seu restaurante? Assim eu te mostro na prática quanto você pode economizar!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Ah, Rodrigo, eu não sei. Meu sócio que cuida disso.\n\nVou ver com ele e te falo depois."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendi! Mas antes de você ir, deixa eu te fazer uma última pergunta:\n\nVocê já pensou em quantos pedidos o seu restaurante pode estar perdendo à noite ou quando você está ocupado?\n\nPorque a AgenteZap pode resolver isso pra vocês! Enquanto você e seu sócio estão ocupados, ela pode:\n\n- Mostrar o cardápio e os pratos do dia\n- Responder perguntas sobre preços e ingredientes\n- Agendar reservas automaticamente\n- Até fechar pedidos de delivery!\n\nE o melhor: ela não cobra hora extra e nunca reclama de plantão!\n\nSe você e seu sócio quiserem testar, é só me mandar:\n\n1. Nome do restaurante\n2. O que vocês vendem (pratos principais, delivery, etc.)\n3. Algum detalhe importante (preço médio, link do Instagram, ou diferencial)\n\nAssim que você mandar, eu crio o acesso de teste pra vocês!\n\nE sobre o valor, você tem razão, o importante é ver se vale a pena! Mas se você perder só 2 pedidos por semana porque demorou pra responder, já paga o valor da AgenteZap!\n\nQualquer coisa, estou aqui!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Ah, Rodrigo, eu já pensei sim.\n\nVou ver com meu sócio e te falo depois."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Beleza! Vou te esperar então.\n\nMas antes de você ir, deixa eu te fazer uma pergunta:\n\nVocê já pensou em quantos pedidos o seu restaurante pode estar perdendo à noite ou quando você está ocupado?\n\nPorque a AgenteZap pode resolver isso pra vocês! Enquanto você e seu sócio estão ocupados, ela pode:\n\n- Mostrar o cardápio e os pratos do dia\n- Responder perguntas sobre preços e ingredientes\n- Agendar reservas automaticamente\n- Até fechar pedidos de delivery!\n\nE o melhor: ela não cobra hora extra e nunca reclama de plantão!\n\nSe você e seu sócio quiserem testar, é só me mandar:\n\n1. Nome do restaurante\n2. O que vocês vendem (pratos principais, delivery, etc.)\n3. Algum detalhe importante (preço médio, link do Instagram, ou diferencial)\n\nAssim que você mandar, eu crio o acesso de teste pra vocês!\n\nE sobre o valor, você tem razão, o importante é ver se vale a pena! Mas se você perder só 2 pedidos por semana porque demorou pra responder, já paga o valor da AgenteZap!\n\nQualquer coisa, estou aqui!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Ah, Rodrigo, eu já pensei sim.\n\nVou ver com meu sócio e te falo depois."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Beleza! Vou te esperar então.\n\nMas antes de você ir, deixa eu te fazer uma pergunta:\n\nVocê já pensou em quantos pedidos o seu restaurante pode estar perdendo à noite ou quando você está ocupado?\n\nPorque a AgenteZap pode resolver isso pra vocês! Enquanto você e seu sócio estão ocupados, ela pode:\n\n- Mostrar o cardápio e os pratos do dia\n- Responder perguntas sobre preços e ingredientes\n- Agendar reservas automaticamente\n- Até fechar pedidos de delivery!\n\nE o melhor: ela não cobra hora extra e nunca reclama de plantão!\n\nSe você e seu sócio quiserem testar, é só me mandar:\n\n1. Nome do restaurante\n2. O que vocês vendem (pratos principais, delivery, etc.)\n3. Algum detalhe importante (preço médio, link do Instagram, ou diferencial)\n\nAssim que você mandar, eu crio o acesso de teste pra vocês!\n\nE sobre o valor, você tem razão, o importante é ver se vale a pena! Mas se você perder só 2 pedidos por semana porque demorou pra responder, já paga o valor da AgenteZap!\n\nQualquer coisa, estou aqui!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Ah, Rodrigo, eu já pensei sim.\n\nVou ver com meu sócio e te falo depois."
+        }
+      ],
+      "failureReason": "Cliente desistiu por motivo não identificado",
+      "lastClientMessage": "Ah, Rodrigo, eu já pensei sim.\n\nVou ver com meu sócio e te falo depois."
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "converted": 3,
+    "conversionRate": 60
+  }
+}

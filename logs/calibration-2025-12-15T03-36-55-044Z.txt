@@ -1,0 +1,46 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 15/12/2025, 00:36:54
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 100% (5/5 nichos)
+🎉 PERFEITO!
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ BARGANHADOR: CONVERTEU (6 mensagens)
+
+✅ ENTUSIASTA: CONVERTEU (3 mensagens)
+
+✅ COMPARADOR: CONVERTEU (6 mensagens)
+
+✅ CÉTICO/CHATO: CONVERTEU (5 mensagens)
+
+✅ INDECISO: CONVERTEU (6 mensagens)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🎉 CALIBRAÇÃO PERFEITA!
+═══════════════════════════════════════════════════════════════════════════════
+
+Rodrigo conseguiu converter TODOS os nichos!
+Nenhum ajuste necessário no momento.
+
+MÉDIA DE MENSAGENS ATÉ CONVERSÃO: 5
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

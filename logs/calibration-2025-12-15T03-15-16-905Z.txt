@@ -1,0 +1,49 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 15/12/2025, 00:15:16
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 20% (1/5 nichos)
+❌ PRECISA CALIBRAR
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ BARGANHADOR: NÃO CONVERTEU 
+   📌 Motivo: Cliente desistiu por motivo não identificado
+   💬 Última msg cliente: "Valeu!..."
+
+✅ ENTUSIASTA: CONVERTEU (4 mensagens)
+
+❌ COMPARADOR: NÃO CONVERTEU 
+   📌 Motivo: Cliente desistiu por motivo não identificado
+   💬 Última msg cliente: "Olha, não sei não. Meu sobrinho faz de graça...."
+
+❌ CÉTICO/CHATO: NÃO CONVERTEU 
+   📌 Motivo: Cliente desistiu por motivo não identificado
+   💬 Última msg cliente: "Tá, vou testar. Mas se não funcionar, não quero ser incomodado...."
+
+❌ INDECISO: NÃO CONVERTEU 
+   📌 Motivo: Cliente desistiu por motivo não identificado
+   💬 Última msg cliente: "Valeu, Rodrigo! Me manda o link que eu vejo depois...."
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🔧 SUGESTÕES DE AJUSTE
+═══════════════════════════════════════════════════════════════════════════════
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

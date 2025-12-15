@@ -1,0 +1,45 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 14/12/2025, 22:42:10
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 60% (3/5 nichos)
+❌ PRECISA CALIBRAR
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ BARGANHADOR: CONVERTEU (8 mensagens)
+
+✅ ENTUSIASTA: CONVERTEU (2 mensagens)
+
+✅ COMPARADOR: CONVERTEU (3 mensagens)
+
+❌ CÉTICO/CHATO: NÃO CONVERTEU 
+   📌 Motivo: Cliente desistiu por motivo não identificado
+   💬 Última msg cliente: "Tá, vou testar. Mas se não funcionar, não quero ser incomodado depois...."
+
+❌ INDECISO: NÃO CONVERTEU 
+   📌 Motivo: Conversão demorou demais (15+ mensagens)
+   💬 Última msg cliente: "Ah, não sei não... Me manda o email primeiro que eu vejo...."
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🔧 SUGESTÕES DE AJUSTE
+═══════════════════════════════════════════════════════════════════════════════
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

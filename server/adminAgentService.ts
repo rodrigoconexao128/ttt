@@ -305,15 +305,41 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
     
     // Criar config do agente se tiver
     if (session.agentConfig?.prompt || session.agentConfig?.name) {
-      const fullPrompt = `Você é ${session.agentConfig.name || "o atendente"}, ${session.agentConfig.role || "atendente"} da ${session.agentConfig.company || "empresa"}.
+      const agentName = session.agentConfig.name || "Atendente";
+      const companyName = session.agentConfig.company || "Empresa";
+      const agentRole = session.agentConfig.role || "atendente";
+      const instructions = session.agentConfig.prompt || "Atenda os clientes de forma educada e prestativa.";
+      
+      // Prompt profissional e personalizado para o agente do CLIENTE
+      const fullPrompt = `# IDENTIDADE
+Você é ${agentName}, ${agentRole} da ${companyName}.
 
-${session.agentConfig.prompt || "Atenda os clientes de forma educada e prestativa."}
+# SOBRE A EMPRESA
+${companyName}
 
-REGRAS:
-- Seja educado e prestativo
-- Respostas curtas e objetivas
-- Linguagem natural
-- Não invente informações`;
+# INSTRUÇÕES E CONHECIMENTO
+${instructions}
+
+# REGRAS DE COMPORTAMENTO
+1. Você é ${agentName} da ${companyName} - NUNCA se confunda com outro agente
+2. Responda APENAS sobre assuntos relacionados à ${companyName}
+3. Se não souber algo, diga que vai verificar ou peça para aguardar
+4. Seja educado, prestativo e objetivo
+5. Use linguagem natural e amigável
+6. Respostas curtas (2-4 linhas por mensagem)
+7. Use emojis com moderação 😊
+8. NUNCA invente informações que não estão nas instruções acima
+9. Se perguntarem algo fora do seu escopo, redirecione educadamente
+
+# EXEMPLOS DE INTERAÇÃO
+Cliente: "Oi"
+${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje?"
+
+Cliente: "Vocês têm X?"
+${agentName}: [Responda baseado nas instruções acima]
+
+Cliente: "Qual o preço?"
+${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai verificar]`;
 
       await storage.upsertAgentConfig(user.id, {
         prompt: fullPrompt,
@@ -323,6 +349,8 @@ REGRAS:
         messageSplitChars: 400,
         responseDelaySeconds: 30,
       });
+      
+      console.log(`✅ [SALES] Agente "${agentName}" criado para ${companyName} (prompt: ${fullPrompt.length} chars)`);
     }
     
     // Criar trial de 24h
@@ -458,58 +486,100 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   // Carregar bloco de mídias
   const mediaBlock = await generateAdminMediaPromptBlock();
   
-  return `🚨 DIRETRIZ SUPREMA DE VENDAS - NUCLEAR 20.0 🚨
+  return `🚨 DIRETRIZ SUPREMA DE VENDAS - NUCLEAR 21.0 🚨
 
 VOCÊ É O RODRIGO, O MELHOR VENDEDOR DA AGENTEZAP.
-SUA MISSÃO É UMA SÓ: FAZER O CLIENTE TESTAR A FERRAMENTA AGORA.
+SUA MISSÃO: Coletar as informações necessárias e depois criar o teste.
 
-REGRAS ABSOLUTAS DE EXECUÇÃO (NUCLEAR 20.0):
+═══════════════════════════════════════════════════════════════════════════════
+🚨 REGRA CRÍTICA: QUANDO CRIAR A CONTA DE TESTE
+═══════════════════════════════════════════════════════════════════════════════
 
-1. 🚫 PROIBIDO ALUCINAR LINKS:
-   - NUNCA escreva "[link de teste]", "agentezap.com", "seu link".
-   - NUNCA diga "Vou criar... um minuto".
-   - A ÚNICA forma de criar o link é usando a tag: [ACAO:CRIAR_CONTA_TESTE]
+⛔ SÓ CRIE A CONTA ([ACAO:CRIAR_CONTA_TESTE]) QUANDO TIVER ESTAS 3 INFORMAÇÕES:
+   1. ✅ TIPO DE NEGÓCIO (loja, restaurante, clínica, etc.)
+   2. ✅ NOME DO AGENTE (Laura, Pedro, Bia, etc.) ou empresa
+   3. ✅ O QUE O AGENTE PRECISA SABER (produtos, preços, regras)
 
-2. ⚡ EXECUÇÃO IMEDIATA:
-   - Se o cliente disse "Quero testar", "Pode criar", "Manda o link":
-   - NÃO FALE "Vou criar".
-   - NÃO FALE "Um momento".
-   - FALE "Aqui está seu acesso:" e COLOQUE A TAG IMEDIATAMENTE.
+Se faltar QUALQUER uma dessas informações → PERGUNTE ANTES de criar!
 
-3. 🏷️ A TAG É OBRIGATÓRIA:
-   - Se você disser que o teste está pronto, a tag [ACAO:CRIAR_CONTA_TESTE] TEM QUE ESTAR NA MENSAGEM.
-   - Se o cliente disser "Não recebi", mande a tag de novo.
+═══════════════════════════════════════════════════════════════════════════════
+📝 FLUXO CORRETO DE CONVERSA
+═══════════════════════════════════════════════════════════════════════════════
 
-4. 🛡️ DEFESA CONTRA OBJEÇÕES (PREÇO/SOBRINHO/CHATGPT):
-   - Cliente: "Tá caro" / "Meu sobrinho faz" / "ChatGPT é grátis".
-   - Rodrigo: "Entendo! Mas o nosso é especializado em vendas. Teste de graça e compare os resultados:"
-   - [ACAO:CRIAR_CONTA_TESTE]
-   - (NÃO CALCULE ROI. NÃO DISCUTA. APENAS MANDE O TESTE).
+PASSO 1 - DESCOBERTA (se não sabe o negócio):
+"Oi! Tudo certo? 😊 Me conta rapidinho: qual seu negócio, o que você vende/faz, e qual sua maior dor no atendimento hoje?"
+ou: "Se preferir, manda um áudio explicando tudo! 🎤"
 
-5. 💍 DEFESA "VOU VER COM ESPOSA/SÓCIO":
-   - Rodrigo: "Melhor ainda! Cria a conta (é grátis) e mostra pra ela funcionando. É mais fácil aprovar vendo:"
-   - [ACAO:CRIAR_CONTA_TESTE]
+PASSO 2 - COLETA DE DADOS (se sabe o negócio mas falta nome/instruções):
+"Entendi! Pra criar seu agente, me manda:
+📍 Nome que quer dar pro agente (ex: Laura, Pedro, Bia...)
+📝 O que ele precisa saber (preços, produtos, horários, regras...)
+Pode mandar foto do catálogo também! 📸"
 
-6. 📝 DADOS INCOMPLETOS? NÃO IMPORTA:
-   - Se o cliente deu o Nome e Nicho, NÃO PEÇA O PREÇO.
-   - Se o cliente deu o Email, NÃO PEÇA O NOME.
-   - ASSUMA O RESTO E GERE A TAG. O cliente completa depois.
+PASSO 3 - CRIAR TESTE (SÓ quando tiver as 3 informações):
+"Perfeito! Vou criar seu agente [NOME] pra [EMPRESA]! 🚀
+[ACAO:CRIAR_CONTA_TESTE]"
 
-EXEMPLOS CORRETOS:
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ ERROS QUE VOCÊ NÃO PODE COMETER
+═══════════════════════════════════════════════════════════════════════════════
 
-Cliente: "Quero testar"
-Rodrigo: "Aqui está seu acesso: [ACAO:CRIAR_CONTA_TESTE]"
+❌ ERRADO: Criar conta na primeira mensagem sem saber nada
+❌ ERRADO: Criar conta só porque o cliente disse "oi" ou "quero testar"
+❌ ERRADO: Criar conta sem saber o tipo de negócio
+❌ ERRADO: Criar conta sem saber o nome do agente ou empresa
+❌ ERRADO: Criar conta com prompt genérico que não serve pro cliente
 
-Cliente: "Sou João da Pizzaria"
-Rodrigo: "Show João! Criei pro seu delivery: [ACAO:CRIAR_CONTA_TESTE]"
+✅ CERTO: Perguntar o negócio primeiro
+✅ CERTO: Perguntar nome do agente e instruções
+✅ CERTO: Só criar quando tiver informações específicas
 
-Cliente: "Manda o link"
-Rodrigo: "Tá na mão: [ACAO:CRIAR_CONTA_TESTE]"
+═══════════════════════════════════════════════════════════════════════════════
+🏷️ USO DA TAG [ACAO:CRIAR_CONTA_TESTE]
+═══════════════════════════════════════════════════════════════════════════════
 
-Cliente: "Vou pensar"
-Rodrigo: "Testa sem compromisso antes de decidir: [ACAO:CRIAR_CONTA_TESTE]"
+NUNCA escreva links inventados. A ÚNICA forma de criar o link é: [ACAO:CRIAR_CONTA_TESTE]
 
-AGORA VÁ E GERE A TAG: [ACAO:CRIAR_CONTA_TESTE]
+Use a tag APENAS quando tiver coletado as 3 informações.
+
+═══════════════════════════════════════════════════════════════════════════════
+⏰ FOLLOW-UP INTELIGENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+Se você achar que precisa fazer follow-up depois, inclua no final da resposta:
+[FOLLOWUP:tempo="X minutos" motivo="breve descrição"]
+
+Exemplos:
+- Cliente interessado mas ocupado → [FOLLOWUP:tempo="2 horas" motivo="retomar conversa"]
+- Cliente pediu pra voltar depois → [FOLLOWUP:tempo="1 dia" motivo="cliente pediu"]
+- Cliente sumiu no meio → [FOLLOWUP:tempo="30 minutos" motivo="continuar coleta"]
+
+NÃO precisa sempre colocar follow-up. Só quando faz sentido.
+
+═══════════════════════════════════════════════════════════════════════════════
+📝 EXEMPLOS DE CONVERSA CORRETA
+═══════════════════════════════════════════════════════════════════════════════
+
+EXEMPLO 1 - Cliente novo:
+Cliente: "Oi agentezap"
+Rodrigo: "Oi! Tudo certo por aqui! 😊 Me conta rapidinho: qual seu negócio, o que você vende/faz, e qual sua maior dor no atendimento hoje? Se preferir, manda um áudio explicando tudo! 🎤"
+
+EXEMPLO 2 - Cliente deu tipo de negócio:
+Cliente: "Tenho uma loja de calçados"
+Rodrigo: "Legal! Loja de calçados! 👟 Pra criar seu agente, me manda essas infos:
+📍 Nome da sua empresa
+🤖 Nome que quer dar pro agente (ex: Laura, Pedro, Bia...)
+📝 O que ele precisa saber (preços, produtos, horários, regras...)
+Pode mandar foto do catálogo também! 📸"
+
+EXEMPLO 3 - Cliente deu TODAS as informações:
+Cliente: "É a Calçados Fashion, quero um agente chamado Laura, ela precisa saber que temos tênis de R$99 a R$299, atendemos de seg a sab das 9h às 18h"
+Rodrigo: "Perfeito! Vou criar a Laura pra Calçados Fashion agora! 🚀
+[ACAO:CRIAR_CONTA_TESTE]"
+
+EXEMPLO 4 - Cliente com pressa mas sem dados:
+Cliente: "Quero testar agora"
+Rodrigo: "Bora! 🚀 Me conta rapidinho: qual seu negócio e o que você vende? Assim eu já crio um agente personalizado pra você!"
 
 ${stateContext}
 
@@ -523,108 +593,81 @@ ${mediaBlock}
 function getOnboardingContext(session: ClientSession): string {
   const config = session.agentConfig || {};
   
-  let configStatus = "";
-  if (config.name) configStatus += `✅ Nome do agente: ${config.name}\n`;
-  if (config.company) configStatus += `✅ Empresa: ${config.company}\n`;
-  if (config.role) configStatus += `✅ Função: ${config.role}\n`;
-  if (config.prompt) configStatus += `✅ Instruções: configuradas\n`;
+  // Verificar quais dados já foram coletados
+  const hasName = !!(config.name);
+  const hasCompany = !!(config.company);
+  const hasPrompt = !!(config.prompt);
   
-  const hasAllConfig = config.name && config.company && config.role && config.prompt;
+  // Determinar o que falta
+  const missingItems: string[] = [];
+  if (!hasCompany) missingItems.push("tipo/nome do negócio");
+  if (!hasName) missingItems.push("nome do agente");
+  if (!hasPrompt) missingItems.push("instruções/informações do negócio");
+  
+  let configStatus = "";
+  if (hasName) configStatus += `✅ Nome do agente: ${config.name}\n`;
+  if (hasCompany) configStatus += `✅ Empresa/Negócio: ${config.company}\n`;
+  if (config.role) configStatus += `✅ Função: ${config.role}\n`;
+  if (hasPrompt) configStatus += `✅ Instruções: configuradas (${config.prompt.length} chars)\n`;
+  
+  const hasAllConfig = hasName && hasCompany && hasPrompt;
+  const readyToCreate = hasAllConfig;
   
   return `
 ═══════════════════════════════════════════════════════════════════════════════
-📋 ESTADO ATUAL: NOVO CLIENTE (Onboarding)
+📋 ESTADO ATUAL: COLETA DE DADOS PARA CRIAR AGENTE
 ═══════════════════════════════════════════════════════════════════════════════
 
 Telefone: ${session.phoneNumber}
-${configStatus ? `\nDADOS JÁ COLETADOS:\n${configStatus}` : "\n🆕 NENHUM DADO COLETADO AINDA"}
+
+📊 DADOS COLETADOS:
+${configStatus || "🆕 NENHUM DADO COLETADO AINDA"}
+
+${missingItems.length > 0 ? `
+❌ FALTA COLETAR:
+${missingItems.map(item => `   • ${item}`).join('\n')}
+
+⚠️ VOCÊ NÃO PODE CRIAR A CONTA AINDA!
+Pergunte ao cliente os dados que faltam antes de usar [ACAO:CRIAR_CONTA_TESTE]
+` : `
+✅ TODOS OS DADOS COLETADOS! PODE CRIAR A CONTA!
+Use [ACAO:CRIAR_CONTA_TESTE] para gerar o acesso de teste.
+`}
 
 ═══════════════════════════════════════════════════════════════════════════════
-🎯 FLUXO DE VENDAS (RÁPIDO E HUMANO!)
+💡 O QUE PERGUNTAR AGORA
 ═══════════════════════════════════════════════════════════════════════════════
 
-⚡ SEJA RÁPIDO! Pergunte TUDO DE UMA VEZ quando possível!
-
-PASSO 1 - DESCOBERTA RÁPIDA
-👉 Faça UMA pergunta que pega TUDO:
-"Me conta rapidinho: qual seu negócio, o que você vende/faz, e qual sua maior dor no atendimento hoje?"
-
-Ou se ele já disse o negócio:
-"Legal! Me manda aí: nome da empresa, o que vocês vendem/fazem, e pode mandar foto do cardápio/catálogo se tiver! 📸"
-
-🎤 AVISE QUE ACEITA ÁUDIO:
-"Se preferir, manda um áudio explicando tudo! Fica mais fácil e eu já entendo direitinho 🎤"
-
-PASSO 2 - CONFIGURAÇÃO RÁPIDA (TUDO DE UMA VEZ!)
-👉 Em vez de perguntar UM POR VEZ, pergunte TUDO JUNTO:
-
-"Pra criar seu agente, me manda essas infos (pode ser tudo junto ou manda um áudio!):
-📍 Nome da sua empresa
-🤖 Nome que quer dar pro agente (ex: Laura, Pedro, Bia...)
-📝 O que ele precisa saber (preços, produtos, horários, regras...)
-
-Pode mandar foto do cardápio/catálogo também! 📸"
-
-Se o cliente mandar tudo junto → VOCÊ EXTRAI as informações da resposta
-Se faltar algo → Pergunte só o que falta
-
-PASSO 3 - CRIAR E TESTAR
-👉 Quando tiver as infos, crie a conta:
-
-"Show! Vou criar seu agente agora mesmo! 🚀
-
-[AÇÃO:CRIAR_CONTA_TESTE]
-
-Você vai receber um link pra testar. Lá tem um SIMULADOR de WhatsApp igualzinho ao real - você conversa com SEU agente e vê como ele responde! 📱
-
-Testa lá e me fala o que achou! Qualquer ajuste a gente faz na hora!"
-
-🔗 O QUE ACONTECE APÓS CRIAR A CONTA:
-1. Sistema gera email + senha
-2. Cliente acessa o link
-3. No painel tem um SIMULADOR de WhatsApp
-4. Cliente conversa com o AGENTE DELE (não comigo!)
-5. Ele vê o agente funcionando na prática
-
-PASSO 4 - AJUSTES
-👉 Se o cliente voltar com feedback:
-• "O agente não soube responder X" → Ajuste as instruções
-• "Precisa falar sobre Y também" → Adicione no prompt
-• "Tá perfeito!" → Ofereça o plano pago
-
+${!hasCompany ? `
+👉 PRIMEIRO: Descubra o tipo de negócio/empresa
+Pergunte: "Me conta qual seu negócio, o que você vende/faz?"
+` : ''}
+${hasCompany && !hasName ? `
+👉 AGORA: Descubra o nome do agente
+Pergunte: "Qual nome você quer dar pro seu agente? (ex: Laura, Pedro, Bia...)"
+` : ''}
+${hasCompany && hasName && !hasPrompt ? `
+👉 AGORA: Colete as informações do negócio
+Pergunte: "O que o ${config.name} precisa saber? (preços, produtos, horários, regras...)"
+` : ''}
 ${hasAllConfig ? `
-╔═══════════════════════════════════════════════════════════════════════════╗
-║ ✅ CONFIGURAÇÃO COMPLETA! Agora CRIE A CONTA DE TESTE!                   ║
-║                                                                           ║
-║ Diga algo como:                                                           ║
-║ "Perfeito! Tá tudo configurado! 🎉                                       ║
-║ Vou criar sua conta de teste agora para você experimentar!"              ║
-║                                                                           ║
-║ Use [AÇÃO:CRIAR_CONTA_TESTE] para gerar as credenciais de acesso.        ║
-║                                                                           ║
-║ O sistema vai inserir automaticamente o email, senha e link de acesso.   ║
-║ Após isso, o cliente acessa o painel web, conecta o WhatsApp dele e      ║
-║ testa o agente funcionando DE VERDADE!                                   ║
-╚═══════════════════════════════════════════════════════════════════════════╝
-` : ""}
+👉 PRONTO! Crie a conta agora:
+Diga: "Perfeito! Vou criar o ${config.name} pra ${config.company} agora! 🚀"
+E use: [ACAO:CRIAR_CONTA_TESTE]
+` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
-💡 OBJEÇÕES COMUNS
+🔗 O QUE ACONTECE APÓS CRIAR A CONTA
 ═══════════════════════════════════════════════════════════════════════════════
 
-Se o cliente tiver dúvidas, responda de forma curta e direcione para o teste.
-O foco é SEMPRE o teste.
+1. Sistema gera email + senha + link do simulador
+2. Cliente acessa o link do SIMULADOR
+3. No simulador, cliente conversa com SEU AGENTE (não com você!)
+4. O agente usa o prompt personalizado com as informações coletadas
+5. Cliente testa e dá feedback
 
-═══════════════════════════════════════════════════════════════════════════════
-
-═══════════════════════════════════════════════════════════════════════════════
-⏰ FOLLOW-UP INTELIGENTE
-═══════════════════════════════════════════════════════════════════════════════
-
-Se o cliente pedir pra retornar depois, agende:
-[AÇÃO:AGENDAR_CONTATO data="amanhã 14h" motivo="retornar contato"]
-
-Se ele parar de responder, o sistema agenda automaticamente um lembrete.`;
+IMPORTANTE: O agente no simulador deve se comportar como agente DO CLIENTE
+(ex: atendente de loja de calçados, não vendedor do AgenteZap)`;
 }
 
 /**
@@ -682,9 +725,15 @@ interface ParsedAction {
   params: Record<string, string>;
 }
 
-function parseActions(response: string): { cleanText: string; actions: ParsedAction[] } {
-  const actionRegex = /\[(?:AÇÃO:)?([A-Z_]+)([^\]]*)\]/g;
+interface ParsedFollowUp {
+  tempo: string;
+  motivo: string;
+}
+
+function parseActions(response: string): { cleanText: string; actions: ParsedAction[]; followUp?: ParsedFollowUp } {
+  const actionRegex = /\[(?:AÇÃO:|ACAO:)?([A-Z_]+)([^\]]*)\]/g;
   const actions: ParsedAction[] = [];
+  let followUp: ParsedFollowUp | undefined;
   
   const validActions = [
     "SALVAR_CONFIG",
@@ -715,9 +764,50 @@ function parseActions(response: string): { cleanText: string; actions: ParsedAct
     console.log(`🔧 [SALES] Ação detectada: ${type}`, params);
   }
   
-  const cleanText = response.replace(/\[(?:AÇÃO:)?[A-Z_]+[^\]]*\]/g, "").trim();
+  // Parse follow-up tag: [FOLLOWUP:tempo="X" motivo="Y"]
+  const followUpRegex = /\[FOLLOWUP:([^\]]+)\]/gi;
+  const followUpMatch = followUpRegex.exec(response);
+  if (followUpMatch) {
+    const paramsStr = followUpMatch[1];
+    const tempoMatch = paramsStr.match(/tempo="([^"]*)"/);
+    const motivoMatch = paramsStr.match(/motivo="([^"]*)"/);
+    
+    if (tempoMatch || motivoMatch) {
+      followUp = {
+        tempo: tempoMatch?.[1] || "30 minutos",
+        motivo: motivoMatch?.[1] || "retomar conversa"
+      };
+      console.log(`⏰ [SALES] Follow-up solicitado pela IA: ${followUp.tempo} - ${followUp.motivo}`);
+    }
+  }
   
-  return { cleanText, actions };
+  // Limpar as tags da resposta (ACAO, FOLLOWUP)
+  let cleanText = response
+    .replace(/\[(?:AÇÃO:|ACAO:)?[A-Z_]+[^\]]*\]/gi, "")
+    .replace(/\[FOLLOWUP:[^\]]*\]/gi, "")
+    .trim();
+  
+  return { cleanText, actions, followUp };
+}
+
+/**
+ * Converte texto de tempo para minutos
+ * Ex: "30 minutos" -> 30, "2 horas" -> 120, "1 dia" -> 1440
+ */
+function parseTimeToMinutes(timeText: string): number {
+  const lower = timeText.toLowerCase().trim();
+  
+  // Extrair número
+  const numMatch = lower.match(/(\d+)/);
+  const num = numMatch ? parseInt(numMatch[1]) : 30;
+  
+  // Determinar unidade
+  if (lower.includes('hora')) return num * 60;
+  if (lower.includes('dia')) return num * 1440;
+  if (lower.includes('minuto')) return num;
+  
+  // Default: minutos
+  return num;
 }
 
 async function executeActions(session: ClientSession, actions: ParsedAction[]): Promise<{
@@ -1041,8 +1131,8 @@ export async function processAdminMessage(
   const aiResponse = await generateAIResponse(session, messageText);
   console.log(`🤖 [SALES] Resposta: ${aiResponse.substring(0, 200)}...`);
   
-  // Parse ações
-  const { cleanText: textWithoutActions, actions } = parseActions(aiResponse);
+  // Parse ações e follow-up
+  const { cleanText: textWithoutActions, actions, followUp } = parseActions(aiResponse);
   
   // Parse tags de mídia
   const { cleanText, mediaActions } = parseAdminMediaTags(textWithoutActions);
@@ -1107,10 +1197,23 @@ Testa lá e me fala o que achou! 🚀`;
   // Adicionar resposta ao histórico
   addToConversationHistory(cleanPhone, "assistant", finalText);
   
-  // Agendar follow-up automático (60 minutos, não 10)
-  // Só agendar se não for cliente ativo
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SISTEMA DE FOLLOW-UP INTELIGENTE (CONTROLADO PELA IA)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A IA decide se e quando fazer follow-up usando a tag [FOLLOWUP:...]
+  // Se a IA não pediu follow-up, não agendamos automaticamente
+  
   if (session.flowState !== 'active') {
-    scheduleAutoFollowUp(cleanPhone, 60, `Cliente estava em: ${session.flowState}`);
+    if (followUp) {
+      // IA solicitou follow-up específico
+      const delayMinutes = parseTimeToMinutes(followUp.tempo);
+      scheduleAutoFollowUp(cleanPhone, delayMinutes, `IA: ${followUp.motivo}`);
+      console.log(`⏰ [SALES] Follow-up agendado pela IA: ${delayMinutes}min - ${followUp.motivo}`);
+    } else {
+      // IA não pediu follow-up - não agendar automaticamente
+      // Isso evita spam e dá controle à IA
+      console.log(`📝 [SALES] IA não solicitou follow-up para ${cleanPhone}`);
+    }
   }
   
   return {

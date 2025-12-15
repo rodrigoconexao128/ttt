@@ -1,0 +1,218 @@
+{
+  "timestamp": "2025-12-15T00:19:41.204Z",
+  "results": [
+    {
+      "scenario": {
+        "id": "restaurante-dona-rosa",
+        "owner": "Dona Rosa",
+        "business": "Restaurante Sabor Caseiro",
+        "type": "Restaurante",
+        "realPains": [
+          "Não consigo responder WhatsApp no horário de almoço, fico na cozinha",
+          "Perco pedidos de madrugada e finais de semana",
+          "Clientes cancelam se demoro mais de 10 minutos para responder"
+        ],
+        "skepticism": "Já tentei um chatbot de botões e era horrível, os clientes odiaram",
+        "budget": "R$ 99 por mês tá caro pra mim, tenho que ver se vale a pena",
+        "personality": "Prática, direta, sem tempo a perder, precisa ver resultado"
+      },
+      "converted": true,
+      "turns": 1,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi, vi que vc tem um serviço de IA pra restaurantes. Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Oi! Legal que você está interessado! A AgenteZap é uma IA que trabalha pra você 24h por dia, sem folgas. Pra restaurante, ela é especialista em:\n\n1. **Vender mais**: Atende 100 clientes ao mesmo tempo, sem filas, sem estresse. Enquanto você cuida da cozinha, ela cuida dos pedidos.\n2. **Dormir tranquilo**: Se alguém pedir um delivery de madrugada, ela já manda o cardápio e fecha o pedido. Você só precisa preparar e entregar.\n3. **Economizar tempo**: Responde perguntas como \"tem delivery?\", \"qual o horário de funcionamento?\", \"qual o preço do prato X?\" sem você precisar digitar nada.\n\nQuer testar e ver como ela funciona no seu restaurante? Bora começar? [AÇÃO:CRIAR_CONTA_TESTE]"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas como que ela sabe o cardápio e os preços? E se o cliente perguntar algo que não é padrão? Já tentei um chatbot de botões e os clientes odiaram, não quero repetir o erro."
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Oi, vi que vc tem um serviço de IA pra restaurantes. Como funciona?"
+    },
+    {
+      "scenario": {
+        "id": "hotmart-joao-receitas",
+        "owner": "João",
+        "business": "Curso de Receitas Fit",
+        "type": "Hotmart/Infoprodutor",
+        "realPains": [
+          "Afiliados e clientes me enchem de perguntas repetidas",
+          "Perco vendas porque demoro a responder dúvidas",
+          "Não tenho tempo de atender todo mundo 24h"
+        ],
+        "skepticism": "Meu público é muito específico, não sei se IA entende de receitas fit",
+        "budget": "Pago R$ 300 em tráfego, R$ 99 precisa valer a pena",
+        "personality": "Antenado, quer automação, mas exigente com qualidade"
+      },
+      "converted": true,
+      "turns": 6,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "João, aqui. Tô com dúvida se vale a pena usar IA pra responder dúvidas de receitas fit. O que vc me diz?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "João, entendi sua dúvida! A IA pode ser um jogo de xadrez pra quem vende receitas fit, sabe? Imagina só: um aluno te pergunta \"como faço pra adaptar essa receita pra dieta low carb?\" e a IA já responde na hora, com as informações que VOCÊ ensinou. Você não precisa ficar 24h no celular, mas ainda assim atende todo mundo no tempo certo.\n\nAlém disso, a IA faz o pré-venda pra você. Se o aluno perguntar \"essa receita é boa pra emagrecer?\", ela já explica os benefícios e até manda o link do checkout. Você só vê o dinheiro cair na conta!\n\nE olha só: se você investe R$ 300 em tráfego por mês, mas perde só 5 vendas porque demorou pra responder, são R$ 485 a menos no bolso (se seu curso é R$ 97). O R$ 99 da IA se paga sozinho e ainda sobra!\n\nO que você acha de testar? O teste é grátis e sem compromisso. Vamos começar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "João, tô curioso. Como é que essa IA entende de receitas fit? Ela tem um banco de dados específico ou só responde com base no que eu ensino?\n\nE outra coisa: se ela responder errado, como é que eu corrijo? E se o aluno perguntar algo que não tem a ver com receitas, tipo \"qual o melhor app de treino\"?\n\nE o mais importante: como é que eu sei que ela vai me trazer mais vendas? Você tem algum caso de sucesso parecido com o meu?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "João, ótimas perguntas! Vou responder tudo direto:\n\n1. **Como a IA entende de receitas fit?**\n   Ela não tem um banco de dados pronto. Você ensina ela! Você passa todas as informações do seu curso, suas receitas, suas dicas... e ela aprende. Ela NUNCA inventa, só responde o que VOCÊ ensinou.\n\n2. **E se ela responder errado?**\n   Você pode corrigir ela a qualquer momento. Quando um aluno pergunta algo, a IA mostra pra você a resposta que ela deu. Se tiver errado, você corrige na hora e ela aprende pra nunca mais errar.\n\n3. **E se o aluno perguntar algo fora do contexto?**\n   A IA é treinada pra focar no que você ensina. Se o aluno perguntar algo que não tem a ver, ela responde que não sabe, mas que você (o especialista) pode ajudar assim que possível.\n\n4. **Como você sabe que ela vai trazer mais vendas?**\n   A IA faz o pré-venda pra você. Ela responde dúvidas, explica benefícios e até manda o link do checkout. Isso significa que seus alunos vão comprar mais, sem você precisar ficar 24h no celular.\n\n   E tem mais: a IA atende 200 alunos ao mesmo tempo, sem você digitar nada. Isso significa que você pode focar no que realmente importa: criar conteúdo e vender mais.\n\n   Temos vários casos de sucesso, inclusive de quem vende receitas fit. Um cliente nosso aumentou suas vendas em 30% no primeiro mês!\n\nO que você acha de testar? O teste é grátis e sem compromisso. Vamos começar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "João, tô vendo potencial, mas ainda tenho dúvidas:\n\n1. **Como é que eu ensino a IA?** É tipo um chatbot que eu treino ou tem que fazer upload de um PDF?\n\n2. **E se eu quiser mudar alguma resposta depois?** Tipo, se eu mudar a receita de panqueca fit, como é que eu atualizo a IA?\n\n3. **E se eu quiser testar, mas não tenho tempo de configurar agora?** Tem alguém que faz isso pra mim?\n\n4. **E se eu não gostar depois?** Como é que eu cancelo?\n\nE aí, como você resolve isso?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "João, entendi suas preocupações! Vou explicar tudo direitinho:\n\n1. **Como você ensina a IA?**\n   É super simples! Você não precisa fazer upload de PDF nem nada do tipo. É como se você estivesse treinando um funcionário novo. Você fala com a IA como se fosse um aluno, e ela aprende com suas respostas. Por exemplo, se um aluno perguntar \"como fazer panqueca fit?\", você responde como faria normalmente, e a IA aprende essa resposta.\n\n2. **E se você quiser mudar uma resposta depois?**\n   Você pode atualizar as respostas a qualquer momento. Se você mudar a receita de panqueca fit, é só responder a pergunta de novo com a nova receita. A IA aprende na hora e já usa a informação nova nas próximas respostas.\n\n3. **E se você quiser testar, mas não tem tempo de configurar agora?**\n   Não se preocupe! A gente tem uma equipe de onboarding que faz toda a configuração inicial pra você. É só você nos passar as informações do seu curso e a gente cuida do resto.\n\n4. **E se você não gostar depois? Como é que você cancela?**\n   Você pode cancelar a qualquer momento, sem burocracia. Se em 7 dias você achar que a IA não é pra você, é só nos avisar que a gente cancela e você não paga nada.\n\nO que você acha de testar? O teste é grátis e sem compromisso. Vamos começar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "João, tô quase convencido, mas ainda preciso de mais um detalhe:\n\n1. **Como é que eu monitoro o que a IA tá respondendo?** Tipo, eu quero ver todas as perguntas e respostas pra garantir que tá tudo certo.\n\n2. **E se eu quiser que a IA só responda perguntas sobre receitas e não sobre outros assuntos?** Como é que eu faço isso?\n\n3. **E se eu quiser testar, mas não tenho tempo de configurar agora?** Tem alguém que faz isso pra mim?\n\n4. **E se eu não gostar depois?** Como é que eu cancela?\n\nE aí, como você resolve isso?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "João, vou explicar tudo direitinho pra você ficar tranquilo:\n\n1. **Como você monitora o que a IA tá respondendo?**\n   Você tem acesso a um painel onde vê TODAS as perguntas e respostas da IA. É como se fosse um relatório completo de tudo que aconteceu. Você pode ver o que os alunos perguntaram, o que a IA respondeu e até corrigir algo se necessário.\n\n2. **Como você faz pra IA só responder sobre receitas?**\n   A IA é treinada pra focar no que você ensina. Se um aluno perguntar algo que não tem a ver, a IA responde que não sabe, mas que você (o especialista) pode ajudar assim que possível. Você também pode configurar respostas padrão pra perguntas fora do contexto.\n\n3. **E se você quiser testar, mas não tem tempo de configurar agora?**\n   Não se preocupe! A gente tem uma equipe de onboarding que faz toda a configuração inicial pra você. É só você nos passar as informações do seu curso e a gente cuida do resto.\n\n4. **E se você não gostar depois? Como é que você cancela?**\n   Você pode cancelar a qualquer momento, sem burocracia. Se em 7 dias você achar que a IA não é pra você, é só nos avisar que a gente cancela e você não paga nada.\n\nO que você acha de testar? O teste é grátis e sem compromisso. Vamos começar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "João, tô quase lá, mas ainda preciso de umas coisinhas:\n\n1. **Esse painel de monitoramento é difícil de usar?** Tipo, eu to com o pé atrás de ter que aprender mais uma plataforma.\n\n2. **E se eu quiser que a IA mande os alunos pra mim quando perguntarem algo que ela não sabe?** Tipo, ela avisa que eu tô online e que eu vou responder.\n\n3. **Tem como eu ver um exemplo de como a IA responde?** Tipo, você tem um demo ou algo assim?\n\n4. **E se eu quiser cancelar depois do teste?** Como é que funciona?\n\nE aí, me ajuda a tirar essas dúvidas?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "João, vou responder tudo direto pra você:\n\n1. **O painel de monitoramento é fácil de usar?**\n   Super fácil! Ele foi feito pensando em quem não tem tempo de aprender plataforma nova. É tudo intuitivo, igual ao WhatsApp. Você entra, vê as perguntas e respostas, e se precisar corrigir algo, é só clicar e editar.\n\n2. **Como a IA manda os alunos pra você quando ela não sabe responder?**\n   A IA avisa o aluno que você está online e que vai responder assim que possível. Enquanto isso, ela pode até sugerir que ele espere um pouco. Quando você estiver disponível, é só entrar no chat e responder normalmente.\n\n3. **Tem como ver um exemplo de como a IA responde?**\n   Claro! A gente tem um demo pronto pra você ver como a IA responde. Ela é treinada pra ser natural, como se fosse você respondendo. Quer que eu mande um exemplo aqui no chat?\n\n4. **Como funciona o cancelamento depois do teste?**\n   Você pode cancelar a qualquer momento, sem burocracia. Se em 7 dias você achar que a IA não é pra você, é só nos avisar que a gente cancela e você não paga nada. Depois do teste, se você quiser cancelar, é só entrar no painel e desativar o serviço.\n\nO que você acha de testar? O teste é grátis e sem compromisso. Vamos começar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "João, tô quase fechando, mas ainda preciso de umas coisinhas:\n\n1. **Esse demo que você falou, é de receitas fit mesmo ou é genérico?**\n\n2. **E se eu quiser que a IA só responda perguntas sobre receitas do meu curso e não de outros cursos?**\n\n3. **Tem como eu testar só por 3 dias pra ver se rola?**\n\n4. **E se eu quiser cancelar depois do teste, como é que eu faço?**\n\nE aí, me ajuda a fechar essas dúvidas?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "João, vou responder tudo direto pra gente fechar:\n\n1. **O demo é de receitas fit ou genérico?**\n   A gente tem um demo específico de receitas fit, com perguntas e respostas que se encaixam no seu nicho. Quer que eu mande um exemplo aqui no chat?\n\n2. **Como faço pra IA só responder sobre receitas do meu curso?**\n   É só você ensinar a IA com as informações do SEU curso. Ela aprende com suas respostas e só fala o que VOCÊ ensinou. Se alguém perguntar sobre outro curso, ela avisa que não sabe, mas que você (o especialista) pode ajudar.\n\n3. **Tem como testar só por 3 dias?**\n   O teste é por 7 dias, mas se você quiser cancelar antes, é só nos avisar que a gente cancela na hora. Você não paga nada!\n\n4. **Como faço pra cancelar depois do teste?**\n   Se você quiser cancelar depois do teste, é só entrar no painel e desativar o serviço. Sem burocracia!\n\nO que você acha de testar? O teste é grátis e sem compromisso. Vamos começar? [AÇÃO:CRIAR_CONTA_TESTE]"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "João, tô dentro! Mas antes de começar, me explica:\n\n1. **Como eu acesso o demo específico de receitas fit?**\n2. **Se eu quiser cancelar antes dos 7 dias, como faço?**\n3. **Tem alguém pra me ajudar se eu tiver dúvidas durante o teste?**\n\nVamos lá, me manda o link do demo e a gente parte pro teste!"
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "João, tô quase fechando, mas ainda preciso de umas coisinhas:\n\n1. **Esse demo que você falou, é de receitas fit mesmo ou é genérico?**\n\n2. **E se eu quiser que a IA só responda perguntas sobre receitas do meu curso e não de outros cursos?**\n\n3. **Tem como eu testar só por 3 dias pra ver se rola?**\n\n4. **E se eu quiser cancelar depois do teste, como é que eu faço?**\n\nE aí, me ajuda a fechar essas dúvidas?"
+    },
+    {
+      "scenario": {
+        "id": "loja-roupas-ana",
+        "owner": "Ana",
+        "business": "Fashion Store",
+        "type": "Loja de Roupas Online",
+        "realPains": [
+          "Clientes pedem fotos e medidas de roupas, demoro a responder",
+          "Perco vendas à noite e finais de semana quando não trabalho",
+          "Não tenho vendedora 24h, só eu"
+        ],
+        "skepticism": "Preciso mostrar fotos dos produtos, não sei se IA faz isso",
+        "budget": "Se vender 2 peças a mais já paga, mas tenho que ver funcionando",
+        "personality": "Moderna, quer tecnologia, mas precisa entender como funciona"
+      },
+      "converted": true,
+      "turns": 1,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi! Eu sou Ana, dono de uma loja de roupas online. Quero saber como a IA pode me ajudar a vender mais."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Oi Ana! Que ótimo que você está buscando maneiras de impulsionar suas vendas! A AgenteZap pode ser a solução perfeita para você. Imagine só: enquanto você dorme, a IA está lá, respondendo perguntas dos seus clientes, mandando fotos dos produtos, explicando medidas e até fechando pedidos. Você não perde nenhuma venda por não estar online o tempo todo.\n\nAlém disso, ela pode atender vários clientes ao mesmo tempo, sem erro e sem cansaço. Você já pensou em quanto tempo você economizaria e quanto mais você poderia vender? E o melhor: você só precisa ensinar a IA sobre os seus produtos uma vez, e ela nunca esquece. Ela não inventa nada, só responde o que você ensinou.\n\nEntão, o que você acha? Vamos começar a testar e ver como a AgenteZap pode ajudar sua loja a vender mais? [AÇÃO:CRIAR_CONTA_TESTE]"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Obrigado pelo convite! Mas eu preciso entender melhor como funciona. Como a IA vai saber as medidas exatas das minhas roupas e enviar as fotos certas? E se o cliente perguntar algo que não foi ensinado?"
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Oi! Eu sou Ana, dono de uma loja de roupas online. Quero saber como a IA pode me ajudar a vender mais."
+    },
+    {
+      "scenario": {
+        "id": "clinica-dr-paulo",
+        "owner": "Dr. Paulo",
+        "business": "Clínica Vida",
+        "type": "Clínica Médica",
+        "realPains": [
+          "Pacientes ligam fora do horário querendo marcar consulta",
+          "Muita gente marca e desmarca de última hora",
+          "Secretária não dá conta de responder todo mundo"
+        ],
+        "skepticism": "É área de saúde, precisa ser profissional e seguro",
+        "budget": "Vale a pena se realmente economizar o tempo da secretária",
+        "personality": "Profissional, sério, precisa de garantias de segurança"
+      },
+      "converted": false,
+      "turns": 5,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi, sou o Dr. Paulo, dono da Clínica Vida. Me falaram que vc tem um serviço de IA pra clínicas. Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Oi Dr. Paulo, tudo bem? Que ótimo que você está cuidando da Clínica Vida! Vou te explicar como a AgenteZap pode ser um parceiro essencial pra você.\n\nA AgenteZap é uma IA que trabalha 24h por dia pra você, atendendo seus pacientes e garantindo que você não perca nenhum agendamento. Imagine só:\n\n1. **Não perca mais pacientes**: Ela atende na hora, mesmo quando você está ocupado ou dormindo.\n2. **Agenda cheia**: Ela só agenda nos horários livres e transfere urgências direto pra você.\n3. **Confirmação automática**: Ela envia lembretes e confirmações, reduzindo faltas.\n\nQuer ver como ela funciona na prática? Que tal a gente fazer um teste rápido pra você ver como ela pode ajudar na sua clínica? Posso gerar um link de teste pra você agora mesmo. O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Oi, tudo bem. Parece interessante, mas como eu sei que a IA vai entender os pacientes? Às vezes eles ligam com problemas complexos...\n\nE quanto custa? Porque se for muito caro, não compensa. Minha secretária já tá sobrecarregada, mas não dá pra contratar mais ninguém.\n\nE como ela sabe os horários livres? Porque às vezes eu tenho emergências e tenho que remarcar tudo."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendo suas preocupações e vou explicar tudinho pra você se acalmar.\n\n1. **Entendimento dos pacientes**: A AgenteZap é treinada pra entender o básico e direcionar as emergências pra você. Ela não substitui seu conhecimento, só filtra o que não é urgente. Se o paciente falar algo complexo, ela já transfere pra você. E o melhor: você ensina ela! Você passa as informações do seu atendimento e ela aprende. Ela NUNCA inventa, só responde o que VOCÊ ensinou.\n\n2. **Custo**: Olha só, vamos fazer um cálculo rápido. Você investe R$ 300 em tráfego, certo? Se você perder só 5 pacientes por mês porque demorou pra responder, quanto isso custa? Se sua consulta é R$ 200, são R$ 1000 perdidos! O R$ 99 da IA se paga sozinho e ainda sobra!\n\n3. **Horários livres e emergências**: A AgenteZap se integra com sua agenda. Ela só marca nos horários livres e, se você tiver uma emergência, é só remarcar. Ela avisa os pacientes automaticamente e mantém tudo organizado.\n\nQue tal a gente fazer um teste rápido pra você ver como ela funciona na prática? Posso gerar um link de teste pra você agora mesmo. O que acha? Vamos começar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas e se o paciente quiser marcar consulta fora do horário? E se ele desmarcar de última hora? A minha secretária já tá sobrecarregada com isso.\n\nE como é que eu faço pra ensinar ela? Tem que ser muito complicado, né? Eu não tenho muito tempo pra isso.\n\nE se o paciente não gostar de falar com um robô? A gente é clínica médica, tem que ser profissional."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendo suas preocupações e vou explicar como a AgenteZap resolve isso tudo de forma simples e eficiente:\n\n1. **Agendamento fora do horário**: Se o paciente pedir um horário que não está disponível, a AgenteZap oferece as opções mais próximas ou pede pra ele aguardar sua confirmação. Ela nunca marca sem sua aprovação.\n\n2. **Desmarcamentos de última hora**: A AgenteZap gerencia isso automaticamente. Se o paciente desmarcar, ela avisa na hora e libera o horário. Ela também envia lembretes pra reduzir faltas.\n\n3. **Ensinar a IA**: É mais fácil do que você imagina! Você passa as informações básicas do seu atendimento, como horários, procedimentos e regras da clínica. A AgenteZap aprende rápido e você pode ajustar quando quiser. Não precisa ser técnico, é tudo intuitivo.\n\n4. **Profissionalismo**: A AgenteZap é treinada pra ser profissional e empática. Ela usa uma linguagem adequada e, se o paciente preferir falar com um humano, ela transfere a chamada pra você ou sua secretária.\n\nQue tal a gente fazer um teste rápido pra você ver como ela funciona na prática? Posso gerar um link de teste pra você agora mesmo. O que acha? Vamos começar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas e se a IA errar e marcar um paciente no horário errado? Isso pode causar um caos na clínica.\n\nE se o paciente quiser falar com a secretária direto? Como a gente faz pra não perder o contato humano?\n\nE quanto tempo demora pra ela aprender? Porque eu não posso ficar esperando muito.\n\nE se eu quiser cancelar depois do teste? Tem algum custo?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendo suas preocupações e vou explicar como a AgenteZap resolve tudo isso de forma segura e eficiente:\n\n1. **Erros de agendamento**: A AgenteZap é super precisa, mas se acontecer algum erro (o que é raro), você pode corrigir na hora. Ela aprende com os ajustes e não repete o mesmo erro.\n\n2. **Contato humano**: A AgenteZap não substitui sua secretária. Ela filtra as chamadas e só transfere pra ela o que é realmente importante. Os pacientes ainda podem falar com um humano quando quiserem.\n\n3. **Tempo de aprendizado**: A AgenteZap aprende rápido. Em poucas horas, ela já está pronta pra ajudar. E você pode ajustar as informações a qualquer momento.\n\n4. **Cancelamento**: Se você não gostar do teste, pode cancelar sem nenhum custo. É tudo sem compromisso.\n\nQue tal a gente fazer um teste rápido pra você ver como ela funciona na prática? Posso gerar um link de teste pra você agora mesmo. O que acha? Vamos começar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas e se a IA não entender um paciente com sotaque forte ou dificuldade de comunicação? Isso pode causar frustração e até perder o paciente.\n\nE como é que eu faço pra monitorar o que ela tá fazendo? Preciso de um relatório ou alguma coisa assim?\n\nE se eu quiser cancelar depois do teste, como é que funciona? Tem que assinar algum contrato ou coisa do tipo?\n\nE quanto tempo dura o teste? Porque eu não posso ficar muito tempo sem ver resultado."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendo suas preocupações e vou explicar como a AgenteZap resolve tudo isso de forma segura e eficiente:\n\n1. **Sotaque e dificuldade de comunicação**: A AgenteZap é treinada pra entender diferentes sotaques e linguagens. Se ela não entender, ela pede pra paciente repetir ou transfere a chamada pra você ou sua secretária. Ela nunca deixa o paciente sem atendimento.\n\n2. **Monitoramento**: Você pode acompanhar tudo pelo painel da AgenteZap. Lá você vê todas as interações, relatórios de atendimento e pode ajustar as respostas quando quiser. É tudo transparente e fácil de usar.\n\n3. **Cancelamento**: Se você não gostar do teste, pode cancelar sem nenhum custo. Não precisa assinar contrato, é tudo sem compromisso. Você só paga se quiser continuar depois do teste.\n\n4. **Duração do teste**: O teste dura 7 dias. Nesse tempo, você já vê os resultados e como a AgenteZap pode ajudar na sua clínica.\n\nQue tal a gente fazer um teste rápido pra você ver como ela funciona na prática? Posso gerar um link de teste pra você agora mesmo. O que acha? Vamos começar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, então me manda o link do teste e eu dou uma olhada. Mas se eu não gostar, eu posso cancelar mesmo sem pagar nada? Porque eu não quero me comprometer com nada antes de ver como funciona.\n\nE se eu quiser cancelar durante o teste, como é que eu faço? Tem que ligar pra alguém ou é tudo online?"
+        }
+      ],
+      "failureReason": "Cliente não entendeu - Rodrigo explicou de forma confusa",
+      "lastClientMessage": "Tá, então me manda o link do teste e eu dou uma olhada. Mas se eu não gostar, eu posso cancelar mesmo sem pagar nada? Porque eu não quero me comprometer com nada antes de ver como funciona.\n\nE se eu quiser cancelar durante o teste, como é que eu faço? Tem que ligar pra alguém ou é tudo online?"
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "converted": 3,
+    "conversionRate": 75
+  }
+}

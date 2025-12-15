@@ -1,0 +1,52 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 14/12/2025, 22:06:03
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 40% (2/5 nichos)
+❌ PRECISA CALIBRAR
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ BARGANHADOR: CONVERTEU (5 mensagens)
+
+✅ ENTUSIASTA: CONVERTEU (3 mensagens)
+
+❌ COMPARADOR: NÃO CONVERTEU 
+   📌 Motivo: Cliente achou caro - Rodrigo não demonstrou ROI suficiente
+   💬 Última msg cliente: "Olha, Rodrigo, eu já tentei um monte de coisa. O ChatGPT faz de graça. Vi um outro por R$ 29...."
+
+❌ CÉTICO/CHATO: NÃO CONVERTEU 
+   📌 Motivo: Cliente desistiu por motivo não identificado
+   💬 Última msg cliente: "Manda o link. E se não funcionar, não quero pagar nada...."
+
+❌ INDECISO: NÃO CONVERTEU 
+   📌 Motivo: Cliente desistiu por motivo não identificado
+   💬 Última msg cliente: "Ah, tá bom então. Mas só se for de graça mesmo, Rodrigo...."
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🔧 SUGESTÕES DE AJUSTE
+═══════════════════════════════════════════════════════════════════════════════
+
+1. MELHORAR DEMONSTRAÇÃO DE ROI:
+   - Adicionar comparação com custo de funcionário
+   - Enfatizar economia de tempo
+   - Dar exemplos de quanto cliente pode ganhar
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

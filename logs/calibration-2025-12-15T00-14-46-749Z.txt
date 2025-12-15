@@ -1,0 +1,47 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 14/12/2025, 21:14:46
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 25% (1/4 nichos)
+❌ PRECISA CALIBRAR
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Restaurante: CONVERTEU (2 mensagens)
+
+❌ Hotmart/Infoprodutor: NÃO CONVERTEU 
+   📌 Motivo: Conversão demorou demais (15+ mensagens)
+   💬 Última msg cliente: "João, entendi que você quer ver mais exemplos. Vou te mostrar um caso real de como o assistente lida..."
+
+❌ Loja de Roupas Online: NÃO CONVERTEU 
+   📌 Motivo: Cliente desistiu por motivo não identificado
+   💬 Última msg cliente: "Tá, então manda o link pra eu testar. Mas vou ver se consigo vender mais com ela, senão não vou cont..."
+
+❌ Clínica Médica: NÃO CONVERTEU 
+   📌 Motivo: Conversão demorou demais (15+ mensagens)
+   💬 Última msg cliente: "Dr. Paulo, entendo perfeitamente sua posição. Vou resumir em 3 pontos:
+
+1. **Sem risco**: Teste 7 di..."
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🔧 SUGESTÕES DE AJUSTE
+═══════════════════════════════════════════════════════════════════════════════
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

@@ -11,7 +11,11 @@
 
 import { Mistral } from "@mistralai/mistralai";
 
-const MISTRAL_API_KEY = "EMZSjwivLJLrPlJqPuWrTwAAOgp93lhF";
+const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
+
+if (!MISTRAL_API_KEY) {
+  throw new Error("Missing env var MISTRAL_API_KEY");
+}
 
 interface ConversationMessage {
   role: "user" | "assistant";

@@ -1,0 +1,55 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 14/12/2025, 22:53:07
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 0% (0/5 nichos)
+❌ PRECISA CALIBRAR
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ BARGANHADOR: NÃO CONVERTEU 
+   📌 Motivo: Cliente adiou - Rodrigo não criou urgência/facilidade suficiente
+   💬 Última msg cliente: "Rodrigo, eu já disse que vou pensar. Se eu quiser, te chamo. Valeu!..."
+
+❌ ENTUSIASTA: NÃO CONVERTEU 
+   📌 Motivo: Conversão demorou demais (15+ mensagens)
+   💬 Última msg cliente: "Tá, vou tentar. Mas se não funcionar, eu volto aqui pra te cobrar! 😤..."
+
+❌ COMPARADOR: NÃO CONVERTEU 
+   📌 Motivo: Conversão demorou demais (15+ mensagens)
+   💬 Última msg cliente: "Oi Rodrigo, vi um outro por R$ 29. O ChatGPT faz de graça...."
+
+❌ CÉTICO/CHATO: NÃO CONVERTEU 
+   📌 Motivo: Cliente desistiu por motivo não identificado
+   💬 Última msg cliente: "Tá. Se der problema, cancelo...."
+
+❌ INDECISO: NÃO CONVERTEU 
+   📌 Motivo: Cliente adiou - Rodrigo não criou urgência/facilidade suficiente
+   💬 Última msg cliente: "Ah, Rodrigo, não sei se é hora.
+
+Vou pensar e depois te ligo.
+
+Obrigado!..."
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🔧 SUGESTÕES DE AJUSTE
+═══════════════════════════════════════════════════════════════════════════════
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

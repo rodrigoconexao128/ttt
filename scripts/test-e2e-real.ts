@@ -21,8 +21,12 @@ const __dirname = dirname(__filename);
 // ============================================================================
 
 const SERVER_URL = process.env.SERVER_URL || "http://localhost:5000";
-const MISTRAL_API_KEY = "EMZSjwivLJLrPlJqPuWrTwAAOgp93lhF";
+const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
 const MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions";
+
+if (!MISTRAL_API_KEY) {
+  throw new Error("Missing env var MISTRAL_API_KEY");
+}
 
 // Telefone de teste (muda a cada execução)
 const TEST_PHONE = `5511${Date.now().toString().slice(-9)}`;
