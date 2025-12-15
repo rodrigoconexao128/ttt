@@ -233,6 +233,7 @@ function generateTempPassword(): string {
 
 /**
  * Cria conta de teste e retorna credenciais + token do simulador
+ * IMPORTANTE: Se conta já existe, apenas atualiza o agente e gera novo link
  */
 export async function createTestAccountWithCredentials(session: ClientSession): Promise<{
   success: boolean;
@@ -243,25 +244,73 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
   error?: string;
 }> {
   try {
+    const cleanPhone = session.phoneNumber.replace(/\D/g, "");
     const email = generateTempEmail(session.phoneNumber);
     const password = generateTempPassword();
     
     // Importar supabase para criar usuário
     const { supabase } = await import("./supabaseAuth");
     
-    // Verificar se já existe usuário com esse telefone
+    // Verificar se já existe usuário com esse telefone OU email
     const users = await storage.getAllUsers();
-    const existing = users.find(u => u.phone?.replace(/\D/g, "") === session.phoneNumber.replace(/\D/g, ""));
+    let existing = users.find(u => u.phone?.replace(/\D/g, "") === cleanPhone);
+    
+    // Se não encontrou por telefone, buscar por email (caso histórico tenha sido limpo)
+    if (!existing) {
+      existing = users.find(u => u.email?.includes(cleanPhone.slice(-8)));
+    }
     
     if (existing) {
-      // Usuário já existe, gerar nova senha
-      const { error: updateError } = await supabase.auth.admin.updateUserById(existing.id, {
-        password: password
-      });
+      console.log(`🔄 [SALES] Usuário já existe (${existing.email}), atualizando agente...`);
       
-      if (updateError) {
-        console.error("[SALES] Erro ao atualizar senha:", updateError);
-        // Continuar mesmo assim, pode ser que a conta funcione
+      // Atualizar configuração do agente com as novas informações
+      if (session.agentConfig?.prompt || session.agentConfig?.name) {
+        const agentName = session.agentConfig.name || "Atendente";
+        const companyName = session.agentConfig.company || "Empresa";
+        const agentRole = session.agentConfig.role || "atendente";
+        const instructions = session.agentConfig.prompt || "Atenda os clientes de forma educada e prestativa.";
+        
+        // Prompt profissional e personalizado para o agente do CLIENTE
+        const fullPrompt = `# IDENTIDADE
+Você é ${agentName}, ${agentRole} da ${companyName}.
+
+# SOBRE A EMPRESA
+${companyName}
+
+# INSTRUÇÕES E CONHECIMENTO
+${instructions}
+
+# REGRAS DE COMPORTAMENTO
+1. Você é ${agentName} da ${companyName} - NUNCA se confunda com outro agente
+2. Responda APENAS sobre assuntos relacionados à ${companyName}
+3. Se não souber algo, diga que vai verificar ou peça para aguardar
+4. Seja educado, prestativo e objetivo
+5. Use linguagem natural e amigável
+6. Respostas curtas (2-4 linhas por mensagem)
+7. Use emojis com moderação 😊
+8. NUNCA invente informações que não estão nas instruções acima
+9. Se perguntarem algo fora do seu escopo, redirecione educadamente
+
+# EXEMPLOS DE INTERAÇÃO
+Cliente: "Oi"
+${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje?"
+
+Cliente: "Vocês têm X?"
+${agentName}: [Responda baseado nas instruções acima]
+
+Cliente: "Qual o preço?"
+${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai verificar]`;
+
+        await storage.upsertAgentConfig(existing.id, {
+          prompt: fullPrompt,
+          isActive: true,
+          model: "mistral-small-latest",
+          triggerPhrases: [],
+          messageSplitChars: 400,
+          responseDelaySeconds: 30,
+        });
+        
+        console.log(`✅ [SALES] Agente "${agentName}" ATUALIZADO para ${companyName}`);
       }
       
       updateClientSession(session.phoneNumber, { 
@@ -274,6 +323,8 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
       const agentName = session.agentConfig?.name || "Agente";
       const company = session.agentConfig?.company || "Empresa";
       const testToken = await generateTestToken(existing.id, agentName, company);
+      
+      console.log(`🎯 [SALES] Link do simulador gerado para usuário existente: ${testToken.token}`);
       
       return {
         success: true,
@@ -297,6 +348,80 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
     
     if (authError) {
       console.error("[SALES] Erro ao criar usuário Supabase:", authError);
+      
+      // Se email já existe, tentar buscar usuário existente pelo email
+      if (authError.message?.includes('email') || (authError as any).code === 'email_exists') {
+        console.log(`🔄 [SALES] Email já existe, buscando usuário existente...`);
+        
+        // Buscar usuário pelo email gerado
+        const existingByEmail = users.find(u => u.email === email);
+        if (existingByEmail) {
+          // Atualizar agente e gerar link
+          if (session.agentConfig?.prompt || session.agentConfig?.name) {
+            const agentName = session.agentConfig.name || "Atendente";
+            const companyName = session.agentConfig.company || "Empresa";
+            const agentRole = session.agentConfig.role || "atendente";
+            const instructions = session.agentConfig.prompt || "Atenda os clientes de forma educada e prestativa.";
+            
+            const fullPrompt = `# IDENTIDADE
+Você é ${agentName}, ${agentRole} da ${companyName}.
+
+# SOBRE A EMPRESA
+${companyName}
+
+# INSTRUÇÕES E CONHECIMENTO
+${instructions}
+
+# REGRAS DE COMPORTAMENTO
+1. Você é ${agentName} da ${companyName} - NUNCA se confunda com outro agente
+2. Responda APENAS sobre assuntos relacionados à ${companyName}
+3. Se não souber algo, diga que vai verificar ou peça para aguardar
+4. Seja educado, prestativo e objetivo
+5. Use linguagem natural e amigável
+6. Respostas curtas (2-4 linhas por mensagem)
+7. Use emojis com moderação 😊
+8. NUNCA invente informações que não estão nas instruções acima
+9. Se perguntarem algo fora do seu escopo, redirecione educadamente
+
+# EXEMPLOS DE INTERAÇÃO
+Cliente: "Oi"
+${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje?"`;
+
+            await storage.upsertAgentConfig(existingByEmail.id, {
+              prompt: fullPrompt,
+              isActive: true,
+              model: "mistral-small-latest",
+              triggerPhrases: [],
+              messageSplitChars: 400,
+              responseDelaySeconds: 30,
+            });
+            
+            console.log(`✅ [SALES] Agente "${agentName}" ATUALIZADO (após email_exists)`);
+          }
+          
+          updateClientSession(session.phoneNumber, { 
+            userId: existingByEmail.id, 
+            email: existingByEmail.email,
+            flowState: 'post_test'
+          });
+          
+          const testToken = await generateTestToken(existingByEmail.id, 
+            session.agentConfig?.name || "Agente",
+            session.agentConfig?.company || "Empresa"
+          );
+          
+          console.log(`🎯 [SALES] Link gerado após recuperação de email_exists: ${testToken.token}`);
+          
+          return {
+            success: true,
+            email: existingByEmail.email || email,
+            password: password,
+            loginUrl: process.env.APP_URL || 'https://agentezap.online',
+            simulatorToken: testToken.token
+          };
+        }
+      }
+      
       return { success: false, error: authError.message };
     }
     
