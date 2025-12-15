@@ -242,9 +242,11 @@ export function clearClientSession(phoneNumber: string): boolean {
  * Gera email fictício para conta temporária
  */
 function generateTempEmail(phoneNumber: string): string {
-  emailCounter++;
   const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-8);
-  return `cliente_${cleanPhone}_${emailCounter}@agentezap.temp`;
+  // Evita colisões após restart (emailCounter reseta) e entre instâncias.
+  const now = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `cliente_${cleanPhone}_${now}_${rand}@agentezap.temp`;
 }
 
 /**
@@ -343,7 +345,7 @@ ${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai 
       
       updateClientSession(session.phoneNumber, { 
         userId: existing.id, 
-        email: existing.email,
+        email: existing.email ?? undefined,
         flowState: 'post_test'
       });
       
@@ -430,7 +432,7 @@ ${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje
           
           updateClientSession(session.phoneNumber, { 
             userId: existingByEmail.id, 
-            email: existingByEmail.email,
+            email: existingByEmail.email ?? undefined,
             flowState: 'post_test'
           });
           
@@ -788,7 +790,7 @@ function getOnboardingContext(session: ClientSession): string {
   if (hasName) configStatus += `✅ Nome do agente: ${config.name}\n`;
   if (hasCompany) configStatus += `✅ Empresa/Negócio: ${config.company}\n`;
   if (config.role) configStatus += `✅ Função: ${config.role}\n`;
-  if (hasPrompt) configStatus += `✅ Instruções: configuradas (${config.prompt.length} chars)\n`;
+  if (hasPrompt) configStatus += `✅ Instruções: configuradas (${config.prompt?.length ?? 0} chars)\n`;
   
   const hasAllConfig = hasName && hasCompany && hasPrompt;
   const readyToCreate = hasAllConfig;
@@ -1091,13 +1093,13 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
   sendPix?: boolean;
   notifyOwner?: boolean;
   startTestMode?: boolean;
-  testAccountCredentials?: { email: string; password: string; loginUrl: string };
+  testAccountCredentials?: { email: string; password: string; loginUrl: string; simulatorToken?: string };
 }> {
   const results: { 
     sendPix?: boolean; 
     notifyOwner?: boolean;
     startTestMode?: boolean;
-    testAccountCredentials?: { email: string; password: string; loginUrl: string };
+    testAccountCredentials?: { email: string; password: string; loginUrl: string; simulatorToken?: string };
   } = {};
   
   for (const action of actions) {

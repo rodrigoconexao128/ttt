@@ -126,19 +126,24 @@ export default function AdminConversations() {
   // Mutation para limpar histórico
   const clearHistoryMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/admin/conversations/${selectedConversationId}/history`, {
+      // "Limpar histórico" deve limpar TUDO (inclui conta de teste) para permitir recomeçar do zero
+      const res = await fetch(`/api/admin/conversations/${selectedConversationId}/complete`, {
         method: "DELETE",
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Falha ao limpar histórico");
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || error.message || "Falha ao limpar histórico");
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/messages", selectedConversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+      setSelectedConversationId(null);
       toast({
-        title: "Histórico limpo!",
-        description: "Todas as mensagens foram removidas. O cliente será tratado como novo.",
+        title: "Reset completo!",
+        description: "Conta e histórico removidos. Você pode recomeçar do zero.",
       });
     },
     onError: (error: Error) => {

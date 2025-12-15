@@ -1501,6 +1501,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { clearClientSession } = await import("./adminAgentService");
         clearClientSession(phone);
         console.log(`🗑️ [ADMIN] Histórico limpo para conversa ${id} (telefone: ${phone})`);
+
+        // Se existir conta de TESTE para esse telefone, fazer reset completo (inclui Auth)
+        // Isso evita o bug do email_exists e garante que "limpar histórico" realmente limpa tudo.
+        const user = await storage.getUserByPhone(phone);
+        if (user) {
+          const result = await storage.resetTestAccountSafely(phone);
+          if (!result.success) {
+            return res.status(400).json({
+              success: false,
+              message: "Histórico limpo, mas não foi possível deletar a conta (validação de segurança)",
+              error: result.error,
+            });
+          }
+
+          // Se deletou o usuário no banco, também deletar no Supabase Auth (senão o email fica preso)
+          if (result.result?.userDeleted) {
+            try {
+              const { supabase } = await import("./supabaseAuth");
+              const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user.id);
+              if (authDeleteError) {
+                console.error("[ADMIN] Falha ao deletar usuário no Supabase Auth:", authDeleteError);
+                return res.status(500).json({
+                  success: false,
+                  message: "Histórico limpo, mas falha ao deletar usuário no Auth",
+                  error: authDeleteError.message,
+                });
+              }
+              console.log(`🗑️ [ADMIN] Usuário ${user.id} deletado do Supabase Auth (history)`);
+            } catch (e: any) {
+              console.error("[ADMIN] Erro ao deletar usuário no Auth:", e);
+              return res.status(500).json({
+                success: false,
+                message: "Histórico limpo, mas erro ao deletar usuário no Auth",
+                error: e?.message || String(e),
+              });
+            }
+          }
+        }
       }
       
       res.json({ success: true, message: "Histórico limpo com sucesso" });
@@ -1525,6 +1563,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!phone) {
         return res.status(400).json({ message: "Número de telefone não encontrado na conversa" });
       }
+
+      // Capturar userId antes do reset (depois ele some do DB)
+      const user = await storage.getUserByPhone(phone);
       
       console.log(`🚨 [ADMIN] Solicitação de RESET COMPLETO para ${phone}`);
       
@@ -1545,11 +1586,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: result.error 
         });
       }
+
+      // Se deletou o usuário no banco, deletar também no Supabase Auth
+      // (senão o email fica preso e gera email_exists no próximo teste)
+      let authDeleted = false;
+      if (user?.id && result.result?.userDeleted) {
+        const { supabase } = await import("./supabaseAuth");
+        const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user.id);
+        if (authDeleteError) {
+          console.error("[ADMIN] Falha ao deletar usuário no Supabase Auth:", authDeleteError);
+          return res.status(500).json({
+            success: false,
+            message: "Reset no banco OK, mas falha ao deletar usuário no Auth",
+            error: authDeleteError.message,
+          });
+        }
+        authDeleted = true;
+        console.log(`🗑️ [ADMIN] Usuário ${user.id} deletado do Supabase Auth (complete)`);
+      }
       
       res.json({ 
         success: true, 
         message: "Reset completo realizado com sucesso",
-        details: result.result 
+        details: { ...result.result, authDeleted }
       });
     } catch (error: any) {
       console.error("Error resetting account completely:", error);
