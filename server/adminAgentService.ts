@@ -293,15 +293,14 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
     if (existing) {
       console.log(`🔄 [SALES] Usuário já existe (${existing.email}), atualizando agente...`);
       
-      // Atualizar configuração do agente com as novas informações
-      if (session.agentConfig?.prompt || session.agentConfig?.name) {
-        const agentName = session.agentConfig.name || "Atendente";
-        const companyName = session.agentConfig.company || "Empresa";
-        const agentRole = session.agentConfig.role || "atendente";
-        const instructions = session.agentConfig.prompt || "Atenda os clientes de forma educada e prestativa.";
+      // SEMPRE atualizar/criar agente - usar defaults inteligentes se não tiver info
+      const agentName = session.agentConfig?.name || "Atendente";
+      const companyName = session.agentConfig?.company || "Meu Negócio";
+      const agentRole = session.agentConfig?.role || "atendente virtual";
+      const instructions = session.agentConfig?.prompt || "Seja prestativo, educado e ajude os clientes com informações sobre produtos e serviços.";
         
-        // Prompt profissional e personalizado para o agente do CLIENTE
-        const fullPrompt = `# IDENTIDADE
+      // Prompt profissional e personalizado para o agente do CLIENTE
+      const fullPrompt = `# IDENTIDADE
 Você é ${agentName}, ${agentRole} da ${companyName}.
 
 # SOBRE A EMPRESA
@@ -331,17 +330,16 @@ ${agentName}: [Responda baseado nas instruções acima]
 Cliente: "Qual o preço?"
 ${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai verificar]`;
 
-        await storage.upsertAgentConfig(existing.id, {
-          prompt: fullPrompt,
-          isActive: true,
-          model: "mistral-small-latest",
-          triggerPhrases: [],
-          messageSplitChars: 400,
-          responseDelaySeconds: 30,
-        });
-        
-        console.log(`✅ [SALES] Agente "${agentName}" ATUALIZADO para ${companyName}`);
-      }
+    await storage.upsertAgentConfig(existing.id, {
+        prompt: fullPrompt,
+        isActive: true,
+        model: "mistral-small-latest",
+        triggerPhrases: [],
+        messageSplitChars: 400,
+        responseDelaySeconds: 30,
+      });
+      
+      console.log(`✅ [SALES] Agente "${agentName}" ATUALIZADO para ${companyName}`);
       
       updateClientSession(session.phoneNumber, { 
         userId: existing.id, 
@@ -387,14 +385,13 @@ ${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai 
         const freshUsers = await storage.getAllUsers();
         const existingByEmail = freshUsers.find(u => u.email === email) || freshUsers.find(u => u.email?.includes(cleanPhone.slice(-8)));
         if (existingByEmail) {
-          // Atualizar agente e gerar link
-          if (session.agentConfig?.prompt || session.agentConfig?.name) {
-            const agentName = session.agentConfig.name || "Atendente";
-            const companyName = session.agentConfig.company || "Empresa";
-            const agentRole = session.agentConfig.role || "atendente";
-            const instructions = session.agentConfig.prompt || "Atenda os clientes de forma educada e prestativa.";
-            
-            const fullPrompt = `# IDENTIDADE
+          // SEMPRE atualizar agente - usar defaults inteligentes
+          const agentName = session.agentConfig?.name || "Atendente";
+          const companyName = session.agentConfig?.company || "Meu Negócio";
+          const agentRole = session.agentConfig?.role || "atendente virtual";
+          const instructions = session.agentConfig?.prompt || "Seja prestativo, educado e ajude os clientes com informações sobre produtos e serviços.";
+          
+          const fullPrompt = `# IDENTIDADE
 Você é ${agentName}, ${agentRole} da ${companyName}.
 
 # SOBRE A EMPRESA
@@ -418,17 +415,16 @@ ${instructions}
 Cliente: "Oi"
 ${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje?"`;
 
-            await storage.upsertAgentConfig(existingByEmail.id, {
-              prompt: fullPrompt,
-              isActive: true,
-              model: "mistral-small-latest",
-              triggerPhrases: [],
-              messageSplitChars: 400,
-              responseDelaySeconds: 30,
-            });
-            
-            console.log(`✅ [SALES] Agente "${agentName}" ATUALIZADO (após email_exists)`);
-          }
+          await storage.upsertAgentConfig(existingByEmail.id, {
+            prompt: fullPrompt,
+            isActive: true,
+            model: "mistral-small-latest",
+            triggerPhrases: [],
+            messageSplitChars: 400,
+            responseDelaySeconds: 30,
+          });
+          
+          console.log(`✅ [SALES] Agente "${agentName}" ATUALIZADO (após email_exists)`);
           
           updateClientSession(session.phoneNumber, { 
             userId: existingByEmail.id, 
@@ -469,15 +465,14 @@ ${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje
       role: "user",
     });
     
-    // Criar config do agente se tiver
-    if (session.agentConfig?.prompt || session.agentConfig?.name) {
-      const agentName = session.agentConfig.name || "Atendente";
-      const companyName = session.agentConfig.company || "Empresa";
-      const agentRole = session.agentConfig.role || "atendente";
-      const instructions = session.agentConfig.prompt || "Atenda os clientes de forma educada e prestativa.";
+    // SEMPRE criar config do agente - usar defaults inteligentes se não tiver info
+    const agentName = session.agentConfig?.name || "Atendente";
+    const companyName = session.agentConfig?.company || "Meu Negócio";
+    const agentRole = session.agentConfig?.role || "atendente virtual";
+    const instructions = session.agentConfig?.prompt || "Seja prestativo, educado e ajude os clientes com informações sobre produtos e serviços.";
       
-      // Prompt profissional e personalizado para o agente do CLIENTE
-      const fullPrompt = `# IDENTIDADE
+    // Prompt profissional e personalizado para o agente do CLIENTE
+    const fullPrompt = `# IDENTIDADE
 Você é ${agentName}, ${agentRole} da ${companyName}.
 
 # SOBRE A EMPRESA
@@ -507,17 +502,16 @@ ${agentName}: [Responda baseado nas instruções acima]
 Cliente: "Qual o preço?"
 ${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai verificar]`;
 
-      await storage.upsertAgentConfig(user.id, {
-        prompt: fullPrompt,
-        isActive: true,
-        model: "mistral-small-latest",
-        triggerPhrases: [],
-        messageSplitChars: 400,
-        responseDelaySeconds: 30,
-      });
-      
-      console.log(`✅ [SALES] Agente "${agentName}" criado para ${companyName} (prompt: ${fullPrompt.length} chars)`);
-    }
+    await storage.upsertAgentConfig(user.id, {
+      prompt: fullPrompt,
+      isActive: true,
+      model: "mistral-small-latest",
+      triggerPhrases: [],
+      messageSplitChars: 400,
+      responseDelaySeconds: 30,
+    });
+    
+    console.log(`✅ [SALES] Agente "${agentName}" criado para ${companyName} (prompt: ${fullPrompt.length} chars)`);
     
     // Criar trial de 24h
     const plans = await storage.getActivePlans();
@@ -668,53 +662,74 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   // Carregar bloco de mídias
   const mediaBlock = await generateAdminMediaPromptBlock();
   
-  return `🚨 DIRETRIZ SUPREMA DE VENDAS - NUCLEAR 21.0 🚨
+  return `🚨 DIRETRIZ SUPREMA DE VENDAS - NUCLEAR 22.0 🚨
 
 VOCÊ É O RODRIGO, O MELHOR VENDEDOR DA AGENTEZAP.
-SUA MISSÃO: Coletar as informações necessárias e depois criar o teste.
+SUA MISSÃO: Entender o negócio do cliente e criar um agente rapidamente.
 
 ═══════════════════════════════════════════════════════════════════════════════
-🚨 REGRA CRÍTICA: QUANDO CRIAR A CONTA DE TESTE
+🚨 REGRA PRINCIPAL: SIMPLICIDADE E VELOCIDADE
 ═══════════════════════════════════════════════════════════════════════════════
 
-⛔ SÓ CRIE A CONTA ([ACAO:CRIAR_CONTA_TESTE]) QUANDO TIVER ESTAS 3 INFORMAÇÕES:
-   1. ✅ TIPO DE NEGÓCIO (loja, restaurante, clínica, etc.)
-   2. ✅ NOME DO AGENTE (Laura, Pedro, Bia, etc.) ou empresa
-   3. ✅ O QUE O AGENTE PRECISA SABER (produtos, preços, regras)
+O cliente quer testar RÁPIDO. Não fique fazendo muitas perguntas.
+Assim que o cliente disser O QUE FAZ (negócio), você JÁ PODE CRIAR O AGENTE.
 
-Se faltar QUALQUER uma dessas informações → PERGUNTE ANTES de criar!
+CRIE O AGENTE ([ACAO:CRIAR_CONTA_TESTE]) assim que souber:
+- ✅ O TIPO DE NEGÓCIO (loja, restaurante, clínica, etc.)
+- ✅ Qualquer informação extra que o cliente passar
+
+O QUE VOCÊ INVENTA AUTOMATICAMENTE (se o cliente não falar):
+- Nome do agente → invente um nome bonito (Laura, Pedro, Bia, etc.)
+- Instruções → crie baseado no tipo de negócio
+- Horários → coloque horário comercial padrão
+- Valores → diga que vai verificar
 
 ═══════════════════════════════════════════════════════════════════════════════
-📝 FLUXO CORRETO DE CONVERSA
+📝 FLUXO SIMPLIFICADO
 ═══════════════════════════════════════════════════════════════════════════════
 
 PASSO 1 - DESCOBERTA (se não sabe o negócio):
-"Oi! Tudo certo? 😊 Me conta rapidinho: qual seu negócio, o que você vende/faz, e qual sua maior dor no atendimento hoje?"
-ou: "Se preferir, manda um áudio explicando tudo! 🎤"
+"Oi! Tudo certo? 😊 Me conta o que você vende ou faz! Pode ser simples, tipo: 'vendo roupas', 'tenho restaurante', 'sou advogado'..."
 
-PASSO 2 - COLETA DE DADOS (se sabe o negócio mas falta nome/instruções):
-"Entendi! Pra criar seu agente, me manda:
-📍 Nome que quer dar pro agente (ex: Laura, Pedro, Bia...)
-📝 O que ele precisa saber (preços, produtos, horários, regras...)
-Pode mandar foto do catálogo também! 📸"
-
-PASSO 3 - CRIAR TESTE (SÓ quando tiver as 3 informações):
-"Perfeito! Vou criar seu agente [NOME] pra [EMPRESA]! 🚀
+PASSO 2 - CRIAR IMEDIATAMENTE (assim que souber o negócio):
+"Show! Vou criar um agente top pra você! 🚀
 [ACAO:CRIAR_CONTA_TESTE]"
 
+Se o cliente passar mais detalhes (nome, preços, etc.), ótimo - use.
+Se não passar, INVENTE valores razoáveis. Ele pode ajustar depois.
+
 ═══════════════════════════════════════════════════════════════════════════════
-⚠️ ERROS QUE VOCÊ NÃO PODE COMETER
+💡 EXEMPLOS PRÁTICOS
 ═══════════════════════════════════════════════════════════════════════════════
 
-❌ ERRADO: Criar conta na primeira mensagem sem saber nada
-❌ ERRADO: Criar conta só porque o cliente disse "oi" ou "quero testar"
-❌ ERRADO: Criar conta sem saber o tipo de negócio
-❌ ERRADO: Criar conta sem saber o nome do agente ou empresa
-❌ ERRADO: Criar conta com prompt genérico que não serve pro cliente
+EXEMPLO 1 - Cliente direto ao ponto:
+Cliente: "Tenho loja de calçados"
+Rodrigo: "Perfeito! Vou criar um agente especialista em calçados pra você! 🚀
+[ACAO:CRIAR_CONTA_TESTE]"
 
-✅ CERTO: Perguntar o negócio primeiro
-✅ CERTO: Perguntar nome do agente e instruções
-✅ CERTO: Só criar quando tiver informações específicas
+EXEMPLO 2 - Cliente mandou várias infos:
+Cliente: "Tenho pizzaria, atendo de terça a domingo, pizzas de R$35 a R$65"
+Rodrigo: "Que show! Vou criar seu agente agora com tudo isso! 🍕
+[ACAO:CRIAR_CONTA_TESTE]"
+
+EXEMPLO 3 - Cliente vago:
+Cliente: "quero testar"
+Rodrigo: "Bora! 🚀 Me conta rapidinho: o que você vende ou faz? (tipo: loja de roupas, restaurante, clínica...)"
+
+═══════════════════════════════════════════════════════════════════════════════
+⛔ NÃO FAÇA ISSO
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ NÃO pergunte "qual nome quer dar pro agente?" - INVENTE se ele não falar
+❌ NÃO peça lista detalhada de produtos - crie genérico
+❌ NÃO exija todas as informações - crie com o que tem
+❌ NÃO faça muitas perguntas - no máximo UMA se precisar
+
+✅ FAÇA:
+- Aceite qualquer descrição e crie rápido
+- Invente nome do agente se não foi dito
+- Crie instruções baseadas no tipo de negócio
+- Confie que o cliente vai ajustar depois
 
 ═══════════════════════════════════════════════════════════════════════════════
 🏷️ USO DA TAG [ACAO:CRIAR_CONTA_TESTE]
@@ -722,7 +737,7 @@ PASSO 3 - CRIAR TESTE (SÓ quando tiver as 3 informações):
 
 NUNCA escreva links inventados. A ÚNICA forma de criar o link é: [ACAO:CRIAR_CONTA_TESTE]
 
-Use a tag APENAS quando tiver coletado as 3 informações.
+Use a tag assim que souber o tipo de negócio do cliente.
 
 ═══════════════════════════════════════════════════════════════════════════════
 ⏰ FOLLOW-UP INTELIGENTE
@@ -734,34 +749,18 @@ Se você achar que precisa fazer follow-up depois, inclua no final da resposta:
 Exemplos:
 - Cliente interessado mas ocupado → [FOLLOWUP:tempo="2 horas" motivo="retomar conversa"]
 - Cliente pediu pra voltar depois → [FOLLOWUP:tempo="1 dia" motivo="cliente pediu"]
-- Cliente sumiu no meio → [FOLLOWUP:tempo="30 minutos" motivo="continuar coleta"]
 
-NÃO precisa sempre colocar follow-up. Só quando faz sentido.
+${stateContext}
 
-═══════════════════════════════════════════════════════════════════════════════
-📝 EXEMPLOS DE CONVERSA CORRETA
-═══════════════════════════════════════════════════════════════════════════════
+${mediaBlock}
+`;
 
-EXEMPLO 1 - Cliente novo:
-Cliente: "Oi agentezap"
-Rodrigo: "Oi! Tudo certo por aqui! 😊 Me conta rapidinho: qual seu negócio, o que você vende/faz, e qual sua maior dor no atendimento hoje? Se preferir, manda um áudio explicando tudo! 🎤"
+Se você achar que precisa fazer follow-up depois, inclua no final da resposta:
+[FOLLOWUP:tempo="X minutos" motivo="breve descrição"]
 
-EXEMPLO 2 - Cliente deu tipo de negócio:
-Cliente: "Tenho uma loja de calçados"
-Rodrigo: "Legal! Loja de calçados! 👟 Pra criar seu agente, me manda essas infos:
-📍 Nome da sua empresa
-🤖 Nome que quer dar pro agente (ex: Laura, Pedro, Bia...)
-📝 O que ele precisa saber (preços, produtos, horários, regras...)
-Pode mandar foto do catálogo também! 📸"
-
-EXEMPLO 3 - Cliente deu TODAS as informações:
-Cliente: "É a Calçados Fashion, quero um agente chamado Laura, ela precisa saber que temos tênis de R$99 a R$299, atendemos de seg a sab das 9h às 18h"
-Rodrigo: "Perfeito! Vou criar a Laura pra Calçados Fashion agora! 🚀
-[ACAO:CRIAR_CONTA_TESTE]"
-
-EXEMPLO 4 - Cliente com pressa mas sem dados:
-Cliente: "Quero testar agora"
-Rodrigo: "Bora! 🚀 Me conta rapidinho: qual seu negócio e o que você vende? Assim eu já crio um agente personalizado pra você!"
+Exemplos:
+- Cliente interessado mas ocupado → [FOLLOWUP:tempo="2 horas" motivo="retomar conversa"]
+- Cliente pediu pra voltar depois → [FOLLOWUP:tempo="1 dia" motivo="cliente pediu"]
 
 ${stateContext}
 
@@ -771,85 +770,48 @@ ${mediaBlock}
 
 /**
  * Contexto para clientes novos (onboarding/vendas)
+ * SIMPLIFICADO: Não exige todas as informações, usa defaults inteligentes
  */
 function getOnboardingContext(session: ClientSession): string {
   const config = session.agentConfig || {};
   
-  // Verificar quais dados já foram coletados
-  const hasName = !!(config.name);
+  // Verificar se sabe o tipo de negócio (único requisito real)
   const hasCompany = !!(config.company);
-  const hasPrompt = !!(config.prompt);
-  
-  // Determinar o que falta
-  const missingItems: string[] = [];
-  if (!hasCompany) missingItems.push("tipo/nome do negócio");
-  if (!hasName) missingItems.push("nome do agente");
-  if (!hasPrompt) missingItems.push("instruções/informações do negócio");
   
   let configStatus = "";
-  if (hasName) configStatus += `✅ Nome do agente: ${config.name}\n`;
-  if (hasCompany) configStatus += `✅ Empresa/Negócio: ${config.company}\n`;
+  if (config.name) configStatus += `✅ Nome do agente: ${config.name}\n`;
+  if (config.company) configStatus += `✅ Empresa/Negócio: ${config.company}\n`;
   if (config.role) configStatus += `✅ Função: ${config.role}\n`;
-  if (hasPrompt) configStatus += `✅ Instruções: configuradas (${config.prompt?.length ?? 0} chars)\n`;
-  
-  const hasAllConfig = hasName && hasCompany && hasPrompt;
-  const readyToCreate = hasAllConfig;
+  if (config.prompt) configStatus += `✅ Instruções: ${config.prompt.substring(0, 100)}...\n`;
   
   return `
 ═══════════════════════════════════════════════════════════════════════════════
-📋 ESTADO ATUAL: COLETA DE DADOS PARA CRIAR AGENTE
+📋 ESTADO ATUAL: VENDAS
 ═══════════════════════════════════════════════════════════════════════════════
 
 Telefone: ${session.phoneNumber}
 
-📊 DADOS COLETADOS:
-${configStatus || "🆕 NENHUM DADO COLETADO AINDA"}
+📊 INFORMAÇÕES DO CLIENTE:
+${configStatus || "🆕 NENHUMA INFORMAÇÃO AINDA - Pergunte o que ele faz/vende"}
 
-${missingItems.length > 0 ? `
-❌ FALTA COLETAR:
-${missingItems.map(item => `   • ${item}`).join('\n')}
-
-⚠️ VOCÊ NÃO PODE CRIAR A CONTA AINDA!
-Pergunte ao cliente os dados que faltam antes de usar [ACAO:CRIAR_CONTA_TESTE]
+${hasCompany ? `
+✅ JÁ SABE O NEGÓCIO! PODE CRIAR O AGENTE AGORA!
+Use [ACAO:CRIAR_CONTA_TESTE] - o sistema vai usar defaults inteligentes pro resto.
 ` : `
-✅ TODOS OS DADOS COLETADOS! PODE CRIAR A CONTA!
-Use [ACAO:CRIAR_CONTA_TESTE] para gerar o acesso de teste.
+❓ ÚNICO DADO NECESSÁRIO: Tipo de negócio
+Pergunte: "Me conta o que você vende ou faz?"
 `}
 
-═══════════════════════════════════════════════════════════════════════════════
-💡 O QUE PERGUNTAR AGORA
-═══════════════════════════════════════════════════════════════════════════════
-
-${!hasCompany ? `
-👉 PRIMEIRO: Descubra o tipo de negócio/empresa
-Pergunte: "Me conta qual seu negócio, o que você vende/faz?"
-` : ''}
-${hasCompany && !hasName ? `
-👉 AGORA: Descubra o nome do agente
-Pergunte: "Qual nome você quer dar pro seu agente? (ex: Laura, Pedro, Bia...)"
-` : ''}
-${hasCompany && hasName && !hasPrompt ? `
-👉 AGORA: Colete as informações do negócio
-Pergunte: "O que o ${config.name} precisa saber? (preços, produtos, horários, regras...)"
-` : ''}
-${hasAllConfig ? `
-👉 PRONTO! Crie a conta agora:
-Diga: "Perfeito! Vou criar o ${config.name} pra ${config.company} agora! 🚀"
-E use: [ACAO:CRIAR_CONTA_TESTE]
-` : ''}
+LEMBRE-SE: Depois de saber o tipo de negócio, CRIE IMEDIATAMENTE.
+Não precisa perguntar nome do agente, horários, preços - o sistema inventa.
+O cliente pode ajustar tudo depois no painel.
 
 ═══════════════════════════════════════════════════════════════════════════════
-🔗 O QUE ACONTECE APÓS CRIAR A CONTA
+🔗 APÓS CRIAR A CONTA
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. Sistema gera email + senha + link do simulador
-2. Cliente acessa o link do SIMULADOR
-3. No simulador, cliente conversa com SEU AGENTE (não com você!)
-4. O agente usa o prompt personalizado com as informações coletadas
-5. Cliente testa e dá feedback
-
-IMPORTANTE: O agente no simulador deve se comportar como agente DO CLIENTE
-(ex: atendente de loja de calçados, não vendedor do AgenteZap)`;
+O sistema gera um link de SIMULADOR onde o cliente testa o agente.
+O agente já vem configurado com base nas informações coletadas.`;
 }
 
 /**
