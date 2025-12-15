@@ -187,9 +187,30 @@ export function updateClientSession(phoneNumber: string, updates: Partial<Client
 // Set de telefones que tiveram histórico limpo recentemente (para não restaurar do banco)
 const clearedPhones = new Set<string>();
 
+// Set de telefones que devem ser forçados para onboarding (tratar como cliente novo)
+// Isso é usado quando admin limpa histórico e quer recomeçar do zero
+const forceOnboardingPhones = new Set<string>();
+
+/**
+ * Verifica se telefone deve ser forçado para onboarding
+ */
+export function shouldForceOnboarding(phoneNumber: string): boolean {
+  const cleanPhone = phoneNumber.replace(/\D/g, "");
+  return forceOnboardingPhones.has(cleanPhone);
+}
+
+/**
+ * Verifica se telefone teve histórico limpo recentemente
+ */
+export function wasChatCleared(phoneNumber: string): boolean {
+  const cleanPhone = phoneNumber.replace(/\D/g, "");
+  return clearedPhones.has(cleanPhone);
+}
+
 /**
  * Limpa sessão do cliente (para testes)
- * Comandos: #limpar, #reset, #novo
+ * Quando admin limpa histórico, o cliente é tratado como NOVO
+ * mesmo que já tenha conta no sistema
  */
 export function clearClientSession(phoneNumber: string): boolean {
   const cleanPhone = phoneNumber.replace(/\D/g, "");
@@ -200,13 +221,20 @@ export function clearClientSession(phoneNumber: string): boolean {
   // Marcar que este telefone teve histórico limpo (impede restauração do banco)
   clearedPhones.add(cleanPhone);
   
-  // Limpar automaticamente após 5 minutos
-  setTimeout(() => clearedPhones.delete(cleanPhone), 5 * 60 * 1000);
+  // IMPORTANTE: Forçar onboarding - mesmo que cliente tenha conta, tratar como novo
+  forceOnboardingPhones.add(cleanPhone);
+  
+  // Limpar automaticamente após 30 minutos (tempo suficiente para testar)
+  setTimeout(() => {
+    clearedPhones.delete(cleanPhone);
+    forceOnboardingPhones.delete(cleanPhone);
+    console.log(`🔓 [SALES] Telefone ${cleanPhone} removido do forceOnboarding (timeout)`);
+  }, 30 * 60 * 1000);
   
   if (existed) {
     console.log(`🗑️ [SALES] Sessão do cliente ${cleanPhone} removida da memória`);
   }
-  console.log(`🔒 [SALES] Telefone ${cleanPhone} marcado como limpo (não restaurará do banco)`);
+  console.log(`🔒 [SALES] Telefone ${cleanPhone} marcado como limpo + forceOnboarding (será tratado como cliente novo)`);
   return existed;
 }
 
@@ -550,15 +578,22 @@ export function addToConversationHistory(phoneNumber: string, role: "user" | "as
 }
 
 // ============================================================================
-// PROMPT MESTRE DO RODRIGO (VENDEDOR) - NUCLEAR 20.0 (HARDCODED)
+// PROMPT MESTRE DO RODRIGO (VENDEDOR) - NUCLEAR 21.0 (HARDCODED)
 // ============================================================================
 
 async function getMasterPrompt(session: ClientSession): Promise<string> {
-  // NUCLEAR 20.0: Prompt fixo no código, não busca mais do banco
+  // NUCLEAR 21.0: Prompt fixo no código, não busca mais do banco
   // Isso garante que a calibração 100% seja mantida e não seja alterada via admin
   
-  // Verificar se cliente já existe pelo telefone
-  const existingUser = await findUserByPhone(session.phoneNumber);
+  // VERIFICAR SE ADMIN LIMPOU HISTÓRICO - Se sim, SEMPRE tratar como cliente novo
+  const forceNew = shouldForceOnboarding(session.phoneNumber);
+  if (forceNew) {
+    console.log(`🔄 [SALES] Telefone ${session.phoneNumber} em forceOnboarding - tratando como cliente NOVO`);
+    // Não buscar usuário existente, ir direto para onboarding
+  }
+  
+  // Verificar se cliente já existe pelo telefone (APENAS se não está em forceOnboarding)
+  const existingUser = forceNew ? null : await findUserByPhone(session.phoneNumber);
   
   // Se encontrou usuário, verificar se realmente é um cliente ATIVO
   // (tem conexão WhatsApp E assinatura ativa)
