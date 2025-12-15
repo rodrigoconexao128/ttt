@@ -128,6 +128,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  /**
+   * Simular envio de mensagem para o Admin (como se fosse um número WhatsApp)
+   * POST /api/simulate/admin-message
+   * Body: { phone, text, image } - image pode ser data URL base64 ou URL https
+   */
+  app.post('/api/simulate/admin-message', async (req: any, res) => {
+    try {
+      const { phone, text, image } = req.body;
+      if (!phone) return res.status(400).json({ error: 'phone is required' });
+
+      const { processAdminMessage } = await import('./adminAgentService');
+
+      // Determine mediaType/mediaUrl
+      let mediaType: string | undefined = undefined;
+      let mediaUrl: string | undefined = undefined;
+
+      if (image) {
+        // basic detection: if startsWith data: then image base64
+        if (typeof image === 'string' && (image.startsWith('data:') || image.startsWith('http')) ) {
+          mediaType = 'image';
+          mediaUrl = image;
+        }
+      }
+
+      const response = await processAdminMessage(phone, text || '', mediaType, mediaUrl, true);
+
+      res.json({ response });
+    } catch (err: any) {
+      console.error('[SIMULATE] Error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Check admin session
   app.get("/api/admin/session", (req, res) => {
     const adminId = (req.session as any)?.adminId;
