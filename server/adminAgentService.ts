@@ -353,7 +353,7 @@ REGRAS:
     const company = session.agentConfig?.company || "Empresa";
     const testToken = await generateTestToken(user.id, agentName, company);
     
-    console.log(`✅ [SALES] Conta de teste criada: ${email} (ID: ${user.id})`;
+    console.log(`✅ [SALES] Conta de teste criada: ${email} (ID: ${user.id})`);
     
     return {
       success: true,
