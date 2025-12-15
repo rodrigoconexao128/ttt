@@ -262,6 +262,92 @@ function generateTempPassword(): string {
 }
 
 /**
+ * Gera um prompt profissional e persuasivo usando a IA
+ */
+async function generateProfessionalAgentPrompt(
+  agentName: string,
+  companyName: string,
+  role: string,
+  instructions: string
+): Promise<string> {
+  try {
+    const mistral = await getMistralClient();
+    
+    const systemPrompt = `Você é um especialista em criar Personas de IA para atendimento ao cliente.
+Sua missão é criar um PROMPT DE SISTEMA (System Prompt) altamente persuasivo, humano e inteligente para um agente de atendimento.
+
+DADOS DO CLIENTE:
+- Nome do Agente: ${agentName}
+- Empresa: ${companyName}
+- Função: ${role}
+- Instruções/Ramo: ${instructions}
+
+O prompt deve seguir EXATAMENTE esta estrutura:
+
+# IDENTIDADE
+[Defina a personalidade do agente: tom de voz, estilo de comunicação, etc. Deve ser humano, empático e persuasivo. O agente deve agir como um funcionário real da empresa.]
+
+# CONTEXTO DA EMPRESA
+[Descreva a empresa de forma atraente, baseado no ramo. Se não tiver detalhes, crie uma descrição genérica mas profissional para este tipo de negócio.]
+
+# DIRETRIZES DE ATENDIMENTO
+[Regras claras de como agir. O agente deve tentar converter vendas, tirar dúvidas e ser proativo. Deve usar gatilhos mentais de vendas quando apropriado.]
+
+# INFORMAÇÕES E PRODUTOS
+[Liste produtos/serviços típicos desse ramo com preços fictícios razoáveis (se não fornecidos), para que o agente não fique "perdido".]
+
+# EXEMPLOS DE RESPOSTA
+[3 exemplos de diálogo mostrando como o agente deve falar. Use emojis, gírias leves se apropriado para o ramo, e técnica de vendas.]
+
+IMPORTANTE:
+- O agente NÃO deve parecer um robô.
+- O agente deve se apresentar pelo nome.
+- O agente deve ter "alma" e personalidade.
+- O texto final deve ser APENAS o prompt gerado, sem explicações extras.`;
+
+    console.log(`🧠 [SALES] Gerando prompt profissional para ${companyName}...`);
+    const response = await mistral.chat.complete({
+      model: "mistral-small-latest",
+      messages: [{ role: "user", content: systemPrompt }],
+      maxTokens: 1500,
+      temperature: 0.7,
+    });
+
+    const generatedPrompt = response.choices?.[0]?.message?.content;
+    if (generatedPrompt) {
+      return generatedPrompt;
+    }
+    throw new Error("Resposta vazia da IA");
+  } catch (error) {
+    console.error("❌ [SALES] Erro ao gerar prompt profissional:", error);
+    // Fallback para o template básico melhorado
+    return `# IDENTIDADE
+Você é ${agentName}, ${role} da ${companyName}.
+
+# SOBRE A EMPRESA
+${companyName}
+
+# INSTRUÇÕES E CONHECIMENTO
+${instructions}
+
+# REGRAS DE COMPORTAMENTO
+1. Você é ${agentName} da ${companyName} - NUNCA se confunda com outro agente
+2. Responda APENAS sobre assuntos relacionados à ${companyName}
+3. Se não souber algo, diga que vai verificar ou peça para aguardar
+4. Seja educado, prestativo e objetivo
+5. Use linguagem natural e amigável
+6. Respostas curtas (2-4 linhas por mensagem)
+7. Use emojis com moderação 😊
+8. NUNCA invente informações que não estão nas instruções acima
+9. Se perguntarem algo fora do seu escopo, redirecione educadamente
+
+# EXEMPLOS DE INTERAÇÃO
+Cliente: "Oi"
+${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje?"`; 
+  }
+}
+
+/**
  * Cria conta de teste e retorna credenciais + token do simulador
  * IMPORTANTE: Se conta já existe, apenas atualiza o agente e gera novo link
  */
@@ -300,35 +386,7 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
       const instructions = session.agentConfig?.prompt || "Seja prestativo, educado e ajude os clientes com informações sobre produtos e serviços.";
         
       // Prompt profissional e personalizado para o agente do CLIENTE
-      const fullPrompt = `# IDENTIDADE
-Você é ${agentName}, ${agentRole} da ${companyName}.
-
-# SOBRE A EMPRESA
-${companyName}
-
-# INSTRUÇÕES E CONHECIMENTO
-${instructions}
-
-# REGRAS DE COMPORTAMENTO
-1. Você é ${agentName} da ${companyName} - NUNCA se confunda com outro agente
-2. Responda APENAS sobre assuntos relacionados à ${companyName}
-3. Se não souber algo, diga que vai verificar ou peça para aguardar
-4. Seja educado, prestativo e objetivo
-5. Use linguagem natural e amigável
-6. Respostas curtas (2-4 linhas por mensagem)
-7. Use emojis com moderação 😊
-8. NUNCA invente informações que não estão nas instruções acima
-9. Se perguntarem algo fora do seu escopo, redirecione educadamente
-
-# EXEMPLOS DE INTERAÇÃO
-Cliente: "Oi"
-${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje?"
-
-Cliente: "Vocês têm X?"
-${agentName}: [Responda baseado nas instruções acima]
-
-Cliente: "Qual o preço?"
-${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai verificar]`;
+      const fullPrompt = await generateProfessionalAgentPrompt(agentName, companyName, agentRole, instructions);
 
     await storage.upsertAgentConfig(existing.id, {
         prompt: fullPrompt,
@@ -391,29 +449,7 @@ ${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai 
           const agentRole = session.agentConfig?.role || "atendente virtual";
           const instructions = session.agentConfig?.prompt || "Seja prestativo, educado e ajude os clientes com informações sobre produtos e serviços.";
           
-          const fullPrompt = `# IDENTIDADE
-Você é ${agentName}, ${agentRole} da ${companyName}.
-
-# SOBRE A EMPRESA
-${companyName}
-
-# INSTRUÇÕES E CONHECIMENTO
-${instructions}
-
-# REGRAS DE COMPORTAMENTO
-1. Você é ${agentName} da ${companyName} - NUNCA se confunda com outro agente
-2. Responda APENAS sobre assuntos relacionados à ${companyName}
-3. Se não souber algo, diga que vai verificar ou peça para aguardar
-4. Seja educado, prestativo e objetivo
-5. Use linguagem natural e amigável
-6. Respostas curtas (2-4 linhas por mensagem)
-7. Use emojis com moderação 😊
-8. NUNCA invente informações que não estão nas instruções acima
-9. Se perguntarem algo fora do seu escopo, redirecione educadamente
-
-# EXEMPLOS DE INTERAÇÃO
-Cliente: "Oi"
-${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje?"`;
+          const fullPrompt = await generateProfessionalAgentPrompt(agentName, companyName, agentRole, instructions);
 
           await storage.upsertAgentConfig(existingByEmail.id, {
             prompt: fullPrompt,
@@ -472,35 +508,7 @@ ${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje
     const instructions = session.agentConfig?.prompt || "Seja prestativo, educado e ajude os clientes com informações sobre produtos e serviços.";
       
     // Prompt profissional e personalizado para o agente do CLIENTE
-    const fullPrompt = `# IDENTIDADE
-Você é ${agentName}, ${agentRole} da ${companyName}.
-
-# SOBRE A EMPRESA
-${companyName}
-
-# INSTRUÇÕES E CONHECIMENTO
-${instructions}
-
-# REGRAS DE COMPORTAMENTO
-1. Você é ${agentName} da ${companyName} - NUNCA se confunda com outro agente
-2. Responda APENAS sobre assuntos relacionados à ${companyName}
-3. Se não souber algo, diga que vai verificar ou peça para aguardar
-4. Seja educado, prestativo e objetivo
-5. Use linguagem natural e amigável
-6. Respostas curtas (2-4 linhas por mensagem)
-7. Use emojis com moderação 😊
-8. NUNCA invente informações que não estão nas instruções acima
-9. Se perguntarem algo fora do seu escopo, redirecione educadamente
-
-# EXEMPLOS DE INTERAÇÃO
-Cliente: "Oi"
-${agentName}: "Olá! 👋 Bem-vindo à ${companyName}! Como posso te ajudar hoje?"
-
-Cliente: "Vocês têm X?"
-${agentName}: [Responda baseado nas instruções acima]
-
-Cliente: "Qual o preço?"
-${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai verificar]`;
+    const fullPrompt = await generateProfessionalAgentPrompt(agentName, companyName, agentRole, instructions);
 
     await storage.upsertAgentConfig(user.id, {
       prompt: fullPrompt,
@@ -1391,7 +1399,11 @@ export async function processAdminMessage(
   }
   
   // Adicionar mensagem ao histórico
-  addToConversationHistory(cleanPhone, "user", messageText);
+  let historyContent = messageText;
+  if (mediaType && mediaType !== 'text' && mediaType !== 'chat') {
+    historyContent += `\n[SISTEMA: O usuário enviou uma mídia do tipo ${mediaType}. Se for imagem/áudio sem contexto, pergunte o que é (ex: catálogo, foto de produto, etc).]`;
+  }
+  addToConversationHistory(cleanPhone, "user", historyContent);
   
   // Verificar comprovante de pagamento
   if (mediaType === "image" && session.awaitingPaymentProof) {
@@ -1406,7 +1418,7 @@ export async function processAdminMessage(
   }
   
   // Gerar resposta com IA
-  const aiResponse = await generateAIResponse(session, messageText);
+  const aiResponse = await generateAIResponse(session, historyContent);
   console.log(`🤖 [SALES] Resposta: ${aiResponse.substring(0, 200)}...`);
   
   // Parse ações e follow-up
