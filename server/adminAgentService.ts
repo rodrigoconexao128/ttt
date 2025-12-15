@@ -718,9 +718,14 @@ Rodrigo: "Perfeito! Vou criar um agente especialista em calçados pra você! �
 EXEMPLO 2 - Cliente mandou várias infos:
 Cliente: "Tenho pizzaria, atendo de terça a domingo, pizzas de R$35 a R$65"
 Rodrigo: "Que show! Vou criar seu agente agora com tudo isso! 🍕
-[ACAO:CRIAR_CONTA_TESTE empresa="Pizzaria" nome="Pizzaiolo Virtual"]"
+[ACAO:CRIAR_CONTA_TESTE empresa="Pizzaria" nome="Pizzaiolo Virtual" instrucoes="Pizzaria aberta ter-dom, pizzas 35-65 reais"]"
 
-EXEMPLO 3 - Cliente vago:
+EXEMPLO 3 - Cliente enviou MÍDIA (foto/áudio):
+Cliente: [Envia foto do cardápio] "Esse é meu cardápio"
+Rodrigo: "Recebi seu cardápio! Vou usar ele pra treinar seu agente! 📸
+[ACAO:CRIAR_CONTA_TESTE empresa="Restaurante" nome="Atendente" instrucoes="O cliente enviou uma foto do cardápio. O agente deve saber que existe um cardápio disponível."]"
+
+EXEMPLO 4 - Cliente vago:
 Cliente: "quero testar"
 Rodrigo: "Bora! 🚀 Me conta rapidinho: o que você vende ou faz? (tipo: loja de roupas, restaurante, clínica...)"
 
@@ -749,7 +754,10 @@ Use a tag assim que souber o tipo de negócio do cliente.
 
 IMPORTANTE: Passe o nome da empresa e do agente DENTRO da tag se souber!
 Ex: [ACAO:CRIAR_CONTA_TESTE empresa="Pizzaria do João" nome="João"]
-Ex: [ACAO:CRIAR_CONTA_TESTE empresa="Clínica Sorriso"]
+Ex: [ACAO:CRIAR_CONTA_TESTE empresa="Clínica Sorriso" instrucoes="Clínica odontológica, agendamento de consultas"]
+
+Se o cliente enviou MÍDIA (foto, áudio), inclua isso nas instruções!
+Ex: [ACAO:CRIAR_CONTA_TESTE ... instrucoes="Cliente enviou foto de produtos. Agente deve saber que há catálogo."]
 
 Se não souber o nome, invente um genérico baseado no negócio (ex: "Loja de Roupas").
 
@@ -1093,11 +1101,12 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
         
       case "CRIAR_CONTA_TESTE":
         // Atualizar config se parâmetros foram passados na própria tag
-        if (action.params.empresa || action.params.nome || action.params.funcao) {
+        if (action.params.empresa || action.params.nome || action.params.funcao || action.params.instrucoes) {
           const agentConfig = { ...session.agentConfig };
           if (action.params.nome) agentConfig.name = action.params.nome;
           if (action.params.empresa) agentConfig.company = action.params.empresa;
           if (action.params.funcao) agentConfig.role = action.params.funcao;
+          if (action.params.instrucoes) agentConfig.prompt = action.params.instrucoes;
           updateClientSession(session.phoneNumber, { agentConfig });
           console.log(`✅ [SALES] Config atualizada via CRIAR_CONTA_TESTE:`, agentConfig);
         }
