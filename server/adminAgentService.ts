@@ -264,7 +264,7 @@ function generateTempPassword(): string {
 /**
  * Gera um prompt profissional e persuasivo usando a IA
  */
-async function generateProfessionalAgentPrompt(
+export async function generateProfessionalAgentPrompt(
   agentName: string,
   companyName: string,
   role: string,
