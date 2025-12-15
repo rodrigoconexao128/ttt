@@ -348,9 +348,9 @@ ${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai 
       });
       
       // Gerar token para simulador (persiste no Supabase)
-      const agentName = session.agentConfig?.name || "Agente";
-      const company = session.agentConfig?.company || "Empresa";
-      const testToken = await generateTestToken(existing.id, agentName, company);
+      const tokenAgentName = session.agentConfig?.name || agentName || "Agente";
+      const tokenCompany = session.agentConfig?.company || companyName || "Empresa";
+      const testToken = await generateTestToken(existing.id, tokenAgentName, tokenCompany);
       
       console.log(`🎯 [SALES] Link do simulador gerado para usuário existente: ${testToken.token}`);
       
@@ -537,9 +537,9 @@ ${agentName}: [Se tiver preço nas instruções, informe. Se não, diga que vai 
     });
     
     // Gerar token para simulador (persiste no Supabase)
-    const agentName = session.agentConfig?.name || "Agente";
-    const company = session.agentConfig?.company || "Empresa";
-    const testToken = await generateTestToken(user.id, agentName, company);
+    const tokenAgentName = session.agentConfig?.name || agentName || "Agente";
+    const tokenCompany = session.agentConfig?.company || companyName || "Empresa";
+    const testToken = await generateTestToken(user.id, tokenAgentName, tokenCompany);
     
     console.log(`✅ [SALES] Conta de teste criada: ${email} (ID: ${user.id})`);
     
@@ -742,18 +742,6 @@ Use a tag assim que souber o tipo de negócio do cliente.
 ═══════════════════════════════════════════════════════════════════════════════
 ⏰ FOLLOW-UP INTELIGENTE
 ═══════════════════════════════════════════════════════════════════════════════
-
-Se você achar que precisa fazer follow-up depois, inclua no final da resposta:
-[FOLLOWUP:tempo="X minutos" motivo="breve descrição"]
-
-Exemplos:
-- Cliente interessado mas ocupado → [FOLLOWUP:tempo="2 horas" motivo="retomar conversa"]
-- Cliente pediu pra voltar depois → [FOLLOWUP:tempo="1 dia" motivo="cliente pediu"]
-
-${stateContext}
-
-${mediaBlock}
-`;
 
 Se você achar que precisa fazer follow-up depois, inclua no final da resposta:
 [FOLLOWUP:tempo="X minutos" motivo="breve descrição"]
