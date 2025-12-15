@@ -12,7 +12,7 @@
 
 import { storage } from "./storage";
 import { generatePixQRCode } from "./pixService";
-import { getMistralClient } from "./mistralClient";
+import { getMistralClient, analyzeImageWithMistral } from "./mistralClient";
 import { v4 as uuidv4 } from "uuid";
 import { 
   generateAdminMediaPromptBlock, 
@@ -61,6 +61,14 @@ export interface ClientSession {
     content: string;
     timestamp: Date;
   }>;
+
+  // NEW: Media handling state
+  pendingMedia?: {
+    url: string;
+    type: 'image' | 'audio' | 'video' | 'document';
+    description?: string; // AI generated description
+  };
+  awaitingMediaContext?: boolean;
 }
 
 // Token de teste para simulador
@@ -703,6 +711,20 @@ PASSO 2 - CRIAR IMEDIATAMENTE (assim que souber o negócio):
 "Show! Vou criar um agente top pra você! 🚀
 [ACAO:CRIAR_CONTA_TESTE empresa="Nome do Negócio" nome="Nome do Agente"]"
 
+PASSO 3 - ALTERAÇÃO (se o cliente pedir mudança):
+"Sem problemas! Vou atualizar seu agente agora mesmo! 🔄
+[ACAO:CRIAR_CONTA_TESTE empresa="Novo Nome" nome="Novo Agente" instrucoes="Novas instruções"]"
+
+⚠️ REGRA CRÍTICA DE ALTERAÇÃO:
+Se o cliente pedir para mudar NOME, EMPRESA ou INSTRUÇÕES, você É OBRIGADO a emitir a tag [ACAO:CRIAR_CONTA_TESTE] novamente com os novos dados.
+NÃO APENAS DIGA QUE VAI MUDAR. FAÇA A MUDANÇA USANDO A TAG.
+Se for só mudar o nome, mantenha as instruções anteriores e mude só o campo "nome" ou "empresa" na tag.
+
+EXEMPLO DE ALTERAÇÃO DE NOME:
+Cliente: "Muda o nome da pizzaria para Pizza Veloce"
+Rodrigo: "Beleza! Atualizando para Pizza Veloce! 🚀
+[ACAO:CRIAR_CONTA_TESTE empresa="Pizza Veloce" nome="Pizzaiolo Virtual" instrucoes="Pizzaria delivery..."]"
+
 Se o cliente passar mais detalhes (nome, preços, etc.), ótimo - use.
 Se não passar, INVENTE valores razoáveis. Ele pode ajustar depois.
 
@@ -737,12 +759,14 @@ Rodrigo: "Bora! 🚀 Me conta rapidinho: o que você vende ou faz? (tipo: loja d
 ❌ NÃO peça lista detalhada de produtos - crie genérico
 ❌ NÃO exija todas as informações - crie com o que tem
 ❌ NÃO faça muitas perguntas - no máximo UMA se precisar
+❌ JAMAIS diga "Vou atualizar" sem emitir a tag [ACAO:CRIAR_CONTA_TESTE]. Se você falar que vai mudar, TEM QUE USAR A TAG.
 
 ✅ FAÇA:
 - Aceite qualquer descrição e crie rápido
 - Invente nome do agente se não foi dito
 - Crie instruções baseadas no tipo de negócio
 - Confie que o cliente vai ajustar depois
+- SE O CLIENTE PEDIR MUDANÇA, USE A TAG [ACAO:CRIAR_CONTA_TESTE] COM OS NOVOS DADOS.
 
 ═══════════════════════════════════════════════════════════════════════════════
 🏷️ USO DA TAG [ACAO:CRIAR_CONTA_TESTE]
@@ -817,7 +841,29 @@ Não precisa perguntar nome do agente, horários, preços - o sistema inventa.
 O cliente pode ajustar tudo depois no painel.
 
 ═══════════════════════════════════════════════════════════════════════════════
-🔗 APÓS CRIAR A CONTA
+� ALTERAÇÕES E CORREÇÕES
+═══════════════════════════════════════════════════════════════════════════════
+
+SEMPRE que o cliente pedir QUALQUER alteração (nome, serviço, preço, regra):
+
+1. NÃO diga apenas "Ok, mudei".
+2. NÃO mostre o link antigo.
+3. VOCÊ É OBRIGADO A USAR A TAG [ACAO:CRIAR_CONTA_TESTE] COM OS DADOS ATUALIZADOS.
+
+Exemplos de Comportamento:
+
+Cliente: "Agora vendo motos também"
+VOCÊ: "Perfeito! Adicionando motos... 🏍️
+[ACAO:CRIAR_CONTA_TESTE empresa="Oficina" nome="Mecânico" instrucoes="Oficina de carros e motos..."]"
+
+Cliente: "Muda o nome para Pizza Veloce"
+VOCÊ: "Trocando o nome! 🍕
+[ACAO:CRIAR_CONTA_TESTE empresa="Pizza Veloce" nome="Pizzaiolo" instrucoes="..."]"
+
+❌ ERRO GRAVE: Dizer "Atualizado!" e não usar a tag. O sistema não vai mudar nada!
+
+═══════════════════════════════════════════════════════════════════════════════
+�🔗 APÓS CRIAR A CONTA
 ═══════════════════════════════════════════════════════════════════════════════
 
 O sistema gera um link de SIMULADOR onde o cliente testa o agente.
@@ -903,8 +949,10 @@ OPÇÃO 2 - Se cliente mencionou problema:
 ✅ O QUE VOCÊ PODE FAZER
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. ALTERAR AGENTE: Se cliente quer mudar nome, instruções ou comportamento
-   → Coletar as novas informações e usar [ACAO:CRIAR_CONTA_TESTE] para atualizar
+1. ALTERAR AGENTE: Se cliente quer mudar nome, instruções, preço ou comportamento
+   → VOCÊ DEVE USAR A TAG [ACAO:CRIAR_CONTA_TESTE] PARA APLICAR A MUDANÇA!
+   → Ex: [ACAO:CRIAR_CONTA_TESTE empresa="Pizzaria" nome="Pizzaiolo" instrucoes="Novo nome é Pizza Veloce"]
+   → SEM A TAG, A MUDANÇA NÃO ACONTECE!
 
 2. VER SIMULADOR: Se cliente quer testar o agente atual
    → Usar [ACAO:CRIAR_CONTA_TESTE] para gerar novo link do simulador
@@ -956,7 +1004,7 @@ DADOS DA CONTA:
 
 ✅ O QUE VOCÊ PODE FAZER:
 - Ajudar com problemas de conexão
-- Alterar configurações do agente
+- Alterar configurações do agente (USE [ACAO:CRIAR_CONTA_TESTE])
 - Processar pagamentos
 - Resolver problemas técnicos
 - Ativar/desativar agente
@@ -1350,6 +1398,88 @@ export async function processAdminMessage(
   // CANCELAR FOLLOW-UP SE CLIENTE RESPONDEU
   // ═══════════════════════════════════════════════════════════════════════════
   cancelFollowUp(cleanPhone);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FLUXO DE CADASTRO DE MÍDIA (VIA WHATSAPP)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // 1. Recebimento do Contexto (Resposta do usuário)
+  if (session.awaitingMediaContext && session.pendingMedia && (!mediaType || mediaType === 'text')) {
+    const context = messageText;
+    const media = session.pendingMedia;
+    
+    console.log(`📸 [ADMIN] Recebido contexto para mídia: "${context}"`);
+    
+    // Buscar admin para associar a mídia (assumindo single-tenant ou primeiro admin)
+    const admins = await storage.getAllAdmins();
+    const adminId = admins[0]?.id;
+    
+    if (adminId) {
+      try {
+        // Salvar no banco
+        await storage.createAdminMedia({
+          adminId,
+          name: `MEDIA_${Date.now()}`,
+          mediaType: media.type,
+          storageUrl: media.url,
+          description: media.description || "Imagem enviada via WhatsApp",
+          whenToUse: context,
+          isActive: true,
+          sendAlone: false,
+          displayOrder: 0
+        });
+        
+        // Atualizar Prompt do Agente
+        const currentPromptConfig = await storage.getSystemConfig("admin_agent_prompt");
+        const currentPrompt = currentPromptConfig?.valor || "";
+        
+        // Adicionar instrução de mídia
+        const newInstruction = `\n[MÍDIA: ${media.description} (URL: ${media.url}). QUANDO USAR: ${context}]`;
+        
+        await storage.updateSystemConfig("admin_agent_prompt", currentPrompt + newInstruction);
+        
+        // Limpar estado
+        updateClientSession(cleanPhone, { pendingMedia: undefined, awaitingMediaContext: false });
+        
+        return {
+          text: `✅ *Mídia Configurada com Sucesso!*\n\n📝 *Descrição:* ${media.description}\n🎯 *Gatilho:* "${context}"\n\nAgora, sempre que alguém perguntar sobre isso, enviarei esta imagem.`,
+          actions: {}
+        };
+      } catch (err) {
+        console.error("❌ [ADMIN] Erro ao salvar mídia:", err);
+        return {
+          text: "❌ Ocorreu um erro ao salvar a mídia. Tente novamente.",
+          actions: {}
+        };
+      }
+    }
+  }
+
+  // 2. Recebimento da Imagem
+  if (mediaType === 'image' && mediaUrl && !session.awaitingPaymentProof) {
+    console.log(`📸 [ADMIN] Recebida imagem de ${cleanPhone}. Analisando com Vision...`);
+    
+    const description = await analyzeImageWithMistral(mediaUrl);
+    
+    if (description) {
+      const pendingMedia = {
+        url: mediaUrl,
+        type: 'image' as const,
+        description
+      };
+      
+      updateClientSession(cleanPhone, { 
+        pendingMedia, 
+        awaitingMediaContext: true 
+      });
+      
+      return {
+        text: `👁️ *Análise da Imagem:*\n"${description}"\n\n❓ *Quando devo usar esta imagem?*\n(Ex: "Quando pedirem o cardápio", "Se perguntarem o preço do plano Basic")`,
+        actions: {}
+      };
+    }
+  }
+
   
   // Buscar configurações
   const adminConfig = await getAdminAgentConfig();

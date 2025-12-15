@@ -62,3 +62,37 @@ export async function transcribeAudioWithMistral(
   }
 }
 
+export async function analyzeImageWithMistral(
+  imageUrl: string,
+  prompt: string = "Descreva esta imagem detalhadamente para que eu possa entender o que é (ex: cardápio, produto, tabela de preços, etc)."
+): Promise<string | null> {
+  try {
+    const mistral = await getMistralClient();
+    
+    // Pixtral (Vision)
+    const model = "pixtral-12b-2409";
+
+    const response = await mistral.chat.complete({
+      model,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", imageUrl: imageUrl }
+          ]
+        }
+      ]
+    });
+
+    if (!response || !response.choices || response.choices.length === 0) {
+      return null;
+    }
+
+    return response.choices[0].message.content as string;
+  } catch (error) {
+    console.error("Error analyzing image with Mistral:", error);
+    return null;
+  }
+}
+
