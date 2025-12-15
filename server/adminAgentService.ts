@@ -184,6 +184,9 @@ export function updateClientSession(phoneNumber: string, updates: Partial<Client
   return session;
 }
 
+// Set de telefones que tiveram histórico limpo recentemente (para não restaurar do banco)
+const clearedPhones = new Set<string>();
+
 /**
  * Limpa sessão do cliente (para testes)
  * Comandos: #limpar, #reset, #novo
@@ -194,9 +197,16 @@ export function clearClientSession(phoneNumber: string): boolean {
   clientSessions.delete(cleanPhone);
   cancelFollowUp(cleanPhone);
   
+  // Marcar que este telefone teve histórico limpo (impede restauração do banco)
+  clearedPhones.add(cleanPhone);
+  
+  // Limpar automaticamente após 5 minutos
+  setTimeout(() => clearedPhones.delete(cleanPhone), 5 * 60 * 1000);
+  
   if (existed) {
     console.log(`🗑️ [SALES] Sessão do cliente ${cleanPhone} removida da memória`);
   }
+  console.log(`🔒 [SALES] Telefone ${cleanPhone} marcado como limpo (não restaurará do banco)`);
   return existed;
 }
 
@@ -916,14 +926,22 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
     ];
     
     // Adicionar histórico da conversa
-    for (const msg of session.conversationHistory.slice(-15)) {
+    const history = session.conversationHistory.slice(-15);
+    for (const msg of history) {
       messages.push({
         role: msg.role,
         content: msg.content,
       });
     }
     
-    messages.push({ role: "user", content: userMessage });
+    // Only add userMessage if it's not already the last message in history
+    // (Avoids duplication since we added it to history just before calling this)
+    const lastMsg = history[history.length - 1];
+    const isDuplicate = lastMsg && lastMsg.role === 'user' && lastMsg.content.trim() === userMessage.trim();
+    
+    if (!isDuplicate) {
+        messages.push({ role: "user", content: userMessage });
+    }
     
     console.log(`🤖 [SALES] Gerando resposta para: "${userMessage.substring(0, 50)}..." (state: ${session.flowState})`);
     
@@ -1081,18 +1099,40 @@ export async function processAdminMessage(
   // Buscar configurações
   const adminConfig = await getAdminAgentConfig();
   
-  // Carregar histórico do banco se sessão vazia
-  if (session.conversationHistory.length === 0) {
+  // Carregar histórico do banco se sessão vazia E não foi limpo manualmente
+  if (session.conversationHistory.length === 0 && !clearedPhones.has(cleanPhone)) {
     try {
       const conversation = await storage.getAdminConversationByPhone(cleanPhone);
       if (conversation) {
         const messages = await storage.getAdminMessages(conversation.id);
-        session.conversationHistory = messages.slice(-30).map((msg: any) => ({
+        
+        // Filter out recent user messages that are likely part of the current accumulated batch
+        // to avoid duplication (since they will be added as the current message)
+        const now = new Date();
+        const filteredMessages = messages.filter((msg: any) => {
+            if (msg.fromMe) return true; // Keep assistant messages
+            
+            const msgTime = new Date(msg.timestamp);
+            const secondsDiff = (now.getTime() - msgTime.getTime()) / 1000;
+            
+            // If message is recent (< 60s) and its content is part of the current accumulated text,
+            // assume it's already being processed in this batch
+            if (secondsDiff < 60) {
+                const msgContent = (msg.text || "").trim();
+                const currentContent = messageText.trim();
+                if (msgContent && currentContent.includes(msgContent)) {
+                    return false;
+                }
+            }
+            return true;
+        });
+
+        session.conversationHistory = filteredMessages.slice(-30).map((msg: any) => ({
           role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
           content: msg.text || "",
           timestamp: msg.timestamp || new Date(),
         }));
-        console.log(`📚 [SALES] ${session.conversationHistory.length} mensagens restauradas do banco`);
+        console.log(`📚 [SALES] ${session.conversationHistory.length} mensagens restauradas do banco (filtradas de ${messages.length})`);
       }
     } catch {}
   }
@@ -1162,7 +1202,7 @@ export async function processAdminMessage(
   let finalText = cleanText;
   
   if (actionResults.testAccountCredentials) {
-    const { email, password, loginUrl, simulatorToken } = actionResults.testAccountCredentials;
+    const { loginUrl, simulatorToken } = actionResults.testAccountCredentials;
     
     // Montar link do simulador de WhatsApp com token
     const baseUrl = loginUrl || process.env.APP_URL || 'https://agentezap.online';
@@ -1170,6 +1210,7 @@ export async function processAdminMessage(
       ? `${baseUrl}/test/${simulatorToken}` 
       : `${baseUrl}/testar`;
     
+    // APENAS o link do simulador - sem credenciais de login
     const credentialsBlock = `
 
 📱 *TESTE SEU AGENTE AGORA!*
@@ -1179,19 +1220,12 @@ export async function processAdminMessage(
 👆 Clica no link acima! Lá tem um SIMULADOR de WhatsApp igualzinho ao real!
 Você conversa com SEU AGENTE e vê como ele responde! 📱
 
-━━━━━━━━━━━━━━━━━━━━━━━━
-📋 *Para acessar o painel completo:*
-🔗 ${baseUrl}/login
-📧 ${email}
-🔑 ${password}
-━━━━━━━━━━━━━━━━━━━━━━━━
-
 ⏰ Teste GRÁTIS por 24 horas!
 
 Testa lá e me fala o que achou! 🚀`;
     
     finalText = finalText + credentialsBlock;
-    console.log(`🎉 [SALES] Link do simulador + credenciais inseridos na resposta`);
+    console.log(`🎉 [SALES] Link do simulador inserido na resposta`);
   }
   
   // Adicionar resposta ao histórico

@@ -237,7 +237,7 @@ async function simulateConversation(
     
     // 1. ABERTURA - Cliente entra em contato
     currentPhase = "opening";
-    const result1 = await processAdminMessage(phone, openingMessage);
+    const result1 = await processAdminMessage(phone, openingMessage, undefined, undefined, true);
     responses.push(`[CLIENTE]: ${openingMessage}`);
     responses.push(`[RODRIGO]: ${result1.text}`);
     
@@ -246,7 +246,7 @@ async function simulateConversation(
     // 2. EMPRESA - Informar nome da empresa
     currentPhase = "company";
     await sleep(50);
-    const result2 = await processAdminMessage(phone, scenario.name);
+    const result2 = await processAdminMessage(phone, scenario.name, undefined, undefined, true);
     responses.push(`[CLIENTE]: ${scenario.name}`);
     responses.push(`[RODRIGO]: ${result2.text}`);
     
@@ -255,7 +255,7 @@ async function simulateConversation(
     // 3. NOME DO AGENTE
     currentPhase = "agent_name";
     await sleep(50);
-    const result3 = await processAdminMessage(phone, `quero chamar de ${scenario.agent}`);
+    const result3 = await processAdminMessage(phone, `quero chamar de ${scenario.agent}`, undefined, undefined, true);
     responses.push(`[CLIENTE]: quero chamar de ${scenario.agent}`);
     responses.push(`[RODRIGO]: ${result3.text}`);
     
@@ -264,7 +264,7 @@ async function simulateConversation(
     // 4. FUNÇÃO
     currentPhase = "role";
     await sleep(50);
-    const result4 = await processAdminMessage(phone, `${scenario.role}`);
+    const result4 = await processAdminMessage(phone, `${scenario.role}`, undefined, undefined, true);
     responses.push(`[CLIENTE]: ${scenario.role}`);
     responses.push(`[RODRIGO]: ${result4.text}`);
     
@@ -273,7 +273,7 @@ async function simulateConversation(
     // 5. INSTRUÇÕES
     currentPhase = "prompt";
     await sleep(50);
-    const result5 = await processAdminMessage(phone, scenario.prompt);
+    const result5 = await processAdminMessage(phone, scenario.prompt, undefined, undefined, true);
     responses.push(`[CLIENTE]: ${scenario.prompt}`);
     responses.push(`[RODRIGO]: ${result5.text}`);
     
@@ -282,7 +282,7 @@ async function simulateConversation(
     // 6. ACEITAR TESTE
     currentPhase = "test_start";
     await sleep(50);
-    const result6 = await processAdminMessage(phone, "sim, quero testar");
+    const result6 = await processAdminMessage(phone, "sim, quero testar", undefined, undefined, true);
     responses.push(`[CLIENTE]: sim, quero testar`);
     responses.push(`[RODRIGO]: ${result6.text}`);
     
@@ -291,7 +291,7 @@ async function simulateConversation(
     if (session?.flowState !== 'test_mode') {
       // Tentar forçar teste
       await sleep(50);
-      const retryTest = await processAdminMessage(phone, "pode iniciar o teste, quero ver como funciona");
+      const retryTest = await processAdminMessage(phone, "pode iniciar o teste, quero ver como funciona", undefined, undefined, true);
       responses.push(`[CLIENTE]: pode iniciar o teste, quero ver como funciona`);
       responses.push(`[RODRIGO]: ${retryTest.text}`);
     }
@@ -301,7 +301,7 @@ async function simulateConversation(
     await sleep(50);
     const sessionAfterTest = getClientSession(phone);
     if (sessionAfterTest?.flowState === 'test_mode') {
-      const testMessage = await processAdminMessage(phone, "oi, quanto custa?");
+      const testMessage = await processAdminMessage(phone, "oi, quanto custa?", undefined, undefined, true);
       responses.push(`[CLIENTE TESTE]: oi, quanto custa?`);
       responses.push(`[AGENTE ${scenario.agent}]: ${testMessage.text}`);
     }
@@ -309,7 +309,7 @@ async function simulateConversation(
     // 8. SAIR DO TESTE
     currentPhase = "exit_test";
     await sleep(50);
-    const exitResult = await processAdminMessage(phone, "#sair");
+    const exitResult = await processAdminMessage(phone, "#sair", undefined, undefined, true);
     responses.push(`[CLIENTE]: #sair`);
     responses.push(`[RODRIGO]: ${exitResult.text}`);
     
@@ -350,7 +350,7 @@ async function testClearSession(): Promise<TestResult> {
   
   try {
     // Criar sessão
-    await processAdminMessage(phone, "oi quero um agente");
+    await processAdminMessage(phone, "oi quero um agente", undefined, undefined, true);
     responses.push("Criou sessão inicial");
     
     // Limpar
@@ -363,7 +363,7 @@ async function testClearSession(): Promise<TestResult> {
     responses.push("Sessão limpa com sucesso");
     
     // Entrar novamente
-    const result = await processAdminMessage(phone, "oi");
+    const result = await processAdminMessage(phone, "oi", undefined, undefined, true);
     responses.push(`Novo contato: ${result.text.substring(0, 100)}...`);
     
     const newSession = getClientSession(phone);
@@ -401,11 +401,11 @@ async function testFollowUp(): Promise<TestResult> {
   
   try {
     // Configurar agente mas não fechar
-    await processAdminMessage(phone, "oi");
-    await processAdminMessage(phone, "Loja Teste Follow");
-    await processAdminMessage(phone, "Maria");
-    await processAdminMessage(phone, "Atendente");
-    await processAdminMessage(phone, "vende roupas femininas");
+    await processAdminMessage(phone, "oi", undefined, undefined, true);
+    await processAdminMessage(phone, "Loja Teste Follow", undefined, undefined, true);
+    await processAdminMessage(phone, "Maria", undefined, undefined, true);
+    await processAdminMessage(phone, "Atendente", undefined, undefined, true);
+    await processAdminMessage(phone, "vende roupas femininas", undefined, undefined, true);
     responses.push("Configuração feita");
     
     // Simular follow-up
@@ -462,7 +462,7 @@ async function testHumanLikeConversations(): Promise<TestResult[]> {
     const startTime = Date.now();
     
     try {
-      const result = await processAdminMessage(phone, question);
+      const result = await processAdminMessage(phone, question, undefined, undefined, true);
       results.push({
         scenario: 0,
         businessType: `HUMAN: "${question}"`,
@@ -507,7 +507,7 @@ async function testActions(): Promise<TestResult[]> {
     
     try {
       for (const msg of test.messages) {
-        const result = await processAdminMessage(phone, msg);
+        const result = await processAdminMessage(phone, msg, undefined, undefined, true);
         responses.push(`[${msg}]: ${result.text?.substring(0, 50) || "vazio"}...`);
         await sleep(30);
       }
