@@ -12,7 +12,7 @@
 
 import { storage } from "./storage";
 import { generatePixQRCode } from "./pixService";
-import { getMistralClient, analyzeImageWithMistral } from "./mistralClient";
+import { getMistralClient, analyzeImageWithMistral, analyzeImageForAdmin } from "./mistralClient";
 import { v4 as uuidv4 } from "uuid";
 import { 
   generateAdminMediaPromptBlock, 
@@ -67,8 +67,11 @@ export interface ClientSession {
     url: string;
     type: 'image' | 'audio' | 'video' | 'document';
     description?: string; // AI generated description
+    whenCandidate?: string; // candidate trigger provided by admin before confirmation
+    summary?: string; // short tag/summary from vision
   };
   awaitingMediaContext?: boolean;
+  awaitingMediaConfirmation?: boolean;
 }
 
 // Token de teste para simulador
@@ -1403,81 +1406,120 @@ export async function processAdminMessage(
   // FLUXO DE CADASTRO DE MÍDIA (VIA WHATSAPP)
   // ═══════════════════════════════════════════════════════════════════════════
   
-  // 1. Recebimento do Contexto (Resposta do usuário)
+  // 1. Recebimento do Contexto (Resposta do usuário) - etapa 1: candidato
   if (session.awaitingMediaContext && session.pendingMedia && (!mediaType || mediaType === 'text')) {
-    const context = messageText;
+    const context = (messageText || '').trim();
     const media = session.pendingMedia;
-    
-    console.log(`📸 [ADMIN] Recebido contexto para mídia: "${context}"`);
-    
-    // Buscar admin para associar a mídia (assumindo single-tenant ou primeiro admin)
-    const admins = await storage.getAllAdmins();
-    const adminId = admins[0]?.id;
-    
-    if (adminId) {
-      try {
-        // Salvar no banco
-        await storage.createAdminMedia({
-          adminId,
-          name: `MEDIA_${Date.now()}`,
-          mediaType: media.type,
-          storageUrl: media.url,
-          description: media.description || "Imagem enviada via WhatsApp",
-          whenToUse: context,
-          isActive: true,
-          sendAlone: false,
-          displayOrder: 0
-        });
-        
-        // Atualizar Prompt do Agente
-        const currentPromptConfig = await storage.getSystemConfig("admin_agent_prompt");
-        const currentPrompt = currentPromptConfig?.valor || "";
-        
-        // Adicionar instrução de mídia
-        const newInstruction = `\n[MÍDIA: ${media.description} (URL: ${media.url}). QUANDO USAR: ${context}]`;
-        
-        await storage.updateSystemConfig("admin_agent_prompt", currentPrompt + newInstruction);
-        
-        // Limpar estado
-        updateClientSession(cleanPhone, { pendingMedia: undefined, awaitingMediaContext: false });
-        
-        return {
-          text: `✅ *Mídia Configurada com Sucesso!*\n\n📝 *Descrição:* ${media.description}\n🎯 *Gatilho:* "${context}"\n\nAgora, sempre que alguém perguntar sobre isso, enviarei esta imagem.`,
-          actions: {}
-        };
-      } catch (err) {
-        console.error("❌ [ADMIN] Erro ao salvar mídia:", err);
-        return {
-          text: "❌ Ocorreu um erro ao salvar a mídia. Tente novamente.",
-          actions: {}
-        };
+
+    console.log(`📸 [ADMIN] Recebido candidato de uso para mídia: "${context}"`);
+
+    // Armazenar candidato e solicitar confirmação explícita
+    const updatedPending = {
+      ...media,
+      whenCandidate: context,
+    };
+
+    updateClientSession(cleanPhone, {
+      pendingMedia: updatedPending,
+      awaitingMediaContext: false,
+      awaitingMediaConfirmation: true,
+    });
+
+    return {
+      text: `Entendi: "${context}". Deseja *confirmar* e salvar esta imagem para ser enviada quando "${context}"? Responda "sim" para confirmar ou "não" para cancelar.`,
+      actions: {},
+    };
+  }
+
+  // 1b. Confirmação do admin para salvar a mídia
+  if (session.awaitingMediaConfirmation && session.pendingMedia && (!mediaType || mediaType === 'text')) {
+    const reply = (messageText || '').trim().toLowerCase();
+    const media = session.pendingMedia;
+
+    // Resposta afirmativa
+    if (/^(sim|s|ok|confirmar|confirm|yes)$/i.test(reply)) {
+      // Buscar admin para associar a mídia (assumindo single-tenant ou primeiro admin)
+      const admins = await storage.getAllAdmins();
+      const adminId = admins[0]?.id;
+
+      if (adminId) {
+        try {
+          const whenToUse = (media as any).whenCandidate || '';
+
+          // Salvar no banco
+          await storage.createAdminMedia({
+            adminId,
+            name: `MEDIA_${Date.now()}`,
+            mediaType: media.type,
+            storageUrl: media.url,
+            description: media.description || "Imagem enviada via WhatsApp",
+            whenToUse: whenToUse,
+            isActive: true,
+            sendAlone: false,
+            displayOrder: 0,
+          });
+
+          // Atualizar Prompt do Agente
+          const currentPromptConfig = await storage.getSystemConfig("admin_agent_prompt");
+          const currentPrompt = currentPromptConfig?.valor || "";
+          const newInstruction = `\n[MÍDIA: ${media.description} (URL: ${media.url}). QUANDO USAR: ${whenToUse}]`;
+          await storage.updateSystemConfig("admin_agent_prompt", currentPrompt + newInstruction);
+
+          // Limpar estado
+          updateClientSession(cleanPhone, { pendingMedia: undefined, awaitingMediaConfirmation: false });
+
+          return {
+            text: `✅ *Mídia configurada com sucesso!*\n\n📝 *Descrição:* ${media.description}\n🎯 *Gatilho:* "${whenToUse}"\n\nA partir de agora, quando esse gatilho ocorrer, a mídia será enviada.`,
+            actions: {},
+          };
+        } catch (err) {
+          console.error("❌ [ADMIN] Erro ao salvar mídia:", err);
+          return {
+            text: "❌ Ocorreu um erro ao salvar a mídia. Tente novamente.",
+            actions: {},
+          };
+        }
       }
     }
+
+    // Resposta negativa ou outra qualquer => cancelar
+    updateClientSession(cleanPhone, { pendingMedia: undefined, awaitingMediaConfirmation: false });
+    return {
+      text: "Entendi — operação cancelada. Não salvei a mídia.",
+      actions: {},
+    };
   }
 
   // 2. Recebimento da Imagem
   if (mediaType === 'image' && mediaUrl && !session.awaitingPaymentProof) {
     console.log(`📸 [ADMIN] Recebida imagem de ${cleanPhone}. Analisando com Vision...`);
-    
-    const description = await analyzeImageWithMistral(mediaUrl);
-    
-    if (description) {
-      const pendingMedia = {
-        url: mediaUrl,
-        type: 'image' as const,
-        description
-      };
-      
-      updateClientSession(cleanPhone, { 
-        pendingMedia, 
-        awaitingMediaContext: true 
-      });
-      
-      return {
-        text: `👁️ *Análise da Imagem:*\n"${description}"\n\n❓ *Quando devo usar esta imagem?*\n(Ex: "Quando pedirem o cardápio", "Se perguntarem o preço do plano Basic")`,
-        actions: {}
-      };
-    }
+
+    // Tentar análise especializada para admin (summary + description)
+    const analysis = await analyzeImageForAdmin(mediaUrl).catch(() => null);
+    const summary = analysis?.summary || '';
+    const description = analysis?.description || (await analyzeImageWithMistral(mediaUrl).catch(() => '')) || '';
+
+    const pendingMedia = {
+      url: mediaUrl,
+      type: 'image' as const,
+      description,
+      summary,
+    };
+
+    updateClientSession(cleanPhone, {
+      pendingMedia,
+      awaitingMediaContext: true,
+      awaitingMediaConfirmation: false,
+    });
+
+    // Responder com resumo curto + resposta humana e pergunta de confirmação de uso
+    const humanLine = summary ? `Resumo: ${summary.replace(/_/g, ' ')}.` : (description.split('.')[0] || '').trim();
+    const replyText = `👁️ ${humanLine}\n${description ? `\n${description}` : ''}\n\n❓ *Quando devo usar esta imagem?*\n(Responda com o gatilho desejado; depois pedirei confirmação)`;
+
+    return {
+      text: replyText,
+      actions: {},
+    };
   }
 
   
