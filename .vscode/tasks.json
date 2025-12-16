@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Dev Server",
+			"type": "shell",
+			"command": "cd 'C:\\Users\\Windows\\Downloads\\agentezap correto\\vvvv' && npm run dev",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

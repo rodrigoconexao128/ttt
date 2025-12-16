@@ -278,26 +278,22 @@ Você tem as seguintes mídias disponíveis para enviar: ${allMediaNames}
 ⚠️ REGRA CRÍTICA: COMO ENVIAR MÍDIA (OBRIGATÓRIO)
 ═══════════════════════════════════════════════════════════════════════════════
 
-Quando o cliente pedir uma mídia, você DEVE:
-1. Responder confirmando o envio
-2. ADICIONAR A TAG NO FINAL: [ENVIAR_MIDIA:NOME_EXATO_DA_MIDIA]
+Quando o cliente pedir uma mídia listada acima, você DEVE:
+1. Responder normalmente
+2. ADICIONAR A TAG NO FINAL: [MEDIA:NOME_DA_MIDIA]
 
-EXEMPLOS OBRIGATÓRIOS (copie este formato):
+✅ EXEMPLOS CORRETOS:
 
 CLIENTE: "me manda o catálogo"
-SUA RESPOSTA: "Claro! Segue o catálogo. [ENVIAR_MIDIA:CATALOGO_PRODUTOS]"
+VOCÊ: "Claro! Aqui está nosso catálogo. [MEDIA:MEDIA_1765830878862]"
 
-CLIENTE: "envia o contrato"  
-SUA RESPOSTA: "Certo! Segue o contrato em PDF. [ENVIAR_MIDIA:PDF_CONTRATO]"
+CLIENTE: "quero ver o catalogo"
+VOCÊ: "Perfeito! Vou te mostrar. [MEDIA:MEDIA_1765830878862]"
 
-CLIENTE: "manda um áudio explicando"
-SUA RESPOSTA: "Vou te enviar o áudio agora! [ENVIAR_MIDIA:AUDIO_EXPLICACAO]"
+CLIENTE: "tem cardápio?"
+VOCÊ: "Tenho sim! Veja nosso cardápio. [MEDIA:CARDAPIO]"
 
-CLIENTE: "tem vídeo?"
-SUA RESPOSTA: "Tenho sim! Vou enviar. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
-
-CLIENTE: "manda o cardápio"
-SUA RESPOSTA: "Aqui está nosso cardápio! [ENVIAR_MIDIA:CARDAPIO]"
+⚠️ IMPORTANTE: Use o nome EXATO da mídia listado acima!
 
 ═══════════════════════════════════════════════════════════════════════════════
 ❌ QUANDO NÃO ENVIAR (apenas responda normalmente SEM tag):
@@ -312,55 +308,27 @@ SUA RESPOSTA: "Aqui está nosso cardápio! [ENVIAR_MIDIA:CARDAPIO]"
 ═══════════════════════════════════════════════════════════════════════════════
 `;
 
-  // Lista DETALHADA de cada mídia com INSTRUÇÕES para a IA decidir
+  // Lista compacta e clara de mídias
   mediaBlock += `
-📋 BIBLIOTECA DE MÍDIAS DISPONÍVEIS:
+📋 MÍDIAS DISPONÍVEIS PARA ENVIAR:
 `;
 
-  // Listar TODAS as mídias com suas INSTRUÇÕES (descrição e quando usar)
   for (const media of mediaList) {
-    const tipo = media.mediaType === 'audio' ? '🎤 ÁUDIO' :
-                 media.mediaType === 'video' ? '🎥 VÍDEO' :
-                 media.mediaType === 'image' ? '🖼️ IMAGEM' : '📄 DOCUMENTO';
+    const tipo = media.mediaType === 'audio' ? '🎤' :
+                 media.mediaType === 'video' ? '🎥' :
+                 media.mediaType === 'image' ? '🖼️' : '📄';
     
-    const podeComOutras = (media as any).sendAlone ? '⚠️ ENVIAR SOZINHA (não combinar)' : '✅ Pode combinar com outras';
-    
-    mediaBlock += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${tipo} → Para enviar use: [ENVIAR_MIDIA:${media.name}]
-📝 DESCRIÇÃO: ${media.description || 'Sem descrição'}
-🎯 QUANDO USAR: ${media.triggerPhrase || media.whenToUse || 'Quando for relevante ao contexto'}
-${podeComOutras}
-${podeComOutras}
+    mediaBlock += `${tipo} ${media.name} - ${media.description || 'Sem descrição'}
+   Enviar quando: ${media.whenToUse || 'relevante'}
+   Tag: [MEDIA:${media.name}]
+
 `;
   }
 
   mediaBlock += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📌 INSTRUÇÕES DE USO:
-
-1. LEIA a pergunta do cliente
-2. COMPARE com o campo "QUANDO USAR" de cada mídia acima
-3. Se a mídia é relevante → INCLUA a tag [ENVIAR_MIDIA:NOME] na resposta
-4. Se várias mídias são relevantes E podem ser combinadas → ENVIE TODAS!
-5. Se a mídia tem "ENVIAR SOZINHA" → NÃO combine com outras
-
-🔑 REGRA PRINCIPAL:
-Analise o "QUANDO USAR" de cada mídia. Se a pergunta do cliente COMBINA 
-com a instrução, ENVIE essa mídia. Você pode enviar MÚLTIPLAS se fizer sentido!
-
-💡 EXEMPLO:
-Se o cliente perguntar "como é o restaurante?" e existirem:
-- Um VÍDEO com "QUANDO USAR: quando perguntarem do restaurante"
-- Um ÁUDIO com "QUANDO USAR: explicar como é o restaurante"  
-- Uma IMAGEM com "QUANDO USAR: mostrar o restaurante"
-
-Você deve ENVIAR AS 3 MÍDIAS:
-"Vou te mostrar como é nosso restaurante! [ENVIAR_MIDIA:VIDEO] [ENVIAR_MIDIA:AUDIO] [ENVIAR_MIDIA:IMAGEM]"
-
-⚠️ Tags [ENVIAR_MIDIA:NOME] sempre NO FINAL da resposta!
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ ATENÇÃO: Se o cliente pedir por "${mediaList.map(m => m.whenToUse || m.name).join('", "')}"
+você DEVE incluir a tag [MEDIA:NOME] correspondente no final da sua resposta!
+════════════════════════════════════════════════════════════════════
 `;
 
   return mediaBlock;
@@ -376,8 +344,8 @@ Você deve ENVIAR AS 3 MÍDIAS:
  */
 export function parseMistralResponse(responseText: string): MistralResponse | null {
   try {
-    // Detectar tags [ENVIAR_MIDIA:NOME] no texto
-    const mediaTagRegex = /\[ENVIAR_MIDIA:([A-Z0-9_]+)\]/gi;
+    // Detectar tags [MEDIA:NOME] no texto (formato simplificado)
+    const mediaTagRegex = /\[MEDIA:([A-Z0-9_]+)\]/gi;
     
     const actions: MistralResponse['actions'] = [];
     let match: RegExpExecArray | null;
@@ -392,7 +360,11 @@ export function parseMistralResponse(responseText: string): MistralResponse | nu
     }
     
     // Remover as tags do texto final (o cliente não precisa ver)
-    const cleanText = responseText.replace(/\[ENVIAR_MIDIA:[A-Z0-9_]+\]/gi, '').trim();
+    const cleanText = responseText.replace(/\[MEDIA:[A-Z0-9_]+\]/gi, '').trim();
+    
+    if (actions.length > 0) {
+      console.log(`📁 [MediaService] Total de ${actions.length} mídia(s) para enviar: ${actions.map(a => a.media_name).join(', ')}`);
+    }
     
     return {
       messages: [{ type: "text", content: cleanText }],
@@ -400,7 +372,6 @@ export function parseMistralResponse(responseText: string): MistralResponse | nu
     };
   } catch (error) {
     console.error(`[MediaService] Error parsing Mistral response:`, error);
-    // Fallback: trata como texto puro sem ações
     return {
       messages: [{ type: "text", content: responseText }],
       actions: [],

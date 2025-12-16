@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -13,15 +13,21 @@ import AdminLogin from "@/pages/admin-login";
 import AgentConfig from "@/pages/agent-config";
 import MediaLibrary from "@/pages/media-library";
 import TestAgent from "@/pages/test-agent";
+import AdminChatSimulator from "@/pages/admin-chat-simulator";
 import LoadingScreen from "@/components/LoadingScreen";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
 
-  // Se está carregando, não mostrar rota 404, mostrar loading
-  if (isLoading) {
+  // Lista de rotas que não precisam esperar o carregamento da autenticação
+  const publicRoutes = ["/admin-simulator", "/test", "/testar"];
+  const isPublicRoute = publicRoutes.some(route => location.startsWith(route));
+
+  // Se está carregando e não é rota pública, mostrar loading
+  if (isLoading && !isPublicRoute) {
     return <LoadingScreen />;
   }
 
@@ -30,6 +36,7 @@ function Router() {
       {/* Rota de teste do agente - pública */}
       <Route path="/test/:token?" component={TestAgent} />
       <Route path="/testar" component={TestAgent} />
+      <Route path="/admin-simulator" component={AdminChatSimulator} />
       
       <Route path="/admin-login" component={AdminLogin} />
       <Route path="/admin" component={AdminPanel} />

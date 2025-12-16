@@ -53,6 +53,9 @@ export type TestAgentDeps = {
     mediaUrl?: string,
     skipTriggerCheck?: boolean
   ) => Promise<{ text: string; mediaActions?: unknown } | null>;
+  getAgentMediaLibrary: (userId: string) => Promise<any[]>;
+  generateMediaPromptBlock: (media: any[]) => string;
+  parseMistralResponse: (text: string) => { messages: any[], actions: any[] } | null;
 };
 
 export type TestAgentResult = {
@@ -104,8 +107,24 @@ export async function handleTestAgentMessage(
 
     const mistral = await deps.getMistralClient();
 
+    // 📁 CARREGAR BIBLIOTECA DE MÍDIA
+    const mediaLibrary = await deps.getAgentMediaLibrary(resolvedUserId);
+    const hasMedia = mediaLibrary && mediaLibrary.length > 0;
+    const mediaPromptBlock = hasMedia ? deps.generateMediaPromptBlock(mediaLibrary) : '';
+
+    console.log('\n🔍 === DEBUG MÍDIA ===');
+    console.log('📚 Media Library:', JSON.stringify(mediaLibrary, null, 2));
+    console.log('📝 Media Prompt Block:', mediaPromptBlock);
+
+    let systemPrompt = agentConfig.prompt || "";
+    if (mediaPromptBlock) {
+      systemPrompt += mediaPromptBlock;
+    }
+
+    console.log('📋 System Prompt completo:', systemPrompt);
+
     const messages: Array<{ role: ChatRole; content: string }> = [
-      { role: "system", content: agentConfig.prompt },
+      { role: "system", content: systemPrompt },
     ];
 
     if (history && Array.isArray(history)) {
@@ -119,6 +138,8 @@ export async function handleTestAgentMessage(
 
     messages.push({ role: "user", content: message });
 
+    console.log('📤 Mensagens enviadas para Mistral:', JSON.stringify(messages, null, 2));
+
     const aiResponse = await mistral.chat.complete({
       model: agentConfig.model || "mistral-small-latest",
       messages,
@@ -127,9 +148,47 @@ export async function handleTestAgentMessage(
     });
 
     const responseText = normalizeAiContent(aiResponse.choices?.[0]?.message?.content);
+    console.log('📥 Resposta da Mistral:', responseText);
+    console.log('🔍 === FIM DEBUG ===\n');
+
+    // 📁 DETECTAR AÇÕES DE MÍDIA NA RESPOSTA
+    let mediaActions: any[] = [];
+    let cleanedText = responseText;
+    
+    if (responseText && hasMedia) {
+      const parseResult = deps.parseMistralResponse(responseText);
+      cleanedText = parseResult?.messages?.[0]?.content || responseText;
+      const rawActions = parseResult?.actions || [];
+      
+      // Resolver as URLs das mídias para o frontend poder exibir
+      if (rawActions.length > 0) {
+        console.log(`📁 [TestAgent] ${rawActions.length} mídias detectadas, resolvendo URLs...`);
+        for (const action of rawActions) {
+          if (action.type === 'send_media' && action.media_name) {
+            // Buscar a mídia no banco para pegar a URL
+            const mediaName = action.media_name;
+            const mediaItem = mediaLibrary.find(m => m.name.toUpperCase() === mediaName.toUpperCase());
+            
+            if (mediaItem) {
+              console.log(`📁 [TestAgent] Mídia encontrada: ${mediaName} -> ${mediaItem.storageUrl}`);
+              mediaActions.push({
+                type: 'send_media',
+                media_name: mediaName,
+                media_url: mediaItem.storageUrl,
+                media_type: mediaItem.mediaType,
+                caption: mediaItem.caption || mediaItem.description,
+              });
+            } else {
+              console.warn(`⚠️ [TestAgent] Mídia não encontrada: ${mediaName}`);
+            }
+          }
+        }
+      }
+    }
 
     return {
-      response: responseText || "Desculpe, não consegui processar.",
+      response: cleanedText || "Desculpe, não consegui processar.",
+      mediaActions,
       mode: "client_agent",
       resolvedUserId,
     };

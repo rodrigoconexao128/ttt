@@ -55,6 +55,8 @@ import {
   updateAgentMedia,
   deleteAgentMedia,
   transcribeAudio,
+  generateMediaPromptBlock,
+  parseMistralResponse,
 } from "./mediaService";
 import {
   addAdminMedia,
@@ -66,6 +68,7 @@ import {
   getAdminMediaCount,
   type AdminMedia,
 } from "./adminMediaStore";
+import { processAdminMessage } from "./adminAgentService";
 import { z } from "zod";
 
 // Helper to get userId from authenticated request
@@ -128,39 +131,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  /**
-   * Simular envio de mensagem para o Admin (como se fosse um número WhatsApp)
-   * POST /api/simulate/admin-message
-   * Body: { phone, text, image } - image pode ser data URL base64 ou URL https
-   */
-  app.post('/api/simulate/admin-message', async (req: any, res) => {
-    try {
-      const { phone, text, image } = req.body;
-      if (!phone) return res.status(400).json({ error: 'phone is required' });
-
-      const { processAdminMessage } = await import('./adminAgentService');
-
-      // Determine mediaType/mediaUrl
-      let mediaType: string | undefined = undefined;
-      let mediaUrl: string | undefined = undefined;
-
-      if (image) {
-        // basic detection: if startsWith data: then image base64
-        if (typeof image === 'string' && (image.startsWith('data:') || image.startsWith('http')) ) {
-          mediaType = 'image';
-          mediaUrl = image;
-        }
-      }
-
-      const response = await processAdminMessage(phone, text || '', mediaType, mediaUrl, true);
-
-      res.json({ response });
-    } catch (err: any) {
-      console.error('[SIMULATE] Error:', err);
-      res.status(500).json({ error: err.message });
-    }
-  });
-
   // Check admin session
   app.get("/api/admin/session", (req, res) => {
     const adminId = (req.session as any)?.adminId;
@@ -195,6 +165,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (e) {
       console.error("Admin logout error:", e);
       res.status(500).json({ success: false });
+    }
+  });
+
+  // Rota para simular chat com o admin (Rodrigo)
+  // Funciona igual ao WhatsApp real - precisa da palavra de trigger para iniciar
+  app.post("/api/test/admin-chat", async (req, res) => {
+    try {
+      const { phone, message, mediaType, mediaUrl } = req.body;
+      
+      if (!phone) {
+        return res.status(400).json({ error: "Phone number required" });
+      }
+
+      let media = undefined;
+      if (mediaType && mediaUrl) {
+        media = { type: mediaType, url: mediaUrl };
+      }
+
+      // processAdminMessage - sem skipTriggerCheck para testar o fluxo real com trigger
+      const response = await processAdminMessage(phone, message || "", mediaType, mediaUrl);
+      
+      // Se response é null, significa que não houve trigger - retornar vazio
+      if (!response) {
+        return res.json({ 
+          text: "", 
+          noTrigger: true,
+          message: "Mensagem recebida mas sem palavra de gatilho. Tente enviar 'agentezap' para iniciar."
+        });
+      }
+      
+      // O retorno pode ser um objeto ou string, dependendo da implementação.
+      const responseText = typeof response === 'string' ? response : response?.text || "";
+      
+      // actions pode ser um objeto (não array) - verificar corretamente
+      const actions = typeof response === 'object' ? response?.actions : undefined;
+      const mediaActions = typeof response === 'object' ? response?.mediaActions : undefined;
+      
+      // Extrair link de teste se existir nas actions (actions é objeto, não array)
+      let testLink = null;
+      if (actions && typeof actions === 'object') {
+        // Se actions tem uma propriedade testLink ou link
+        if (actions.testLink) {
+          testLink = actions.testLink;
+        } else if (actions.link) {
+          testLink = actions.link;
+        }
+      }
+      
+      res.json({ 
+        text: responseText, 
+        actions, 
+        mediaActions,
+        testLink
+      });
+    } catch (error) {
+      console.error("Error in admin chat simulation:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Rota para obter histórico do simulador
+  app.get("/api/test/admin-chat/history", async (req, res) => {
+    try {
+      const phone = req.query.phone as string;
+      
+      if (!phone) {
+        return res.status(400).json({ error: "Phone number required" });
+      }
+
+      const cleanPhone = phone.replace(/\D/g, "");
+      
+      const { getClientSession } = await import("./adminAgentService");
+      const session = getClientSession(cleanPhone);
+      
+      if (!session) {
+        return res.json({ history: [] });
+      }
+      
+      res.json({ history: session.conversationHistory });
+    } catch (error) {
+      console.error("Error fetching chat history:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Rota para limpar histórico do simulador (igual ao admin panel)
+  app.delete("/api/test/admin-chat/clear", async (req, res) => {
+    try {
+      const { phone } = req.body;
+      
+      if (!phone) {
+        return res.status(400).json({ error: "Phone number required" });
+      }
+
+      const cleanPhone = phone.replace(/\D/g, "");
+      
+      // Limpar sessão em memória
+      const { clearClientSession } = await import("./adminAgentService");
+      const cleared = clearClientSession(cleanPhone);
+      
+      // Cancelar follow-ups
+      const { cancelFollowUp } = await import("./followUpService");
+      cancelFollowUp(cleanPhone);
+
+      // Limpar usuário do banco para reset completo (Simulador)
+      try {
+        const user = await storage.getUserByPhone(cleanPhone);
+        if (user) {
+          console.log(`🗑️ [SIMULATOR] Deletando usuário de teste ${cleanPhone} (ID: ${user.id})`);
+          await storage.deleteUser(user.id);
+          
+          // Tentar limpar do Supabase Auth também se for email temporário
+          if (user.email && user.email.includes('@agentezap.temp')) {
+            try {
+              const { supabase } = await import("./supabaseAuth");
+              await supabase.auth.admin.deleteUser(user.id);
+            } catch (e) {
+              console.log("⚠️ [SIMULATOR] Erro ao deletar do Supabase Auth (ignorado):", e);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("❌ [SIMULATOR] Erro ao limpar dados do usuário:", err);
+      }
+      
+      console.log(`🧹 [SIMULATOR] Histórico limpo para telefone ${cleanPhone}`);
+      
+      res.json({ 
+        success: true, 
+        message: "Histórico limpo com sucesso",
+        sessionCleared: cleared
+      });
+    } catch (error) {
+      console.error("Error clearing simulator history:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -3250,6 +3355,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
           getAgentConfig: (id) => storage.getAgentConfig(id),
           getMistralClient,
           processAdminMessage,
+          getAgentMediaLibrary,
+          generateMediaPromptBlock,
+          parseMistralResponse,
         }
       );
 
@@ -3392,6 +3500,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       res.status(500).json({ error: error.message });
     }
   });
+
+  // Rota de teste para configurar fluxo de mídia
+  app.use((await import("./testMediaRoute")).default);
 
   return httpServer;
 }

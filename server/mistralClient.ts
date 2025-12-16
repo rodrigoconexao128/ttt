@@ -102,9 +102,10 @@ export async function analyzeImageForAdmin(
 ): Promise<{ summary: string; description: string } | null> {
   try {
     // Shortcut for data URLs (local base64) to avoid external API call in tests
-    if (typeof imageUrl === 'string' && imageUrl.startsWith('data:')) {
-      return { summary: 'imagem_base64', description: 'Imagem enviada via WhatsApp (base64).'};
-    }
+    // REMOVIDO: O usuário quer que o Vision funcione mesmo em testes locais/base64
+    // if (typeof imageUrl === 'string' && imageUrl.startsWith('data:')) {
+    //   return { summary: 'imagem_base64', description: 'Imagem enviada via WhatsApp (base64).'};
+    // }
     const mistral = await getMistralClient();
     const model = "pixtral-12b-2409";
 

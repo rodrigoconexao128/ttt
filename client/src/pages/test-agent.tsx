@@ -19,6 +19,8 @@ interface Message {
   fromMe: boolean;
   timestamp: Date;
   status: 'sending' | 'sent' | 'delivered' | 'read';
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'audio' | 'document';
 }
 
 export default function TestAgent() {
@@ -97,15 +99,38 @@ export default function TestAgent() {
     onSuccess: (data) => {
       setIsTyping(false);
       
-      // Adicionar resposta do agente
-      const agentMessage: Message = {
-        id: `msg_${Date.now()}`,
-        text: data.response,
-        fromMe: false,
-        timestamp: new Date(),
-        status: 'read',
-      };
-      setMessages(prev => [...prev, agentMessage]);
+      const newMessages: Message[] = [];
+      
+      // Se houver mídias para enviar, adicionar cada uma como mensagem separada
+      if (data.mediaActions && Array.isArray(data.mediaActions) && data.mediaActions.length > 0) {
+        console.log(`📁 Frontend recebeu ${data.mediaActions.length} mídia(s)`, data.mediaActions);
+        for (const action of data.mediaActions) {
+          if (action.type === 'send_media' && action.media_url) {
+            newMessages.push({
+              id: `msg_media_${Date.now()}_${Math.random()}`,
+              text: '', // Não exibir caption/description - apenas a imagem
+              mediaUrl: action.media_url,
+              mediaType: action.media_type || 'image',
+              fromMe: false,
+              timestamp: new Date(),
+              status: 'read',
+            });
+          }
+        }
+      }
+      
+      // Adicionar resposta de texto do agente
+      if (data.response && data.response.trim()) {
+        newMessages.push({
+          id: `msg_${Date.now()}`,
+          text: data.response,
+          fromMe: false,
+          timestamp: new Date(),
+          status: 'read',
+        });
+      }
+      
+      setMessages(prev => [...prev, ...newMessages]);
     },
     onError: () => {
       setIsTyping(false);
@@ -161,156 +186,95 @@ export default function TestAgent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b141a] flex flex-col">
-      {/* Header WhatsApp Style */}
-      <header className="bg-[#202c33] px-4 py-3 flex items-center gap-3 shadow-md">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="text-gray-400 hover:text-white"
-          onClick={() => setLocation("/")}
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+    <div className="flex flex-col h-screen bg-gray-100 max-w-md mx-auto border-x border-gray-200 shadow-xl">
+      {/* Header */}
+      <div className="bg-[#008069] text-white p-4 flex items-center gap-3 shadow-sm z-10">
+        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
           <Bot className="w-6 h-6 text-white" />
         </div>
-        
-        <div className="flex-1">
-          <h1 className="text-white font-medium">{agentName}</h1>
-          <p className="text-xs text-emerald-400">
-            {isTyping ? "digitando..." : "online"}
-          </p>
+        <div>
+          <h1 className="font-semibold text-lg">{agentName}</h1>
+          <p className="text-xs text-white/80">Online • {agentCompany}</p>
         </div>
-        
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white">
-            <Phone className="w-5 h-5" />
-          </Button>
-        </div>
-      </header>
+      </div>
 
-      {/* Chat Area */}
-      <div 
-        className="flex-1 overflow-y-auto p-4"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23182229' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          backgroundColor: '#0b141a'
-        }}
-      >
-        {/* Info Banner */}
-        <div className="bg-[#182229] rounded-lg p-3 mb-4 text-center">
-          <p className="text-xs text-gray-400">
-            🧪 Modo de teste - As mensagens não são salvas
-          </p>
-        </div>
-
-        {/* Messages */}
-        <div className="space-y-2">
-          {messages.map((message) => (
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2] bg-opacity-50" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundBlendMode: "overlay" }}>
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={cn(
+              "flex w-full",
+              msg.fromMe ? "justify-end" : "justify-start"
+            )}
+          >
             <div
-              key={message.id}
               className={cn(
-                "flex",
-                message.fromMe ? "justify-end" : "justify-start"
+                "max-w-[80%] rounded-lg p-3 shadow-sm relative",
+                msg.fromMe ? "bg-[#d9fdd3] rounded-tr-none" : "bg-white rounded-tl-none"
               )}
             >
-              <div
-                className={cn(
-                  "max-w-[85%] px-3 py-2 rounded-lg relative",
-                  message.fromMe
-                    ? "bg-[#005c4b] text-white rounded-br-none"
-                    : "bg-[#202c33] text-white rounded-bl-none"
-                )}
-              >
-                {/* Triângulo do balão */}
-                <div
-                  className={cn(
-                    "absolute top-0 w-0 h-0 border-t-8",
-                    message.fromMe
-                      ? "right-[-8px] border-l-8 border-l-[#005c4b] border-t-transparent"
-                      : "left-[-8px] border-r-8 border-r-[#202c33] border-t-transparent"
-                  )}
-                />
-                
-                <p className="text-sm whitespace-pre-wrap break-words">
-                  {message.text}
-                </p>
-                
-                <div className={cn(
-                  "flex items-center gap-1 mt-1",
-                  message.fromMe ? "justify-end" : "justify-start"
-                )}>
-                  <span className="text-[10px] text-gray-400">
-                    {formatTime(message.timestamp)}
-                  </span>
-                  {message.fromMe && <MessageStatus status={message.status} />}
-                </div>
-              </div>
+              {msg.mediaUrl && (
+                  <div className="mb-2">
+                    {msg.mediaType === 'image' && (
+                      <img 
+                        src={msg.mediaUrl} 
+                        alt="Imagem"
+                        className="max-w-full rounded-lg"
+                        style={{ maxHeight: '300px' }}
+                      />
+                    )}
+                  </div>
+              )}
+
+              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+              <span className="text-[10px] text-gray-500 block text-right mt-1">
+                {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {msg.fromMe && <span className="ml-1 text-blue-500">✓✓</span>}
+              </span>
             </div>
-          ))}
-          
-          {/* Typing indicator */}
-          {isTyping && (
-            <div className="flex justify-start">
-              <div className="bg-[#202c33] text-white px-4 py-3 rounded-lg rounded-bl-none">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
+          </div>
+        ))}
+        {isTyping && (
+          <div className="flex justify-start">
+            <div className="bg-white rounded-lg p-3 rounded-tl-none shadow-sm flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-[#008069]" />
+              <span className="text-xs text-gray-500">Digitando...</span>
             </div>
-          )}
-        </div>
-        
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input Area */}
-      <div className="bg-[#202c33] px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white shrink-0">
-            <Smile className="w-6 h-6" />
-          </Button>
-          
-          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white shrink-0">
-            <Paperclip className="w-6 h-6" />
-          </Button>
-          
-          <div className="flex-1 relative">
-            <Input
-              ref={inputRef}
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Digite uma mensagem"
-              className="bg-[#2a3942] border-0 text-white placeholder-gray-400 pr-10 py-6 rounded-lg focus-visible:ring-0 focus-visible:ring-offset-0"
-              disabled={sendMessageMutation.isPending}
-            />
-          </div>
-          
-          <Button
-            onClick={handleSend}
-            disabled={!inputText.trim() || sendMessageMutation.isPending}
-            size="icon"
-            className={cn(
-              "rounded-full shrink-0 w-12 h-12",
-              inputText.trim()
-                ? "bg-emerald-500 hover:bg-emerald-600"
-                : "bg-[#2a3942] hover:bg-[#3a4952]"
-            )}
-          >
-            {sendMessageMutation.isPending ? (
-              <Loader2 className="w-5 h-5 animate-spin text-white" />
-            ) : inputText.trim() ? (
-              <Send className="w-5 h-5 text-white" />
-            ) : (
-              <Mic className="w-5 h-5 text-gray-400" />
-            )}
-          </Button>
-        </div>
+      <div className="bg-[#f0f2f5] p-3 flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-gray-500 hover:bg-gray-200 rounded-full"
+        >
+          <Smile className="w-6 h-6" />
+        </Button>
+        
+        <Input
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+          placeholder="Digite uma mensagem"
+          className="flex-1 bg-white border-none focus-visible:ring-0 rounded-lg"
+        />
+        
+        <Button
+          onClick={handleSendMessage}
+          size="icon"
+          className={cn(
+            "rounded-full transition-all",
+            inputText.trim() ? "bg-[#008069] hover:bg-[#006d59]" : "bg-gray-300 hover:bg-gray-400"
+          )}
+          disabled={!inputText.trim()}
+        >
+          <Send className="w-5 h-5 text-white" />
+        </Button>
       </div>
     </div>
   );
