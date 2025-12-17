@@ -2482,6 +2482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     messageIntervalMin: number;
     messageIntervalMax: number;
     model: string;
+    promptStyle: string;
   } = {
     prompt: "",
     isActive: false,
@@ -2493,6 +2494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     messageIntervalMin: 3,
     messageIntervalMax: 8,
     model: "mistral-medium-latest",
+    promptStyle: "nuclear",
   };
 
   // Usando adminMediaStore para armazenamento global de mídias do admin
@@ -2513,6 +2515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "admin_agent_message_interval_min",
         "admin_agent_message_interval_max",
         "admin_agent_model",
+        "admin_agent_prompt_style",
       ];
       
       const configs = await storage.getSystemConfigs(configKeys);
@@ -2542,6 +2545,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? parseInt(configs.get("admin_agent_message_interval_max")!) 
           : adminAgentConfig.messageIntervalMax,
         model: configs.get("admin_agent_model") || adminAgentConfig.model,
+        promptStyle: configs.get("admin_agent_prompt_style") || adminAgentConfig.promptStyle,
       });
     } catch (error) {
       console.error("Error fetching admin agent config:", error);
@@ -2553,7 +2557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/agent/config", isAdmin, async (req: any, res) => {
     try {
       const { prompt, isActive, triggerPhrases, messageSplitChars, responseDelaySeconds,
-              typingDelayMin, typingDelayMax, messageIntervalMin, messageIntervalMax, model } = req.body;
+              typingDelayMin, typingDelayMax, messageIntervalMin, messageIntervalMax, model, promptStyle } = req.body;
 
       const updates: Array<Promise<any>> = [];
 
@@ -2605,6 +2609,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (typeof model === "string") {
         updates.push(storage.updateSystemConfig("admin_agent_model", model));
         adminAgentConfig.model = model;
+      }
+
+      if (typeof promptStyle === "string") {
+        updates.push(storage.updateSystemConfig("admin_agent_prompt_style", promptStyle));
+        adminAgentConfig.promptStyle = promptStyle;
       }
 
       await Promise.all(updates);

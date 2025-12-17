@@ -53,6 +53,7 @@ interface AdminAgentConfig {
   messageIntervalMin: number;
   messageIntervalMax: number;
   model: string;
+  promptStyle: string;
 }
 
 interface MediaFormData {
@@ -125,6 +126,7 @@ export default function AdminAgentConfig() {
   const [messageSplitChars, setMessageSplitChars] = useState(400);
   const [responseDelaySeconds, setResponseDelaySeconds] = useState(30);
   const [model, setModel] = useState("mistral-medium-latest");
+  const [promptStyle, setPromptStyle] = useState("nuclear");
   
   // Delays humanizados
   const [typingDelayMin, setTypingDelayMin] = useState(2);
@@ -211,6 +213,7 @@ export default function AdminAgentConfig() {
       setMessageSplitChars(config.messageSplitChars ?? 400);
       setResponseDelaySeconds(config.responseDelaySeconds ?? 30);
       setModel(config.model || "mistral-medium-latest");
+      setPromptStyle(config.promptStyle || "nuclear");
       setTypingDelayMin(config.typingDelayMin ?? 2);
       setTypingDelayMax(config.typingDelayMax ?? 5);
       setMessageIntervalMin(config.messageIntervalMin ?? 3);
@@ -259,6 +262,7 @@ export default function AdminAgentConfig() {
           messageIntervalMin,
           messageIntervalMax,
           model,
+          promptStyle,
         }),
       });
       if (!response.ok) throw new Error("Failed to save config");
@@ -901,6 +905,43 @@ export default function AdminAgentConfig() {
                   Modelo ativo: {model}
                 </Badge>
               </div>
+            </div>
+          </Card>
+
+          {/* Estilo do Agente */}
+          <Card className="p-6">
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                  <Bot className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-base font-semibold">Estilo do Agente</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Escolha a personalidade e o estilo de comunicação do agente
+                  </p>
+                </div>
+              </div>
+
+              <Select value={promptStyle} onValueChange={setPromptStyle}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione o estilo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nuclear">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Vendedor Completo (Nuclear)</span>
+                      <span className="text-xs text-muted-foreground">Prompt detalhado, técnicas de vendas avançadas (Padrão)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="human">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Vendedor Humano/Direto</span>
+                      <span className="text-xs text-muted-foreground">Estilo mais curto, direto e natural (Similar ao Testador)</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </Card>
 
