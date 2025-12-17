@@ -937,6 +937,11 @@ Não prometa o que não pode entregar.
 Se o cliente falar o nome da empresa ou como quer chamar o agente, VOCÊ NÃO PODE SÓ FALAR.
 VOCÊ TEM QUE AGIR.
 
+⚠️ IMPORTANTE:
+- NUNCA invente o nome da empresa.
+- Só use [ACAO:CRIAR_CONTA_TESTE] se o cliente TIVER INFORMADO o ramo ou empresa.
+- Se o cliente só disse "Oi", PERGUNTE o ramo. NÃO CRIE AINDA.
+
 SE O CLIENTE DISSER: "Minha loja é a Fashion Modas e quero o agente Ana".
 VOCÊ DEVE EXTRAIR: Empresa="Fashion Modas", Nome="Ana".
 
@@ -970,7 +975,10 @@ QUANDO ELE DISSER O RAMO (Ex: "Sou dentista", "Tenho loja"):
 2. Crie o teste IMEDIATAMENTE. Não enrole.
 3. Use a ação: [ACAO:CRIAR_CONTA_TESTE empresa="X" nome="Y"]
 
-⚠️ IMPORTANTE: Se você disser "Vou gerar o link", VOCÊ É OBRIGADO A USAR A TAG.
+⚠️ IMPORTANTE:
+- Só crie se souber o ramo/empresa.
+- Se não souber, PERGUNTE.
+- Se você disser "Vou gerar o link", VOCÊ É OBRIGADO A USAR A TAG.
 Se não usar a tag, o link não aparece e você parece um mentiroso.
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -1043,6 +1051,10 @@ PRÓXIMO PASSO: CRIAR A CONTA IMEDIATAMENTE.
 USE: [ACAO:CRIAR_CONTA_TESTE empresa="${config.company}" nome="Atendente" funcao="Atendente"]
 ` : `
 📍 ESTADO ATUAL: CONTATO ou DIAGNÓSTICO
+
+⚠️ NÃO CRIE A CONTA AINDA!
+⚠️ PERGUNTE O RAMO PRIMEIRO.
+⚠️ NÃO INVENTE DADOS.
 
 SIGA O FLUXO NATURAL:
 - Se cliente mandou só "oi" → Cumprimente e pergunte o ramo dele
@@ -1518,7 +1530,7 @@ async function getAdminAgentConfig(): Promise<{
     return {
       triggerPhrases,
       messageSplitChars: parseInt(splitCharsConfig?.valor || "400", 10),
-      responseDelaySeconds: parseInt(delayConfig?.valor || "30", 10),
+      responseDelaySeconds: parseInt(delayConfig?.valor || "10", 10),
       isActive: isActiveConfig?.valor === "true",
       promptStyle: (promptStyleConfig?.valor as "nuclear" | "human") || "nuclear",
     };
@@ -1527,7 +1539,7 @@ async function getAdminAgentConfig(): Promise<{
     return {
       triggerPhrases: [],
       messageSplitChars: 400,
-      responseDelaySeconds: 30,
+      responseDelaySeconds: 10,
       isActive: true,
       promptStyle: "nuclear",
     };
