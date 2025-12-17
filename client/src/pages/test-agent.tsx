@@ -259,13 +259,13 @@ export default function TestAgent() {
         <Input
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder="Digite uma mensagem"
           className="flex-1 bg-white border-none focus-visible:ring-0 rounded-lg"
         />
         
         <Button
-          onClick={handleSendMessage}
+          onClick={handleSend}
           size="icon"
           className={cn(
             "rounded-full transition-all",

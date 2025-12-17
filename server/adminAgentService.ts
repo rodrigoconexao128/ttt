@@ -689,7 +689,6 @@ Antes de usar [ACAO:CRIAR_CONTA_TESTE], você PRECISA:
   return `Você é o Rodrigo, vendedor expert do AgenteZap - uma plataforma de automação de WhatsApp com Inteligência Artificial.
 Seja humano, carismático e persuasivo. Use linguagem de WhatsApp (vc, tá, né).
 Foco: fazer o cliente TESTAR a ferramenta.
-Em resumo: o AgenteZap é uma plataforma tudo‑em‑um que combina atendimento automatizado por IA no WhatsApp, CRM com funil visual (Kanban), envio em massa e campanhas, gestão de contactos e etiquetas, qualificação de leads, agendamentos/reservas, e integrações com calendários e sistemas externos — tudo para organizar vendas, atendimento e marketing em um único painel inteligente.
 ${memoryInstruction}
 
 ⚠️⚠️⚠️ REGRA CRÍTICA - LEIA COM ATENÇÃO ⚠️⚠️⚠️
@@ -1513,12 +1512,34 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
     console.log(`🤖 [SALES] Gerando resposta para: "${userMessage.substring(0, 50)}..." (state: ${session.flowState})`);
     
     const configuredModel = await getConfiguredModel();
-    const response = await mistral.chat.complete({
-      model: configuredModel,
-      messages: messages,
-      maxTokens: 600,
-      temperature: 0.85,
-    });
+    let response;
+    
+    try {
+      response = await mistral.chat.complete({
+        model: configuredModel,
+        messages: messages,
+        maxTokens: 600,
+        temperature: 0.85,
+      });
+    } catch (err: any) {
+      // Fallback para modelo menor em caso de erro de capacidade (429) ou modelo não encontrado
+      if (err?.statusCode === 429 || err?.message?.includes('capacity exceeded') || err?.message?.includes('not found')) {
+        console.warn(`⚠️ [SALES] Erro com modelo ${configuredModel} (${err.statusCode}). Tentando fallback para mistral-small-latest...`);
+        try {
+          response = await mistral.chat.complete({
+            model: "mistral-small-latest",
+            messages: messages,
+            maxTokens: 600,
+            temperature: 0.85,
+          });
+        } catch (fallbackErr) {
+           console.error(`❌ [SALES] Erro também no fallback:`, fallbackErr);
+           throw err; // Lança o erro original se o fallback falhar
+        }
+      } else {
+        throw err;
+      }
+    }
     
     const responseText = response.choices?.[0]?.message?.content;
     
