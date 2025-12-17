@@ -1991,6 +1991,69 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     socket.ev.on("creds.update", saveCreds);
 
     // ═══════════════════════════════════════════════════════════════════════
+    // 🕵️ HANDLER DE PRESENÇA (TYPING/PAUSED) - DETECÇÃO DE DIGITAÇÃO
+    // ═══════════════════════════════════════════════════════════════════════
+    socket.ev.on("presence.update", async (update) => {
+      const { id, presences } = update;
+      
+      // Verificar se é um chat individual
+      if (id.includes("@g.us") || id.includes("@broadcast")) return;
+
+      // Verificar se temos uma resposta pendente para este chat
+      const contactNumber = cleanContactNumber(id);
+      if (!contactNumber) return;
+
+      const pending = pendingAdminResponses.get(contactNumber);
+      if (!pending) return;
+
+      // Verificar o status de presença
+      // Em chat privado, o ID do participante é o próprio ID do chat ou similar
+      const participant = Object.keys(presences)[0]; 
+      if (!participant) return;
+
+      const presence = presences[participant].lastKnownPresence;
+      
+      if (presence === 'composing') {
+        console.log(`✍️ [ADMIN AGENT] Usuário ${contactNumber} está digitando... Estendendo espera.`);
+        
+        // Se estiver digitando, estender o timeout para aguardar
+        if (pending.timeout) {
+          clearTimeout(pending.timeout);
+        }
+        
+        // Adicionar 10 segundos de "buffer de digitação"
+        // Isso evita responder enquanto o usuário ainda está escrevendo
+        const typingBuffer = 10000; // 10s
+        
+        pending.timeout = setTimeout(() => {
+          void processAdminAccumulatedMessages({ 
+            socket, 
+            key: contactNumber, 
+            generation: pending.generation 
+          });
+        }, typingBuffer);
+        
+      } else if (presence === 'paused') {
+        console.log(`✋ [ADMIN AGENT] Usuário ${contactNumber} parou de digitar. Respondendo em breve.`);
+        
+        // Se parou de digitar, responder mais rápido (quase imediato)
+        if (pending.timeout) {
+          clearTimeout(pending.timeout);
+        }
+        
+        const fastResponseDelay = 2000; // 2s
+        
+        pending.timeout = setTimeout(() => {
+          void processAdminAccumulatedMessages({ 
+            socket, 
+            key: contactNumber, 
+            generation: pending.generation 
+          });
+        }, fastResponseDelay);
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
     // 🤖 HANDLER DE MENSAGENS DO ADMIN - ATENDIMENTO AUTOMATIZADO
     // ═══════════════════════════════════════════════════════════════════════
     socket.ev.on("messages.upsert", async (m) => {
