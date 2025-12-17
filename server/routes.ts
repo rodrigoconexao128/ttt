@@ -2481,6 +2481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     typingDelayMax: number;
     messageIntervalMin: number;
     messageIntervalMax: number;
+    model: string;
   } = {
     prompt: "",
     isActive: false,
@@ -2491,6 +2492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     typingDelayMax: 5,
     messageIntervalMin: 3,
     messageIntervalMax: 8,
+    model: "mistral-medium-latest",
   };
 
   // Usando adminMediaStore para armazenamento global de mídias do admin
@@ -2510,6 +2512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "admin_agent_typing_delay_max",
         "admin_agent_message_interval_min",
         "admin_agent_message_interval_max",
+        "admin_agent_model",
       ];
       
       const configs = await storage.getSystemConfigs(configKeys);
@@ -2538,6 +2541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messageIntervalMax: configs.has("admin_agent_message_interval_max") 
           ? parseInt(configs.get("admin_agent_message_interval_max")!) 
           : adminAgentConfig.messageIntervalMax,
+        model: configs.get("admin_agent_model") || adminAgentConfig.model,
       });
     } catch (error) {
       console.error("Error fetching admin agent config:", error);
@@ -2549,7 +2553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/agent/config", isAdmin, async (req: any, res) => {
     try {
       const { prompt, isActive, triggerPhrases, messageSplitChars, responseDelaySeconds,
-              typingDelayMin, typingDelayMax, messageIntervalMin, messageIntervalMax } = req.body;
+              typingDelayMin, typingDelayMax, messageIntervalMin, messageIntervalMax, model } = req.body;
 
       const updates: Array<Promise<any>> = [];
 
@@ -2598,6 +2602,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         adminAgentConfig.messageIntervalMax = messageIntervalMax;
       }
 
+      if (typeof model === "string") {
+        updates.push(storage.updateSystemConfig("admin_agent_model", model));
+        adminAgentConfig.model = model;
+      }
+
       await Promise.all(updates);
 
       res.json({ success: true });
@@ -2644,6 +2653,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error testing admin agent:", error);
       res.status(500).json({ message: "Failed to test admin agent" });
+    }
+  });
+
+  // POST - Testar diferentes modelos Mistral
+  app.post("/api/admin/test-model", async (req: any, res) => {
+    try {
+      const { model, message, history } = req.body;
+
+      if (!model || !message) {
+        return res.status(400).json({ message: "Model and message are required" });
+      }
+
+      const { getMistralClient } = await import("./mistralClient");
+      const mistral = await getMistralClient();
+
+      // Construir mensagens com histórico
+      const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+        {
+          role: "system",
+          content: `Você é o Rodrigo, vendedor expert do AgenteZap - uma plataforma de automação de WhatsApp com IA.
+Seja humano, carismático e persuasivo. Use linguagem de WhatsApp (vc, tá, né).
+Foco: fazer o cliente TESTAR a ferramenta.`
+        }
+      ];
+
+      // Adicionar histórico se fornecido
+      if (history && Array.isArray(history)) {
+        for (const msg of history) {
+          if (msg.role === "user" || msg.role === "assistant") {
+            messages.push({
+              role: msg.role,
+              content: msg.content
+            });
+          }
+        }
+      }
+
+      // Adicionar mensagem atual
+      messages.push({ role: "user", content: message });
+
+      console.log(`🧪 [MODEL-TEST] Testando ${model} com: "${message.substring(0, 50)}..."`);
+
+      const response = await mistral.chat.complete({
+        model: model,
+        messages: messages,
+        maxTokens: 600,
+        temperature: 0.85,
+      });
+
+      const responseText = response.choices?.[0]?.message?.content;
+
+      if (!responseText) {
+        return res.status(500).json({ message: "Empty response from model" });
+      }
+
+      res.json({
+        response: typeof responseText === "string" ? responseText : String(responseText),
+        model: model,
+      });
+    } catch (error: any) {
+      console.error("[MODEL-TEST] Error:", error);
+      res.status(500).json({ 
+        message: "Failed to test model",
+        error: error.message || String(error)
+      });
     }
   });
 

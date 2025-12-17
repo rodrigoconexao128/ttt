@@ -14,6 +14,7 @@ import AgentConfig from "@/pages/agent-config";
 import MediaLibrary from "@/pages/media-library";
 import TestAgent from "@/pages/test-agent";
 import AdminChatSimulator from "@/pages/admin-chat-simulator";
+import AdminSimulator from "@/pages/AdminSimulator";
 import LoadingScreen from "@/components/LoadingScreen";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
@@ -23,7 +24,7 @@ function Router() {
   const [location] = useLocation();
 
   // Lista de rotas que não precisam esperar o carregamento da autenticação
-  const publicRoutes = ["/admin-simulator", "/test", "/testar"];
+  const publicRoutes = ["/admin-simulator", "/model-tester", "/test", "/testar"];
   const isPublicRoute = publicRoutes.some(route => location.startsWith(route));
 
   // Se está carregando e não é rota pública, mostrar loading
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/test/:token?" component={TestAgent} />
       <Route path="/testar" component={TestAgent} />
       <Route path="/admin-simulator" component={AdminChatSimulator} />
+      <Route path="/model-tester" component={AdminSimulator} />
       
       <Route path="/admin-login" component={AdminLogin} />
       <Route path="/admin" component={AdminPanel} />

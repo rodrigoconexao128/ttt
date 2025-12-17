@@ -88,6 +88,39 @@ interface TestToken {
 // Cache de sessões de clientes em memória
 const clientSessions = new Map<string, ClientSession>();
 
+// Modelo padrão
+const DEFAULT_MODEL = "mistral-medium-latest";
+
+// Cache do modelo configurado (evita queries repetidas)
+let cachedModel: string | null = null;
+let modelCacheExpiry: number = 0;
+
+/**
+ * Obtém o modelo de IA configurado para o agente admin
+ */
+async function getConfiguredModel(): Promise<string> {
+  const now = Date.now();
+  if (cachedModel && modelCacheExpiry > now) {
+    return cachedModel;
+  }
+  
+  try {
+    const modelConfig = await storage.getSystemConfig("admin_agent_model");
+    // getSystemConfig retorna objeto ou string dependendo da implementação
+    if (typeof modelConfig === "string") {
+      cachedModel = modelConfig || DEFAULT_MODEL;
+    } else if (modelConfig && typeof modelConfig === "object" && "valor" in modelConfig) {
+      cachedModel = modelConfig.valor || DEFAULT_MODEL;
+    } else {
+      cachedModel = DEFAULT_MODEL;
+    }
+    modelCacheExpiry = now + 60000; // Cache por 1 minuto
+    return cachedModel;
+  } catch {
+    return DEFAULT_MODEL;
+  }
+}
+
 // Contador para emails fictícios
 let emailCounter = 1000;
 
@@ -318,8 +351,9 @@ IMPORTANTE:
 - O texto final deve ser APENAS o prompt gerado, sem explicações extras.`;
 
     console.log(`🧠 [SALES] Gerando prompt profissional para ${companyName}...`);
+    const configuredModel = await getConfiguredModel();
     const response = await mistral.chat.complete({
-      model: "mistral-large-latest",
+      model: configuredModel,
       messages: [{ role: "user", content: systemPrompt }],
       maxTokens: 1500,
       temperature: 0.7,
@@ -1370,8 +1404,9 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
     
     console.log(`🤖 [SALES] Gerando resposta para: "${userMessage.substring(0, 50)}..." (state: ${session.flowState})`);
     
+    const configuredModel = await getConfiguredModel();
     const response = await mistral.chat.complete({
-      model: "mistral-large-latest",
+      model: configuredModel,
       messages: messages,
       maxTokens: 600,
       temperature: 0.85,
@@ -2043,8 +2078,9 @@ Gere uma mensagem de follow-up CURTA, NATURAL e IMPERFEITA.
 - Seja breve.
 - NÃO use ações [AÇÃO:...]. Apenas texto natural.`;
 
+    const configuredModel = await getConfiguredModel();
     const response = await mistral.chat.complete({
-      model: "mistral-small-latest",
+      model: configuredModel,
       messages: [{ role: "user", content: prompt }],
       maxTokens: 150,
       temperature: 0.9,
@@ -2075,8 +2111,9 @@ Gere uma mensagem de retorno NATURAL e AMIGÁVEL.
 - Sem formalidades.
 - NÃO use ações [AÇÃO:...]. Apenas texto natural.`;
 
+    const configuredModel = await getConfiguredModel();
     const response = await mistral.chat.complete({
-      model: "mistral-small-latest",
+      model: configuredModel,
       messages: [{ role: "user", content: prompt }],
       maxTokens: 150,
       temperature: 0.9,

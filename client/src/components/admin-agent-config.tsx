@@ -52,6 +52,7 @@ interface AdminAgentConfig {
   typingDelayMax: number;
   messageIntervalMin: number;
   messageIntervalMax: number;
+  model: string;
 }
 
 interface MediaFormData {
@@ -123,6 +124,7 @@ export default function AdminAgentConfig() {
   const [newTriggerPhrase, setNewTriggerPhrase] = useState("");
   const [messageSplitChars, setMessageSplitChars] = useState(400);
   const [responseDelaySeconds, setResponseDelaySeconds] = useState(30);
+  const [model, setModel] = useState("mistral-medium-latest");
   
   // Delays humanizados
   const [typingDelayMin, setTypingDelayMin] = useState(2);
@@ -208,6 +210,7 @@ export default function AdminAgentConfig() {
       setTriggerPhrases(config.triggerPhrases || []);
       setMessageSplitChars(config.messageSplitChars ?? 400);
       setResponseDelaySeconds(config.responseDelaySeconds ?? 30);
+      setModel(config.model || "mistral-medium-latest");
       setTypingDelayMin(config.typingDelayMin ?? 2);
       setTypingDelayMax(config.typingDelayMax ?? 5);
       setMessageIntervalMin(config.messageIntervalMin ?? 3);
@@ -255,6 +258,7 @@ export default function AdminAgentConfig() {
           typingDelayMax,
           messageIntervalMin,
           messageIntervalMax,
+          model,
         }),
       });
       if (!response.ok) throw new Error("Failed to save config");
@@ -817,6 +821,85 @@ export default function AdminAgentConfig() {
                     </Button>
                   ))}
                 </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Modelo de IA */}
+          <Card className="p-6">
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-base font-semibold">Modelo de IA</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Escolha qual modelo Mistral usar para gerar respostas
+                  </p>
+                </div>
+              </div>
+
+              <Select value={model} onValueChange={setModel}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione o modelo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mistral-large-latest">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Mistral Large</span>
+                      <span className="text-xs text-muted-foreground">Mais inteligente, mais lento (~10s)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="mistral-medium-latest">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Mistral Medium ⭐</span>
+                      <span className="text-xs text-muted-foreground">Recomendado - Equilíbrio perfeito (~6s)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="mistral-small-latest">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Mistral Small</span>
+                      <span className="text-xs text-muted-foreground">Mais rápido, econômico (~3s)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="ministral-8b-latest">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Ministral 8B</span>
+                      <span className="text-xs text-muted-foreground">Compacto e rápido (~2.8s)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="ministral-3b-latest">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Ministral 3B</span>
+                      <span className="text-xs text-muted-foreground">Ultra rápido (~1.5s)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="open-mistral-7b">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Open Mistral 7B</span>
+                      <span className="text-xs text-muted-foreground">Código aberto (~2.5s)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="open-mixtral-8x7b">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Open Mixtral 8x7B</span>
+                      <span className="text-xs text-muted-foreground">Mixture of experts (~3.8s)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="codestral-latest">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Codestral</span>
+                      <span className="text-xs text-muted-foreground">Especializado em código (~2s)</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <div className="flex items-center gap-2 text-sm">
+                <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/20">
+                  Modelo ativo: {model}
+                </Badge>
               </div>
             </div>
           </Card>
