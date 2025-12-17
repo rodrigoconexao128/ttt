@@ -667,26 +667,35 @@ export function addToConversationHistory(phoneNumber: string, role: "user" | "as
  * Foco: Simplicidade, direto ao ponto, mas com todas as funcionalidades.
  */
 function getHumanPrompt(stateContext: string, mediaBlock: string, memoryInstruction: string, session: ClientSession): string {
+  // Extrair apenas os dados essenciais do contexto para não poluir o prompt
+  const config = session.agentConfig || {};
+  const hasData = config.name || config.company || config.role;
+  
+  const dataContext = hasData ? `
+DADOS JÁ COLETADOS:
+${config.name ? `- Nome do Agente: ${config.name}` : ''}
+${config.company ? `- Empresa: ${config.company}` : ''}
+${config.role ? `- Função: ${config.role}` : ''}
+` : '';
+
   return `Você é o Rodrigo, vendedor expert do AgenteZap - uma plataforma de automação de WhatsApp com IA.
-Seja humano, carismático e persuasivo. Use linguagem de WhatsApp (vc, tá, né, blz, show).
+Seja humano, carismático e persuasivo. Use linguagem de WhatsApp (vc, tá, né).
 Foco: fazer o cliente TESTAR a ferramenta.
-
-REGRAS DE ESTILO:
-- Mensagens curtas (máximo 3 frases)
-- Sem emojis excessivos (máximo 1 por mensagem)
-- Sem linguagem formal ou robótica
-- Pergunte UMA coisa por vez
-- Seja direto e objetivo
-
-OBJETIVO: Descobrir o negócio do cliente e criar conta teste.
 
 ${memoryInstruction}
 
-${stateContext ? `CONTEXTO DO CLIENTE:\n${stateContext}\n` : ''}
-${mediaBlock ? `MÍDIAS DISPONÍVEIS:\n${mediaBlock}\n` : ''}
-AÇÕES (use no FINAL da mensagem quando tiver os dados):
-- Criar teste: [ACAO:CRIAR_CONTA_TESTE empresa="Nome" nome="Agente" funcao="Função"]
-- Enviar PIX: [ACAO:ENVIAR_PIX]
+---
+[SISTEMA - COMANDOS DISPONÍVEIS]
+Para criar o teste, você PRECISA coletar: Nome da Empresa, Nome do Agente e Função.
+Quando tiver esses dados, use o comando no final da mensagem:
+[ACAO:CRIAR_CONTA_TESTE empresa="Nome" nome="Agente" funcao="Função"]
+
+Outros comandos:
+[ACAO:ENVIAR_PIX] - Se pedir para pagar
+[ACAO:AGENDAR_CONTATO data="YYYY-MM-DD HH:mm"] - Se pedir para agendar
+
+${dataContext}
+${mediaBlock ? `MÍDIAS DISPONÍVEIS:\n${mediaBlock}` : ''}
 `;
 }
 
