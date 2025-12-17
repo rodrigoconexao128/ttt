@@ -60,7 +60,13 @@ export default function AdminConversations() {
   });
 
   const { data: agentStatus } = useQuery<{ isDisabled: boolean }>({
-    queryKey: ["/api/agent/status", selectedConversationId],
+    queryKey: ["/api/admin/conversations", selectedConversationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/conversations/${selectedConversationId}`);
+      if (!res.ok) return { isDisabled: false };
+      const data = await res.json();
+      return { isDisabled: !data.isAgentEnabled };
+    },
     enabled: !!selectedConversationId,
   });
 
@@ -81,15 +87,16 @@ export default function AdminConversations() {
 
   const toggleAgentMutation = useMutation({
     mutationFn: async (disable: boolean) => {
-      return await apiRequest("POST", `/api/agent/toggle/${selectedConversationId}`, {
-        disable,
-      });
+      // Usar rotas específicas de admin para pausar/resumir
+      const endpoint = disable ? "pause-agent" : "resume-agent";
+      return await apiRequest("POST", `/api/admin/conversations/${selectedConversationId}/${endpoint}`, {});
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agent/status", selectedConversationId] });
+    onSuccess: (_, disable) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations", selectedConversationId] });
       toast({
-        title: agentStatus?.isDisabled ? "Agente Ativado" : "Agente Desativado",
-        description: agentStatus?.isDisabled 
+        title: !disable ? "Agente Ativado" : "Agente Desativado",
+        description: !disable 
           ? "O agente voltara a responder automaticamente" 
           : "O agente nao respondera mais nesta conversa",
       });

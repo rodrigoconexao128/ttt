@@ -259,6 +259,8 @@ export function wasChatCleared(phoneNumber: string): boolean {
  */
 export function clearClientSession(phoneNumber: string): boolean {
   const cleanPhone = phoneNumber.replace(/\D/g, "");
+  console.log(`🧹 [SESSION] Solicitada limpeza para: ${phoneNumber} -> ${cleanPhone}`);
+  
   const existed = clientSessions.has(cleanPhone);
   clientSessions.delete(cleanPhone);
   cancelFollowUp(cleanPhone);
@@ -278,6 +280,8 @@ export function clearClientSession(phoneNumber: string): boolean {
   
   if (existed) {
     console.log(`🗑️ [SALES] Sessão do cliente ${cleanPhone} removida da memória`);
+  } else {
+    console.log(`⚠️ [SALES] Sessão não encontrada em memória para ${cleanPhone} (mas marcado como limpo)`);
   }
   console.log(`🔒 [SALES] Telefone ${cleanPhone} marcado como limpo + forceOnboarding (será tratado como cliente novo)`);
   return existed;
@@ -686,9 +690,10 @@ Antes de usar [ACAO:CRIAR_CONTA_TESTE], você PRECISA:
 3. SÓ DEPOIS de ter o nome REAL, usar a ação.
 `;
 
-  return `Você é o Rodrigo, vendedor expert do AgenteZap - uma plataforma de automação de WhatsApp com Inteligência Artificial.
+  return `Você é o Rodrigo, vendedor expert do AgenteZap - uma plataforma de automação de WhatsApp com Inteligência Artificial que responde como humano.
 Seja humano, carismático e persuasivo. Use linguagem de WhatsApp (vc, tá, né).
 Foco: fazer o cliente TESTAR a ferramenta.
+É como o melhor funcionario de um negócio, passa as intrucoes tudo como funciona ele grava no cerebro dele e nunca esquece e nunca cansa e faz como humano é como terinar um humano em instantes.
 ${memoryInstruction}
 
 ⚠️⚠️⚠️ REGRA CRÍTICA - LEIA COM ATENÇÃO ⚠️⚠️⚠️
@@ -1620,7 +1625,13 @@ function checkTriggerPhrases(
   conversationHistory: Array<{ content: string }>,
   triggerPhrases: string[]
 ): { hasTrigger: boolean; foundIn: string } {
+  console.log(`🔍 [TRIGGER CHECK] Iniciando verificação`);
+  console.log(`   - Frases configuradas: ${JSON.stringify(triggerPhrases)}`);
+  console.log(`   - Mensagem atual: "${message}"`);
+  console.log(`   - Histórico: ${conversationHistory.length} mensagens`);
+
   if (!triggerPhrases || triggerPhrases.length === 0) {
+    console.log(`   ✅ [TRIGGER CHECK] Lista vazia = Aprovado (no-filter)`);
     return { hasTrigger: true, foundIn: "no-filter" };
   }
   
@@ -1637,11 +1648,27 @@ function checkTriggerPhrases(
 
   let foundIn = "none";
   const hasTrigger = triggerPhrases.some(phrase => {
-    const inLast = normalize(message).includes(normalize(phrase));
-    const inAll = inLast ? false : normalize(allMessages).includes(normalize(phrase));
-    if (inLast) foundIn = "last"; else if (inAll) foundIn = "history";
+    const normPhrase = normalize(phrase);
+    const normMsg = normalize(message);
+    const normAll = normalize(allMessages);
+
+    const inLast = normMsg.includes(normPhrase);
+    const inAll = inLast ? false : normAll.includes(normPhrase);
+    
+    if (inLast) {
+        console.log(`   ✅ [TRIGGER CHECK] Encontrado na mensagem atual: "${phrase}"`);
+        foundIn = "last"; 
+    } else if (inAll) {
+        console.log(`   ✅ [TRIGGER CHECK] Encontrado no histórico: "${phrase}"`);
+        foundIn = "history";
+    }
+    
     return inLast || inAll;
   });
+
+  if (!hasTrigger) {
+      console.log(`   ❌ [TRIGGER CHECK] Nenhuma frase encontrada.`);
+  }
 
   return { hasTrigger, foundIn };
 }
@@ -1973,12 +2000,20 @@ export async function processAdminMessage(
   
   // Verificar trigger phrases (exceto em modo de teste)
   if (!skipTriggerCheck && session.flowState !== 'test_mode') {
+    console.log(`🔍 [DEBUG] Verificando trigger para ${cleanPhone}`);
+    console.log(`   - Frases configuradas: ${JSON.stringify(adminConfig.triggerPhrases)}`);
+    console.log(`   - Histórico sessão: ${session.conversationHistory.length} msgs`);
+    console.log(`   - Sessão limpa recentemente: ${clearedPhones.has(cleanPhone)}`);
+    console.log(`   - Mensagem atual: "${messageText}"`);
+
     const triggerResult = checkTriggerPhrases(
       messageText,
       session.conversationHistory,
       adminConfig.triggerPhrases
     );
     
+    console.log(`   - Resultado verificação:`, triggerResult);
+
     if (!triggerResult.hasTrigger) {
       console.log(`⏸️ [SALES] Sem trigger para ${cleanPhone}`);
       addToConversationHistory(cleanPhone, "user", messageText);
