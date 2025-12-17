@@ -104,21 +104,29 @@ async function getAdminAgentRuntimeConfig(): Promise<{
   messageIntervalMaxMs: number;
 }> {
   try {
-    const [splitChars, responseDelay, typingMin, typingMax, intervalMin, intervalMax] = await Promise.all([
+    const [splitChars, responseDelay, typingMin, typingMax, intervalMin, intervalMax, promptStyle] = await Promise.all([
       storage.getSystemConfig("admin_agent_message_split_chars"),
       storage.getSystemConfig("admin_agent_response_delay_seconds"),
       storage.getSystemConfig("admin_agent_typing_delay_min"),
       storage.getSystemConfig("admin_agent_typing_delay_max"),
       storage.getSystemConfig("admin_agent_message_interval_min"),
       storage.getSystemConfig("admin_agent_message_interval_max"),
+      storage.getSystemConfig("admin_agent_prompt_style"),
     ]);
 
     const messageSplitChars = clampInt(parseInt(splitChars?.valor || "400", 10) || 400, 0, 5000);
-    const responseDelaySeconds = clampInt(parseInt(responseDelay?.valor || "30", 10) || 30, 1, 180);
+    let responseDelaySeconds = clampInt(parseInt(responseDelay?.valor || "30", 10) || 30, 1, 180);
     const typingDelayMin = clampInt(parseInt(typingMin?.valor || "2", 10) || 2, 0, 60);
     const typingDelayMax = clampInt(parseInt(typingMax?.valor || "5", 10) || 5, typingDelayMin, 120);
     const messageIntervalMin = clampInt(parseInt(intervalMin?.valor || "3", 10) || 3, 0, 120);
     const messageIntervalMax = clampInt(parseInt(intervalMax?.valor || "8", 10) || 8, messageIntervalMin, 240);
+
+    // Se o estilo for "human", forçar um delay menor para parecer mais natural (se estiver alto)
+    const style = promptStyle?.valor || "nuclear";
+    if (style === "human" && responseDelaySeconds > 10) {
+      console.log(`⚡ [ADMIN AGENT] Estilo Human detectado: Reduzindo delay de ${responseDelaySeconds}s para 6s`);
+      responseDelaySeconds = 6;
+    }
 
     return {
       responseDelayMs: responseDelaySeconds * 1000,

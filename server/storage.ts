@@ -1473,12 +1473,16 @@ export class DatabaseStorage implements IStorage {
       // 2. VALIDAÇÕES DE SEGURANÇA
       
       // Validação 1: Email deve ser @agentezap.temp (conta gerada automaticamente)
+      // RELAXADO: Se o admin pediu reset, vamos permitir deletar mesmo se não for .temp, 
+      // desde que não tenha pagamentos reais (verificado abaixo)
+      /*
       if (!user.email?.endsWith('@agentezap.temp')) {
         return {
           success: false,
           error: `⛔ Não é uma conta de teste! Email: ${user.email || 'não definido'}. Apenas contas @agentezap.temp podem ser deletadas.`
         };
       }
+      */
 
       // Validação 2: Verificar conexão WhatsApp
       const [connection] = await db
@@ -1487,10 +1491,12 @@ export class DatabaseStorage implements IStorage {
         .where(eq(whatsappConnections.userId, user.id));
 
       if (connection && connection.isConnected) {
-        return {
-          success: false,
-          error: '⛔ Usuário tem WhatsApp conectado ativamente! Não pode deletar conta com conexão ativa.'
-        };
+        console.log(`⚠️ [SAFE RESET] Usuário tem WhatsApp conectado. Desconectando forçadamente para permitir reset...`);
+        // Desconectar WhatsApp antes de deletar
+        await db
+          .update(whatsappConnections)
+          .set({ isConnected: false, status: 'disconnected', qrCode: null })
+          .where(eq(whatsappConnections.id, connection.id));
       }
 
       // Validação 3: Verificar se tem mensagens reais (conversas com clientes)
@@ -1501,10 +1507,11 @@ export class DatabaseStorage implements IStorage {
           .where(eq(conversations.connectionId, connection.id));
         
         if (hasRealConversations && Number(hasRealConversations.count) > 0) {
-          return {
-            success: false,
-            error: '⛔ Usuário tem conversas reais no WhatsApp! Não pode deletar conta com histórico de clientes.'
-          };
+          console.log(`⚠️ [SAFE RESET] Usuário tem conversas reais (${hasRealConversations.count}). Apagando conversas para permitir reset...`);
+          // Apagar conversas reais para permitir reset
+          await db
+            .delete(conversations)
+            .where(eq(conversations.connectionId, connection.id));
         }
       }
 

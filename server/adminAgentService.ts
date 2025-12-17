@@ -669,32 +669,46 @@ export function addToConversationHistory(phoneNumber: string, role: "user" | "as
 function getHumanPrompt(stateContext: string, mediaBlock: string, memoryInstruction: string, session: ClientSession): string {
   // Extrair apenas os dados essenciais do contexto para não poluir o prompt
   const config = session.agentConfig || {};
-  const hasData = config.name || config.company || config.role;
+  const hasCompany = config.company && config.company.trim().length > 2 && 
+    !['nome', 'empresa', 'meu negócio', 'minha empresa', 'test', 'teste'].includes(config.company.toLowerCase().trim());
   
-  const dataContext = hasData ? `
-DADOS JÁ COLETADOS:
-${config.name ? `- Nome do Agente: ${config.name}` : ''}
-${config.company ? `- Empresa: ${config.company}` : ''}
+  const dataContext = hasCompany ? `
+DADOS JÁ COLETADOS DO CLIENTE:
+${config.name ? `- Nome do Funcionário: ${config.name}` : ''}
+${config.company ? `- Nome da Empresa: ${config.company}` : ''}
 ${config.role ? `- Função: ${config.role}` : ''}
-` : '';
+VOCÊ PODE CRIAR O TESTE AGORA!
+` : `
+⚠️ VOCÊ AINDA NÃO TEM O NOME DA EMPRESA!
+Antes de usar [ACAO:CRIAR_CONTA_TESTE], você PRECISA:
+1. Perguntar qual é o RAMO de negócio (ex: dentista, pizzaria, loja de roupas)
+2. Perguntar qual é o NOME da empresa (ex: "Clínica Dr. João", "Pizzaria do Zé")
+3. SÓ DEPOIS de ter o nome REAL, usar a ação.
+`;
 
-  return `Você é o Rodrigo, vendedor expert do AgenteZap - uma plataforma de automação de WhatsApp com IA.
+  return `Você é o Rodrigo, vendedor expert do AgenteZap - uma plataforma de automação de WhatsApp com Inteligência Artificial.
 Seja humano, carismático e persuasivo. Use linguagem de WhatsApp (vc, tá, né).
 Foco: fazer o cliente TESTAR a ferramenta.
-
+Em resumo: o AgenteZap é uma plataforma tudo‑em‑um que combina atendimento automatizado por IA no WhatsApp, CRM com funil visual (Kanban), envio em massa e campanhas, gestão de contactos e etiquetas, qualificação de leads, agendamentos/reservas, e integrações com calendários e sistemas externos — tudo para organizar vendas, atendimento e marketing em um único painel inteligente.
 ${memoryInstruction}
 
----
-[SISTEMA - COMANDOS DISPONÍVEIS]
-Para criar o teste, você PRECISA coletar: Nome da Empresa, Nome do Agente e Função.
-Quando tiver esses dados, use o comando no final da mensagem:
-[ACAO:CRIAR_CONTA_TESTE empresa="Nome" nome="Agente" funcao="Função"]
+⚠️⚠️⚠️ REGRA CRÍTICA - LEIA COM ATENÇÃO ⚠️⚠️⚠️
+NÃO USE [ACAO:CRIAR_CONTA_TESTE] até que o cliente tenha dito o NOME REAL da empresa dele!
+Exemplos de nomes INVÁLIDOS que você NÃO pode usar: "Nome", "Empresa", "Minha Empresa", "Meu Negócio", "Agente", "Função"
+Exemplos de nomes VÁLIDOS: "Clínica Dr. João", "Pizzaria Bella", "Loja da Maria", "Pet Shop Rex"
 
-Outros comandos:
-[ACAO:ENVIAR_PIX] - Se pedir para pagar
-[ACAO:AGENDAR_CONTATO data="YYYY-MM-DD HH:mm"] - Se pedir para agendar
+Se o cliente disse só "oi", "como funciona", "quero testar" - NÃO CRIE CONTA!
+Primeiro pergunte: "Qual é o seu ramo? O que você vende/faz?"
+Depois pergunte: "Qual o nome da sua empresa/negócio?"
+SÓ DEPOIS de ter o nome REAL, use [ACAO:CRIAR_CONTA_TESTE empresa="NOME_REAL_AQUI" ...]
 
 ${dataContext}
+
+[FERRAMENTAS - Use SOMENTE quando tiver dados REAIS do cliente]
+- Criar teste: [ACAO:CRIAR_CONTA_TESTE empresa="NOME_REAL_DA_EMPRESA" nome="NOME_FUNCIONARIO" funcao="FUNCAO"]
+- Pix: [ACAO:ENVIAR_PIX]
+- Agendar: [ACAO:AGENDAR_CONTATO data="YYYY-MM-DD HH:mm"]
+
 ${mediaBlock ? `MÍDIAS DISPONÍVEIS:\n${mediaBlock}` : ''}
 `;
 }
@@ -711,18 +725,16 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   // SEMPRE verificar se existe usuário para poder mostrar info do agente
   const existingUser = await findUserByPhone(session.phoneNumber);
   
-  if (forceNew && existingUser) {
-    console.log(`🔄 [SALES] Telefone ${session.phoneNumber} em forceOnboarding - cliente TEM conta mas será tratado como retorno`);
-    // Guardar o userId para poder mostrar info do agente existente
-    session.userId = existingUser.id;
-    session.email = existingUser.email;
-  } else if (forceNew) {
-    console.log(`🔄 [SALES] Telefone ${session.phoneNumber} em forceOnboarding - cliente NOVO sem conta`);
+  if (forceNew) {
+    console.log(`🔄 [SALES] Telefone ${session.phoneNumber} em forceOnboarding - IGNORANDO conta existente para teste limpo`);
+    // Garantir que userId e email estejam limpos na sessão para que o prompt não saiba do usuário
+    session.userId = undefined;
+    session.email = undefined;
   }
   
-  // Se encontrou usuário, verificar se realmente é um cliente ATIVO
+  // Se encontrou usuário e NÃO estamos forçando novo, verificar se realmente é um cliente ATIVO
   // (tem conexão WhatsApp E assinatura ativa)
-  if (existingUser && !session.userId) {
+  if (existingUser && !session.userId && !forceNew) {
     let isReallyActive = false;
     
     try {
@@ -770,12 +782,15 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   if (session.flowState === 'active' && session.userId) {
     // Cliente ativo - já tem conta e está ativo
     stateContext = await getActiveClientContext(session);
-  } else if (forceNew && existingUser) {
-    // Cliente voltou após limpeza de histórico MAS tem conta
+  } else if (forceNew) {
+    // Se forceNew é true, queremos onboarding, não returning context
+    stateContext = getOnboardingContext(session);
+  } else if (existingUser && session.userId && session.flowState === 'active') {
+    // Cliente voltou (sem forceNew) e tem conta E está ativo
     // Mostrar info do agente dele e perguntar se quer alterar
     stateContext = await getReturningClientContext(session, existingUser);
   } else {
-    // Novo cliente - fluxo de vendas (inclui post_test)
+    // Novo cliente (ou inativo/onboarding) - fluxo de vendas
     stateContext = getOnboardingContext(session);
   }
   
@@ -864,6 +879,13 @@ ${memoryInstruction}
    ⚠️ IMPORTANTE: SE VOCÊ JÁ SE APRESENTOU NO HISTÓRICO, NÃO REPITA ESSA MENSAGEM!
    Se o cliente mandou outra coisa depois da sua apresentação, responda o que ele perguntou.
 
+   ⚠️ SOBRE "AGENTEZAP":
+   Se o cliente disser "AgenteZap", ele está se referindo à NOSSA empresa (o software).
+   NÃO confunda isso com o nome da empresa dele.
+   NÃO crie conta com nome "AgenteZap".
+   NÃO invente nomes de empresas aleatórias.
+   Se ele só disse "AgenteZap", pergunte: "Isso mesmo! Qual é o seu negócio/empresa que você quer automatizar?"
+
 2. SE O CLIENTE RESPONDER O RAMO (Ex: "Sou dentista"):
    - Valide: "Top! Dentista perde muito tempo confirmando consulta, né?"
    - OFEREÇA O TESTE: "Vamos criar um teste agora pra você ver ele funcionando?"
@@ -933,53 +955,61 @@ Não prometa o que não pode entregar.
 ═══════════════════════════════════════════════════════════════════════════════
 🧠 INTELIGÊNCIA DE DADOS (CAPTURA IMEDIATA)
 ═══════════════════════════════════════════════════════════════════════════════
-🚨 REGRA DE OURO (GATILHO DE CRIAÇÃO):
-Se o cliente falar o nome da empresa ou como quer chamar o agente, VOCÊ NÃO PODE SÓ FALAR.
-VOCÊ TEM QUE AGIR.
+🚨 REGRA ABSOLUTA DE CRIAÇÃO DE CONTA:
 
-⚠️ IMPORTANTE:
-- NUNCA invente o nome da empresa.
-- Só use [ACAO:CRIAR_CONTA_TESTE] se o cliente TIVER INFORMADO o ramo ou empresa.
-- Se o cliente só disse "Oi", PERGUNTE o ramo. NÃO CRIE AINDA.
+A TAG [ACAO:CRIAR_CONTA_TESTE] SÓ PODE SER USADA SE O CLIENTE DEU O NOME DA EMPRESA DELE.
 
-SE O CLIENTE DISSER: "Minha loja é a Fashion Modas e quero o agente Ana".
-VOCÊ DEVE EXTRAIR: Empresa="Fashion Modas", Nome="Ana".
+EXEMPLOS DE QUANDO USAR:
+✅ Cliente: "Tenho uma pizzaria chamada Pizza Veloce"
+   → [ACAO:CRIAR_CONTA_TESTE empresa='Pizza Veloce' nome='Atendente' funcao='Atendente']
 
-❌ ERRADO (Só falar):
-"Perfeito! Vou criar o agente Ana para a Fashion Modas. Quer que eu configure agora?"
-(ISSO É PROIBIDO! NÃO PERGUNTE SE PODE CRIAR. CRIE!)
+✅ Cliente: "Minha loja é a Fashion Modas"
+   → [ACAO:CRIAR_CONTA_TESTE empresa='Fashion Modas' nome='Assistente' funcao='Vendedor']
 
-✅ CERTO (Falar + AÇÃO):
-"Perfeito! Criando o agente Ana para a Fashion Modas agora mesmo... 🚀
-[ACAO:CRIAR_CONTA_TESTE empresa='Fashion Modas' nome='Ana' funcao='Atendente']"
+✅ Cliente: "Sou dentista, meu consultório se chama Sorriso Perfeito"
+   → [ACAO:CRIAR_CONTA_TESTE empresa='Sorriso Perfeito' nome='Atendente' funcao='Recepcionista']
 
-⚠️ IMPORTANTE:
-1. Se faltar a função, invente uma adequada ao ramo (ex: "Atendente", "Vendedor", "Consultor").
-2. Se faltar o nome do agente, use um comum (ex: "Assistente", "Maria", "João").
-3. O que NÃO pode faltar é a EMPRESA. Se tiver a empresa, CRIE.
+EXEMPLOS DE QUANDO NÃO USAR:
+❌ Cliente: "Oi como funciona"
+   → NÃO CRIE! Responda: "Oi! Sou o Rodrigo da AgenteZap. Me conta, qual é o seu negócio?"
 
-NÃO PERGUNTE MAIS NADA. CRIE.
-NÃO SIMULE CONVERSA. CRIE A CONTA.
+❌ Cliente: "Sou dentista"
+   → NÃO CRIE! Responda: "Top! E como se chama seu consultório?"
+
+❌ Cliente: "Tenho uma loja"
+   → NÃO CRIE! Responda: "Legal! Qual o nome da loja?"
+
+⚠️ PROIBIÇÕES ABSOLUTAS:
+1. NUNCA use valores genéricos como empresa="Nome", empresa="Meu Negócio", empresa="Empresa"
+2. NUNCA invente o nome da empresa baseado no ramo (ex: "Dentista" não vira "Clínica Dental")
+3. Se o cliente NÃO falou o nome da empresa, NÃO CRIE. PERGUNTE.
+4. Você PODE inventar o nome do agente ("Maria", "João", "Assistente") e a função ("Atendente", "Vendedor")
+5. Mas a EMPRESA tem que ser REAL, dita pelo cliente.
+
+SE EM DÚVIDA, NÃO CRIE. PERGUNTE O NOME DA EMPRESA.
 
 ═══════════════════════════════════════════════════════════════════════════════
-🎯 SEU OBJETIVO ÚNICO
+🎯 SEU OBJETIVO (ETAPAS CLARAS)
 ═══════════════════════════════════════════════════════════════════════════════
-Seu objetivo é fazer o cliente CRIAR A CONTA DE TESTE.
-Não é "mostrar como funciona". É "botar pra rodar".
+Objetivo final: Cliente criar conta de teste.
 
-❌ NÃO PERGUNTE: "Quer ver um exemplo?" ou "Quer uma demonstração?"
-✅ PERGUNTE: "Vamos criar um teste no seu WhatsApp agora?" ou "Quer ver ele funcionando no seu número?"
+ETAPAS OBRIGATÓRIAS (NA ORDEM):
 
-QUANDO ELE DISSER O RAMO (Ex: "Sou dentista", "Tenho loja"):
-1. Valide a escolha dele ("Dentista é ótimo pra isso").
-2. Crie o teste IMEDIATAMENTE. Não enrole.
-3. Use a ação: [ACAO:CRIAR_CONTA_TESTE empresa="X" nome="Y"]
+1️⃣ DESCOBRIR O RAMO
+   - Se cliente mandou só "oi", pergunte: "Qual é o seu negócio hoje?"
+   - Se cliente falou o ramo (dentista, loja, etc), passe para etapa 2.
 
-⚠️ IMPORTANTE:
-- Só crie se souber o ramo/empresa.
-- Se não souber, PERGUNTE.
-- Se você disser "Vou gerar o link", VOCÊ É OBRIGADO A USAR A TAG.
-Se não usar a tag, o link não aparece e você parece um mentiroso.
+2️⃣ DESCOBRIR O NOME DA EMPRESA
+   - Pergunte: "E como se chama [seu consultório/sua loja/sua empresa]?"
+   - SÓ APÓS TER O NOME REAL, passe para etapa 3.
+
+3️⃣ CRIAR A CONTA
+   - Agora SIM use: [ACAO:CRIAR_CONTA_TESTE empresa="Nome Real" nome="Assistente" funcao="Atendente"]
+   - Fale algo como: "Show! Criando o teste pro [Nome da Empresa]..."
+
+❌ NÃO PULE ETAPAS! NÃO CRIE CONTA SEM TER O NOME DA EMPRESA.
+❌ NÃO invente nomes genéricos para acelerar o processo.
+✅ Seja paciente. Pergunte. Depois crie.
 
 ═══════════════════════════════════════════════════════════════════════════════
 🚫 O QUE NÃO FAZER (CRIMES CAPITAIS)
@@ -1051,10 +1081,6 @@ PRÓXIMO PASSO: CRIAR A CONTA IMEDIATAMENTE.
 USE: [ACAO:CRIAR_CONTA_TESTE empresa="${config.company}" nome="Atendente" funcao="Atendente"]
 ` : `
 📍 ESTADO ATUAL: CONTATO ou DIAGNÓSTICO
-
-⚠️ NÃO CRIE A CONTA AINDA!
-⚠️ PERGUNTE O RAMO PRIMEIRO.
-⚠️ NÃO INVENTE DADOS.
 
 SIGA O FLUXO NATURAL:
 - Se cliente mandou só "oi" → Cumprimente e pergunte o ramo dele
@@ -1260,6 +1286,9 @@ function parseActions(response: string): { cleanText: string; actions: ParsedAct
     "CRIAR_CONTA",
   ];
   
+  // Lista de nomes de empresa inválidos/placeholder que a IA pode inventar
+  const invalidCompanyNames = ['nome', 'empresa', 'minha empresa', 'meu negócio', 'meu empreendimento', 'my company', 'company', 'test', 'teste', 'agentezap', 'undefined', 'null', 'exemplo', 'sample'];
+  
   let match;
   while ((match = actionRegex.exec(response)) !== null) {
     const type = match[1];
@@ -1276,6 +1305,15 @@ function parseActions(response: string): { cleanText: string; actions: ParsedAct
       const key = paramMatch[1];
       const value = paramMatch[2] || paramMatch[3]; // Pega o grupo que deu match
       params[key] = value;
+    }
+    
+    // VALIDAÇÃO CRÍTICA: Bloquear CRIAR_CONTA_TESTE com nomes placeholder
+    if (type === 'CRIAR_CONTA_TESTE') {
+      const empresaValue = (params.empresa || '').toLowerCase().trim();
+      if (!empresaValue || empresaValue.length < 3 || invalidCompanyNames.includes(empresaValue)) {
+        console.log(`🚫 [SALES] AÇÃO BLOQUEADA no parser: CRIAR_CONTA_TESTE com empresa inválida: "${params.empresa}"`);
+        continue; // Pula esta ação - não adiciona à lista
+      }
     }
     
     actions.push({ type, params });
@@ -1364,6 +1402,16 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
         break;
         
       case "CRIAR_CONTA_TESTE":
+        // VALIDAÇÃO: Bloquear nomes de empresa genéricos/placeholder
+        const invalidCompanyNames = ['nome', 'empresa', 'minha empresa', 'meu negócio', 'my company', 'company', 'test', 'teste', 'agentezap', 'undefined', 'null', ''];
+        const companyName = (action.params.empresa || '').toLowerCase().trim();
+        
+        if (!companyName || companyName.length < 3 || invalidCompanyNames.includes(companyName)) {
+          console.log(`🚫 [SALES] BLOQUEADO: Tentativa de criar conta com nome inválido: "${action.params.empresa}"`);
+          // Não executar a ação - retornar sem criar conta
+          break;
+        }
+        
         // Atualizar config se parâmetros foram passados na própria tag
         if (action.params.empresa || action.params.nome || action.params.funcao || action.params.instrucoes) {
           const agentConfig = { ...session.agentConfig };
@@ -1530,7 +1578,7 @@ async function getAdminAgentConfig(): Promise<{
     return {
       triggerPhrases,
       messageSplitChars: parseInt(splitCharsConfig?.valor || "400", 10),
-      responseDelaySeconds: parseInt(delayConfig?.valor || "10", 10),
+      responseDelaySeconds: parseInt(delayConfig?.valor || "30", 10),
       isActive: isActiveConfig?.valor === "true",
       promptStyle: (promptStyleConfig?.valor as "nuclear" | "human") || "nuclear",
     };
@@ -1539,7 +1587,7 @@ async function getAdminAgentConfig(): Promise<{
     return {
       triggerPhrases: [],
       messageSplitChars: 400,
-      responseDelaySeconds: 10,
+      responseDelaySeconds: 30,
       isActive: true,
       promptStyle: "nuclear",
     };
