@@ -668,29 +668,31 @@ export function addToConversationHistory(phoneNumber: string, role: "user" | "as
  */
 function getHumanPrompt(stateContext: string, mediaBlock: string, memoryInstruction: string, session: ClientSession): string {
   return `Você é o Rodrigo, vendedor expert do AgenteZap - uma plataforma de automação de WhatsApp com IA.
-Seja humano, carismático e persuasivo. Use linguagem de WhatsApp (vc, tá, né).
+Seja humano, carismático e persuasivo. Use linguagem de WhatsApp (vc, tá, né, blz, show).
 Foco: fazer o cliente TESTAR a ferramenta.
+
+REGRAS DE ESTILO:
+- Mensagens curtas (máximo 3 frases)
+- Sem emojis excessivos (máximo 1 por mensagem)
+- Sem linguagem formal ou robótica
+- Pergunte UMA coisa por vez
+- Seja direto e objetivo
+
+OBJETIVO: Descobrir o negócio do cliente e criar conta teste.
 
 ${memoryInstruction}
 
----
-🔴 INSTRUÇÕES DE SISTEMA (Use apenas para executar ações):
-
-CONTEXTO:
-${stateContext}
-
-MÍDIAS:
-${mediaBlock}
-
-FERRAMENTAS (Use a tag no final da mensagem quando tiver os dados):
-1. CRIAR CONTA: [ACAO:CRIAR_CONTA_TESTE empresa="Nome" nome="Agente" funcao="Função"]
-2. SALVAR DADOS: [ACAO:SALVAR_CONFIG empresa="Nome" nome="Agente"]
-3. ENVIAR PIX: [ACAO:ENVIAR_PIX]
-4. AGENDAR: [ACAO:AGENDAR_CONTATO data="YYYY-MM-DD HH:mm"]
+${stateContext ? `CONTEXTO DO CLIENTE:\n${stateContext}\n` : ''}
+${mediaBlock ? `MÍDIAS DISPONÍVEIS:\n${mediaBlock}\n` : ''}
+AÇÕES (use no FINAL da mensagem quando tiver os dados):
+- Criar teste: [ACAO:CRIAR_CONTA_TESTE empresa="Nome" nome="Agente" funcao="Função"]
+- Enviar PIX: [ACAO:ENVIAR_PIX]
 `;
 }
 
 async function getMasterPrompt(session: ClientSession): Promise<string> {
+  console.log(`🚀 [DEBUG] getMasterPrompt INICIANDO para ${session.phoneNumber}`);
+  
   // NUCLEAR 22.0: PROMPT BASEADO EM PRINCÍPIOS (V9 - HUMANIDADE TOTAL)
   // Foco: Remover scripts engessados e usar inteligência de vendas real.
   
@@ -802,11 +804,15 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
   }
 
   const config = await getAdminAgentConfig();
+  console.log(`🎯 [SALES] Prompt Style configurado: "${config.promptStyle}" (esperado: "human" ou "nuclear")`);
+  
   if (config.promptStyle === 'human') {
+    console.log(`✅ [SALES] Usando PROMPT HUMANO (estilo simples)`);
     return getHumanPrompt(stateContext, mediaBlock, memoryInstruction, session);
   }
   
-  return `� AGENTEZAP
+  console.log(`🔥 [SALES] Usando PROMPT NUCLEAR (estilo completo)`);
+  return `🤖 AGENTEZAP
 
 ## Lousa Estratégica de Vendas – Abordagem Cliente Frio (Disse apenas “Oi”)
 
@@ -1507,12 +1513,14 @@ async function getAdminAgentConfig(): Promise<{
       isActive: isActiveConfig?.valor === "true",
       promptStyle: (promptStyleConfig?.valor as "nuclear" | "human") || "nuclear",
     };
-  } catch {
+  } catch (error) {
+    console.error("[SALES] Erro ao carregar config, usando defaults:", error);
     return {
       triggerPhrases: [],
       messageSplitChars: 400,
       responseDelaySeconds: 30,
       isActive: true,
+      promptStyle: "nuclear",
     };
   }
 }
