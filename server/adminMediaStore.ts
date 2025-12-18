@@ -285,19 +285,6 @@ export async function forceReloadCache(adminId: string): Promise<void> {
   await reloadCache(adminId);
 }
 
-/**
- * Gera o bloco de prompt para as mídias do admin
- * COPIADO DO mediaService.ts QUE FUNCIONA CORRETAMENTE
- */
-export async function generateAdminMediaPromptBlock(adminId?: string): Promise<string> {
-  const mediaList = await getAdminMediaList(adminId);
-  
-  if (mediaList.length === 0) {
-    return '';
-  }
-
-  const allMediaNames = mediaList.map(m => m.name);
-
 // Definição dos gatilhos padrão (Exportado para uso no fallback)
 export const defaultTriggers = [
   { keywords: ["como funciona", "funciona assim", "deixa eu explicar", "vou te explicar", "te explico", "vale a pena"], mediaName: "COMO_FUNCIONA" },

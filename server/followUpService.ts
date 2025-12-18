@@ -93,20 +93,20 @@ export class FollowUpService {
    * Executa a lógica de follow-up para uma conversa específica
    */
   private async executeFollowUp(conversation: typeof adminConversations.$inferSelect) {
-    console.log(`👉 [FOLLOW-UP] Processando ${conversation.userPhone} (Estágio ${conversation.followupStage})`);
+    console.log(`👉 [FOLLOW-UP] Processando ${conversation.contactNumber} (Estágio ${conversation.followupStage})`);
 
     try {
       // 1. Analisar histórico com IA para decidir ação
       const decision = await this.analyzeWithAI(conversation);
       
       if (decision.action === 'abort') {
-        console.log(`🛑 [FOLLOW-UP] Abortado pela IA para ${conversation.userPhone}: ${decision.reason}`);
+        console.log(`🛑 [FOLLOW-UP] Abortado pela IA para ${conversation.contactNumber}: ${decision.reason}`);
         await this.disableFollowUp(conversation.id);
         return;
       }
 
       if (decision.action === 'wait') {
-        console.log(`⏳ [FOLLOW-UP] IA sugeriu esperar para ${conversation.userPhone}: ${decision.reason}`);
+        console.log(`⏳ [FOLLOW-UP] IA sugeriu esperar para ${conversation.contactNumber}: ${decision.reason}`);
         // Adiar por 24h ou conforme sugerido (simplificado para 24h aqui)
         await this.scheduleNextFollowUp(conversation, 24 * 60); 
         return;
@@ -115,7 +115,7 @@ export class FollowUpService {
       // 2. Se ação for 'send', disparar callback
       if (decision.action === 'send') {
         if (this.onFollowUpReady) {
-          console.log(`📤 [FOLLOW-UP] Disparando callback para ${conversation.userPhone}`);
+          console.log(`📤 [FOLLOW-UP] Disparando callback para ${conversation.contactNumber}`);
           
           // O callback espera (phoneNumber, context, attempt, type)
           // Vamos adaptar os parâmetros
@@ -123,7 +123,7 @@ export class FollowUpService {
           const type = attempt >= FOLLOW_UP_SCHEDULE.length ? 'final' : 'reminder';
           
           await this.onFollowUpReady(
-            conversation.userPhone, 
+            conversation.contactNumber, 
             decision.context || "Follow-up automático",
             attempt,
             type
@@ -137,7 +137,7 @@ export class FollowUpService {
       }
 
     } catch (error) {
-      console.error(`❌ [FOLLOW-UP] Erro ao executar para ${conversation.userPhone}:`, error);
+      console.error(`❌ [FOLLOW-UP] Erro ao executar para ${conversation.contactNumber}:`, error);
     }
   }
 
@@ -327,7 +327,7 @@ export class FollowUpService {
 
     return activeFollowUps.map(conv => ({
       id: `fu_${conv.id}`,
-      phoneNumber: conv.userPhone,
+      phoneNumber: conv.contactNumber,
       type: 'followup',
       title: `Follow-up #${(conv.followupStage || 0) + 1}`,
       scheduledAt: conv.nextFollowupAt,
