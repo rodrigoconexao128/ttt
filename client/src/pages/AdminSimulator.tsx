@@ -15,6 +15,22 @@ interface Message {
 }
 
 const AVAILABLE_MODELS = [
+  // Z.AI Models
+  { value: "glm-4.6", label: "Z.AI GLM-4.6 - Mais Recente 🌟", speed: "Médio" },
+  { value: "glm-4.5", label: "Z.AI GLM-4.5 - Alta Performance 🧠", speed: "Médio" },
+  { value: "glm-4.5-air", label: "Z.AI GLM-4.5 Air - Custo/Benefício", speed: "Rápido" },
+  { value: "glm-4.5-x", label: "Z.AI GLM-4.5 X - Versátil", speed: "Rápido" },
+  { value: "glm-4.5-airx", label: "Z.AI GLM-4.5 AirX - Leve e Rápido", speed: "Muito Rápido" },
+  { value: "glm-4.5-flash", label: "Z.AI GLM-4.5 Flash - Ultra Rápido ⚡", speed: "Instantâneo" },
+  { value: "glm-4-32b-0414-128k", label: "Z.AI GLM-4 32B - Contexto Longo 📚", speed: "Médio" },
+
+  // Z.AI Legacy (podem funcionar dependendo do seu plano/chave)
+  { value: "glm-4-flash", label: "Z.AI GLM-4 Flash (Legacy)", speed: "Instantâneo" },
+  { value: "glm-4-air", label: "Z.AI GLM-4 Air (Legacy)", speed: "Muito Rápido" },
+  { value: "glm-4-plus", label: "Z.AI GLM-4 Plus (Legacy)", speed: "Médio" },
+  { value: "glm-4-0520", label: "Z.AI GLM-4 (0520) (Legacy)", speed: "Rápido" },
+  
+  // Mistral Models
   { value: "mistral-large-latest", label: "Mistral Large (9.9s) - Mais Inteligente 🧠", speed: "Lento" },
   { value: "mistral-medium-latest", label: "Mistral Medium (6.1s)", speed: "Médio" },
   { value: "mistral-small-latest", label: "Mistral Small (3.1s) - Atual", speed: "Rápido" },

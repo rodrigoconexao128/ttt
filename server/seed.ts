@@ -41,15 +41,46 @@ export async function seedDatabase() {
     );
 
     if (mistralKeyConfig.length === 0) {
-      await withRetry(() =>
-        db.insert(systemConfig).values({
-          chave: "mistral_api_key",
-          valor: "9rYWr97uytmbYIkXRJXK5Kqx73qPHDxe",
-        })
-      );
-      console.log("✅ Mistral API Key configured");
+      const mistralFromEnv = process.env.MISTRAL_API_KEY;
+      if (mistralFromEnv) {
+        await withRetry(() =>
+          db.insert(systemConfig).values({
+            chave: "mistral_api_key",
+            valor: mistralFromEnv,
+          })
+        );
+        console.log("✅ Mistral API Key configured (from env)");
+      } else {
+        console.log("ℹ️ Mistral API Key not configured (missing env MISTRAL_API_KEY)");
+      }
     } else {
       console.log("ℹ️ Mistral API Key already exists");
+    }
+
+    // Seed Z.AI API Key
+    const zaiKeyConfig = await withRetry(() =>
+      db
+        .select()
+        .from(systemConfig)
+        .where(eq(systemConfig.chave, "zai_api_key"))
+        .limit(1)
+    );
+
+    if (zaiKeyConfig.length === 0) {
+      const zaiFromEnv = process.env.ZAI_API_KEY;
+      if (zaiFromEnv) {
+        await withRetry(() =>
+          db.insert(systemConfig).values({
+            chave: "zai_api_key",
+            valor: zaiFromEnv,
+          })
+        );
+        console.log("✅ Z.AI API Key configured (from env)");
+      } else {
+        console.log("ℹ️ Z.AI API Key not configured (missing env ZAI_API_KEY)");
+      }
+    } else {
+      console.log("ℹ️ Z.AI API Key already exists");
     }
 
     // Seed PIX key

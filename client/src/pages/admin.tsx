@@ -949,13 +949,14 @@ function PaymentsManager({
   );
 }
 
-function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?: string } | undefined }) {
+function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?: string; zai_api_key?: string } | undefined }) {
   const { toast } = useToast();
   const [mistralKey, setMistralKey] = useState(config?.mistral_api_key || "");
   const [pixKey, setPixKey] = useState(config?.pix_key || "");
+  const [zaiKey, setZaiKey] = useState(config?.zai_api_key || "");
 
   const updateConfigMutation = useMutation({
-    mutationFn: async (data: { mistral_api_key: string; pix_key: string }) => {
+    mutationFn: async (data: { mistral_api_key: string; pix_key: string; zai_api_key: string }) => {
       return await apiRequest("PUT", "/api/admin/config", data);
     },
     onSuccess: () => {
@@ -969,7 +970,7 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateConfigMutation.mutate({ mistral_api_key: mistralKey, pix_key: pixKey });
+    updateConfigMutation.mutate({ mistral_api_key: mistralKey, pix_key: pixKey, zai_api_key: zaiKey });
   };
 
   return (
@@ -1007,6 +1008,21 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
             />
             <p className="text-sm text-muted-foreground">
               Chave PIX usada para receber pagamentos de assinaturas
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="zaiKey">Z.AI API Key</Label>
+            <Input
+              id="zaiKey"
+              type="password"
+              value={zaiKey}
+              onChange={(e) => setZaiKey(e.target.value)}
+              placeholder="0a..."
+              data-testid="input-zai-key"
+            />
+            <p className="text-sm text-muted-foreground">
+              Chave API usada para os modelos GLM (Z.AI)
             </p>
           </div>
 

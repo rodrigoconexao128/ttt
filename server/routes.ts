@@ -1432,15 +1432,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get system config
   app.get("/api/admin/config", isAdmin, async (_req, res) => {
     try {
-      const [mistralKey, pixKey] = await withRetry(() => 
+      const [mistralKey, pixKey, zaiKey] = await withRetry(() => 
         Promise.all([
           storage.getSystemConfig("mistral_api_key"),
           storage.getSystemConfig("pix_key"),
+          storage.getSystemConfig("zai_api_key"),
         ])
       );
       res.json({
         mistral_api_key: mistralKey?.valor || "",
         pix_key: pixKey?.valor || "",
+        zai_api_key: zaiKey?.valor || "",
       });
     } catch (error) {
       console.error("Error fetching config:", error);
@@ -1451,7 +1453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update system config
   app.put("/api/admin/config", isAdmin, async (req, res) => {
     try {
-      const { mistral_api_key, pix_key } = req.body;
+      const { mistral_api_key, pix_key, zai_api_key } = req.body;
 
       if (mistral_api_key !== undefined) {
         await storage.updateSystemConfig("mistral_api_key", mistral_api_key);
@@ -1459,6 +1461,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (pix_key !== undefined) {
         await storage.updateSystemConfig("pix_key", pix_key);
+      }
+
+      if (zai_api_key !== undefined) {
+        await storage.updateSystemConfig("zai_api_key", zai_api_key);
       }
 
       res.json({ success: true });
@@ -2703,6 +2709,24 @@ Foco: fazer o cliente TESTAR a ferramenta.`
       messages.push({ role: "user", content: message });
 
       console.log(`🧪 [MODEL-TEST] Testando ${model} com: "${message.substring(0, 50)}..."`);
+
+      // Integração Z.AI (GLM Models)
+      if (model.startsWith("glm-")) {
+        try {
+          const { chatCompleteZai } = await import("./zaiClient");
+          const zaiResponse = await chatCompleteZai(model, messages);
+          const responseText = zaiResponse.choices?.[0]?.message?.content;
+
+          if (!responseText) {
+            return res.status(500).json({ message: "Empty response from Z.AI model" });
+          }
+
+          return res.json({ response: responseText });
+        } catch (error: any) {
+          console.error("❌ [MODEL-TEST] Erro Z.AI:", error);
+          return res.status(500).json({ message: error.message || "Error calling Z.AI API" });
+        }
+      }
 
       const response = await mistral.chat.complete({
         model: model,

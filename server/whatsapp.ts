@@ -231,6 +231,33 @@ async function processAdminAccumulatedMessages(params: {
   console.log(`      - Intervalo blocos: ${config.messageIntervalMinMs}-${config.messageIntervalMaxMs}ms`);
 
   try {
+    // 🔒 RE-VERIFICAR STATUS DO AGENTE (Double Check)
+    // Isso previne que mensagens acumuladas sejam enviadas se o agente foi desativado durante o delay
+    // ou se a verificação inicial falhou.
+    if (pending.conversationId) {
+        const isEnabled = await storage.isAdminAgentEnabledForConversation(pending.conversationId);
+        if (!isEnabled) {
+            console.log(`⏸️ [ADMIN AGENT] Agente desativado durante acumulação para ${pending.contactNumber}. Cancelando envio.`);
+            pendingAdminResponses.delete(key);
+            return;
+        }
+    } else {
+        // Fallback: Tentar buscar conversa pelo número se não tiver ID salvo no pending
+        try {
+            const admins = await storage.getAllAdmins();
+            if (admins.length > 0) {
+                const conv = await storage.getAdminConversationByContact(admins[0].id, pending.contactNumber);
+                if (conv && !conv.isAgentEnabled) {
+                    console.log(`⏸️ [ADMIN AGENT] Agente desativado (verificação tardia) para ${pending.contactNumber}. Cancelando envio.`);
+                    pendingAdminResponses.delete(key);
+                    return;
+                }
+            }
+        } catch (err) {
+            console.error("Erro na verificação tardia de status:", err);
+        }
+    }
+
     const { processAdminMessage, getOwnerNotificationNumber } = await import("./adminAgentService");
 
     // skipTriggerCheck = false para aplicar validação de frases gatilho no WhatsApp real
@@ -2216,10 +2243,14 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         // ═══════════════════════════════════════════════════════════════════════
         if (conversation) {
           const isAgentEnabled = await storage.isAdminAgentEnabledForConversation(conversation.id);
+          console.log(`🔒 [ADMIN] Status do agente para ${contactNumber}: ${isAgentEnabled ? '✅ ATIVO' : '❌ DESATIVADO'}`);
+          
           if (!isAgentEnabled) {
-            console.log(`⏸️ [ADMIN] Agente pausado para conversa ${conversation.id} (${contactNumber})`);
+            console.log(`⏸️ [ADMIN] Agente pausado para conversa ${conversation.id} (${contactNumber}) - Ignorando mensagem.`);
             return;
           }
+        } else {
+          console.warn(`⚠️ [ADMIN] Objeto 'conversation' indefinido para ${contactNumber}. Verificação de status ignorada (Risco de resposta indesejada).`);
         }
         
         // Verificar se é mensagem para atendimento automatizado
