@@ -3,11 +3,22 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { restoreExistingSessions, restoreAdminSessions } from "./whatsapp";
+import { followUpService } from "./followUpService";
 import { seedDatabase } from "./seed";
 import path from "path";
 import fs from "fs";
 
 const app = express();
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  // Keep the process alive
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Keep the process alive
+});
 // Force restart
 
 
@@ -138,5 +149,8 @@ app.use((req, res, next) => {
     restoreAdminSessions().catch((error) => {
       console.error("Failed to restore admin WhatsApp sessions:", error);
     });
+
+    // Start Follow-up Service
+    followUpService.start();
   });
 })();

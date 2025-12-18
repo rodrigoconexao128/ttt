@@ -18,6 +18,8 @@ import { MessageAudio } from "@/components/message-audio";
 
 interface AdminConversation extends Conversation {
   userId?: string;
+  followupActive?: boolean;
+  followupStage?: number;
 }
 
 export default function AdminConversations() {
@@ -41,6 +43,29 @@ export default function AdminConversations() {
   const { data: selectedConversation } = useQuery<AdminConversation>({
     queryKey: ["/api/admin/conversation", selectedConversationId],
     enabled: !!selectedConversationId,
+  });
+
+  const toggleFollowUpMutation = useMutation({
+    mutationFn: async (active: boolean) => {
+      return await apiRequest("POST", `/api/admin/conversations/${selectedConversationId}/toggle-followup`, { active });
+    },
+    onSuccess: (_, active) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations", selectedConversationId] });
+      toast({
+        title: active ? "Follow-up Ativado" : "Follow-up Desativado",
+        description: active 
+          ? "O sistema enviará mensagens automáticas de reengajamento." 
+          : "O follow-up automático foi pausado para esta conversa.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Não foi possível alterar o status do follow-up.",
+        variant: "destructive",
+      });
+    },
   });
 
   const { data: messages = [], isLoading: messagesLoading } = useQuery<AdminMessage[]>({
@@ -418,6 +443,18 @@ export default function AdminConversations() {
                     disabled={toggleAgentMutation.isPending}
                   />
                 </div>
+
+                <div className="flex items-center gap-2 ml-2 border-l pl-2">
+                  <Badge variant={selectedConversation?.followupActive ? "outline" : "secondary"}>
+                    {selectedConversation?.followupActive ? "Follow-up ON" : "Follow-up OFF"}
+                  </Badge>
+                  <Switch
+                    checked={!!selectedConversation?.followupActive}
+                    onCheckedChange={(checked) => toggleFollowUpMutation.mutate(checked)}
+                    disabled={toggleFollowUpMutation.isPending}
+                  />
+                </div>
+
                 <Button
                   variant="ghost"
                   size="sm"

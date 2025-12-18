@@ -1109,15 +1109,28 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getOrCreateAdminConversation(adminId: string, contactNumber: string, remoteJid?: string): Promise<any> {
+  async getOrCreateAdminConversation(adminId: string, contactNumber: string, remoteJid?: string, contactName?: string, contactAvatar?: string): Promise<any> {
     let conversation = await this.getAdminConversationByContact(adminId, contactNumber);
+    
     if (!conversation) {
       conversation = await this.createAdminConversation({
         adminId,
         contactNumber,
         remoteJid,
+        contactName,
+        contactAvatar,
       });
+    } else if (contactName || contactAvatar) {
+      // Update if name/avatar provided and different/missing
+      const updates: any = {};
+      if (contactName && conversation.contactName !== contactName) updates.contactName = contactName;
+      if (contactAvatar && conversation.contactAvatar !== contactAvatar) updates.contactAvatar = contactAvatar;
+      
+      if (Object.keys(updates).length > 0) {
+        conversation = await this.updateAdminConversation(conversation.id, updates);
+      }
     }
+    
     return conversation;
   }
 

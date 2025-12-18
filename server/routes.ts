@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
 import { storage } from "./storage";
+import { followUpService } from "./followUpService";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 import { withRetry } from "./db";
 
@@ -568,6 +569,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==========================================================================
+  // CALENDAR ROUTES
+  // ==========================================================================
+
+  app.get("/api/admin/calendar/events", isAdmin, async (req: any, res) => {
+    try {
+      const events = await followUpService.getCalendarEvents();
+      res.json({ events });
+    } catch (error) {
+      console.error("Error fetching calendar events:", error);
+      res.status(500).json({ message: "Failed to fetch calendar events" });
+    }
+  });
+
+  app.get("/api/admin/calendar/stats", isAdmin, async (req: any, res) => {
+    try {
+      const stats = await followUpService.getFollowUpStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching calendar stats:", error);
+      res.status(500).json({ message: "Failed to fetch calendar stats" });
+    }
+  });
+
+  app.delete("/api/admin/calendar/events/:id", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      // ID format: fu_123 (followup_ID)
+      if (id.startsWith('fu_')) {
+        const conversationId = parseInt(id.split('_')[1]);
+        await followUpService.disableFollowUp(conversationId);
+        res.json({ success: true });
+      } else {
+        res.status(400).json({ message: "Invalid event ID" });
+      }
+    } catch (error) {
+      console.error("Error cancelling event:", error);
+      res.status(500).json({ message: "Failed to cancel event" });
+    }
+  });
+
+  // ==========================================================================
+  // END CALENDAR ROUTES
+  // ==========================================================================
+
+  // ==========================================================================
   // AGENT MEDIA LIBRARY ROUTES
   // ==========================================================================
 
@@ -879,6 +925,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error toggling agent:", error);
       res.status(500).json({ message: "Failed to toggle agent" });
+    }
+  });
+
+  app.post("/api/agent/toggle-followup/:conversationId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const { active } = req.body;
+      const userId = getUserId(req);
+
+      // Verify ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      if (active) {
+        await followUpService.scheduleInitialFollowUp(parseInt(conversationId));
+      } else {
+        await followUpService.disableFollowUp(parseInt(conversationId));
+      }
+
+      res.json({ success: true, active });
+    } catch (error) {
+      console.error("Error toggling follow-up:", error);
+      res.status(500).json({ message: "Failed to toggle follow-up" });
     }
   });
 
@@ -1774,42 +1850,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Text is required" });
       }
       
-      const conversation = await storage.getAdminConversation(id);
-      if (!conversation || !conversation.remoteJid) {
-        return res.status(404).json({ message: "Conversation not found or no remoteJid" });
-      }
+      const { sendAdminConversationMessage } = await import("./whatsapp");
+      await sendAdminConversationMessage(adminId, id, text);
       
-      const { getAdminSession } = await import("./whatsapp");
-      const session = getAdminSession(adminId);
-      
-      if (!session?.socket) {
-        return res.status(400).json({ message: "Admin WhatsApp not connected" });
-      }
-      
-      // Enviar mensagem
-      const sent = await session.socket.sendMessage(conversation.remoteJid, { text });
-      
-      // Salvar mensagem no banco
-      await storage.createAdminMessage({
-        conversationId: id,
-        messageId: sent?.key?.id || crypto.randomUUID(),
-        fromMe: true,
-        text,
-        timestamp: new Date(),
-        status: "sent",
-        isFromAgent: false, // Mensagem manual do admin
-      });
-      
-      // Atualizar última mensagem da conversa
-      await storage.updateAdminConversation(id, {
-        lastMessageText: text,
-        lastMessageTime: new Date(),
-      });
-      
-      res.json({ success: true, messageId: sent?.key?.id });
-    } catch (error) {
+      res.json({ success: true });
+    } catch (error: any) {
       console.error("Error sending admin message:", error);
-      res.status(500).json({ message: "Failed to send message" });
+      res.status(500).json({ message: error.message || "Failed to send message" });
     }
   });
 
@@ -2526,12 +2573,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const configs = await storage.getSystemConfigs(configKeys);
 
+      let triggerPhrases = adminAgentConfig.triggerPhrases;
+      if (configs.has("admin_agent_trigger_phrases")) {
+        const val = configs.get("admin_agent_trigger_phrases")!;
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) triggerPhrases = parsed;
+        } catch {
+          const raw = val.trim();
+          if (raw.length > 0) {
+            triggerPhrases = raw.includes(',') ? raw.split(',').map(s => s.trim()).filter(s => s.length > 0) : [raw];
+          } else {
+            triggerPhrases = [];
+          }
+        }
+      }
+
       res.json({
         prompt: configs.get("admin_agent_prompt") || adminAgentConfig.prompt,
         isActive: configs.get("admin_agent_enabled") === "true" || adminAgentConfig.isActive,
-        triggerPhrases: configs.has("admin_agent_trigger_phrases") 
-          ? JSON.parse(configs.get("admin_agent_trigger_phrases")!) 
-          : adminAgentConfig.triggerPhrases,
+        triggerPhrases,
         messageSplitChars: configs.has("admin_agent_message_split_chars") 
           ? parseInt(configs.get("admin_agent_message_split_chars")!) 
           : adminAgentConfig.messageSplitChars,
@@ -2583,6 +2644,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (Array.isArray(triggerPhrases)) {
         updates.push(storage.updateSystemConfig("admin_agent_trigger_phrases", JSON.stringify(triggerPhrases)));
         adminAgentConfig.triggerPhrases = triggerPhrases;
+      } else if (typeof triggerPhrases === 'string') {
+        // Handle comma separated string or single value
+        const phrases = triggerPhrases.split(',').map((p: string) => p.trim()).filter((p: string) => p.length > 0);
+        updates.push(storage.updateSystemConfig("admin_agent_trigger_phrases", JSON.stringify(phrases)));
+        adminAgentConfig.triggerPhrases = phrases;
       }
 
       if (typeof messageSplitChars === "number") {
@@ -3547,6 +3613,43 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== FOLLOW-UP TOGGLE ====================
+  
+  /**
+   * Ativar/Desativar follow-up para uma conversa específica
+   * POST /api/admin/conversations/:id/followup-toggle
+   */
+  app.post("/api/admin/conversations/:id/followup-toggle", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { active } = req.body;
+      
+      if (active === undefined) {
+        return res.status(400).json({ message: "active boolean is required" });
+      }
+      
+      const conversation = await storage.getAdminConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      // Atualizar no banco
+      await storage.updateAdminConversation(id, { 
+        followupActive: active,
+        // Se desativar, limpa a data. Se ativar, agenda para 10 min (reset)
+        nextFollowupAt: active ? new Date(Date.now() + 10 * 60 * 1000) : null,
+        followupStage: active ? 0 : conversation.followupStage
+      });
+      
+      console.log(`🔄 [ADMIN] Follow-up ${active ? 'ATIVADO' : 'DESATIVADO'} para conversa ${id}`);
+      
+      res.json({ success: true, active });
+    } catch (error: any) {
+      console.error("Error toggling follow-up:", error);
+      res.status(500).json({ message: "Failed to toggle follow-up" });
     }
   });
 

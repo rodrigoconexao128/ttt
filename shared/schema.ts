@@ -295,6 +295,12 @@ export const adminConversations = pgTable("admin_conversations", {
   unreadCount: integer("unread_count").default(0).notNull(),
   // Controle de IA - se false, admin responde manualmente
   isAgentEnabled: boolean("is_agent_enabled").default(true).notNull(),
+  
+  // Follow-up System
+  followupActive: boolean("followup_active").default(true).notNull(),
+  followupStage: integer("followup_stage").default(0).notNull(),
+  nextFollowupAt: timestamp("next_followup_at"),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [

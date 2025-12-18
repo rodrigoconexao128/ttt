@@ -16,7 +16,7 @@ import { storage } from "./storage";
 import WebSocket from "ws";
 import { generateAIResponse, type AIResponseResult } from "./aiAgent";
 import { executeMediaActions, downloadMediaAsBuffer } from "./mediaService";
-import { registerFollowUpCallback, registerScheduledContactCallback } from "./followUpService";
+import { registerFollowUpCallback, registerScheduledContactCallback, followUpService } from "./followUpService";
 
 // Cache manual de contatos para mapear @lid → phoneNumber
 interface Contact {
@@ -83,6 +83,8 @@ interface PendingAdminResponse {
   generation: number;
   startTime: number;
   conversationId?: string;
+  lastKnownPresence?: string;
+  lastPresenceUpdate?: number;
 }
 const pendingAdminResponses = new Map<string, PendingAdminResponse>(); // key: contactNumber
 
@@ -115,7 +117,8 @@ async function getAdminAgentRuntimeConfig(): Promise<{
     ]);
 
     const messageSplitChars = clampInt(parseInt(splitChars?.valor || "400", 10) || 400, 0, 5000);
-    let responseDelaySeconds = clampInt(parseInt(responseDelay?.valor || "30", 10) || 30, 1, 180);
+    // Alterado padrão de 30s para 6s conforme solicitação
+    let responseDelaySeconds = clampInt(parseInt(responseDelay?.valor || "6", 10) || 6, 1, 180);
     const typingDelayMin = clampInt(parseInt(typingMin?.valor || "2", 10) || 2, 0, 60);
     const typingDelayMax = clampInt(parseInt(typingMax?.valor || "5", 10) || 5, typingDelayMin, 120);
     const messageIntervalMin = clampInt(parseInt(intervalMin?.valor || "3", 10) || 3, 0, 120);
@@ -139,7 +142,7 @@ async function getAdminAgentRuntimeConfig(): Promise<{
   } catch (error) {
     console.error("[ADMIN AGENT] Failed to load runtime config, using defaults", error);
     return {
-      responseDelayMs: 30000,
+      responseDelayMs: 6000, // Default 6s
       messageSplitChars: 400,
       typingDelayMinMs: 2000,
       typingDelayMaxMs: 5000,
@@ -162,6 +165,17 @@ async function scheduleAdminAccumulatedResponse(params: {
 
   console.log(`\n📥 [ADMIN AGENT] Mensagem recebida de ${contactNumber}`);
   console.log(`   ⏱️ Delay configurado: ${config.responseDelayMs}ms (${config.responseDelayMs/1000}s)`);
+
+  // 🔔 FIX: Inscrever-se explicitamente para receber atualizações de presença (digitando/pausado)
+  // Sem isso, o Baileys pode não receber os eventos 'presence.update'
+  try {
+    const normalizedJid = jidNormalizedUser(remoteJid);
+    await socket.presenceSubscribe(normalizedJid);
+    await socket.sendPresenceUpdate('available'); // Forçar status online
+    console.log(`   👀 [PRESENCE] Inscrito para atualizações de: ${normalizedJid}`);
+  } catch (err) {
+    console.error(`   ❌ [PRESENCE] Falha ao inscrever:`, err);
+  }
 
   const existing = pendingAdminResponses.get(key);
   if (existing) {
@@ -281,6 +295,38 @@ async function processAdminAccumulatedMessages(params: {
     const typingDelay = randomBetween(config.typingDelayMinMs, config.typingDelayMaxMs);
     await new Promise((r) => setTimeout(r, typingDelay));
 
+    // 🔒 CHECK FINAL DE PRESENÇA (Double Check)
+    // Se o usuário começou a digitar durante o delay de digitação, abortar envio
+    let checkPresence = pendingAdminResponses.get(key);
+    
+    // Lógica de Retry para "Composing" travado (Solicitado pelo usuário: "logica profunda")
+    // Se estiver digitando, vamos aguardar um pouco e verificar novamente
+    // Isso resolve casos onde a conexão cai e não recebemos o "paused"
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (checkPresence && (checkPresence.timeout !== null || checkPresence.lastKnownPresence === 'composing') && retryCount < maxRetries) {
+        console.log(`✋ [ADMIN AGENT] Usuário digitando (check final). Aguardando confirmação... (${retryCount + 1}/${maxRetries})`);
+        await new Promise(r => setTimeout(r, 5000)); // Espera 5s
+        checkPresence = pendingAdminResponses.get(key);
+        retryCount++;
+    }
+
+    if (checkPresence && (checkPresence.timeout !== null || checkPresence.lastKnownPresence === 'composing')) {
+        // Se ainda estiver digitando após retries, verificar se o status é antigo (stale)
+        const lastUpdate = checkPresence.lastPresenceUpdate || 0;
+        const timeSinceUpdate = Date.now() - lastUpdate;
+        const STALE_THRESHOLD = 45000; // 45 segundos
+
+        if (timeSinceUpdate > STALE_THRESHOLD) {
+             console.log(`⚠️ [ADMIN AGENT] Status 'composing' parece travado (${Math.floor(timeSinceUpdate/1000)}s). Ignorando e enviando.`);
+             // Prossegue para envio...
+        } else {
+             console.log(`✋ [ADMIN AGENT] Usuário voltou a digitar (check final). Abortando envio.`);
+             return;
+        }
+    }
+
     // Quebrar mensagem longa em partes
     const parts = splitMessageHumanLike(response.text || "", config.messageSplitChars);
 
@@ -289,6 +335,20 @@ async function processAdminAccumulatedMessages(params: {
       if (!current || current.generation !== generation) {
         console.log(`🔄 [ADMIN AGENT] Cancelando envio (mensagens novas chegaram)`);
         return;
+      }
+
+      // 🔒 CHECK DE PRESENÇA NO LOOP
+      if (current.timeout !== null || current.lastKnownPresence === 'composing') {
+          // Verificar se é stale
+          const lastUpdate = current.lastPresenceUpdate || 0;
+          const timeSinceUpdate = Date.now() - lastUpdate;
+          
+          if (timeSinceUpdate > 45000) {
+              console.log(`⚠️ [ADMIN AGENT] Status 'composing' travado durante envio. Ignorando.`);
+          } else {
+              console.log(`✋ [ADMIN AGENT] Usuário voltou a digitar durante envio. Abortando.`);
+              return;
+          }
       }
 
       if (i > 0) {
@@ -1095,6 +1155,13 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     unreadCount: 0, // Mensagens do dono não geram unread
   });
 
+  // 🚀 FOLLOW-UP: Se admin enviou mensagem, agendar follow-up inicial
+  try {
+    await followUpService.scheduleInitialFollowUp(conversation.id);
+  } catch (error) {
+    console.error("Erro ao agendar follow-up:", error);
+  }
+
   // Broadcast para atualizar UI em tempo real
   broadcastToUser(session.userId, {
     type: "new_message",
@@ -1340,6 +1407,14 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     });
   }
 
+  // 🛑 FOLLOW-UP: Se cliente respondeu, cancelar follow-up ativo
+  try {
+    await followUpService.disableFollowUp(conversation.id);
+    console.log(`🛑 [FOLLOW-UP] Cancelado para conversa ${conversation.id} (cliente respondeu)`);
+  } catch (error) {
+    console.error("Erro ao cancelar follow-up:", error);
+  }
+
     const savedMessage = await storage.createMessage({
       conversationId: conversation.id,
       messageId: waMessage.key.id!,
@@ -1560,6 +1635,13 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         
         console.log(`📁 [AI Agent] Mídias enviadas com sucesso!`);
       }
+
+      // 🚀 FOLLOW-UP: Se agente enviou mensagem, agendar follow-up inicial
+      try {
+        await followUpService.scheduleInitialFollowUp(conversationId);
+      } catch (error) {
+        console.error("Erro ao agendar follow-up:", error);
+      }
     } else {
       console.log(`[AI Agent] No response generated (trigger phrase check or agent inactive)`);
     }
@@ -1606,6 +1688,13 @@ export async function sendMessage(userId: string, conversationId: string, text: 
     status: "sent",
   });
 
+  // 🚀 FOLLOW-UP: Se usuário enviou mensagem pela UI, agendar follow-up inicial
+  try {
+    await followUpService.scheduleInitialFollowUp(parseInt(conversationId));
+  } catch (error) {
+    console.error("Erro ao agendar follow-up:", error);
+  }
+
   await storage.updateConversation(conversationId, {
     lastMessageText: text,
     lastMessageTime: new Date(),
@@ -1615,6 +1704,63 @@ export async function sendMessage(userId: string, conversationId: string, text: 
     type: "message_sent",
     conversationId,
     message: text,
+  });
+}
+
+export async function sendAdminConversationMessage(adminId: string, conversationId: string, text: string): Promise<void> {
+  const session = adminSessions.get(adminId);
+  if (!session?.socket) {
+    throw new Error("Admin WhatsApp not connected");
+  }
+
+  const conversation = await storage.getAdminConversation(conversationId);
+  if (!conversation) {
+    throw new Error("Conversation not found");
+  }
+
+  // Resolver JID para envio (preferir número real)
+  let jid = conversation.remoteJid;
+  
+  // Se for LID, tentar resolver para número real
+  if (jid && jid.includes("@lid")) {
+    // 1. Tentar cache
+    const cached = session.contactsCache.get(jid);
+    if (cached && cached.phoneNumber) {
+      jid = cached.phoneNumber;
+    } else {
+      // 2. Tentar construir do contactNumber se disponível
+      if (conversation.contactNumber) {
+         jid = `${conversation.contactNumber}@s.whatsapp.net`;
+      }
+    }
+  }
+  
+  // Fallback se não tiver remoteJid mas tiver contactNumber
+  if (!jid && conversation.contactNumber) {
+    jid = `${conversation.contactNumber}@s.whatsapp.net`;
+  }
+  
+  if (!jid) {
+    throw new Error("Could not determine destination JID");
+  }
+
+  console.log(`[sendAdminConversationMessage] Sending to: ${jid} (Original: ${conversation.remoteJid})`);
+  const sentMessage = await session.socket.sendMessage(jid, { text });
+
+  // Salvar mensagem
+  await storage.createAdminMessage({
+    conversationId,
+    messageId: sentMessage?.key?.id || Date.now().toString(),
+    fromMe: true,
+    text,
+    timestamp: new Date(),
+    status: "sent",
+    isFromAgent: false,
+  });
+
+  await storage.updateAdminConversation(conversationId, {
+    lastMessageText: text,
+    lastMessageTime: new Date(),
   });
 }
 
@@ -1976,7 +2122,33 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     const { state, saveCreds } = await useMultiFileAuthState(adminAuthPath);
 
     // FIX LID 2025: Cache manual para mapear @lid → phone number
+    // Tentar carregar do banco de dados ao iniciar
     const contactsCache = new Map<string, Contact>();
+    
+    try {
+        // Carregar conversas existentes para popular o cache LID -> Phone
+        const conversations = await storage.getAdminConversations(adminId);
+        for (const conv of conversations) {
+            if (conv.remoteJid && conv.contactNumber) {
+                const contact: Contact = {
+                    id: conv.remoteJid,
+                    phoneNumber: conv.contactNumber,
+                    name: conv.contactName || undefined
+                };
+                
+                // Se tivermos o LID salvo em algum lugar (remoteJidAlt?), mapear também
+                // Por enquanto, mapeamos o remoteJid normal
+                contactsCache.set(conv.remoteJid, contact);
+                contactsCache.set(conv.contactNumber, contact); // Mapear pelo número também
+                
+                // Tentar inferir LID se possível ou se tivermos salvo
+                // (Futuramente salvar o LID na tabela admin_conversations seria ideal)
+            }
+        }
+        console.log(`[ADMIN CACHE] Pré-carregados ${conversations.length} contatos do histórico`);
+    } catch (err) {
+        console.error("[ADMIN CACHE] Erro ao pré-carregar contatos:", err);
+    }
 
     const socket = makeWASocket({
       auth: state,
@@ -1994,6 +2166,12 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     if (socket.user) {
       const phoneNumber = socket.user.id.split(':')[0];
       console.log(`✅ [ADMIN] Socket criado já conectado (sessão restaurada): ${phoneNumber}`);
+      
+      // Forçar presença disponível para receber updates de outros usuários
+      setTimeout(() => {
+        socket.sendPresenceUpdate('available').catch(err => console.error("Erro ao enviar presença inicial:", err));
+      }, 2000);
+
       await storage.updateAdminWhatsappConnection(adminId, {
         isConnected: true,
         phoneNumber,
@@ -2031,23 +2209,88 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     socket.ev.on("presence.update", async (update) => {
       const { id, presences } = update;
       
+      // LOG DE DEBUG PARA DIAGNÓSTICO (ATIVADO)
+      if (!id.includes("@g.us") && !id.includes("@broadcast")) {
+         console.log(`🕵️ [PRESENCE RAW] ID: ${id} | Presences: ${JSON.stringify(presences)}`);
+      }
+
       // Verificar se é um chat individual
       if (id.includes("@g.us") || id.includes("@broadcast")) return;
 
       // Verificar se temos uma resposta pendente para este chat
-      const contactNumber = cleanContactNumber(id);
+      // FIX: O ID que vem no presence.update pode ser um LID (ex: 254635809968349@lid)
+      // Precisamos mapear esse LID para o número de telefone real (contactNumber)
+      // O pendingAdminResponses usa o contactNumber como chave (ex: 5517991956944)
+      
+      let contactNumber = cleanContactNumber(id);
+      
+      // Se for LID, tentar encontrar o número real no cache de contatos
+      if (id.includes("@lid")) {
+         const contact = contactsCache.get(id);
+         if (contact && contact.phoneNumber) {
+             contactNumber = cleanContactNumber(contact.phoneNumber);
+             console.log(`🕵️ [PRESENCE MAP] Mapeado LID ${id} -> ${contactNumber}`);
+         } else {
+             // Se não achou no cache, tentar buscar no banco (fallback)
+             // Mas como é async, talvez não dê tempo. Vamos tentar varrer o pendingAdminResponses
+             // para ver se algum remoteJid bate com esse LID? Não, remoteJid geralmente é s.whatsapp.net
+             
+             // TENTATIVA DE RECUPERAÇÃO:
+             // Se o ID for LID, e não achamos o contactNumber, vamos tentar ver se existe
+             // alguma resposta pendente onde o remoteJidAlt seja esse LID
+             // OU se só existe UMA resposta pendente no sistema, assumimos que é ela (para testes)
+             
+             if (pendingAdminResponses.size === 1) {
+                 contactNumber = pendingAdminResponses.keys().next().value || "";
+                 console.log(`🕵️ [PRESENCE GUESS] LID desconhecido ${id}, mas só há 1 pendente: ${contactNumber}. Assumindo match.`);
+             } else {
+                 console.log(`⚠️ [PRESENCE FAIL] Não foi possível mapear LID ${id} para um número de telefone.`);
+             }
+         }
+      }
+
       if (!contactNumber) return;
 
       const pending = pendingAdminResponses.get(contactNumber);
+      
+      // Se não tiver resposta pendente, não precisamos fazer nada (não estamos esperando para responder)
       if (!pending) return;
 
-      // Verificar o status de presença
-      // Em chat privado, o ID do participante é o próprio ID do chat ou similar
-      const participant = Object.keys(presences)[0]; 
-      if (!participant) return;
+      console.log(`🕵️ [PRESENCE MATCH] Update para ${contactNumber} (tem resposta pendente)`);
+      console.log(`   Dados: ${JSON.stringify(presences)}`);
 
-      const presence = presences[participant].lastKnownPresence;
+      // Encontrar o participante correto (o cliente)
+      // Em chats privados, a chave deve conter o número do cliente
+      const participantKey = Object.keys(presences).find(key => key.includes(contactNumber));
       
+      // FIX: Se não encontrar pelo número, pode ser que a chave seja o JID completo ou diferente
+      // Vamos tentar pegar qualquer chave que NÃO seja o nosso próprio número
+      let finalKey = participantKey;
+      
+      if (!finalKey) {
+        const myNumber = cleanContactNumber(socket.user?.id);
+        const otherKeys = Object.keys(presences).filter(k => !k.includes(myNumber));
+        
+        if (otherKeys.length > 0) {
+          finalKey = otherKeys[0];
+        }
+      }
+
+      if (!finalKey) {
+         console.log(`   ⚠️ [PRESENCE] Não foi possível identificar o participante alvo. Chaves: ${Object.keys(presences)}`);
+         return;
+      }
+
+      const presence = presences[finalKey]?.lastKnownPresence;
+      
+      if (!presence) return;
+
+      // Atualizar presença conhecida
+      pending.lastKnownPresence = presence;
+      pending.lastPresenceUpdate = Date.now();
+
+      console.log(`   🕵️ [PRESENCE DETECTED] Status: ${presence} | User: ${finalKey}`);
+
       if (presence === 'composing') {
         console.log(`✍️ [ADMIN AGENT] Usuário ${contactNumber} está digitando... Estendendo espera.`);
         
@@ -2056,11 +2299,12 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           clearTimeout(pending.timeout);
         }
         
-        // Adicionar 10 segundos de "buffer de digitação"
+        // Adicionar 25 segundos de "buffer de digitação"
         // Isso evita responder enquanto o usuário ainda está escrevendo
-        const typingBuffer = 10000; // 10s
+        const typingBuffer = 25000; // 25s
         
         pending.timeout = setTimeout(() => {
+          console.log(`⏰ [ADMIN AGENT] Timeout de digitação (25s) expirou para ${contactNumber}. Processando...`);
           void processAdminAccumulatedMessages({ 
             socket, 
             key: contactNumber, 
@@ -2069,22 +2313,27 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         }, typingBuffer);
         
       } else if (presence === 'paused') {
-        console.log(`✋ [ADMIN AGENT] Usuário ${contactNumber} parou de digitar. Respondendo em breve.`);
+        console.log(`✋ [ADMIN AGENT] Usuário ${contactNumber} parou de digitar. Retomando espera padrão (6s).`);
         
-        // Se parou de digitar, responder mais rápido (quase imediato)
         if (pending.timeout) {
           clearTimeout(pending.timeout);
         }
         
-        const fastResponseDelay = 2000; // 2s
+        // Voltar para o delay padrão de 6s
+        // Importante: Dar um pequeno delay extra (ex: 6s) para garantir que não é apenas uma pausa breve
+        const standardDelay = 6000; 
         
         pending.timeout = setTimeout(() => {
+          console.log(`⏰ [ADMIN AGENT] Timeout padrão (6s) expirou para ${contactNumber} (após pausa). Processando...`);
           void processAdminAccumulatedMessages({ 
             socket, 
             key: contactNumber, 
             generation: pending.generation 
           });
-        }, fastResponseDelay);
+        }, standardDelay);
+      } else {
+        // Logar outros estados de presença para debug (ex: available, unavailable)
+        console.log(`ℹ️ [ADMIN AGENT] Presença atualizada para ${contactNumber}: ${presence}`);
       }
     });
 
@@ -2135,6 +2384,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           contactsCache.set(remoteJid, {
             id: remoteJid,
             name: message.pushName || undefined,
+            phoneNumber: realJid,
           });
         } else {
           contactNumber = cleanContactNumber(remoteJid);
@@ -2205,7 +2455,24 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         let savedMessage: any = null;
         try {
           // IMPORTANTE: Usar realRemoteJid (número real) para envio de respostas
-          conversation = await storage.getOrCreateAdminConversation(adminId, contactNumber, realRemoteJid);
+          conversation = await storage.getOrCreateAdminConversation(
+            adminId, 
+            contactNumber, 
+            realRemoteJid, 
+            message.pushName || undefined
+          );
+
+          // 📸 Tentar buscar foto de perfil se não tiver (assíncrono para não bloquear)
+          if (!conversation.contactAvatar) {
+             socket.profilePictureUrl(realRemoteJid, 'image')
+               .then(url => {
+                 if (url) {
+                   storage.updateAdminConversation(conversation.id, { contactAvatar: url })
+                     .catch(err => console.error(`❌ [ADMIN] Erro ao salvar avatar:`, err));
+                 }
+               })
+               .catch(() => {}); // Ignorar erro (sem foto/privado)
+          }
           
           // Salvar a mensagem recebida (transcrição de áudio acontece dentro)
           savedMessage = await storage.createAdminMessage({
@@ -2484,6 +2751,9 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       if (connStatus === "open") {
         const phoneNumber = socket.user?.id.split(":")[0];
         console.log(`✅ [ADMIN] WhatsApp conectado: ${phoneNumber}`);
+        
+        // Forçar presença disponível para receber updates de outros usuários
+        socket.sendPresenceUpdate('available').catch(err => console.error("Erro ao enviar presença:", err));
         
         await storage.updateAdminWhatsappConnection(adminId, {
           isConnected: true,

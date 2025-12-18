@@ -114,7 +114,8 @@ export default function FollowUpCalendar() {
     });
   };
 
-  const formatPhone = (phone: string) => {
+  const formatPhone = (phone: string | undefined | null) => {
+    if (!phone) return "Sem número";
     if (phone.length === 13) {
       return `(${phone.slice(2, 4)}) ${phone.slice(4, 9)}-${phone.slice(9)}`;
     }
@@ -129,11 +130,23 @@ export default function FollowUpCalendar() {
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pendente';
+      case 'overdue': return 'Atrasado';
+      case 'sent': return 'Enviado';
+      case 'cancelled': return 'Cancelado';
+      case 'rescheduled': return 'Reagendado';
+      default: return status;
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending': return <Timer className="w-4 h-4 text-yellow-500" />;
+      case 'overdue': return <AlertCircle className="w-4 h-4 text-red-500" />;
       case 'sent': return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'cancelled': return <AlertCircle className="w-4 h-4 text-red-500" />;
+      case 'cancelled': return <Trash2 className="w-4 h-4 text-gray-500" />;
       case 'rescheduled': return <RefreshCw className="w-4 h-4 text-blue-500" />;
       default: return null;
     }

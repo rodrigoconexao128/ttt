@@ -296,158 +296,76 @@ export async function generateAdminMediaPromptBlock(adminId?: string): Promise<s
     return '';
   }
 
-  // Organizar mídias por tipo
-  const audioMidias = mediaList.filter(m => m.mediaType === 'audio');
-  const imageMidias = mediaList.filter(m => m.mediaType === 'image');
-  const videoMidias = mediaList.filter(m => m.mediaType === 'video');
-  const documentMidias = mediaList.filter(m => m.mediaType === 'document');
+  const allMediaNames = mediaList.map(m => m.name);
 
-  // Construir lista de mídias disponíveis
-  const allMediaNames = mediaList.map(m => m.name).join(', ');
+// Definição dos gatilhos padrão (Exportado para uso no fallback)
+export const defaultTriggers = [
+  { keywords: ["como funciona", "funciona assim", "deixa eu explicar", "vou te explicar", "te explico", "vale a pena"], mediaName: "COMO_FUNCIONA" },
+  { keywords: ["vídeo", "demonstra", "ver na prática", "te mostro"], mediaName: "VIDEO_DEMONSTRACAO" },
+  { keywords: ["preço", "quanto custa", "valor", "investimento", "tabela"], mediaName: "TABELA_PRECOS" },
+  { keywords: ["contrato", "termos", "documento"], mediaName: "PDF_CONTRATO" }
+];
+
+/**
+ * Obtém os gatilhos ativos baseados nas mídias disponíveis
+ */
+export async function getActiveTriggers(adminId?: string) {
+  const mediaList = await getAdminMediaList(adminId);
+  const allMediaNames = mediaList.map(m => m.name);
+  return defaultTriggers.filter(t => allMediaNames.includes(t.mediaName));
+}
+
+/**
+ * Gera o bloco de prompt para as mídias do admin
+ * COPIADO DO mediaService.ts QUE FUNCIONA CORRETAMENTE
+ */
+export async function generateAdminMediaPromptBlock(adminId?: string): Promise<string> {
+  const mediaList = await getAdminMediaList(adminId);
+  
+  if (mediaList.length === 0) {
+    return '';
+  }
+
+  // Filtrar gatilhos para mídias que realmente existem
+  const activeTriggers = await getActiveTriggers(adminId);
 
   let mediaBlock = `
-
 ═══════════════════════════════════════════════════════════════════════════════
-📁 SISTEMA DE MÍDIAS - REGRAS OBRIGATÓRIAS (LEIA TUDO!)
+📁 MÍDIAS DISPONÍVEIS E REGRAS DE ENVIO
 ═══════════════════════════════════════════════════════════════════════════════
-
-🚨 GATILHOS AUTOMÁTICOS DE MÍDIA 🚨
-
-Se sua resposta contém QUALQUER destas palavras/frases, VOCÊ DEVE incluir a tag:
-
-┌────────────────────────────┬─────────────────────────────────────────┐
-│ SE VOCÊ ESCREVEU...        │ ENTÃO ADICIONE NO FINAL:                │
-├────────────────────────────┼─────────────────────────────────────────┤
-│ "como funciona"            │ [ENVIAR_MIDIA:COMO_FUNCIONA]            │
-│ "funciona assim"           │ [ENVIAR_MIDIA:COMO_FUNCIONA]            │
-│ "deixa eu explicar"        │ [ENVIAR_MIDIA:COMO_FUNCIONA]            │
-│ "vou te explicar"          │ [ENVIAR_MIDIA:COMO_FUNCIONA]            │
-│ "te explico"               │ [ENVIAR_MIDIA:COMO_FUNCIONA]            │
-├────────────────────────────┼─────────────────────────────────────────┤
-│ "vídeo"                    │ [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]       │
-│ "demonstra"                │ [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]       │
-│ "ver na prática"           │ [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]       │
-│ "te mostro"                │ [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]       │
-├────────────────────────────┼─────────────────────────────────────────┤
-│ "preço"                    │ [ENVIAR_MIDIA:TABELA_PRECOS]            │
-│ "quanto custa"             │ [ENVIAR_MIDIA:TABELA_PRECOS]            │
-│ "valor"                    │ [ENVIAR_MIDIA:TABELA_PRECOS]            │
-│ "investimento"             │ [ENVIAR_MIDIA:TABELA_PRECOS]            │
-├────────────────────────────┼─────────────────────────────────────────┤
-│ "contrato"                 │ [ENVIAR_MIDIA:PDF_CONTRATO]             │
-│ "termos"                   │ [ENVIAR_MIDIA:PDF_CONTRATO]             │
-│ "documento"                │ [ENVIAR_MIDIA:PDF_CONTRATO]             │
-└────────────────────────────┴─────────────────────────────────────────┘
-
-EXEMPLO CORRETO:
-❌ ERRADO: "Vou te explicar como funciona! Basicamente..."
-✅ CERTO: "Vou te explicar como funciona! Basicamente... [ENVIAR_MIDIA:COMO_FUNCIONA]"
-
-📋 MÍDIAS DISPONÍVEIS (só use estas):
-${allMediaNames}
-
-🚫 PROIBIDO:
-- Inventar mídias que não existem
-- QR_CODE como mídia (use [AÇÃO:ENVIAR_QRCODE])
-- Esquecer a tag quando mencionar as palavras acima
-
 `;
 
-  if (imageMidias.length > 0) {
-    mediaBlock += `🖼️ IMAGENS DISPONÍVEIS:
+  if (activeTriggers.length > 0) {
+    mediaBlock += `
+🚨 GATILHOS OBRIGATÓRIOS (Se falar isso, TEM que enviar a mídia):
 `;
-    for (const m of imageMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Imagem'}
-     Enviar quando: ${m.whenToUse || 'cliente pedir catálogo, foto, imagem'}
-`;
+    for (const trigger of activeTriggers) {
+      mediaBlock += `• Se falar "${trigger.keywords[0]}" ou similar → Use [ENVIAR_MIDIA:${trigger.mediaName}]\n`;
     }
-    mediaBlock += '\n';
-  }
-
-  if (audioMidias.length > 0) {
-    mediaBlock += `🎵 ÁUDIOS DISPONÍVEIS:
-`;
-    for (const m of audioMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Áudio'}
-     Enviar quando: ${m.whenToUse || 'cliente pedir áudio, explicação por voz'}
-`;
-    }
-    mediaBlock += '\n';
-  }
-
-  if (videoMidias.length > 0) {
-    mediaBlock += `🎬 VÍDEOS DISPONÍVEIS:
-`;
-    for (const m of videoMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Vídeo'}
-     Enviar quando: ${m.whenToUse || 'cliente pedir vídeo, demonstração'}
-`;
-    }
-    mediaBlock += '\n';
-  }
-
-  if (documentMidias.length > 0) {
-    mediaBlock += `📄 DOCUMENTOS DISPONÍVEIS:
-`;
-    for (const m of documentMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Documento'}
-     Enviar quando: ${m.whenToUse || 'cliente pedir documento, PDF, contrato'}
-`;
-    }
-    mediaBlock += '\n';
   }
 
   mediaBlock += `
-
-═══════════════════════════════════════════════════════════════════════════════
-📁 DETALHES DAS MÍDIAS (quando usar cada uma)
-═══════════════════════════════════════════════════════════════════════════════
+📋 LISTA COMPLETA DE MÍDIAS (Use quando o contexto pedir):
 `;
 
-  // Lista DETALHADA de cada mídia com INSTRUÇÕES para a IA decidir
-  mediaBlock += `
-📋 BIBLIOTECA DE MÍDIAS DISPONÍVEIS:
-`;
-
-  // Listar TODAS as mídias com suas INSTRUÇÕES (descrição e quando usar)
   for (const media of mediaList) {
     const tipo = media.mediaType === 'audio' ? '🎤 ÁUDIO' :
                  media.mediaType === 'video' ? '🎥 VÍDEO' :
-                 media.mediaType === 'image' ? '🖼️ IMAGEM' : '📄 DOCUMENTO';
-    
-    const podeComOutras = media.sendAlone ? '⚠️ ENVIAR SOZINHA (não combinar)' : '✅ Pode combinar com outras';
+                 media.mediaType === 'image' ? '🖼️ IMAGEM' : '📄 DOC';
     
     mediaBlock += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${tipo} → Para enviar use: [ENVIAR_MIDIA:${media.name}]
-📝 DESCRIÇÃO: ${media.description || 'Sem descrição'}
-🎯 QUANDO USAR: ${media.whenToUse || 'Quando for relevante ao contexto'}
-${podeComOutras}
+${tipo}: ${media.name}
+   📝 Descrição: ${media.description || 'Sem descrição'}
+   🎯 Quando usar: ${media.whenToUse || 'Quando relevante'}
+   👉 Tag para enviar: [ENVIAR_MIDIA:${media.name}]
 `;
   }
 
   mediaBlock += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📌 INSTRUÇÕES DE USO:
-
-1. LEIA a pergunta do cliente
-2. COMPARE com o campo "QUANDO USAR" de cada mídia acima
-3. Se a mídia é relevante → INCLUA a tag [ENVIAR_MIDIA:NOME] na resposta
-4. Se várias mídias são relevantes E podem ser combinadas → ENVIE TODAS!
-5. Se a mídia tem "ENVIAR SOZINHA" → NÃO combine com outras
-
-🔑 REGRA PRINCIPAL:
-Analise o "QUANDO USAR" de cada mídia. Se a pergunta do cliente COMBINA 
-com a instrução, ENVIE essa mídia. Você pode enviar MÚLTIPLAS se fizer sentido!
-
-⚠️ Tags [ENVIAR_MIDIA:NOME] sempre NO FINAL da resposta!
-
-🚫🚫🚫 NUNCA INVENTE MÍDIAS 🚫🚫🚫
-Mídias válidas: ${allMediaNames}
-Se não está na lista acima, NÃO USE!
-QR CODE = [AÇÃO:ENVIAR_QRCODE] (é ação, não mídia!)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ REGRA FINAL:
+1. Se o cliente perguntar algo que bate com "Quando usar", ENVIE A MÍDIA.
+2. Coloque a tag [ENVIAR_MIDIA:NOME] no final da resposta.
+3. Você PODE enviar mídia junto com a explicação.
 `;
 
   return mediaBlock;
@@ -460,12 +378,13 @@ export function parseAdminMediaTags(responseText: string): {
   cleanText: string;
   mediaActions: { type: 'send_media'; media_name: string }[];
 } {
-  const mediaTagRegex = /\[ENVIAR_MIDIA:([A-Z0-9_]+)\]/gi;
+  // Regex mais permissivo para pegar tags com espaços ou variações
+  const mediaTagRegex = /\[ENVIAR_MIDIA:\s*([A-Z0-9_]+)\s*\]/gi;
   const mediaActions: { type: 'send_media'; media_name: string }[] = [];
   
   let match: RegExpExecArray | null;
   while ((match = mediaTagRegex.exec(responseText)) !== null) {
-    const mediaName = match[1].toUpperCase();
+    const mediaName = match[1].toUpperCase().trim();
     mediaActions.push({
       type: 'send_media',
       media_name: mediaName,
@@ -473,8 +392,8 @@ export function parseAdminMediaTags(responseText: string): {
     console.log(`📁 [AdminMediaStore] Tag de mídia detectada: ${mediaName}`);
   }
   
-  // Remover as tags do texto final
-  const cleanText = responseText.replace(/\[ENVIAR_MIDIA:[A-Z0-9_]+\]/gi, '').trim();
+  // Remover as tags do texto final (usando a mesma regex permissiva)
+  const cleanText = responseText.replace(/\[ENVIAR_MIDIA:\s*[A-Z0-9_]+\s*\]/gi, '').trim();
   
   return { cleanText, mediaActions };
 }

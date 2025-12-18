@@ -1,386 +1,406 @@
-/**
- * 🚀 SISTEMA DE FOLLOW-UP E AGENDAMENTO INTELIGENTE
- * 
- * Gerencia:
- * - Follow-ups automáticos com escalonamento progressivo
- * - Agendamentos de contato futuro
- * - Respeita horários comerciais
- * - Reagenda automaticamente baseado em conversas
- */
-
-import { storage } from "./storage";
+import { db } from "./db";
+import { adminConversations } from "@shared/schema";
+import { eq, and, lte, isNull } from "drizzle-orm";
+import { getMistralClient } from "./mistralClient";
 
 // ============================================================================
-// CONFIGURAÇÕES DE HORÁRIO COMERCIAL
+// CONFIGURAÇÕES
 // ============================================================================
 
-const BUSINESS_HOURS = {
-  start: 8,  // 8h da manhã
-  end: 21,   // 21h (9 da noite)
-  workDays: [1, 2, 3, 4, 5, 6], // Segunda a Sábado (0 = domingo)
-};
-
-// Sequência de follow-ups progressivos (em minutos)
-const FOLLOW_UP_SEQUENCE = [
-  { delay: 10, type: 'gentle' as const, message: 'Primeira tentativa leve' },
-  { delay: 60, type: 'reminder' as const, message: 'Lembrete amigável' },
-  { delay: 240, type: 'value' as const, message: 'Agregar valor' }, // 4 horas
-  { delay: 1440, type: 'final' as const, message: 'Última tentativa (24h)' },
+// Intervalos de follow-up em minutos
+// 10m, 30m, 3h, 24h, 48h, 3d, 7d, 15d
+const FOLLOW_UP_SCHEDULE = [
+  10,                 // 10 minutos (Estágio 0)
+  30,                 // 30 minutos (Estágio 1)
+  3 * 60,             // 3 horas (Estágio 2)
+  24 * 60,            // 24 horas (Estágio 3)
+  48 * 60,            // 48 horas (Estágio 4)
+  3 * 24 * 60,        // 3 dias (Estágio 5)
+  7 * 24 * 60,        // 7 dias (Estágio 6)
+  15 * 24 * 60        // 15 dias (Estágio 7)
 ];
 
-// ============================================================================
-// TIPOS
-// ============================================================================
+// Intervalo final aleatório entre 15 e 30 dias (em minutos)
+const FINAL_RANDOM_MIN = 15 * 24 * 60;
+const FINAL_RANDOM_MAX = 30 * 24 * 60;
 
-export interface FollowUp {
-  id: string;
-  phoneNumber: string;
-  type: 'gentle' | 'reminder' | 'value' | 'final' | 'scheduled';
-  scheduledAt: Date;
-  originalScheduledAt?: Date; // Se foi reagendado por horário comercial
-  message?: string;
-  context?: string;
-  attempt: number; // Qual tentativa é essa (1, 2, 3, 4)
-  status: 'pending' | 'sent' | 'cancelled' | 'rescheduled';
-  createdAt: Date;
-}
+type FollowUpCallback = (phoneNumber: string, context: string, attempt: number, type: string) => Promise<void>;
+type ScheduledContactCallback = (phoneNumber: string, reason: string) => Promise<void>;
 
-export interface ScheduledContact {
-  id: string;
-  phoneNumber: string;
-  scheduledDate: Date;
-  reason: string;
-  status: 'pending' | 'completed' | 'cancelled';
-  createdAt: Date;
-}
+export class FollowUpService {
+  private checkInterval: NodeJS.Timeout | null = null;
+  private isRunning = false;
+  private onFollowUpReady: FollowUpCallback | null = null;
+  private onScheduledContactReady: ScheduledContactCallback | null = null;
 
-// ============================================================================
-// ARMAZENAMENTO EM MEMÓRIA (migrar para DB depois)
-// ============================================================================
-
-const pendingFollowUps = new Map<string, FollowUp>();
-const scheduledContacts = new Map<string, ScheduledContact[]>();
-const followUpTimers = new Map<string, NodeJS.Timeout>();
-const clientAttempts = new Map<string, number>(); // Rastreia quantas tentativas por cliente
-
-// ============================================================================
-// FUNÇÕES AUXILIARES DE HORÁRIO
-// ============================================================================
-
-/**
- * Verifica se está dentro do horário comercial
- */
-function isBusinessHours(date: Date = new Date()): boolean {
-  const hour = date.getHours();
-  const day = date.getDay();
-  
-  const isWorkDay = BUSINESS_HOURS.workDays.includes(day);
-  const isWorkHour = hour >= BUSINESS_HOURS.start && hour < BUSINESS_HOURS.end;
-  
-  return isWorkDay && isWorkHour;
-}
-
-/**
- * Encontra o próximo horário comercial válido
- */
-function getNextBusinessHour(fromDate: Date = new Date()): Date {
-  const result = new Date(fromDate);
-  
-  // Se já está em horário comercial, retorna o mesmo
-  if (isBusinessHours(result)) {
-    return result;
-  }
-  
-  // Se é antes do horário comercial do mesmo dia
-  if (result.getHours() < BUSINESS_HOURS.start && BUSINESS_HOURS.workDays.includes(result.getDay())) {
-    result.setHours(BUSINESS_HOURS.start, 0, 0, 0);
-    return result;
-  }
-  
-  // Se é depois do horário comercial ou dia não útil, vai pro próximo dia útil
-  result.setDate(result.getDate() + 1);
-  result.setHours(BUSINESS_HOURS.start, 0, 0, 0);
-  
-  // Encontrar próximo dia útil
-  while (!BUSINESS_HOURS.workDays.includes(result.getDay())) {
-    result.setDate(result.getDate() + 1);
-  }
-  
-  return result;
-}
-
-/**
- * Ajusta uma data para horário comercial se necessário
- */
-function adjustToBusinessHours(date: Date): { date: Date; wasAdjusted: boolean } {
-  if (isBusinessHours(date)) {
-    return { date, wasAdjusted: false };
-  }
-  
-  const adjustedDate = getNextBusinessHour(date);
-  return { date: adjustedDate, wasAdjusted: true };
-}
-
-// ============================================================================
-// FUNÇÕES DE FOLLOW-UP
-// ============================================================================
-
-/**
- * Agenda um follow-up automático inteligente
- * Respeita horário comercial e usa sequência progressiva
- */
-export function scheduleAutoFollowUp(
-  phoneNumber: string, 
-  delayMinutes: number,
-  context: string
-): void {
-  const cleanPhone = phoneNumber.replace(/\D/g, "");
-  
-  // Cancelar follow-up anterior se existir
-  cancelFollowUp(cleanPhone);
-  
-  // Obter número de tentativas anteriores
-  const attempts = clientAttempts.get(cleanPhone) || 0;
-  const nextAttempt = Math.min(attempts, FOLLOW_UP_SEQUENCE.length - 1);
-  const followUpConfig = FOLLOW_UP_SEQUENCE[nextAttempt];
-  
-  // Calcular data do follow-up
-  const rawDate = new Date(Date.now() + followUpConfig.delay * 60 * 1000);
-  const { date: scheduledDate, wasAdjusted } = adjustToBusinessHours(rawDate);
-  
-  const followUp: FollowUp = {
-    id: `fu_${Date.now()}`,
-    phoneNumber: cleanPhone,
-    type: followUpConfig.type,
-    scheduledAt: scheduledDate,
-    originalScheduledAt: wasAdjusted ? rawDate : undefined,
-    context,
-    attempt: nextAttempt + 1,
-    status: 'pending',
-    createdAt: new Date(),
-  };
-  
-  pendingFollowUps.set(cleanPhone, followUp);
-  
-  // Calcular delay real (considerando ajuste de horário)
-  const realDelay = Math.max(0, scheduledDate.getTime() - Date.now());
-  
-  // Agendar timer
-  const timer = setTimeout(async () => {
-    await executeFollowUp(cleanPhone);
-  }, realDelay);
-  
-  followUpTimers.set(cleanPhone, timer);
-  
-  const formattedTime = scheduledDate.toLocaleString('pt-BR', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  
-  console.log(`⏰ [FOLLOW-UP] Agendado para ${cleanPhone}`);
-  console.log(`   📅 Data: ${formattedTime}`);
-  console.log(`   🔄 Tentativa: ${followUp.attempt}/${FOLLOW_UP_SEQUENCE.length}`);
-  console.log(`   📝 Tipo: ${followUp.type}`);
-  if (wasAdjusted) {
-    console.log(`   ⚠️ Reagendado para horário comercial`);
-  }
-}
-
-/**
- * Agenda próximo follow-up na sequência
- */
-export function scheduleNextFollowUp(phoneNumber: string, context: string): void {
-  const cleanPhone = phoneNumber.replace(/\D/g, "");
-  const attempts = clientAttempts.get(cleanPhone) || 0;
-  
-  // Se já esgotou todas as tentativas, não agendar mais
-  if (attempts >= FOLLOW_UP_SEQUENCE.length) {
-    console.log(`⚠️ [FOLLOW-UP] ${cleanPhone} - Todas as tentativas esgotadas`);
-    return;
-  }
-  
-  // Incrementar contador e agendar
-  clientAttempts.set(cleanPhone, attempts + 1);
-  scheduleAutoFollowUp(cleanPhone, 0, context); // delay será calculado pela sequência
-}
-
-/**
- * Reseta o contador de tentativas (quando cliente responde)
- */
-export function resetFollowUpAttempts(phoneNumber: string): void {
-  const cleanPhone = phoneNumber.replace(/\D/g, "");
-  clientAttempts.delete(cleanPhone);
-}
-
-/**
- * Cancela follow-up pendente e reseta tentativas
- */
-export function cancelFollowUp(phoneNumber: string): void {
-  const cleanPhone = phoneNumber.replace(/\D/g, "");
-  
-  const timer = followUpTimers.get(cleanPhone);
-  if (timer) {
-    clearTimeout(timer);
-    followUpTimers.delete(cleanPhone);
-  }
-  
-  const followUp = pendingFollowUps.get(cleanPhone);
-  if (followUp) {
-    followUp.status = 'cancelled';
-    pendingFollowUps.delete(cleanPhone);
-    console.log(`❌ [FOLLOW-UP] Cancelado para ${cleanPhone} (cliente respondeu)`);
-  }
-  
-  // Resetar contador de tentativas quando cliente responde
-  resetFollowUpAttempts(cleanPhone);
-}
-
-/**
- * Executa o follow-up
- */
-// Callback para enviar follow-up (será configurado pelo whatsapp.ts)
-let onFollowUpReady: ((phoneNumber: string, context: string, attempt: number, type: string) => Promise<void>) | null = null;
-let onScheduledContactReady: ((phoneNumber: string, reason: string) => Promise<void>) | null = null;
-
-/**
- * Registra callback para envio de follow-up
- */
-export function registerFollowUpCallback(
-  callback: (phoneNumber: string, context: string, attempt: number, type: string) => Promise<void>
-): void {
-  onFollowUpReady = callback;
-  console.log("📲 [FOLLOW-UP] Callback de envio registrado");
-}
-
-/**
- * Registra callback para contato agendado
- */
-export function registerScheduledContactCallback(
-  callback: (phoneNumber: string, reason: string) => Promise<void>
-): void {
-  onScheduledContactReady = callback;
-  console.log("📲 [AGENDAMENTO] Callback de envio registrado");
-}
-
-async function executeFollowUp(phoneNumber: string): Promise<void> {
-  const followUp = pendingFollowUps.get(phoneNumber);
-  if (!followUp || followUp.status !== 'pending') return;
-  
-  // Verificar se está em horário comercial
-  if (!isBusinessHours()) {
-    const nextBusinessHour = getNextBusinessHour();
-    console.log(`⏸️ [FOLLOW-UP] Fora do horário comercial. Reagendando para ${nextBusinessHour.toLocaleString('pt-BR')}`);
+  start() {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    console.log("🚀 [FOLLOW-UP] Serviço iniciado");
     
-    followUp.scheduledAt = nextBusinessHour;
-    followUp.status = 'rescheduled';
-    
-    const delay = nextBusinessHour.getTime() - Date.now();
-    const timer = setTimeout(async () => {
-      followUp.status = 'pending';
-      await executeFollowUp(phoneNumber);
-    }, delay);
-    
-    followUpTimers.set(phoneNumber, timer);
-    return;
+    // Verificar a cada minuto
+    this.checkInterval = setInterval(() => this.processFollowUps(), 60 * 1000);
+    this.processFollowUps(); // Executar imediatamente ao iniciar
   }
-  
-  try {
-    console.log(`📤 [FOLLOW-UP] Executando para ${phoneNumber} (tentativa ${followUp.attempt})...`);
-    
-    if (onFollowUpReady) {
-      await onFollowUpReady(phoneNumber, followUp.context || '', followUp.attempt, followUp.type);
+
+  stop() {
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+      this.checkInterval = null;
+    }
+    this.isRunning = false;
+    console.log("🛑 [FOLLOW-UP] Serviço parado");
+  }
+
+  registerFollowUpCallback(callback: FollowUpCallback) {
+    this.onFollowUpReady = callback;
+    console.log("📲 [FOLLOW-UP] Callback registrado");
+  }
+
+  registerScheduledContactCallback(callback: ScheduledContactCallback) {
+    this.onScheduledContactReady = callback;
+    console.log("📲 [AGENDAMENTO] Callback registrado");
+  }
+
+  /**
+   * Processa conversas pendentes de follow-up
+   */
+  private async processFollowUps() {
+    try {
+      const now = new Date();
       
-      followUp.status = 'sent';
-      pendingFollowUps.delete(phoneNumber);
-      followUpTimers.delete(phoneNumber);
-      
-      console.log(`✅ [FOLLOW-UP] Enviado para ${phoneNumber}`);
-      
-      // Se não foi a última tentativa, agendar próximo
-      if (followUp.attempt < FOLLOW_UP_SEQUENCE.length) {
-        scheduleNextFollowUp(phoneNumber, followUp.context || '');
-      } else {
-        console.log(`📴 [FOLLOW-UP] Última tentativa enviada para ${phoneNumber}`);
+      // Buscar conversas que precisam de follow-up
+      const pendingConversations = await db.query.adminConversations.findMany({
+        where: and(
+          eq(adminConversations.followupActive, true),
+          lte(adminConversations.nextFollowupAt, now)
+        )
+      });
+
+      if (pendingConversations.length > 0) {
+        console.log(`🔍 [FOLLOW-UP] Encontradas ${pendingConversations.length} conversas para processar`);
       }
-    } else {
-      console.log(`⚠️ [FOLLOW-UP] Callback não registrado para ${phoneNumber}`);
+
+      for (const conv of pendingConversations) {
+        await this.executeFollowUp(conv);
+      }
+    } catch (error) {
+      console.error("❌ [FOLLOW-UP] Erro ao processar follow-ups:", error);
     }
-  } catch (error) {
-    console.error(`❌ [FOLLOW-UP] Erro ao enviar para ${phoneNumber}:`, error);
   }
-}
 
-// ============================================================================
-// FUNÇÕES DE AGENDAMENTO
-// ============================================================================
+  /**
+   * Executa a lógica de follow-up para uma conversa específica
+   */
+  private async executeFollowUp(conversation: typeof adminConversations.$inferSelect) {
+    console.log(`👉 [FOLLOW-UP] Processando ${conversation.userPhone} (Estágio ${conversation.followupStage})`);
 
-/**
- * Agenda um contato para data/hora específica
- */
-export function scheduleContact(
-  phoneNumber: string,
-  date: Date,
-  reason: string
-): ScheduledContact {
-  const cleanPhone = phoneNumber.replace(/\D/g, "");
-  
-  const scheduled: ScheduledContact = {
-    id: `sc_${Date.now()}`,
-    phoneNumber: cleanPhone,
-    scheduledDate: date,
-    reason,
-    status: 'pending',
-    createdAt: new Date(),
-  };
-  
-  const existing = scheduledContacts.get(cleanPhone) || [];
-  existing.push(scheduled);
-  scheduledContacts.set(cleanPhone, existing);
-  
-  // Agendar timer
-  const delay = date.getTime() - Date.now();
-  if (delay > 0) {
-    setTimeout(async () => {
-      await executeScheduledContact(cleanPhone, scheduled.id);
-    }, delay);
+    try {
+      // 1. Analisar histórico com IA para decidir ação
+      const decision = await this.analyzeWithAI(conversation);
+      
+      if (decision.action === 'abort') {
+        console.log(`🛑 [FOLLOW-UP] Abortado pela IA para ${conversation.userPhone}: ${decision.reason}`);
+        await this.disableFollowUp(conversation.id);
+        return;
+      }
+
+      if (decision.action === 'wait') {
+        console.log(`⏳ [FOLLOW-UP] IA sugeriu esperar para ${conversation.userPhone}: ${decision.reason}`);
+        // Adiar por 24h ou conforme sugerido (simplificado para 24h aqui)
+        await this.scheduleNextFollowUp(conversation, 24 * 60); 
+        return;
+      }
+
+      // 2. Se ação for 'send', disparar callback
+      if (decision.action === 'send') {
+        if (this.onFollowUpReady) {
+          console.log(`📤 [FOLLOW-UP] Disparando callback para ${conversation.userPhone}`);
+          
+          // O callback espera (phoneNumber, context, attempt, type)
+          // Vamos adaptar os parâmetros
+          const attempt = (conversation.followupStage || 0) + 1;
+          const type = attempt >= FOLLOW_UP_SCHEDULE.length ? 'final' : 'reminder';
+          
+          await this.onFollowUpReady(
+            conversation.userPhone, 
+            decision.context || "Follow-up automático",
+            attempt,
+            type
+          );
+          
+          // Agendar próximo estágio
+          await this.scheduleNextFollowUp(conversation);
+        } else {
+          console.warn("⚠️ [FOLLOW-UP] Callback não registrado! Mensagem não enviada.");
+        }
+      }
+
+    } catch (error) {
+      console.error(`❌ [FOLLOW-UP] Erro ao executar para ${conversation.userPhone}:`, error);
+    }
   }
-  
-  console.log(`📅 [AGENDAMENTO] Contato agendado para ${cleanPhone} em ${date.toLocaleString('pt-BR')}`);
-  
-  return scheduled;
-}
 
-/**
- * Executa contato agendado
- */
-async function executeScheduledContact(phoneNumber: string, scheduleId: string): Promise<void> {
-  const contacts = scheduledContacts.get(phoneNumber);
-  const scheduled = contacts?.find(c => c.id === scheduleId);
-  
-  if (!scheduled || scheduled.status !== 'pending') return;
-  
-  try {
-    console.log(`📤 [AGENDAMENTO] Executando contato agendado para ${phoneNumber}...`);
+  /**
+   * Usa IA para analisar se deve enviar follow-up
+   */
+  private async analyzeWithAI(conversation: typeof adminConversations.$inferSelect): Promise<{
+    action: 'send' | 'wait' | 'abort';
+    reason: string;
+    context?: string;
+  }> {
+    const history = conversation.history as any[] || [];
+    const lastMessages = history.slice(-10);
+
+    const prompt = `
+      Analise esta conversa de vendas e decida o próximo passo para o sistema de follow-up automático.
+      
+      Contexto:
+      - O cliente parou de responder.
+      - Estamos no estágio ${conversation.followupStage} de follow-up.
+      - Objetivo: Reengajar o cliente para fechar a venda.
+      
+      Histórico recente:
+      ${JSON.stringify(lastMessages, null, 2)}
+      
+      Regras de Decisão CRÍTICAS:
+      1. ABORT ('abort'): 
+         - Se o cliente JÁ FECHOU/CONTRATOU (ex: "já paguei", "fechado", "contratado").
+         - Se o cliente disse explicitamente "não tenho interesse", "pare de mandar mensagem".
+      
+      2. WAIT ('wait'): 
+         - Se o cliente está AGUARDANDO UMA RESPOSTA NOSSA (ex: fez uma pergunta e não respondemos ainda).
+         - Se o cliente disse "vou ver e te aviso", "falo com você amanhã".
+      
+      3. SEND ('send'): 
+         - Se o cliente simplesmente parou de responder e faz sentido tentar reengajar.
+         - Se o cliente não fechou e não estamos devendo resposta.
+      
+      Responda APENAS um JSON:
+      {
+        "action": "send" | "wait" | "abort",
+        "reason": "breve explicação",
+        "context": "dicas para a mensagem de follow-up (ex: focar em benefícios, perguntar se ficou dúvida)"
+      }
+    `;
+
+    try {
+      const mistral = await getMistralClient();
+      const response = await mistral.chat.complete({
+        model: "mistral-small-latest",
+        messages: [{ role: "user", content: prompt }]
+      });
+      const content = response.choices?.[0]?.message?.content || "";
+      const jsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(jsonStr);
+    } catch (e) {
+      console.error("Erro na análise de IA:", e);
+      return { action: 'wait', reason: "Erro na análise de IA" };
+    }
+  }
+
+  /**
+   * Agenda o próximo follow-up ou finaliza se acabou a sequência
+   */
+  private async scheduleNextFollowUp(conversation: typeof adminConversations.$inferSelect, customDelayMinutes?: number) {
+    const currentStage = conversation.followupStage || 0;
+    const nextStage = currentStage + 1;
+
+    if (customDelayMinutes) {
+      const nextDate = new Date(Date.now() + customDelayMinutes * 60 * 1000);
+      await db.update(adminConversations)
+        .set({ nextFollowupAt: nextDate })
+        .where(eq(adminConversations.id, conversation.id));
+      return;
+    }
+
+    if (currentStage >= FOLLOW_UP_SCHEDULE.length) {
+      // Loop infinito a cada 15-30 dias
+      const randomDelay = Math.floor(Math.random() * (FINAL_RANDOM_MAX - FINAL_RANDOM_MIN + 1) + FINAL_RANDOM_MIN);
+      const nextDate = new Date(Date.now() + randomDelay * 60 * 1000);
+      
+      console.log(`🔄 [FOLLOW-UP] Ciclo infinito: Agendando próximo para daqui a ${Math.floor(randomDelay / 60 / 24)} dias`);
+
+      await db.update(adminConversations)
+        .set({ 
+          followupStage: currentStage + 1, // Continua incrementando para saber quantas vezes já tentou
+          nextFollowupAt: nextDate 
+        })
+        .where(eq(adminConversations.id, conversation.id));
+        
+    } else {
+      const delayMinutes = FOLLOW_UP_SCHEDULE[currentStage];
+      const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
+      
+      await db.update(adminConversations)
+        .set({ 
+          followupStage: nextStage,
+          nextFollowupAt: nextDate 
+        })
+        .where(eq(adminConversations.id, conversation.id));
+    }
+  }
+
+  /**
+   * Desativa o follow-up para uma conversa
+   */
+  async disableFollowUp(conversationId: number) {
+    await db.update(adminConversations)
+      .set({ followupActive: false, nextFollowupAt: null })
+      .where(eq(adminConversations.id, conversationId));
+  }
+
+  /**
+   * Inicia o ciclo de follow-up para uma nova conversa (ou reinicia)
+   */
+  async scheduleInitialFollowUp(conversationId: string) {
+    const delayMinutes = FOLLOW_UP_SCHEDULE[0];
+    const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
+
+    await db.update(adminConversations)
+      .set({ 
+        followupActive: true,
+        followupStage: 0,
+        nextFollowupAt: nextDate
+      })
+      .where(eq(adminConversations.id, conversationId));
+      
+    console.log(`✅ [FOLLOW-UP] Agendado inicial para conversa ${conversationId} em ${delayMinutes} min`);
+  }
+
+  /**
+   * Helper para agendar pelo telefone (busca a conversa mais recente)
+   */
+  async scheduleInitialFollowUpByPhone(phoneNumber: string) {
+    const conversation = await db.query.adminConversations.findFirst({
+      where: eq(adminConversations.contactNumber, phoneNumber),
+      orderBy: (adminConversations, { desc }) => [desc(adminConversations.lastMessageTime)]
+    });
+
+    if (conversation) {
+      await this.scheduleInitialFollowUp(conversation.id);
+    } else {
+      console.warn(`⚠️ [FOLLOW-UP] Conversa não encontrada para ${phoneNumber} ao tentar agendar follow-up inicial`);
+    }
+  }
+
+  /**
+   * Cancela follow-up ativo para um telefone
+   */
+  async cancelFollowUpByPhone(phoneNumber: string) {
+    // NOVA LÓGICA: Se o cliente respondeu, não cancelamos permanentemente.
+    // Apenas resetamos o ciclo para o estágio 0 (10 minutos após a resposta).
+    // Isso garante que se ele parar de responder de novo, o follow-up volta.
     
-    if (onScheduledContactReady) {
-      await onScheduledContactReady(phoneNumber, scheduled.reason);
-      scheduled.status = 'completed';
-      console.log(`✅ [AGENDAMENTO] Contato enviado para ${phoneNumber}`);
-    } else {
-      console.log(`⚠️ [AGENDAMENTO] Callback não registrado para ${phoneNumber}`);
-    }
-  } catch (error) {
-    console.error(`❌ [AGENDAMENTO] Erro ao enviar para ${phoneNumber}:`, error);
+    const delayMinutes = FOLLOW_UP_SCHEDULE[0]; // 10 minutos
+    const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
+
+    await db.update(adminConversations)
+      .set({ 
+        followupActive: true,
+        followupStage: 0,
+        nextFollowupAt: nextDate
+      })
+      .where(eq(adminConversations.contactNumber, phoneNumber));
+      
+    console.log(`🔄 [FOLLOW-UP] Cliente respondeu. Ciclo resetado para 10min (Estágio 0) para ${phoneNumber}`);
+  }
+
+  // ============================================================================
+  // GETTERS PARA O CALENDÁRIO
+  // ============================================================================
+
+  /**
+   * Retorna eventos para o calendário (follow-ups futuros)
+   */
+  async getCalendarEvents() {
+    const now = new Date();
+    
+    // Buscar conversas com follow-up ativo
+    const activeFollowUps = await db.query.adminConversations.findMany({
+      where: and(
+        eq(adminConversations.followupActive, true),
+        // Trazer apenas os futuros ou atrasados (não nulos)
+        lte(adminConversations.nextFollowupAt, new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)) // Próximos 30 dias
+      )
+    });
+
+    return activeFollowUps.map(conv => ({
+      id: `fu_${conv.id}`,
+      phoneNumber: conv.userPhone,
+      type: 'followup',
+      title: `Follow-up #${(conv.followupStage || 0) + 1}`,
+      scheduledAt: conv.nextFollowupAt,
+      status: conv.nextFollowupAt && conv.nextFollowupAt < now ? 'overdue' : 'pending',
+      attempt: (conv.followupStage || 0) + 1,
+      metadata: {
+        conversationId: conv.id,
+        stage: conv.followupStage
+      }
+    }));
+  }
+
+  /**
+   * Retorna estatísticas para o dashboard
+   */
+  async getFollowUpStats() {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    
+    const events = await this.getCalendarEvents();
+    
+    const stats = {
+      pending: events.filter(e => e.status === 'pending' || e.status === 'overdue').length,
+      scheduledToday: events.filter(e => 
+        e.scheduledAt && 
+        new Date(e.scheduledAt) >= today && 
+        new Date(e.scheduledAt) < new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      ).length,
+      scheduledThisWeek: events.filter(e => 
+        e.scheduledAt && 
+        new Date(e.scheduledAt) >= today && 
+        new Date(e.scheduledAt) < nextWeek
+      ).length,
+      byType: {} as Record<string, number>,
+    };
+    
+    events.forEach(e => {
+      stats.byType[e.type] = (stats.byType[e.type] || 0) + 1;
+    });
+    
+    return stats;
   }
 }
 
-/**
- * Parseia data/hora de texto natural
- * Ex: "amanhã às 14h", "segunda-feira", "daqui 2 dias"
- */
+export const followUpService = new FollowUpService();
+
+// ============================================================================
+// FUNÇÕES LEGADAS / COMPATIBILIDADE
+// ============================================================================
+
+export function registerFollowUpCallback(callback: FollowUpCallback) {
+  followUpService.registerFollowUpCallback(callback);
+}
+
+export function registerScheduledContactCallback(callback: ScheduledContactCallback) {
+  followUpService.registerScheduledContactCallback(callback);
+}
+
+export function scheduleAutoFollowUp(phoneNumber: string, delayMinutes: number, context: string) {
+    // TODO: Implementar compatibilidade se necessário, ou migrar chamadas antigas
+    // Por enquanto, apenas loga
+    console.warn("⚠️ scheduleAutoFollowUp (legacy) chamado - migrar para scheduleInitialFollowUp");
+}
+
+export function cancelFollowUp(phoneNumber: string) {
+  followUpService.cancelFollowUpByPhone(phoneNumber);
+}
+
+export function scheduleContact(phoneNumber: string, date: Date, reason: string) {
+    // TODO: Implementar agendamento pontual
+}
+
 export function parseScheduleFromText(text: string): Date | null {
   const now = new Date();
   const lowerText = text.toLowerCase();
@@ -444,141 +464,4 @@ export function parseScheduleFromText(text: string): Date | null {
   }
   
   return null;
-}
-
-// ============================================================================
-// GETTERS PARA O ADMIN
-// ============================================================================
-
-export function getAllPendingFollowUps(): FollowUp[] {
-  return Array.from(pendingFollowUps.values());
-}
-
-export function getAllScheduledContacts(): ScheduledContact[] {
-  const all: ScheduledContact[] = [];
-  scheduledContacts.forEach(contacts => all.push(...contacts));
-  return all.sort((a, b) => a.scheduledDate.getTime() - b.scheduledDate.getTime());
-}
-
-export function getScheduledContactsForPhone(phoneNumber: string): ScheduledContact[] {
-  const cleanPhone = phoneNumber.replace(/\D/g, "");
-  return scheduledContacts.get(cleanPhone) || [];
-}
-
-export function cancelScheduledContact(phoneNumber: string, scheduleId: string): boolean {
-  const cleanPhone = phoneNumber.replace(/\D/g, "");
-  const contacts = scheduledContacts.get(cleanPhone);
-  const scheduled = contacts?.find(c => c.id === scheduleId);
-  
-  if (scheduled && scheduled.status === 'pending') {
-    scheduled.status = 'cancelled';
-    return true;
-  }
-  return false;
-}
-
-// ============================================================================
-// FUNÇÕES PARA CALENDÁRIO DO ADMIN
-// ============================================================================
-
-export interface CalendarEvent {
-  id: string;
-  phoneNumber: string;
-  type: 'followup' | 'scheduled_contact';
-  title: string;
-  scheduledAt: Date;
-  status: string;
-  attempt?: number;
-  reason?: string;
-  metadata?: Record<string, any>;
-}
-
-/**
- * Retorna todos os eventos do calendário (follow-ups + agendamentos)
- */
-export function getCalendarEvents(): CalendarEvent[] {
-  const events: CalendarEvent[] = [];
-  
-  // Adicionar follow-ups pendentes
-  pendingFollowUps.forEach((followUp) => {
-    events.push({
-      id: followUp.id,
-      phoneNumber: followUp.phoneNumber,
-      type: 'followup',
-      title: `Follow-up #${followUp.attempt} - ${followUp.type}`,
-      scheduledAt: followUp.scheduledAt,
-      status: followUp.status,
-      attempt: followUp.attempt,
-      metadata: {
-        context: followUp.context,
-        originalScheduledAt: followUp.originalScheduledAt,
-      },
-    });
-  });
-  
-  // Adicionar contatos agendados
-  scheduledContacts.forEach((contacts) => {
-    contacts.forEach((contact) => {
-      if (contact.status === 'pending') {
-        events.push({
-          id: contact.id,
-          phoneNumber: contact.phoneNumber,
-          type: 'scheduled_contact',
-          title: `Contato agendado: ${contact.reason}`,
-          scheduledAt: contact.scheduledDate,
-          status: contact.status,
-          reason: contact.reason,
-        });
-      }
-    });
-  });
-  
-  // Ordenar por data
-  return events.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
-}
-
-/**
- * Retorna estatísticas de follow-up
- */
-export function getFollowUpStats(): {
-  pending: number;
-  scheduledToday: number;
-  scheduledThisWeek: number;
-  byType: Record<string, number>;
-} {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-  
-  const events = getCalendarEvents();
-  
-  const stats = {
-    pending: events.filter(e => e.status === 'pending').length,
-    scheduledToday: events.filter(e => 
-      e.scheduledAt >= today && 
-      e.scheduledAt < new Date(today.getTime() + 24 * 60 * 60 * 1000)
-    ).length,
-    scheduledThisWeek: events.filter(e => 
-      e.scheduledAt >= today && 
-      e.scheduledAt < nextWeek
-    ).length,
-    byType: {} as Record<string, number>,
-  };
-  
-  events.forEach(e => {
-    stats.byType[e.type] = (stats.byType[e.type] || 0) + 1;
-  });
-  
-  return stats;
-}
-
-/**
- * Retorna configuração de horário comercial
- */
-export function getBusinessHoursConfig() {
-  return {
-    ...BUSINESS_HOURS,
-    isCurrentlyOpen: isBusinessHours(),
-    nextOpenTime: isBusinessHours() ? null : getNextBusinessHour(),
-  };
 }
