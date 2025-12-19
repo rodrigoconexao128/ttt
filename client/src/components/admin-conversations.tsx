@@ -339,9 +339,16 @@ export default function AdminConversations() {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <h3 className="font-semibold text-sm truncate">
-                            {conversation.contactName || displayNum}
-                          </h3>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <h3 className="font-semibold text-sm truncate">
+                              {conversation.contactName || displayNum}
+                            </h3>
+                            {conversation.followupActive && (
+                              <Badge variant="outline" className="h-4 px-1 text-[10px] border-blue-500/50 text-blue-500 flex-shrink-0">
+                                Follow-up
+                              </Badge>
+                            )}
+                          </div>
                           {conversation.lastMessageTime && (
                             <span className="text-xs text-muted-foreground flex-shrink-0">
                               {formatDistanceToNow(

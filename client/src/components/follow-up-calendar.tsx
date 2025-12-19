@@ -97,6 +97,12 @@ export default function FollowUpCalendar() {
     },
   });
 
+  const handleDeleteClick = (id: string, phone: string) => {
+    if (confirm("Tem certeza que deseja cancelar este follow-up? Ele será removido da fila.")) {
+      cancelEventMutation.mutate({ id, phone });
+    }
+  };
+
   const events: CalendarEvent[] = eventsData?.events || [];
   const stats: CalendarStats = statsData?.stats || { pending: 0, scheduledToday: 0, scheduledThisWeek: 0, byType: {} };
   const businessHours: BusinessHours = statsData?.businessHours || { 
@@ -282,7 +288,12 @@ export default function FollowUpCalendar() {
                         className="flex items-center justify-between p-3 bg-[#0f0f1a] rounded-lg border border-gray-800 hover:border-gray-700 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          {getStatusIcon(event.status)}
+                          <div className="flex flex-col items-center justify-center w-16 gap-1">
+                            {getStatusIcon(event.status)}
+                            <span className="text-[10px] text-muted-foreground font-medium">
+                              {getStatusLabel(event.status)}
+                            </span>
+                          </div>
                           
                           <div>
                             <div className="flex items-center gap-2">
@@ -317,10 +328,7 @@ export default function FollowUpCalendar() {
                           variant="ghost"
                           size="sm"
                           className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                          onClick={() => cancelEventMutation.mutate({ 
-                            id: event.id, 
-                            phone: event.phoneNumber 
-                          })}
+                          onClick={() => handleDeleteClick(event.id, event.phoneNumber)}
                           disabled={cancelEventMutation.isPending}
                         >
                           <Trash2 className="w-4 h-4" />

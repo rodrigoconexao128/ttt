@@ -303,6 +303,77 @@ export async function getActiveTriggers(adminId?: string) {
 }
 
 /**
+ * Gera gatilhos inteligentes baseados no campo "whenToUse" das mídias
+ * Isso permite que mídias personalizadas (como VALE_A_PENA) funcionem automaticamente
+ */
+export async function getSmartTriggers(adminId?: string) {
+  const mediaList = await getAdminMediaList(adminId);
+  const triggers: { keywords: string[], mediaName: string }[] = [];
+
+  // 1. Adicionar gatilhos padrão (se a mídia existir)
+  const activeDefaultTriggers = await getActiveTriggers(adminId);
+  triggers.push(...activeDefaultTriggers);
+
+  // 2. Gerar gatilhos dinâmicos do "whenToUse"
+  for (const media of mediaList) {
+    if (media.whenToUse && media.whenToUse.length > 3) {
+      // Limpar palavras de instrução para extrair a intenção real
+      // Mantemos artigos e preposições (a, o, de, da) para preservar frases como "vale a pena"
+      const instructionWords = [
+        'quando', 'cliente', 'perguntar', 'se', 'sobre', 'falar', 'pedir', 
+        'que', 'como', 'usuario', 'disser', 'solicitar', 'questionar', 
+        'caso', 'houver', 'quiser', 'saber', 'informar', 'ver',
+        'o', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'do', 'da', 'em', 'no', 'na', 'por', 'para'
+      ];
+      
+      // Normalizar texto
+      const cleanText = media.whenToUse.toLowerCase()
+        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
+        .replace(/\s{2,}/g, " ");
+      
+      const words = cleanText.split(' ');
+      
+      // Filtrar palavras de instrução
+      const keywords = words.filter(w => !instructionWords.includes(w) && w.length > 1); // w.length > 1 remove letras soltas se não forem 'a', 'e' (mas 'a' tem length 1)
+      
+      // Wait, 'a' has length 1. 'e' has length 1.
+      // If I filter w.length > 1, I remove 'a'.
+      // So I should allow 'a', 'e', 'o'.
+      
+      // Let's refine the filter.
+      const finalKeywords = words.filter(w => !instructionWords.includes(w));
+      
+      // Se sobrou algo útil, criar gatilho
+      if (finalKeywords.length > 0) {
+        // Adicionar a frase completa limpa como gatilho principal
+        const phrase = finalKeywords.join(' ');
+        
+        // Verificar se já existe gatilho para esta mídia
+        const existing = triggers.find(t => t.mediaName === media.name);
+        if (existing) {
+          // Adiciona a frase se não existir
+          if (!existing.keywords.includes(phrase)) {
+            existing.keywords.push(phrase);
+          }
+          // Adiciona também a frase original do whenToUse (limpa) para matching exato
+          const originalClean = media.whenToUse.toLowerCase().trim();
+          if (!existing.keywords.includes(originalClean)) {
+             existing.keywords.push(originalClean);
+          }
+        } else {
+          triggers.push({
+            keywords: [phrase, media.whenToUse.toLowerCase().trim()], 
+            mediaName: media.name
+          });
+        }
+      }
+    }
+  }
+  
+  return triggers;
+}
+
+/**
  * Gera o bloco de prompt para as mídias do admin
  * COPIADO DO mediaService.ts QUE FUNCIONA CORRETAMENTE
  */
@@ -349,10 +420,9 @@ ${tipo}: ${media.name}
   }
 
   mediaBlock += `
-⚠️ REGRA FINAL:
-1. Se o cliente perguntar algo que bate com "Quando usar", ENVIE A MÍDIA.
-2. Coloque a tag [ENVIAR_MIDIA:NOME] no final da resposta.
-3. Você PODE enviar mídia junto com a explicação.
+⚠️ REGRA CRÍTICA DE ENVIO:
+Analise o campo "Quando usar" de cada mídia. Se a mensagem do usuário corresponder à situação descrita, VOCÊ DEVE ENVIAR A MÍDIA.
+Não ignore esta instrução. Se o usuário perguntar algo que bate com "Quando usar", envie a tag [ENVIAR_MIDIA:NOME].
 `;
 
   return mediaBlock;

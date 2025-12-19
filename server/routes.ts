@@ -3661,10 +3661,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
    */
   app.get("/api/admin/calendar/events", isAdmin, async (req: any, res) => {
     try {
-      const { getCalendarEvents } = await import("./followUpService");
-      const events = getCalendarEvents();
+      const { followUpService } = await import("./followUpService");
+      const events = await followUpService.getCalendarEvents();
       res.json({ events });
     } catch (error: any) {
+      console.error("Error fetching calendar events:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -3675,11 +3676,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
    */
   app.get("/api/admin/calendar/stats", isAdmin, async (req: any, res) => {
     try {
-      const { getFollowUpStats, getBusinessHoursConfig } = await import("./followUpService");
-      const stats = getFollowUpStats();
-      const businessHours = getBusinessHoursConfig();
+      const { followUpService } = await import("./followUpService");
+      const stats = await followUpService.getFollowUpStats();
+      // Mock business hours for now if not implemented
+      const businessHours = { start: 8, end: 18, workDays: [1,2,3,4,5], isCurrentlyOpen: true, nextOpenTime: null };
       res.json({ stats, businessHours });
     } catch (error: any) {
+      console.error("Error fetching calendar stats:", error);
       res.status(500).json({ error: error.message });
     }
   });

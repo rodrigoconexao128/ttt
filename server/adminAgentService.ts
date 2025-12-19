@@ -2552,8 +2552,8 @@ export async function processAdminMessage(
   // Regras de fallback (hardcoded para garantir funcionamento)
   
   // Definição de gatilhos de fallback (Sincronizado com adminMediaStore)
-  const { defaultTriggers } = await import("./adminMediaStore");
-  const fallbackTriggers = defaultTriggers;
+  const { getSmartTriggers } = await import("./adminMediaStore");
+  const fallbackTriggers = await getSmartTriggers(undefined);
 
   // 1. Tentar corrigir tag quebrada no final (ex: [ENVIAR_ ou [ENVIAR)
   const brokenTagRegex = /\[ENVIAR_?$/i;

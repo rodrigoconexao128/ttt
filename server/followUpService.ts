@@ -96,6 +96,14 @@ export class FollowUpService {
     console.log(`👉 [FOLLOW-UP] Processando ${conversation.contactNumber} (Estágio ${conversation.followupStage})`);
 
     try {
+      // 0. Verificar se o agente está ativo para esta conversa
+      // Se o agente estiver desativado, o follow-up deve ser CANCELADO (não apenas ignorado)
+      if (!conversation.isAgentEnabled) {
+        console.log(`🛑 [FOLLOW-UP] Agente desativado para ${conversation.contactNumber}. Cancelando follow-up.`);
+        await this.disableFollowUp(conversation.id);
+        return;
+      }
+
       // 1. Analisar histórico com IA para decidir ação
       const decision = await this.analyzeWithAI(conversation);
       
