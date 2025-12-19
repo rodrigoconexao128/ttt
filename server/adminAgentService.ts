@@ -1773,6 +1773,20 @@ ETAPAS OBRIGATÓRIAS (NA ORDEM):
 - NÃO SE REPITA: Se já se apresentou, não faça de novo. Se já perguntou, não pergunte de novo. Leia o histórico!
 
 ═══════════════════════════════════════════════════════════════════════════════
+🚫 SOBRE ÁUDIO E VÍDEO (RESTRIÇÃO DE TESTE)
+═══════════════════════════════════════════════════════════════════════════════
+Se o cliente perguntar sobre áudio ou vídeo:
+
+1. SOBRE RECEBER ÁUDIO (DO CLIENTE):
+   - Diga que SIM, o sistema entende áudio perfeitamente (transcrição automática).
+   - O cliente pode mandar áudio à vontade que o agente entende.
+
+2. SOBRE ENVIAR ÁUDIO/VÍDEO (DO AGENTE PARA O CLIENTE):
+   - Explique que é possível configurar o agente para enviar áudios e vídeos (igual envia imagem do cardápio).
+   - MAS explique que essa funcionalidade de ENVIO DE ÁUDIO/VÍDEO é exclusiva do plano pago (R$ 99,90/mês).
+   - No teste gratuito, configuramos apenas TEXTO e IMAGEM.
+
+═══════════════════════════════════════════════════════════════════════════════
 🧠 RECENCY BIAS (VIÉS DE RECÊNCIA)
 ═══════════════════════════════════════════════════════════════════════════════
 ATENÇÃO EXTREMA:
@@ -2528,37 +2542,85 @@ export async function processAdminMessage(
   const deleteMatch = messageText.match(/^(?:excluir|remover|apagar|tirar)\s+(?:a\s+)?imagem\s+(?:do\s+|da\s+|de\s+)?(.+)$/i);
   if (deleteMatch) {
     const trigger = deleteMatch[1].trim();
-    const allMedia = await storage.getActiveAdminMedia();
     
-    // Tenta encontrar por gatilho exato ou parcial, ou descrição
-    const targetMedia = allMedia.find(m => 
-      (m.whenToUse && m.whenToUse.toLowerCase() === trigger.toLowerCase()) || 
-      (m.description && m.description.toLowerCase().includes(trigger.toLowerCase()))
-    );
+    // FIX: Buscar mídias do AGENTE DO USUÁRIO, não do Admin
+    // Se o usuário já tem conta, buscar no banco
+    let targetMediaId: string | undefined;
+    let targetMediaDesc: string | undefined;
 
-    if (targetMedia) {
+    if (session.userId) {
+        const { agentMediaLibrary } = await import("@shared/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const { db } = await import("./db");
+
+        // Buscar todas as mídias do usuário
+        const userMedia = await db.select().from(agentMediaLibrary).where(eq(agentMediaLibrary.userId, session.userId));
+        
+        const found = userMedia.find(m => {
+            const t = trigger.toLowerCase();
+            const when = (m.whenToUse || '').toLowerCase();
+            const desc = (m.description || '').toLowerCase();
+            const name = (m.name || '').toLowerCase();
+            
+            return when.includes(t) || desc.includes(t) || name.includes(t) || t.includes(when);
+        });
+
+        if (found) {
+            targetMediaId = found.id;
+            targetMediaDesc = found.description || found.name;
+            
+            // Remover do banco
+            await db.delete(agentMediaLibrary).where(eq(agentMediaLibrary.id, found.id));
+            console.log(`🗑️ [SALES] Mídia ${found.id} removida do banco para usuário ${session.userId}`);
+        }
+    } else {
+        // Se não tem conta, remover da sessão em memória
+        if (session.uploadedMedia) {
+            const idx = session.uploadedMedia.findIndex(m => 
+                (m.whenToUse && m.whenToUse.toLowerCase().includes(trigger.toLowerCase())) || 
+                (m.description && m.description?.toLowerCase().includes(trigger.toLowerCase()))
+            );
+            
+            if (idx !== -1) {
+                targetMediaDesc = session.uploadedMedia[idx].description;
+                session.uploadedMedia.splice(idx, 1);
+                updateClientSession(cleanPhone, { uploadedMedia: session.uploadedMedia });
+                console.log(`🗑️ [SALES] Mídia removida da memória para ${cleanPhone}`);
+                targetMediaId = "memory"; // Flag de sucesso
+            }
+        }
+    }
+
+    if (targetMediaId) {
       try {
-        // 1. Remover do banco
-        await storage.deleteAdminMedia(targetMedia.id);
-
         // 2. Atualizar Prompt do Agente (remover a linha)
-        const currentPromptConfig = await storage.getSystemConfig("admin_agent_prompt");
-        if (currentPromptConfig) {
-          const currentPrompt = currentPromptConfig.valor || "";
-          
-          // Estratégia: dividir em linhas e filtrar
-          const lines = currentPrompt.split('\n');
-          const newLines = lines.filter(line => {
-            // Se a linha tem a URL da mídia, remove
-            if (line.includes(targetMedia.storageUrl)) return false;
-            // Se a linha tem a descrição E o gatilho, remove (mais seguro)
-            if (line.includes(targetMedia.description) && targetMedia.whenToUse && line.includes(targetMedia.whenToUse)) return false;
-            return true;
-          });
-          
-          if (lines.length !== newLines.length) {
-            await storage.updateSystemConfig("admin_agent_prompt", newLines.join('\n'));
-          }
+        // Se tem usuário, atualizar no banco
+        if (session.userId) {
+            const currentConfig = await storage.getAgentConfig(session.userId);
+            if (currentConfig && currentConfig.prompt) {
+                const lines = currentConfig.prompt.split('\n');
+                const newLines = lines.filter(line => {
+                    // Remove linhas que parecem ser blocos de mídia e contêm o termo
+                    if (line.includes('[MÍDIA:') && line.toLowerCase().includes(trigger.toLowerCase())) return false;
+                    return true;
+                });
+                
+                if (lines.length !== newLines.length) {
+                    await storage.updateAgentConfig(session.userId, { prompt: newLines.join('\n') });
+                    console.log(`📝 [SALES] Prompt atualizado (mídia removida) para ${session.userId}`);
+                }
+            }
+        }
+        
+        // Atualizar prompt em memória também
+        if (session.agentConfig && session.agentConfig.prompt) {
+             const lines = session.agentConfig.prompt.split('\n');
+             const newLines = lines.filter(line => {
+                if (line.includes('[MÍDIA:') && line.toLowerCase().includes(trigger.toLowerCase())) return false;
+                return true;
+             });
+             session.agentConfig.prompt = newLines.join('\n');
+             updateClientSession(cleanPhone, { agentConfig: session.agentConfig });
         }
 
         return {
