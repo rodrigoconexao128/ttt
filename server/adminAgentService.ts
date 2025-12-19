@@ -246,6 +246,17 @@ export function shouldForceOnboarding(phoneNumber: string): boolean {
 }
 
 /**
+ * Remove telefone do forceOnboarding (quando cliente já criou conta)
+ */
+export function stopForceOnboarding(phoneNumber: string): void {
+  const cleanPhone = phoneNumber.replace(/\D/g, "");
+  if (forceOnboardingPhones.has(cleanPhone)) {
+    forceOnboardingPhones.delete(cleanPhone);
+    console.log(`🔓 [SALES] Telefone ${cleanPhone} removido do forceOnboarding (conta criada)`);
+  }
+}
+
+/**
  * Verifica se telefone teve histórico limpo recentemente
  */
 export function wasChatCleared(phoneNumber: string): boolean {
@@ -627,6 +638,9 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
       
       console.log(`🎯 [SALES] Link do simulador gerado para usuário existente: ${testToken.token}`);
       
+      // Remover do forceOnboarding para que o próximo prompt reconheça o usuário
+      stopForceOnboarding(session.phoneNumber);
+
       return {
         success: true,
         email: existing.email || email,
@@ -696,6 +710,9 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
           
           console.log(`🎯 [SALES] Link gerado após recuperação de email_exists: ${testToken.token}`);
           
+          // Remover do forceOnboarding
+          stopForceOnboarding(session.phoneNumber);
+
           return {
             success: true,
             email: existingByEmail.email || email,
@@ -778,6 +795,9 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
     
     console.log(`✅ [SALES] Conta de teste criada: ${email} (ID: ${user.id})`);
     
+    // Remover do forceOnboarding
+    stopForceOnboarding(session.phoneNumber);
+
     return {
       success: true,
       email: email,
@@ -2788,7 +2808,13 @@ export async function processAdminMessage(
     console.log(`🎉 [SALES] Link gerado: ${simulatorLink}. Solicitando entrega natural via IA...`);
 
     // Contexto para a IA entregar o link
-    const deliveryContext = `[SISTEMA: A conta de teste foi criada com sucesso! O link é: ${simulatorLink} . Entregue este link para o cliente agora. Seja natural, breve e amigável. Diga algo como "Pronto, criei seu teste! Clica aqui pra ver: [link]". NÃO use blocos de texto prontos, NÃO use muitos emojis, NÃO use negrito excessivo. Apenas converse.]`;
+    const deliveryContext = `[SISTEMA: A conta de teste foi criada com sucesso! O link é: ${simulatorLink} . Entregue este link para o cliente agora.
+    
+    OBRIGATÓRIO:
+    1. Você DEVE incluir o link ${simulatorLink} na sua resposta.
+    2. Seja natural, breve e amigável.
+    3. Diga algo como "Pronto, criei seu teste! Clica aqui pra ver: ${simulatorLink}".
+    4. NÃO use blocos de texto prontos. Apenas converse.]`;
     
     // Adicionar contexto invisível para guiar a geração (não salvar no histórico do usuário ainda)
     // Mas precisamos que a IA saiba o que aconteceu.
@@ -2799,6 +2825,13 @@ export async function processAdminMessage(
     
     // Substituir o texto final pela entrega natural do link
     finalText = deliveryParsed.cleanText;
+
+    // GARANTIA DE ENTREGA DO LINK: Se a IA esqueceu o link, adicionar manualmente
+    if (!finalText.includes(simulatorLink)) {
+      console.log(`⚠️ [SALES] IA esqueceu o link no texto. Adicionando manualmente.`);
+      finalText += `\n\n${simulatorLink}`;
+    }
+
     console.log(`🤖 [SALES] Nova resposta gerada com link: "${finalText}"`);
   }
   
