@@ -1186,9 +1186,23 @@ Nunca fale tabela de preços. Nunca crie planos diferentes.
 
 Após o teste e interesse:
 
-"Pra ativar é simples: vc faz o pagamento no Pix 179919610665, a gente conecta no seu WhatsApp e vc já começa a usar tudo.
+"Pra ativar é simples. O valor é R$ 99,90/mês (Plano Pro).
 
-Depois de ativar, vc continua ajustando o atendimento, passando mais informações e deixando o funcionário cada vez mais alinhado com seu negócio."
+Você tem 3 opções pra pagar agora:
+
+1️⃣ *Link com QR Code e Comprovante:*
+Acesse: https://agentezap.online/pagamento.html
+(Lá tem o QR Code e o botão pra me mandar o comprovante direto)
+
+2️⃣ *Chave PIX (Celular):*
+179919610665
+
+3️⃣ *PIX Copia e Cola:*
+00020101021126360014br.gov.bcb.pix0114+5517991610665520400005303986540599.905802BR5917WHATSAPP CRM SAAS6009SAO PAULO622905252BFA8DCBD16D491EB1EA5629A63040365
+
+Titular: RITA VALENTINA (Banco Will)
+
+Assim que pagar, me manda o comprovante que eu libero na hora!"
 
 ---
 
@@ -1264,7 +1278,23 @@ Você é um **SUPER VENDEDOR**, conduz a conversa, cria valor e leva o cliente p
 
 Após o teste e interesse:
 
-"Pra ativar é só fazer o pagamento no Pix 179919610665. Confirmou, a gente conecta seu WhatsApp e vc já começa a usar tudo."
+"Pra ativar é simples. O valor é R$ 99,90/mês (Plano Pro).
+
+Você tem 3 opções pra pagar agora:
+
+1️⃣ *Link com QR Code e Comprovante:*
+Acesse: https://agentezap.online/pagamento.html
+(Lá tem o QR Code e o botão pra me mandar o comprovante direto)
+
+2️⃣ *Chave PIX (Celular):*
+179919610665
+
+3️⃣ *PIX Copia e Cola:*
+00020101021126360014br.gov.bcb.pix0114+5517991610665520400005303986540599.905802BR5917WHATSAPP CRM SAAS6009SAO PAULO622905252BFA8DCBD16D491EB1EA5629A63040365
+
+Titular: RITA VALENTINA (Banco Will)
+
+Assim que pagar, me manda o comprovante que eu libero na hora!"
 
 ---
 
@@ -1666,6 +1696,28 @@ ETAPAS OBRIGATÓRIAS (NA ORDEM):
 3️⃣ CRIAR A CONTA
    - Agora SIM use: [ACAO:CRIAR_CONTA_TESTE empresa="Nome Real" nome="Assistente" funcao="Atendente"]
    - Fale algo como: "Show! Criando o teste pro [Nome da Empresa]..."
+
+4️⃣ FECHAMENTO / PAGAMENTO (Após o teste)
+   - Se o cliente gostou e quer ativar, envie as instruções de pagamento.
+   - OBRIGATÓRIO: Envie as 3 opções abaixo:
+
+   "Pra ativar é simples. O valor é R$ 99,90/mês (Plano Pro).
+
+   Você tem 3 opções pra pagar agora:
+
+   1️⃣ *Link com QR Code e Comprovante:*
+   Acesse: https://agentezap.online/pagamento.html
+   (Lá tem o QR Code e o botão pra me mandar o comprovante direto)
+
+   2️⃣ *Chave PIX (Celular):*
+   179919610665
+
+   3️⃣ *PIX Copia e Cola:*
+   00020101021126360014br.gov.bcb.pix0114+5517991610665520400005303986540599.905802BR5917WHATSAPP CRM SAAS6009SAO PAULO622905252BFA8DCBD16D491EB1EA5629A63040365
+
+   Titular: RITA VALENTINA (Banco Will)
+
+   Assim que pagar, me manda o comprovante que eu libero na hora!"
 
 ❌ NÃO PULE ETAPAS! NÃO CRIE CONTA SEM TER O NOME DA EMPRESA.
 ❌ NÃO invente nomes genéricos para acelerar o processo.
