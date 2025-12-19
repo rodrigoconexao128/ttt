@@ -1690,7 +1690,7 @@ export async function sendMessage(userId: string, conversationId: string, text: 
 
   // 🚀 FOLLOW-UP: Se usuário enviou mensagem pela UI, agendar follow-up inicial
   try {
-    await followUpService.scheduleInitialFollowUp(parseInt(conversationId));
+    await followUpService.scheduleInitialFollowUp(conversationId);
   } catch (error) {
     console.error("Erro ao agendar follow-up:", error);
   }
@@ -1762,6 +1762,21 @@ export async function sendAdminConversationMessage(adminId: string, conversation
     lastMessageText: text,
     lastMessageTime: new Date(),
   });
+}
+
+export async function sendAdminDirectMessage(adminId: string, phoneNumber: string, text: string): Promise<void> {
+  const session = adminSessions.get(adminId);
+  if (!session?.socket) {
+    throw new Error("Admin WhatsApp not connected");
+  }
+
+  // Clean phone number
+  const cleanPhone = phoneNumber.replace(/\D/g, '');
+  const jid = `${cleanPhone}@s.whatsapp.net`;
+  
+  console.log(`[sendAdminDirectMessage] Sending to: ${jid}`);
+  
+  await session.socket.sendMessage(jid, { text });
 }
 
 // ==================== BULK SEND / ENVIO EM MASSA ====================
@@ -3202,10 +3217,12 @@ registerFollowUpCallback(async (phoneNumber: string, context: string) => {
   try {
     const { generateFollowUpResponse } = await import("./adminAgentService");
     const text = await generateFollowUpResponse(phoneNumber, context);
-    if (!text?.trim()) return;
+    if (!text?.trim()) return { success: false, error: "Mensagem vazia gerada" };
     await sendAdminMessage(phoneNumber, text);
+    return { success: true, message: text };
   } catch (error) {
     console.error("[FOLLOW-UP] Erro ao executar callback de follow-up:", error);
+    return { success: false, error: String(error) };
   }
 });
 

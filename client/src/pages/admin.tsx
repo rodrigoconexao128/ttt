@@ -27,13 +27,14 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
 import AdminAgentConfig from "@/components/admin-agent-config";
 import AdminConversations from "@/components/admin-conversations";
 import FollowUpCalendar from "@/components/follow-up-calendar";
+import { UserAgentConfigDialog } from "@/components/user-agent-config-dialog";
 import {
   SidebarProvider,
   Sidebar,
@@ -467,6 +468,10 @@ function UsersManager({ users }: { users: User[] | undefined }) {
   const { toast } = useToast();
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editingAgentUser, setEditingAgentUser] = useState<User | null>(null);
+  const [newEmail, setNewEmail] = useState("");
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
 
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
@@ -495,6 +500,71 @@ function UsersManager({ users }: { users: User[] | undefined }) {
     },
   });
 
+  // Mutation: Update Email
+  const updateEmailMutation = useMutation({
+    mutationFn: async ({ userId, email }: { userId: string; email: string }) => {
+      const res = await apiRequest("PATCH", `/api/admin/users/${userId}`, { email });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Email atualizado com sucesso!" });
+      setIsEmailDialogOpen(false);
+    },
+    onError: (error) => {
+      toast({ title: "Erro ao atualizar email", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation: Send Credentials
+  const sendCredentialsMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest("POST", `/api/admin/users/${userId}/send-credentials`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Credenciais enviadas!", description: "O cliente receberá os dados de acesso." });
+      if (data.password) {
+        alert(`Senha gerada: ${data.password}\n\nCopie esta senha, ela não será mostrada novamente.`);
+      }
+    },
+    onError: (error) => {
+      toast({ title: "Erro ao enviar credenciais", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation: Activate Agent
+  const activateAgentMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest("POST", `/api/admin/users/${userId}/activate`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Agente ativado!", description: "O status foi atualizado para ativo." });
+    },
+  });
+
+  const handleEditEmail = (user: User) => {
+    setSelectedUser(user);
+    setNewEmail(user.email || "");
+    setIsEmailDialogOpen(true);
+  };
+
+  const handleSendCredentials = (userId: string) => {
+    if (confirm("Tem certeza que deseja enviar as credenciais para este usuário?")) {
+      sendCredentialsMutation.mutate(userId);
+    }
+  };
+
+  const handleActivate = (userId: string) => {
+    activateAgentMutation.mutate(userId);
+  };
+
+  const handleChat = (phone: string) => {
+    window.location.hash = '#conversations';
+  };
+
   return (
     <Card data-testid="card-users-list">
       <CardHeader>
@@ -503,26 +573,26 @@ function UsersManager({ users }: { users: User[] | undefined }) {
           Usuários Cadastrados
         </CardTitle>
         <CardDescription>
-          Lista completa de usuários do sistema. Exclua usuários de teste quando necessário.
+          Gerencie os agentes, pagamentos e acessos.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Email</TableHead>
               <TableHead>Nome</TableHead>
+              <TableHead>Email</TableHead>
               <TableHead>Telefone</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Cadastro</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Pagamento</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {users?.map((user: User) => (
               <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
+                <TableCell className="font-medium">{user.name || "-"}</TableCell>
                 <TableCell data-testid={`text-email-${user.id}`}>{user.email}</TableCell>
-                <TableCell>{user.name || "-"}</TableCell>
                 <TableCell>{user.whatsappNumber || user.phone || "-"}</TableCell>
                 <TableCell>
                   <Badge variant={user.role === "owner" ? "default" : "secondary"}>
@@ -530,9 +600,37 @@ function UsersManager({ users }: { users: User[] | undefined }) {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {user.createdAt ? new Date(user.createdAt).toLocaleDateString("pt-BR") : "-"}
+                  <Badge variant={user.onboardingCompleted ? "default" : "outline"}>
+                    {user.onboardingCompleted ? "Ativo" : "Pendente"}
+                  </Badge>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right space-x-1">
+                  <Button size="sm" variant="ghost" onClick={() => handleChat(user.phone)} title="Conversar">
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingAgentUser(user)} title="Configurar Agente">
+                    <Bot className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => handleEditEmail(user)} title="Editar Email">
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => handleSendCredentials(user.id)}
+                    title="Enviar Credenciais"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="ghost"
+                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                    onClick={() => handleActivate(user.id)}
+                    title="Ativar Agente"
+                  >
+                    <Play className="h-4 w-4" />
+                  </Button>
                   <Dialog open={confirmDeleteUser?.id === user.id} onOpenChange={(open) => !open && setConfirmDeleteUser(null)}>
                     <DialogTrigger asChild>
                       <Button 
@@ -540,6 +638,7 @@ function UsersManager({ users }: { users: User[] | undefined }) {
                         size="sm" 
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={() => setConfirmDeleteUser(user)}
+                        title="Excluir"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -608,6 +707,47 @@ function UsersManager({ users }: { users: User[] | undefined }) {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Email do Cliente</DialogTitle>
+            <DialogDescription>
+              Altere o email para que o cliente possa receber as credenciais corretamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEmailDialogOpen(false)}>Cancelar</Button>
+            <Button 
+              onClick={() => selectedUser && updateEmailMutation.mutate({ userId: selectedUser.id, email: newEmail })}
+              disabled={updateEmailMutation.isPending}
+            >
+              {updateEmailMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <UserAgentConfigDialog 
+        userId={editingAgentUser?.id || null}
+        open={!!editingAgentUser}
+        onOpenChange={(open) => !open && setEditingAgentUser(null)}
+        userName={editingAgentUser?.name || editingAgentUser?.email || ""}
+      />
     </Card>
   );
 }

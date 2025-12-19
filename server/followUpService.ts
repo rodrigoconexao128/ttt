@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { adminConversations } from "@shared/schema";
+import { adminConversations, followupLogs, adminMessages } from "@shared/schema";
 import { eq, and, lte, isNull } from "drizzle-orm";
 import { getMistralClient } from "./mistralClient";
 
@@ -24,7 +24,7 @@ const FOLLOW_UP_SCHEDULE = [
 const FINAL_RANDOM_MIN = 15 * 24 * 60;
 const FINAL_RANDOM_MAX = 30 * 24 * 60;
 
-type FollowUpCallback = (phoneNumber: string, context: string, attempt: number, type: string) => Promise<void>;
+type FollowUpCallback = (phoneNumber: string, context: string, attempt: number, type: string) => Promise<{ success: boolean, message?: string, error?: string } | void>;
 type ScheduledContactCallback = (phoneNumber: string, reason: string) => Promise<void>;
 
 export class FollowUpService {
@@ -130,12 +130,35 @@ export class FollowUpService {
           const attempt = (conversation.followupStage || 0) + 1;
           const type = attempt >= FOLLOW_UP_SCHEDULE.length ? 'final' : 'reminder';
           
-          await this.onFollowUpReady(
+          const result = await this.onFollowUpReady(
             conversation.contactNumber, 
             decision.context || "Follow-up automático",
             attempt,
             type
           );
+
+          // Log result
+          try {
+            if (result && typeof result === 'object') {
+               await db.insert(followupLogs).values({
+                  conversationId: conversation.id,
+                  contactNumber: conversation.contactNumber,
+                  status: result.success ? 'sent' : 'failed',
+                  messageContent: result.message,
+                  errorReason: result.error
+               });
+            } else {
+               // Fallback for void return (backward compatibility)
+               await db.insert(followupLogs).values({
+                  conversationId: conversation.id,
+                  contactNumber: conversation.contactNumber,
+                  status: 'sent',
+                  messageContent: 'Mensagem enviada (conteúdo não capturado)',
+               });
+            }
+          } catch (logError) {
+            console.error("Erro ao logar follow-up:", logError);
+          }
           
           // Agendar próximo estágio
           await this.scheduleNextFollowUp(conversation);
@@ -157,8 +180,17 @@ export class FollowUpService {
     reason: string;
     context?: string;
   }> {
-    const history = conversation.history as any[] || [];
-    const lastMessages = history.slice(-10);
+    // Fetch messages
+    const messages = await db.query.adminMessages.findMany({
+      where: eq(adminMessages.conversationId, conversation.id),
+      orderBy: (adminMessages, { asc }) => [asc(adminMessages.timestamp)],
+      limit: 20
+    });
+    
+    const lastMessages = messages.map(m => ({
+      role: m.fromMe ? "assistant" : "user",
+      content: m.text || (m.mediaType ? `[Mídia: ${m.mediaType}]` : "")
+    }));
 
     const prompt = `
       Analise esta conversa de vendas e decida o próximo passo para o sistema de follow-up automático.
@@ -252,10 +284,31 @@ export class FollowUpService {
   /**
    * Desativa o follow-up para uma conversa
    */
-  async disableFollowUp(conversationId: number) {
-    await db.update(adminConversations)
-      .set({ followupActive: false, nextFollowupAt: null })
-      .where(eq(adminConversations.id, conversationId));
+  async disableFollowUp(conversationId: string, reason: string = "Cancelado manualmente") {
+    console.log(`🛑 [FOLLOW-UP] Desativando follow-up para conversa ${conversationId}. Motivo: ${reason}`);
+    
+    // Force update regardless of current state to ensure it sticks
+    const [conversation] = await db.update(adminConversations)
+      .set({ 
+        followupActive: false, 
+        nextFollowupAt: null,
+        followupStage: 0 // Reset stage too just in case
+      })
+      .where(eq(adminConversations.id, conversationId))
+      .returning();
+
+    if (conversation) {
+      console.log(`✅ [FOLLOW-UP] Sucesso ao desativar follow-up para ${conversation.contactNumber}. Active: ${conversation.followupActive}`);
+      await db.insert(followupLogs).values({
+        conversationId: conversation.id,
+        contactNumber: conversation.contactNumber,
+        status: 'cancelled',
+        messageContent: reason,
+        executedAt: new Date()
+      });
+    } else {
+      console.warn(`⚠️ [FOLLOW-UP] Falha ao desativar: Conversa ${conversationId} não encontrada ou update falhou.`);
+    }
   }
 
   /**
@@ -293,9 +346,23 @@ export class FollowUpService {
   }
 
   /**
-   * Cancela follow-up ativo para um telefone
+   * Cancela follow-up ativo para um telefone (MANUALMENTE)
    */
   async cancelFollowUpByPhone(phoneNumber: string) {
+    const conversation = await db.query.adminConversations.findFirst({
+      where: eq(adminConversations.contactNumber, phoneNumber)
+    });
+
+    if (conversation) {
+      await this.disableFollowUp(conversation.id, "Cancelado pelo usuário");
+      console.log(`🛑 [FOLLOW-UP] Cancelado manualmente para ${phoneNumber}`);
+    }
+  }
+
+  /**
+   * Reseta ciclo quando cliente responde
+   */
+  async resetFollowUpCycle(phoneNumber: string) {
     // NOVA LÓGICA: Se o cliente respondeu, não cancelamos permanentemente.
     // Apenas resetamos o ciclo para o estágio 0 (10 minutos após a resposta).
     // Isso garante que se ele parar de responder de novo, o follow-up volta.
@@ -319,6 +386,19 @@ export class FollowUpService {
   // ============================================================================
 
   /**
+   * Busca logs de follow-up
+   */
+  async getFollowUpLogs(status?: string) {
+    const whereClause = status ? eq(followupLogs.status, status) : undefined;
+    
+    return await db.query.followupLogs.findMany({
+      where: whereClause,
+      orderBy: (followupLogs, { desc }) => [desc(followupLogs.executedAt)],
+      limit: 100
+    });
+  }
+
+  /**
    * Retorna eventos para o calendário (follow-ups futuros)
    */
   async getCalendarEvents() {
@@ -333,8 +413,11 @@ export class FollowUpService {
       )
     });
 
-    return activeFollowUps.map(conv => ({
-      id: `fu_${conv.id}`,
+    // Double check filtering just in case DB returns stale data (unlikely but safe)
+    const validFollowUps = activeFollowUps.filter(c => c.followupActive === true);
+
+    return validFollowUps.map(conv => ({
+      id: conv.id, // Use ID directly for easier deletion
       phoneNumber: conv.contactNumber,
       type: 'followup',
       title: `Follow-up #${(conv.followupStage || 0) + 1}`,

@@ -403,6 +403,20 @@ export const systemConfig = pgTable("system_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Follow-up Logs table
+export const followupLogs = pgTable("followup_logs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  conversationId: varchar("conversation_id").references(() => adminConversations.id),
+  contactNumber: text("contact_number").notNull(),
+  status: text("status").notNull(), // 'sent', 'failed'
+  messageContent: text("message_content"),
+  executedAt: timestamp("executed_at").defaultNow(),
+  errorReason: text("error_reason"),
+}, (table) => [
+  index("idx_followup_logs_conversation").on(table.conversationId),
+  index("idx_followup_logs_status").on(table.status),
+]);
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   whatsappConnections: many(whatsappConnections),

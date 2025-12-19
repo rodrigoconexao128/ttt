@@ -20,6 +20,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +56,7 @@ export default function FollowUpCalendar() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [activeTab, setActiveTab] = useState("pending");
 
   // Buscar eventos do calendário
   const { data: eventsData, isLoading: loadingEvents, refetch: refetchEvents } = useQuery({
@@ -64,6 +67,19 @@ export default function FollowUpCalendar() {
       return res.json();
     },
     refetchInterval: 30000, // Atualizar a cada 30 segundos
+  });
+
+  // Buscar logs (enviados/falhados)
+  const { data: logsData, isLoading: loadingLogs } = useQuery({
+    queryKey: ["/api/admin/calendar/logs", activeTab],
+    queryFn: async () => {
+      if (activeTab === "pending") return { logs: [] };
+      const res = await fetch(`/api/admin/calendar/logs?status=${activeTab}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Erro ao carregar logs");
+      return res.json();
+    },
+    enabled: activeTab !== "pending",
+    refetchInterval: 30000,
   });
 
   // Buscar estatísticas
@@ -87,12 +103,40 @@ export default function FollowUpCalendar() {
       if (!res.ok) throw new Error("Erro ao cancelar");
       return res.json();
     },
+    onMutate: async ({ id }) => {
+      // Cancelar queries em andamento para não sobrescrever o update otimista
+      await queryClient.cancelQueries({ queryKey: ["/api/admin/calendar/events"] });
+
+      // Snapshot do valor anterior
+      const previousEvents = queryClient.getQueryData(["/api/admin/calendar/events"]);
+
+      // Otimisticamente remover o evento da lista
+      queryClient.setQueryData(["/api/admin/calendar/events"], (old: any) => {
+        if (!old || !old.events) return old;
+        return {
+          ...old,
+          events: old.events.filter((event: CalendarEvent) => event.id !== id)
+        };
+      });
+
+      // Retornar contexto para rollback em caso de erro
+      return { previousEvents };
+    },
     onSuccess: () => {
       toast({ title: "Evento cancelado com sucesso" });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/calendar/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/calendar/stats"] });
+      // Invalidar queries para garantir consistência com o backend
+      // Aumentado delay para 1s para garantir propagação no DB
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/calendar/events"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/calendar/stats"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/calendar/logs"] });
+      }, 1000);
     },
-    onError: () => {
+    onError: (err, newTodo, context) => {
+      // Reverter para o estado anterior
+      if (context?.previousEvents) {
+        queryClient.setQueryData(["/api/admin/calendar/events"], context.previousEvents);
+      }
       toast({ title: "Erro ao cancelar evento", variant: "destructive" });
     },
   });
@@ -253,95 +297,250 @@ export default function FollowUpCalendar() {
         </Card>
       </div>
 
-      {/* Events List */}
-      <Card className="bg-[#1a1a2e] border-gray-800">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <MessageSquare className="w-5 h-5" />
-            Próximos Follow-ups
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingEvents ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
-            </div>
-          ) : events.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Nenhum follow-up agendado</p>
-              <p className="text-sm mt-1">Os follow-ups serão criados automaticamente quando os clientes pararem de responder</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(groupedEvents).map(([date, dateEvents]) => (
-                <div key={date}>
-                  <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    {date}
-                  </h3>
-                  
-                  <div className="space-y-2">
-                    {dateEvents.map((event) => (
-                      <div 
-                        key={event.id}
-                        className="flex items-center justify-between p-3 bg-[#0f0f1a] rounded-lg border border-gray-800 hover:border-gray-700 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex flex-col items-center justify-center w-16 gap-1">
-                            {getStatusIcon(event.status)}
-                            <span className="text-[10px] text-muted-foreground font-medium">
-                              {getStatusLabel(event.status)}
-                            </span>
-                          </div>
-                          
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-white font-medium">{event.title}</span>
-                              <Badge 
-                                variant="outline" 
-                                className={getEventTypeColor(event.type)}
-                              >
-                                {event.type === 'followup' ? 'Follow-up' : 'Agendamento'}
-                              </Badge>
-                              {event.attempt && (
-                                <Badge variant="outline" className="bg-gray-500/10 text-gray-400 border-gray-500/20">
-                                  Tentativa {event.attempt}/4
-                                </Badge>
-                              )}
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 bg-[#1a1a2e]">
+          <TabsTrigger value="pending">Pendentes</TabsTrigger>
+          <TabsTrigger value="sent">Enviados</TabsTrigger>
+          <TabsTrigger value="failed">Falhados</TabsTrigger>
+          <TabsTrigger value="cancelled">Cancelados</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pending">
+          <Card className="bg-[#1a1a2e] border-gray-800 mt-4">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                Próximos Follow-ups
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingEvents ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : events.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>Nenhum follow-up agendado</p>
+                  <p className="text-sm mt-1">Os follow-ups serão criados automaticamente quando os clientes pararem de responder</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedEvents).map(([date, dateEvents]) => (
+                    <div key={date}>
+                      <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        {date}
+                      </h3>
+                      
+                      <div className="space-y-2">
+                        {dateEvents.map((event) => (
+                          <div 
+                            key={event.id}
+                            className="flex items-center justify-between p-3 bg-[#0f0f1a] rounded-lg border border-gray-800 hover:border-gray-700 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex flex-col items-center justify-center w-16 gap-1">
+                                {getStatusIcon(event.status)}
+                                <span className="text-[10px] text-muted-foreground font-medium">
+                                  {getStatusLabel(event.status)}
+                                </span>
+                              </div>
+                              
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-white font-medium">{event.title}</span>
+                                  <Badge 
+                                    variant="outline" 
+                                    className={getEventTypeColor(event.type)}
+                                  >
+                                    {event.type === 'followup' ? 'Follow-up' : 'Agendamento'}
+                                  </Badge>
+                                  {event.attempt && (
+                                    <Badge variant="outline" className="bg-gray-500/10 text-gray-400 border-gray-500/20">
+                                      Tentativa {event.attempt}/4
+                                    </Badge>
+                                  )}
+                                </div>
+                                
+                                <div className="flex items-center gap-4 mt-1 text-sm text-gray-400">
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="w-3 h-3" />
+                                    {formatPhone(event.phoneNumber)}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {formatDate(event.scheduledAt)}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                             
-                            <div className="flex items-center gap-4 mt-1 text-sm text-gray-400">
-                              <span className="flex items-center gap-1">
-                                <Phone className="w-3 h-3" />
-                                {formatPhone(event.phoneNumber)}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {formatDate(event.scheduledAt)}
-                              </span>
-                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                              onClick={() => handleDeleteClick(event.id, event.phoneNumber)}
+                              disabled={cancelEventMutation.isPending}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sent">
+          <Card className="bg-[#1a1a2e] border-gray-800 mt-4">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                Follow-ups Enviados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingLogs ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : !logsData?.logs?.length ? (
+                <div className="text-center py-8 text-gray-400">
+                  <p>Nenhum follow-up enviado encontrado</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {logsData.logs.map((log: any) => (
+                    <div key={log.id} className="flex items-center justify-between p-3 bg-[#0f0f1a] rounded-lg border border-gray-800">
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center justify-center w-16 gap-1">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <span className="text-[10px] text-muted-foreground font-medium">Enviado</span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-medium">{formatPhone(log.contactNumber)}</span>
+                            <span className="text-xs text-gray-500">{formatDate(log.executedAt)}</span>
+                          </div>
+                          <div className="text-sm text-gray-400 truncate max-w-md">
+                            {log.messageContent}
                           </div>
                         </div>
-                        
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                          onClick={() => handleDeleteClick(event.id, event.phoneNumber)}
-                          disabled={cancelEventMutation.isPending}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
                       </div>
-                    ))}
-                  </div>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm">Ver Mensagem</Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-[#1a1a2e] border-gray-800 text-white">
+                          <DialogHeader>
+                            <DialogTitle>Mensagem Enviada</DialogTitle>
+                          </DialogHeader>
+                          <div className="p-4 bg-[#0f0f1a] rounded-md border border-gray-800 whitespace-pre-wrap">
+                            {log.messageContent}
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="failed">
+          <Card className="bg-[#1a1a2e] border-gray-800 mt-4">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                Follow-ups Falhados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingLogs ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : !logsData?.logs?.length ? (
+                <div className="text-center py-8 text-gray-400">
+                  <p>Nenhum follow-up falhado encontrado</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {logsData.logs.map((log: any) => (
+                    <div key={log.id} className="flex items-center justify-between p-3 bg-[#0f0f1a] rounded-lg border border-gray-800">
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center justify-center w-16 gap-1">
+                          <AlertCircle className="w-4 h-4 text-red-500" />
+                          <span className="text-[10px] text-muted-foreground font-medium">Falha</span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-medium">{formatPhone(log.contactNumber)}</span>
+                            <span className="text-xs text-gray-500">{formatDate(log.executedAt)}</span>
+                          </div>
+                          <div className="text-sm text-red-400 truncate max-w-md">
+                            {log.errorReason}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="cancelled">
+          <Card className="bg-[#1a1a2e] border-gray-800 mt-4">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-gray-500" />
+                Follow-ups Cancelados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingLogs ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : !logsData?.logs?.length ? (
+                <div className="text-center py-8 text-gray-400">
+                  <p>Nenhum follow-up cancelado encontrado</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {logsData.logs.map((log: any) => (
+                    <div key={log.id} className="flex items-center justify-between p-3 bg-[#0f0f1a] rounded-lg border border-gray-800">
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center justify-center w-16 gap-1">
+                          <Trash2 className="w-4 h-4 text-gray-500" />
+                          <span className="text-[10px] text-muted-foreground font-medium">Cancelado</span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-medium">{formatPhone(log.contactNumber)}</span>
+                            <span className="text-xs text-gray-500">{formatDate(log.executedAt)}</span>
+                          </div>
+                          <div className="text-sm text-gray-400 truncate max-w-md">
+                            {log.messageContent}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

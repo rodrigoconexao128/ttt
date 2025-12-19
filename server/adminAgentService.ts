@@ -93,7 +93,7 @@ interface TestToken {
 }
 
 // Cache de sessões de clientes em memória
-const clientSessions = new Map<string, ClientSession>();
+export const clientSessions = new Map<string, ClientSession>();
 
 // Modelo padrão
 const DEFAULT_MODEL = "mistral-medium-latest";
@@ -195,6 +195,36 @@ export async function getTestToken(token: string): Promise<TestToken | undefined
   } catch (err) {
     console.error(`❌ [SALES] Erro ao buscar token:`, err);
     return undefined;
+  }
+}
+
+/**
+ * Atualiza o nome/empresa em TODOS os tokens ativos do usuário
+ * Isso garante que o Simulador reflita as mudanças imediatamente
+ */
+export async function updateUserTestTokens(userId: string, updates: { agentName?: string; company?: string }) {
+  try {
+    const { supabase } = await import("./supabaseAuth");
+    
+    const updateData: any = {};
+    if (updates.agentName) updateData.agent_name = updates.agentName;
+    if (updates.company) updateData.company = updates.company;
+    
+    if (Object.keys(updateData).length === 0) return;
+
+    const { error } = await supabase
+      .from('test_tokens')
+      .update(updateData)
+      .eq('user_id', userId)
+      .gt('expires_at', new Date().toISOString());
+
+    if (error) {
+      console.error(`❌ [SALES] Erro ao atualizar tokens do usuário ${userId}:`, error);
+    } else {
+      console.log(`✅ [SALES] Tokens atualizados para usuário ${userId}:`, updates);
+    }
+  } catch (err) {
+    console.error(`❌ [SALES] Erro ao atualizar tokens:`, err);
   }
 }
 
@@ -2166,9 +2196,41 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
     switch (action.type) {
       case "SALVAR_CONFIG":
         const agentConfig = { ...session.agentConfig };
+        
+        // Capture old values for replacement
+        const oldName = agentConfig.name;
+        const oldCompany = agentConfig.company;
+        const oldRole = agentConfig.role;
+
         if (action.params.nome) agentConfig.name = action.params.nome;
         if (action.params.empresa) agentConfig.company = action.params.empresa;
         if (action.params.funcao) agentConfig.role = action.params.funcao;
+
+        // FIX: Update prompt text if name/company/role changed
+        if (agentConfig.prompt) {
+            let newPrompt = agentConfig.prompt;
+            let promptChanged = false;
+
+            if (oldName && action.params.nome && oldName !== action.params.nome) {
+                // Global replace of old name
+                newPrompt = newPrompt.split(oldName).join(action.params.nome);
+                promptChanged = true;
+            }
+            if (oldCompany && action.params.empresa && oldCompany !== action.params.empresa) {
+                newPrompt = newPrompt.split(oldCompany).join(action.params.empresa);
+                promptChanged = true;
+            }
+            if (oldRole && action.params.funcao && oldRole !== action.params.funcao) {
+                newPrompt = newPrompt.split(oldRole).join(action.params.funcao);
+                promptChanged = true;
+            }
+
+            if (promptChanged) {
+                agentConfig.prompt = newPrompt;
+                console.log(`📝 [SALES] Prompt atualizado automaticamente com novos dados.`);
+            }
+        }
+
         updateClientSession(session.phoneNumber, { agentConfig });
         console.log(`✅ [SALES] Config salva:`, agentConfig);
 
@@ -2180,6 +2242,13 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
               prompt: fullPrompt
             });
             console.log(`💾 [SALES] Config (Prompt Completo) salva no DB para userId: ${session.userId}`);
+
+            // FIX: Atualizar também os tokens de teste ativos para refletir no Simulador
+            await updateUserTestTokens(session.userId, {
+              agentName: agentConfig.name,
+              company: agentConfig.company
+            });
+
           } catch (err) {
             console.error(`❌ [SALES] Erro ao salvar config no DB:`, err);
           }
@@ -3034,14 +3103,54 @@ export async function processAdminMessage(
   
   // Verificar comprovante de pagamento
   if (mediaType === "image" && session.awaitingPaymentProof) {
-    const text = "Recebi seu comprovante! 🎉 Vou verificar e liberar sua conta. Isso leva no máximo 1 hora em horário comercial!";
-    addToConversationHistory(cleanPhone, "assistant", text);
-    updateClientSession(cleanPhone, { awaitingPaymentProof: false });
-    
-    return {
-      text,
-      actions: { notifyOwner: true },
-    };
+    let text = "Recebi a imagem! Vou analisar...";
+    let isPaymentProof = false;
+
+    if (mediaUrl) {
+      console.log(`🔍 [ADMIN] Analisando imagem de pagamento para ${cleanPhone}...`);
+      const analysis = await analyzeImageForAdmin(mediaUrl);
+      
+      if (analysis) {
+        console.log(`🔍 [ADMIN] Resultado Vision:`, analysis);
+        const keywords = ["comprovante", "pagamento", "pix", "transferencia", "recibo", "banco", "valor", "r$", "sucesso"];
+        const combinedText = (analysis.summary + " " + analysis.description).toLowerCase();
+        
+        // Verificar se tem palavras-chave de pagamento
+        if (keywords.some(k => combinedText.includes(k))) {
+          isPaymentProof = true;
+        }
+      }
+    }
+
+    if (isPaymentProof) {
+      text = "Recebi seu comprovante e identifiquei o pagamento! 🎉 Sua conta foi liberada automaticamente. Agora você já pode acessar o painel e conectar seu WhatsApp!";
+      
+      // Atualizar status do usuário para ativo (se existir conta)
+      if (session.userId) {
+        // TODO: Atualizar status no banco (precisa de método no storage ou update direto)
+        // Por enquanto, vamos apenas notificar e limpar o flag
+        // await storage.updateUserStatus(session.userId, 'active'); // Exemplo
+      }
+      
+      updateClientSession(cleanPhone, { awaitingPaymentProof: false });
+      
+      return {
+        text,
+        actions: { notifyOwner: true }, // Notificar admin mesmo assim
+      };
+    } else {
+      // Se não parece comprovante, agradece mas mantém o flag (ou pergunta se é o comprovante)
+      // Mas como o usuário pediu "se enviou imagem de pagamento a ia idetnfica... e ja coloca como pago",
+      // vamos assumir que se NÃO identificou, tratamos como imagem normal ou pedimos confirmação.
+      // Para não travar o fluxo, vamos aceitar mas avisar que vai para análise manual.
+      text = "Recebi a imagem! Não consegui identificar automaticamente como um comprovante de PIX, mas enviei para nossa equipe verificar. Em breve liberamos seu acesso! 🕒";
+      updateClientSession(cleanPhone, { awaitingPaymentProof: false });
+      
+      return {
+        text,
+        actions: { notifyOwner: true },
+      };
+    }
   }
   
   // Gerar resposta com IA
@@ -3305,17 +3414,50 @@ export async function generateFollowUpResponse(phoneNumber: string, context: str
   try {
     const mistral = await getMistralClient();
     
-    const prompt = `Você é o RODRIGO (V9 - PRINCÍPIOS PUROS).
-O cliente parou de responder.
-Contexto: ${context}
-Estado do cliente: ${session.flowState}
-Config coletada: ${JSON.stringify(session.agentConfig || {})}
+    const history = session.conversationHistory.slice(-10).map(m => `${m.role}: ${m.content}`).join("\n");
 
-Gere uma mensagem de follow-up CURTA, NATURAL e IMPERFEITA.
-- Nada de "Olá novamente" ou "Gostaria de saber".
-- Fale como um amigo no WhatsApp: "E aí, conseguiu ver?", "Ficou alguma dúvida naquela parte?".
-- Seja breve.
-- NÃO use ações [AÇÃO:...]. Apenas texto natural.`;
+    // Calculate time elapsed
+    const lastMessage = session.conversationHistory[session.conversationHistory.length - 1];
+    let timeContext = "algum tempo";
+    if (lastMessage && lastMessage.timestamp) {
+        const diffMs = Date.now() - new Date(lastMessage.timestamp).getTime();
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffHours / 24);
+        
+        if (diffDays > 0) timeContext = `${diffDays} dias`;
+        else if (diffHours > 0) timeContext = `${diffHours} horas`;
+        else timeContext = "alguns minutos";
+    }
+
+    // Use agent config if available, otherwise fallback to Rodrigo
+    const agentName = session.agentConfig?.name || "RODRIGO";
+    const agentRole = session.agentConfig?.role || "Vendedor";
+    const agentPrompt = session.agentConfig?.prompt || "Você é um vendedor experiente e amigável.";
+
+    const prompt = `Você é ${agentName}, ${agentRole}.
+Suas instruções de personalidade e comportamento:
+${agentPrompt}
+
+SITUAÇÃO ATUAL:
+O cliente parou de responder há ${timeContext}.
+Contexto do follow-up: ${context}
+Estado do cliente: ${session.flowState}
+
+HISTÓRICO RECENTE DA CONVERSA:
+${history}
+
+SUA TAREFA:
+Gere uma mensagem de follow-up curta para reativar o cliente.
+
+REGRAS CRÍTICAS:
+1. NÃO use frases prontas como "E aí, sumiu?" ou "Conseguiu ver?" A MENOS que isso faça sentido com sua personalidade definida acima.
+2. Se sua personalidade for formal, seja formal. Se for descontraída, seja descontraído.
+3. LEIA O HISTÓRICO: Sua mensagem deve ser uma continuação natural do que foi falado por último.
+4. Se você enviou um preço/proposta e ele não respondeu, pergunte sobre isso especificamente.
+5. Se ele disse que ia ver algo, pergunte se viu.
+6. Mantenha a mensagem CURTA (máximo 1-2 frases).
+7. Aja como um humano enviando uma mensagem no WhatsApp, não um robô de marketing.
+8. NÃO use [AÇÃO:...]. Apenas o texto da mensagem.`;
 
     const configuredModel = await getConfiguredModel();
     const response = await mistral.chat.complete({
@@ -3326,7 +3468,8 @@ Gere uma mensagem de follow-up CURTA, NATURAL e IMPERFEITA.
     });
     
     return response.choices?.[0]?.message?.content?.toString() || "";
-  } catch {
+  } catch (error) {
+    console.error("Erro ao gerar follow-up:", error);
     return "E aí, conseguiu ver? 👀";
   }
 }

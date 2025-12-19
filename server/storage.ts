@@ -57,6 +57,7 @@ export interface IStorage {
 
   // WhatsApp connection operations
   getConnectionByUserId(userId: string): Promise<WhatsappConnection | undefined>;
+  getAdminConnection(): Promise<AdminWhatsappConnection | undefined>;
   getAllConnections(): Promise<WhatsappConnection[]>;
   createConnection(connection: InsertWhatsappConnection): Promise<WhatsappConnection>;
   updateConnection(id: string, data: Partial<InsertWhatsappConnection>): Promise<WhatsappConnection>;
@@ -121,6 +122,7 @@ export interface IStorage {
 
   // Admin WhatsApp connection operations
   getAdminWhatsappConnection(adminId: string): Promise<AdminWhatsappConnection | undefined>;
+  getAdminConnection(): Promise<AdminWhatsappConnection | undefined>; // Added this
   createAdminWhatsappConnection(connection: InsertAdminWhatsappConnection): Promise<AdminWhatsappConnection>;
   updateAdminWhatsappConnection(adminId: string, data: Partial<InsertAdminWhatsappConnection>): Promise<AdminWhatsappConnection>;
 
@@ -261,6 +263,14 @@ export class DatabaseStorage implements IStorage {
       .from(whatsappConnections)
       .where(eq(whatsappConnections.userId, userId))
       .orderBy(desc(whatsappConnections.createdAt))
+      .limit(1);
+    return connection;
+  }
+
+  async getAdminConnection(): Promise<AdminWhatsappConnection | undefined> {
+    const [connection] = await db
+      .select()
+      .from(adminWhatsappConnection)
       .limit(1);
     return connection;
   }
