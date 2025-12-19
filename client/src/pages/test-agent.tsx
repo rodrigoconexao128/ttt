@@ -62,20 +62,24 @@ export default function TestAgent() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Mensagem de boas-vindas
+  // Simular interação inicial do cliente ("oie")
   useEffect(() => {
     const timer = setTimeout(() => {
-      const welcomeMessage: Message = {
-        id: `msg_${Date.now()}`,
-        text: `Olá! 👋 Bem-vindo ao teste do agente! Eu sou o ${agentName} da ${agentCompany}. Pode me mandar uma mensagem pra ver como eu respondo! 😊`,
-        fromMe: false,
+      const initialUserMessage: Message = {
+        id: `msg_init_user`,
+        text: "oie",
+        fromMe: true,
         timestamp: new Date(),
-        status: 'read',
+        status: 'sent',
       };
-      setMessages([welcomeMessage]);
+      setMessages([initialUserMessage]);
+      setIsTyping(true);
+      
+      // Disparar resposta da IA
+      sendMessageMutation.mutate("oie");
     }, 1000);
     return () => clearTimeout(timer);
-  }, [agentName, agentCompany]);
+  }, []); // Executar apenas uma vez na montagem
 
   // Mutation para enviar mensagem
   const sendMessageMutation = useMutation({
@@ -186,15 +190,15 @@ export default function TestAgent() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 max-w-md mx-auto border-x border-gray-200 shadow-xl">
+    <div className="fixed inset-0 flex flex-col h-[100dvh] bg-gray-100 max-w-md mx-auto border-x border-gray-200 shadow-xl">
       {/* Header */}
-      <div className="bg-[#008069] text-white p-4 flex items-center gap-3 shadow-sm z-10">
+      <div className="bg-[#008069] text-white p-4 flex items-center gap-3 shadow-sm z-10 flex-none">
         <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
           <Bot className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="font-semibold text-lg">{agentName}</h1>
-          <p className="text-xs text-white/80">Online • {agentCompany}</p>
+          <h1 className="font-semibold text-lg">{agentCompany}</h1>
+          <p className="text-xs text-white/80">Online</p>
         </div>
       </div>
 
@@ -227,7 +231,15 @@ export default function TestAgent() {
                   </div>
               )}
 
-              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ 
+                __html: msg.text
+                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold with **
+                  .replace(/\*(.*?)\*/g, '<strong>$1</strong>')     // Bold with *
+                  .replace(/_(.*?)_/g, '<em>$1</em>')               // Italic with _
+                  .replace(/~(.*?)~/g, '<del>$1</del>')             // Strikethrough with ~
+                  .replace(/```(.*?)```/gs, '<code class="block bg-gray-100 p-2 rounded my-1 text-xs font-mono">$1</code>') // Code block
+                  .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded text-xs font-mono">$1</code>') // Inline code
+              }} />
               <span className="text-[10px] text-gray-500 block text-right mt-1">
                 {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 {msg.fromMe && <span className="ml-1 text-blue-500">✓✓</span>}
@@ -247,7 +259,7 @@ export default function TestAgent() {
       </div>
 
       {/* Input Area */}
-      <div className="bg-[#f0f2f5] p-3 flex items-center gap-2">
+      <div className="bg-[#f0f2f5] p-3 flex items-center gap-2 flex-none">
         <Button
           variant="ghost"
           size="icon"

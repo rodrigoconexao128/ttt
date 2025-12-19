@@ -77,6 +77,7 @@ export interface IStorage {
   // AI Agent operations (legacy)
   getAgentConfig(userId: string): Promise<AiAgentConfig | undefined>;
   upsertAgentConfig(userId: string, data: Partial<InsertAiAgentConfig>): Promise<AiAgentConfig>;
+  updateAgentConfig(userId: string, data: Partial<InsertAiAgentConfig>): Promise<AiAgentConfig | undefined>;
   
   // Business Agent operations (new advanced system)
   getBusinessAgentConfig(userId: string): Promise<BusinessAgentConfig | undefined>;
@@ -456,6 +457,15 @@ export class DatabaseStorage implements IStorage {
           updatedAt: new Date(),
         },
       })
+      .returning();
+    return config;
+  }
+
+  async updateAgentConfig(userId: string, data: Partial<InsertAiAgentConfig>): Promise<AiAgentConfig | undefined> {
+    const [config] = await db
+      .update(aiAgentConfig)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(aiAgentConfig.userId, userId))
       .returning();
     return config;
   }

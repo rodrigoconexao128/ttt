@@ -72,6 +72,12 @@ export interface ClientSession {
     whenCandidate?: string; // candidate trigger provided by admin before confirmation
     summary?: string; // short tag/summary from vision
   };
+  uploadedMedia?: Array<{
+    url: string;
+    type: 'image' | 'audio' | 'video' | 'document';
+    description?: string;
+    whenToUse: string;
+  }>;
   awaitingMediaContext?: boolean;
   awaitingMediaConfirmation?: boolean;
 }
@@ -519,9 +525,11 @@ O prompt deve ser pronto para uso. Apenas o texto do prompt.`;
 
     const generatedPrompt = response.choices?.[0]?.message?.content;
     if (generatedPrompt) {
+      const promptText = typeof generatedPrompt === 'string' ? generatedPrompt : String(generatedPrompt);
+
       // As diretrizes de humanidade já devem vir no prompt gerado se a IA seguir a instrução,
       // mas por segurança, vamos garantir que as essenciais estejam lá se não estiverem.
-      if (!generatedPrompt.includes("DIRETRIZES DE HUMANIDADE")) {
+      if (!promptText.includes("DIRETRIZES DE HUMANIDADE")) {
           const humanityGuidelines = `
 DIRETRIZES DE HUMANIDADE (IMPORTANTE):
 1. Use linguagem de WhatsApp: 'vc', 'tbm', 'tá', 'né', 'pra'.
@@ -532,10 +540,11 @@ DIRETRIZES DE HUMANIDADE (IMPORTANTE):
 6. NÃO use listas, tópicos ou bullet points (-). Fale tudo em um parágrafo corrido, como no WhatsApp.
 7. Evite 'Sim, nós temos'. Diga 'Tem sim', 'Temos'.
 8. NÃO repita o cardápio toda hora. Só se perguntarem.
-9. PERSONA: Se perguntarem quem é, diga 'Sou ${agentName} da ${companyName}'. Nunca diga 'Sou um assistente virtual'.`;
-          return generatedPrompt + "\n" + humanityGuidelines;
+9. PERSONA: Se perguntarem quem é, diga 'Sou ${agentName} da ${companyName}'. Nunca diga 'Sou um assistente virtual'.
+10. NEGRITO: Use APENAS UM asterisco para negrito (*texto*). NUNCA use dois (**texto**). O WhatsApp só entende um.`;
+          return promptText + "\n" + humanityGuidelines;
       }
-      return generatedPrompt;
+      return promptText;
     }
     throw new Error("Resposta vazia da IA");
   } catch (error) {
@@ -560,6 +569,7 @@ DIRETRIZES DE HUMANIDADE (IMPORTANTE):
 7. Evite 'Sim, nós temos'. Diga 'Tem sim', 'Temos'.
 8. NÃO repita o cardápio toda hora. Só se perguntarem.
 9. PERSONA: Se perguntarem quem é, diga 'Sou ${agentName} da ${companyName}'. Nunca diga 'Sou um assistente virtual'.
+10. NEGRITO: Use APENAS UM asterisco para negrito (*texto*). NUNCA use dois (**texto**). O WhatsApp só entende um.
 
 # EXEMPLOS DE INTERAÇÃO
 Cliente: "Oi"
@@ -787,6 +797,31 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
       email: email,
       flowState: 'post_test'
     });
+
+    // Processar mídias pendentes da sessão (enviadas durante o onboarding)
+    if (session.uploadedMedia && session.uploadedMedia.length > 0) {
+        console.log(`📸 [SALES] Processando ${session.uploadedMedia.length} mídias pendentes para o novo usuário...`);
+        for (const media of session.uploadedMedia) {
+            try {
+                await insertAgentMedia({
+                    userId: user.id,
+                    name: `MEDIA_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                    mediaType: media.type,
+                    storageUrl: media.url,
+                    description: media.description || "Mídia enviada no onboarding",
+                    whenToUse: media.whenToUse,
+                    isActive: true,
+                    sendAlone: false,
+                    displayOrder: 0,
+                });
+                console.log(`✅ [SALES] Mídia pendente salva para ${user.id}`);
+            } catch (err) {
+                console.error(`❌ [SALES] Erro ao salvar mídia pendente:`, err);
+            }
+        }
+        // Limpar mídias pendentes da sessão
+        updateClientSession(session.phoneNumber, { uploadedMedia: [] });
+    }
     
     // Gerar token para simulador (persiste no Supabase)
     const tokenAgentName = session.agentConfig?.name || agentName || "Agente";
@@ -1776,6 +1811,13 @@ function getOnboardingContext(session: ClientSession): string {
   if (config.role) configStatus += `✅ Função: ${config.role}\n`;
   if (config.prompt) configStatus += `✅ Instruções: ${config.prompt.substring(0, 100)}...\n`;
   
+  // Adicionar status de mídias recebidas
+  if (session.uploadedMedia && session.uploadedMedia.length > 0) {
+    const mediaNames = session.uploadedMedia.map(m => m.description || 'Imagem').join(', ');
+    configStatus += `✅ MÍDIAS RECEBIDAS: ${session.uploadedMedia.length} arquivo(s) (${mediaNames})\n`;
+    configStatus += `⚠️ NÃO PEÇA O CARDÁPIO/FOTOS NOVAMENTE. VOCÊ JÁ TEM.\n`;
+  }
+
   return `
 ═══════════════════════════════════════════════════════════════════════════════
 📋 ESTADO ATUAL: VENDAS CONSULTIVAS
@@ -2078,7 +2120,20 @@ function parseTimeToMinutes(timeText: string): number {
   return num;
 }
 
-async function executeActions(session: ClientSession, actions: ParsedAction[]): Promise<{
+function buildFullPrompt(config: { name?: string; company?: string; role?: string; prompt?: string }): string {
+  return `Você é ${config.name || "o atendente"}, ${config.role || "atendente"} da ${config.company || "empresa"}.
+
+${config.prompt || ""}
+
+REGRAS:
+- Seja educado e prestativo
+- Respostas curtas e objetivas
+- Linguagem natural
+- Não invente informações
+- IMPORTANTE: Sempre se apresente com seu nome e empresa se perguntarem quem é, para não parecer robô. Ex: "Sou o ${config.name || "Atendente"} da ${config.company || "Empresa"}".`;
+}
+
+export async function executeActions(session: ClientSession, actions: ParsedAction[]): Promise<{
   sendPix?: boolean;
   notifyOwner?: boolean;
   startTestMode?: boolean;
@@ -2102,6 +2157,19 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
         if (action.params.funcao) agentConfig.role = action.params.funcao;
         updateClientSession(session.phoneNumber, { agentConfig });
         console.log(`✅ [SALES] Config salva:`, agentConfig);
+
+        // FIX: Persistir no banco se o usuário já existir
+        if (session.userId) {
+          try {
+            const fullPrompt = buildFullPrompt(agentConfig);
+            await storage.updateAgentConfig(session.userId, {
+              prompt: fullPrompt
+            });
+            console.log(`💾 [SALES] Config (Prompt Completo) salva no DB para userId: ${session.userId}`);
+          } catch (err) {
+            console.error(`❌ [SALES] Erro ao salvar config no DB:`, err);
+          }
+        }
         break;
         
       case "SALVAR_PROMPT":
@@ -2110,6 +2178,19 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
           config.prompt = action.params.prompt;
           updateClientSession(session.phoneNumber, { agentConfig: config });
           console.log(`✅ [SALES] Prompt salvo (${action.params.prompt.length} chars)`);
+
+          // FIX: Persistir no banco se o usuário já existir
+          if (session.userId) {
+            try {
+              const fullPrompt = buildFullPrompt(config);
+              await storage.updateAgentConfig(session.userId, {
+                prompt: fullPrompt
+              });
+              console.log(`💾 [SALES] Prompt salvo no DB para userId: ${session.userId}`);
+            } catch (err) {
+              console.error(`❌ [SALES] Erro ao salvar prompt no DB:`, err);
+            }
+          }
         }
         break;
         
@@ -2510,10 +2591,49 @@ export async function processAdminMessage(
 
     console.log(`📸 [ADMIN] Recebido candidato de uso para mídia: "${context}"`);
 
+    // ------------------------------------------------------------------
+    // REFINAMENTO DE TRIGGER COM IA
+    // ------------------------------------------------------------------
+    let refinedTrigger = context;
+    try {
+        const mistral = await getMistralClient();
+        const extractionPrompt = `
+        CONTEXTO: O usuário (dono do bot) enviou uma imagem e, ao ser perguntado quando ela deve ser usada, respondeu: "${context}".
+        
+        TAREFA: Extraia as palavras-chave (triggers) que os CLIENTES FINAIS usarão para solicitar essa imagem.
+        
+        REGRAS:
+        1. Ignore comandos do admin (ex: "veja o cardápio" -> trigger é "cardápio").
+        2. Expanda sinônimos óbvios (ex: "preço" -> "preço, valor, quanto custa").
+        3. Retorne APENAS as palavras-chave separadas por vírgula.
+        4. Se a resposta for muito genérica ou não fizer sentido, retorne o texto original.
+        
+        Exemplo 1: Admin diz "quando pedirem pix" -> Retorno: "pix, chave pix, pagamento"
+        Exemplo 2: Admin diz "veja o cardápio" -> Retorno: "cardápio, menu, pratos, o que tem pra comer"
+        Exemplo 3: Admin diz "tabela" -> Retorno: "tabela, preços, valores"
+        `;
+        
+        const extraction = await mistral.chat.complete({
+            model: "mistral-small-latest",
+            messages: [{ role: "user", content: extractionPrompt }],
+            temperature: 0.1,
+            maxTokens: 100
+        });
+        
+        const result = (extraction.choices?.[0]?.message?.content || "").trim();
+        if (result && result.length > 2 && !result.includes("contexto")) {
+            refinedTrigger = result.replace(/\.$/, "");
+            console.log(`✨ [ADMIN] Trigger refinado por IA: "${context}" -> "${refinedTrigger}"`);
+        }
+    } catch (err) {
+        console.error("⚠️ [ADMIN] Erro ao refinar trigger:", err);
+    }
+    // ------------------------------------------------------------------
+
     // Armazenar candidato e solicitar confirmação explícita
     const updatedPending = {
       ...media,
-      whenCandidate: context,
+      whenCandidate: refinedTrigger,
     };
 
     updateClientSession(cleanPhone, {
@@ -2523,15 +2643,16 @@ export async function processAdminMessage(
     });
 
     // Passa para a IA decidir como confirmar naturalmente
-    const confirmContext = `[SISTEMA: O admin disse que quer usar essa imagem (${media.description}) quando cliente falar sobre "${context}". 
+    const confirmContext = `[SISTEMA: O admin enviou uma imagem (${media.description}).
+    Ele disse: "${context}".
+    Eu interpretei que devemos enviar essa imagem quando o cliente falar: "${refinedTrigger}".
     
     SUA TAREFA:
-    1. Interprete a intenção do admin (ex: se ele disse "quando pedir preço", o contexto é "preços").
-    2. Confirme de forma natural e inteligente.
-    3. NÃO repita o texto dele literalmente entre aspas se parecer uma frase solta ou tiver erros. Integre na sua fala.
+    1. Confirme se é isso mesmo.
+    2. Dê exemplos de como o cliente pediria, baseados no trigger refinado.
+    3. Seja natural.
     
-    Exemplo BOM: "Entendi! Então quando perguntarem sobre os preços dos produtos, eu mando essa foto, pode ser?"
-    Exemplo RUIM: "Beleza, quando falarem 'quando pedir preço' eu mando."
+    Exemplo: "Entendi! Então quando perguntarem sobre cardápio ou menu, eu mando essa foto, pode ser?"
     ]`;
     addToConversationHistory(cleanPhone, "user", confirmContext);
     
@@ -2561,6 +2682,8 @@ export async function processAdminMessage(
           const whenToUse = (media as any).whenCandidate || '';
 
           // Salvar no banco (Admin Media)
+          // DESATIVADO: Não salvar mídias de clientes na biblioteca do Admin
+          /*
           await storage.createAdminMedia({
             adminId,
             name: `MEDIA_${Date.now()}`,
@@ -2572,13 +2695,22 @@ export async function processAdminMessage(
             sendAlone: false,
             displayOrder: 0,
           });
+          */
 
           // Salvar também na biblioteca do usuário (Agent Media) para que funcione no teste
           const userId = session.userId;
           console.log(`🔍 [ADMIN] Verificando userId da sessão: ${userId}`);
           
           if (!userId) {
-            console.error(`❌ [ADMIN] userId não encontrado na sessão! Certifique-se de criar o agente antes de enviar mídia.`);
+            console.log(`⚠️ [ADMIN] userId não encontrado na sessão! Salvando em memória para associar na criação da conta.`);
+            const currentUploaded = session.uploadedMedia || [];
+            currentUploaded.push({
+                url: media.url,
+                type: media.type,
+                description: media.description || "Imagem enviada via WhatsApp",
+                whenToUse: whenToUse
+            });
+            updateClientSession(cleanPhone, { uploadedMedia: currentUploaded });
           } else {
              const mediaData = {
                 userId: userId,
@@ -2660,6 +2792,86 @@ export async function processAdminMessage(
       summary,
     };
 
+    // AUTO-DETECT MEDIA CONTEXT (SMART CLASSIFICATION)
+    // Tenta entender se a imagem enviada responde a uma solicitação anterior do agente
+    let autoDetectedTrigger: string | null = null;
+    
+    if (session.flowState === 'onboarding' || !session.userId) {
+        try {
+            // Pegar última mensagem do assistente para contexto
+            const lastAssistantMsg = [...session.conversationHistory].reverse().find(m => m.role === 'assistant')?.content || "";
+            
+            console.log(`🧠 [ADMIN] Classificando mídia com IA... Contexto: "${lastAssistantMsg.substring(0, 50)}..."`);
+            
+            const classificationPrompt = `
+            CONTEXTO: Você é um classificador de intenção.
+            O assistente (vendedor) perguntou: "${lastAssistantMsg}"
+            O usuário enviou uma imagem descrita como: "${description} / ${summary}"
+            
+            TAREFA:
+            Essa imagem parece ser o material principal que o assistente pediu (ex: cardápio, catálogo, tabela de preços, portfólio)?
+            
+            SE SIM: Retorne APENAS uma lista de palavras-chave (triggers) separadas por vírgula que um cliente usaria para pedir isso.
+            SE NÃO (ou se não tiver certeza): Retorne APENAS a palavra "NULL".
+            
+            Exemplos:
+            - Se pediu cardápio e imagem é menu -> "cardápio, menu, ver pratos, o que tem pra comer"
+            - Se pediu tabela e imagem é lista de preços -> "preços, valores, quanto custa, tabela"
+            - Se pediu foto da loja e imagem é fachada -> "NULL" (pois não é material de envio recorrente para clientes)
+            `;
+            
+            const mistral = await getMistralClient();
+            const classification = await mistral.chat.complete({
+                model: "mistral-small-latest",
+                messages: [{ role: "user", content: classificationPrompt }],
+                temperature: 0.1,
+                maxTokens: 50
+            });
+            
+            const result = (classification.choices?.[0]?.message?.content || "").trim();
+            if (result && !result.includes("NULL") && result.length > 3) {
+                autoDetectedTrigger = result.replace(/\.$/, ""); // Remove ponto final se houver
+                console.log(`✅ [ADMIN] Mídia classificada automaticamente! Trigger: "${autoDetectedTrigger}"`);
+            }
+        } catch (err) {
+            console.error("⚠️ [ADMIN] Erro na classificação automática de mídia:", err);
+        }
+    }
+    
+    if (autoDetectedTrigger) {
+        console.log(`📸 [ADMIN] Mídia auto-detectada! Salvando automaticamente.`);
+        
+        const currentUploaded = session.uploadedMedia || [];
+        currentUploaded.push({
+            url: mediaUrl,
+            type: 'image',
+            description: description || "Mídia enviada",
+            whenToUse: autoDetectedTrigger
+        });
+        updateClientSession(cleanPhone, { uploadedMedia: currentUploaded, pendingMedia: undefined, awaitingMediaContext: false });
+        
+        const autoSaveContext = `[SISTEMA: O usuário enviou uma imagem.
+        ✅ IDENTIFIQUEI AUTOMATICAMENTE QUE É: "${description}".
+        ✅ JÁ SALVEI PARA SER ENVIADA QUANDO CLIENTE FALAR: "${autoDetectedTrigger}".
+        
+        SUA AÇÃO:
+        1. Confirme o recebimento com entusiasmo.
+        2. NÃO pergunte "quando devo usar" (já configurei).
+        3. Pergunte a PRÓXIMA informação necessária para configurar o agente (Horário? Pagamento? Endereço?).
+        
+        Seja breve e natural.]`;
+        
+        addToConversationHistory(cleanPhone, "user", autoSaveContext);
+        const aiResponse = await generateAIResponse(session, autoSaveContext);
+        const { cleanText } = parseActions(aiResponse);
+        addToConversationHistory(cleanPhone, "assistant", cleanText);
+
+        return {
+          text: cleanText,
+          actions: {},
+        };
+    }
+
     updateClientSession(cleanPhone, {
       pendingMedia,
       awaitingMediaContext: true,
@@ -2667,7 +2879,13 @@ export async function processAdminMessage(
     });
 
     // Passar para IA decidir como perguntar sobre a imagem - SEM TEMPLATES
-    const imageContext = `[SISTEMA: O admin mandou uma imagem. A análise identificou: "${description || 'uma imagem'}". Comente de forma casual o que você viu e pergunte quando ele quer que você mande essa imagem pros clientes dele. Seja natural, como se fosse um colega perguntando. NÃO use frases como "Recebi a imagem!" ou "Quando devo usar?". Infira o uso provável (se parece cardápio, pergunte se é pra quando pedirem o menu, etc).]`;
+    const imageContext = `[SISTEMA: O usuário enviou uma imagem. Análise visual: "${description || 'uma imagem'}".
+    
+    SUA MISSÃO AGORA:
+    1. Se você tinha pedido o cardápio ou foto: Diga que recebeu e achou legal. NÃO pergunte "quando usar" se for óbvio (ex: cardápio é pra quando pedirem cardápio). Já assuma que é isso e pergunte a PRÓXIMA informação necessária (horário, pagamento, etc).
+    2. Se foi espontâneo: Comente o que viu e pergunte se é pra enviar pros clientes quando perguntarem algo específico.
+    
+    Seja natural. Não use "Recebi a imagem". Fale como gente.]`;
     
     addToConversationHistory(cleanPhone, "user", imageContext);
     const aiResponse = await generateAIResponse(session, imageContext);

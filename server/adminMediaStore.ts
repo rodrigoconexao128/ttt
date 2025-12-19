@@ -91,7 +91,7 @@ export async function getAdminMediaList(adminId?: string): Promise<AdminMedia[]>
  * @param adminId - ID do admin (opcional para sistema single-admin)
  * @param name - Nome da mídia
  */
-export async function getAdminMediaByName(adminId: string | undefined, name: string): Promise<AdminMedia | undefined> {
+export let getAdminMediaByName = async function(adminId: string | undefined, name: string): Promise<AdminMedia | undefined> {
   await reloadCache(adminId);
   
   const normalizedName = name.toUpperCase().replace(/\s+/g, '_');
@@ -377,7 +377,7 @@ export async function getSmartTriggers(adminId?: string) {
  * Gera o bloco de prompt para as mídias do admin
  * COPIADO DO mediaService.ts QUE FUNCIONA CORRETAMENTE
  */
-export async function generateAdminMediaPromptBlock(adminId?: string): Promise<string> {
+export let generateAdminMediaPromptBlock = async function(adminId?: string): Promise<string> {
   const mediaList = await getAdminMediaList(adminId);
   
   if (mediaList.length === 0) {
@@ -431,7 +431,7 @@ Não ignore esta instrução. Se o usuário perguntar algo que bate com "Quando 
 /**
  * Parseia a resposta e extrai tags de mídia
  */
-export function parseAdminMediaTags(responseText: string): {
+export let parseAdminMediaTags = function(responseText: string): {
   cleanText: string;
   mediaActions: { type: 'send_media'; media_name: string }[];
 } {
@@ -454,3 +454,10 @@ export function parseAdminMediaTags(responseText: string): {
   
   return { cleanText, mediaActions };
 }
+
+export function setMockAdminMediaStore(mocks: any) {
+  if (mocks.generateAdminMediaPromptBlock) generateAdminMediaPromptBlock = mocks.generateAdminMediaPromptBlock;
+  if (mocks.getAdminMediaByName) getAdminMediaByName = mocks.getAdminMediaByName;
+  if (mocks.parseAdminMediaTags) parseAdminMediaTags = mocks.parseAdminMediaTags;
+}
+

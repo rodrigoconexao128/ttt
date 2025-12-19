@@ -381,7 +381,7 @@ export class FollowUpService {
   }
 }
 
-export const followUpService = new FollowUpService();
+export let followUpService = new FollowUpService();
 
 // ============================================================================
 // FUNÇÕES LEGADAS / COMPATIBILIDADE
@@ -395,21 +395,21 @@ export function registerScheduledContactCallback(callback: ScheduledContactCallb
   followUpService.registerScheduledContactCallback(callback);
 }
 
-export function scheduleAutoFollowUp(phoneNumber: string, delayMinutes: number, context: string) {
+export let scheduleAutoFollowUp = function(phoneNumber: string, delayMinutes: number, context: string) {
     // TODO: Implementar compatibilidade se necessário, ou migrar chamadas antigas
     // Por enquanto, apenas loga
     console.warn("⚠️ scheduleAutoFollowUp (legacy) chamado - migrar para scheduleInitialFollowUp");
 }
 
-export function cancelFollowUp(phoneNumber: string) {
+export let cancelFollowUp = function(phoneNumber: string) {
   followUpService.cancelFollowUpByPhone(phoneNumber);
 }
 
-export function scheduleContact(phoneNumber: string, date: Date, reason: string) {
+export let scheduleContact = function(phoneNumber: string, date: Date, reason: string) {
     // TODO: Implementar agendamento pontual
 }
 
-export function parseScheduleFromText(text: string): Date | null {
+export let parseScheduleFromText = function(text: string): Date | null {
   const now = new Date();
   const lowerText = text.toLowerCase();
   
@@ -473,3 +473,11 @@ export function parseScheduleFromText(text: string): Date | null {
   
   return null;
 }
+
+export function setMockFollowUpFunctions(mocks: any) {
+  if (mocks.cancelFollowUp) cancelFollowUp = mocks.cancelFollowUp;
+  if (mocks.scheduleAutoFollowUp) scheduleAutoFollowUp = mocks.scheduleAutoFollowUp;
+  if (mocks.scheduleContact) scheduleContact = mocks.scheduleContact;
+  if (mocks.followUpService) followUpService = mocks.followUpService;
+}
+

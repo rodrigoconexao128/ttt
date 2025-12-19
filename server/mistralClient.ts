@@ -15,13 +15,22 @@ export async function resolveApiKey(): Promise<string> {
 
   const apiKey = fromDb || fromEnv;
   if (!apiKey) {
+    // Allow empty key for testing if mock is set
+    if (globalMockClient) return "mock-key";
     throw new Error("Mistral API Key not configured");
   }
 
   return apiKey;
 }
 
+let globalMockClient: any = null;
+
+export function setMockMistralClient(mock: any) {
+  globalMockClient = mock;
+}
+
 export async function getMistralClient(): Promise<Mistral> {
+  if (globalMockClient) return globalMockClient as unknown as Mistral;
   const apiKey = await resolveApiKey();
   return new Mistral({ apiKey });
 }
@@ -67,6 +76,9 @@ export async function analyzeImageWithMistral(
   prompt: string = "Descreva esta imagem detalhadamente para que eu possa entender o que é (ex: cardápio, produto, tabela de preços, etc)."
 ): Promise<string | null> {
   try {
+    if (globalMockClient && globalMockClient.analyzeImageWithMistral) {
+        return globalMockClient.analyzeImageWithMistral(imageUrl);
+    }
     const mistral = await getMistralClient();
     
     // Pixtral (Vision)
@@ -101,6 +113,9 @@ export async function analyzeImageForAdmin(
   imageUrl: string
 ): Promise<{ summary: string; description: string } | null> {
   try {
+    if (globalMockClient && globalMockClient.analyzeImageForAdmin) {
+        return globalMockClient.analyzeImageForAdmin(imageUrl);
+    }
     // Shortcut for data URLs (local base64) to avoid external API call in tests
     // REMOVIDO: O usuário quer que o Vision funcione mesmo em testes locais/base64
     // if (typeof imageUrl === 'string' && imageUrl.startsWith('data:')) {
