@@ -3874,12 +3874,6 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       res.status(500).json({ error: error.message });
     }
   });
-      
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
 
   // Rota de teste para configurar fluxo de mídia
   app.use((await import("./testMediaRoute")).default);
