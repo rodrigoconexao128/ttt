@@ -151,8 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== ADMIN USER MANAGEMENT ROUTES ====================
   
   // List users
-  app.get("/api/admin/users", async (req, res) => {
-    if (!isAdmin(req)) return res.status(403).json({ message: "Unauthorized" });
+  app.get("/api/admin/users", isAdmin, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
       res.json(users);
@@ -162,8 +161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update user email
-  app.patch("/api/admin/users/:id", async (req, res) => {
-    if (!isAdmin(req)) return res.status(403).json({ message: "Unauthorized" });
+  app.patch("/api/admin/users/:id", isAdmin, async (req, res) => {
     const { id } = req.params;
     const { email } = req.body;
     
@@ -179,8 +177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send credentials (mock)
-  app.post("/api/admin/users/:id/send-credentials", async (req, res) => {
-    if (!isAdmin(req)) return res.status(403).json({ message: "Unauthorized" });
+  app.post("/api/admin/users/:id/send-credentials", isAdmin, async (req, res) => {
     const { id } = req.params;
     
     try {
@@ -280,8 +277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Activate agent
-  app.post("/api/admin/users/:id/activate", async (req, res) => {
-    if (!isAdmin(req)) return res.status(403).json({ message: "Unauthorized" });
+  app.post("/api/admin/users/:id/activate", isAdmin, async (req, res) => {
     const { id } = req.params;
     try {
         // Assuming onboardingCompleted is the flag for activation

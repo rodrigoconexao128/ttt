@@ -2795,6 +2795,8 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           isConnected: false,
           qrCode: null,
         });
+        
+        console.log(`[ADMIN DISCONNECT] Admin ${adminId} disconnected. StatusCode: ${statusCode}, Reason: ${lastDisconnect?.error}`);
 
         if (shouldReconnect) {
           if (statusCode !== 428 && statusCode !== 401) { console.log(`Admin ${adminId} WhatsApp disconnected (code: ${statusCode}), reconnecting...`); }
@@ -2802,7 +2804,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           setTimeout(() => connectAdminWhatsApp(adminId), 5000);
         } else {
           // Foi logout (desconectado pelo celular), limpar TUDO
-          console.log(`Admin ${adminId} logged out from device, clearing all auth files...`);
+          console.log(`Admin ${adminId} logged out from device (Code ${statusCode}), clearing all auth files...`);
           
           const adminAuthPath = path.join(SESSIONS_BASE, `auth_admin_${adminId}`);
           await clearAuthFiles(adminAuthPath);
