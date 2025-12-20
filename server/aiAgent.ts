@@ -244,53 +244,52 @@ export async function generateAIResponse(
      ];
 
     // 🧠 CONVERSATION MEMORY: Sistema inspirado em Claude/GPT/Intercom
-    // Manter últimas 8 mensagens COMPLETAS (4 turnos user/assistant)
-    // Isso dá contexto suficiente sem perder o fio da conversa
-    const thirtySecondsAgo = Date.now() - (30 * 1000); // Apenas 30seg (tempo do delay)
+    // AUMENTADO: Manter últimas 100 mensagens para garantir contexto total
+    let recentMessages = conversationHistory.slice(-100);
     
-    let recentMessages = conversationHistory.slice(-8);
-    
-    // Remover APENAS mensagens do agente dos últimos 30 segundos (em envio)
-    // Isso evita loop mas mantém contexto de mensagens já estabelecidas
-    recentMessages = recentMessages.filter(msg => {
-      if (msg.fromMe && new Date(msg.timestamp).getTime() > thirtySecondsAgo) {
-        console.log(`⏭️ [AI Agent] Pulando mensagem MUITO recente (<30s): "${(msg.text || '').substring(0, 30)}..."`);
-        return false;
-      }
-      return true;
-    });
-    
-    // Se ainda tem >6 mensagens, criar RESUMO das antigas + últimas 6 completas
-    if (recentMessages.length > 6) {
-      const oldMessages = recentMessages.slice(0, -6);
-      const recentSix = recentMessages.slice(-6);
+    // Se ainda tem >90 mensagens, criar RESUMO das antigas + últimas 90 completas
+    if (recentMessages.length > 90) {
+      const oldMessages = recentMessages.slice(0, -90);
+      const recentNinety = recentMessages.slice(-90);
       
       // Criar resumo simples das mensagens antigas
-      const summary = `[Contexto anterior: Cliente perguntou sobre ${oldMessages.filter(m => !m.fromMe).map(m => (m.text || '').substring(0, 30)).join(', ')}, e você respondeu com informações sobre o serviço]`;
+      const summary = `[RESUMO DO HISTÓRICO ANTERIOR: O cliente já interagiu. Tópicos: ${oldMessages.filter(m => !m.fromMe).map(m => (m.text || '').substring(0, 20)).join(', ')}. Você já respondeu.]`;
       
       console.log(`📚 [AI Agent] Resumindo ${oldMessages.length} mensagens antigas em contexto`);
       
-      // Adicionar resumo como mensagem de sistema (não conta como user/assistant)
+      // Adicionar resumo como mensagem de sistema
       messages.push({
         role: "system",
         content: summary
       });
       
-      recentMessages = recentSix;
+      recentMessages = recentNinety;
+    }
+
+    // 🛡️ ANTI-AMNESIA PROMPT INJECTION
+    // Adicionar instrução explícita para não se repetir se já houver histórico
+    if (conversationHistory.length > 2) {
+        messages.push({
+            role: "system",
+            content: `[SISTEMA: Esta é uma conversa em andamento. O cliente JÁ TE CONHECE. NÃO se apresente novamente. NÃO diga "Sou o X da empresa Y" de novo. Apenas continue a conversa de onde parou.]`
+        });
     }
     
     // 🧹 REMOVER DUPLICATAS: Mensagens idênticas confundem a IA
+    // MELHORADO: Remove duplicatas adjacentes, mas permite repetição se houver intervalo
     const uniqueMessages: Message[] = [];
-    const seenTexts = new Set<string>();
     
-    for (const msg of recentMessages) {
-      const textKey = `${msg.fromMe ? 'me' : 'user'}:${msg.text || ''}`;
-      if (!seenTexts.has(textKey)) {
-        seenTexts.add(textKey);
-        uniqueMessages.push(msg);
-      } else {
-        console.log(`⚠️ [AI Agent] Mensagem duplicada removida: ${(msg.text || '').substring(0, 30)}...`);
+    for (let i = 0; i < recentMessages.length; i++) {
+      const current = recentMessages[i];
+      const prev = uniqueMessages.length > 0 ? uniqueMessages[uniqueMessages.length - 1] : null;
+      
+      // Se for mensagem do mesmo autor com mesmo texto da anterior, ignora (spam)
+      if (prev && prev.fromMe === current.fromMe && prev.text === current.text) {
+         console.log(`⚠️ [AI Agent] Mensagem duplicada ADJACENTE removida: ${(current.text || '').substring(0, 30)}...`);
+         continue;
       }
+      
+      uniqueMessages.push(current);
     }
     
     console.log(`📋 [AI Agent] Enviando ${uniqueMessages.length} mensagens de contexto (${recentMessages.length - uniqueMessages.length} duplicatas removidas):`);

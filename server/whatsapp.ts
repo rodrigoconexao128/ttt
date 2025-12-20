@@ -1407,12 +1407,15 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     });
   }
 
-  // 🛑 FOLLOW-UP: Se cliente respondeu, cancelar follow-up ativo
+  // 🛑 FOLLOW-UP: Se cliente respondeu, RESETAR ciclo (não cancelar permanentemente)
   try {
-    await followUpService.disableFollowUp(conversation.id);
-    console.log(`🛑 [FOLLOW-UP] Cancelado para conversa ${conversation.id} (cliente respondeu)`);
+    // Antes: disableFollowUp (matava o follow-up para sempre)
+    // Agora: resetFollowUpCycle (empurra para daqui 10 min)
+    // Isso garante que se o cliente sumir de novo, o bot volta a chamar.
+    await followUpService.resetFollowUpCycle(contactNumber);
+    console.log(`🔄 [FOLLOW-UP] Ciclo resetado para ${contactNumber} (cliente respondeu)`);
   } catch (error) {
-    console.error("Erro ao cancelar follow-up:", error);
+    console.error("Erro ao resetar follow-up:", error);
   }
 
     const savedMessage = await storage.createMessage({

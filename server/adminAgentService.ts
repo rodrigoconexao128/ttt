@@ -3414,7 +3414,12 @@ export async function generateFollowUpResponse(phoneNumber: string, context: str
   try {
     const mistral = await getMistralClient();
     
-    const history = session.conversationHistory.slice(-10).map(m => `${m.role}: ${m.content}`).join("\n");
+    // Buscar nome do contato no banco
+    const conversation = await storage.getAdminConversationByPhone(phoneNumber);
+    const contactName = conversation?.contactName || "";
+    
+    // Aumentar contexto para 30 mensagens para pegar "toda a conversa" relevante
+    const history = session.conversationHistory.slice(-30).map(m => `${m.role}: ${m.content}`).join("\n");
 
     // Calculate time elapsed
     const lastMessage = session.conversationHistory[session.conversationHistory.length - 1];
@@ -3439,38 +3444,77 @@ Suas instruções de personalidade e comportamento:
 ${agentPrompt}
 
 SITUAÇÃO ATUAL:
-O cliente parou de responder há ${timeContext}.
+O cliente ${contactName ? `se chama "${contactName}"` : "não tem nome identificado"} e parou de responder há ${timeContext}.
 Contexto do follow-up: ${context}
 Estado do cliente: ${session.flowState}
 
-HISTÓRICO RECENTE DA CONVERSA:
+HISTÓRICO DA CONVERSA (Últimas 30 mensagens):
 ${history}
 
 SUA TAREFA:
 Gere uma mensagem de follow-up curta para reativar o cliente.
 
-REGRAS CRÍTICAS:
-1. NÃO use frases prontas como "E aí, sumiu?" ou "Conseguiu ver?" A MENOS que isso faça sentido com sua personalidade definida acima.
-2. Se sua personalidade for formal, seja formal. Se for descontraída, seja descontraído.
-3. LEIA O HISTÓRICO: Sua mensagem deve ser uma continuação natural do que foi falado por último.
-4. Se você enviou um preço/proposta e ele não respondeu, pergunte sobre isso especificamente.
-5. Se ele disse que ia ver algo, pergunte se viu.
-6. Mantenha a mensagem CURTA (máximo 1-2 frases).
-7. Aja como um humano enviando uma mensagem no WhatsApp, não um robô de marketing.
-8. NÃO use [AÇÃO:...]. Apenas o texto da mensagem.`;
+REGRAS CRÍTICAS (SIGA ESTRITAMENTE):
+1. **NOME DO CLIENTE**:
+   - Se o nome "${contactName}" for válido (não vazio), use-o naturalmente (ex: "Oi ${contactName}...", "E aí ${contactName}...").
+   - Se NÃO houver nome, use APENAS saudações genéricas (ex: "Oi!", "Olá!", "Tudo bem?").
+   - **JAMAIS** use placeholders como "[Nome]", "[Cliente]", "[Nome do Cliente]". ISSO É PROIBIDO.
+
+2. **OPÇÃO ÚNICA (ZERO AMBIGUIDADE)**:
+   - Gere APENAS UMA mensagem pronta para enviar.
+   - **NÃO** dê opções (ex: "Opção 1:...", "Ou se preferir...", "Você pode dizer...").
+   - **NÃO** explique o que você está fazendo. Apenas escreva a mensagem.
+   - O texto retornado será enviado DIRETAMENTE para o WhatsApp do cliente.
+
+3. **RECUPERAÇÃO DE VENDA (TÉCNICA DE FOLLOW-UP)**:
+   - LEIA O HISTÓRICO COMPLETO. Identifique onde a conversa parou.
+   - Se foi objeção de preço: Pergunte se o valor ficou claro ou se ele quer ver condições de parcelamento.
+   - Se foi dúvida técnica: Pergunte se ele conseguiu entender a explicação anterior.
+   - Se ele sumiu sem motivo: Tente reativar com uma novidade ou benefício chave ("Lembrei que isso aqui ajuda muito em X...").
+   - **NÃO SEJA CHATO**: Não cobre resposta ("E aí?", "Viu?"). Ofereça valor ("Pensei nisso aqui pra você...").
+
+4. **ESTILO**:
+   - Curto (máximo 2 frases).
+   - Tom de conversa no WhatsApp (pode usar 1 emoji se fizer sentido, mas sem exageros).
+   - Não pareça desesperado. Apenas um "lembrete amigo".
+
+5. **PROIBIDO**:
+   - Não use [AÇÃO:...].
+   - Não use aspas na resposta.
+   - Não repita a última mensagem que você já enviou. Tente uma abordagem diferente.`;
 
     const configuredModel = await getConfiguredModel();
     const response = await mistral.chat.complete({
       model: configuredModel,
       messages: [{ role: "user", content: prompt }],
       maxTokens: 150,
-      temperature: 0.9,
+      temperature: 0.6, // Reduzido para 0.6 para ser mais determinístico e evitar "criatividade" de dar opções
     });
     
-    return response.choices?.[0]?.message?.content?.toString() || "";
+    let content = response.choices?.[0]?.message?.content?.toString() || "";
+    
+    // Limpeza de segurança final
+    content = content.replace(/\[Nome\]/gi, "").replace(/\[Cliente\]/gi, "").trim();
+    
+    // Remover prefixos comuns de "opções" que a IA as vezes gera
+    content = content.replace(/^(Opção \d:|Sugestão:|Mensagem:)\s*/i, "");
+    
+    // Remover aspas se a IA colocar
+    if (content.startsWith('"') && content.endsWith('"')) {
+      content = content.slice(1, -1);
+    }
+    
+    // Se a IA gerar "Ou..." no meio do texto (indicando duas opções), cortar tudo depois do "Ou"
+    // Ex: "Oi fulano! Tudo bem? Ou se preferir..." -> "Oi fulano! Tudo bem?"
+    const splitOptions = content.split(/\n\s*(?:Ou|ou|Ou se preferir|Opção 2)\b/);
+    if (splitOptions.length > 1) {
+        content = splitOptions[0].trim();
+    }
+    
+    return content;
   } catch (error) {
     console.error("Erro ao gerar follow-up:", error);
-    return "E aí, conseguiu ver? 👀";
+    return "Oi! Tudo bem? Só pra saber se ficou alguma dúvida! 😊";
   }
 }
 
@@ -3483,25 +3527,42 @@ export async function generateScheduledContactResponse(phoneNumber: string, reas
   try {
     const mistral = await getMistralClient();
     
+    // Buscar nome do contato no banco
+    const conversation = await storage.getAdminConversationByPhone(phoneNumber);
+    const contactName = conversation?.contactName || "";
+
     const prompt = `Você é o RODRIGO (V9 - PRINCÍPIOS PUROS).
 Você agendou de entrar em contato com o cliente hoje.
 Motivo do agendamento: ${reason}
 Estado do cliente: ${session?.flowState || 'desconhecido'}
+Nome do cliente: ${contactName || "Não identificado"}
 
 Gere uma mensagem de retorno NATURAL e AMIGÁVEL.
-- "Fala [Nome], tudo bom? Fiquei de te chamar hoje..."
-- Sem formalidades.
-- NÃO use ações [AÇÃO:...]. Apenas texto natural.`;
+
+REGRAS:
+1. Se tiver o nome "${contactName}", use-o (ex: "Fala ${contactName}, tudo bom?").
+2. Se NÃO tiver nome, use apenas "Fala! Tudo bom?".
+3. JAMAIS use [Nome] ou placeholders.
+4. Sem formalidades.
+5. NÃO use ações [AÇÃO:...]. Apenas texto natural.`;
 
     const configuredModel = await getConfiguredModel();
     const response = await mistral.chat.complete({
       model: configuredModel,
       messages: [{ role: "user", content: prompt }],
       maxTokens: 150,
-      temperature: 0.9,
+      temperature: 0.7,
     });
     
-    return response.choices?.[0]?.message?.content?.toString() || "Fala! Fiquei de te chamar hoje, tudo certo por aí?";
+    let content = response.choices?.[0]?.message?.content?.toString() || "Fala! Fiquei de te chamar hoje, tudo certo por aí?";
+    
+    // Limpeza de segurança
+    content = content.replace(/\[Nome\]/gi, "").replace(/\[Cliente\]/gi, "").trim();
+    if (content.startsWith('"') && content.endsWith('"')) {
+      content = content.slice(1, -1);
+    }
+    
+    return content;
   } catch {
     return "Fala! Fiquei de te chamar hoje, tudo certo por aí? 👍";
   }
