@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ export function ConnectionPanel() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
+  const qrCodeRef = useRef<string | null>(null);
 
   const { data: connection, isLoading } = useQuery<WhatsappConnection>({
     queryKey: ["/api/whatsapp/connection"],
@@ -81,12 +82,19 @@ export function ConnectionPanel() {
 
             if (data.type === "qr") {
               setQrCode(data.qr);
+              qrCodeRef.current = data.qr;
               setIsConnecting(false);
             } else if (data.type === "connecting") {
-              setQrCode(null);
-              setIsConnecting(true);
+              // Only show connecting state if we don't have a QR code yet
+              // This prevents the QR code from disappearing if a connecting event 
+              // arrives after the QR code is displayed (which can happen during connection)
+              if (!qrCodeRef.current) {
+                setQrCode(null);
+                setIsConnecting(true);
+              }
             } else if (data.type === "connected") {
               setQrCode(null);
+              qrCodeRef.current = null;
               setIsConnecting(false);
               queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
               toast({
@@ -95,6 +103,7 @@ export function ConnectionPanel() {
               });
             } else if (data.type === "disconnected") {
               setQrCode(null);
+              qrCodeRef.current = null;
               setIsConnecting(false);
               queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
             }
