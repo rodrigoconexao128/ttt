@@ -154,9 +154,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/users", isAdmin, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
-      res.json(users);
+      const connections = await storage.getAllConnections();
+      
+      // Map connection status to users
+      const usersWithStatus = users.map(user => {
+        const connection = connections.find(c => c.userId === user.id);
+        return {
+          ...user,
+          isConnected: connection?.isConnected || false,
+          connectionId: connection?.id
+        };
+      });
+      
+      res.json(usersWithStatus);
     } catch (error) {
       res.status(500).json({ message: "Error fetching users" });
+    }
+  });
+
+  // Reconnect single user
+  app.post("/api/admin/connections/reconnect/:userId", isAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      console.log(`[ADMIN] Reconnecting user ${userId}...`);
+      
+      // Check if user exists
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Trigger reconnection
+      // We don't await this fully to avoid timeout, but we catch errors
+      connectWhatsApp(userId).catch(err => {
+        console.error(`[ADMIN] Failed to reconnect user ${userId}:`, err);
+      });
+
+      res.json({ 
+        success: true, 
+        message: `Reconnection started for user ${user.name || userId}` 
+      });
+    } catch (error) {
+      console.error(`[ADMIN] Error reconnecting user ${req.params.userId}:`, error);
+      res.status(500).json({ message: "Error reconnecting user" });
     }
   });
 

@@ -464,7 +464,11 @@ export default function AdminPanel() {
 }
 
 // Users Manager Component with delete functionality
-function UsersManager({ users }: { users: User[] | undefined }) {
+interface UserWithStatus extends User {
+  isConnected?: boolean;
+}
+
+function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
   const { toast } = useToast();
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
@@ -472,6 +476,7 @@ function UsersManager({ users }: { users: User[] | undefined }) {
   const [editingAgentUser, setEditingAgentUser] = useState<User | null>(null);
   const [newEmail, setNewEmail] = useState("");
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [reconnectingUserId, setReconnectingUserId] = useState<string | null>(null);
 
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
@@ -566,6 +571,34 @@ function UsersManager({ users }: { users: User[] | undefined }) {
     },
   });
 
+  // Mutation: Reconnect Single User
+  const reconnectUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      setReconnectingUserId(userId);
+      const res = await apiRequest("POST", `/api/admin/connections/reconnect/${userId}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "Reconexão Iniciada", 
+        description: data.message 
+      });
+      // Aguardar um pouco e atualizar a lista para ver se mudou o status (embora a conexão leve tempo)
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+        setReconnectingUserId(null);
+      }, 2000);
+    },
+    onError: (error) => {
+      setReconnectingUserId(null);
+      toast({ 
+        title: "Erro", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
   const handleEditEmail = (user: User) => {
     setSelectedUser(user);
     setNewEmail(user.email || "");
@@ -625,17 +658,37 @@ function UsersManager({ users }: { users: User[] | undefined }) {
               <TableHead>Nome</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Telefone</TableHead>
+              <TableHead>Conexão</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Pagamento</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users?.map((user: User) => (
+            {users?.map((user: UserWithStatus) => (
               <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
                 <TableCell className="font-medium">{user.name || "-"}</TableCell>
                 <TableCell data-testid={`text-email-${user.id}`}>{user.email}</TableCell>
                 <TableCell>{user.whatsappNumber || user.phone || "-"}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={user.isConnected ? "default" : "destructive"} className={user.isConnected ? "bg-green-500 hover:bg-green-600" : ""}>
+                      {user.isConnected ? "Conectado" : "Offline"}
+                    </Badge>
+                    {!user.isConnected && (
+                        <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-6 w-6" 
+                            title="Tentar Reconectar"
+                            onClick={() => reconnectUserMutation.mutate(user.id)}
+                            disabled={reconnectingUserId === user.id}
+                        >
+                            <RefreshCw className={`h-3 w-3 ${reconnectingUserId === user.id ? 'animate-spin' : ''}`} />
+                        </Button>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <Badge variant={user.role === "owner" ? "default" : "secondary"}>
                     {user.role}
