@@ -27,7 +27,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -477,6 +477,17 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
   const [newEmail, setNewEmail] = useState("");
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [reconnectingUserId, setReconnectingUserId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredUsers = users?.filter(user => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      user.name?.toLowerCase().includes(searchLower) ||
+      user.email?.toLowerCase().includes(searchLower) ||
+      user.phone?.includes(searchLower) ||
+      user.whatsappNumber?.includes(searchLower)
+    );
+  });
 
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
@@ -650,6 +661,17 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
             Reconectar Todos
           </Button>
         </div>
+        <div className="mt-4">
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome, email ou telefone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -665,7 +687,7 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users?.map((user: UserWithStatus) => (
+            {filteredUsers?.map((user: UserWithStatus) => (
               <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
                 <TableCell className="font-medium">{user.name || "-"}</TableCell>
                 <TableCell data-testid={`text-email-${user.id}`}>{user.email}</TableCell>
@@ -795,10 +817,10 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
           </TableBody>
         </Table>
         
-        {(!users || users.length === 0) && (
+        {(!filteredUsers || filteredUsers.length === 0) && (
           <div className="text-center py-8 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Nenhum usuário cadastrado</p>
+            <p>Nenhum usuário encontrado</p>
           </div>
         )}
       </CardContent>
@@ -1283,6 +1305,17 @@ function ClientManager({
   const { toast } = useToast();
   const [selectedUser, setSelectedUser] = useState<string>("");
   const [selectedPlan, setSelectedPlan] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredUsers = users?.filter(user => {
+    if (user.role === "owner" || user.role === "admin") return false;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      user.name?.toLowerCase().includes(searchLower) ||
+      user.email?.toLowerCase().includes(searchLower) ||
+      user.phone?.includes(searchLower)
+    );
+  });
 
   const assignPlanMutation = useMutation({
     mutationFn: async (data: { userId: string; planId: string }) => {
@@ -1333,16 +1366,30 @@ function ClientManager({
         <CardContent className="space-y-4">
           <div className="grid gap-2">
             <Label>Selecione o Cliente</Label>
+            <div className="relative mb-2">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar cliente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8"
+              />
+            </div>
             <Select value={selectedUser} onValueChange={setSelectedUser}>
               <SelectTrigger data-testid="select-user">
                 <SelectValue placeholder="Escolha um usuário" />
               </SelectTrigger>
               <SelectContent>
-                {users?.filter(u => u.role !== "owner" && u.role !== "admin").map((user) => (
+                {filteredUsers?.map((user) => (
                   <SelectItem key={user.id} value={user.id}>
                     {user.email} - {user.name}
                   </SelectItem>
                 ))}
+                {filteredUsers?.length === 0 && (
+                  <div className="p-2 text-sm text-muted-foreground text-center">
+                    Nenhum cliente encontrado
+                  </div>
+                )}
               </SelectContent>
             </Select>
           </div>
