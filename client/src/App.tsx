@@ -69,6 +69,7 @@ function Router() {
           <Route path="/subscribe/:id" component={Dashboard} />
           <Route path="/settings" component={Dashboard} />
           <Route path="/agent-config" component={AgentConfig} />
+          <Route path="/notificador" component={Dashboard} />
           <Route path="/biblioteca-midias" component={Dashboard} />
         </>
       )}

@@ -3,11 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { Smartphone, QrCode, CheckCircle2, XCircle, RefreshCw, Bell, Save } from "lucide-react";
+import { Smartphone, QrCode, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getAuthToken } from "@/lib/supabase";
@@ -42,55 +38,6 @@ export function ConnectionPanel() {
       });
     },
   });
-
-  const { data: businessConfigData } = useQuery({
-    queryKey: ["/api/agent/business-config"],
-  });
-  const businessConfig = businessConfigData?.config;
-
-  const [notificationPhone, setNotificationPhone] = useState("");
-  const [notificationTrigger, setNotificationTrigger] = useState("");
-  const [notificationEnabled, setNotificationEnabled] = useState(false);
-
-  useEffect(() => {
-    if (businessConfig) {
-      setNotificationPhone(businessConfig.notificationPhoneNumber || "");
-      setNotificationTrigger(businessConfig.notificationTrigger || "");
-      setNotificationEnabled(businessConfig.notificationEnabled || false);
-    }
-  }, [businessConfig]);
-
-  const updateConfigMutation = useMutation({
-    mutationFn: async (data: any) => {
-      // We need to send the full config, so we merge with existing
-      return await apiRequest("POST", "/api/agent/business-config", {
-        ...businessConfig,
-        ...data
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agent/business-config"] });
-      toast({
-        title: "Configuração salva",
-        description: "As configurações de notificação foram atualizadas.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao salvar",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSaveNotification = () => {
-    updateConfigMutation.mutate({
-      notificationPhoneNumber: notificationPhone,
-      notificationTrigger: notificationTrigger,
-      notificationEnabled: notificationEnabled,
-    });
-  };
 
   const disconnectMutation = useMutation({
     mutationFn: async () => {
@@ -345,71 +292,6 @@ export function ConnectionPanel() {
               </Button>
             </div>
           )}
-        </Card>
-
-        <Card className="p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-md bg-orange-100 flex items-center justify-center">
-                <Bell className="w-6 h-6 text-orange-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Notificador Inteligente</h3>
-                <p className="text-sm text-muted-foreground">
-                  Receba notificações no seu WhatsApp pessoal
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={notificationEnabled}
-              onCheckedChange={setNotificationEnabled}
-            />
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Número para Notificação</Label>
-              <Input
-                placeholder="Ex: 5511999999999"
-                value={notificationPhone}
-                onChange={(e) => setNotificationPhone(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Número que receberá os alertas (inclua o código do país, ex: 55)
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Gatilho da Notificação (Instrução para IA)</Label>
-              <Textarea
-                placeholder="Ex: Me notifique quando o cliente quiser agendar uma reunião ou demonstrar interesse em comprar."
-                value={notificationTrigger}
-                onChange={(e) => setNotificationTrigger(e.target.value)}
-                rows={3}
-              />
-              <p className="text-xs text-muted-foreground">
-                A IA analisará a conversa e te notificará baseada nesta instrução.
-              </p>
-            </div>
-
-            <Button 
-              onClick={handleSaveNotification} 
-              disabled={updateConfigMutation.isPending}
-              className="w-full"
-            >
-              {updateConfigMutation.isPending ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Salvar Configurações
-                </>
-              )}
-            </Button>
-          </div>
         </Card>
       </div>
     </div>
