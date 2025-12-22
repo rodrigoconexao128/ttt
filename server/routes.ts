@@ -160,6 +160,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reconnect all WhatsApp sessions
+  app.post("/api/admin/connections/reconnect-all", isAdmin, async (req, res) => {
+    try {
+      console.log("[ADMIN] Starting bulk reconnection...");
+      const connections = await storage.getAllConnections();
+      let reconnectedCount = 0;
+
+      for (const connection of connections) {
+        if (connection.userId) {
+            // Add a small delay to avoid overwhelming the server
+            await new Promise(resolve => setTimeout(resolve, 500)); 
+            console.log(`[ADMIN] Reconnecting user ${connection.userId}...`);
+            // We don't await this to speed up the response, or we can await if we want to be sure
+            // Given "reconnect all", it might take time. Let's await but maybe not block the whole response forever?
+            // Actually, connectWhatsApp is async. If we await it, it might take a while if it waits for QR code generation etc.
+            // But connectWhatsApp usually just initializes the socket.
+            await connectWhatsApp(connection.userId).catch(err => {
+                console.error(`[ADMIN] Failed to reconnect user ${connection.userId}:`, err);
+            });
+            reconnectedCount++;
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Reconnection process started for ${reconnectedCount} users`,
+        count: reconnectedCount
+      });
+    } catch (error) {
+      console.error("[ADMIN] Error in bulk reconnection:", error);
+      res.status(500).json({ message: "Error reconnecting users" });
+    }
+  });
+
   // Update user email
   app.patch("/api/admin/users/:id", isAdmin, async (req, res) => {
     const { id } = req.params;

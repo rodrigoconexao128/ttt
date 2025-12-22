@@ -27,7 +27,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -545,6 +545,27 @@ function UsersManager({ users }: { users: User[] | undefined }) {
     },
   });
 
+  // Mutation: Reconnect All
+  const reconnectAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/connections/reconnect-all");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "Reconexão Iniciada", 
+        description: data.message || "Processo de reconexão em massa iniciado." 
+      });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Erro na reconexão", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
   const handleEditEmail = (user: User) => {
     setSelectedUser(user);
     setNewEmail(user.email || "");
@@ -568,13 +589,34 @@ function UsersManager({ users }: { users: User[] | undefined }) {
   return (
     <Card data-testid="card-users-list">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Usuários Cadastrados
-        </CardTitle>
-        <CardDescription>
-          Gerencie os agentes, pagamentos e acessos.
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Usuários Cadastrados
+            </CardTitle>
+            <CardDescription>
+              Gerencie os agentes, pagamentos e acessos.
+            </CardDescription>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => {
+              if (confirm("Isso tentará reconectar TODOS os usuários que possuem conexão configurada. Continuar?")) {
+                reconnectAllMutation.mutate();
+              }
+            }}
+            disabled={reconnectAllMutation.isPending}
+          >
+            {reconnectAllMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Reconectar Todos
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
