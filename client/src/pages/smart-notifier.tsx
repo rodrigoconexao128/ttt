@@ -12,33 +12,28 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function SmartNotifierPage() {
   const { toast } = useToast();
-  const { data: businessConfigData } = useQuery({
-    queryKey: ["/api/agent/business-config"],
+  const { data: notificationConfig, isLoading } = useQuery({
+    queryKey: ["/api/agent/notification-config"],
   });
-  const businessConfig = businessConfigData?.config;
 
   const [notificationPhone, setNotificationPhone] = useState("");
   const [notificationTrigger, setNotificationTrigger] = useState("");
   const [notificationEnabled, setNotificationEnabled] = useState(false);
 
   useEffect(() => {
-    if (businessConfig) {
-      setNotificationPhone(businessConfig.notificationPhoneNumber || "");
-      setNotificationTrigger(businessConfig.notificationTrigger || "");
-      setNotificationEnabled(businessConfig.notificationEnabled || false);
+    if (notificationConfig) {
+      setNotificationPhone(notificationConfig.notificationPhoneNumber || "");
+      setNotificationTrigger(notificationConfig.notificationTrigger || "");
+      setNotificationEnabled(notificationConfig.notificationEnabled || false);
     }
-  }, [businessConfig]);
+  }, [notificationConfig]);
 
   const updateConfigMutation = useMutation({
     mutationFn: async (data: any) => {
-      // We need to send the full config, so we merge with existing
-      return await apiRequest("POST", "/api/agent/business-config", {
-        ...businessConfig,
-        ...data
-      });
+      return await apiRequest("POST", "/api/agent/notification-config", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agent/business-config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/notification-config"] });
       toast({
         title: "Configuração salva",
         description: "As configurações de notificação foram atualizadas.",
@@ -60,6 +55,14 @@ export default function SmartNotifierPage() {
       notificationEnabled: notificationEnabled,
     });
   };
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-auto">

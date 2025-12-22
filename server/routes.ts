@@ -1240,6 +1240,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get notification configuration
+  app.get("/api/agent/notification-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const config = await storage.getBusinessAgentConfig?.(userId);
+      
+      res.json({ 
+        notificationPhoneNumber: config?.notificationPhoneNumber || "",
+        notificationTrigger: config?.notificationTrigger || "",
+        notificationEnabled: config?.notificationEnabled || false,
+      });
+    } catch (error) {
+      console.error("Error getting notification config:", error);
+      res.status(500).json({ message: "Failed to get notification configuration" });
+    }
+  });
+
+  // Save/Update notification configuration (separate from main agent config)
+  app.post("/api/agent/notification-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { notificationPhoneNumber, notificationTrigger, notificationEnabled } = req.body;
+      
+      // Check if user has a business config, if not create a minimal one
+      let existingConfig = await storage.getBusinessAgentConfig?.(userId);
+      
+      if (!existingConfig) {
+        // Create minimal config just for notifications
+        existingConfig = await storage.upsertBusinessAgentConfig?.(userId, {
+          userId,
+          agentName: "Assistente",
+          agentRole: "Assistente Virtual",
+          companyName: "Minha Empresa",
+          notificationPhoneNumber: notificationPhoneNumber || null,
+          notificationTrigger: notificationTrigger || null,
+          notificationEnabled: notificationEnabled || false,
+        });
+      } else {
+        // Update only notification fields
+        existingConfig = await storage.upsertBusinessAgentConfig?.(userId, {
+          ...existingConfig,
+          notificationPhoneNumber: notificationPhoneNumber || null,
+          notificationTrigger: notificationTrigger || null,
+          notificationEnabled: notificationEnabled || false,
+        });
+      }
+      
+      res.json({ 
+        message: "Notification configuration saved successfully",
+        notificationPhoneNumber: existingConfig?.notificationPhoneNumber || "",
+        notificationTrigger: existingConfig?.notificationTrigger || "",
+        notificationEnabled: existingConfig?.notificationEnabled || false,
+      });
+    } catch (error) {
+      console.error("Error saving notification config:", error);
+      res.status(500).json({ message: "Failed to save notification configuration" });
+    }
+  });
+
   // Get available templates
   app.get("/api/agent/templates", isAuthenticated, async (_req: any, res) => {
     try {
