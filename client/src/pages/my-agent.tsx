@@ -175,32 +175,6 @@ export default function MyAgent() {
     },
   });
 
-  // 🎯 Mutation específica para toggle de ativar/desativar (salva imediatamente)
-  const toggleActiveMutation = useMutation({
-    mutationFn: async (newActiveState: boolean) => {
-      return await apiRequest("POST", "/api/agent/config", {
-        isActive: newActiveState,
-      });
-    },
-    onSuccess: (_, newActiveState) => {
-      setIsActive(newActiveState);
-      queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
-      toast({
-        title: newActiveState ? "✅ Agente Ativado" : "⏸️ Agente Desativado",
-        description: newActiveState 
-          ? "O agente IA agora está respondendo mensagens" 
-          : "O agente IA não responderá mensagens",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao alterar status",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const testAgentMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/agent/test", {
@@ -444,9 +418,7 @@ export default function MyAgent() {
                 variant={isActive ? "default" : "secondary"}
                 className={`gap-2 px-4 py-2 text-sm ${isActive ? 'bg-green-500 hover:bg-green-600' : ''}`}
               >
-                {toggleActiveMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</>
-                ) : isActive ? (
+                {isActive ? (
                   <><CheckCircle2 className="w-4 h-4" /> Ativo</>
                 ) : (
                   <><AlertCircle className="w-4 h-4" /> Inativo</>
@@ -454,8 +426,7 @@ export default function MyAgent() {
               </Badge>
               <Switch
                 checked={isActive}
-                onCheckedChange={(checked) => toggleActiveMutation.mutate(checked)}
-                disabled={toggleActiveMutation.isPending}
+                onCheckedChange={setIsActive}
                 className="scale-125"
               />
             </div>
