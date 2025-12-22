@@ -1532,16 +1532,10 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     });
   }
 
-  // 🛑 FOLLOW-UP: Se cliente respondeu, RESETAR ciclo (não cancelar permanentemente)
-  try {
-    // Antes: disableFollowUp (matava o follow-up para sempre)
-    // Agora: resetFollowUpCycle (empurra para daqui 10 min)
-    // Isso garante que se o cliente sumir de novo, o bot volta a chamar.
-    await followUpService.resetFollowUpCycle(contactNumber);
-    console.log(`🔄 [FOLLOW-UP] Ciclo resetado para ${contactNumber} (cliente respondeu)`);
-  } catch (error) {
-    console.error("Erro ao resetar follow-up:", error);
-  }
+  // 🛑 FOLLOW-UP: NÃO resetar aqui - isso é para conversas de CLIENTES do SaaS
+  // O follow-up só existe para conversas do ADMIN (admin_conversations)
+  // Esta função (handleIncomingMessage) processa conversas de CLIENTES, não do admin.
+  // O reset do follow-up para admin_conversations é feito em handleAdminIncomingMessage
 
     const savedMessage = await storage.createMessage({
       conversationId: conversation.id,

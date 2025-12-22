@@ -239,16 +239,19 @@ export async function generateAIResponse(
        }
 
        // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO NO LEGADO SE CONFIGURADO
-       if (businessConfig && businessConfig.notificationEnabled && businessConfig.notificationTrigger) {
+       // IMPORTANTE: Verificar notificationEnabled INDEPENDENTE de businessConfig.isActive
+       // O usuário pode ter configurado apenas o notificador sem usar o sistema avançado de agente
+       if (businessConfig?.notificationEnabled && businessConfig?.notificationTrigger) {
+         console.log(`🔔 [AI Agent] Notification system ACTIVE - Trigger: "${businessConfig.notificationTrigger.substring(0, 50)}..."`);
          const notificationSection = `
 
   ---
-  🔔 *SISTEMA DE NOTIFICAÇÃO:*
-  Você deve analisar a conversa e verificar se a seguinte condição foi atendida:
+  🔔 *SISTEMA DE NOTIFICAÇÃO ATIVO:*
+  ANALISE a conversa e verifique se a seguinte condição foi atendida:
   "${businessConfig.notificationTrigger}"
 
-  SE (e somente se) esta condição for atendida, você deve incluir a seguinte tag no final da sua resposta (em uma nova linha):
-  [NOTIFY: ${businessConfig.notificationTrigger}]
+  SE (e SOMENTE SE) esta condição for atendida na mensagem do cliente, você DEVE incluir a seguinte tag NO FINAL da sua resposta (em uma NOVA LINHA, após o texto de resposta):
+  [NOTIFY: motivo breve]
 
   Exemplo:
   "Claro, posso agendar para você. Qual horário prefere?
@@ -404,6 +407,9 @@ export async function generateAIResponse(
       responseText = convertMarkdownToWhatsApp(responseText);
 
       // 🔔 NOTIFICATION SYSTEM: Check for [NOTIFY: ...] tag
+      console.log(`🔔 [AI Agent] Checking for NOTIFY tag in response...`);
+      console.log(`   Response snippet (last 100 chars): "${responseText.slice(-100)}"`);
+      
       const notifyMatch = responseText.match(/\[NOTIFY: (.*?)\]/);
       if (notifyMatch) {
         notification = {
@@ -412,7 +418,9 @@ export async function generateAIResponse(
         };
         // Remove tag from response
         responseText = responseText.replace(/\[NOTIFY: .*?\]/, '').trim();
-        console.log(`🔔 [AI Agent] Notification trigger detected: ${notification.reason}`);
+        console.log(`🔔 [AI Agent] ✅ Notification trigger detected: ${notification.reason}`);
+      } else {
+        console.log(`🔔 [AI Agent] ❌ No NOTIFY tag found in response`);
       }
       
       // 🚨 POST-PROCESSING: Detectar se resposta parece "dump de instruções"
