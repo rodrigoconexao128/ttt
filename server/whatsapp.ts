@@ -61,6 +61,10 @@ const agentMessageIds = new Set<string>();
 // Evita múltiplas solicitações simultâneas para o mesmo usuário
 const pendingPairingRequests = new Map<string, Promise<string | null>>();
 
+// 🔒 Map para rastrear conexões em andamento
+// Evita múltiplas tentativas de conexão simultâneas para o mesmo usuário
+const pendingConnections = new Map<string, Promise<void>>();
+
 // 🎯 SISTEMA DE ACUMULAÇÃO DE MENSAGENS
 // Rastreia timeouts pendentes e mensagens acumuladas por conversa
 interface PendingResponse {
@@ -807,30 +811,39 @@ export async function forceReconnectWhatsApp(userId: string): Promise<void> {
 }
 
 export async function connectWhatsApp(userId: string): Promise<void> {
-  try {
-    console.log(`[CONNECT] Starting connection for user ${userId}...`);
-    
-    // Verificar se já existe uma sessão ativa
-    const existingSession = sessions.get(userId);
-    if (existingSession?.socket) {
-      // Verificar se o socket está realmente conectado
-      const isSocketConnected = existingSession.socket.user !== undefined;
-      if (isSocketConnected) {
-        console.log(`[CONNECT] User ${userId} already has an active connected session, using existing one`);
-        return;
-      } else {
-        // Sessão existe mas não está conectada - limpar e recriar
-        console.log(`[CONNECT] User ${userId} has stale session (not connected), cleaning up...`);
-        try {
-          existingSession.socket.end(undefined);
-        } catch (e) {
-          console.log(`[CONNECT] Error closing stale socket:`, e);
-        }
-        sessions.delete(userId);
-      }
-    }
+  // 🔒 Verificar se já existe uma conexão em andamento
+  const existingPendingConnection = pendingConnections.get(userId);
+  if (existingPendingConnection) {
+    console.log(`[CONNECT] Connection already in progress for user ${userId}, waiting for it to complete...`);
+    return existingPendingConnection;
+  }
 
-    let connection = await storage.getConnectionByUserId(userId);
+  // Criar promise para rastrear esta tentativa de conexão
+  const connectionPromise = (async () => {
+    try {
+      console.log(`[CONNECT] Starting connection for user ${userId}...`);
+      
+      // Verificar se já existe uma sessão ativa
+      const existingSession = sessions.get(userId);
+      if (existingSession?.socket) {
+        // Verificar se o socket está realmente conectado
+        const isSocketConnected = existingSession.socket.user !== undefined;
+        if (isSocketConnected) {
+          console.log(`[CONNECT] User ${userId} already has an active connected session, using existing one`);
+          return;
+        } else {
+          // Sessão existe mas não está conectada - limpar e recriar
+          console.log(`[CONNECT] User ${userId} has stale session (not connected), cleaning up...`);
+          try {
+            existingSession.socket.end(undefined);
+          } catch (e) {
+            console.log(`[CONNECT] Error closing stale socket:`, e);
+          }
+          sessions.delete(userId);
+        }
+      }
+
+      let connection = await storage.getConnectionByUserId(userId);
     
     if (!connection) {
       console.log(`[CONNECT] No connection record found, creating new one for ${userId}`);
@@ -974,6 +987,7 @@ export async function connectWhatsApp(userId: string): Promise<void> {
 
         // Sempre deletar a sessÃ£o primeiro
         sessions.delete(userId);
+        pendingConnections.delete(userId); // Limpar da lista de pendentes
 
         // Atualizar banco de dados
         await storage.updateConnection(session.connectionId, {
@@ -982,9 +996,9 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         });
 
         if (shouldReconnect) {
-          console.log(`User ${userId} WhatsApp disconnected temporarily, reconnecting...`);
+          console.log(`User ${userId} WhatsApp disconnected temporarily, reconnecting in 5 seconds...`);
           broadcastToUser(userId, { type: "disconnected" });
-          setTimeout(() => connectWhatsApp(userId), 3000);
+          setTimeout(() => connectWhatsApp(userId), 5000); // Aumentado para 5 segundos
         } else {
           // Foi logout (desconectado pelo celular), limpar TUDO
           console.log(`User ${userId} logged out from device, clearing all auth files...`);
@@ -1000,7 +1014,7 @@ export async function connectWhatsApp(userId: string): Promise<void> {
             connectWhatsApp(userId).catch((err) => {
               console.error(`Error reconnecting WhatsApp after logout for ${userId}:`, err);
             });
-          }, 1500);
+          }, 3000); // Aumentado para 3 segundos
         }
       } else if (conn === "open") {
         const phoneNumber = sock.user?.id?.split(":")[0] || "";
@@ -1063,10 +1077,21 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       }
     });
 
-  } catch (error) {
-    console.error("Error connecting WhatsApp:", error);
-    throw error;
-  }
+    } catch (error) {
+      console.error("Error connecting WhatsApp:", error);
+      pendingConnections.delete(userId);
+      throw error;
+    } finally {
+      // Limpar da lista de pendentes quando terminar (sucesso ou erro)
+      pendingConnections.delete(userId);
+    }
+  })();
+
+  // Armazenar a promise no mapa
+  pendingConnections.set(userId, connectionPromise);
+
+  // Retornar a promise
+  return connectionPromise;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
