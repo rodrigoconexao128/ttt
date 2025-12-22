@@ -237,6 +237,27 @@ export async function generateAIResponse(
          systemPrompt += mediaPromptBlock;
          console.log(`📁 [AI Agent] Added media block to legacy prompt (${mediaPromptBlock.length} chars)`);
        }
+
+       // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO NO LEGADO SE CONFIGURADO
+       if (businessConfig && businessConfig.notificationEnabled && businessConfig.notificationTrigger) {
+         const notificationSection = `
+
+  ---
+  🔔 *SISTEMA DE NOTIFICAÇÃO:*
+  Você deve analisar a conversa e verificar se a seguinte condição foi atendida:
+  "${businessConfig.notificationTrigger}"
+
+  SE (e somente se) esta condição for atendida, você deve incluir a seguinte tag no final da sua resposta (em uma nova linha):
+  [NOTIFY: ${businessConfig.notificationTrigger}]
+
+  Exemplo:
+  "Claro, posso agendar para você. Qual horário prefere?
+  [NOTIFY: Cliente quer agendar]"
+  `;
+         systemPrompt += notificationSection;
+         console.log(`🔔 [AI Agent] Added notification system to legacy prompt`);
+       }
+
        console.log(`📝 [AI Agent] Using legacy prompt (${systemPrompt.length} chars)`);
      }
      

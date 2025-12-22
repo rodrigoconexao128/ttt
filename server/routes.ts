@@ -184,19 +184,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
 
-      // Trigger reconnection
-      // We don't await this fully to avoid timeout, but we catch errors
-      connectWhatsApp(userId).catch(err => {
-        console.error(`[ADMIN] Failed to reconnect user ${userId}:`, err);
+      // Check current connection status
+      const connection = await storage.getConnectionByUserId(userId);
+      console.log(`[ADMIN] User ${userId} connection status:`, {
+        hasConnection: !!connection,
+        isConnected: connection?.isConnected,
+        phoneNumber: connection?.phoneNumber
       });
 
-      res.json({ 
-        success: true, 
-        message: `Reconnection started for user ${user.name || userId}` 
-      });
-    } catch (error) {
+      // Trigger reconnection - await to get result
+      try {
+        await connectWhatsApp(userId);
+        console.log(`[ADMIN] Successfully initiated reconnection for user ${userId}`);
+        
+        // Check status after attempt
+        const updatedConnection = await storage.getConnectionByUserId(userId);
+        
+        res.json({ 
+          success: true, 
+          message: `Reconnection started for user ${user.name || userId}`,
+          status: {
+            isConnected: updatedConnection?.isConnected,
+            phoneNumber: updatedConnection?.phoneNumber
+          }
+        });
+      } catch (connectError: any) {
+        console.error(`[ADMIN] Failed to reconnect user ${userId}:`, connectError);
+        res.json({ 
+          success: false, 
+          message: `Failed to reconnect: ${connectError.message}`,
+          error: connectError.message 
+        });
+      }
+    } catch (error: any) {
       console.error(`[ADMIN] Error reconnecting user ${req.params.userId}:`, error);
-      res.status(500).json({ message: "Error reconnecting user" });
+      res.status(500).json({ message: "Error reconnecting user", error: error.message });
     }
   });
 

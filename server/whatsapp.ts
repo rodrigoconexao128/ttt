@@ -787,29 +787,44 @@ async function clearAuthFiles(authPath: string): Promise<void> {
 
 export async function connectWhatsApp(userId: string): Promise<void> {
   try {
-    // Verificar se jÃ¡ existe uma sessÃ£o ativa
+    console.log(`[CONNECT] Starting connection for user ${userId}...`);
+    
+    // Verificar se já existe uma sessão ativa
     const existingSession = sessions.get(userId);
     if (existingSession?.socket) {
-      console.log(`User ${userId} already has an active session, using existing one`);
+      console.log(`[CONNECT] User ${userId} already has an active session, using existing one`);
       return;
     }
 
     let connection = await storage.getConnectionByUserId(userId);
     
     if (!connection) {
+      console.log(`[CONNECT] No connection record found, creating new one for ${userId}`);
       connection = await storage.createConnection({
         userId,
         isConnected: false,
       });
+    } else {
+      console.log(`[CONNECT] Found existing connection record for ${userId}: isConnected=${connection.isConnected}`);
     }
 
     const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
     await ensureDirExists(userAuthPath);
+    
+    // Check if auth files exist
+    try {
+      const authFiles = await fs.readdir(userAuthPath);
+      console.log(`[CONNECT] Auth files for ${userId}: ${authFiles.length > 0 ? authFiles.join(', ') : 'NONE (will show QR)'}`);
+    } catch (e) {
+      console.log(`[CONNECT] Auth directory empty or inaccessible for ${userId}, will show QR`);
+    }
+    
     const { state, saveCreds } = await useMultiFileAuthState(userAuthPath);
 
     // FIX LID 2025: Cache manual para mapear @lid → phone number
     const contactsCache = new Map<string, Contact>();
 
+    console.log(`[CONNECT] Creating WASocket for ${userId}...`);
     const sock = makeWASocket({
       auth: state,
       logger: pino({ level: "silent" }),

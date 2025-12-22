@@ -590,20 +590,28 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
       return res.json();
     },
     onSuccess: (data) => {
-      toast({ 
-        title: "Reconexão Iniciada", 
-        description: data.message 
-      });
-      // Aguardar um pouco e atualizar a lista para ver se mudou o status (embora a conexão leve tempo)
+      if (data.success) {
+        toast({ 
+          title: "✅ Reconexão Iniciada", 
+          description: data.message 
+        });
+      } else {
+        toast({ 
+          title: "⚠️ Problema na Reconexão", 
+          description: data.message || "A reconexão pode precisar de um novo QR Code.",
+          variant: "destructive" 
+        });
+      }
+      // Aguardar um pouco e atualizar a lista para ver se mudou o status
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
         setReconnectingUserId(null);
-      }, 2000);
+      }, 3000);
     },
     onError: (error) => {
       setReconnectingUserId(null);
       toast({ 
-        title: "Erro", 
+        title: "❌ Erro", 
         description: error.message, 
         variant: "destructive" 
       });
