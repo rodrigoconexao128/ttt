@@ -785,6 +785,27 @@ async function clearAuthFiles(authPath: string): Promise<void> {
   }
 }
 
+// Força reconexão limpando sessão existente na memória (sem apagar arquivos de auth)
+export async function forceReconnectWhatsApp(userId: string): Promise<void> {
+  console.log(`[FORCE RECONNECT] Starting force reconnection for user ${userId}...`);
+  
+  // Limpar sessão existente na memória (se houver)
+  const existingSession = sessions.get(userId);
+  if (existingSession?.socket) {
+    console.log(`[FORCE RECONNECT] Found existing session in memory, closing it...`);
+    try {
+      // Fechar socket sem fazer logout (preserva credenciais)
+      existingSession.socket.end(undefined);
+    } catch (e) {
+      console.log(`[FORCE RECONNECT] Error closing existing socket (ignoring):`, e);
+    }
+    sessions.delete(userId);
+  }
+  
+  // Agora chamar connectWhatsApp normalmente
+  await connectWhatsApp(userId);
+}
+
 export async function connectWhatsApp(userId: string): Promise<void> {
   try {
     console.log(`[CONNECT] Starting connection for user ${userId}...`);
@@ -792,8 +813,21 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     // Verificar se já existe uma sessão ativa
     const existingSession = sessions.get(userId);
     if (existingSession?.socket) {
-      console.log(`[CONNECT] User ${userId} already has an active session, using existing one`);
-      return;
+      // Verificar se o socket está realmente conectado
+      const isSocketConnected = existingSession.socket.user !== undefined;
+      if (isSocketConnected) {
+        console.log(`[CONNECT] User ${userId} already has an active connected session, using existing one`);
+        return;
+      } else {
+        // Sessão existe mas não está conectada - limpar e recriar
+        console.log(`[CONNECT] User ${userId} has stale session (not connected), cleaning up...`);
+        try {
+          existingSession.socket.end(undefined);
+        } catch (e) {
+          console.log(`[CONNECT] Error closing stale socket:`, e);
+        }
+        sessions.delete(userId);
+      }
     }
 
     let connection = await storage.getConnectionByUserId(userId);

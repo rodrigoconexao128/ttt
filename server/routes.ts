@@ -35,6 +35,7 @@ import { isAdmin } from "./middleware";
 import {
   connectWhatsApp,
   disconnectWhatsApp,
+  forceReconnectWhatsApp,
   sendMessage as whatsappSendMessage,
   addWebSocketClient,
   addAdminWebSocketClient,
@@ -172,11 +173,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Reconnect single user
+  // Reconnect single user (force reconnection)
   app.post("/api/admin/connections/reconnect/:userId", isAdmin, async (req, res) => {
     try {
       const { userId } = req.params;
-      console.log(`[ADMIN] Reconnecting user ${userId}...`);
+      console.log(`[ADMIN] Force reconnecting user ${userId}...`);
       
       // Check if user exists
       const user = await storage.getUser(userId);
@@ -192,17 +193,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phoneNumber: connection?.phoneNumber
       });
 
-      // Trigger reconnection - await to get result
+      // Force reconnection - clears stale session and reconnects
       try {
-        await connectWhatsApp(userId);
-        console.log(`[ADMIN] Successfully initiated reconnection for user ${userId}`);
+        await forceReconnectWhatsApp(userId);
+        console.log(`[ADMIN] Successfully initiated force reconnection for user ${userId}`);
+        
+        // Wait a bit for connection to establish
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Check status after attempt
         const updatedConnection = await storage.getConnectionByUserId(userId);
         
         res.json({ 
           success: true, 
-          message: `Reconnection started for user ${user.name || userId}`,
+          message: `Reconexão iniciada para ${user.name || user.email || userId}`,
           status: {
             isConnected: updatedConnection?.isConnected,
             phoneNumber: updatedConnection?.phoneNumber
@@ -212,7 +216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error(`[ADMIN] Failed to reconnect user ${userId}:`, connectError);
         res.json({ 
           success: false, 
-          message: `Failed to reconnect: ${connectError.message}`,
+          message: `Falha na reconexão: ${connectError.message}`,
           error: connectError.message 
         });
       }
@@ -222,23 +226,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Reconnect all WhatsApp sessions
+  // Reconnect all WhatsApp sessions (force)
   app.post("/api/admin/connections/reconnect-all", isAdmin, async (req, res) => {
     try {
-      console.log("[ADMIN] Starting bulk reconnection...");
+      console.log("[ADMIN] Starting bulk force reconnection...");
       const connections = await storage.getAllConnections();
       let reconnectedCount = 0;
 
       for (const connection of connections) {
         if (connection.userId) {
             // Add a small delay to avoid overwhelming the server
-            await new Promise(resolve => setTimeout(resolve, 500)); 
-            console.log(`[ADMIN] Reconnecting user ${connection.userId}...`);
-            // We don't await this to speed up the response, or we can await if we want to be sure
-            // Given "reconnect all", it might take time. Let's await but maybe not block the whole response forever?
-            // Actually, connectWhatsApp is async. If we await it, it might take a while if it waits for QR code generation etc.
-            // But connectWhatsApp usually just initializes the socket.
-            await connectWhatsApp(connection.userId).catch(err => {
+            await new Promise(resolve => setTimeout(resolve, 1000)); 
+            console.log(`[ADMIN] Force reconnecting user ${connection.userId}...`);
+            await forceReconnectWhatsApp(connection.userId).catch(err => {
                 console.error(`[ADMIN] Failed to reconnect user ${connection.userId}:`, err);
             });
             reconnectedCount++;
@@ -247,7 +247,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ 
         success: true, 
-        message: `Reconnection process started for ${reconnectedCount} users`,
+        message: `Reconexão forçada iniciada para ${reconnectedCount} usuários`,
+        count: reconnectedCount
+      });
+    } catch (error) {
+      console.error("[ADMIN] Error in bulk reconnection:", error);
+      res.status(500).json({ message: "Error reconnecting users" });
+    }
+  });
         count: reconnectedCount
       });
     } catch (error) {
