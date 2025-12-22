@@ -241,6 +241,11 @@ export const businessAgentConfigs = pgTable("business_agent_configs", {
   escalateToHuman: boolean("escalate_to_human").default(true).notNull(),
   escalationKeywords: text("escalation_keywords").array().default([]),
   
+  // Notification System
+  notificationPhoneNumber: varchar("notification_phone_number"),
+  notificationTrigger: text("notification_trigger"), // "Notify me when..."
+  notificationEnabled: boolean("notification_enabled").default(false).notNull(),
+
   // System Configuration
   isActive: boolean("is_active").default(false).notNull(),
   model: varchar("model", { length: 100 }).default("mistral-small-latest").notNull(),

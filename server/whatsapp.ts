@@ -1555,6 +1555,23 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     const aiResponse = aiResult?.text || null;
     const mediaActions = aiResult?.mediaActions || [];
 
+    // 🔔 NOTIFICATION SYSTEM
+    if (aiResult?.notification?.shouldNotify) {
+      const businessConfig = await storage.getBusinessAgentConfig(userId);
+      if (businessConfig?.notificationPhoneNumber) {
+        const notifyNumber = businessConfig.notificationPhoneNumber.replace(/\D/g, '');
+        const notifyJid = `${notifyNumber}@s.whatsapp.net`;
+        const notifyMessage = `🔔 *NOTIFICAÇÃO DO AGENTE*\n\nMotivo: ${aiResult.notification.reason}\n\nCliente: ${contactNumber}\nÚltima mensagem: "${combinedText}"`;
+        
+        try {
+          await currentSession.socket.sendMessage(notifyJid, { text: notifyMessage });
+          console.log(`🔔 [AI Agent] Notification sent to ${notifyNumber}`);
+        } catch (error) {
+          console.error(`❌ [AI Agent] Failed to send notification to ${notifyNumber}:`, error);
+        }
+      }
+    }
+
     console.log(`🔍 [AI Agent] generateAIResponse retornou: ${aiResponse ? `"${aiResponse.substring(0, 100)}..."` : 'NULL'}`);
     if (mediaActions.length > 0) {
       console.log(`📁 [AI Agent] ${mediaActions.length} ações de mídia: ${mediaActions.map(a => a.media_name).join(', ')}`);

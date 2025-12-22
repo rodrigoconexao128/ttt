@@ -97,6 +97,8 @@ NUNCA:
 
 {{ESCALACAO_HUMANO}}
 
+{{SISTEMA_NOTIFICACAO}}
+
 ═══════════════════════════════════════════════════════════
 🎯 OBJETIVO PRINCIPAL
 ═══════════════════════════════════════════════════════════
@@ -330,6 +332,25 @@ Ou se você não conseguir resolver o problema, diga:
     prompt = prompt.replace(/{{ESCALACAO_HUMANO}}/g, escalationSection);
   } else {
     prompt = prompt.replace(/{{ESCALACAO_HUMANO}}/g, "");
+  }
+
+  // Notification System
+  if (config.notificationEnabled && config.notificationTrigger) {
+    const notificationSection = `
+🔔 *SISTEMA DE NOTIFICAÇÃO:*
+Você deve analisar a conversa e verificar se a seguinte condição foi atendida:
+"${config.notificationTrigger}"
+
+SE (e somente se) esta condição for atendida, você deve incluir a seguinte tag no final da sua resposta (em uma nova linha):
+[NOTIFY: ${config.notificationTrigger}]
+
+Exemplo:
+"Claro, posso agendar para você. Qual horário prefere?
+[NOTIFY: Cliente quer agendar]"
+`;
+    prompt = prompt.replace(/{{SISTEMA_NOTIFICACAO}}/g, notificationSection);
+  } else {
+    prompt = prompt.replace(/{{SISTEMA_NOTIFICACAO}}/g, "");
   }
 
   // Objetivo Principal (baseado no tipo de negócio)

@@ -25,6 +25,10 @@ import {
 export interface AIResponseResult {
   text: string | null;
   mediaActions?: MistralResponse['actions'];
+  notification?: {
+    shouldNotify: boolean;
+    reason: string;
+  };
 }
 
 // 📝 Converter formatação Markdown para WhatsApp
@@ -353,6 +357,7 @@ export async function generateAIResponse(
 
     const content = chatResponse.choices?.[0]?.message?.content;
     let responseText = typeof content === 'string' ? content : null;
+    let notification: { shouldNotify: boolean; reason: string; } | undefined;
     
     if (responseText) {
       // 🚫 FIX: Detectar e remover duplicação na resposta do Mistral
@@ -376,6 +381,18 @@ export async function generateAIResponse(
       // WhatsApp: *negrito* _itálico_ ~tachado~ ```mono```
       // Markdown:  **negrito** *itálico* ~~tachado~~ `mono`
       responseText = convertMarkdownToWhatsApp(responseText);
+
+      // 🔔 NOTIFICATION SYSTEM: Check for [NOTIFY: ...] tag
+      const notifyMatch = responseText.match(/\[NOTIFY: (.*?)\]/);
+      if (notifyMatch) {
+        notification = {
+          shouldNotify: true,
+          reason: notifyMatch[1].trim()
+        };
+        // Remove tag from response
+        responseText = responseText.replace(/\[NOTIFY: .*?\]/, '').trim();
+        console.log(`🔔 [AI Agent] Notification trigger detected: ${notification.reason}`);
+      }
       
       // 🚨 POST-PROCESSING: Detectar se resposta parece "dump de instruções"
       const hasManyHeaders = (responseText.match(/^#{1,3}\s/gm) || []).length > 2;
@@ -477,6 +494,7 @@ export async function generateAIResponse(
     return {
       text: responseText,
       mediaActions,
+      notification,
     };
   } catch (error) {
     console.error("Error generating AI response:", error);
