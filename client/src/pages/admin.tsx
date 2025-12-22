@@ -618,6 +618,36 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
     },
   });
 
+  // Mutation: Reset User Session (force new QR code)
+  const resetUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest("POST", `/api/admin/connections/reset/${userId}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast({ 
+          title: "🔄 Sessão Resetada", 
+          description: data.message 
+        });
+      } else {
+        toast({ 
+          title: "⚠️ Erro ao Resetar", 
+          description: data.message,
+          variant: "destructive" 
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "❌ Erro", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
   const handleEditEmail = (user: User) => {
     setSelectedUser(user);
     setNewEmail(user.email || "");
@@ -706,6 +736,7 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
                       {user.isConnected ? "Conectado" : "Offline"}
                     </Badge>
                     {!user.isConnected && (
+                      <>
                         <Button 
                             size="icon" 
                             variant="ghost" 
@@ -716,6 +747,20 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
                         >
                             <RefreshCw className={`h-3 w-3 ${reconnectingUserId === user.id ? 'animate-spin' : ''}`} />
                         </Button>
+                        <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-6 w-6 text-orange-500 hover:text-orange-600" 
+                            title="Resetar Sessão (força novo QR Code)"
+                            onClick={() => {
+                              if (confirm("Isso vai apagar a sessão do usuário e ele precisará escanear um novo QR Code. Continuar?")) {
+                                resetUserMutation.mutate(user.id);
+                              }
+                            }}
+                        >
+                            <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </>
                     )}
                   </div>
                 </TableCell>

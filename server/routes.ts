@@ -36,6 +36,7 @@ import {
   connectWhatsApp,
   disconnectWhatsApp,
   forceReconnectWhatsApp,
+  forceResetWhatsApp,
   sendMessage as whatsappSendMessage,
   addWebSocketClient,
   addAdminWebSocketClient,
@@ -223,6 +224,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error(`[ADMIN] Error reconnecting user ${req.params.userId}:`, error);
       res.status(500).json({ message: "Error reconnecting user", error: error.message });
+    }
+  });
+
+  // Reset user session (clear auth files, force new QR code)
+  app.post("/api/admin/connections/reset/:userId", isAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      console.log(`[ADMIN] Resetting session for user ${userId}...`);
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      await forceResetWhatsApp(userId);
+      
+      res.json({ 
+        success: true, 
+        message: `Sessão resetada para ${user.name || user.email}. Usuário precisará escanear novo QR Code.`
+      });
+    } catch (error: any) {
+      console.error(`[ADMIN] Error resetting session for user ${req.params.userId}:`, error);
+      res.status(500).json({ message: "Error resetting session", error: error.message });
     }
   });
 

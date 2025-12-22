@@ -812,8 +812,47 @@ export async function forceReconnectWhatsApp(userId: string): Promise<void> {
     sessions.delete(userId);
   }
   
+  // Limpar pending connections
+  pendingConnections.delete(userId);
+  
   // Agora chamar connectWhatsApp normalmente
   await connectWhatsApp(userId);
+}
+
+// Força reset COMPLETO - apaga arquivos de autenticação (força novo QR Code)
+export async function forceResetWhatsApp(userId: string): Promise<void> {
+  console.log(`[FORCE RESET] Starting complete reset for user ${userId}...`);
+  
+  // Limpar sessão existente na memória (se houver)
+  const existingSession = sessions.get(userId);
+  if (existingSession?.socket) {
+    console.log(`[FORCE RESET] Found existing session in memory, closing it...`);
+    try {
+      existingSession.socket.end(undefined);
+    } catch (e) {
+      console.log(`[FORCE RESET] Error closing existing socket (ignoring):`, e);
+    }
+    sessions.delete(userId);
+  }
+  
+  // Limpar pending connections
+  pendingConnections.delete(userId);
+  
+  // APAGAR arquivos de autenticação (força novo QR Code)
+  const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+  await clearAuthFiles(userAuthPath);
+  console.log(`[FORCE RESET] Auth files cleared for user ${userId}`);
+  
+  // Atualizar banco de dados
+  const connection = await storage.getConnectionByUserId(userId);
+  if (connection) {
+    await storage.updateConnection(connection.id, {
+      isConnected: false,
+      qrCode: null,
+    });
+  }
+  
+  console.log(`[FORCE RESET] Complete reset done for user ${userId}. User will need to scan new QR code.`);
 }
 
 export async function connectWhatsApp(userId: string): Promise<void> {
@@ -3032,16 +3071,31 @@ export async function restoreExistingSessions(): Promise<void> {
     const connections = await storage.getAllConnections();
 
     for (const connection of connections) {
-      if (connection.isConnected && connection.userId) {
-        console.log(`Restoring WhatsApp session for user ${connection.userId}...`);
+      // Tenta restaurar se:
+      // 1. Estava marcada como conectada no banco, OU
+      // 2. Tem arquivos de autenticação salvos (sessão persistida)
+      if (connection.userId) {
+        const userAuthPath = path.join(SESSIONS_BASE, `auth_${connection.userId}`);
+        let hasAuthFiles = false;
+        
         try {
-          await connectWhatsApp(connection.userId);
-        } catch (error) {
-          console.error(`Failed to restore session for user ${connection.userId}:`, error);
-          await storage.updateConnection(connection.id, {
-            isConnected: false,
-            qrCode: null,
-          });
+          const authFiles = await fs.readdir(userAuthPath);
+          hasAuthFiles = authFiles.length > 0;
+        } catch (e) {
+          // Diretório não existe ou erro ao ler
+        }
+        
+        if (connection.isConnected || hasAuthFiles) {
+          console.log(`Restoring WhatsApp session for user ${connection.userId}... (wasConnected: ${connection.isConnected}, hasAuthFiles: ${hasAuthFiles})`);
+          try {
+            await connectWhatsApp(connection.userId);
+          } catch (error) {
+            console.error(`Failed to restore session for user ${connection.userId}:`, error);
+            await storage.updateConnection(connection.id, {
+              isConnected: false,
+              qrCode: null,
+            });
+          }
         }
       }
     }
