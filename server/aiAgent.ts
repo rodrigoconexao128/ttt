@@ -73,28 +73,19 @@ export async function generateAIResponse(
     // ═══════════════════════════════════════════════════════════════════════
     // 🎯 LÓGICA DE ATIVAÇÃO DO AGENTE:
     // 
-    // O sistema tem DUAS configurações:
-    // 1. ai_agent_config (legado) - tabela original
-    // 2. business_agent_configs (novo/avançado) - novo sistema
-    //
-    // REGRA DE ATIVAÇÃO:
-    // - Se businessConfig existe E tem isActive=false → DESATIVADO (prioridade)
-    // - Se businessConfig não existe → usar agentConfig.isActive (legado)
-    // - Se businessConfig existe E tem isActive=true → ATIVADO (avançado)
+    // O `ai_agent_config.isActive` (página /meu-agente-ia) é o PRINCIPAL.
+    // Ele controla se o agente responde ou não.
+    // 
+    // O `business_agent_configs.isActive` controla apenas se usa o "modo
+    // avançado" com features extras (jailbreak detection, off-topic, etc.)
     // ═══════════════════════════════════════════════════════════════════════
-    
-    // Se existe config de negócio com isActive=false, não responder
-    if (businessConfig && businessConfig.isActive === false) {
-      console.log(`   ❌ [AI Agent] Business config inactive - agent DISABLED`);
-      return null;
-    }
 
     if (!agentConfig || !agentConfig.isActive) {
       console.log(`   ❌ [AI Agent] Legacy config not found or inactive - agent DISABLED`);
       return null;
     }
     
-    console.log(`   ✅ [AI Agent] Agent ENABLED, processing response...`);
+    console.log(`   ✅ [AI Agent] Agent ENABLED (legacy isActive=true), processing response...`);
     
     // 📁 BUSCAR BIBLIOTECA DE MÍDIAS DO AGENTE
     const mediaLibrary = await getAgentMediaLibrary(userId);
@@ -104,7 +95,7 @@ export async function generateAIResponse(
       console.log(`📁 [AI Agent] Found ${mediaLibrary.length} media items for user ${userId}`);
     }
     
-    // 🎯 USAR BUSINESS CONFIG SE DISPONÍVEL (novo sistema avançado)
+    // 🎯 USAR BUSINESS CONFIG SE DISPONÍVEL E ATIVO (modo avançado)
     const useAdvancedSystem = businessConfig && businessConfig.isActive;
     
     if (useAdvancedSystem) {
