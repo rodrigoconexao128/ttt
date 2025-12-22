@@ -255,13 +255,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Error reconnecting users" });
     }
   });
-        count: reconnectedCount
-      });
-    } catch (error) {
-      console.error("[ADMIN] Error in bulk reconnection:", error);
-      res.status(500).json({ message: "Error reconnecting users" });
-    }
-  });
 
   // Update user email
   app.patch("/api/admin/users/:id", isAdmin, async (req, res) => {
