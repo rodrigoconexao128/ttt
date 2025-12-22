@@ -63,10 +63,38 @@ export async function generateAIResponse(
     // 🔄 FALLBACK: Buscar config legado se novo não existir
     const agentConfig = await storage.getAgentConfig(userId);
 
-    if (!agentConfig || !agentConfig.isActive) {
-      console.log(`[AI Agent] Config not found or inactive for user ${userId}`);
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🎯 DEBUG: Mostrar status das configurações
+    // ═══════════════════════════════════════════════════════════════════════
+    console.log(`\n🔍 [AI Agent] Verificando configurações para user ${userId}:`);
+    console.log(`   📊 Legacy (ai_agent_config): ${agentConfig ? `exists, isActive=${agentConfig.isActive}` : 'NOT FOUND'}`);
+    console.log(`   📊 Business (business_agent_configs): ${businessConfig ? `exists, isActive=${businessConfig.isActive}` : 'NOT FOUND'}`);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🎯 LÓGICA DE ATIVAÇÃO DO AGENTE:
+    // 
+    // O sistema tem DUAS configurações:
+    // 1. ai_agent_config (legado) - tabela original
+    // 2. business_agent_configs (novo/avançado) - novo sistema
+    //
+    // REGRA DE ATIVAÇÃO:
+    // - Se businessConfig existe E tem isActive=false → DESATIVADO (prioridade)
+    // - Se businessConfig não existe → usar agentConfig.isActive (legado)
+    // - Se businessConfig existe E tem isActive=true → ATIVADO (avançado)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    // Se existe config de negócio com isActive=false, não responder
+    if (businessConfig && businessConfig.isActive === false) {
+      console.log(`   ❌ [AI Agent] Business config inactive - agent DISABLED`);
       return null;
     }
+
+    if (!agentConfig || !agentConfig.isActive) {
+      console.log(`   ❌ [AI Agent] Legacy config not found or inactive - agent DISABLED`);
+      return null;
+    }
+    
+    console.log(`   ✅ [AI Agent] Agent ENABLED, processing response...`);
     
     // 📁 BUSCAR BIBLIOTECA DE MÍDIAS DO AGENTE
     const mediaLibrary = await getAgentMediaLibrary(userId);
