@@ -754,13 +754,19 @@ export function addAdminWebSocketClient(ws: AuthenticatedWebSocket, adminId: str
 
 function broadcastToUser(userId: string, data: any) {
   const userClients = wsClients.get(userId);
-  if (!userClients) return;
+  if (!userClients) {
+    console.log(`[BROADCAST] No WebSocket clients found for user ${userId}`);
+    return;
+  }
 
+  let sentCount = 0;
   userClients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(data));
+      sentCount++;
     }
   });
+  console.log(`[BROADCAST] Sent message to ${sentCount}/${userClients.size} clients for user ${userId}, type: ${data.type}`);
 }
 
 function broadcastToAdmin(adminId: string, data: any) {
@@ -965,14 +971,20 @@ export async function connectWhatsApp(userId: string): Promise<void> {
 
     sock.ev.on("connection.update", async (update) => {
       const { connection: conn, lastDisconnect, qr } = update;
+      
+      console.log(`[CONNECTION UPDATE] User ${userId} - connection: ${conn}, hasQR: ${!!qr}, hasLastDisconnect: ${!!lastDisconnect}`);
 
       if (qr) {
+        console.log(`[QR CODE] Generating QR Code for user ${userId}...`);
         try {
           const qrCodeDataURL = await QRCode.toDataURL(qr);
+          console.log(`[QR CODE] QR Code generated successfully for user ${userId}, length: ${qrCodeDataURL.length}`);
           await storage.updateConnection(session.connectionId, { qrCode: qrCodeDataURL });
+          console.log(`[QR CODE] QR Code saved to database for user ${userId}`);
           broadcastToUser(userId, { type: "qr", qr: qrCodeDataURL });
+          console.log(`[QR CODE] QR Code broadcasted to user ${userId}`);
         } catch (err) {
-          console.error("Error generating QR code:", err);
+          console.error(`[QR CODE ERROR] Failed to generate/send QR code for user ${userId}:`, err);
         }
       }
 
