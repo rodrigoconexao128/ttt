@@ -46,7 +46,7 @@ import MediaLibraryPage from "@/pages/media-library";
 import ContactListsPage from "@/pages/contact-lists";
 import SmartNotifierPage from "@/pages/smart-notifier";
 import { useLocation } from "wouter";
-import type { WhatsappConnection, AiAgentConfig } from "@shared/schema";
+import type { WhatsappConnection, AiAgentConfig, Subscription, Plan } from "@shared/schema";
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,10 @@ import { cn } from "@/lib/utils";
 export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
+  const { data: subscription } = useQuery<Subscription & { plan: Plan } | null>({
+    queryKey: ["/api/subscriptions/current"],
+    enabled: !!isAuthenticated,
+  });
   const [selectedView, setSelectedView] = useState<"conversations" | "connection" | "stats" | "agent">("conversations");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [location, setLocation] = useLocation();
@@ -375,18 +379,47 @@ const toolsNavigation: ToolNavItem[] = [
                 </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton 
-                asChild 
-                tooltip="Assinar Plano Ilimitado" 
-                className="mt-2 bg-gradient-to-r from-blue-600 to-violet-600 text-white hover:from-blue-700 hover:to-violet-700 hover:text-white transition-all duration-300 shadow-md"
-              >
-                <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
-                  <Rocket className="w-4 h-4 animate-pulse" />
-                  <span>Plano Ilimitado R$99</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {subscription?.plan && Math.abs(Number(subscription.plan.valor) - 99) < 1 && subscription.status === 'active' ? (
+              <>
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    asChild 
+                    tooltip="Upgrade para Anual" 
+                    className="mt-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 hover:text-white transition-all duration-300 shadow-md"
+                  >
+                    <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
+                      <Rocket className="w-4 h-4" />
+                      <span>Upgrade Anual</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    asChild 
+                    tooltip="Contratar Implementação" 
+                    className="mt-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 hover:text-white transition-all duration-300 shadow-md"
+                  >
+                    <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
+                      <Wrench className="w-4 h-4" />
+                      <span>Implementação</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </>
+            ) : (
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  tooltip="Assinar Plano Ilimitado" 
+                  className="mt-2 bg-gradient-to-r from-blue-600 to-violet-600 text-white hover:from-blue-700 hover:to-violet-700 hover:text-white transition-all duration-300 shadow-md"
+                >
+                  <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
+                    <Rocket className="w-4 h-4 animate-pulse" />
+                    <span>Plano Ilimitado R$99</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
