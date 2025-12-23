@@ -1,4 +1,4 @@
-
+﻿
 import { Mistral } from "@mistralai/mistralai";
 import * as fs from 'fs';
 import * as path from 'path';
@@ -11,9 +11,9 @@ const __dirname = path.dirname(__filename);
 
 // Load environment variables - try multiple paths
 const possiblePaths = [
-    path.resolve(process.cwd(), '.env'),           // Current dir
-    path.resolve(process.cwd(), 'vvvv', '.env'),   // Parent/vvvv
-    path.resolve(__dirname, '.env'),               // Script dir
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), 'vvvv', '.env'),
+    path.resolve(__dirname, '.env'),
 ];
 
 for (const envPath of possiblePaths) {
@@ -25,38 +25,30 @@ for (const envPath of possiblePaths) {
 }
 
 async function getApiKey() {
-    // 1. Try process.env (if set by user)
     if (process.env.MISTRAL_API_KEY && process.env.MISTRAL_API_KEY !== 'your-mistral-key') {
         return process.env.MISTRAL_API_KEY;
     }
-
-    // 2. Try Database
     if (process.env.DATABASE_URL) {
         try {
             const pool = new Pool({ connectionString: process.env.DATABASE_URL });
             const result = await pool.query("SELECT valor FROM system_config WHERE chave = 'mistral_api_key'");
             await pool.end();
-            
             if (result.rows.length > 0 && result.rows[0].valor) {
                 return result.rows[0].valor;
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("⚠️ Failed to fetch key from DB:", err.message);
         }
     }
-
     return null;
 }
 
 // ------------------------------------------------------------------
-// 🔔 THE LOGIC TO TEST (Copied from server/promptTemplates.ts)
+// 🔔 NOTIFICATION PROMPT FUNCTION
 // ------------------------------------------------------------------
 function getNotificationPrompt(trigger: string): string {
-    // Extrair a AÇÃO principal do gatilho
-    // Exemplos: "agendar", "reembolso", "falar com humano", "preço", etc.
     const triggerLower = trigger.toLowerCase();
     
-    // Detectar o tipo de gatilho e criar regras específicas
     let keywords = "";
     let actionDesc = "";
     
@@ -79,30 +71,42 @@ function getNotificationPrompt(trigger: string): string {
         keywords = "comprar, quero comprar, fazer pedido, encomendar, pedir, quero pedir";
         actionDesc = "compra";
     } else {
-        // Gatilho genérico - extrair palavras-chave do próprio trigger
         keywords = trigger.replace(/me notifique quando o cliente|quiser|quer|pedir|mencionar|falar sobre/gi, "").trim();
-        actionDesc = keywords;
+        actionDesc = keywords || "gatilho";
     }
     
-    return `
-🔔 SISTEMA DE NOTIFICAÇÃO
+    const keywordList = keywords.split(',').map(k => k.trim().toLowerCase());
+    
+    const prompt = `
+### REGRA DE NOTIFICACAO ###
 
-Gatilho configurado: "${trigger}"
-Palavras-chave para ${actionDesc}: ${keywords}
+GATILHO = Cliente usa EXATAMENTE uma destas palavras: ${keywordList.join(', ')}
 
-REGRA ÚNICA: Adicione [NOTIFY: ${actionDesc}] APENAS se a mensagem contiver uma das palavras-chave listadas acima.
+ACAO = Se cliente usar palavra gatilho, adicione [NOTIFY: ${actionDesc}] no final da resposta.
 
-⛔ PROIBIDO adicionar qualquer tag [NOTIFY:...] para:
-- Saudações: oi, olá, bom dia, boa tarde, boa noite
-- Agradecimentos: obrigado, obrigada, valeu, agradeço
-- Perguntas sobre preço, localização ou horário de funcionamento
+### MENSAGENS QUE NAO SAO GATILHO - NAO ADICIONAR TAG ###
+- Saudacoes: oi, bom dia, ola, boa tarde, boa noite
+- Perguntas de preco: qual o valor, quanto custa, quanto e
+- Perguntas de localizacao: onde fica, qual o endereco, onde vejo, como acesso
+- Perguntas sobre funcionamento: trabalham, abre, fecha
+- Perguntas sobre local: tem estacionamento, tem wifi
+- Problemas tecnicos: sistema lento, nao carrega, travou, como reseto
+- Reclamacoes de preco: ta caro, muito caro
+- Agradecimentos: obrigado, valeu, de nada
+- Despedidas: tchau, ate mais
 
-Se nenhuma palavra-chave for encontrada → responda normalmente SEM tag.
+### EXEMPLOS IMPORTANTES ###
+"Qual o valor do corte?" -> SEM TAG (pergunta de preco)
+"Onde vejo meu historico?" -> SEM TAG (pergunta de navegacao)
+"O sistema esta lento" -> SEM TAG (problema tecnico)
+"Onde fica a barbearia?" -> SEM TAG (localizacao)
+"Obrigado pela ajuda" -> SEM TAG (agradecimento)
 `;
+    return prompt;
 }
 
 // ------------------------------------------------------------------
-// 🧪 TEST RUNNER - MÚLTIPLOS GATILHOS
+// 🧪 TEST RUNNER
 // ------------------------------------------------------------------
 
 interface TestCase {
@@ -117,14 +121,11 @@ interface TriggerTestSet {
     tests: TestCase[];
 }
 
-// Define test sets for different triggers
 const ALL_TRIGGER_TESTS: TriggerTestSet[] = [
-    // 1. AGENDAMENTO
     {
         trigger: "Me notifique quando o cliente quiser agendar",
         businessContext: "Você é um assistente virtual de uma barbearia. Responda de forma natural e curta.",
         tests: [
-            // NÃO DEVEM NOTIFICAR
             { input: "Oi, tudo bem?", expected: false, desc: "Saudação simples" },
             { input: "A paz de Deus", expected: false, desc: "Saudação religiosa" },
             { input: "Bom dia!", expected: false, desc: "Saudação bom dia" },
@@ -134,7 +135,6 @@ const ALL_TRIGGER_TESTS: TriggerTestSet[] = [
             { input: "Vocês trabalham no sábado?", expected: false, desc: "Pergunta sobre funcionamento" },
             { input: "Obrigado pela ajuda", expected: false, desc: "Agradecimento" },
             { input: "Tá caro isso aí", expected: false, desc: "Reclamação de preço" },
-            // DEVEM NOTIFICAR
             { input: "Gostaria de marcar um horário", expected: true, desc: "Marcar horário" },
             { input: "Quero agendar para amanhã", expected: true, desc: "Agendar amanhã" },
             { input: "Tem vaga para hoje?", expected: true, desc: "Pergunta vaga" },
@@ -146,19 +146,16 @@ const ALL_TRIGGER_TESTS: TriggerTestSet[] = [
             { input: "Consigo um horário agora?", expected: true, desc: "Horário agora" },
         ]
     },
-    // 2. REEMBOLSO
     {
         trigger: "Me notifique quando o cliente pedir reembolso",
         businessContext: "Você é um assistente virtual de uma loja online. Responda de forma natural e curta.",
         tests: [
-            // NÃO DEVEM NOTIFICAR
             { input: "Oi, tudo bem?", expected: false, desc: "Saudação simples" },
             { input: "Qual o prazo de entrega?", expected: false, desc: "Pergunta sobre entrega" },
             { input: "Vocês têm promoção?", expected: false, desc: "Pergunta promoção" },
             { input: "Onde está meu pedido?", expected: false, desc: "Rastreio" },
             { input: "Quanto custa o frete?", expected: false, desc: "Pergunta frete" },
             { input: "Obrigado!", expected: false, desc: "Agradecimento" },
-            // DEVEM NOTIFICAR
             { input: "Quero meu dinheiro de volta", expected: true, desc: "Dinheiro de volta" },
             { input: "Preciso de reembolso", expected: true, desc: "Reembolso direto" },
             { input: "Gostaria de devolver o produto", expected: true, desc: "Devolver produto" },
@@ -166,36 +163,30 @@ const ALL_TRIGGER_TESTS: TriggerTestSet[] = [
             { input: "Quero a devolução do valor", expected: true, desc: "Devolução valor" },
         ]
     },
-    // 3. ATENDENTE HUMANO
     {
         trigger: "Me notifique quando o cliente quiser falar com humano",
         businessContext: "Você é um assistente virtual de suporte técnico. Responda de forma natural e curta.",
         tests: [
-            // NÃO DEVEM NOTIFICAR
             { input: "Oi, preciso de ajuda", expected: false, desc: "Pedido de ajuda genérico" },
             { input: "Como reseto a senha?", expected: false, desc: "Pergunta técnica" },
             { input: "Onde vejo meu histórico?", expected: false, desc: "Pergunta navegação" },
             { input: "Obrigado pela informação", expected: false, desc: "Agradecimento" },
             { input: "O sistema está lento", expected: false, desc: "Reclamação técnica" },
-            // DEVEM NOTIFICAR
             { input: "Quero falar com um atendente", expected: true, desc: "Atendente direto" },
             { input: "Passa para uma pessoa real", expected: true, desc: "Pessoa real" },
             { input: "Quero um humano", expected: true, desc: "Humano direto" },
             { input: "Falar com alguém de verdade", expected: true, desc: "Alguém de verdade" },
-            { input: "Me transfere para um funcionário", expected: true, desc: "Funcionário (sinônimo de atendente)" },
+            { input: "Me transfere para um funcionário", expected: true, desc: "Funcionário" },
         ]
     },
-    // 4. RECLAMAÇÃO
     {
         trigger: "Me notifique quando o cliente fizer reclamação",
         businessContext: "Você é um assistente virtual de uma empresa de serviços. Responda de forma natural e curta.",
         tests: [
-            // NÃO DEVEM NOTIFICAR
             { input: "Oi, bom dia", expected: false, desc: "Saudação" },
             { input: "Quanto custa o serviço?", expected: false, desc: "Pergunta preço" },
             { input: "Vocês fazem entrega?", expected: false, desc: "Pergunta serviço" },
             { input: "Obrigado", expected: false, desc: "Agradecimento" },
-            // DEVEM NOTIFICAR
             { input: "Tenho uma reclamação a fazer", expected: true, desc: "Reclamação direta" },
             { input: "O serviço não funcionou direito", expected: true, desc: "Não funcionou" },
             { input: "Estou muito insatisfeito", expected: true, desc: "Insatisfeito" },
@@ -204,17 +195,14 @@ const ALL_TRIGGER_TESTS: TriggerTestSet[] = [
             { input: "Isso é um problema sério", expected: true, desc: "Problema" },
         ]
     },
-    // 5. COMPRA
     {
         trigger: "Me notifique quando o cliente quiser comprar",
         businessContext: "Você é um assistente virtual de uma loja. Responda de forma natural e curta.",
         tests: [
-            // NÃO DEVEM NOTIFICAR
             { input: "Oi, boa tarde", expected: false, desc: "Saudação" },
             { input: "Qual o horário de funcionamento?", expected: false, desc: "Horário" },
             { input: "Vocês têm estacionamento?", expected: false, desc: "Pergunta infraestrutura" },
             { input: "Quanto custa esse produto?", expected: false, desc: "Pergunta preço (não é compra)" },
-            // DEVEM NOTIFICAR
             { input: "Quero comprar esse produto", expected: true, desc: "Comprar direto" },
             { input: "Vou fazer o pedido", expected: true, desc: "Fazer pedido" },
             { input: "Quero encomendar 3 unidades", expected: true, desc: "Encomendar" },
@@ -231,8 +219,6 @@ async function runTest() {
     }
     
     const client = new Mistral({ apiKey });
-
-    // Pegar qual gatilho testar da linha de comando (default: 0 = agendamento)
     const triggerIndex = parseInt(process.argv[2] || "0", 10);
     
     if (triggerIndex < 0 || triggerIndex >= ALL_TRIGGER_TESTS.length) {
@@ -250,9 +236,7 @@ async function runTest() {
     console.log("---------------------------------------------------");
 
     const notificationPrompt = getNotificationPrompt(testSet.trigger);
-    
-    const systemPrompt = `${testSet.businessContext}
-${notificationPrompt}`;
+    const systemPrompt = `${testSet.businessContext}\n${notificationPrompt}`;
 
     let passed = 0;
     let failed = 0;
@@ -273,13 +257,12 @@ ${notificationPrompt}`;
             const content = response.choices?.[0]?.message?.content || "";
             const hasNotify = content.includes("[NOTIFY:");
             
-            const success = hasNotify === test.expected;
-            if (success) {
+            if (hasNotify === test.expected) {
                 console.log("✅");
                 passed++;
             } else {
                 console.log(`❌ (Expected: ${test.expected}, Got: ${hasNotify})`);
-                console.log(`   Response: ${content.substring(0, 200)}...`);
+                console.log(`   Response: ${content.substring(0, 100)}...`);
                 failed++;
             }
 
@@ -288,7 +271,6 @@ ${notificationPrompt}`;
             failed++;
         }
         
-        // Delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 500));
     }
 

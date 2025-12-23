@@ -37,20 +37,32 @@ function getNotificationPrompt(trigger: string): string {
     actionDesc = keywords || "gatilho";
   }
   
+  const keywordList = keywords.split(',').map(k => k.trim().toLowerCase());
+  
   return `
-🔔 SISTEMA DE NOTIFICAÇÃO
+### REGRA DE NOTIFICACAO ###
 
-Gatilho configurado: "${trigger}"
-Palavras-chave para ${actionDesc}: ${keywords}
+GATILHO = Cliente usa EXATAMENTE uma destas palavras: ${keywordList.join(', ')}
 
-REGRA ÚNICA: Adicione [NOTIFY: ${actionDesc}] APENAS se a mensagem contiver uma das palavras-chave listadas acima.
+ACAO = Se cliente usar palavra gatilho, adicione [NOTIFY: ${actionDesc}] no final da resposta.
 
-⛔ PROIBIDO adicionar qualquer tag [NOTIFY:...] para:
-- Saudações: oi, olá, bom dia, boa tarde, boa noite
-- Agradecimentos: obrigado, obrigada, valeu, agradeço
-- Perguntas sobre preço, localização ou horário de funcionamento
+### MENSAGENS QUE NAO SAO GATILHO - NAO ADICIONAR TAG ###
+- Saudacoes: oi, bom dia, ola, boa tarde, boa noite
+- Perguntas de preco: qual o valor, quanto custa, quanto e
+- Perguntas de localizacao: onde fica, qual o endereco, onde vejo, como acesso
+- Perguntas sobre funcionamento: trabalham, abre, fecha
+- Perguntas sobre local: tem estacionamento, tem wifi
+- Problemas tecnicos: sistema lento, nao carrega, travou, como reseto
+- Reclamacoes de preco: ta caro, muito caro
+- Agradecimentos: obrigado, valeu, de nada
+- Despedidas: tchau, ate mais
 
-Se nenhuma palavra-chave for encontrada → responda normalmente SEM tag.
+### EXEMPLOS IMPORTANTES ###
+"Qual o valor do corte?" -> SEM TAG (pergunta de preco)
+"Onde vejo meu historico?" -> SEM TAG (pergunta de navegacao)
+"O sistema esta lento" -> SEM TAG (problema tecnico)
+"Onde fica a barbearia?" -> SEM TAG (localizacao)
+"Obrigado pela ajuda" -> SEM TAG (agradecimento)
 `;
 }
 
