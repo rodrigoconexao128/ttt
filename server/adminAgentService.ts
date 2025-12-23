@@ -2391,11 +2391,15 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
     const configuredModel = await getConfiguredModel();
     let response;
     
+    // 🎯 TOKENS SEM LIMITE - A divisão em partes é feita depois pelo splitMessageHumanLike
+    // Isso garante que NENHUM conteúdo seja cortado - apenas dividido em blocos
+    const maxTokens = 2000; // ~6000 chars - permite respostas completas
+    
     try {
       response = await mistral.chat.complete({
         model: configuredModel,
         messages: messages,
-        maxTokens: 600,
+        maxTokens: maxTokens,
         temperature: 0.85,
       });
     } catch (err: any) {
@@ -2406,7 +2410,7 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
           response = await mistral.chat.complete({
             model: "mistral-small-latest",
             messages: messages,
-            maxTokens: 600,
+            maxTokens: maxTokens,
             temperature: 0.85,
           });
         } catch (fallbackErr) {

@@ -371,20 +371,31 @@ export async function generateAIResponse(
 
     const mistral = await getMistralClient();
     
-    // Ajustar maxTokens baseado na pergunta e config
-    // Perguntas curtas (< 20 chars) = respostas curtas (150 tokens ≈ 450 chars)
-    // Perguntas médias = respostas médias (300 tokens ≈ 900 chars)
+    // ════════════════════════════════════════════════════════════════════════════
+    // 🎯 TOKENS SEM LIMITE ARTIFICIAL - Deixar a IA responder naturalmente
+    // A divisão em partes menores é feita DEPOIS pelo splitMessageHumanLike
+    // Isso garante que NENHUM conteúdo seja cortado - apenas dividido em blocos
+    // ════════════════════════════════════════════════════════════════════════════
+    
+    // Perguntas curtas = respostas proporcionais, mas SEM corte forçado
     const questionLength = newMessageText.length;
-    const baseMaxTokens = questionLength < 20 ? 150 : questionLength < 50 ? 250 : 400;
+    
+    // Base generosa para permitir respostas completas
+    // 1 token ≈ 3-4 caracteres em português
+    // 2000 tokens ≈ 6000-8000 chars (mensagens bem longas)
+    const baseMaxTokens = questionLength < 20 ? 600 : questionLength < 50 ? 1000 : 2000;
     
     // 🆕 Se usar sistema avançado, respeitar maxResponseLength configurado
+    // Usar MAX ao invés de MIN para garantir que resposta não seja cortada
     const configMaxTokens = useAdvancedSystem && businessConfig?.maxResponseLength
       ? Math.ceil(businessConfig.maxResponseLength / 3) // aprox 3 chars por token
       : baseMaxTokens;
     
-    const maxTokens = Math.min(configMaxTokens, baseMaxTokens);
+    // Usar o MAIOR valor para garantir resposta completa
+    // O splitMessageHumanLike cuida da divisão em partes menores depois
+    const maxTokens = Math.max(configMaxTokens, baseMaxTokens);
     
-    console.log(`🎯 [AI Agent] Pergunta: ${questionLength} chars → maxTokens: ${maxTokens} (config: ${configMaxTokens}, base: ${baseMaxTokens})`);
+    console.log(`🎯 [AI Agent] Pergunta: ${questionLength} chars → maxTokens: ${maxTokens} (SEM LIMITE - divisão em partes é depois)`);
     
     // Determinar modelo (usar config do business ou legacy)
     const model = useAdvancedSystem && businessConfig?.model 

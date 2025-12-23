@@ -595,56 +595,184 @@ async function processAdminAccumulatedMessages(params: {
 // 🤖 HUMANIZAÇÃO: Quebra mensagem longa em partes menores
 // Best practices: WhatsApp, Intercom, Drift quebram a cada 2-3 parágrafos ou 300-500 chars
 // Fonte: https://www.drift.com/blog/conversational-marketing-best-practices/
+// CORREÇÃO 2025: Não corta palavras nem frases no meio - divide corretamente respeitando limites naturais
 function splitMessageHumanLike(message: string, maxChars: number = 400): string[] {
   // Se maxChars = 0, retorna mensagem completa sem divisão
   if (maxChars === 0) {
     return [message];
   }
   
-  const MAX_CHARS_PER_MESSAGE = maxChars;
-  const parts: string[] = [];
+  // Mensagem pequena - retorna diretamente
+  if (message.length <= maxChars) {
+    return [message];
+  }
   
-  // Dividir por parágrafos duplos (quebras de seção)
+  const MAX_CHARS = maxChars;
+  const finalParts: string[] = [];
+  
+  // FASE 1: Dividir por parágrafos duplos (quebras de seção)
   const sections = message.split('\n\n').filter(s => s.trim());
   
-  let currentPart = '';
-  
+  // FASE 2: Processar cada seção, quebrando em partes menores se necessário
   for (const section of sections) {
-    // Se adicionar esta seção ultrapassar o limite, salva parte atual e inicia nova
-    if (currentPart && (currentPart + '\n\n' + section).length > MAX_CHARS_PER_MESSAGE) {
-      parts.push(currentPart.trim());
-      currentPart = section;
+    const sectionParts = splitSectionIntoChunks(section, MAX_CHARS);
+    finalParts.push(...sectionParts);
+  }
+  
+  // FASE 3: Agrupar partes pequenas respeitando o limite
+  const optimizedParts: string[] = [];
+  let currentBuffer = '';
+  
+  for (const part of finalParts) {
+    const separator = currentBuffer ? '\n\n' : '';
+    const combined = currentBuffer + separator + part;
+    
+    if (combined.length <= MAX_CHARS) {
+      currentBuffer = combined;
     } else {
-      currentPart = currentPart ? currentPart + '\n\n' + section : section;
+      if (currentBuffer.trim()) {
+        optimizedParts.push(currentBuffer.trim());
+      }
+      currentBuffer = part;
     }
   }
   
-  // Adicionar última parte
-  if (currentPart) {
-    parts.push(currentPart.trim());
+  // Adicionar último buffer
+  if (currentBuffer.trim()) {
+    optimizedParts.push(currentBuffer.trim());
   }
   
-  // Se mensagem muito longa sem parágrafos, quebra por frases
-  if (parts.length === 1 && parts[0].length > MAX_CHARS_PER_MESSAGE) {
-    const sentences = parts[0].match(/[^.!?]+[.!?]+/g) || [parts[0]];
-    parts.length = 0;
-    currentPart = '';
-    
-    for (const sentence of sentences) {
-      if (currentPart && (currentPart + sentence).length > MAX_CHARS_PER_MESSAGE) {
-        parts.push(currentPart.trim());
-        currentPart = sentence;
+  console.log(`📝 [SPLIT] Mensagem dividida em ${optimizedParts.length} partes (limite: ${MAX_CHARS} chars)`);
+  optimizedParts.forEach((p, i) => {
+    console.log(`   Parte ${i+1}/${optimizedParts.length}: ${p.length} chars`);
+  });
+  
+  return optimizedParts.length > 0 ? optimizedParts : [message];
+}
+
+// Função auxiliar para dividir uma seção em chunks menores sem cortar palavras/frases
+function splitSectionIntoChunks(section: string, maxChars: number): string[] {
+  // Se a seção cabe no limite, retorna direto
+  if (section.length <= maxChars) {
+    return [section];
+  }
+  
+  const chunks: string[] = [];
+  
+  // ESTRATÉGIA 1: Tentar dividir por quebras de linha simples
+  const lines = section.split('\n').filter(l => l.trim());
+  if (lines.length > 1) {
+    let currentChunk = '';
+    for (const line of lines) {
+      const separator = currentChunk ? '\n' : '';
+      if ((currentChunk + separator + line).length <= maxChars) {
+        currentChunk = currentChunk + separator + line;
       } else {
-        currentPart += sentence;
+        if (currentChunk.trim()) {
+          chunks.push(currentChunk.trim());
+        }
+        // Se a linha individual é maior que o limite, processa ela recursivamente
+        if (line.length > maxChars) {
+          const subChunks = splitTextBySentences(line, maxChars);
+          chunks.push(...subChunks);
+          currentChunk = '';
+        } else {
+          currentChunk = line;
+        }
       }
     }
+    if (currentChunk.trim()) {
+      chunks.push(currentChunk.trim());
+    }
+    return chunks;
+  }
+  
+  // ESTRATÉGIA 2: Dividir por frases (pontuação)
+  return splitTextBySentences(section, maxChars);
+}
+
+// Divide texto por frases, garantindo que não corte palavras
+function splitTextBySentences(text: string, maxChars: number): string[] {
+  // Regex para encontrar frases (terminadas em . ! ? ou - seguidos de espaço/fim)
+  const sentencePattern = /[^.!?\-]+[.!?\-]+(?:\s|$)|[^.!?\-]+$/g;
+  const sentences = text.match(sentencePattern) || [text];
+  
+  const chunks: string[] = [];
+  let currentChunk = '';
+  
+  for (const sentence of sentences) {
+    const trimmedSentence = sentence.trim();
+    if (!trimmedSentence) continue;
     
-    if (currentPart) {
-      parts.push(currentPart.trim());
+    const combined = currentChunk ? currentChunk + ' ' + trimmedSentence : trimmedSentence;
+    
+    if (combined.length <= maxChars) {
+      currentChunk = combined;
+    } else {
+      // Salvar chunk atual se existir
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+      }
+      
+      // Se a frase individual é maior que o limite, divide por palavras
+      if (trimmedSentence.length > maxChars) {
+        const wordChunks = splitByWords(trimmedSentence, maxChars);
+        chunks.push(...wordChunks);
+        currentChunk = '';
+      } else {
+        currentChunk = trimmedSentence;
+      }
     }
   }
   
-  return parts.length > 0 ? parts : [message];
+  // Adicionar último chunk
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks.length > 0 ? chunks : [text];
+}
+
+// Última estratégia: divide por palavras (nunca corta uma palavra no meio)
+function splitByWords(text: string, maxChars: number): string[] {
+  const words = text.split(/\s+/);
+  const chunks: string[] = [];
+  let currentChunk = '';
+  
+  for (const word of words) {
+    if (!word) continue;
+    
+    const combined = currentChunk ? currentChunk + ' ' + word : word;
+    
+    if (combined.length <= maxChars) {
+      currentChunk = combined;
+    } else {
+      // Salvar chunk atual
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+      }
+      
+      // Se a palavra individual é maior que o limite (URL longa, etc), força quebra
+      if (word.length > maxChars) {
+        // Último recurso: quebra caractere por caractere respeitando o limite
+        let remaining = word;
+        while (remaining.length > maxChars) {
+          chunks.push(remaining.substring(0, maxChars));
+          remaining = remaining.substring(maxChars);
+        }
+        currentChunk = remaining;
+      } else {
+        currentChunk = word;
+      }
+    }
+  }
+  
+  // Adicionar último chunk
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks.length > 0 ? chunks : [text];
 }
 
 // Base directory for storing Baileys multi-file auth state.
@@ -1018,10 +1146,26 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         try {
           const qrCodeDataURL = await QRCode.toDataURL(qr);
           console.log(`[QR CODE] QR Code generated successfully for user ${userId}, length: ${qrCodeDataURL.length}`);
-          await storage.updateConnection(session.connectionId, { qrCode: qrCodeDataURL });
-          console.log(`[QR CODE] QR Code saved to database for user ${userId}`);
-          broadcastToUser(userId, { type: "qr", qr: qrCodeDataURL });
-          console.log(`[QR CODE] QR Code broadcasted to user ${userId}`);
+
+          // Broadcast immediately so the client sees the QR without waiting
+          // for the database write. Persist the QR asynchronously to avoid
+          // making the user wait on potentially slow DB operations.
+          try {
+            broadcastToUser(userId, { type: "qr", qr: qrCodeDataURL });
+            console.log(`[QR CODE] QR Code broadcasted to user ${userId}`);
+          } catch (bErr) {
+            console.error(`[QR CODE ERROR] Failed to broadcast QR code for user ${userId}:`, bErr);
+          }
+
+          const saveStart = Date.now();
+          storage
+            .updateConnection(session.connectionId, { qrCode: qrCodeDataURL })
+            .then(() => {
+              console.log(`[QR CODE] QR Code saved to database for user ${userId} (took ${Date.now() - saveStart}ms)`);
+            })
+            .catch((dbErr) => {
+              console.error(`[QR CODE ERROR] Failed to save QR code for user ${userId}:`, dbErr);
+            });
         } catch (err) {
           console.error(`[QR CODE ERROR] Failed to generate/send QR code for user ${userId}:`, err);
         }
