@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Copy, CheckCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Payment, Subscription, Plan } from "@shared/schema";
 
 export default function SubscribePage() {
@@ -85,6 +85,21 @@ export default function SubscribePage() {
     }
   };
 
+  // Auto-generate PIX when subscription is ready and no payment exists
+  useEffect(() => {
+    if (
+      id && 
+      subscription && 
+      subscription.status === "pending" && 
+      !payment && 
+      !paymentLoading && 
+      !generatePixMutation.isPending && 
+      !generatePixMutation.isSuccess
+    ) {
+      generatePixMutation.mutate(id);
+    }
+  }, [id, subscription, payment, paymentLoading, generatePixMutation]);
+
   return (
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-2xl mx-auto space-y-6">
@@ -125,23 +140,13 @@ export default function SubscribePage() {
         {subscription.status === "pending" && !payment && (
           <Card data-testid="card-generate-pix">
             <CardHeader>
-              <CardTitle>Gerar Pagamento PIX</CardTitle>
+              <CardTitle>Gerando Pagamento PIX...</CardTitle>
               <CardDescription>
-                Clique no botão abaixo para gerar o código PIX para pagamento
+                Aguarde um momento enquanto geramos seu código de pagamento.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button
-                onClick={handleGeneratePix}
-                disabled={generatePixMutation.isPending}
-                className="w-full"
-                data-testid="button-generate-pix"
-              >
-                {generatePixMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Gerar PIX
-              </Button>
+            <CardContent className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </CardContent>
           </Card>
         )}
