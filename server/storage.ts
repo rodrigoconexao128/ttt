@@ -533,7 +533,7 @@ export class DatabaseStorage implements IStorage {
 
   // Plan operations
   async getAllPlans(): Promise<Plan[]> {
-    return await withRetry(() => db.select().from(plans).orderBy(desc(plans.createdAt)));
+    return await withRetry(() => db.select().from(plans).orderBy(plans.ordem));
   }
 
   async getActivePlans(): Promise<Plan[]> {
@@ -541,7 +541,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(plans)
       .where(eq(plans.ativo, true))
-      .orderBy(desc(plans.createdAt));
+      .orderBy(plans.ordem);
   }
 
   async getPlan(id: string): Promise<Plan | undefined> {

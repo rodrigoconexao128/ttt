@@ -366,10 +366,18 @@ export const adminAgentMedia = pgTable("admin_agent_media", {
 export const plans = pgTable("plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   nome: varchar("nome", { length: 100 }).notNull(),
+  descricao: text("descricao"), // Descrição detalhada do plano
   valor: decimal("valor", { precision: 10, scale: 2 }).notNull(),
+  valorOriginal: decimal("valor_original", { precision: 10, scale: 2 }), // Valor antes do desconto (se houver)
   periodicidade: varchar("periodicidade", { length: 20 }).default("mensal").notNull(), // mensal, anual
+  tipo: varchar("tipo", { length: 50 }).default("padrao").notNull(), // padrao, anual, implementacao
+  descontoPercent: integer("desconto_percent").default(0), // Percentual de desconto
+  badge: varchar("badge", { length: 50 }), // Ex: "Mais Popular", "5% OFF", etc
+  destaque: boolean("destaque").default(false).notNull(), // Plano em destaque
+  ordem: integer("ordem").default(0).notNull(), // Ordem de exibição
   limiteConversas: integer("limite_conversas").default(100).notNull(),
   limiteAgentes: integer("limite_agentes").default(1).notNull(),
+  caracteristicas: jsonb("caracteristicas").$type<string[]>(), // Lista de features do plano
   ativo: boolean("ativo").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
