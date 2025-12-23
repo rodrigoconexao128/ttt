@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import fs from "fs";
@@ -7,7 +8,7 @@ async function runMigrations() {
   try {
     console.log("🔄 Running database migrations...");
     
-    const migrationFile = path.join(process.cwd(), "migrations", "add_media_support.sql");
+    const migrationFile = path.join(process.cwd(), "migrations", "0021_fix_annual_plan_price.sql");
     const migrationSQL = fs.readFileSync(migrationFile, "utf-8");
     
     // Split by semicolon and execute each statement

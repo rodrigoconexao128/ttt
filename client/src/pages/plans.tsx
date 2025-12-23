@@ -156,7 +156,7 @@ export default function PlansPage() {
     },
     {
       question: "Qual a diferença do plano Anual?",
-      answer: "No plano anual você garante o preço atual por 12 meses. Mesmo que o preço aumente, você continua pagando o mesmo valor. Além disso, economiza 5% (R$ 59,40 no ano)."
+      answer: "No plano anual você garante o preço atual por 12 meses. Isso significa que se o preço subir, você NÃO pagará a diferença, pois já fechou o valor anual. Além disso, economiza 5% (R$ 59,40 no ano)."
     },
     {
       question: "O que é a Implementação Completa?",
@@ -198,10 +198,14 @@ export default function PlansPage() {
           )}>
             <CardHeader className="pb-4 pt-6 px-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Mensal</h3>
-                {isPlanActive("mensal") && (
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Mensal Ilimitado</h3>
+                {isPlanActive("mensal") ? (
                   <Badge variant="outline" className="text-xs border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400">
                     Seu plano atual
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    Tudo Incluso
                   </Badge>
                 )}
               </div>
