@@ -569,6 +569,26 @@ export class DatabaseStorage implements IStorage {
 
   // Subscription operations
   async getUserSubscription(userId: string): Promise<(Subscription & { plan: Plan }) | undefined> {
+    // Primeiro, tenta encontrar uma subscription ativa
+    const activeResult = await db
+      .select()
+      .from(subscriptions)
+      .innerJoin(plans, eq(subscriptions.planId, plans.id))
+      .where(and(
+        eq(subscriptions.userId, userId),
+        eq(subscriptions.status, "active")
+      ))
+      .orderBy(desc(subscriptions.createdAt))
+      .limit(1);
+
+    if (activeResult.length > 0) {
+      return {
+        ...activeResult[0].subscriptions,
+        plan: activeResult[0].plans,
+      };
+    }
+
+    // Se não há ativa, retorna a mais recente (pode ser pending, expired, etc)
     const result = await db
       .select()
       .from(subscriptions)
