@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Bell, Save, RefreshCw } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Bell, Save, RefreshCw, Brain, Keyboard, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function SmartNotifierPage() {
   const { toast } = useToast();
@@ -19,12 +21,16 @@ export default function SmartNotifierPage() {
   const [notificationPhone, setNotificationPhone] = useState("");
   const [notificationTrigger, setNotificationTrigger] = useState("");
   const [notificationEnabled, setNotificationEnabled] = useState(false);
+  const [notificationMode, setNotificationMode] = useState<"ai" | "manual" | "both">("ai");
+  const [notificationManualKeywords, setNotificationManualKeywords] = useState("");
 
   useEffect(() => {
     if (notificationConfig) {
       setNotificationPhone(notificationConfig.notificationPhoneNumber || "");
       setNotificationTrigger(notificationConfig.notificationTrigger || "");
       setNotificationEnabled(notificationConfig.notificationEnabled || false);
+      setNotificationMode(notificationConfig.notificationMode || "ai");
+      setNotificationManualKeywords(notificationConfig.notificationManualKeywords || "");
     }
   }, [notificationConfig]);
 
@@ -53,6 +59,8 @@ export default function SmartNotifierPage() {
       notificationPhoneNumber: notificationPhone,
       notificationTrigger: notificationTrigger,
       notificationEnabled: notificationEnabled,
+      notificationMode: notificationMode,
+      notificationManualKeywords: notificationManualKeywords,
     });
   };
 
@@ -106,18 +114,113 @@ export default function SmartNotifierPage() {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label>Gatilho da Notificação (Instrução para IA)</Label>
-              <Textarea
-                placeholder="Ex: Me notifique quando o cliente quiser agendar uma reunião ou demonstrar interesse em comprar."
-                value={notificationTrigger}
-                onChange={(e) => setNotificationTrigger(e.target.value)}
-                rows={3}
-              />
-              <p className="text-xs text-muted-foreground">
-                A IA analisará a conversa e te notificará baseada nesta instrução.
-              </p>
+            {/* Modo de Notificação */}
+            <div className="space-y-3">
+              <Label>Modo de Detecção</Label>
+              <RadioGroup 
+                value={notificationMode} 
+                onValueChange={(value) => setNotificationMode(value as "ai" | "manual" | "both")}
+                className="space-y-3"
+              >
+                <div className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                  <RadioGroupItem value="ai" id="ai" className="mt-1" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Brain className="w-4 h-4 text-purple-500" />
+                      <Label htmlFor="ai" className="font-medium cursor-pointer">
+                        Inteligência Artificial (Recomendado)
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      A IA analisa o contexto da conversa e decide quando notificar. Mais preciso e inteligente.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                  <RadioGroupItem value="manual" id="manual" className="mt-1" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Keyboard className="w-4 h-4 text-blue-500" />
+                      <Label htmlFor="manual" className="font-medium cursor-pointer">
+                        Palavras-chave Manual
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Notifica quando detectar palavras específicas. Mais simples, mas pode ter falsos positivos.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                  <RadioGroupItem value="both" id="both" className="mt-1" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Brain className="w-4 h-4 text-purple-500" />
+                      <span className="text-xs">+</span>
+                      <Keyboard className="w-4 h-4 text-blue-500" />
+                      <Label htmlFor="both" className="font-medium cursor-pointer">
+                        Ambos (IA + Manual)
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Usa a IA e também verifica palavras-chave. Máxima cobertura, mas pode ter mais notificações.
+                    </p>
+                  </div>
+                </div>
+              </RadioGroup>
             </div>
+
+            {/* Gatilho IA */}
+            {(notificationMode === "ai" || notificationMode === "both") && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-purple-500" />
+                  <Label>Gatilho da IA</Label>
+                </div>
+                <Textarea
+                  placeholder="Ex: Me notifique quando o cliente quiser agendar uma reunião ou demonstrar interesse em comprar."
+                  value={notificationTrigger}
+                  onChange={(e) => setNotificationTrigger(e.target.value)}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Descreva em linguagem natural quando você quer ser notificado. A IA vai entender a intenção.
+                </p>
+              </div>
+            )}
+
+            {/* Palavras-chave Manual */}
+            {(notificationMode === "manual" || notificationMode === "both") && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Keyboard className="w-4 h-4 text-blue-500" />
+                  <Label>Palavras-chave (separadas por vírgula)</Label>
+                </div>
+                <Textarea
+                  placeholder="Ex: agendar, marcar, reservar, horário, comprar, pedido"
+                  value={notificationManualKeywords}
+                  onChange={(e) => setNotificationManualKeywords(e.target.value)}
+                  rows={2}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Quando o cliente usar qualquer dessas palavras, você será notificado imediatamente.
+                </p>
+              </div>
+            )}
+
+            {/* Guia de diferenças */}
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                <strong>Diferença entre os modos:</strong>
+                <ul className="mt-2 space-y-1 list-disc list-inside">
+                  <li><strong>IA:</strong> Entende contexto. "Quero ver opções" pode não notificar, mas "Quero agendar para amanhã" sim.</li>
+                  <li><strong>Manual:</strong> Busca exata. Se "agendar" está na lista, qualquer mensagem com essa palavra notifica.</li>
+                  <li><strong>Ambos:</strong> Combina os dois. Use se a IA às vezes não detecta algo importante.</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
 
             <Button 
               onClick={handleSaveNotification} 

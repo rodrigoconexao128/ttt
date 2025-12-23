@@ -1296,6 +1296,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notificationPhoneNumber: config?.notificationPhoneNumber || "",
         notificationTrigger: config?.notificationTrigger || "",
         notificationEnabled: config?.notificationEnabled || false,
+        notificationMode: config?.notificationMode || "ai",
+        notificationManualKeywords: config?.notificationManualKeywords || "",
       });
     } catch (error) {
       console.error("Error getting notification config:", error);
@@ -1307,7 +1309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/agent/notification-config", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const { notificationPhoneNumber, notificationTrigger, notificationEnabled } = req.body;
+      const { notificationPhoneNumber, notificationTrigger, notificationEnabled, notificationMode, notificationManualKeywords } = req.body;
       
       // Check if user has a business config, if not create a minimal one
       let existingConfig = await storage.getBusinessAgentConfig?.(userId);
@@ -1322,6 +1324,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           notificationPhoneNumber: notificationPhoneNumber || null,
           notificationTrigger: notificationTrigger || null,
           notificationEnabled: notificationEnabled || false,
+          notificationMode: notificationMode || "ai",
+          notificationManualKeywords: notificationManualKeywords || null,
         });
       } else {
         // Update only notification fields
@@ -1330,6 +1334,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           notificationPhoneNumber: notificationPhoneNumber || null,
           notificationTrigger: notificationTrigger || null,
           notificationEnabled: notificationEnabled || false,
+          notificationMode: notificationMode || "ai",
+          notificationManualKeywords: notificationManualKeywords || null,
         });
       }
       
@@ -1338,6 +1344,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notificationPhoneNumber: existingConfig?.notificationPhoneNumber || "",
         notificationTrigger: existingConfig?.notificationTrigger || "",
         notificationEnabled: existingConfig?.notificationEnabled || false,
+        notificationMode: existingConfig?.notificationMode || "ai",
+        notificationManualKeywords: existingConfig?.notificationManualKeywords || "",
       });
     } catch (error) {
       console.error("Error saving notification config:", error);

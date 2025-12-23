@@ -245,6 +245,8 @@ export const businessAgentConfigs = pgTable("business_agent_configs", {
   notificationPhoneNumber: varchar("notification_phone_number"),
   notificationTrigger: text("notification_trigger"), // "Notify me when..."
   notificationEnabled: boolean("notification_enabled").default(false).notNull(),
+  notificationMode: varchar("notification_mode", { length: 20 }).default("ai").notNull(), // "ai" | "manual" | "both"
+  notificationManualKeywords: text("notification_manual_keywords"), // Comma-separated keywords for manual mode
 
   // System Configuration
   isActive: boolean("is_active").default(false).notNull(),

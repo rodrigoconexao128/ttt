@@ -80,27 +80,25 @@ function getNotificationPrompt(trigger: string): string {
     const prompt = `
 ### REGRA DE NOTIFICACAO ###
 
-GATILHO = Cliente usa EXATAMENTE uma destas palavras: ${keywordList.join(', ')}
+PALAVRAS-GATILHO EXATAS: ${keywordList.join(', ')}
 
-ACAO = Se cliente usar palavra gatilho, adicione [NOTIFY: ${actionDesc}] no final da resposta.
+INSTRUCAO: Adicione [NOTIFY: ${actionDesc}] APENAS se a mensagem do cliente contiver uma palavra-gatilho listada acima.
 
-### MENSAGENS QUE NAO SAO GATILHO - NAO ADICIONAR TAG ###
-- Saudacoes: oi, bom dia, ola, boa tarde, boa noite
-- Perguntas de preco: qual o valor, quanto custa, quanto e
-- Perguntas de localizacao: onde fica, qual o endereco, onde vejo, como acesso
-- Perguntas sobre funcionamento: trabalham, abre, fecha
-- Perguntas sobre local: tem estacionamento, tem wifi
-- Problemas tecnicos: sistema lento, nao carrega, travou, como reseto
-- Reclamacoes de preco: ta caro, muito caro
-- Agradecimentos: obrigado, valeu, de nada
-- Despedidas: tchau, ate mais
+### QUANDO ADICIONAR TAG ###
+"Agenda hoje as 19" -> Contem "agenda" -> ADICIONAR [NOTIFY: ${actionDesc}]
+"Quero agendar" -> Contem "agendar" -> ADICIONAR [NOTIFY: ${actionDesc}]
+"Tem vaga?" -> Contem "tem vaga" -> ADICIONAR [NOTIFY: ${actionDesc}]
+"Quero marcar" -> Contem "marcar" -> ADICIONAR [NOTIFY: ${actionDesc}]
 
-### EXEMPLOS IMPORTANTES ###
-"Qual o valor do corte?" -> SEM TAG (pergunta de preco)
-"Onde vejo meu historico?" -> SEM TAG (pergunta de navegacao)
-"O sistema esta lento" -> SEM TAG (problema tecnico)
-"Onde fica a barbearia?" -> SEM TAG (localizacao)
-"Obrigado pela ajuda" -> SEM TAG (agradecimento)
+### QUANDO NAO ADICIONAR TAG ###
+"Oi tudo bem" -> NAO contem palavra-gatilho -> SEM TAG
+"Qual o valor?" -> NAO contem palavra-gatilho -> SEM TAG
+"Onde fica?" -> NAO contem palavra-gatilho -> SEM TAG
+"Voces trabalham sabado?" -> NAO contem palavra-gatilho -> SEM TAG
+"Ta caro" -> NAO contem palavra-gatilho -> SEM TAG
+"Obrigado" -> NAO contem palavra-gatilho -> SEM TAG
+
+REGRA: Se nenhuma palavra-gatilho aparece na mensagem, NAO adicione a tag.
 `;
     return prompt;
 }

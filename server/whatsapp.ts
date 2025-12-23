@@ -1818,20 +1818,53 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     const aiResponse = aiResult?.text || null;
     const mediaActions = aiResult?.mediaActions || [];
 
-    // 🔔 NOTIFICATION SYSTEM
+    // 🔔 NOTIFICATION SYSTEM (AI + Manual)
+    const businessConfig = await storage.getBusinessAgentConfig(userId);
+    let shouldNotify = false;
+    let notifyReason = "";
+    
+    // Check AI notification
     if (aiResult?.notification?.shouldNotify) {
-      const businessConfig = await storage.getBusinessAgentConfig(userId);
-      if (businessConfig?.notificationPhoneNumber) {
-        const notifyNumber = businessConfig.notificationPhoneNumber.replace(/\D/g, '');
-        const notifyJid = `${notifyNumber}@s.whatsapp.net`;
-        const notifyMessage = `🔔 *NOTIFICAÇÃO DO AGENTE*\n\nMotivo: ${aiResult.notification.reason}\n\nCliente: ${contactNumber}\nÚltima mensagem: "${combinedText}"`;
-        
-        try {
-          await currentSession.socket.sendMessage(notifyJid, { text: notifyMessage });
-          console.log(`🔔 [AI Agent] Notification sent to ${notifyNumber}`);
-        } catch (error) {
-          console.error(`❌ [AI Agent] Failed to send notification to ${notifyNumber}:`, error);
+      shouldNotify = true;
+      notifyReason = aiResult.notification.reason;
+      console.log(`🔔 [AI Agent] AI detected notification trigger: ${notifyReason}`);
+    }
+    
+    // Check Manual keyword notification (if mode is "manual" or "both")
+    if (businessConfig?.notificationEnabled && 
+        businessConfig?.notificationManualKeywords &&
+        (businessConfig.notificationMode === "manual" || businessConfig.notificationMode === "both")) {
+      
+      const keywords = businessConfig.notificationManualKeywords
+        .split(',')
+        .map(k => k.trim().toLowerCase())
+        .filter(k => k.length > 0);
+      
+      const messageToCheck = combinedText.toLowerCase();
+      
+      for (const keyword of keywords) {
+        if (messageToCheck.includes(keyword)) {
+          shouldNotify = true;
+          notifyReason = notifyReason 
+            ? `${notifyReason} + Palavra-chave: "${keyword}"` 
+            : `Palavra-chave detectada: "${keyword}"`;
+          console.log(`🔔 [AI Agent] Manual keyword detected: "${keyword}"`);
+          break;
         }
+      }
+    }
+    
+    // Send notification if triggered
+    if (shouldNotify && businessConfig?.notificationPhoneNumber) {
+      const notifyNumber = businessConfig.notificationPhoneNumber.replace(/\D/g, '');
+      const notifyJid = `${notifyNumber}@s.whatsapp.net`;
+      const notifyMessage = `🔔 *NOTIFICAÇÃO DO AGENTE*\n\nMotivo: ${notifyReason}\n\nCliente: ${contactNumber}\nÚltima mensagem: "${combinedText}"`;
+      
+      try {
+        await currentSession.socket.sendMessage(notifyJid, { text: notifyMessage });
+        console.log(`🔔 [AI Agent] Notification sent to ${notifyNumber}`);
+      } catch (error) {
+        console.error(`❌ [AI Agent] Failed to send notification to ${notifyNumber}:`, error);
       }
     }
 
