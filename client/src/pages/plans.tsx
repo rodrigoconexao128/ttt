@@ -5,14 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { Check, Loader2, Shield, Zap, Lock, ArrowRight, Crown, Headphones, TrendingUp, Clock, AlertTriangle, Sparkles } from "lucide-react";
+import { Check, Loader2, Shield, Zap, Crown, ChevronDown, ChevronUp } from "lucide-react";
 import type { Plan, Subscription } from "@shared/schema";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 export default function PlansPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [faqOpen, setFaqOpen] = useState<number | null>(null);
 
   const { data: plans, isLoading: plansLoading } = useQuery<Plan[]>({
     queryKey: ["/api/plans"],
@@ -52,16 +54,18 @@ export default function PlansPage() {
 
   const hasActiveSubscription = currentSubscription?.status === "active";
   
-  // Detectar qual plano estÃ¡ ativo
-  const activePlanType = currentSubscription?.plan?.tipo || 
-    (currentSubscription?.plan?.periodicidade === "mensal" ? "padrao" : null);
+  // Detectar qual plano está ativo baseado no tipo
+  const activePlanTipo = currentSubscription?.plan?.tipo;
+  const isCurrentMensal = hasActiveSubscription && (activePlanTipo === "padrao" || activePlanTipo === "mensal");
+  const isCurrentAnual = hasActiveSubscription && activePlanTipo === "anual";
+  const isCurrentImplementacao = hasActiveSubscription && activePlanTipo === "implementacao";
 
-  // FunÃ§Ã£o para verificar se este card Ã© o plano ativo
+  // Função para verificar se este card é o plano ativo
   const isPlanActive = (tipo: string) => {
     if (!hasActiveSubscription) return false;
-    if (tipo === "mensal" && (activePlanType === "padrao" || activePlanType === "mensal")) return true;
-    if (tipo === "anual" && activePlanType === "anual") return true;
-    if (tipo === "implementacao" && activePlanType === "implementacao") return true;
+    if (tipo === "mensal" && isCurrentMensal) return true;
+    if (tipo === "anual" && isCurrentAnual) return true;
+    if (tipo === "implementacao" && isCurrentImplementacao) return true;
     return false;
   };
 
@@ -81,106 +85,138 @@ export default function PlansPage() {
       createSubscriptionMutation.mutate(plans[0].id);
     } else {
       toast({
-        title: "Plano nÃ£o disponÃ­vel",
+        title: "Plano não disponível",
         description: "Entre em contato com o suporte",
         variant: "destructive"
       });
     }
   };
 
-  // Texto do botÃ£o baseado no estado
+  // Configuração do botão baseado no estado
   const getButtonConfig = (tipo: string) => {
     const isActive = isPlanActive(tipo);
-    const isCurrentMensal = isPlanActive("mensal");
-    const isCurrentAnual = isPlanActive("anual");
     
     if (isActive) {
-      return { text: "Seu Plano Atual", disabled: true, variant: "outline" as const, className: "bg-green-50 border-green-300 text-green-700 dark:bg-green-950 dark:border-green-700 dark:text-green-300 cursor-not-allowed opacity-80" };
+      return { 
+        text: "Seu plano atual", 
+        disabled: true, 
+        className: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-600 cursor-default hover:bg-gray-100 dark:hover:bg-gray-800" 
+      };
     }
     
     if (hasActiveSubscription) {
-      // UsuÃ¡rio tem plano ativo, mostrar opÃ§Ã£o de upgrade/migrar
       if (tipo === "anual" && isCurrentMensal) {
-        return { text: "Upgrade â†’ Economize 5%", disabled: false, variant: "default" as const, className: "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-lg shadow-green-500/25" };
+        return { 
+          text: "Fazer upgrade para o Anual", 
+          disabled: false, 
+          className: "bg-green-600 hover:bg-green-700 text-white" 
+        };
       }
-      // Se jÃ¡ tem anual, mensal fica desabilitado (nÃ£o faz downgrade)
       if (tipo === "mensal" && isCurrentAnual) {
-        return { text: "VocÃª jÃ¡ tem plano superior", disabled: true, variant: "outline" as const, className: "bg-gray-50 border-gray-200 text-gray-400 dark:bg-gray-900 dark:border-gray-700 cursor-not-allowed" };
+        return { 
+          text: "Você já tem plano superior", 
+          disabled: true, 
+          className: "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed hover:bg-gray-100" 
+        };
       }
       if (tipo === "implementacao") {
-        return { text: "Adicionar ImplementaÃ§Ã£o VIP", disabled: false, variant: "default" as const, className: "bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 shadow-lg shadow-purple-500/25" };
+        return { 
+          text: "Contratar Implementação", 
+          disabled: false, 
+          className: "bg-purple-600 hover:bg-purple-700 text-white" 
+        };
       }
-      return { text: "Migrar para este Plano", disabled: false, variant: "default" as const, className: "" };
+      return { text: "Migrar para este plano", disabled: false, className: "bg-blue-600 hover:bg-blue-700 text-white" };
     }
     
-    // Sem plano ativo
+    if (tipo === "mensal") {
+      return { text: "Assinar Mensal", disabled: false, className: "bg-gray-900 dark:bg-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 text-white" };
+    }
     if (tipo === "anual") {
-      return { text: "Garantir PreÃ§o por 1 Ano", disabled: false, variant: "default" as const, className: "bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/25" };
+      return { text: "Assinar Anual", disabled: false, className: "bg-green-600 hover:bg-green-700 text-white" };
     }
     if (tipo === "implementacao") {
-      return { text: "ComeÃ§ar com Suporte VIP", disabled: false, variant: "default" as const, className: "bg-purple-500 hover:bg-purple-600 shadow-lg shadow-purple-500/25" };
+      return { text: "Contratar Implementação", disabled: false, className: "bg-purple-600 hover:bg-purple-700 text-white" };
     }
-    return { text: "ComeÃ§ar Agora", disabled: false, variant: "default" as const, className: "" };
+    return { text: "Assinar", disabled: false, className: "bg-blue-600 hover:bg-blue-700 text-white" };
   };
 
+  const faqItems = [
+    {
+      question: "Como funciona o período de teste?",
+      answer: "Você pode testar o sistema por 7 dias com garantia total. Se não ficar satisfeito, devolvemos 100% do valor sem perguntas."
+    },
+    {
+      question: "Posso cancelar a qualquer momento?",
+      answer: "Sim! Não há fidelidade. Você pode cancelar quando quiser diretamente pelo painel, sem burocracia."
+    },
+    {
+      question: "O que está incluso em todos os planos?",
+      answer: "Todos os planos incluem: IA atendendo 24/7, conversas ilimitadas, 1 agente personalizado, suporte via WhatsApp e atualizações gratuitas."
+    },
+    {
+      question: "Qual a diferença do plano Anual?",
+      answer: "No plano anual você garante o preço atual por 12 meses. Mesmo que o preço aumente, você continua pagando o mesmo valor. Além disso, economiza 5% (R$ 59,40 no ano)."
+    },
+    {
+      question: "O que é a Implementação Completa?",
+      answer: "É um serviço onde nossa equipe configura toda a IA para você: personaliza o agente, treina com suas informações e acompanha por 30 dias com reuniões semanais. Após o primeiro mês, continua apenas R$ 99/mês."
+    },
+    {
+      question: "Preciso ter conhecimento técnico?",
+      answer: "Não! O sistema é simples e intuitivo. E se tiver qualquer dúvida, nosso suporte está disponível via WhatsApp."
+    },
+    {
+      question: "Como funciona o pagamento?",
+      answer: "Pagamento via PIX, instantâneo e seguro. O acesso é liberado imediatamente após a confirmação."
+    }
+  ];
+
   return (
-    <div className="flex-1 overflow-auto bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="max-w-6xl mx-auto px-4 py-6 md:py-10 space-y-8">
+    <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
+      <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
         
-        {/* Header - Compacto e focado */}
-        <div className="text-center space-y-3">
-          <h1 className="text-2xl md:text-4xl font-bold text-gray-900 dark:text-white" data-testid="text-plans-title">
-            Escolha seu plano
+        <div className="text-center mb-8">
+          <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 dark:text-white mb-2">
+            {hasActiveSubscription ? "Faça upgrade do seu plano" : "Escolha seu plano"}
           </h1>
-          <p className="text-base md:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto">
-            IA que atende como humano, 24/7 no WhatsApp
-          </p>
+          {hasActiveSubscription && (
+            <p className="text-gray-500 dark:text-gray-400">
+              Você está no plano <span className="font-medium text-gray-900 dark:text-white">{currentSubscription?.plan?.nome}</span>
+            </p>
+          )}
         </div>
 
-        {/* Alerta de urgÃªncia - Gatilho mental */}
-        <div className="flex items-center justify-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-lg max-w-xl mx-auto">
-          <TrendingUp className="w-4 h-4 text-amber-600 flex-shrink-0" />
-          <p className="text-sm text-amber-800 dark:text-amber-200 text-center">
-            <span className="font-semibold">PreÃ§os podem subir a qualquer momento.</span>{" "}
-            <span className="hidden sm:inline">Garanta o valor atual.</span>
-          </p>
-        </div>
-
-        {/* Cards de Planos - Grid responsivo */}
-        <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3 mb-12">
           
           {/* PLANO MENSAL */}
-          <Card className={`relative flex flex-col border transition-all duration-300 hover:shadow-lg ${
+          <Card className={cn(
+            "relative flex flex-col border rounded-2xl transition-all duration-200",
             isPlanActive("mensal") 
-              ? "border-green-400 bg-green-50/50 dark:bg-green-950/20" 
-              : "border-gray-200 dark:border-gray-700"
-          }`}>
-            {isPlanActive("mensal") && (
-              <div className="absolute -top-3 left-4">
-                <Badge className="bg-green-500 text-white text-xs px-2 py-0.5">
-                  <Check className="w-3 h-3 mr-1" />
-                  ATIVO
-                </Badge>
+              ? "border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/50" 
+              : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
+          )}>
+            <CardHeader className="pb-4 pt-6 px-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Mensal</h3>
+                {isPlanActive("mensal") && (
+                  <Badge variant="outline" className="text-xs border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400">
+                    Seu plano atual
+                  </Badge>
+                )}
               </div>
-            )}
-            
-            <CardHeader className="text-center pb-2 pt-6">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-blue-500" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Mensal</h3>
-              <p className="text-sm text-gray-500">Flexibilidade total</p>
               
-              <div className="mt-4">
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">R$ 99</span>
-                  <span className="text-gray-500">/mÃªs</span>
-                </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-sm text-gray-500">R$</span>
+                <span className="text-4xl font-bold text-gray-900 dark:text-white">99</span>
+                <span className="text-gray-500 text-sm">/mês</span>
               </div>
+              
+              <p className="text-sm text-gray-500 mt-2">Flexibilidade total</p>
             </CardHeader>
 
-            <CardContent className="flex-1 pt-4">
-              <ul className="space-y-2.5">
+            <CardContent className="flex-1 px-6 pb-4">
+              <ul className="space-y-3">
                 {[
                   "IA atendendo 24/7",
                   "Conversas ilimitadas",
@@ -188,244 +224,239 @@ export default function PlansPage() {
                   "Suporte via WhatsApp",
                   "Cancele quando quiser"
                 ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                  <li key={i} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
+                    <Check className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                     <span>{feature}</span>
                   </li>
                 ))}
               </ul>
             </CardContent>
 
-            <CardFooter className="pt-4">
+            <CardFooter className="px-6 pb-6 pt-2">
               <Button
-                className={`w-full h-11 font-medium ${getButtonConfig("mensal").className}`}
-                variant={getButtonConfig("mensal").variant}
+                className={cn("w-full h-11 rounded-lg font-medium", getButtonConfig("mensal").className)}
                 onClick={() => handleSelectPlan("mensal")}
                 disabled={getButtonConfig("mensal").disabled || createSubscriptionMutation.isPending}
               >
                 {createSubscriptionMutation.isPending && selectedPlan === "mensal" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <>
-                    {!getButtonConfig("mensal").disabled && <ArrowRight className="mr-2 h-4 w-4" />}
-                    {getButtonConfig("mensal").text}
-                  </>
+                  getButtonConfig("mensal").text
                 )}
               </Button>
             </CardFooter>
           </Card>
 
-          {/* PLANO ANUAL - DESTAQUE */}
-          <Card className={`relative flex flex-col border-2 transition-all duration-300 hover:shadow-xl md:scale-105 ${
+          {/* PLANO ANUAL */}
+          <Card className={cn(
+            "relative flex flex-col border-2 rounded-2xl transition-all duration-200",
             isPlanActive("anual") 
-              ? "border-green-400 bg-green-50/50 dark:bg-green-950/20" 
+              ? "border-green-400 dark:border-green-500 bg-green-50/30 dark:bg-green-950/20" 
               : "border-green-500 dark:border-green-400 shadow-lg shadow-green-500/10"
-          }`}>
-            {/* Badge superior */}
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-              <Badge className={`px-3 py-1 text-xs font-bold shadow-md ${
+          )}>
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <Badge className={cn(
+                "px-3 py-1 text-xs font-semibold rounded-full",
                 isPlanActive("anual") 
-                  ? "bg-green-500 text-white" 
-                  : "bg-gradient-to-r from-green-500 to-emerald-500 text-white"
-              }`}>
-                {isPlanActive("anual") ? (
-                  <><Check className="w-3 h-3 mr-1" /> ATIVO</>
-                ) : (
-                  <><Sparkles className="w-3 h-3 mr-1" /> MAIS ESCOLHIDO</>
-                )}
+                  ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 border border-green-300" 
+                  : "bg-green-600 text-white"
+              )}>
+                {isPlanActive("anual") ? "Seu plano atual" : "Mais popular"}
               </Badge>
             </div>
             
-            <CardHeader className="text-center pb-2 pt-6">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-green-500" />
+            <CardHeader className="pb-4 pt-8 px-6">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Anual</h3>
+                {!isPlanActive("anual") && (
+                  <Badge className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 text-xs">
+                    5% OFF
+                  </Badge>
+                )}
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Anual</h3>
-              <p className="text-sm text-green-600 font-medium">PreÃ§o travado por 12 meses</p>
               
-              <div className="mt-4">
+              <div className="space-y-1">
                 <div className="text-sm text-gray-400 line-through">R$ 1.188/ano</div>
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-3xl md:text-4xl font-bold text-green-600">R$ 1.128,60</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm text-gray-500">R$</span>
+                  <span className="text-4xl font-bold text-green-600 dark:text-green-500">1.128</span>
                   <span className="text-gray-500 text-sm">/ano</span>
                 </div>
-                <div className="text-sm text-gray-500 mt-1">
-                  (equivale a <span className="font-semibold text-green-600">R$ 94,05</span>/mÃªs)
-                </div>
-                <Badge className="mt-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs">
-                  5% OFF + PreÃ§o Garantido
-                </Badge>
+                <p className="text-xs text-gray-500">(equivale a R$ 94,05/mês)</p>
               </div>
+              
+              <p className="text-sm text-green-600 dark:text-green-400 font-medium mt-2">
+                Preço travado por 12 meses
+              </p>
             </CardHeader>
 
-            <CardContent className="flex-1 pt-4">
-              <ul className="space-y-2.5">
+            <CardContent className="flex-1 px-6 pb-4">
+              <ul className="space-y-3">
                 {[
                   { text: "Tudo do plano mensal", highlight: false },
-                  { text: "PreÃ§o TRAVADO por 12 meses", highlight: true },
-                  { text: "Economia de R$ 59,40 no ano", highlight: false },
+                  { text: "Preço GARANTIDO por 1 ano", highlight: true },
+                  { text: "Economia de R$ 59,40", highlight: false },
                   { text: "Imune a reajustes futuros", highlight: true },
                   { text: "Prioridade no suporte", highlight: false }
                 ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
-                    <Check className={`w-4 h-4 flex-shrink-0 mt-0.5 ${feature.highlight ? 'text-green-600' : 'text-green-500'}`} />
-                    <span className={feature.highlight ? "font-semibold text-green-700 dark:text-green-300" : ""}>{feature.text}</span>
+                  <li key={i} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
+                    <Check className={cn(
+                      "w-4 h-4 flex-shrink-0 mt-0.5",
+                      feature.highlight ? "text-green-600" : "text-green-500"
+                    )} />
+                    <span className={feature.highlight ? "font-medium text-green-700 dark:text-green-400" : ""}>
+                      {feature.text}
+                    </span>
                   </li>
                 ))}
               </ul>
-              
-              {/* Destaque visual - Gatilho de escassez */}
-              <div className="mt-4 p-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/50 dark:to-orange-950/50 rounded-lg border border-amber-200 dark:border-amber-800">
-                <div className="flex items-start gap-2">
-                  <TrendingUp className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div className="text-xs text-gray-700 dark:text-gray-300">
-                    <span className="font-semibold text-amber-700">Proteja-se:</span> Se o preÃ§o subir amanhÃ£, vocÃª paga o mesmo valor por 12 meses.
-                  </div>
-                </div>
-              </div>
             </CardContent>
 
-            <CardFooter className="pt-4">
+            <CardFooter className="px-6 pb-6 pt-2">
               <Button
-                className={`w-full h-11 font-semibold text-white ${getButtonConfig("anual").className}`}
+                className={cn("w-full h-11 rounded-lg font-medium", getButtonConfig("anual").className)}
                 onClick={() => handleSelectPlan("anual")}
                 disabled={getButtonConfig("anual").disabled || createSubscriptionMutation.isPending}
-                variant={getButtonConfig("anual").disabled ? "outline" : "default"}
               >
                 {createSubscriptionMutation.isPending && selectedPlan === "anual" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <>
-                    {!getButtonConfig("anual").disabled && <Shield className="mr-2 h-4 w-4" />}
-                    {getButtonConfig("anual").text}
-                  </>
+                  getButtonConfig("anual").text
                 )}
               </Button>
             </CardFooter>
           </Card>
 
-          {/* PLANO IMPLEMENTAÃ‡ÃƒO */}
-          <Card className={`relative flex flex-col border-2 transition-all duration-300 hover:shadow-lg ${
+          {/* PLANO IMPLEMENTAÇÃO */}
+          <Card className={cn(
+            "relative flex flex-col border-2 rounded-2xl transition-all duration-200",
             isPlanActive("implementacao") 
-              ? "border-green-400 bg-green-50/50 dark:bg-green-950/20" 
+              ? "border-purple-400 dark:border-purple-500 bg-purple-50/30 dark:bg-purple-950/20" 
               : "border-purple-400 dark:border-purple-500"
-          }`}>
-            {isPlanActive("implementacao") ? (
-              <div className="absolute -top-3 left-4">
-                <Badge className="bg-green-500 text-white text-xs px-2 py-0.5">
-                  <Check className="w-3 h-3 mr-1" />
-                  ATIVO
-                </Badge>
-              </div>
-            ) : (
-              <div className="absolute -top-3 left-4">
-                <Badge className="bg-purple-500 text-white text-xs px-2 py-0.5">
-                  DONE FOR YOU
-                </Badge>
-              </div>
-            )}
+          )}>
+            <div className="absolute -top-3 left-4">
+              <Badge className={cn(
+                "px-3 py-1 text-xs font-semibold rounded-full",
+                isPlanActive("implementacao") 
+                  ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 border border-purple-300" 
+                  : "bg-purple-600 text-white"
+              )}>
+                {isPlanActive("implementacao") ? "Seu plano atual" : "Done for you"}
+              </Badge>
+            </div>
             
-            <CardHeader className="text-center pb-2 pt-6">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
-                <Crown className="w-6 h-6 text-purple-500" />
+            <CardHeader className="pb-4 pt-8 px-6">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Implementação</h3>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">ImplementaÃ§Ã£o</h3>
-              <p className="text-sm text-purple-600 font-medium">Fazemos tudo por vocÃª</p>
               
-              <div className="mt-4">
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-3xl md:text-4xl font-bold text-purple-600">R$ 700</span>
-                  <span className="text-gray-500 text-sm">1Â° mÃªs</span>
-                </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-sm text-gray-500">R$</span>
+                <span className="text-4xl font-bold text-purple-600 dark:text-purple-500">700</span>
+                <span className="text-gray-500 text-sm">1º mês</span>
               </div>
+              
+              <p className="text-sm text-purple-600 dark:text-purple-400 font-medium mt-2">
+                Fazemos tudo por você
+              </p>
             </CardHeader>
 
-            <CardContent className="flex-1 pt-4">
-              <ul className="space-y-2.5">
+            <CardContent className="flex-1 px-6 pb-4">
+              <ul className="space-y-3">
                 {[
-                  "ConfiguraÃ§Ã£o completa da IA",
-                  "PersonalizaÃ§Ã£o para seu negÃ³cio",
+                  "Configuração completa da IA",
+                  "Personalização para seu negócio",
                   "30 dias de acompanhamento",
                   "Ajustes ilimitados",
-                  "ReuniÃµes semanais"
+                  "Reuniões semanais"
                 ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
+                  <li key={i} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
                     <Check className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
                     <span>{feature}</span>
                   </li>
                 ))}
               </ul>
               
-              {/* Destaque: ApÃ³s 1Â° mÃªs - mais claro e destacado */}
-              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-lg border-2 border-blue-200 dark:border-blue-700">
-                <div className="flex flex-col items-center gap-1">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-blue-600" />
-                    <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">ApÃ³s configuraÃ§Ã£o completa:</span>
-                  </div>
-                  <div className="text-base font-bold text-blue-700 dark:text-blue-300">
-                    Apenas R$ 99/mÃªs
-                  </div>
-                  <span className="text-[10px] text-gray-500">(mesmo valor do plano mensal)</span>
-                </div>
+              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-center text-gray-600 dark:text-gray-400">
+                  Após configuração: <span className="font-semibold text-gray-900 dark:text-white">R$ 99/mês</span>
+                </p>
               </div>
             </CardContent>
 
-            <CardFooter className="pt-4">
+            <CardFooter className="px-6 pb-6 pt-2">
               <Button
-                className={`w-full h-11 font-medium text-white ${getButtonConfig("implementacao").className}`}
+                className={cn("w-full h-11 rounded-lg font-medium", getButtonConfig("implementacao").className)}
                 onClick={() => handleSelectPlan("implementacao")}
                 disabled={getButtonConfig("implementacao").disabled || createSubscriptionMutation.isPending}
-                variant={getButtonConfig("implementacao").disabled ? "outline" : "default"}
               >
                 {createSubscriptionMutation.isPending && selectedPlan === "implementacao" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <>
-                    {!getButtonConfig("implementacao").disabled && <Crown className="mr-2 h-4 w-4" />}
-                    {getButtonConfig("implementacao").text}
-                  </>
+                  getButtonConfig("implementacao").text
                 )}
               </Button>
             </CardFooter>
           </Card>
         </div>
 
-        {/* Garantias - Compacto para mobile */}
-        <div className="grid grid-cols-3 gap-2 md:gap-4 mt-8">
-          <div className="flex flex-col items-center text-center p-3 md:p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
-            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-2">
-              <Shield className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
-            </div>
-            <h4 className="font-semibold text-xs md:text-sm text-gray-900 dark:text-white">7 dias</h4>
-            <p className="text-[10px] md:text-xs text-gray-500 hidden md:block">Garantia total</p>
+        <div className="flex flex-wrap justify-center gap-6 md:gap-12 py-6 border-t border-b border-gray-200 dark:border-gray-800 mb-12">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <Shield className="w-4 h-4 text-green-600" />
+            <span>7 dias de garantia</span>
           </div>
-
-          <div className="flex flex-col items-center text-center p-3 md:p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
-            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mb-2">
-              <Lock className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
-            </div>
-            <h4 className="font-semibold text-xs md:text-sm text-gray-900 dark:text-white">PIX Seguro</h4>
-            <p className="text-[10px] md:text-xs text-gray-500 hidden md:block">Pagamento instantÃ¢neo</p>
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <Zap className="w-4 h-4 text-blue-600" />
+            <span>Pagamento seguro via PIX</span>
           </div>
-
-          <div className="flex flex-col items-center text-center p-3 md:p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
-            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center mb-2">
-              <Headphones className="w-5 h-5 md:w-6 md:h-6 text-purple-600" />
-            </div>
-            <h4 className="font-semibold text-xs md:text-sm text-gray-900 dark:text-white">Suporte</h4>
-            <p className="text-[10px] md:text-xs text-gray-500 hidden md:block">Via WhatsApp</p>
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <Crown className="w-4 h-4 text-purple-600" />
+            <span>Suporte via WhatsApp</span>
           </div>
         </div>
 
-        {/* Sem planos */}
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white text-center mb-6">
+            Perguntas frequentes
+          </h2>
+          
+          <div className="space-y-2">
+            {faqItems.map((item, index) => (
+              <div 
+                key={index}
+                className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden"
+              >
+                <button
+                  onClick={() => setFaqOpen(faqOpen === index ? null : index)}
+                  className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors"
+                >
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {item.question}
+                  </span>
+                  {faqOpen === index ? (
+                    <ChevronUp className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                  )}
+                </button>
+                {faqOpen === index && (
+                  <div className="px-4 pb-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {item.answer}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {(!plans || plans.length === 0) && (
           <div className="text-center py-12">
-            <p className="text-gray-500">Nenhum plano disponÃ­vel. Entre em contato com o suporte.</p>
+            <p className="text-gray-500">Nenhum plano disponível. Entre em contato com o suporte.</p>
           </div>
         )}
       </div>
     </div>
   );
 }
-
