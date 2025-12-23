@@ -27,7 +27,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -1359,16 +1359,46 @@ function ClientManager({
   const [selectedUser, setSelectedUser] = useState<string>("");
   const [selectedPlan, setSelectedPlan] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterMode, setFilterMode] = useState<"all" | "without-plan" | "with-plan">("without-plan");
 
+  // Get set of user IDs that have active subscriptions
+  const usersWithActiveSubscriptions = new Set(
+    subscriptions
+      ?.filter(s => s.status === "active")
+      .map(s => s.userId) || []
+  );
+
+  // Filter users based on search and filter mode
   const filteredUsers = users?.filter(user => {
+    // Exclude admins and owners
     if (user.role === "owner" || user.role === "admin") return false;
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      user.name?.toLowerCase().includes(searchLower) ||
-      user.email?.toLowerCase().includes(searchLower) ||
-      user.phone?.includes(searchLower)
-    );
+    
+    // Apply filter mode
+    const hasActivePlan = usersWithActiveSubscriptions.has(user.id);
+    if (filterMode === "without-plan" && hasActivePlan) return false;
+    if (filterMode === "with-plan" && !hasActivePlan) return false;
+    
+    // Apply search term
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        user.name?.toLowerCase().includes(searchLower) ||
+        user.email?.toLowerCase().includes(searchLower) ||
+        user.phone?.includes(searchLower)
+      );
+    }
+    
+    return true;
   });
+
+  // Count users in each category
+  const usersWithoutPlanCount = users?.filter(u => 
+    u.role !== "owner" && u.role !== "admin" && !usersWithActiveSubscriptions.has(u.id)
+  ).length || 0;
+  
+  const usersWithPlanCount = users?.filter(u => 
+    u.role !== "owner" && u.role !== "admin" && usersWithActiveSubscriptions.has(u.id)
+  ).length || 0;
 
   const assignPlanMutation = useMutation({
     mutationFn: async (data: { userId: string; planId: string }) => {
@@ -1409,75 +1439,212 @@ function ClientManager({
     assignPlanMutation.mutate({ userId: selectedUser, planId: selectedPlan });
   };
 
+  // Get subscription for a user
+  const getUserSubscription = (userId: string) => {
+    return subscriptions?.find(s => s.userId === userId && s.status === "active");
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Quick Stats */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+              <Users className="w-5 h-5 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{usersWithoutPlanCount}</p>
+              <p className="text-xs text-muted-foreground">Sem plano ativo</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <Check className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{usersWithPlanCount}</p>
+              <p className="text-xs text-muted-foreground">Com plano ativo</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{plans?.filter(p => p.ativo).length || 0}</p>
+              <p className="text-xs text-muted-foreground">Planos disponíveis</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Assign Plan Section */}
       <Card data-testid="card-assign-plan">
         <CardHeader>
-          <CardTitle>Atribuir Plano a Cliente</CardTitle>
-          <CardDescription>Ative ou troque o plano de um cliente manualmente (sem necessidade de pagamento)</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <UserCog className="w-5 h-5" />
+            Gerenciar Planos de Clientes
+          </CardTitle>
+          <CardDescription>
+            Busque clientes e atribua ou gerencie seus planos
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-2">
-            <Label>Selecione o Cliente</Label>
-            <div className="relative mb-2">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+        <CardContent className="space-y-6">
+          {/* Search and Filter Bar */}
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar cliente..."
+                placeholder="Buscar por nome, email ou telefone..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
+                className="pl-10"
               />
             </div>
-            <Select value={selectedUser} onValueChange={setSelectedUser}>
-              <SelectTrigger data-testid="select-user">
-                <SelectValue placeholder="Escolha um usuário" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredUsers?.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.email} - {user.name}
-                  </SelectItem>
-                ))}
-                {filteredUsers?.length === 0 && (
-                  <div className="p-2 text-sm text-muted-foreground text-center">
-                    Nenhum cliente encontrado
-                  </div>
-                )}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Button
+                variant={filterMode === "without-plan" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterMode("without-plan")}
+                className="whitespace-nowrap"
+              >
+                Sem Plano ({usersWithoutPlanCount})
+              </Button>
+              <Button
+                variant={filterMode === "with-plan" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterMode("with-plan")}
+                className="whitespace-nowrap"
+              >
+                Com Plano ({usersWithPlanCount})
+              </Button>
+              <Button
+                variant={filterMode === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterMode("all")}
+              >
+                Todos
+              </Button>
+            </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label>Selecione o Plano</Label>
-            <Select value={selectedPlan} onValueChange={setSelectedPlan}>
-              <SelectTrigger data-testid="select-plan">
-                <SelectValue placeholder="Escolha um plano" />
-              </SelectTrigger>
-              <SelectContent>
-                {plans?.filter(p => p.ativo).map((plan) => (
-                  <SelectItem key={plan.id} value={plan.id}>
-                    {plan.nome} - R$ {plan.valor}/{plan.periodicidade}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Plan Selection */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Selecionar Cliente</Label>
+              <Select value={selectedUser} onValueChange={setSelectedUser}>
+                <SelectTrigger data-testid="select-user" className="h-11">
+                  <SelectValue placeholder="Escolha um cliente para atribuir plano" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredUsers?.length === 0 && (
+                    <div className="p-3 text-sm text-muted-foreground text-center">
+                      {searchTerm 
+                        ? "Nenhum cliente encontrado para esta busca" 
+                        : filterMode === "without-plan"
+                          ? "Todos os clientes já têm plano ativo!"
+                          : "Nenhum cliente encontrado"
+                      }
+                    </div>
+                  )}
+                  {filteredUsers?.map((user) => {
+                    const userSub = getUserSubscription(user.id);
+                    return (
+                      <SelectItem key={user.id} value={user.id}>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${userSub ? 'bg-green-500' : 'bg-orange-500'}`} />
+                          <span className="font-medium">{user.name || "Sem nome"}</span>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-sm text-muted-foreground">{user.email || user.phone}</span>
+                          {userSub && (
+                            <Badge variant="secondary" className="ml-auto text-xs">
+                              {userSub.plan.nome}
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Selecionar Plano</Label>
+              <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                <SelectTrigger data-testid="select-plan" className="h-11">
+                  <SelectValue placeholder="Escolha um plano" />
+                </SelectTrigger>
+                <SelectContent>
+                  {plans?.filter(p => p.ativo).map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id}>
+                      <div className="flex items-center justify-between w-full gap-4">
+                        <span className="font-medium">{plan.nome}</span>
+                        <span className="text-sm text-muted-foreground">
+                          R$ {plan.valor}/{plan.periodicidade === "mensal" ? "mês" : "ano"}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
+          {/* Selected user info */}
+          {selectedUser && (
+            <div className="p-4 rounded-lg bg-muted/50 border">
+              {(() => {
+                const user = users?.find(u => u.id === selectedUser);
+                const userSub = getUserSubscription(selectedUser);
+                if (!user) return null;
+                return (
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="font-medium">{user.name || "Sem nome"}</p>
+                      <p className="text-sm text-muted-foreground">{user.email} • {user.phone}</p>
+                    </div>
+                    {userSub ? (
+                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                        Plano atual: {userSub.plan.nome}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-orange-600 border-orange-300">
+                        Sem plano ativo
+                      </Badge>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           <Button 
             onClick={handleAssignPlan} 
-            disabled={assignPlanMutation.isPending}
+            disabled={assignPlanMutation.isPending || !selectedUser || !selectedPlan}
+            className="w-full md:w-auto"
+            size="lg"
             data-testid="button-assign-plan"
           >
             {assignPlanMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Atribuir Plano e Ativar
+            Atribuir Plano e Ativar Imediatamente
           </Button>
         </CardContent>
       </Card>
 
+      {/* Active Subscriptions Table */}
       <Card data-testid="card-active-subscriptions">
         <CardHeader>
-          <CardTitle>Assinaturas Ativas</CardTitle>
-          <CardDescription>Gerencie as assinaturas dos clientes</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5" />
+            Assinaturas Ativas
+          </CardTitle>
+          <CardDescription>Visualize e gerencie todas as assinaturas ativas</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -1488,35 +1655,45 @@ function ClientManager({
                 <TableHead>Status</TableHead>
                 <TableHead>Início</TableHead>
                 <TableHead>Fim</TableHead>
-                <TableHead>Ações</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {subscriptions?.filter(s => s.status === "active").length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Nenhuma assinatura ativa
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <div className="flex flex-col items-center gap-2">
+                      <CreditCard className="w-8 h-8 opacity-50" />
+                      <p>Nenhuma assinatura ativa</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
               {subscriptions?.filter(s => s.status === "active").map((subscription) => (
                 <TableRow key={subscription.id} data-testid={`row-subscription-${subscription.id}`}>
-                  <TableCell>{subscription.user.email}</TableCell>
                   <TableCell>
-                    <Badge>{subscription.plan.nome}</Badge>
+                    <div className="space-y-0.5">
+                      <p className="font-medium">{subscription.user.name || "Sem nome"}</p>
+                      <p className="text-xs text-muted-foreground">{subscription.user.email}</p>
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={subscription.status === "active" ? "default" : "secondary"}>
-                      {subscription.status}
+                    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                      {subscription.plan.nome}
                     </Badge>
                   </TableCell>
                   <TableCell>
+                    <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                      Ativo
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm">
                     {subscription.dataInicio ? new Date(subscription.dataInicio).toLocaleDateString("pt-BR") : "-"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm">
                     {subscription.dataFim ? new Date(subscription.dataFim).toLocaleDateString("pt-BR") : "-"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <Button
                       size="sm"
                       variant="destructive"

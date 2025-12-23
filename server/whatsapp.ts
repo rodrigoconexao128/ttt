@@ -1834,6 +1834,28 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       return;
     }
     
+    // 🔒 CHECK DE LIMITE DE MENSAGENS PARA USUÁRIOS SEM PLANO
+    const FREE_TRIAL_LIMIT = 25;
+    const connection = await storage.getConnectionByUserId(userId);
+    if (connection) {
+      const subscription = await storage.getUserSubscription(userId);
+      const hasActiveSubscription = subscription?.status === 'active' || subscription?.status === 'trialing';
+      
+      if (!hasActiveSubscription) {
+        const agentMessagesCount = await storage.getAgentMessagesCount(connection.id);
+        
+        if (agentMessagesCount >= FREE_TRIAL_LIMIT) {
+          console.log(`🚫 [AI AGENT] Limite de teste gratuito atingido (${agentMessagesCount}/${FREE_TRIAL_LIMIT}). Usuário precisa assinar plano.`);
+          // Não enviar resposta - limite atingido
+          return;
+        }
+        
+        console.log(`📊 [AI AGENT] Uso do período de teste: ${agentMessagesCount + 1}/${FREE_TRIAL_LIMIT}`);
+      } else {
+        console.log(`✅ [AI AGENT] Usuário tem plano ativo: ${subscription.plan.nome}`);
+      }
+    }
+    
     // Combinar todas as mensagens acumuladas
     const combinedText = messages.join('\n\n');
     console.log(`   📝 Texto combinado: "${combinedText.substring(0, 150)}..."`);

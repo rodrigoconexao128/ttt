@@ -790,6 +790,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Message usage and limits route (for free trial limit)
+  app.get("/api/usage", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const connection = await storage.getConnectionByUserId(userId);
+      const subscription = await storage.getUserSubscription(userId);
+      
+      // Check if user has active subscription
+      const hasActiveSubscription = subscription?.status === 'active' || subscription?.status === 'trialing';
+      
+      // Free trial limit: 25 messages
+      const FREE_TRIAL_LIMIT = 25;
+      
+      let agentMessagesCount = 0;
+      if (connection) {
+        agentMessagesCount = await storage.getAgentMessagesCount(connection.id);
+      }
+      
+      // If user has active subscription, they have unlimited messages
+      const limit = hasActiveSubscription ? -1 : FREE_TRIAL_LIMIT;
+      const remaining = hasActiveSubscription ? -1 : Math.max(0, FREE_TRIAL_LIMIT - agentMessagesCount);
+      const isLimitReached = !hasActiveSubscription && agentMessagesCount >= FREE_TRIAL_LIMIT;
+      
+      res.json({
+        agentMessagesCount,
+        limit,
+        remaining,
+        isLimitReached,
+        hasActiveSubscription,
+        planName: subscription?.plan?.nome || null,
+      });
+    } catch (error) {
+      console.error("Error fetching usage:", error);
+      res.status(500).json({ message: "Failed to fetch usage" });
+    }
+  });
+
   // AI Agent routes
   app.get("/api/agent/config", isAuthenticated, async (req: any, res) => {
     try {

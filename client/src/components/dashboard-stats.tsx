@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, Users, CheckCircle, Clock, Bot, AlertCircle, Sparkles } from "lucide-react";
 import type { WhatsappConnection, AiAgentConfig } from "@shared/schema";
+import { UsageLimitBanner } from "@/components/usage-limit-banner";
 
 interface DashboardStatsProps {
   connection?: WhatsappConnection;
@@ -34,6 +35,9 @@ export function DashboardStats({ connection }: DashboardStatsProps) {
             Visão geral das suas conversas no WhatsApp
           </p>
         </div>
+
+        {/* Usage Limit Banner - shows for free trial users */}
+        <UsageLimitBanner />
 
         {!agentConfig && (
           <Card className="p-6 bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-900">
