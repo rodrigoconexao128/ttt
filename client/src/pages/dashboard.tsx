@@ -399,7 +399,7 @@ const toolsNavigation: ToolNavItem[] = [
                     >
                       <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
                         <Rocket className="w-4 h-4 animate-pulse" />
-                        <span>Assinar Plano</span>
+                        <span>Plano Ilimitado R$99</span>
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

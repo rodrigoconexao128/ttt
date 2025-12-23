@@ -341,7 +341,7 @@ export default function PlansPage() {
                   ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 border border-purple-300" 
                   : "bg-purple-600 text-white"
               )}>
-                {isPlanActive("implementacao") ? "Seu plano atual" : "Done for you"}
+                {isPlanActive("implementacao") ? "Seu plano atual" : "Feito para você"}
               </Badge>
             </div>
             
