@@ -41,6 +41,21 @@ export default function SubscribePage() {
     },
   });
 
+  // Auto-generate PIX when subscription is ready and no payment exists
+  useEffect(() => {
+    if (
+      id && 
+      subscription && 
+      subscription.status === "pending" && 
+      !payment && 
+      !paymentLoading && 
+      !generatePixMutation.isPending && 
+      !generatePixMutation.isSuccess
+    ) {
+      generatePixMutation.mutate(id);
+    }
+  }, [id, subscription, payment, paymentLoading, generatePixMutation]);
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedPix(true);
@@ -78,27 +93,6 @@ export default function SubscribePage() {
       </div>
     );
   }
-
-  const handleGeneratePix = () => {
-    if (id) {
-      generatePixMutation.mutate(id);
-    }
-  };
-
-  // Auto-generate PIX when subscription is ready and no payment exists
-  useEffect(() => {
-    if (
-      id && 
-      subscription && 
-      subscription.status === "pending" && 
-      !payment && 
-      !paymentLoading && 
-      !generatePixMutation.isPending && 
-      !generatePixMutation.isSuccess
-    ) {
-      generatePixMutation.mutate(id);
-    }
-  }, [id, subscription, payment, paymentLoading, generatePixMutation]);
 
   return (
     <div className="flex-1 overflow-auto p-6">
