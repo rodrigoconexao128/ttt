@@ -227,6 +227,30 @@ export async function generateAIResponse(
        if (mediaPromptBlock) {
          systemPrompt += mediaPromptBlock;
        }
+
+       // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO NO AVANÇADO
+       if (businessConfig?.notificationEnabled && businessConfig?.notificationTrigger) {
+         console.log(`🔔 [AI Agent] Notification system ACTIVE (Advanced) - Trigger: "${businessConfig.notificationTrigger.substring(0, 50)}..."`);
+         const notificationSection = `
+
+---
+🔔 **SISTEMA DE NOTIFICAÇÃO INTELIGENTE**
+
+Gatilho de Notificação Configurado: "${businessConfig.notificationTrigger}"
+
+**INSTRUÇÃO DE ANÁLISE (Passo a Passo):**
+1. Leia a mensagem do usuário.
+2. Compare com o gatilho: "${businessConfig.notificationTrigger}".
+3. A mensagem corresponde EXATAMENTE ao que o gatilho pede?
+   - Se o gatilho é "Reembolso" e o usuário pede "Agendamento", a resposta é NÃO.
+   - Se o gatilho é "Agendamento" e o usuário diz "Oi", a resposta é NÃO.
+
+**REGRA FINAL:**
+- Se a resposta for SIM (corresponde): Adicione "[NOTIFY: O gatilho foi atendido]" ao final.
+- Se a resposta for NÃO (não corresponde): NÃO adicione nenhuma tag de notificação.
+`;
+         systemPrompt += notificationSection;
+       }
        
        console.log(`🎨 [AI Agent] Generated advanced prompt (${systemPrompt.length} chars)${hasMedia ? ' + media library' : ''}`);
      } else {
@@ -264,18 +288,22 @@ export async function generateAIResponse(
          console.log(`🔔 [AI Agent] Notification system ACTIVE - Trigger: "${businessConfig.notificationTrigger.substring(0, 50)}..."`);
          const notificationSection = `
 
-  ---
-  🔔 *SISTEMA DE NOTIFICAÇÃO ATIVO:*
-  ANALISE a conversa e verifique se a seguinte condição foi atendida:
-  "${businessConfig.notificationTrigger}"
+---
+🔔 **SISTEMA DE NOTIFICAÇÃO INTELIGENTE**
 
-  SE (e SOMENTE SE) esta condição for atendida na mensagem do cliente, você DEVE incluir a seguinte tag NO FINAL da sua resposta (em uma NOVA LINHA, após o texto de resposta):
-  [NOTIFY: motivo breve]
+Gatilho de Notificação Configurado: "${businessConfig.notificationTrigger}"
 
-  Exemplo:
-  "Claro, posso agendar para você. Qual horário prefere?
-  [NOTIFY: Cliente quer agendar]"
-  `;
+**INSTRUÇÃO DE ANÁLISE (Passo a Passo):**
+1. Leia a mensagem do usuário.
+2. Compare com o gatilho: "${businessConfig.notificationTrigger}".
+3. A mensagem corresponde EXATAMENTE ao que o gatilho pede?
+   - Se o gatilho é "Reembolso" e o usuário pede "Agendamento", a resposta é NÃO.
+   - Se o gatilho é "Agendamento" e o usuário diz "Oi", a resposta é NÃO.
+
+**REGRA FINAL:**
+- Se a resposta for SIM (corresponde): Adicione "[NOTIFY: O gatilho foi atendido]" ao final.
+- Se a resposta for NÃO (não corresponde): NÃO adicione nenhuma tag de notificação.
+`;
          systemPrompt += notificationSection;
          console.log(`🔔 [AI Agent] Added notification system to legacy prompt`);
        }

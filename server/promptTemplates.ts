@@ -337,16 +337,21 @@ Ou se você não conseguir resolver o problema, diga:
   // Notification System
   if (config.notificationEnabled && config.notificationTrigger) {
     const notificationSection = `
-🔔 *SISTEMA DE NOTIFICAÇÃO:*
-Você deve analisar a conversa e verificar se a seguinte condição foi atendida:
-"${config.notificationTrigger}"
+---
+🔔 **SISTEMA DE NOTIFICAÇÃO INTELIGENTE**
 
-SE (e somente se) esta condição for atendida, você deve incluir a seguinte tag no final da sua resposta (em uma nova linha):
-[NOTIFY: ${config.notificationTrigger}]
+Gatilho de Notificação Configurado: "${config.notificationTrigger}"
 
-Exemplo:
-"Claro, posso agendar para você. Qual horário prefere?
-[NOTIFY: Cliente quer agendar]"
+**INSTRUÇÃO DE ANÁLISE (Passo a Passo):**
+1. Leia a mensagem do usuário.
+2. Compare com o gatilho: "${config.notificationTrigger}".
+3. A mensagem corresponde EXATAMENTE ao que o gatilho pede?
+   - Se o gatilho é "Reembolso" e o usuário pede "Agendamento", a resposta é NÃO.
+   - Se o gatilho é "Agendamento" e o usuário diz "Oi", a resposta é NÃO.
+
+**REGRA FINAL:**
+- Se a resposta for SIM (corresponde): Adicione "[NOTIFY: O gatilho foi atendido]" ao final.
+- Se a resposta for NÃO (não corresponde): NÃO adicione nenhuma tag de notificação.
 `;
     prompt = prompt.replace(/{{SISTEMA_NOTIFICACAO}}/g, notificationSection);
   } else {
