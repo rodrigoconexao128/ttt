@@ -58,10 +58,15 @@ export default function PlansPage() {
 
   // Função para verificar se este card é o plano ativo
   const isPlanActive = (tipo: string) => {
-    if (!hasActiveSubscription) return false;
-    if (tipo === "mensal" && (activePlanType === "padrao" || activePlanType === "mensal")) return true;
-    if (tipo === "anual" && activePlanType === "anual") return true;
-    if (tipo === "implementacao" && activePlanType === "implementacao") return true;
+    if (!hasActiveSubscription || !currentSubscription?.plan) return false;
+    
+    // Normalizar tipos para comparação
+    const currentType = activePlanType || "padrao";
+    
+    if (tipo === "mensal") return currentType === "padrao" || currentType === "mensal";
+    if (tipo === "anual") return currentType === "anual";
+    if (tipo === "implementacao") return currentType === "implementacao";
+    
     return false;
   };
 
@@ -269,9 +274,10 @@ export default function PlansPage() {
               {/* Destaque visual - Gatilho de escassez */}
               <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 rounded-lg border border-green-200 dark:border-green-800">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <Shield className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                   <div className="text-xs text-gray-700 dark:text-gray-300">
-                    <span className="font-semibold">Atenção:</span> Se o preço subir, você continua pagando o mesmo por 12 meses.
+                    <span className="font-semibold block mb-1">Proteção de Preço:</span>
+                    Garanta este valor por 1 ano. Se o plano mensal subir, você não paga nada a mais.
                   </div>
                 </div>
               </div>
@@ -353,7 +359,7 @@ export default function PlansPage() {
                 <div className="flex items-center justify-center gap-2">
                   <Clock className="w-4 h-4 text-purple-500" />
                   <div className="text-sm font-semibold text-purple-700 dark:text-purple-300">
-                    A partir do 2° mês: <span className="text-lg">R$ 99/mês</span>
+                    Já no próximo mês: <span className="text-lg">R$ 99/mês</span>
                   </div>
                 </div>
               </div>

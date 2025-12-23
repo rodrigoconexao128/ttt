@@ -379,7 +379,11 @@ const toolsNavigation: ToolNavItem[] = [
                 </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            {subscription?.plan && Math.abs(Number(subscription.plan.valor) - 99) < 1 && subscription.status === 'active' ? (
+            {subscription?.plan && (
+              subscription.plan.tipo === 'padrao' || 
+              subscription.plan.tipo === 'mensal' || 
+              Math.abs(Number(subscription.plan.valor) - 99) < 1
+            ) && subscription.status === 'active' ? (
               <>
                 <SidebarMenuItem>
                   <SidebarMenuButton 
