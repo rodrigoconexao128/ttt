@@ -54,13 +54,13 @@ export default function PlansPage() {
 
   const hasActiveSubscription = currentSubscription?.status === "active";
   
-  // Detectar qual plano está ativo baseado no tipo
+  // Detectar qual plano estÃ¡ ativo baseado no tipo
   const activePlanTipo = currentSubscription?.plan?.tipo;
   const isCurrentMensal = hasActiveSubscription && (activePlanTipo === "padrao" || activePlanTipo === "mensal");
   const isCurrentAnual = hasActiveSubscription && activePlanTipo === "anual";
   const isCurrentImplementacao = hasActiveSubscription && activePlanTipo === "implementacao";
 
-  // Função para verificar se este card é o plano ativo
+  // FunÃ§Ã£o para verificar se este card Ã© o plano ativo
   const isPlanActive = (tipo: string) => {
     if (!hasActiveSubscription) return false;
     if (tipo === "mensal" && isCurrentMensal) return true;
@@ -85,14 +85,14 @@ export default function PlansPage() {
       createSubscriptionMutation.mutate(plans[0].id);
     } else {
       toast({
-        title: "Plano não disponível",
+        title: "Plano nÃ£o disponÃ­vel",
         description: "Entre em contato com o suporte",
         variant: "destructive"
       });
     }
   };
 
-  // Configuração do botão baseado no estado
+  // ConfiguraÃ§Ã£o do botÃ£o baseado no estado
   const getButtonConfig = (tipo: string) => {
     const isActive = isPlanActive(tipo);
     
@@ -114,14 +114,14 @@ export default function PlansPage() {
       }
       if (tipo === "mensal" && isCurrentAnual) {
         return { 
-          text: "Você já tem plano superior", 
+          text: "VocÃª jÃ¡ tem plano superior", 
           disabled: true, 
           className: "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed hover:bg-gray-100" 
         };
       }
       if (tipo === "implementacao") {
         return { 
-          text: "Contratar Implementação", 
+          text: "Contratar ImplementaÃ§Ã£o", 
           disabled: false, 
           className: "bg-purple-600 hover:bg-purple-700 text-white" 
         };
@@ -136,39 +136,39 @@ export default function PlansPage() {
       return { text: "Assinar Anual", disabled: false, className: "bg-green-600 hover:bg-green-700 text-white" };
     }
     if (tipo === "implementacao") {
-      return { text: "Contratar Implementação", disabled: false, className: "bg-purple-600 hover:bg-purple-700 text-white" };
+      return { text: "Contratar ImplementaÃ§Ã£o", disabled: false, className: "bg-purple-600 hover:bg-purple-700 text-white" };
     }
     return { text: "Assinar", disabled: false, className: "bg-blue-600 hover:bg-blue-700 text-white" };
   };
 
   const faqItems = [
     {
-      question: "Como funciona o período de teste?",
-      answer: "Você pode testar o sistema por 7 dias com garantia total. Se não ficar satisfeito, devolvemos 100% do valor sem perguntas."
+      question: "Como funciona o perÃ­odo de teste?",
+      answer: "VocÃª pode testar o sistema por 7 dias com garantia total. Se nÃ£o ficar satisfeito, devolvemos 100% do valor sem perguntas."
     },
     {
       question: "Posso cancelar a qualquer momento?",
-      answer: "Sim! Não há fidelidade. Você pode cancelar quando quiser diretamente pelo painel, sem burocracia."
+      answer: "Sim! NÃ£o hÃ¡ fidelidade. VocÃª pode cancelar quando quiser diretamente pelo painel, sem burocracia."
     },
     {
-      question: "O que está incluso em todos os planos?",
-      answer: "Todos os planos incluem: IA atendendo 24/7, conversas ilimitadas, 1 agente personalizado, suporte via WhatsApp e atualizações gratuitas."
+      question: "O que estÃ¡ incluso em todos os planos?",
+      answer: "Todos os planos incluem: IA atendendo 24/7, conversas ilimitadas, 1 agente personalizado, suporte via WhatsApp e atualizaÃ§Ãµes gratuitas."
     },
     {
-      question: "Qual a diferença do plano Anual?",
-      answer: "No plano anual você garante o preço atual por 12 meses. Mesmo que o preço aumente, você continua pagando o mesmo valor. Além disso, economiza 5% (R$ 59,40 no ano)."
+      question: "Qual a diferenÃ§a do plano Anual?",
+      answer: "No plano anual vocÃª garante o preÃ§o atual por 12 meses. Mesmo que o preÃ§o aumente, vocÃª continua pagando o mesmo valor. AlÃ©m disso, economiza 5% (R$ 59,40 no ano)."
     },
     {
-      question: "O que é a Implementação Completa?",
-      answer: "É um serviço onde nossa equipe configura toda a IA para você: personaliza o agente, treina com suas informações e acompanha por 30 dias com reuniões semanais. Após o primeiro mês, continua apenas R$ 99/mês."
+      question: "O que Ã© a ImplementaÃ§Ã£o Completa?",
+      answer: "Ã‰ um serviÃ§o onde nossa equipe configura toda a IA para vocÃª: personaliza o agente, treina com suas informaÃ§Ãµes e acompanha por 30 dias com reuniÃµes semanais. ApÃ³s o primeiro mÃªs, continua apenas R$ 99/mÃªs."
     },
     {
-      question: "Preciso ter conhecimento técnico?",
-      answer: "Não! O sistema é simples e intuitivo. E se tiver qualquer dúvida, nosso suporte está disponível via WhatsApp."
+      question: "Preciso ter conhecimento tÃ©cnico?",
+      answer: "NÃ£o! O sistema Ã© simples e intuitivo. E se tiver qualquer dÃºvida, nosso suporte estÃ¡ disponÃ­vel via WhatsApp."
     },
     {
       question: "Como funciona o pagamento?",
-      answer: "Pagamento via PIX, instantâneo e seguro. O acesso é liberado imediatamente após a confirmação."
+      answer: "Pagamento via PIX, instantÃ¢neo e seguro. O acesso Ã© liberado imediatamente apÃ³s a confirmaÃ§Ã£o."
     }
   ];
 
@@ -178,11 +178,11 @@ export default function PlansPage() {
         
         <div className="text-center mb-8">
           <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 dark:text-white mb-2">
-            {hasActiveSubscription ? "Faça upgrade do seu plano" : "Escolha seu plano"}
+            {hasActiveSubscription ? "FaÃ§a upgrade do seu plano" : "Escolha seu plano"}
           </h1>
           {hasActiveSubscription && (
             <p className="text-gray-500 dark:text-gray-400">
-              Você está no plano <span className="font-medium text-gray-900 dark:text-white">{currentSubscription?.plan?.nome}</span>
+              VocÃª estÃ¡ no plano <span className="font-medium text-gray-900 dark:text-white">{currentSubscription?.plan?.nome}</span>
             </p>
           )}
         </div>
@@ -209,7 +209,7 @@ export default function PlansPage() {
               <div className="flex items-baseline gap-1">
                 <span className="text-sm text-gray-500">R$</span>
                 <span className="text-4xl font-bold text-gray-900 dark:text-white">99</span>
-                <span className="text-gray-500 text-sm">/mês</span>
+                <span className="text-gray-500 text-sm">/mÃªs</span>
               </div>
               
               <p className="text-sm text-gray-500 mt-2">Flexibilidade total</p>
@@ -282,11 +282,11 @@ export default function PlansPage() {
                   <span className="text-4xl font-bold text-green-600 dark:text-green-500">1.128</span>
                   <span className="text-gray-500 text-sm">/ano</span>
                 </div>
-                <p className="text-xs text-gray-500">(equivale a R$ 94,05/mês)</p>
+                <p className="text-xs text-gray-500">(equivale a R$ 94,05/mÃªs)</p>
               </div>
               
               <p className="text-sm text-green-600 dark:text-green-400 font-medium mt-2">
-                Preço travado por 12 meses
+                PreÃ§o travado por 12 meses
               </p>
             </CardHeader>
 
@@ -294,7 +294,7 @@ export default function PlansPage() {
               <ul className="space-y-3">
                 {[
                   { text: "Tudo do plano mensal", highlight: false },
-                  { text: "Preço GARANTIDO por 1 ano", highlight: true },
+                  { text: "PreÃ§o GARANTIDO por 1 ano", highlight: true },
                   { text: "Economia de R$ 59,40", highlight: false },
                   { text: "Imune a reajustes futuros", highlight: true },
                   { text: "Prioridade no suporte", highlight: false }
@@ -327,7 +327,7 @@ export default function PlansPage() {
             </CardFooter>
           </Card>
 
-          {/* PLANO IMPLEMENTAÇÃO */}
+          {/* PLANO IMPLEMENTAÃ‡ÃƒO */}
           <Card className={cn(
             "relative flex flex-col border-2 rounded-2xl transition-all duration-200",
             isPlanActive("implementacao") 
@@ -347,28 +347,28 @@ export default function PlansPage() {
             
             <CardHeader className="pb-4 pt-8 px-6">
               <div className="flex items-center gap-2 mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Implementação</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">ImplementaÃ§Ã£o</h3>
               </div>
               
               <div className="flex items-baseline gap-1">
                 <span className="text-sm text-gray-500">R$</span>
                 <span className="text-4xl font-bold text-purple-600 dark:text-purple-500">700</span>
-                <span className="text-gray-500 text-sm">1º mês</span>
+                <span className="text-gray-500 text-sm">1Âº mÃªs</span>
               </div>
               
               <p className="text-sm text-purple-600 dark:text-purple-400 font-medium mt-2">
-                Fazemos tudo por você
+                Fazemos tudo por vocÃª
               </p>
             </CardHeader>
 
             <CardContent className="flex-1 px-6 pb-4">
               <ul className="space-y-3">
                 {[
-                  "Configuração completa da IA",
-                  "Personalização para seu negócio",
+                  "ConfiguraÃ§Ã£o completa da IA",
+                  "PersonalizaÃ§Ã£o para seu negÃ³cio",
                   "30 dias de acompanhamento",
                   "Ajustes ilimitados",
-                  "Reuniões semanais"
+                  "ReuniÃµes semanais"
                 ].map((feature, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
                     <Check className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
@@ -379,7 +379,7 @@ export default function PlansPage() {
               
               <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                 <p className="text-sm text-center text-gray-600 dark:text-gray-400">
-                  Após configuração: <span className="font-semibold text-gray-900 dark:text-white">R$ 99/mês</span>
+                  ApÃ³s configuraÃ§Ã£o: <span className="font-semibold text-gray-900 dark:text-white">R$ 99/mÃªs</span>
                 </p>
               </div>
             </CardContent>
@@ -453,7 +453,7 @@ export default function PlansPage() {
 
         {(!plans || plans.length === 0) && (
           <div className="text-center py-12">
-            <p className="text-gray-500">Nenhum plano disponível. Entre em contato com o suporte.</p>
+            <p className="text-gray-500">Nenhum plano disponÃ­vel. Entre em contato com o suporte.</p>
           </div>
         )}
       </div>
