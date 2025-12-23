@@ -23,8 +23,6 @@ export function ConnectionPanel() {
 
   const { data: connection, isLoading, refetch: refetchConnection } = useQuery<WhatsappConnection>({
     queryKey: ["/api/whatsapp/connection"],
-    // Refetch a cada 3 segundos quando não está conectado e está aguardando QR Code
-    refetchInterval: !connection?.isConnected && isWaitingQrCode ? 3000 : false,
   });
 
   // Função para buscar QR Code diretamente do banco de dados
