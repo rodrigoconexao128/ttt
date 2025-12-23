@@ -693,8 +693,10 @@ function splitSectionIntoChunks(section: string, maxChars: number): string[] {
 
 // Divide texto por frases, garantindo que não corte palavras
 function splitTextBySentences(text: string, maxChars: number): string[] {
-  // Regex para encontrar frases (terminadas em . ! ? ou - seguidos de espaço/fim)
-  const sentencePattern = /[^.!?\-]+[.!?\-]+(?:\s|$)|[^.!?\-]+$/g;
+  // Regex para encontrar frases (terminadas em . ! ? seguidos de espaço/fim)
+  // IMPORTANTE: Removido o hífen (-) como delimitador de frase para não cortar
+  // palavras compostas como "segunda-feira", "terça-feira", etc.
+  const sentencePattern = /[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g;
   const sentences = text.match(sentencePattern) || [text];
   
   const chunks: string[] = [];
@@ -1431,12 +1433,41 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     console.error("Erro ao agendar follow-up:", error);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🛑 AUTO-PAUSE IA: Quando o dono responde manualmente, PAUSA a IA
+  // A IA só volta a responder quando o usuário reativar em /conversas
+  // ═══════════════════════════════════════════════════════════════════════
+  try {
+    const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversation.id);
+    if (!isAlreadyDisabled) {
+      await storage.disableAgentForConversation(conversation.id);
+      console.log(`🛑 [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversation.id} - dono respondeu manualmente`);
+      
+      // Cancelar qualquer resposta pendente do agente para esta conversa
+      const pendingResponse = pendingResponses.get(conversation.id);
+      if (pendingResponse) {
+        clearTimeout(pendingResponse.timeout);
+        pendingResponses.delete(conversation.id);
+        console.log(`🛑 [AUTO-PAUSE] Resposta pendente do agente cancelada para ${contactNumber}`);
+      }
+    }
+  } catch (error) {
+    console.error("Erro ao pausar IA automaticamente:", error);
+  }
+
   // Broadcast para atualizar UI em tempo real
   broadcastToUser(session.userId, {
     type: "new_message",
     conversationId: conversation.id,
     message: messageText,
     mediaType,
+  });
+  
+  // 🔔 Notificar que a IA foi pausada para esta conversa
+  broadcastToUser(session.userId, {
+    type: "agent_auto_paused",
+    conversationId: conversation.id,
+    reason: "manual_reply",
   });
 
   console.log(`📱 [FROM ME] Mensagem sincronizada: ${contactNumber} - "${messageText}"`);

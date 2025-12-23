@@ -739,7 +739,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await whatsappSendMessage(userId, conversationId, text);
-      res.json({ success: true });
+      
+      // 🛑 AUTO-PAUSE IA: Quando o dono envia mensagem pelo sistema, PAUSA a IA
+      try {
+        const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversationId);
+        if (!isAlreadyDisabled) {
+          await storage.disableAgentForConversation(conversationId);
+          console.log(`🛑 [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversationId} - dono enviou mensagem pelo sistema`);
+        }
+      } catch (pauseError) {
+        console.error("Erro ao pausar IA automaticamente:", pauseError);
+      }
+      
+      res.json({ success: true, agentPaused: true });
     } catch (error: any) {
       console.error("Error sending message:", error);
       res.status(500).json({ message: error.message || "Failed to send message" });

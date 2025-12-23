@@ -79,10 +79,20 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
         text,
       });
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       setMessageText("");
       queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      
+      // 🛑 AUTO-PAUSE: Se o agente foi pausado automaticamente, atualizar status e avisar
+      if (data?.agentPaused) {
+        queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
+        toast({
+          title: "IA Pausada Automaticamente",
+          description: "A IA foi pausada para esta conversa pois você respondeu manualmente. Ative novamente quando desejar.",
+          variant: "default",
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
