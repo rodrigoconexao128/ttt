@@ -6,6 +6,54 @@
 
 import type { BusinessAgentConfig } from "@db/schema";
 
+// 🔔 FUNÇÃO PARA GERAR PROMPT DE NOTIFICAÇÃO DINÂMICO
+function getNotificationPrompt(trigger: string): string {
+  const triggerLower = trigger.toLowerCase();
+  
+  let keywords = "";
+  let actionDesc = "";
+  
+  if (triggerLower.includes("agendar") || triggerLower.includes("horário") || triggerLower.includes("marcar")) {
+    keywords = "agendar, agenda, marcar, marca, reservar, reserva, tem vaga, tem horário, horário disponível, me encaixa, encaixe";
+    actionDesc = "agendamento";
+  } else if (triggerLower.includes("reembolso") || triggerLower.includes("devolver") || triggerLower.includes("devolução")) {
+    keywords = "reembolso, devolver, devolução, quero meu dinheiro, cancelar pedido, estornar, estorno";
+    actionDesc = "reembolso";
+  } else if (triggerLower.includes("humano") || triggerLower.includes("atendente") || triggerLower.includes("pessoa")) {
+    keywords = "falar com humano, atendente, pessoa real, falar com alguém, quero um humano, passa pra alguém";
+    actionDesc = "atendente humano";
+  } else if (triggerLower.includes("preço") || triggerLower.includes("valor") || triggerLower.includes("quanto custa")) {
+    keywords = "preço, valor, quanto custa, quanto é, qual o preço, tabela de preço";
+    actionDesc = "preço";
+  } else if (triggerLower.includes("reclama") || triggerLower.includes("problema") || triggerLower.includes("insatisf")) {
+    keywords = "reclamação, problema, insatisfeito, não funcionou, com defeito, quebrou, errado";
+    actionDesc = "reclamação";
+  } else if (triggerLower.includes("comprar") || triggerLower.includes("pedido") || triggerLower.includes("encomendar")) {
+    keywords = "comprar, quero comprar, fazer pedido, encomendar, pedir, quero pedir";
+    actionDesc = "compra";
+  } else {
+    // Gatilho genérico - extrair palavras-chave do próprio trigger
+    keywords = trigger.replace(/me notifique quando o cliente|quiser|quer|pedir|mencionar|falar sobre/gi, "").trim();
+    actionDesc = keywords || "gatilho";
+  }
+  
+  return `
+🔔 SISTEMA DE NOTIFICAÇÃO
+
+Gatilho configurado: "${trigger}"
+Palavras-chave para ${actionDesc}: ${keywords}
+
+REGRA ÚNICA: Adicione [NOTIFY: ${actionDesc}] APENAS se a mensagem contiver uma das palavras-chave listadas acima.
+
+⛔ PROIBIDO adicionar qualquer tag [NOTIFY:...] para:
+- Saudações: oi, olá, bom dia, boa tarde, boa noite
+- Agradecimentos: obrigado, obrigada, valeu, agradeço
+- Perguntas sobre preço, localização ou horário de funcionamento
+
+Se nenhuma palavra-chave for encontrada → responda normalmente SEM tag.
+`;
+}
+
 // ═══════════════════════════════════════════════════════════
 // 🎯 TEMPLATE BASE DO SISTEMA (ADVANCED)
 // ═══════════════════════════════════════════════════════════
@@ -336,23 +384,7 @@ Ou se você não conseguir resolver o problema, diga:
 
   // Notification System
   if (config.notificationEnabled && config.notificationTrigger) {
-    const notificationSection = `
----
-🔔 **SISTEMA DE NOTIFICAÇÃO INTELIGENTE**
-
-Gatilho de Notificação Configurado: "${config.notificationTrigger}"
-
-**INSTRUÇÃO DE ANÁLISE (Passo a Passo):**
-1. Leia a mensagem do usuário.
-2. Compare com o gatilho: "${config.notificationTrigger}".
-3. A mensagem corresponde EXATAMENTE ao que o gatilho pede?
-   - Se o gatilho é "Reembolso" e o usuário pede "Agendamento", a resposta é NÃO.
-   - Se o gatilho é "Agendamento" e o usuário diz "Oi", a resposta é NÃO.
-
-**REGRA FINAL:**
-- Se a resposta for SIM (corresponde): Adicione "[NOTIFY: O gatilho foi atendido]" ao final.
-- Se a resposta for NÃO (não corresponde): NÃO adicione nenhuma tag de notificação.
-`;
+    const notificationSection = getNotificationPrompt(config.notificationTrigger);
     prompt = prompt.replace(/{{SISTEMA_NOTIFICACAO}}/g, notificationSection);
   } else {
     prompt = prompt.replace(/{{SISTEMA_NOTIFICACAO}}/g, "");
