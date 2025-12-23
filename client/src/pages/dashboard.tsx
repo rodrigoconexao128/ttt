@@ -379,51 +379,103 @@ const toolsNavigation: ToolNavItem[] = [
                 </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            {subscription?.plan && (
-              subscription.plan.tipo === 'padrao' || 
-              subscription.plan.tipo === 'mensal' || 
-              Math.abs(Number(subscription.plan.valor) - 99) < 1
-            ) && subscription.status === 'active' ? (
-              <>
-                <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    asChild 
-                    tooltip="Upgrade para Anual" 
-                    className="mt-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 hover:text-white transition-all duration-300 shadow-md"
-                  >
-                    <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
-                      <Rocket className="w-4 h-4" />
-                      <span>Upgrade Anual</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    asChild 
-                    tooltip="Contratar Implementação" 
-                    className="mt-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 hover:text-white transition-all duration-300 shadow-md"
-                  >
-                    <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
-                      <Wrench className="w-4 h-4" />
-                      <span>Implementação</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </>
-            ) : (
-              <SidebarMenuItem>
-                <SidebarMenuButton 
-                  asChild 
-                  tooltip="Assinar Plano Ilimitado" 
-                  className="mt-2 bg-gradient-to-r from-blue-600 to-violet-600 text-white hover:from-blue-700 hover:to-violet-700 hover:text-white transition-all duration-300 shadow-md"
-                >
-                  <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
-                    <Rocket className="w-4 h-4 animate-pulse" />
-                    <span>Plano Ilimitado R$99</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
+            {/* Lógica dinâmica de botões baseada no plano ativo */}
+            {(() => {
+              const hasActiveSub = subscription?.status === 'active';
+              const planTipo = subscription?.plan?.tipo;
+              const planPeriodicidade = subscription?.plan?.periodicidade;
+              const isMensal = hasActiveSub && (planTipo === 'padrao' || planTipo === 'mensal' || (!planTipo && planPeriodicidade === 'mensal'));
+              const isAnual = hasActiveSub && planTipo === 'anual';
+              const isImplementacao = hasActiveSub && planTipo === 'implementacao';
+              
+              // Se não tem plano ativo, mostra o botão principal
+              if (!hasActiveSub) {
+                return (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      tooltip="Assinar Plano Ilimitado" 
+                      className="mt-2 bg-gradient-to-r from-blue-600 to-violet-600 text-white hover:from-blue-700 hover:to-violet-700 hover:text-white transition-all duration-300 shadow-md"
+                    >
+                      <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
+                        <Rocket className="w-4 h-4 animate-pulse" />
+                        <span>Assinar Plano</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              }
+              
+              // Tem plano mensal: mostrar upgrade anual + implementação
+              if (isMensal) {
+                return (
+                  <>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton 
+                        asChild 
+                        tooltip="Economize 5% com plano anual" 
+                        className="mt-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 hover:text-white transition-all duration-300 shadow-md"
+                      >
+                        <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
+                          <Rocket className="w-4 h-4" />
+                          <span>Upgrade → Anual</span>
+                        </a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton 
+                        asChild 
+                        tooltip="Configuração VIP completa" 
+                        className="mt-1 bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:from-purple-600 hover:to-indigo-600 hover:text-white transition-all duration-300 shadow-md"
+                      >
+                        <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
+                          <Wrench className="w-4 h-4" />
+                          <span>Implementação VIP</span>
+                        </a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </>
+                );
+              }
+              
+              // Tem plano anual: mostrar só implementação
+              if (isAnual) {
+                return (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      tooltip="Configuração VIP completa" 
+                      className="mt-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:from-purple-600 hover:to-indigo-600 hover:text-white transition-all duration-300 shadow-md"
+                    >
+                      <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
+                        <Wrench className="w-4 h-4" />
+                        <span>Implementação VIP</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              }
+              
+              // Tem implementação: mostrar upgrade anual (se fizer sentido)
+              if (isImplementacao) {
+                return (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      tooltip="Garanta o preço por 12 meses" 
+                      className="mt-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 hover:text-white transition-all duration-300 shadow-md"
+                    >
+                      <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
+                        <Rocket className="w-4 h-4" />
+                        <span>Migrar p/ Anual</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              }
+              
+              return null;
+            })()}
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>

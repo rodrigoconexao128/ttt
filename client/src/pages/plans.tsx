@@ -58,15 +58,10 @@ export default function PlansPage() {
 
   // Função para verificar se este card é o plano ativo
   const isPlanActive = (tipo: string) => {
-    if (!hasActiveSubscription || !currentSubscription?.plan) return false;
-    
-    // Normalizar tipos para comparação
-    const currentType = activePlanType || "padrao";
-    
-    if (tipo === "mensal") return currentType === "padrao" || currentType === "mensal";
-    if (tipo === "anual") return currentType === "anual";
-    if (tipo === "implementacao") return currentType === "implementacao";
-    
+    if (!hasActiveSubscription) return false;
+    if (tipo === "mensal" && (activePlanType === "padrao" || activePlanType === "mensal")) return true;
+    if (tipo === "anual" && activePlanType === "anual") return true;
+    if (tipo === "implementacao" && activePlanType === "implementacao") return true;
     return false;
   };
 
@@ -97,18 +92,23 @@ export default function PlansPage() {
   const getButtonConfig = (tipo: string) => {
     const isActive = isPlanActive(tipo);
     const isCurrentMensal = isPlanActive("mensal");
+    const isCurrentAnual = isPlanActive("anual");
     
     if (isActive) {
-      return { text: "Seu Plano Atual", disabled: true, variant: "outline" as const, className: "bg-green-50 border-green-300 text-green-700 dark:bg-green-950 dark:border-green-700 dark:text-green-300" };
+      return { text: "Seu Plano Atual", disabled: true, variant: "outline" as const, className: "bg-green-50 border-green-300 text-green-700 dark:bg-green-950 dark:border-green-700 dark:text-green-300 cursor-not-allowed opacity-80" };
     }
     
     if (hasActiveSubscription) {
       // Usuário tem plano ativo, mostrar opção de upgrade/migrar
       if (tipo === "anual" && isCurrentMensal) {
-        return { text: "Upgrade → Economize 5%", disabled: false, variant: "default" as const, className: "bg-green-500 hover:bg-green-600" };
+        return { text: "Upgrade → Economize 5%", disabled: false, variant: "default" as const, className: "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-lg shadow-green-500/25" };
+      }
+      // Se já tem anual, mensal fica desabilitado (não faz downgrade)
+      if (tipo === "mensal" && isCurrentAnual) {
+        return { text: "Você já tem plano superior", disabled: true, variant: "outline" as const, className: "bg-gray-50 border-gray-200 text-gray-400 dark:bg-gray-900 dark:border-gray-700 cursor-not-allowed" };
       }
       if (tipo === "implementacao") {
-        return { text: "Contratar Implementação", disabled: false, variant: "default" as const, className: "bg-purple-500 hover:bg-purple-600" };
+        return { text: "Adicionar Implementação VIP", disabled: false, variant: "default" as const, className: "bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 shadow-lg shadow-purple-500/25" };
       }
       return { text: "Migrar para este Plano", disabled: false, variant: "default" as const, className: "" };
     }
@@ -244,10 +244,13 @@ export default function PlansPage() {
               <p className="text-sm text-green-600 font-medium">Preço travado por 12 meses</p>
               
               <div className="mt-4">
-                <div className="text-sm text-gray-400 line-through">R$ 99/mês</div>
+                <div className="text-sm text-gray-400 line-through">R$ 1.188/ano</div>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-3xl md:text-4xl font-bold text-green-600">R$ 94,05</span>
-                  <span className="text-gray-500">/mês</span>
+                  <span className="text-3xl md:text-4xl font-bold text-green-600">R$ 1.128,60</span>
+                  <span className="text-gray-500 text-sm">/ano</span>
+                </div>
+                <div className="text-sm text-gray-500 mt-1">
+                  (equivale a <span className="font-semibold text-green-600">R$ 94,05</span>/mês)
                 </div>
                 <Badge className="mt-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs">
                   5% OFF + Preço Garantido
@@ -258,26 +261,25 @@ export default function PlansPage() {
             <CardContent className="flex-1 pt-4">
               <ul className="space-y-2.5">
                 {[
-                  "Tudo do plano mensal",
-                  "Preço CONGELADO por 1 ano",
-                  "Economia de R$ 59,40/ano",
-                  "Prioridade no suporte",
-                  "Proteção contra reajustes"
+                  { text: "Tudo do plano mensal", highlight: false },
+                  { text: "Preço TRAVADO por 12 meses", highlight: true },
+                  { text: "Economia de R$ 59,40 no ano", highlight: false },
+                  { text: "Imune a reajustes futuros", highlight: true },
+                  { text: "Prioridade no suporte", highlight: false }
                 ].map((feature, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
-                    <Check className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span className={i === 1 || i === 4 ? "font-medium text-green-700 dark:text-green-300" : ""}>{feature}</span>
+                    <Check className={`w-4 h-4 flex-shrink-0 mt-0.5 ${feature.highlight ? 'text-green-600' : 'text-green-500'}`} />
+                    <span className={feature.highlight ? "font-semibold text-green-700 dark:text-green-300" : ""}>{feature.text}</span>
                   </li>
                 ))}
               </ul>
               
               {/* Destaque visual - Gatilho de escassez */}
-              <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="mt-4 p-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/50 dark:to-orange-950/50 rounded-lg border border-amber-200 dark:border-amber-800">
                 <div className="flex items-start gap-2">
-                  <Shield className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                  <TrendingUp className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div className="text-xs text-gray-700 dark:text-gray-300">
-                    <span className="font-semibold block mb-1">Proteção de Preço:</span>
-                    Garanta este valor por 1 ano. Se o plano mensal subir, você não paga nada a mais.
+                    <span className="font-semibold text-amber-700">Proteja-se:</span> Se o preço subir amanhã, você paga o mesmo valor por 12 meses.
                   </div>
                 </div>
               </div>
@@ -354,13 +356,17 @@ export default function PlansPage() {
                 ))}
               </ul>
               
-              {/* Destaque: Após 1° mês */}
-              <div className="mt-4 p-3 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/50 dark:to-violet-950/50 rounded-lg border border-purple-200 dark:border-purple-800">
-                <div className="flex items-center justify-center gap-2">
-                  <Clock className="w-4 h-4 text-purple-500" />
-                  <div className="text-sm font-semibold text-purple-700 dark:text-purple-300">
-                    Já no próximo mês: <span className="text-lg">R$ 99/mês</span>
+              {/* Destaque: Após 1° mês - mais claro e destacado */}
+              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-lg border-2 border-blue-200 dark:border-blue-700">
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Após configuração completa:</span>
                   </div>
+                  <div className="text-base font-bold text-blue-700 dark:text-blue-300">
+                    Apenas R$ 99/mês
+                  </div>
+                  <span className="text-[10px] text-gray-500">(mesmo valor do plano mensal)</span>
                 </div>
               </div>
             </CardContent>
