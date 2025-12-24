@@ -134,6 +134,7 @@ Nível de formalidade: {{NIVEL_FORMALIDADE}}/10
 • {{VARIAR_SAUDACOES}}
 • {{OFERECER_PROXIMOS_PASSOS}}
 • Máximo de {{MAX_CARACTERES}} caracteres por mensagem
+• Ao mencionar dias da semana, SEMPRE use o nome completo (ex: "Segunda-feira", "Terça-feira"). NUNCA diga apenas "Feira".
 
 ═══════════════════════════════════════════════════════════
 🤝 COMPORTAMENTO CONVERSACIONAL
