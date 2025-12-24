@@ -1249,6 +1249,10 @@ export async function connectWhatsApp(userId: string): Promise<void> {
             broadcastToUser(userId, { type: "disconnected", reason: "max_attempts" });
             // Resetar contador após atingir o limite (usuário precisará clicar em conectar novamente)
             reconnectAttempts.delete(userId);
+            // Limpar QR code do banco para evitar exibição de QR expirado
+            await storage.updateConnection(session.connectionId, {
+              qrCode: null,
+            });
           }
         } else {
           // Foi logout (desconectado pelo celular), limpar TUDO

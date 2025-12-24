@@ -25,23 +25,13 @@ export function ConnectionPanel() {
     queryKey: ["/api/whatsapp/connection"],
   });
 
-  // Função para buscar QR Code diretamente do banco de dados
+  // Função para verificar status da conexão durante polling
+  // NÃO carrega QR code do banco pois pode ser expirado - QR deve vir via WebSocket
   const fetchQrCodeFromDb = useCallback(async () => {
     try {
       const response = await apiRequest("GET", "/api/whatsapp/connection");
       const data = await response.json();
-      if (data && data.qrCode && !qrCodeRef.current) {
-        console.log("[QR POLLING] QR Code encontrado no banco de dados!");
-        setQrCode(data.qrCode);
-        qrCodeRef.current = data.qrCode;
-        setIsWaitingQrCode(false);
-        isWaitingQrCodeRef.current = false;
-        // Parar polling quando encontrar o QR code
-        if (qrCodePollingRef.current) {
-          clearInterval(qrCodePollingRef.current);
-          qrCodePollingRef.current = null;
-        }
-      }
+      // Se conectou, parar polling e limpar estados
       if (data && data.isConnected) {
         setIsWaitingQrCode(false);
         isWaitingQrCodeRef.current = false;
@@ -53,7 +43,7 @@ export function ConnectionPanel() {
         }
       }
     } catch (error) {
-      console.error("[QR POLLING] Erro ao buscar QR Code:", error);
+      console.error("[QR POLLING] Erro ao verificar conexão:", error);
     }
   }, []);
 
@@ -146,16 +136,24 @@ export function ConnectionPanel() {
     },
   });
 
-  // Verificar se já existe um QR Code no banco quando a conexão é carregada
+  // NÃO carregamos o QR code do banco de dados porque pode ser um QR code antigo/expirado
+  // O QR code deve vir apenas via WebSocket quando é gerado em tempo real
+  // ou via polling quando o usuário clica em "Conectar"
+  // Quando o connection é atualizado, verificamos se está conectado para limpar estados
   useEffect(() => {
-    if (connection && connection.qrCode && !connection.isConnected && !qrCodeRef.current) {
-      console.log("[INIT] QR Code encontrado na conexão do banco de dados!");
-      setQrCode(connection.qrCode);
-      qrCodeRef.current = connection.qrCode;
+    if (connection?.isConnected) {
+      // Se já está conectado, limpa qualquer QR code ou estado de espera
+      setQrCode(null);
+      qrCodeRef.current = null;
       setIsWaitingQrCode(false);
       isWaitingQrCodeRef.current = false;
+      setIsConnecting(false);
+      if (qrCodePollingRef.current) {
+        clearInterval(qrCodePollingRef.current);
+        qrCodePollingRef.current = null;
+      }
     }
-  }, [connection]);
+  }, [connection?.isConnected]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -462,6 +460,31 @@ export function ConnectionPanel() {
                   </div>
                 </div>
               </div>
+              
+              {/* Botão para gerar novo QR code caso o atual esteja expirado */}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // Limpar estados e solicitar novo QR code
+                  setQrCode(null);
+                  qrCodeRef.current = null;
+                  connectMutation.mutate();
+                }}
+                disabled={connectMutation.isPending}
+                className="w-full"
+              >
+                {connectMutation.isPending ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Gerando novo QR Code...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Gerar Novo QR Code
+                  </>
+                )}
+              </Button>
             </div>
           )}
 
