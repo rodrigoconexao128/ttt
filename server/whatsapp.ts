@@ -1008,8 +1008,23 @@ export async function connectWhatsApp(userId: string): Promise<void> {
   // Isso permite novas tentativas após o usuário clicar em "Conectar"
   reconnectAttempts.delete(userId);
 
-  // Criar promise para rastrear esta tentativa de conexão
-  const connectionPromise = (async () => {
+  // 🔒 CRÍTICO: Criar e registrar a promise IMEDIATAMENTE para evitar race conditions
+  // A promise deve ser registrada ANTES de qualquer código async para garantir
+  // que múltiplas chamadas simultâneas retornem a mesma promise
+  let resolveConnection: () => void;
+  let rejectConnection: (error: Error) => void;
+  
+  const connectionPromise = new Promise<void>((resolve, reject) => {
+    resolveConnection = resolve;
+    rejectConnection = reject;
+  });
+  
+  // Registrar ANTES de qualquer operação async
+  pendingConnections.set(userId, connectionPromise);
+  console.log(`[CONNECT] Registered pending connection for user ${userId}`);
+
+  // Agora executar a lógica de conexão
+  (async () => {
     try {
       console.log(`[CONNECT] Starting connection for user ${userId}...`);
       
@@ -1251,8 +1266,9 @@ export async function connectWhatsApp(userId: string): Promise<void> {
           console.log(`User ${userId} needs to click Connect again to generate new QR code.`);
         }
       } else if (conn === "open") {
-        // Conexão estabelecida com sucesso - resetar tentativas de reconexão
+        // Conexão estabelecida com sucesso - resetar tentativas de reconexão e limpar pendentes
         reconnectAttempts.delete(userId);
+        pendingConnections.delete(userId);
         
         const phoneNumber = sock.user?.id?.split(":")[0] || "";
         session.phoneNumber = phoneNumber;
@@ -1314,20 +1330,21 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       }
     });
 
+    // Socket inicializado com sucesso - resolver a promise
+    // NOTA: A conexão ainda não está "open", apenas o socket foi criado
+    // O pendingConnections será limpo quando a conexão abrir (conn === "open")
+    // ou quando houver erro de conexão (conn === "close")
+    console.log(`[CONNECT] WhatsApp socket initialized for user ${userId}, waiting for connection events...`);
+    resolveConnection!();
+
     } catch (error) {
       console.error("Error connecting WhatsApp:", error);
       pendingConnections.delete(userId);
-      throw error;
-    } finally {
-      // Limpar da lista de pendentes quando terminar (sucesso ou erro)
-      pendingConnections.delete(userId);
+      rejectConnection!(error as Error);
     }
   })();
 
-  // Armazenar a promise no mapa
-  pendingConnections.set(userId, connectionPromise);
-
-  // Retornar a promise
+  // Retornar a promise (já foi registrada no mapa antes de iniciar a async)
   return connectionPromise;
 }
 
