@@ -65,6 +65,15 @@ const pendingPairingRequests = new Map<string, Promise<string | null>>();
 // Evita múltiplas tentativas de conexão simultâneas para o mesmo usuário
 const pendingConnections = new Map<string, Promise<void>>();
 
+// 🔄 Map para rastrear tentativas de reconexão e evitar loops infinitos
+interface ReconnectAttempt {
+  count: number;
+  lastAttempt: number;
+}
+const reconnectAttempts = new Map<string, ReconnectAttempt>();
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconexão
+
 // 🎯 SISTEMA DE ACUMULAÇÃO DE MENSAGENS
 // Rastreia timeouts pendentes e mensagens acumuladas por conversa
 interface PendingResponse {
@@ -942,8 +951,9 @@ export async function forceReconnectWhatsApp(userId: string): Promise<void> {
     sessions.delete(userId);
   }
   
-  // Limpar pending connections
+  // Limpar pending connections e tentativas de reconexão
   pendingConnections.delete(userId);
+  reconnectAttempts.delete(userId);
   
   // Agora chamar connectWhatsApp normalmente
   await connectWhatsApp(userId);
@@ -965,8 +975,9 @@ export async function forceResetWhatsApp(userId: string): Promise<void> {
     sessions.delete(userId);
   }
   
-  // Limpar pending connections
+  // Limpar pending connections e tentativas de reconexão
   pendingConnections.delete(userId);
+  reconnectAttempts.delete(userId);
   
   // APAGAR arquivos de autenticação (força novo QR Code)
   const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
@@ -992,6 +1003,10 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     console.log(`[CONNECT] Connection already in progress for user ${userId}, waiting for it to complete...`);
     return existingPendingConnection;
   }
+
+  // 🔄 Resetar contador de tentativas de reconexão quando usuário inicia conexão manualmente
+  // Isso permite novas tentativas após o usuário clicar em "Conectar"
+  reconnectAttempts.delete(userId);
 
   // Criar promise para rastrear esta tentativa de conexão
   const connectionPromise = (async () => {
@@ -1180,9 +1195,10 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       }
 
       if (conn === "close") {
-        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode; const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-        // Sempre deletar a sessÃ£o primeiro
+        // Sempre deletar a sessão primeiro
         sessions.delete(userId);
         pendingConnections.delete(userId); // Limpar da lista de pendentes
 
@@ -1192,10 +1208,33 @@ export async function connectWhatsApp(userId: string): Promise<void> {
           qrCode: null,
         });
 
+        // Verificar limite de tentativas de reconexão para evitar loop infinito
+        const now = Date.now();
+        let attempt = reconnectAttempts.get(userId) || { count: 0, lastAttempt: 0 };
+        
+        // Se passou mais de 30 segundos desde o último ciclo, resetar contador
+        if (now - attempt.lastAttempt > RECONNECT_COOLDOWN_MS) {
+          attempt = { count: 0, lastAttempt: now };
+        }
+
         if (shouldReconnect) {
-          console.log(`User ${userId} WhatsApp disconnected temporarily, reconnecting in 5 seconds...`);
-          broadcastToUser(userId, { type: "disconnected" });
-          setTimeout(() => connectWhatsApp(userId), 5000); // Aumentado para 5 segundos
+          attempt.count++;
+          attempt.lastAttempt = now;
+          reconnectAttempts.set(userId, attempt);
+
+          if (attempt.count <= MAX_RECONNECT_ATTEMPTS) {
+            console.log(`User ${userId} WhatsApp disconnected temporarily, reconnecting in 5 seconds... (attempt ${attempt.count}/${MAX_RECONNECT_ATTEMPTS})`);
+            // Enviar evento disconnected apenas na primeira tentativa para evitar spam
+            if (attempt.count === 1) {
+              broadcastToUser(userId, { type: "disconnected" });
+            }
+            setTimeout(() => connectWhatsApp(userId), 5000);
+          } else {
+            console.log(`User ${userId} WhatsApp disconnected - max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Waiting for user action.`);
+            broadcastToUser(userId, { type: "disconnected", reason: "max_attempts" });
+            // Resetar contador após atingir o limite (usuário precisará clicar em conectar novamente)
+            reconnectAttempts.delete(userId);
+          }
         } else {
           // Foi logout (desconectado pelo celular), limpar TUDO
           console.log(`User ${userId} logged out from device, clearing all auth files...`);
@@ -1204,16 +1243,17 @@ export async function connectWhatsApp(userId: string): Promise<void> {
           await clearAuthFiles(userAuthPath);
 
           broadcastToUser(userId, { type: "disconnected", reason: "logout" });
+          
+          // Resetar tentativas de reconexão
+          reconnectAttempts.delete(userId);
 
-          // IMPORTANTE: após logout, as credenciais foram apagadas.
-          // Para gerar um novo QR Code automaticamente, reiniciar a conexão.
-          setTimeout(() => {
-            connectWhatsApp(userId).catch((err) => {
-              console.error(`Error reconnecting WhatsApp after logout for ${userId}:`, err);
-            });
-          }, 3000); // Aumentado para 3 segundos
+          // NÃO reconectar automaticamente após logout - o usuário deve clicar em "Conectar" novamente
+          console.log(`User ${userId} needs to click Connect again to generate new QR code.`);
         }
       } else if (conn === "open") {
+        // Conexão estabelecida com sucesso - resetar tentativas de reconexão
+        reconnectAttempts.delete(userId);
+        
         const phoneNumber = sock.user?.id?.split(":")[0] || "";
         session.phoneNumber = phoneNumber;
 

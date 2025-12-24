@@ -224,7 +224,7 @@ export function ConnectionPanel() {
                 description: "WhatsApp conectado com sucesso",
               });
             } else if (data.type === "disconnected") {
-              console.log("[WS] WhatsApp desconectado!");
+              console.log("[WS] WhatsApp desconectado!", data.reason || "");
               setQrCode(null);
               qrCodeRef.current = null;
               setIsConnecting(false);
@@ -235,7 +235,26 @@ export function ConnectionPanel() {
                 clearInterval(qrCodePollingRef.current);
                 qrCodePollingRef.current = null;
               }
+              // Parar timeout
+              if (waitingTimeoutRef.current) {
+                clearTimeout(waitingTimeoutRef.current);
+                waitingTimeoutRef.current = null;
+              }
               queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
+              
+              // Mostrar mensagem apropriada baseada no motivo
+              if (data.reason === "max_attempts") {
+                toast({
+                  title: "Conexão falhou",
+                  description: "Não foi possível conectar após várias tentativas. Clique em Conectar para tentar novamente.",
+                  variant: "destructive",
+                });
+              } else if (data.reason === "logout") {
+                toast({
+                  title: "WhatsApp desconectado",
+                  description: "Você foi desconectado do WhatsApp. Clique em Conectar para gerar um novo QR Code.",
+                });
+              }
             }
           } catch (error) {
             console.error("Error parsing WebSocket message:", error);
