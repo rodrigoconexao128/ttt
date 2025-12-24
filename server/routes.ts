@@ -1789,16 +1789,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== ADMIN ROUTES ====================
-  // Get all users
-  app.get("/api/admin/users", isAdmin, async (_req, res) => {
-    try {
-      const users = await storage.getAllUsers();
-      res.json(users);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      res.status(500).json({ message: "Failed to fetch users" });
-    }
-  });
+  // NOTE: Get all users is defined earlier in the file (around line 156) with connection status
+  // Do not duplicate the route here
 
   // Delete user (cascade delete all related data)
   app.delete("/api/admin/users/:id", isAdmin, async (req, res) => {

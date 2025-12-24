@@ -108,6 +108,7 @@ export default function AdminPanel() {
 
   const { data: users } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
+    refetchInterval: 10000, // Atualizar a cada 10 segundos para refletir status de conexão
   });
 
   const { data: plans } = useQuery<Plan[]>({
