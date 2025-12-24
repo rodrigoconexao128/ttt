@@ -27,7 +27,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -479,6 +479,7 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [reconnectingUserId, setReconnectingUserId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
 
   const filteredUsers = users?.filter(user => {
     const searchLower = searchTerm.toLowerCase();
@@ -540,13 +541,13 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
       return res.json();
     },
     onSuccess: (data) => {
-      toast({ title: "Credenciais enviadas!", description: "O cliente receberá os dados de acesso." });
+      toast({ title: "Senha Gerada!", description: "A senha foi gerada e atualizada com sucesso." });
       if (data.password) {
-        alert(`Senha gerada: ${data.password}\n\nCopie esta senha, ela não será mostrada novamente.`);
+        setGeneratedPassword(data.password);
       }
     },
     onError: (error) => {
-      toast({ title: "Erro ao enviar credenciais", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao gerar senha", description: error.message, variant: "destructive" });
     },
   });
 
@@ -656,7 +657,7 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
   };
 
   const handleSendCredentials = (userId: string) => {
-    if (confirm("Tem certeza que deseja enviar as credenciais para este usuário?")) {
+    if (confirm("Tem certeza que deseja gerar uma nova senha para este usuário? A senha antiga deixará de funcionar.")) {
       sendCredentialsMutation.mutate(userId);
     }
   };
@@ -789,9 +790,9 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
                     size="sm" 
                     variant="ghost" 
                     onClick={() => handleSendCredentials(user.id)}
-                    title="Enviar Credenciais"
+                    title="Gerar Nova Senha"
                   >
-                    <Send className="h-4 w-4" />
+                    <Key className="h-4 w-4" />
                   </Button>
                   <Button 
                     size="sm" 
@@ -919,6 +920,41 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
         onOpenChange={(open) => !open && setEditingAgentUser(null)}
         userName={editingAgentUser?.name || editingAgentUser?.email || ""}
       />
+
+      <Dialog open={!!generatedPassword} onOpenChange={(open) => !open && setGeneratedPassword(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Senha Gerada</DialogTitle>
+            <DialogDescription>
+              Copie a senha abaixo. Ela não será mostrada novamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center space-x-2 py-4">
+            <div className="grid flex-1 gap-2">
+              <Label htmlFor="generated-password" className="sr-only">
+                Senha
+              </Label>
+              <Input
+                id="generated-password"
+                value={generatedPassword || ""}
+                readOnly
+              />
+            </div>
+            <Button type="submit" size="sm" className="px-3" onClick={() => {
+              navigator.clipboard.writeText(generatedPassword || "");
+              toast({ title: "Copiado!", description: "Senha copiada para a área de transferência." });
+            }}>
+              <span className="sr-only">Copiar</span>
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setGeneratedPassword(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

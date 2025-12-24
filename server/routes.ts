@@ -306,24 +306,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Generate random password
       const password = Math.random().toString(36).slice(-8);
-      const bcrypt = await import("bcryptjs");
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      // Update user password (assuming we have a password field or similar mechanism)
-      // Note: The 'users' table in schema.ts doesn't explicitly show a password field in the read_file output earlier.
-      // Let's check schema.ts again to be sure. If not, we might need to assume it's handled via Supabase or similar,
-      // but the prompt implies we are managing it.
-      // Wait, the user asked to "see the credentials".
-      // If we are using Supabase Auth, we can't easily set the password directly here without Admin API.
-      // However, looking at 'admin login' route, it uses 'storage.getAdminByEmail' and bcrypt.
-      // Let's assume for now we can update a 'password' field if it existed, or we just send the generated one
-      // and assume the user will use it (if we were using a custom auth system).
       
-      // BUT, looking at schema.ts earlier:
-      // export const users = pgTable("users", { ... });
-      // It DOES NOT have a password field. It seems to rely on Supabase or external auth?
-      // OR maybe it's missing from the snippet I read.
-      // Let's assume we just send the message for now as requested "funcionar".
+      // Update password in Supabase Auth
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        id,
+        { password: password }
+      );
+
+      if (updateError) {
+        console.error("Error updating password in Supabase:", updateError);
+        return res.status(500).json({ message: "Failed to update password in Auth system: " + updateError.message });
+      }
       
       // Send WhatsApp message
       if (user.phone) {
