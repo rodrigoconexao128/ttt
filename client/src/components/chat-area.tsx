@@ -291,9 +291,9 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Chat Header */}
-      <div className="p-4 border-b flex items-center gap-3">
+      <div className="p-3 md:p-4 border-b flex items-center gap-3 bg-background/95 backdrop-blur sticky top-0 z-10">
         <Avatar 
-          className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity" 
+          className="w-8 h-8 md:w-10 md:h-10 cursor-pointer hover:opacity-80 transition-opacity" 
           onClick={(e) => {
             e.stopPropagation();
             if (conversation?.contactAvatar) {
@@ -330,21 +330,21 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
             {displayNumber}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           <Badge
             variant={agentStatus?.isDisabled ? "secondary" : "default"}
-            className="gap-1"
+            className="gap-1 h-7 md:h-auto px-2"
             data-testid="badge-agent-status-chat"
           >
             {agentStatus?.isDisabled ? (
               <>
                 <BotOff className="w-3 h-3" />
-                Agente Desativado
+                <span className="hidden md:inline">Agente Desativado</span>
               </>
             ) : (
               <>
                 <Bot className="w-3 h-3" />
-                Agente Ativo
+                <span className="hidden md:inline">Agente Ativo</span>
               </>
             )}
           </Badge>

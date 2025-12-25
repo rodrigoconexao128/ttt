@@ -304,10 +304,10 @@ export function ConnectionPanel() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="container max-w-2xl mx-auto p-8 space-y-8">
+      <div className="container max-w-2xl mx-auto p-4 md:p-8 space-y-6 md:space-y-8 pb-24 md:pb-8">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Conexão WhatsApp</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold">Conexão WhatsApp</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Conecte seu número do WhatsApp para começar a gerenciar suas conversas
           </p>
         </div>
@@ -428,7 +428,7 @@ export function ConnectionPanel() {
                 <img
                   src={qrCode}
                   alt="QR Code"
-                  className="w-64 h-64 border-4 border-gray-100 rounded-lg"
+                  className="w-full max-w-[256px] h-auto border-4 border-gray-100 rounded-lg"
                   data-testid="image-qr-code"
                 />
                 <div className="text-center space-y-4 max-w-md">

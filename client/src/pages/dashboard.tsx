@@ -2,7 +2,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, ChevronLeft } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -591,14 +591,26 @@ const toolsNavigation: ToolNavItem[] = [
           {/* Conversations */}
           {(isConversasRoute || (isDashboardMode && selectedView === "conversations")) && (
             <>
-              <div className="w-80 border-r bg-card flex flex-col h-full overflow-hidden">
+              <div className={cn(
+                "w-full md:w-80 border-r bg-card flex flex-col h-full overflow-hidden",
+                selectedConversationId ? "hidden md:flex" : "flex"
+              )}>
                 <ConversationsList
                   connectionId={connection?.id}
                   selectedConversationId={selectedConversationId}
                   onSelectConversation={setSelectedConversationId}
                 />
               </div>
-              <div className="flex-1 flex flex-col h-full overflow-hidden">
+              <div className={cn(
+                "flex-1 flex flex-col h-full overflow-hidden",
+                !selectedConversationId ? "hidden md:flex" : "flex"
+              )}>
+                <div className="md:hidden p-2 border-b flex items-center bg-background">
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedConversationId(null)} className="gap-2">
+                    <ChevronLeft className="w-4 h-4" />
+                    Voltar
+                  </Button>
+                </div>
                 {false && (
                   <div className="p-4 space-y-3">
                     {!agentConfig && (
@@ -638,38 +650,53 @@ const toolsNavigation: ToolNavItem[] = [
           )}
         </div>
         {/* Mobile bottom navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background">
-          <div className="grid grid-cols-5 text-xs">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-[env(safe-area-inset-bottom)]">
+          <div className="grid grid-cols-5 text-[10px] font-medium h-[3.5rem] items-center">
             <button
-              className={`flex flex-col items-center py-2 ${isDashboardMode && selectedView === "stats" ? "text-primary" : "text-muted-foreground"}`}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 h-full transition-colors active:scale-95",
+                isDashboardMode && selectedView === "stats" ? "text-primary" : "text-muted-foreground"
+              )}
               onClick={() => goToSection("stats")}
             >
               <LayoutDashboard className="w-5 h-5" />
               <span>Dashboard</span>
             </button>
             <button
-              className={`flex flex-col items-center py-2 ${isDashboardMode && selectedView === "conversations" ? "text-primary" : "text-muted-foreground"}`}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 h-full transition-colors active:scale-95",
+                isDashboardMode && selectedView === "conversations" ? "text-primary" : "text-muted-foreground"
+              )}
               onClick={() => goToSection("conversations")}
             >
               <MessageCircle className="w-5 h-5" />
               <span>Conversas</span>
             </button>
             <button
-              className={`flex flex-col items-center py-2 ${isDashboardMode && selectedView === "connection" ? "text-primary" : "text-muted-foreground"}`}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 h-full transition-colors active:scale-95",
+                isDashboardMode && selectedView === "connection" ? "text-primary" : "text-muted-foreground"
+              )}
               onClick={() => goToSection("connection")}
             >
               <Smartphone className="w-5 h-5" />
               <span>Conexão</span>
             </button>
             <button
-              className={`flex flex-col items-center py-2 ${isDashboardMode && selectedView === "agent" ? "text-primary" : "text-muted-foreground"}`}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 h-full transition-colors active:scale-95",
+                isDashboardMode && selectedView === "agent" ? "text-primary" : "text-muted-foreground"
+              )}
               onClick={() => goToSection("agent")}
             >
               <Bot className="w-5 h-5" />
               <span>Agente</span>
             </button>
             <button
-              className={`flex flex-col items-center py-2 ${isToolsRoute ? "text-primary" : "text-muted-foreground"}`}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 h-full transition-colors active:scale-95",
+                isToolsRoute ? "text-primary" : "text-muted-foreground"
+              )}
               onClick={() => setToolsPickerOpen(true)}
             >
               <Wrench className="w-5 h-5" />
@@ -680,16 +707,19 @@ const toolsNavigation: ToolNavItem[] = [
 
         {/* Drawer de seleção de ferramentas (mobile) */}
         <Drawer open={toolsPickerOpen} onOpenChange={setToolsPickerOpen}>
-          <DrawerContent>
-            <DrawerHeader>
-              <DrawerTitle>Ferramentas</DrawerTitle>
-              <DrawerDescription>Escolha uma ferramenta para abrir</DrawerDescription>
+          <DrawerContent className="max-h-[85vh]">
+            <DrawerHeader className="text-left">
+              <DrawerTitle className="text-lg font-bold">Ferramentas</DrawerTitle>
+              <DrawerDescription>Acesse todos os recursos do AgenteZap</DrawerDescription>
             </DrawerHeader>
-            <div className="p-4 grid grid-cols-3 gap-3">
+            <div className="p-4 grid grid-cols-4 gap-4 overflow-y-auto pb-10">
               {toolsNavigation.map((item) => (
                 <button
                   key={item.testId}
-                  className={`border rounded-md p-3 flex flex-col items-center gap-2 text-xs ${item.isActive ? "border-primary text-primary" : "text-foreground"}`}
+                  className={cn(
+                    "flex flex-col items-center gap-2 text-center active:scale-95 transition-transform",
+                    item.isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  )}
                   onClick={() => {
                     if (item.href) {
                       setLocation(item.href);
@@ -699,8 +729,14 @@ const toolsNavigation: ToolNavItem[] = [
                     setToolsPickerOpen(false);
                   }}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span className="text-center leading-tight">{item.label}</span>
+                  <div className={cn(
+                    "w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm transition-colors",
+                    item.isActive ? "bg-primary/10 text-primary" : "bg-secondary text-foreground",
+                    item.label === "Planos" && !item.isActive ? "bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-blue-200" : ""
+                  )}>
+                    <item.icon className="w-6 h-6" />
+                  </div>
+                  <span className="text-[10px] font-medium leading-tight line-clamp-2 w-full">{item.label}</span>
                 </button>
               ))}
             </div>
