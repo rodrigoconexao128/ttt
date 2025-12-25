@@ -6,7 +6,18 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Send, MessageCircle, Bot, BotOff, Smartphone, X } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -66,6 +77,28 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
     onError: (error: Error) => {
       toast({
         title: "Erro ao alterar agente",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMessagesMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", `/api/messages/${conversationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
+      toast({
+        title: "Conversa limpa",
+        description: "Todas as mensagens foram apagadas e a IA foi reativada.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao limpar conversa",
         description: error.message,
         variant: "destructive",
       });
@@ -321,6 +354,28 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
             disabled={toggleAgentMutation.isPending}
             data-testid="switch-agent-chat"
           />
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" title="Limpar conversa">
+                <Trash2 className="w-5 h-5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Limpar conversa?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação apagará todas as mensagens desta conversa. Isso é útil para testar o fluxo da IA como se fosse um novo cliente. Esta ação não pode ser desfeita.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={() => deleteMessagesMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Limpar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

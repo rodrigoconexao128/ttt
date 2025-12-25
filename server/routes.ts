@@ -709,6 +709,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/messages/:conversationId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      await storage.deleteMessagesByConversationId(conversationId);
+      
+      // Reset conversation state
+      await storage.updateConversation(conversationId, {
+        lastMessageText: "",
+        unreadCount: 0
+      });
+
+      // Re-enable agent so it can respond as if it's a new interaction
+      await storage.enableAgentForConversation(conversationId);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting messages:", error);
+      res.status(500).json({ message: "Failed to delete messages" });
+    }
+  });
+
   app.post("/api/messages/send", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);

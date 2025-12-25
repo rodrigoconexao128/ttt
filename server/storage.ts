@@ -71,6 +71,7 @@ export interface IStorage {
 
   // Message operations
   getMessagesByConversationId(conversationId: string): Promise<Message[]>;
+  deleteMessagesByConversationId(conversationId: string): Promise<void>;
   createMessage(message: InsertMessage): Promise<Message>;
   getTodayMessagesCount(connectionId: string): Promise<number>;
   getAgentMessagesCount(connectionId: string): Promise<number>;
@@ -359,6 +360,12 @@ export class DatabaseStorage implements IStorage {
       .from(messages)
       .where(eq(messages.conversationId, conversationId))
       .orderBy(messages.timestamp);
+  }
+
+  async deleteMessagesByConversationId(conversationId: string): Promise<void> {
+    await db
+      .delete(messages)
+      .where(eq(messages.conversationId, conversationId));
   }
 
   async createMessage(messageData: InsertMessage): Promise<Message> {
