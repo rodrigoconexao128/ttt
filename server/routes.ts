@@ -290,16 +290,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       let deletedCount = 0;
+      let skippedCount = 0;
       const errors: string[] = [];
       
       for (const userId of userIds) {
         try {
           const user = await storage.getUser(userId);
-          if (user) {
-            await storage.deleteUser(userId);
-            deletedCount++;
-            console.log(`[ADMIN BULK DELETE] Deleted user ${userId} (${user.email})`);
+          if (!user) {
+            errors.push(`User ${userId} not found`);
+            continue;
           }
+          
+          // Skip admins and owners
+          if (user.role === "admin" || user.role === "owner") {
+            skippedCount++;
+            console.log(`[ADMIN BULK DELETE] Skipped admin/owner: ${user.email}`);
+            continue;
+          }
+          
+          // Skip users with active subscription
+          const activeSubscription = await storage.getUserSubscription(userId);
+          if (activeSubscription && activeSubscription.status === "active") {
+            skippedCount++;
+            console.log(`[ADMIN BULK DELETE] Skipped user with active plan: ${user.email}`);
+            continue;
+          }
+          
+          await storage.deleteUser(userId);
+          deletedCount++;
+          console.log(`[ADMIN BULK DELETE] Deleted user ${userId} (${user.email})`);
         } catch (error) {
           errors.push(`Failed to delete user ${userId}`);
           console.error(`[ADMIN BULK DELETE] Error deleting user ${userId}:`, error);
@@ -309,7 +328,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         success: true, 
         deletedCount,
-        message: `${deletedCount} usuário(s) excluído(s) com sucesso${errors.length > 0 ? `. ${errors.length} erro(s).` : ''}`
+        skippedCount,
+        message: `${deletedCount} usuário(s) excluído(s)${skippedCount > 0 ? `, ${skippedCount} ignorado(s) (admins ou com plano ativo)` : ''}${errors.length > 0 ? `. ${errors.length} erro(s).` : ''}`
       });
     } catch (error) {
       console.error("Error in bulk delete:", error);
@@ -1906,6 +1926,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Prevent deleting admins or owners
+      if (user.role === "admin" || user.role === "owner") {
+        return res.status(403).json({ message: "Cannot delete administrators" });
+      }
+      
+      // Check if user has active subscription
+      const activeSubscription = await storage.getUserSubscription(id);
+      if (activeSubscription && activeSubscription.status === "active") {
+        return res.status(403).json({ 
+          message: "Cannot delete user with active subscription",
+          plan: activeSubscription.plan?.nome 
+        });
       }
       
       // Delete user and all related data

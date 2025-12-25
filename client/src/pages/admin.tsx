@@ -171,7 +171,7 @@ export default function AdminPanel() {
           </div>
         );
       case "users":
-        return <UsersManager users={users} />;
+        return <UsersManager users={users} subscriptions={subscriptions} />;
       case "manage":
         return <ClientManager users={users} plans={plans} subscriptions={subscriptions} />;
       case "plans":
@@ -470,7 +470,7 @@ interface UserWithStatus extends User {
   isConnected?: boolean;
 }
 
-function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
+function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | undefined; subscriptions: (Subscription & { plan: Plan; user: User })[] | undefined }) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
@@ -487,6 +487,20 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState("");
+
+  // Helper to get user's active subscription
+  const getUserSubscription = (userId: string) => {
+    return subscriptions?.find(s => s.userId === userId && s.status === "active");
+  };
+
+  // Helper to check if user can be deleted
+  const canDeleteUser = (user: UserWithStatus) => {
+    // Cannot delete admins or owners
+    if (user.role === "admin" || user.role === "owner") return false;
+    // Cannot delete users with active subscription
+    const hasActivePlan = !!getUserSubscription(user.id);
+    return !hasActivePlan;
+  };
 
   const filteredUsers = users?.filter(user => {
     const searchLower = searchTerm.toLowerCase();
@@ -538,9 +552,14 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
       setSelectedUserIds(new Set());
       setShowBulkDeleteConfirm(false);
       setBulkDeleteConfirmText("");
+      
+      const message = data.skippedCount > 0 
+        ? `${data.deletedCount} excluído(s), ${data.skippedCount} ignorado(s) (admins ou com plano)`
+        : `${data.deletedCount} usuário(s) removido(s) com sucesso`;
+      
       toast({ 
-        title: "✅ Usuários excluídos",
-        description: `${data.deletedCount || selectedUserIds.size} usuário(s) removido(s) com sucesso.`
+        title: data.skippedCount > 0 ? "⚠️ Exclusão parcial" : "✅ Usuários excluídos",
+        description: message
       });
     },
     onError: () => {
@@ -581,15 +600,29 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
   // Bulk selection helpers
   const handleSelectAll = () => {
     if (filteredUsers) {
-      if (selectedUserIds.size === filteredUsers.length) {
+      // Filtrar apenas usuários que podem ser deletados
+      const deletableUsers = filteredUsers.filter(canDeleteUser);
+      if (selectedUserIds.size === deletableUsers.length) {
         setSelectedUserIds(new Set());
       } else {
-        setSelectedUserIds(new Set(filteredUsers.map(u => u.id)));
+        setSelectedUserIds(new Set(deletableUsers.map(u => u.id)));
       }
     }
   };
 
   const handleSelectUser = (userId: string) => {
+    const user = filteredUsers?.find(u => u.id === userId);
+    if (!user || !canDeleteUser(user)) {
+      toast({
+        title: "Não é possível selecionar",
+        description: user?.role === "admin" || user?.role === "owner" 
+          ? "Administradores não podem ser excluídos"
+          : "Usuários com plano ativo não podem ser excluídos",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     const newSelected = new Set(selectedUserIds);
     if (newSelected.has(userId)) {
       newSelected.delete(userId);
@@ -818,27 +851,34 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
             <TableRow>
               <TableHead className="w-[40px]">
                 <Checkbox
-                  checked={filteredUsers && filteredUsers.length > 0 && selectedUserIds.size === filteredUsers.length}
+                  checked={filteredUsers && filteredUsers.filter(canDeleteUser).length > 0 && selectedUserIds.size === filteredUsers.filter(canDeleteUser).length}
                   onCheckedChange={handleSelectAll}
-                  aria-label="Selecionar todos"
+                  aria-label="Selecionar todos os deletáveis"
                 />
               </TableHead>
               <TableHead>Nome</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>Conexão</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Plano</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Pagamento</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers?.map((user: UserWithStatus) => (
+            {filteredUsers?.map((user: UserWithStatus) => {
+              const userSubscription = getUserSubscription(user.id);
+              const isDeletable = canDeleteUser(user);
+              const isAdmin = user.role === "admin" || user.role === "owner";
+              
+              return (
               <TableRow key={user.id} data-testid={`row-user-${user.id}`} className={selectedUserIds.has(user.id) ? "bg-muted/50" : ""}>
                 <TableCell>
                   <Checkbox
                     checked={selectedUserIds.has(user.id)}
                     onCheckedChange={() => handleSelectUser(user.id)}
+                    disabled={!isDeletable}
                     aria-label={`Selecionar ${user.name || user.email}`}
                   />
                 </TableCell>
@@ -880,9 +920,28 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={user.role === "owner" ? "default" : "secondary"}>
-                    {user.role}
-                  </Badge>
+                  {isAdmin ? (
+                    <Badge variant="default" className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                      <Settings className="h-3 w-3 mr-1" />
+                      {user.role === "owner" ? "Dono" : "Admin"}
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">
+                      Cliente
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {userSubscription ? (
+                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      {userSubscription.plan.nome}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground">
+                      Sem plano
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant={user.onboardingCompleted ? "default" : "outline"}>
@@ -930,30 +989,31 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
                   >
                     <Play className="h-4 w-4" />
                   </Button>
-                  <Dialog open={confirmDeleteUser?.id === user.id} onOpenChange={(open) => !open && setConfirmDeleteUser(null)}>
-                    <DialogTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => setConfirmDeleteUser(user)}
-                        title="Excluir"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-red-600">
-                          <Trash2 className="h-5 w-5" />
-                          Confirmar Exclusão
-                        </DialogTitle>
-                        <DialogDescription className="space-y-3">
-                          <p>
-                            Você está prestes a excluir permanentemente o usuário:
-                          </p>
-                          <div className="bg-muted p-3 rounded-lg">
-                            <p className="font-semibold">{confirmDeleteUser?.email}</p>
+                  {isDeletable ? (
+                    <Dialog open={confirmDeleteUser?.id === user.id} onOpenChange={(open) => !open && setConfirmDeleteUser(null)}>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => setConfirmDeleteUser(user)}
+                          title="Excluir"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <Trash2 className="h-5 w-5" />
+                            Confirmar Exclusão
+                          </DialogTitle>
+                          <DialogDescription className="space-y-3">
+                            <p>
+                              Você está prestes a excluir permanentemente o usuário:
+                            </p>
+                            <div className="bg-muted p-3 rounded-lg">
+                              <p className="font-semibold">{confirmDeleteUser?.email}</p>
                             {confirmDeleteUser?.name && <p className="text-sm">{confirmDeleteUser.name}</p>}
                           </div>
                           <p className="text-red-600 font-medium">
@@ -993,9 +1053,21 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+                  ) : (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      disabled
+                      title={isAdmin ? "Administradores não podem ser excluídos" : "Usuários com plano ativo não podem ser excluídos"}
+                      className="opacity-50 cursor-not-allowed"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
-            ))}
+            );
+            })}
           </TableBody>
         </Table>
         
