@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Table, 
   TableBody, 
@@ -27,7 +28,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -471,6 +472,7 @@ interface UserWithStatus extends User {
 
 function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -480,6 +482,11 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
   const [reconnectingUserId, setReconnectingUserId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
+  
+  // Bulk selection state
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState("");
 
   const filteredUsers = users?.filter(user => {
     const searchLower = searchTerm.toLowerCase();
@@ -517,6 +524,86 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
       });
     },
   });
+
+  // Mutation: Bulk Delete Users
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (userIds: string[]) => {
+      const res = await apiRequest("POST", "/api/admin/users/bulk-delete", { userIds });
+      if (!res.ok) throw new Error("Failed to delete users");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      setSelectedUserIds(new Set());
+      setShowBulkDeleteConfirm(false);
+      setBulkDeleteConfirmText("");
+      toast({ 
+        title: "✅ Usuários excluídos",
+        description: `${data.deletedCount || selectedUserIds.size} usuário(s) removido(s) com sucesso.`
+      });
+    },
+    onError: () => {
+      toast({ 
+        title: "Erro ao excluir usuários", 
+        description: "Não foi possível excluir os usuários selecionados.",
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Mutation: Admin Impersonate User
+  const impersonateMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest("POST", `/api/admin/users/${userId}/impersonate`);
+      if (!res.ok) throw new Error("Failed to impersonate user");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "🔓 Acesso concedido",
+        description: "Você será redirecionado para o painel do cliente."
+      });
+      // Redirecionar para o dashboard do cliente
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1000);
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Erro ao acessar conta", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Bulk selection helpers
+  const handleSelectAll = () => {
+    if (filteredUsers) {
+      if (selectedUserIds.size === filteredUsers.length) {
+        setSelectedUserIds(new Set());
+      } else {
+        setSelectedUserIds(new Set(filteredUsers.map(u => u.id)));
+      }
+    }
+  };
+
+  const handleSelectUser = (userId: string) => {
+    const newSelected = new Set(selectedUserIds);
+    if (newSelected.has(userId)) {
+      newSelected.delete(userId);
+    } else {
+      newSelected.add(userId);
+    }
+    setSelectedUserIds(newSelected);
+  };
+
+  const handleBulkDelete = () => {
+    if (bulkDeleteConfirmText === "DELETAR") {
+      bulkDeleteMutation.mutate(Array.from(selectedUserIds));
+    }
+  };
 
   // Mutation: Update Email
   const updateEmailMutation = useMutation({
@@ -683,23 +770,35 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
               Gerencie os agentes, pagamentos e acessos.
             </CardDescription>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => {
-              if (confirm("Isso tentará reconectar TODOS os usuários que possuem conexão configurada. Continuar?")) {
-                reconnectAllMutation.mutate();
-              }
-            }}
-            disabled={reconnectAllMutation.isPending}
-          >
-            {reconnectAllMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
+          <div className="flex items-center gap-2">
+            {selectedUserIds.size > 0 && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={() => setShowBulkDeleteConfirm(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir Selecionados ({selectedUserIds.size})
+              </Button>
             )}
-            Reconectar Todos
-          </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                if (confirm("Isso tentará reconectar TODOS os usuários que possuem conexão configurada. Continuar?")) {
+                  reconnectAllMutation.mutate();
+                }
+              }}
+              disabled={reconnectAllMutation.isPending}
+            >
+              {reconnectAllMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Reconectar Todos
+            </Button>
+          </div>
         </div>
         <div className="mt-4">
           <div className="relative">
@@ -717,6 +816,13 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={filteredUsers && filteredUsers.length > 0 && selectedUserIds.size === filteredUsers.length}
+                  onCheckedChange={handleSelectAll}
+                  aria-label="Selecionar todos"
+                />
+              </TableHead>
               <TableHead>Nome</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Telefone</TableHead>
@@ -728,7 +834,14 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
           </TableHeader>
           <TableBody>
             {filteredUsers?.map((user: UserWithStatus) => (
-              <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
+              <TableRow key={user.id} data-testid={`row-user-${user.id}`} className={selectedUserIds.has(user.id) ? "bg-muted/50" : ""}>
+                <TableCell>
+                  <Checkbox
+                    checked={selectedUserIds.has(user.id)}
+                    onCheckedChange={() => handleSelectUser(user.id)}
+                    aria-label={`Selecionar ${user.name || user.email}`}
+                  />
+                </TableCell>
                 <TableCell className="font-medium">{user.name || "-"}</TableCell>
                 <TableCell data-testid={`text-email-${user.id}`}>{user.email}</TableCell>
                 <TableCell>{user.whatsappNumber || user.phone || "-"}</TableCell>
@@ -777,6 +890,20 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right space-x-1">
+                  <Button 
+                    size="sm" 
+                    variant="ghost"
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    onClick={() => {
+                      if (confirm(`Você será logado como "${user.name || user.email}". Deseja continuar?`)) {
+                        impersonateMutation.mutate(user.id);
+                      }
+                    }}
+                    disabled={impersonateMutation.isPending}
+                    title="Acessar conta do cliente"
+                  >
+                    <LogIn className="h-4 w-4" />
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => handleChat(user.phone)} title="Conversar">
                     <MessageCircle className="h-4 w-4" />
                   </Button>
@@ -951,6 +1078,67 @@ function UsersManager({ users }: { users: UserWithStatus[] | undefined }) {
           <DialogFooter>
             <Button type="button" variant="secondary" onClick={() => setGeneratedPassword(null)}>
               Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Excluir {selectedUserIds.size} Usuários
+            </DialogTitle>
+            <DialogDescription className="space-y-3">
+              <p>
+                Você está prestes a excluir permanentemente <strong>{selectedUserIds.size} usuários</strong>.
+              </p>
+              <p className="text-red-600 font-medium">
+                ⚠️ Esta ação irá remover para CADA usuário:
+              </p>
+              <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                <li>Conexão WhatsApp do usuário</li>
+                <li>Todas as conversas e mensagens</li>
+                <li>Configurações do agente IA</li>
+                <li>Assinatura e pagamentos</li>
+                <li>Todos os dados relacionados</li>
+              </ul>
+              <div className="mt-4 space-y-2">
+                <p className="text-sm font-medium">
+                  Para confirmar, digite: <span className="font-mono font-bold text-red-600">DELETAR</span>
+                </p>
+                <Input
+                  value={bulkDeleteConfirmText}
+                  onChange={(e) => setBulkDeleteConfirmText(e.target.value)}
+                  placeholder="Digite DELETAR para confirmar"
+                  className="font-mono"
+                />
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowBulkDeleteConfirm(false);
+                setBulkDeleteConfirmText("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteConfirmText !== "DELETAR" || bulkDeleteMutation.isPending}
+            >
+              {bulkDeleteMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Excluir {selectedUserIds.size} Usuários
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1448,12 +1636,16 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
   );
 }
 
+interface UserWithConnectionStatus extends User {
+  isConnected?: boolean;
+}
+
 function ClientManager({ 
   users, 
   plans,
   subscriptions 
 }: { 
-  users: User[] | undefined;
+  users: UserWithConnectionStatus[] | undefined;
   plans: Plan[] | undefined;
   subscriptions: (Subscription & { plan: Plan; user: User })[] | undefined;
 }) {
@@ -1659,7 +1851,7 @@ function ClientManager({
                     return (
                       <SelectItem key={user.id} value={user.id}>
                         <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${userSub ? 'bg-green-500' : 'bg-orange-500'}`} />
+                          <div className={`w-2 h-2 rounded-full ${user.isConnected ? 'bg-green-500' : 'bg-red-500'}`} title={user.isConnected ? 'Conectado' : 'Offline'} />
                           <span className="font-medium">{user.name || "Sem nome"}</span>
                           <span className="text-muted-foreground">•</span>
                           <span className="text-sm text-muted-foreground">{user.email || user.phone}</span>
@@ -1753,6 +1945,7 @@ function ClientManager({
             <TableHeader>
               <TableRow>
                 <TableHead>Cliente</TableHead>
+                <TableHead>Conexão</TableHead>
                 <TableHead>Plano</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Início</TableHead>
@@ -1763,7 +1956,7 @@ function ClientManager({
             <TableBody>
               {subscriptions?.filter(s => s.status === "active").length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <CreditCard className="w-8 h-8 opacity-50" />
                       <p>Nenhuma assinatura ativa</p>
@@ -1771,13 +1964,23 @@ function ClientManager({
                   </TableCell>
                 </TableRow>
               )}
-              {subscriptions?.filter(s => s.status === "active").map((subscription) => (
+              {subscriptions?.filter(s => s.status === "active").map((subscription) => {
+                // Find user connection status from users array
+                const userWithStatus = users?.find(u => u.id === subscription.userId);
+                const isConnected = userWithStatus?.isConnected || false;
+                
+                return (
                 <TableRow key={subscription.id} data-testid={`row-subscription-${subscription.id}`}>
                   <TableCell>
                     <div className="space-y-0.5">
                       <p className="font-medium">{subscription.user.name || "Sem nome"}</p>
                       <p className="text-xs text-muted-foreground">{subscription.user.email}</p>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={isConnected ? "default" : "destructive"} className={isConnected ? "bg-green-500 hover:bg-green-600" : ""}>
+                      {isConnected ? "Conectado" : "Offline"}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
@@ -1807,7 +2010,8 @@ function ClientManager({
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+              );
+              })}
             </TableBody>
           </Table>
         </CardContent>

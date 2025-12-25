@@ -280,6 +280,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk delete users
+  app.post("/api/admin/users/bulk-delete", isAdmin, async (req, res) => {
+    const { userIds } = req.body;
+    
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ message: "No user IDs provided" });
+    }
+    
+    try {
+      let deletedCount = 0;
+      const errors: string[] = [];
+      
+      for (const userId of userIds) {
+        try {
+          const user = await storage.getUser(userId);
+          if (user) {
+            await storage.deleteUser(userId);
+            deletedCount++;
+            console.log(`[ADMIN BULK DELETE] Deleted user ${userId} (${user.email})`);
+          }
+        } catch (error) {
+          errors.push(`Failed to delete user ${userId}`);
+          console.error(`[ADMIN BULK DELETE] Error deleting user ${userId}:`, error);
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        deletedCount,
+        message: `${deletedCount} usuário(s) excluído(s) com sucesso${errors.length > 0 ? `. ${errors.length} erro(s).` : ''}`
+      });
+    } catch (error) {
+      console.error("Error in bulk delete:", error);
+      res.status(500).json({ message: "Error deleting users" });
+    }
+  });
+
+  // Admin impersonate user - allows admin to access client's account
+  app.post("/api/admin/users/:id/impersonate", isAdmin, async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Log the impersonation attempt
+      const adminId = (req.session as any)?.adminId;
+      console.log(`[ADMIN IMPERSONATE] Admin ${adminId} is impersonating user ${id} (${user.email})`);
+      
+      // Create a session for the user
+      (req.session as any).userId = user.id;
+      (req.session as any).impersonatedBy = adminId;
+      
+      // Save session
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      res.json({ 
+        success: true, 
+        message: `Logado como ${user.name || user.email}`,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email
+        }
+      });
+    } catch (error) {
+      console.error("Error impersonating user:", error);
+      res.status(500).json({ message: "Error impersonating user" });
+    }
+  });
+
   // Update user email
   app.patch("/api/admin/users/:id", isAdmin, async (req, res) => {
     const { id } = req.params;
