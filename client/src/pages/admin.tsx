@@ -28,7 +28,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -487,6 +487,10 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState("");
+  
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // Helper to get user's active subscription
   const getUserSubscription = (userId: string) => {
@@ -502,6 +506,26 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
     return !hasActivePlan;
   };
 
+  // Handle column sorting
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  // Sort icon component
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    }
+    return sortDirection === "asc" 
+      ? <ArrowUp className="h-4 w-4 ml-1" /> 
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
   const filteredUsers = users?.filter(user => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -510,6 +534,53 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
       user.phone?.includes(searchLower) ||
       user.whatsappNumber?.includes(searchLower)
     );
+  });
+
+  // Apply sorting to filtered users
+  const sortedUsers = filteredUsers?.slice().sort((a, b) => {
+    if (!sortColumn) return 0;
+    
+    let aValue: any;
+    let bValue: any;
+    
+    switch (sortColumn) {
+      case "name":
+        aValue = a.name?.toLowerCase() || "";
+        bValue = b.name?.toLowerCase() || "";
+        break;
+      case "email":
+        aValue = a.email?.toLowerCase() || "";
+        bValue = b.email?.toLowerCase() || "";
+        break;
+      case "phone":
+        aValue = a.whatsappNumber || a.phone || "";
+        bValue = b.whatsappNumber || b.phone || "";
+        break;
+      case "connection":
+        aValue = a.isConnected ? 1 : 0;
+        bValue = b.isConnected ? 1 : 0;
+        break;
+      case "type":
+        aValue = a.role === "owner" ? 2 : a.role === "admin" ? 1 : 0;
+        bValue = b.role === "owner" ? 2 : b.role === "admin" ? 1 : 0;
+        break;
+      case "plan":
+        const planA = getUserSubscription(a.id);
+        const planB = getUserSubscription(b.id);
+        aValue = planA?.plan.nome || "";
+        bValue = planB?.plan.nome || "";
+        break;
+      case "status":
+        aValue = a.onboardingCompleted ? 1 : 0;
+        bValue = b.onboardingCompleted ? 1 : 0;
+        break;
+      default:
+        return 0;
+    }
+    
+    if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+    if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+    return 0;
   });
 
   const deleteUserMutation = useMutation({
@@ -599,10 +670,10 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
 
   // Bulk selection helpers
   const handleSelectAll = () => {
-    if (filteredUsers) {
+    if (sortedUsers) {
       // Filtrar apenas usuários que podem ser deletados
-      const deletableUsers = filteredUsers.filter(canDeleteUser);
-      if (selectedUserIds.size === deletableUsers.length) {
+      const deletableUsers = sortedUsers.filter(canDeleteUser);
+      if (selectedUserIds.size === deletableUsers.length && deletableUsers.length > 0) {
         setSelectedUserIds(new Set());
       } else {
         setSelectedUserIds(new Set(deletableUsers.map(u => u.id)));
@@ -611,7 +682,7 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
   };
 
   const handleSelectUser = (userId: string) => {
-    const user = filteredUsers?.find(u => u.id === userId);
+    const user = sortedUsers?.find(u => u.id === userId);
     if (!user || !canDeleteUser(user)) {
       toast({
         title: "Não é possível selecionar",
@@ -846,28 +917,85 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
         </div>
       </CardHeader>
       <CardContent>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-[40px]">
                 <Checkbox
-                  checked={filteredUsers && filteredUsers.filter(canDeleteUser).length > 0 && selectedUserIds.size === filteredUsers.filter(canDeleteUser).length}
+                  checked={sortedUsers && sortedUsers.filter(canDeleteUser).length > 0 && selectedUserIds.size === sortedUsers.filter(canDeleteUser).length}
                   onCheckedChange={handleSelectAll}
                   aria-label="Selecionar todos os deletáveis"
                 />
               </TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Telefone</TableHead>
-              <TableHead>Conexão</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Plano</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort("name")}
+              >
+                <div className="flex items-center">
+                  Nome
+                  <SortIcon column="name" />
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort("email")}
+              >
+                <div className="flex items-center">
+                  Email
+                  <SortIcon column="email" />
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort("phone")}
+              >
+                <div className="flex items-center">
+                  Telefone
+                  <SortIcon column="phone" />
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort("connection")}
+              >
+                <div className="flex items-center">
+                  Conexão
+                  <SortIcon column="connection" />
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort("type")}
+              >
+                <div className="flex items-center">
+                  Tipo
+                  <SortIcon column="type" />
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort("plan")}
+              >
+                <div className="flex items-center">
+                  Plano
+                  <SortIcon column="plan" />
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort("status")}
+              >
+                <div className="flex items-center">
+                  Status
+                  <SortIcon column="status" />
+                </div>
+              </TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers?.map((user: UserWithStatus) => {
+            {sortedUsers?.map((user: UserWithStatus) => {
               const userSubscription = getUserSubscription(user.id);
               const isDeletable = canDeleteUser(user);
               const isAdmin = user.role === "admin" || user.role === "owner";
@@ -882,10 +1010,10 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
                     aria-label={`Selecionar ${user.name || user.email}`}
                   />
                 </TableCell>
-                <TableCell className="font-medium">{user.name || "-"}</TableCell>
-                <TableCell data-testid={`text-email-${user.id}`}>{user.email}</TableCell>
-                <TableCell>{user.whatsappNumber || user.phone || "-"}</TableCell>
-                <TableCell>
+                <TableCell className="font-medium min-w-[150px]">{user.name || "-"}</TableCell>
+                <TableCell data-testid={`text-email-${user.id}`} className="min-w-[200px]">{user.email}</TableCell>
+                <TableCell className="min-w-[130px]">{user.whatsappNumber || user.phone || "-"}</TableCell>
+                <TableCell className="min-w-[180px]">
                   <div className="flex items-center gap-2">
                     <Badge variant={user.isConnected ? "default" : "destructive"} className={user.isConnected ? "bg-green-500 hover:bg-green-600" : ""}>
                       {user.isConnected ? "Conectado" : "Offline"}
@@ -919,7 +1047,7 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
                     )}
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="min-w-[110px]">
                   {isAdmin ? (
                     <Badge variant="default" className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
                       <Settings className="h-3 w-3 mr-1" />
@@ -931,9 +1059,9 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="min-w-[150px]">
                   {userSubscription ? (
-                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 whitespace-nowrap">
                       <CheckCircle className="h-3 w-3 mr-1" />
                       {userSubscription.plan.nome}
                     </Badge>
@@ -943,12 +1071,12 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="min-w-[100px]">
                   <Badge variant={user.onboardingCompleted ? "default" : "outline"}>
                     {user.onboardingCompleted ? "Ativo" : "Pendente"}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right space-x-1">
+                <TableCell className="text-right space-x-1 min-w-[300px]">
                   <Button 
                     size="sm" 
                     variant="ghost"
@@ -1070,8 +1198,9 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
             })}
           </TableBody>
         </Table>
+        </div>
         
-        {(!filteredUsers || filteredUsers.length === 0) && (
+        {(!sortedUsers || sortedUsers.length === 0) && (
           <div className="text-center py-8 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>Nenhum usuário encontrado</p>
