@@ -60,8 +60,8 @@ Responda APENAS com um JSON no formato:
 `;
 
   try {
-    const apiKey = await resolveApiKey();
-    const mistral = getMistralClient(apiKey);
+    // const apiKey = await resolveApiKey(); // Not needed if using getMistralClient()
+    const mistral = await getMistralClient(); // Use the exported function which handles mocks
 
     const response = await mistral.chat.complete({
       model: "mistral-small-latest", // Modelo rápido e barato para validações
