@@ -1945,6 +1945,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test Mistral API key
+  app.post("/api/admin/test-mistral", isAdmin, async (_req, res) => {
+    try {
+      const { Mistral } = await import("@mistralai/mistralai");
+      const { resolveApiKey } = await import("./mistralClient");
+      
+      const apiKey = await resolveApiKey();
+      
+      if (!apiKey || apiKey === "mock-key") {
+        return res.json({ 
+          success: false, 
+          error: "Chave Mistral não configurada" 
+        });
+      }
+      
+      const mistral = new Mistral({ apiKey });
+      
+      // Fazer uma chamada simples para testar a chave
+      const response = await mistral.chat.complete({
+        model: "mistral-small-latest",
+        messages: [{ role: "user", content: "test" }],
+        maxTokens: 5,
+      });
+      
+      if (response.choices && response.choices.length > 0) {
+        res.json({ 
+          success: true, 
+          model: "mistral-small-latest",
+          message: "Chave válida e funcionando!" 
+        });
+      } else {
+        res.json({ 
+          success: false, 
+          error: "Resposta inválida da API" 
+        });
+      }
+    } catch (error: any) {
+      console.error("Error testing Mistral key:", error);
+      
+      // Extrair mensagem de erro útil
+      let errorMessage = "Erro desconhecido";
+      if (error.message?.includes("401")) {
+        errorMessage = "Chave inválida ou expirada (401 Unauthorized)";
+      } else if (error.message?.includes("403")) {
+        errorMessage = "Acesso negado (403 Forbidden)";
+      } else if (error.message?.includes("429")) {
+        errorMessage = "Limite de requisições excedido (429 Too Many Requests)";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      res.json({ 
+        success: false, 
+        error: errorMessage 
+      });
+    }
+  });
+
   // ==================== ADMIN WHATSAPP ROUTES ====================
   // Get admin WhatsApp connection status - verifica estado REAL da sessão
   app.get("/api/admin/whatsapp/connection", isAdmin, async (req, res) => {

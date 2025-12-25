@@ -27,7 +27,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -1301,6 +1301,35 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
   const [mistralKey, setMistralKey] = useState(config?.mistral_api_key || "");
   const [pixKey, setPixKey] = useState(config?.pix_key || "");
   const [zaiKey, setZaiKey] = useState(config?.zai_api_key || "");
+  const [showMistralKey, setShowMistralKey] = useState(false);
+  const [showZaiKey, setShowZaiKey] = useState(false);
+  const [testingMistral, setTestingMistral] = useState(false);
+
+  // Sincronizar estado com config quando carregar
+  useEffect(() => {
+    if (config) {
+      setMistralKey(config.mistral_api_key || "");
+      setPixKey(config.pix_key || "");
+      setZaiKey(config.zai_api_key || "");
+    }
+  }, [config]);
+
+  const testMistralKey = async () => {
+    setTestingMistral(true);
+    try {
+      const response = await apiRequest("POST", "/api/admin/test-mistral");
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: "✅ Chave Mistral válida!", description: `Modelo: ${data.model}` });
+      } else {
+        toast({ title: "❌ Chave Mistral inválida", description: data.error, variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "❌ Erro ao testar chave", description: error.message, variant: "destructive" });
+    } finally {
+      setTestingMistral(false);
+    }
+  };
 
   const updateConfigMutation = useMutation({
     mutationFn: async (data: { mistral_api_key: string; pix_key: string; zai_api_key: string }) => {
@@ -1330,14 +1359,38 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-2">
             <Label htmlFor="mistralKey">Mistral API Key</Label>
-            <Input
-              id="mistralKey"
-              type="password"
-              value={mistralKey}
-              onChange={(e) => setMistralKey(e.target.value)}
-              placeholder="sk-..."
-              data-testid="input-mistral-key"
-            />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  id="mistralKey"
+                  type={showMistralKey ? "text" : "password"}
+                  value={mistralKey}
+                  onChange={(e) => setMistralKey(e.target.value)}
+                  placeholder="sk-..."
+                  data-testid="input-mistral-key"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowMistralKey(!showMistralKey)}
+                >
+                  {showMistralKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={testMistralKey}
+                disabled={testingMistral || !mistralKey}
+              >
+                {testingMistral ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                Testar
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground">
               Chave API usada por todos os agentes IA do sistema
             </p>
@@ -1360,14 +1413,26 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
 
           <div className="grid gap-2">
             <Label htmlFor="zaiKey">Z.AI API Key</Label>
-            <Input
-              id="zaiKey"
-              type="password"
-              value={zaiKey}
-              onChange={(e) => setZaiKey(e.target.value)}
-              placeholder="0a..."
-              data-testid="input-zai-key"
-            />
+            <div className="relative">
+              <Input
+                id="zaiKey"
+                type={showZaiKey ? "text" : "password"}
+                value={zaiKey}
+                onChange={(e) => setZaiKey(e.target.value)}
+                placeholder="0a..."
+                data-testid="input-zai-key"
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                onClick={() => setShowZaiKey(!showZaiKey)}
+              >
+                {showZaiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground">
               Chave API usada para os modelos GLM (Z.AI)
             </p>
