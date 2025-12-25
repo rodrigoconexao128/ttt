@@ -11,13 +11,9 @@ function sanitizeApiKey(key: string): string {
 }
 
 export async function resolveApiKey(): Promise<string> {
-  // 1. Check environment variable first (avoids DB call if set)
-  if (process.env.MISTRAL_API_KEY) {
-    const envKey = sanitizeApiKey(process.env.MISTRAL_API_KEY);
-    console.log(`[Mistral] Using API key from environment (${envKey.length} chars)`);
-    return envKey;
-  }
-
+  // 🔧 PRIORIDADE: Banco de dados PRIMEIRO, depois ambiente
+  // Isso permite que o admin altere a chave sem precisar redeploy
+  
   try {
     const config = await db
       .select()
@@ -26,19 +22,32 @@ export async function resolveApiKey(): Promise<string> {
       .limit(1);
 
     const fromDb = config[0]?.valor;
-    if (fromDb) {
+    if (fromDb && fromDb.length >= 32) {
       const cleanKey = sanitizeApiKey(fromDb);
-      console.log(`[Mistral] Using API key from database (${cleanKey.length} chars, original: ${fromDb.length} chars)`);
+      console.log(`[Mistral] Using API key from DATABASE (${cleanKey.length} chars)`);
       return cleanKey;
+    } else if (fromDb) {
+      console.warn(`[Mistral] DB key exists but seems invalid (${fromDb.length} chars), trying environment...`);
     }
   } catch (error) {
-    console.warn("[Mistral] Failed to fetch API key from DB, falling back to env/mock");
+    console.warn("[Mistral] Failed to fetch API key from DB, trying environment...");
+  }
+
+  // 2. Fallback para variável de ambiente
+  if (process.env.MISTRAL_API_KEY) {
+    const envKey = sanitizeApiKey(process.env.MISTRAL_API_KEY);
+    if (envKey.length >= 32) {
+      console.log(`[Mistral] Using API key from ENVIRONMENT (${envKey.length} chars)`);
+      return envKey;
+    } else {
+      console.warn(`[Mistral] Environment key seems invalid (${envKey.length} chars)`);
+    }
   }
 
   // Allow empty key for testing if mock is set
   if (globalMockClient) return "mock-key";
   
-  throw new Error("Mistral API Key not configured");
+  throw new Error("Mistral API Key not configured or invalid (must be at least 32 chars)");
 }
 
 let globalMockClient: any = null;
