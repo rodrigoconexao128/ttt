@@ -402,17 +402,31 @@ export async function generateAIResponse(
       const preview = (msg.text || "").substring(0, 50);
       console.log(`   ${i + 1}. [${role}] ${preview}...`);
       
+      // 🛡️ FIX: Mistral API rejects empty content. Ensure content is never empty.
+      let content = msg.text || "";
+      if (!content.trim()) {
+        if (msg.mediaType) {
+          content = `[Arquivo de ${msg.mediaType}]`;
+        } else {
+          content = "[Mensagem vazia]";
+        }
+      }
+
       messages.push({
         role,
-        content: msg.text || "",
+        content,
       });
     }
 
     // ✅ SEMPRE adicionar a nova mensagem do user como última (Mistral exige que última seja user)
     console.log(`   ${uniqueMessages.length + 1}. [user] ${newMessageText.substring(0, 50)}... (NOVA MENSAGEM)`);
+    
+    // 🛡️ FIX: Ensure newMessageText is not empty
+    const finalUserMessage = newMessageText.trim() || "[Mensagem vazia]";
+    
     messages.push({
       role: "user",
-      content: newMessageText,
+      content: finalUserMessage,
     });
 
     const mistral = await getMistralClient();
@@ -610,8 +624,21 @@ export async function generateAIResponse(
       mediaActions,
       notification,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating AI response:", error);
+    
+    // 🔍 DEBUG: Tentar extrair detalhes do erro da API
+    if (error?.body && typeof error.body.pipe === 'function') {
+        console.error("⚠️ [AI Agent] API Error Body is a stream, cannot read directly.");
+    } else if (error?.response) {
+        try {
+            const errorBody = await error.response.text(); 
+            console.error(`⚠️ [AI Agent] API Error Details: ${errorBody}`);
+        } catch (e) {
+            console.error("⚠️ [AI Agent] Could not read API error body");
+        }
+    }
+    
     return null;
   }
 }
