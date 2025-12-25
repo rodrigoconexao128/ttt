@@ -1927,15 +1927,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { mistral_api_key, pix_key, zai_api_key } = req.body;
 
       if (mistral_api_key !== undefined) {
-        await storage.updateSystemConfig("mistral_api_key", mistral_api_key);
+        // Limpar espaços e caracteres invisíveis da chave antes de salvar
+        const cleanKey = mistral_api_key.trim().replace(/[\r\n\t\s]/g, "");
+        await storage.updateSystemConfig("mistral_api_key", cleanKey);
+        console.log(`[Admin] Mistral key saved (${cleanKey.length} chars)`);
       }
 
       if (pix_key !== undefined) {
-        await storage.updateSystemConfig("pix_key", pix_key);
+        await storage.updateSystemConfig("pix_key", pix_key.trim());
       }
 
       if (zai_api_key !== undefined) {
-        await storage.updateSystemConfig("zai_api_key", zai_api_key);
+        // Limpar espaços e caracteres invisíveis da chave antes de salvar
+        const cleanZaiKey = zai_api_key.trim().replace(/[\r\n\t\s]/g, "");
+        await storage.updateSystemConfig("zai_api_key", cleanZaiKey);
+        console.log(`[Admin] ZAI key saved (${cleanZaiKey.length} chars)`);
       }
 
       res.json({ success: true });
@@ -1951,54 +1957,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { Mistral } = await import("@mistralai/mistralai");
       const { resolveApiKey } = await import("./mistralClient");
       
+      console.log("[Test Mistral] Starting test...");
+      
       const apiKey = await resolveApiKey();
       
+      // Log informações sobre a chave (sem expor a chave completa)
+      const keyPreview = apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : "null";
+      console.log(`[Test Mistral] Key resolved: ${keyPreview} (${apiKey?.length ?? 0} chars)`);
+      
       if (!apiKey || apiKey === "mock-key") {
+        console.log("[Test Mistral] No valid key found");
         return res.json({ 
           success: false, 
-          error: "Chave Mistral não configurada" 
+          error: "Chave Mistral não configurada",
+          keyLength: 0
         });
       }
       
+      console.log("[Test Mistral] Creating Mistral client and testing...");
       const mistral = new Mistral({ apiKey });
       
       // Fazer uma chamada simples para testar a chave
       const response = await mistral.chat.complete({
         model: "mistral-small-latest",
-        messages: [{ role: "user", content: "test" }],
+        messages: [{ role: "user", content: "Say OK" }],
         maxTokens: 5,
       });
+      
+      console.log("[Test Mistral] Response received:", response.choices?.[0]?.message?.content);
       
       if (response.choices && response.choices.length > 0) {
         res.json({ 
           success: true, 
           model: "mistral-small-latest",
-          message: "Chave válida e funcionando!" 
+          message: "Chave válida e funcionando!",
+          keyLength: apiKey.length,
+          keyPreview
         });
       } else {
         res.json({ 
           success: false, 
-          error: "Resposta inválida da API" 
+          error: "Resposta inválida da API",
+          keyLength: apiKey.length
         });
       }
     } catch (error: any) {
-      console.error("Error testing Mistral key:", error);
+      console.error("[Test Mistral] Error:", error.message);
       
       // Extrair mensagem de erro útil
       let errorMessage = "Erro desconhecido";
+      let suggestion = "";
+      
       if (error.message?.includes("401")) {
         errorMessage = "Chave inválida ou expirada (401 Unauthorized)";
+        suggestion = "Verifique se a chave está correta e não expirou. Gere uma nova em console.mistral.ai";
       } else if (error.message?.includes("403")) {
         errorMessage = "Acesso negado (403 Forbidden)";
+        suggestion = "Verifique se a chave tem permissões corretas";
       } else if (error.message?.includes("429")) {
         errorMessage = "Limite de requisições excedido (429 Too Many Requests)";
+        suggestion = "Aguarde alguns minutos antes de tentar novamente";
       } else if (error.message) {
         errorMessage = error.message;
       }
       
       res.json({ 
         success: false, 
-        error: errorMessage 
+        error: errorMessage,
+        suggestion
       });
     }
   });

@@ -3,10 +3,19 @@ import { db } from "./db";
 import { systemConfig } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
+/**
+ * Limpa a chave removendo espaços, quebras de linha e caracteres invisíveis
+ */
+function sanitizeApiKey(key: string): string {
+  return key.trim().replace(/[\r\n\t\s]/g, "");
+}
+
 export async function resolveApiKey(): Promise<string> {
   // 1. Check environment variable first (avoids DB call if set)
   if (process.env.MISTRAL_API_KEY) {
-    return process.env.MISTRAL_API_KEY;
+    const envKey = sanitizeApiKey(process.env.MISTRAL_API_KEY);
+    console.log(`[Mistral] Using API key from environment (${envKey.length} chars)`);
+    return envKey;
   }
 
   try {
@@ -17,9 +26,13 @@ export async function resolveApiKey(): Promise<string> {
       .limit(1);
 
     const fromDb = config[0]?.valor;
-    if (fromDb) return fromDb;
+    if (fromDb) {
+      const cleanKey = sanitizeApiKey(fromDb);
+      console.log(`[Mistral] Using API key from database (${cleanKey.length} chars, original: ${fromDb.length} chars)`);
+      return cleanKey;
+    }
   } catch (error) {
-    console.warn("Failed to fetch Mistral API key from DB, falling back to env/mock");
+    console.warn("[Mistral] Failed to fetch API key from DB, falling back to env/mock");
   }
 
   // Allow empty key for testing if mock is set
