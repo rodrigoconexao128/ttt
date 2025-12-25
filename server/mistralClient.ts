@@ -4,23 +4,28 @@ import { systemConfig } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 export async function resolveApiKey(): Promise<string> {
-  const config = await db
-    .select()
-    .from(systemConfig)
-    .where(eq(systemConfig.chave, "mistral_api_key"))
-    .limit(1);
-
-  const fromDb = config[0]?.valor;
-  const fromEnv = process.env.MISTRAL_API_KEY || "";
-
-  const apiKey = fromDb || fromEnv;
-  if (!apiKey) {
-    // Allow empty key for testing if mock is set
-    if (globalMockClient) return "mock-key";
-    throw new Error("Mistral API Key not configured");
+  // 1. Check environment variable first (avoids DB call if set)
+  if (process.env.MISTRAL_API_KEY) {
+    return process.env.MISTRAL_API_KEY;
   }
 
-  return apiKey;
+  try {
+    const config = await db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.chave, "mistral_api_key"))
+      .limit(1);
+
+    const fromDb = config[0]?.valor;
+    if (fromDb) return fromDb;
+  } catch (error) {
+    console.warn("Failed to fetch Mistral API key from DB, falling back to env/mock");
+  }
+
+  // Allow empty key for testing if mock is set
+  if (globalMockClient) return "mock-key";
+  
+  throw new Error("Mistral API Key not configured");
 }
 
 let globalMockClient: any = null;
