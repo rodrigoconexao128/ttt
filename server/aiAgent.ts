@@ -21,55 +21,108 @@ import {
   executeMediaActions,
 } from "./mediaService";
 
-// 🔔 FUNÇÃO PARA GERAR PROMPT DE NOTIFICAÇÃO DINÂMICO
-function getNotificationPrompt(trigger: string): string {
+// 🔔 FUNÇÃO PARA GERAR PROMPT DE NOTIFICAÇÃO DINÂMICO E UNIVERSAL
+// Suporta detecção em mensagens do cliente E respostas do agente
+function getNotificationPrompt(trigger: string, manualKeywords?: string): string {
   const triggerLower = trigger.toLowerCase();
   
-  let contextGuide = "";
-  let actionDesc = "notificacao";
+  // Combinar palavras-chave predefinidas + manuais
+  let keywords: string[] = [];
+  let actionDesc = "";
   
+  // Palavras-chave baseadas no tipo de gatilho
   if (triggerLower.includes("agendar") || triggerLower.includes("horário") || triggerLower.includes("marcar")) {
-    contextGuide = "O cliente demonstra intenção de agendar, marcar horário ou verificar disponibilidade.";
+    keywords.push("agendar", "agenda", "marcar", "marca", "reservar", "reserva", "tem vaga", "tem horário", "horário disponível", "me encaixa", "encaixe");
     actionDesc = "agendamento";
-  } else if (triggerLower.includes("reembolso") || triggerLower.includes("devolver") || triggerLower.includes("devolução")) {
-    contextGuide = "O cliente solicita reembolso, devolução ou estorno.";
-    actionDesc = "reembolso";
-  } else if (triggerLower.includes("humano") || triggerLower.includes("atendente") || triggerLower.includes("pessoa")) {
-    contextGuide = "O cliente pede para falar com uma pessoa real ou atendente humano.";
-    actionDesc = "atendente humano";
-  } else if (triggerLower.includes("preço") || triggerLower.includes("valor") || triggerLower.includes("quanto custa")) {
-    contextGuide = "O cliente pergunta sobre preços ou valores.";
-    actionDesc = "preço";
-  } else if (triggerLower.includes("reclama") || triggerLower.includes("problema") || triggerLower.includes("insatisf")) {
-    contextGuide = "O cliente está insatisfeito ou relatando um problema/defeito.";
-    actionDesc = "reclamação";
-  } else if (triggerLower.includes("comprar") || triggerLower.includes("pedido") || triggerLower.includes("encomendar")) {
-    contextGuide = "O cliente manifesta intenção de compra ou pedido.";
-    actionDesc = "compra";
-  } else {
-    // Gatilho genérico
-    contextGuide = `A condição descrita no gatilho foi atendida: "${trigger}"`;
+  } 
+  if (triggerLower.includes("reembolso") || triggerLower.includes("devolver") || triggerLower.includes("devolução")) {
+    keywords.push("reembolso", "devolver", "devolução", "quero meu dinheiro", "cancelar pedido", "estornar", "estorno");
+    actionDesc = actionDesc || "reembolso";
+  }
+  if (triggerLower.includes("humano") || triggerLower.includes("atendente") || triggerLower.includes("pessoa")) {
+    keywords.push("falar com humano", "atendente", "pessoa real", "falar com alguém", "quero um humano", "passa pra alguém");
+    actionDesc = actionDesc || "atendente humano";
+  }
+  if (triggerLower.includes("preço") || triggerLower.includes("valor") || triggerLower.includes("quanto custa")) {
+    keywords.push("preço", "valor", "quanto custa", "quanto é", "qual o preço", "tabela de preço");
+    actionDesc = actionDesc || "preço";
+  }
+  if (triggerLower.includes("reclama") || triggerLower.includes("problema") || triggerLower.includes("insatisf")) {
+    keywords.push("reclamação", "problema", "insatisfeito", "não funcionou", "com defeito", "quebrou", "errado");
+    actionDesc = actionDesc || "reclamação";
+  }
+  if (triggerLower.includes("comprar") || triggerLower.includes("pedido") || triggerLower.includes("encomendar")) {
+    keywords.push("comprar", "quero comprar", "fazer pedido", "encomendar", "pedir", "quero pedir");
+    actionDesc = actionDesc || "compra";
+  }
+  
+  // Detectar gatilhos de FINALIZAÇÃO de coleta (universal para qualquer negócio)
+  if (triggerLower.includes("finalizar") || triggerLower.includes("encaminhar") || triggerLower.includes("equipe") || triggerLower.includes("informações") || triggerLower.includes("coleta")) {
+    keywords.push(
+      "encaminhar agora", "vou encaminhar", "já encaminho", "encaminhando",
+      "nossa equipe", "equipe analisar", "equipe vai",
+      "já recebi", "recebi as fotos", "recebi as informações", "informações completas",
+      "vou passar", "já passo", "passando para",
+      "aguarde", "fique no aguardo", "retornamos", "entraremos em contato",
+      "atendimento vai continuar", "humano vai assumir", "atendente vai"
+    );
+    actionDesc = actionDesc || "coleta finalizada";
+  }
+  
+  // Se não detectou tipo específico, extrair keywords do trigger + manuais
+  if (keywords.length === 0) {
+    const extractedKeywords = trigger
+      .replace(/me notifique quando o cliente|quiser|quer|pedir|mencionar|falar sobre|ou quando|atendimento automático|finalizar|coleta|informações iniciais/gi, "")
+      .trim();
+    if (extractedKeywords) {
+      keywords.push(...extractedKeywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k.length > 0));
+    }
     actionDesc = "gatilho personalizado";
   }
   
+  // Adicionar palavras-chave manuais se fornecidas
+  if (manualKeywords) {
+    const manualList = manualKeywords.split(',').map(k => k.trim().toLowerCase()).filter(k => k.length > 0);
+    keywords.push(...manualList);
+  }
+  
+  // Remover duplicatas (compatível com ES5)
+  const uniqueKeywords = keywords.filter((value, index, self) => self.indexOf(value) === index);
+  
   return `
-### SISTEMA DE NOTIFICAÇÃO ###
+### REGRA DE NOTIFICACAO INTELIGENTE ###
 
-GATILHO ATIVO: "${trigger}"
-OBJETIVO: Identificar se "${contextGuide}"
+PALAVRAS-GATILHO: ${uniqueKeywords.join(', ')}
 
-INSTRUÇÃO:
-Analise o contexto da conversa (mensagens do cliente E o estado atual do atendimento).
-Adicione a tag [NOTIFY: ${actionDesc}] ao final da sua resposta se:
-1. O cliente disse algo relacionado ao gatilho.
-2. OU você (o agente) acabou de concluir uma etapa solicitada no gatilho (ex: coletou todas as informações).
-3. OU a condição descrita no gatilho foi satisfeita nesta interação.
+## INSTRUÇÃO CRÍTICA ##
+Adicione a tag [NOTIFY: ${actionDesc}] quando QUALQUER uma das condições for verdadeira:
 
-EXEMPLOS:
-- Cliente: "Quero agendar" -> Resposta: "... [NOTIFY: ${actionDesc}]"
-- Gatilho: "Avise quando finalizar cadastro" -> Você: "Cadastro concluído!" -> Resposta: "Cadastro concluído! [NOTIFY: ${actionDesc}]"
+1. **MENSAGEM DO CLIENTE** contém uma palavra-gatilho
+2. **SUA PRÓPRIA RESPOSTA** indica que a tarefa/coleta foi concluída
+3. **VOCÊ VAI ENCAMINHAR** para equipe humana ou outra área
+4. **O ATENDIMENTO AUTOMÁTICO** atingiu seu objetivo
 
-IMPORTANTE: Não notifique se a condição não for atendida.
+## EXEMPLOS DE QUANDO NOTIFICAR ##
+
+### Cliente solicita algo:
+- "Quero agendar" -> [NOTIFY: ${actionDesc}]
+- "Tem vaga amanhã?" -> [NOTIFY: ${actionDesc}]
+
+### Você (agente) finaliza coleta de informações:
+- "Recebi as fotos e o bairro, vou encaminhar para nossa equipe" -> [NOTIFY: ${actionDesc}]
+- "Perfeito! Já tenho tudo que preciso, vou passar para o atendimento" -> [NOTIFY: ${actionDesc}]
+- "Informações completas! Aguarde que nossa equipe vai analisar" -> [NOTIFY: ${actionDesc}]
+
+### Você vai transferir para humano:
+- "Vou encaminhar agora para nossa equipe analisar" -> [NOTIFY: ${actionDesc}]
+- "Nossa equipe já vai te retornar" -> [NOTIFY: ${actionDesc}]
+
+## QUANDO NÃO NOTIFICAR ##
+- Cliente apenas perguntou algo genérico
+- Conversa ainda está em andamento sem gatilho específico
+- Você está apenas explicando algo ou respondendo dúvidas
+
+IMPORTANTE: A tag [NOTIFY: ${actionDesc}] deve estar NO FINAL da sua resposta.
 `;
 }
 
@@ -283,7 +336,10 @@ export async function generateAIResponse(
        // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO NO AVANÇADO
        if (businessConfig?.notificationEnabled && businessConfig?.notificationTrigger) {
          console.log(`🔔 [AI Agent] Notification system ACTIVE (Advanced) - Trigger: "${businessConfig.notificationTrigger.substring(0, 50)}..."`);
-         const notificationSection = getNotificationPrompt(businessConfig.notificationTrigger);
+         const notificationSection = getNotificationPrompt(
+           businessConfig.notificationTrigger,
+           businessConfig.notificationManualKeywords || undefined
+         );
          systemPrompt += notificationSection;
        }
        
@@ -321,7 +377,10 @@ export async function generateAIResponse(
        // O usuário pode ter configurado apenas o notificador sem usar o sistema avançado de agente
        if (businessConfig?.notificationEnabled && businessConfig?.notificationTrigger) {
          console.log(`🔔 [AI Agent] Notification system ACTIVE - Trigger: "${businessConfig.notificationTrigger.substring(0, 50)}..."`);
-         const notificationSection = getNotificationPrompt(businessConfig.notificationTrigger);
+         const notificationSection = getNotificationPrompt(
+           businessConfig.notificationTrigger,
+           businessConfig.notificationManualKeywords || undefined
+         );
          systemPrompt += notificationSection;
          console.log(`🔔 [AI Agent] Added notification system to legacy prompt`);
        }
@@ -402,31 +461,17 @@ export async function generateAIResponse(
       const preview = (msg.text || "").substring(0, 50);
       console.log(`   ${i + 1}. [${role}] ${preview}...`);
       
-      // 🛡️ FIX: Mistral API rejects empty content. Ensure content is never empty.
-      let content = msg.text || "";
-      if (!content.trim()) {
-        if (msg.mediaType) {
-          content = `[Arquivo de ${msg.mediaType}]`;
-        } else {
-          content = "[Mensagem vazia]";
-        }
-      }
-
       messages.push({
         role,
-        content,
+        content: msg.text || "",
       });
     }
 
     // ✅ SEMPRE adicionar a nova mensagem do user como última (Mistral exige que última seja user)
     console.log(`   ${uniqueMessages.length + 1}. [user] ${newMessageText.substring(0, 50)}... (NOVA MENSAGEM)`);
-    
-    // 🛡️ FIX: Ensure newMessageText is not empty
-    const finalUserMessage = newMessageText.trim() || "[Mensagem vazia]";
-    
     messages.push({
       role: "user",
-      content: finalUserMessage,
+      content: newMessageText,
     });
 
     const mistral = await getMistralClient();
@@ -624,21 +669,8 @@ export async function generateAIResponse(
       mediaActions,
       notification,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error generating AI response:", error);
-    
-    // 🔍 DEBUG: Tentar extrair detalhes do erro da API
-    if (error?.body && typeof error.body.pipe === 'function') {
-        console.error("⚠️ [AI Agent] API Error Body is a stream, cannot read directly.");
-    } else if (error?.response) {
-        try {
-            const errorBody = await error.response.text(); 
-            console.error(`⚠️ [AI Agent] API Error Details: ${errorBody}`);
-        } catch (e) {
-            console.error("⚠️ [AI Agent] Could not read API error body");
-        }
-    }
-    
     return null;
   }
 }

@@ -1932,15 +1932,17 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     const aiResponse = aiResult?.text || null;
     const mediaActions = aiResult?.mediaActions || [];
 
-    // 🔔 NOTIFICATION SYSTEM (AI + Manual)
+    // 🔔 NOTIFICATION SYSTEM UNIVERSAL (AI + Manual + Resposta do Agente)
     const businessConfig = await storage.getBusinessAgentConfig(userId);
     let shouldNotify = false;
     let notifyReason = "";
+    let keywordSource = ""; // Para tracking de onde veio o gatilho
     
-    // Check AI notification
+    // Check AI notification (tag [NOTIFY:] na resposta)
     if (aiResult?.notification?.shouldNotify) {
       shouldNotify = true;
       notifyReason = aiResult.notification.reason;
+      keywordSource = "IA";
       console.log(`🔔 [AI Agent] AI detected notification trigger: ${notifyReason}`);
     }
     
@@ -1954,25 +1956,54 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         .map(k => k.trim().toLowerCase())
         .filter(k => k.length > 0);
       
-      const messageToCheck = combinedText.toLowerCase();
+      // 🆕 VERIFICAR TANTO NA MENSAGEM DO CLIENTE QUANTO NA RESPOSTA DO AGENTE
+      const clientMessage = combinedText.toLowerCase();
+      const agentMessage = (aiResponse || "").toLowerCase();
       
       for (const keyword of keywords) {
-        if (messageToCheck.includes(keyword)) {
+        // Verificar na mensagem do cliente
+        if (clientMessage.includes(keyword)) {
           shouldNotify = true;
+          const source = "cliente";
           notifyReason = notifyReason 
-            ? `${notifyReason} + Palavra-chave: "${keyword}"` 
-            : `Palavra-chave detectada: "${keyword}"`;
-          console.log(`🔔 [AI Agent] Manual keyword detected: "${keyword}"`);
+            ? `${notifyReason} + Palavra-chave (${source}): "${keyword}"` 
+            : `Palavra-chave detectada (${source}): "${keyword}"`;
+          keywordSource = keywordSource ? `${keywordSource} + Manual (cliente)` : "Manual (cliente)";
+          console.log(`🔔 [AI Agent] Manual keyword in CLIENT message: "${keyword}"`);
+          break;
+        }
+        
+        // 🆕 Verificar na resposta do agente (NOVO!)
+        if (agentMessage.includes(keyword)) {
+          shouldNotify = true;
+          const source = "agente";
+          notifyReason = notifyReason 
+            ? `${notifyReason} + Palavra-chave (${source}): "${keyword}"` 
+            : `Palavra-chave detectada (${source}): "${keyword}"`;
+          keywordSource = keywordSource ? `${keywordSource} + Manual (agente)` : "Manual (agente)";
+          console.log(`🔔 [AI Agent] Manual keyword in AGENT response: "${keyword}"`);
           break;
         }
       }
+    }
+    
+    // Log completo da detecção
+    if (shouldNotify) {
+      console.log(`🔔 [AI Agent] NOTIFICATION TRIGGERED via: ${keywordSource}`);
     }
     
     // Send notification if triggered
     if (shouldNotify && businessConfig?.notificationPhoneNumber) {
       const notifyNumber = businessConfig.notificationPhoneNumber.replace(/\D/g, '');
       const notifyJid = `${notifyNumber}@s.whatsapp.net`;
-      const notifyMessage = `🔔 *NOTIFICAÇÃO DO AGENTE*\n\nMotivo: ${notifyReason}\n\nCliente: ${contactNumber}\nÚltima mensagem: "${combinedText}"`;
+      
+      // 🆕 Mensagem de notificação melhorada com contexto
+      const notifyMessage = `🔔 *NOTIFICAÇÃO DO AGENTE*\n\n` +
+        `📋 *Motivo:* ${notifyReason}\n` +
+        `📱 *Fonte:* ${keywordSource}\n\n` +
+        `👤 *Cliente:* ${contactNumber}\n` +
+        `💬 *Mensagem do cliente:* "${combinedText.substring(0, 200)}${combinedText.length > 200 ? '...' : ''}"\n` +
+        (aiResponse ? `🤖 *Resposta do agente:* "${aiResponse.substring(0, 200)}${aiResponse.length > 200 ? '...' : ''}"` : '');
       
       try {
         await currentSession.socket.sendMessage(notifyJid, { text: notifyMessage });

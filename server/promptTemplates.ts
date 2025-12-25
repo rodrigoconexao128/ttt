@@ -10,51 +10,57 @@ import type { BusinessAgentConfig } from "@db/schema";
 function getNotificationPrompt(trigger: string): string {
   const triggerLower = trigger.toLowerCase();
   
-  let contextGuide = "";
-  let actionDesc = "notificacao";
+  let keywords = "";
+  let actionDesc = "";
   
   if (triggerLower.includes("agendar") || triggerLower.includes("horário") || triggerLower.includes("marcar")) {
-    contextGuide = "O cliente demonstra intenção de agendar, marcar horário ou verificar disponibilidade.";
+    keywords = "agendar, agenda, marcar, marca, reservar, reserva, tem vaga, tem horário, horário disponível, me encaixa, encaixe";
     actionDesc = "agendamento";
   } else if (triggerLower.includes("reembolso") || triggerLower.includes("devolver") || triggerLower.includes("devolução")) {
-    contextGuide = "O cliente solicita reembolso, devolução ou estorno.";
+    keywords = "reembolso, devolver, devolução, quero meu dinheiro, cancelar pedido, estornar, estorno";
     actionDesc = "reembolso";
   } else if (triggerLower.includes("humano") || triggerLower.includes("atendente") || triggerLower.includes("pessoa")) {
-    contextGuide = "O cliente pede para falar com uma pessoa real ou atendente humano.";
+    keywords = "falar com humano, atendente, pessoa real, falar com alguém, quero um humano, passa pra alguém";
     actionDesc = "atendente humano";
   } else if (triggerLower.includes("preço") || triggerLower.includes("valor") || triggerLower.includes("quanto custa")) {
-    contextGuide = "O cliente pergunta sobre preços ou valores.";
+    keywords = "preço, valor, quanto custa, quanto é, qual o preço, tabela de preço";
     actionDesc = "preço";
   } else if (triggerLower.includes("reclama") || triggerLower.includes("problema") || triggerLower.includes("insatisf")) {
-    contextGuide = "O cliente está insatisfeito ou relatando um problema/defeito.";
+    keywords = "reclamação, problema, insatisfeito, não funcionou, com defeito, quebrou, errado";
     actionDesc = "reclamação";
   } else if (triggerLower.includes("comprar") || triggerLower.includes("pedido") || triggerLower.includes("encomendar")) {
-    contextGuide = "O cliente manifesta intenção de compra ou pedido.";
+    keywords = "comprar, quero comprar, fazer pedido, encomendar, pedir, quero pedir";
     actionDesc = "compra";
   } else {
-    // Gatilho genérico
-    contextGuide = `A condição descrita no gatilho foi atendida: "${trigger}"`;
-    actionDesc = "gatilho personalizado";
+    // Gatilho genérico - extrair palavras-chave do próprio trigger
+    keywords = trigger.replace(/me notifique quando o cliente|quiser|quer|pedir|mencionar|falar sobre/gi, "").trim();
+    actionDesc = keywords || "gatilho";
   }
   
+  const keywordList = keywords.split(',').map(k => k.trim().toLowerCase());
+  
   return `
-### SISTEMA DE NOTIFICAÇÃO ###
+### REGRA DE NOTIFICACAO ###
 
-GATILHO ATIVO: "${trigger}"
-OBJETIVO: Identificar se "${contextGuide}"
+PALAVRAS-GATILHO EXATAS: ${keywordList.join(', ')}
 
-INSTRUÇÃO:
-Analise o contexto da conversa (mensagens do cliente E o estado atual do atendimento).
-Adicione a tag [NOTIFY: ${actionDesc}] ao final da sua resposta se:
-1. O cliente disse algo relacionado ao gatilho.
-2. OU você (o agente) acabou de concluir uma etapa solicitada no gatilho (ex: coletou todas as informações).
-3. OU a condição descrita no gatilho foi satisfeita nesta interação.
+INSTRUCAO: Adicione [NOTIFY: ${actionDesc}] APENAS se a mensagem do cliente contiver uma palavra-gatilho listada acima.
 
-EXEMPLOS:
-- Cliente: "Quero agendar" -> Resposta: "... [NOTIFY: ${actionDesc}]"
-- Gatilho: "Avise quando finalizar cadastro" -> Você: "Cadastro concluído!" -> Resposta: "Cadastro concluído! [NOTIFY: ${actionDesc}]"
+### QUANDO ADICIONAR TAG ###
+"Agenda hoje as 19" -> Contem "agenda" -> ADICIONAR [NOTIFY: ${actionDesc}]
+"Quero agendar" -> Contem "agendar" -> ADICIONAR [NOTIFY: ${actionDesc}]
+"Tem vaga?" -> Contem "tem vaga" -> ADICIONAR [NOTIFY: ${actionDesc}]
+"Quero marcar" -> Contem "marcar" -> ADICIONAR [NOTIFY: ${actionDesc}]
 
-IMPORTANTE: Não notifique se a condição não for atendida.
+### QUANDO NAO ADICIONAR TAG ###
+"Oi tudo bem" -> NAO contem palavra-gatilho -> SEM TAG
+"Qual o valor?" -> NAO contem palavra-gatilho -> SEM TAG
+"Onde fica?" -> NAO contem palavra-gatilho -> SEM TAG
+"Voces trabalham sabado?" -> NAO contem palavra-gatilho -> SEM TAG
+"Ta caro" -> NAO contem palavra-gatilho -> SEM TAG
+"Obrigado" -> NAO contem palavra-gatilho -> SEM TAG
+
+REGRA: Se nenhuma palavra-gatilho aparece na mensagem, NAO adicione a tag.
 `;
 }
 

@@ -198,13 +198,14 @@ export default function SmartNotifierPage() {
                   <Label>Palavras-chave (separadas por vírgula)</Label>
                 </div>
                 <Textarea
-                  placeholder="Ex: agendar, marcar, reservar, horário, comprar, pedido"
+                  placeholder="Ex: agendar, marcar, encaminhar agora pra nossa equipe, nossa equipe vai analisar, já te retornamos"
                   value={notificationManualKeywords}
                   onChange={(e) => setNotificationManualKeywords(e.target.value)}
                   rows={2}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Quando o cliente usar qualquer dessas palavras, você será notificado imediatamente.
+                  Detecta palavras tanto nas mensagens do <strong>cliente</strong> quanto nas <strong>respostas do agente</strong>.
+                  Ideal para notificar quando o agente finaliza uma etapa (ex: "vou encaminhar para nossa equipe").
                 </p>
               </div>
             )}
@@ -216,9 +217,14 @@ export default function SmartNotifierPage() {
                 <strong>Diferença entre os modos:</strong>
                 <ul className="mt-2 space-y-1 list-disc list-inside">
                   <li><strong>IA:</strong> Entende contexto. "Quero ver opções" pode não notificar, mas "Quero agendar para amanhã" sim.</li>
-                  <li><strong>Manual:</strong> Busca exata. Se "agendar" está na lista, qualquer mensagem com essa palavra notifica.</li>
+                  <li><strong>Manual:</strong> Busca exata nas mensagens do <strong>cliente</strong> E nas <strong>respostas do agente</strong>. 
+                    Ex: "encaminhar agora pra nossa equipe" detecta quando o agente finaliza o atendimento.</li>
                   <li><strong>Ambos:</strong> Combina os dois. Use se a IA às vezes não detecta algo importante.</li>
                 </ul>
+                <p className="mt-2 text-muted-foreground">
+                  💡 <strong>Dica:</strong> Para detectar quando o agente finaliza uma coleta de informações, 
+                  adicione frases como: "encaminhar agora", "nossa equipe vai analisar", "já te retornamos"
+                </p>
               </AlertDescription>
             </Alert>
 
