@@ -131,6 +131,7 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   triggerPhrases: text("trigger_phrases").array(),
   messageSplitChars: integer("message_split_chars").default(400),
   responseDelaySeconds: integer("response_delay_seconds").default(30), // Tempo de espera antes de responder (acumulação de mensagens)
+  fetchHistoryOnFirstResponse: boolean("fetch_history_on_first_response").default(false).notNull(), // Buscar histórico do WhatsApp ao responder pela primeira vez
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

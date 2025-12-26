@@ -176,6 +176,16 @@ export async function generateAIResponse(
     console.log(`   📊 Business (business_agent_configs): ${businessConfig ? `exists, isActive=${businessConfig.isActive}` : 'NOT FOUND'}`);
 
     // ═══════════════════════════════════════════════════════════════════════
+    // 🎯 VERIFICAR SE É PRIMEIRA RESPOSTA COM HISTÓRICO ATIVO
+    // ═══════════════════════════════════════════════════════════════════════
+    const hasAgentResponded = conversationHistory.some(m => m.isFromAgent);
+    const isFirstResponseWithHistory = agentConfig?.fetchHistoryOnFirstResponse && !hasAgentResponded && conversationHistory.length > 0;
+    
+    if (isFirstResponseWithHistory) {
+      console.log(`📜 [AI Agent] PRIMEIRA RESPOSTA com histórico ativo - ${conversationHistory.length} mensagens anteriores serão analisadas`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // 🎯 LÓGICA DE ATIVAÇÃO DO AGENTE:
     // 
     // O `ai_agent_config.isActive` (página /meu-agente-ia) é o PRINCIPAL.
@@ -395,6 +405,34 @@ export async function generateAIResponse(
       },
      ];
 
+    // 📜 INSTRUÇÃO ESPECIAL PARA PRIMEIRA RESPOSTA COM HISTÓRICO
+    // Quando fetchHistoryOnFirstResponse está ativo e é a primeira vez que a IA responde
+    if (isFirstResponseWithHistory) {
+      const historyContext = `
+[CONTEXTO IMPORTANTE - PRIMEIRA INTERAÇÃO DA IA]
+
+Você está assumindo o atendimento de um cliente que JÁ CONVERSOU anteriormente com um humano. 
+Abaixo está o histórico completo dessa conversa anterior.
+
+INSTRUÇÕES CRÍTICAS:
+1. ANALISE todo o histórico para entender o contexto
+2. IDENTIFIQUE o que o cliente já perguntou/comprou/quer
+3. CONTINUE a conversa de forma natural, sem repetir informações já dadas
+4. NÃO se apresente como se fosse a primeira vez - o cliente já conhece a empresa
+5. Se o cliente fez um pedido/solicitação anterior, REFERENCIE isso naturalmente
+6. Seja CONSISTENTE com qualquer promessa ou informação dada anteriormente
+
+Exemplo: Se no histórico alguém disse "te mando o orçamento amanhã", você pode dizer algo como "Sobre aquele orçamento que mencionamos..."
+
+LEMBRE-SE: O cliente não sabe que você é uma IA diferente da pessoa que respondeu antes. Mantenha a continuidade!
+`;
+      messages.push({
+        role: "system",
+        content: historyContext
+      });
+      console.log(`📜 [AI Agent] Adicionada instrução especial para análise de histórico anterior`);
+    }
+
     // 🧠 CONVERSATION MEMORY: Sistema inspirado em Claude/GPT/Intercom
     // AUMENTADO: Manter últimas 100 mensagens para garantir contexto total
     let recentMessages = conversationHistory.slice(-100);
@@ -420,7 +458,8 @@ export async function generateAIResponse(
 
     // 🛡️ ANTI-AMNESIA PROMPT INJECTION
     // Adicionar instrução explícita para não se repetir se já houver histórico
-    if (conversationHistory.length > 2) {
+    // MAS não adicionar se for primeira resposta com histórico (já tem instrução especial)
+    if (conversationHistory.length > 2 && !isFirstResponseWithHistory) {
         messages.push({
             role: "system",
             content: `[SISTEMA: Esta é uma conversa em andamento. O cliente JÁ TE CONHECE. NÃO se apresente novamente. NÃO diga "Sou o X da empresa Y" de novo. Apenas continue a conversa de onde parou.]`

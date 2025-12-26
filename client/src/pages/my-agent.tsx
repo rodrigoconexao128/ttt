@@ -15,7 +15,7 @@ import {
   Bot, Sparkles, TestTube, Save, AlertCircle, CheckCircle2, 
   Plus, X, Zap, Settings2, Image as ImageIcon, Music, Video, 
   FileText, Upload, Trash2, Edit2, Loader2, RefreshCw, Check,
-  Clock, MessageSquare, Filter, Info, ArrowRight
+  Clock, MessageSquare, Filter, Info, ArrowRight, History
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -90,6 +90,7 @@ export default function MyAgent() {
   const [newTriggerPhrase, setNewTriggerPhrase] = useState("");
   const [messageSplitChars, setMessageSplitChars] = useState(400);
   const [responseDelaySeconds, setResponseDelaySeconds] = useState(30);
+  const [fetchHistoryOnFirstResponse, setFetchHistoryOnFirstResponse] = useState(false);
   
   // Estado do teste
   const [testMessage, setTestMessage] = useState("");
@@ -120,6 +121,7 @@ export default function MyAgent() {
       setTriggerPhrases(config.triggerPhrases || []);
       setMessageSplitChars(config.messageSplitChars ?? 400);
       setResponseDelaySeconds(config.responseDelaySeconds ?? 30);
+      setFetchHistoryOnFirstResponse(config.fetchHistoryOnFirstResponse ?? false);
     }
   }, [config]);
 
@@ -157,6 +159,7 @@ export default function MyAgent() {
         triggerPhrases,
         messageSplitChars,
         responseDelaySeconds,
+        fetchHistoryOnFirstResponse,
       });
     },
     onSuccess: () => {
@@ -827,6 +830,50 @@ O QUE NÃO FAZER:
                     </Button>
                   </div>
                 </div>
+              </div>
+            </Card>
+
+            {/* Histórico de Conversas */}
+            <Card className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <History className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <Label className="text-base font-semibold">Buscar Histórico do WhatsApp</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Quando ativado, a IA busca o histórico de conversas anteriores do cliente antes de responder pela primeira vez
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${fetchHistoryOnFirstResponse ? 'bg-green-500/20' : 'bg-muted'}`}>
+                      <History className={`w-5 h-5 ${fetchHistoryOnFirstResponse ? 'text-green-500' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div>
+                      <p className="font-medium">
+                        {fetchHistoryOnFirstResponse ? 'Histórico Ativo' : 'Histórico Desativado'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {fetchHistoryOnFirstResponse 
+                          ? 'A IA irá analisar conversas anteriores para entender melhor o cliente' 
+                          : 'A IA responderá sem contexto de conversas anteriores'}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={fetchHistoryOnFirstResponse}
+                    onCheckedChange={setFetchHistoryOnFirstResponse}
+                    className="scale-125"
+                  />
+                </div>
+
+                <p className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md">
+                  💡 Útil quando você já conversou com clientes pelo WhatsApp manualmente e quer que a IA entenda o contexto anterior antes de assumir o atendimento.
+                </p>
               </div>
             </Card>
 
