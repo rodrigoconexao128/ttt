@@ -85,7 +85,7 @@ export function registerFollowUpRoutes(app: Express) {
       }
 
       if (active) {
-        await userFollowUpService.enableFollowUp(id, userId);
+        await userFollowUpService.enableFollowUp(id);
       } else {
         await userFollowUpService.disableFollowUp(id, reason || "Desativado pelo usuário");
       }
@@ -246,11 +246,61 @@ export function registerFollowUpRoutes(app: Express) {
         return res.status(403).json({ message: "Acesso negado" });
       }
 
-      await userFollowUpService.resetFollowUpCycle(id, userId);
+      await userFollowUpService.resetFollowUpCycle(id, "Reset manual pelo usuário");
       res.json({ success: true, message: "Ciclo de follow-up resetado" });
     } catch (error: any) {
       console.error("Erro ao resetar follow-up:", error);
       res.status(500).json({ message: "Erro ao resetar follow-up" });
+    }
+  });
+
+  /**
+   * POST /api/followup/conversation/:id/schedule
+   * Agendar follow-up manual para uma data/hora específica
+   */
+  app.post("/api/followup/conversation/:id/schedule", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const { scheduledFor, note } = req.body;
+
+      if (!scheduledFor) {
+        return res.status(400).json({ message: "scheduledFor é obrigatório" });
+      }
+
+      const scheduledDate = new Date(scheduledFor);
+      if (isNaN(scheduledDate.getTime())) {
+        return res.status(400).json({ message: "Data inválida" });
+      }
+
+      if (scheduledDate <= new Date()) {
+        return res.status(400).json({ message: "Data deve ser no futuro" });
+      }
+
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, id),
+        with: { connection: true }
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      if (conversation.connection?.userId !== userId) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      // Agendar follow-up manual
+      await userFollowUpService.scheduleManualFollowUp(id, scheduledDate, note);
+      
+      res.json({ 
+        success: true, 
+        message: "Follow-up agendado com sucesso",
+        scheduledFor: scheduledDate.toISOString()
+      });
+    } catch (error: any) {
+      console.error("Erro ao agendar follow-up:", error);
+      res.status(500).json({ message: "Erro ao agendar follow-up" });
     }
   });
 

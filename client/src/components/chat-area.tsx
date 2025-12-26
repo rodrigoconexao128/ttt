@@ -5,7 +5,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, SparklesOff } from "lucide-react";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -39,6 +41,12 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   const [avatarModalImage, setAvatarModalImage] = useState("");
   const [avatarModalName, setAvatarModalName] = useState("");
+  
+  // Estados para agendamento manual de follow-up
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [scheduleNote, setScheduleNote] = useState("");
 
   const { data: conversation } = useQuery<Conversation>({
     queryKey: ["/api/conversation", conversationId],
@@ -138,6 +146,32 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
     onError: (error: Error) => {
       toast({
         title: "Erro ao alterar follow-up",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Agendar follow-up manual
+  const scheduleFollowupMutation = useMutation({
+    mutationFn: async (data: { scheduledFor: string; note?: string }) => {
+      return await apiRequest("POST", `/api/followup/conversation/${conversationId}/schedule`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/conversation", conversationId, "status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/pending"] });
+      setScheduleDialogOpen(false);
+      setScheduleDate("");
+      setScheduleTime("");
+      setScheduleNote("");
+      toast({
+        title: "Follow-up Agendado!",
+        description: "Você receberá um lembrete na data/hora escolhida.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao agendar follow-up",
         description: error.message,
         variant: "destructive",
       });
@@ -384,12 +418,12 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
                 >
                   {followupStatus?.active ? (
                     <>
-                      <Sparkles className="w-3 h-3" />
+                      <Sparkles className="w-3 h-3 text-yellow-500" />
                       <span className="hidden md:inline text-xs">Follow-up</span>
                     </>
                   ) : (
                     <>
-                      <SparklesOff className="w-3 h-3" />
+                      <Sparkles className="w-3 h-3 opacity-40" />
                       <span className="hidden md:inline text-xs">Sem Follow-up</span>
                     </>
                   )}
@@ -399,6 +433,27 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
                 {followupStatus?.active 
                   ? `Follow-up ativo (Estágio ${(followupStatus.stage || 0) + 1})` 
                   : "Follow-up desativado para esta conversa"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* Agendar Follow-up Manual */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 h-7 px-2"
+                  onClick={() => setScheduleDialogOpen(true)}
+                  data-testid="button-schedule-followup"
+                >
+                  <CalendarPlus className="w-3 h-3" />
+                  <span className="hidden md:inline text-xs">Agendar</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Agendar follow-up manual (ex: cliente pediu para ligar em outro dia)
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -591,6 +646,144 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
               className="max-w-full max-h-[70vh] object-contain rounded-lg"
             />
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Agendamento Manual */}
+      <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarPlus className="w-5 h-5" />
+              Agendar Follow-up Manual
+            </DialogTitle>
+            <DialogDescription>
+              Agende um lembrete para entrar em contato com este cliente em uma data específica.
+              Ideal para quando o cliente pede para ligar em outro dia.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="schedule-date">Data</Label>
+                <Input
+                  id="schedule-date"
+                  type="date"
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="schedule-time">Horário</Label>
+                <Input
+                  id="schedule-time"
+                  type="time"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="schedule-note">Observação (opcional)</Label>
+              <Input
+                id="schedule-note"
+                placeholder="Ex: Cliente pediu para ligar às 14h"
+                value={scheduleNote}
+                onChange={(e) => setScheduleNote(e.target.value)}
+              />
+            </div>
+            
+            {/* Atalhos rápidos */}
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Atalhos rápidos</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    setScheduleDate(tomorrow.toISOString().split('T')[0]);
+                    setScheduleTime("09:00");
+                  }}
+                >
+                  Amanhã 9h
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    setScheduleDate(tomorrow.toISOString().split('T')[0]);
+                    setScheduleTime("14:00");
+                  }}
+                >
+                  Amanhã 14h
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const nextWeek = new Date();
+                    nextWeek.setDate(nextWeek.getDate() + 7);
+                    setScheduleDate(nextWeek.toISOString().split('T')[0]);
+                    setScheduleTime("10:00");
+                  }}
+                >
+                  Próxima semana
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const in2Hours = new Date();
+                    in2Hours.setHours(in2Hours.getHours() + 2);
+                    setScheduleDate(in2Hours.toISOString().split('T')[0]);
+                    setScheduleTime(in2Hours.toTimeString().slice(0, 5));
+                  }}
+                >
+                  Em 2 horas
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setScheduleDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (!scheduleDate || !scheduleTime) {
+                  toast({
+                    title: "Campos obrigatórios",
+                    description: "Preencha a data e horário do agendamento",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                const scheduledFor = new Date(`${scheduleDate}T${scheduleTime}:00`).toISOString();
+                scheduleFollowupMutation.mutate({ scheduledFor, note: scheduleNote || undefined });
+              }}
+              disabled={scheduleFollowupMutation.isPending}
+            >
+              {scheduleFollowupMutation.isPending ? (
+                <>
+                  <Clock className="w-4 h-4 mr-2 animate-spin" />
+                  Agendando...
+                </>
+              ) : (
+                <>
+                  <CalendarPlus className="w-4 h-4 mr-2" />
+                  Agendar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

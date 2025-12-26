@@ -522,6 +522,22 @@ Responda APENAS um JSON válido:
   }
 
   /**
+   * Agenda um follow-up manual para uma data/hora específica
+   */
+  async scheduleManualFollowUp(conversationId: string, scheduledFor: Date, note?: string) {
+    await db.update(conversations)
+      .set({ 
+        followupActive: true,
+        followupStage: -1, // -1 indica agendamento manual
+        nextFollowupAt: scheduledFor,
+        followupDisabledReason: note ? `📅 Agendado: ${note}` : '📅 Agendamento manual'
+      })
+      .where(eq(conversations.id, conversationId));
+      
+    console.log(`📅 [USER-FOLLOW-UP] Agendamento manual criado para ${conversationId}: ${scheduledFor.toLocaleString()}`);
+  }
+
+  /**
    * Log de follow-up
    */
   private async logFollowUp(
