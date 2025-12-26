@@ -17,6 +17,7 @@ import WebSocket from "ws";
 import { generateAIResponse, type AIResponseResult } from "./aiAgent";
 import { executeMediaActions, downloadMediaAsBuffer } from "./mediaService";
 import { registerFollowUpCallback, registerScheduledContactCallback, followUpService } from "./followUpService";
+import { userFollowUpService } from "./userFollowUpService";
 
 // Cache manual de contatos para mapear @lid → phoneNumber
 interface Contact {
@@ -1768,10 +1769,13 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     });
   }
 
-  // 🛑 FOLLOW-UP: NÃO resetar aqui - isso é para conversas de CLIENTES do SaaS
-  // O follow-up só existe para conversas do ADMIN (admin_conversations)
-  // Esta função (handleIncomingMessage) processa conversas de CLIENTES, não do admin.
-  // O reset do follow-up para admin_conversations é feito em handleAdminIncomingMessage
+  // � FOLLOW-UP USUÁRIOS: Resetar ciclo quando cliente responde
+  // O sistema de follow-up para usuários usa a tabela "conversations" (não admin_conversations)
+  try {
+    await userFollowUpService.resetFollowUpCycle(conversation.id, "Cliente respondeu");
+  } catch (error) {
+    console.error("Erro ao resetar follow-up do usuário:", error);
+  }
 
     const savedMessage = await storage.createMessage({
       conversationId: conversation.id,
@@ -2162,11 +2166,18 @@ export async function sendMessage(userId: string, conversationId: string, text: 
     status: "sent",
   });
 
-  // 🚀 FOLLOW-UP: Se usuário enviou mensagem pela UI, agendar follow-up inicial
+  // 🚀 FOLLOW-UP ADMIN: Continua usando sistema antigo para admin_conversations
   try {
     await followUpService.scheduleInitialFollowUp(conversationId);
   } catch (error) {
-    console.error("Erro ao agendar follow-up:", error);
+    console.error("Erro ao agendar follow-up admin:", error);
+  }
+
+  // 🚀 FOLLOW-UP USUÁRIOS: Ativar follow-up para conversas de usuários
+  try {
+    await userFollowUpService.enableFollowUp(conversationId);
+  } catch (error) {
+    console.error("Erro ao ativar follow-up do usuário:", error);
   }
 
   await storage.updateConversation(conversationId, {

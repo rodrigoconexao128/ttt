@@ -2,7 +2,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ import LeadQualificationPage from "@/pages/lead-qualification";
 import MediaLibraryPage from "@/pages/media-library";
 import ContactListsPage from "@/pages/contact-lists";
 import SmartNotifierPage from "@/pages/smart-notifier";
+import FollowupConfigPage from "@/pages/followup-config";
 import { useLocation } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan } from "@shared/schema";
 import { supabase } from "@/lib/supabase";
@@ -81,6 +82,7 @@ export default function Dashboard() {
   const isLeadQualificationRoute = location.startsWith("/qualificacao");
   const isContactListsRoute = location.startsWith("/listas-contatos");
   const isNotifierRoute = location.startsWith("/notificador");
+  const isFollowupRoute = location.startsWith("/followup");
   const isDashboardMode =
     !isConversasRoute &&
     !isConexaoRoute &&
@@ -101,7 +103,8 @@ export default function Dashboard() {
     !isReservationsRoute &&
     !isLeadQualificationRoute &&
     !isContactListsRoute &&
-    !isNotifierRoute;
+    !isNotifierRoute &&
+    !isFollowupRoute;
   const isToolsRoute =
     isPlansRoute ||
     isSettingsRoute ||
@@ -118,7 +121,8 @@ export default function Dashboard() {
     isReservationsRoute ||
     isLeadQualificationRoute ||
     isContactListsRoute ||
-    isNotifierRoute;
+    isNotifierRoute ||
+    isFollowupRoute;
   // Start tools collapsed by default; open only when user clicks or route requires it
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toolsPickerOpen, setToolsPickerOpen] = useState(false);
@@ -224,6 +228,7 @@ const toolsNavigation: ToolNavItem[] = [
       goToSection("agent");
     },
   },
+  { label: "Follow-up Inteligente", href: "/followup", icon: Sparkles, tooltip: "Mensagens automáticas para recuperar conversas", isActive: isFollowupRoute, testId: "button-nav-followup" },
   { label: "Notificador Inteligente", href: "/notificador", icon: Bell, tooltip: "Notificações automáticas", isActive: isNotifierRoute, testId: "button-nav-notifier" },
   { label: "Biblioteca de Mídias", href: "/biblioteca-midias", icon: Upload, tooltip: "Áudios, imagens e vídeos do agente", isActive: isMediaLibraryRoute, testId: "button-nav-media-library" },
   { label: "Qualificação de Lead", href: "/qualificacao", icon: Brain, tooltip: "Análise por IA das conversas", isActive: isLeadQualificationRoute, testId: "button-nav-lead-qualification" },
@@ -564,6 +569,11 @@ const toolsNavigation: ToolNavItem[] = [
           {isNotifierRoute && (
             <div className="flex-1 overflow-auto">
               <SmartNotifierPage />
+            </div>
+          )}
+          {isFollowupRoute && (
+            <div className="flex-1 overflow-auto">
+              <FollowupConfigPage />
             </div>
           )}
           

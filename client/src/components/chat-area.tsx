@@ -17,7 +17,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, SparklesOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -56,6 +57,17 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
 
   const { data: agentStatus } = useQuery<{ isDisabled: boolean }>({
     queryKey: ["/api/agent/status", conversationId],
+    enabled: !!conversationId,
+  });
+
+  // Follow-up status
+  const { data: followupStatus } = useQuery<{ 
+    active: boolean; 
+    stage: number; 
+    nextFollowupAt: string | null;
+    disabledReason: string | null;
+  }>({
+    queryKey: ["/api/followup/conversation", conversationId, "status"],
     enabled: !!conversationId,
   });
 
@@ -99,6 +111,33 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
     onError: (error: Error) => {
       toast({
         title: "Erro ao limpar conversa",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Follow-up toggle mutation
+  const toggleFollowupMutation = useMutation({
+    mutationFn: async (active: boolean) => {
+      return await apiRequest("POST", `/api/followup/conversation/${conversationId}/toggle`, {
+        active,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/conversation", conversationId, "status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/pending"] });
+      toast({
+        title: followupStatus?.active ? "Follow-up Desativado" : "Follow-up Ativado",
+        description: followupStatus?.active 
+          ? "Mensagens automáticas de follow-up foram pausadas para esta conversa" 
+          : "Mensagens automáticas serão enviadas quando o cliente parar de responder",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao alterar follow-up",
         description: error.message,
         variant: "destructive",
       });
@@ -331,6 +370,39 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
           </p>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
+          {/* Follow-up Toggle */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={followupStatus?.active ? "default" : "outline"}
+                  size="sm"
+                  className="gap-1 h-7 px-2"
+                  onClick={() => toggleFollowupMutation.mutate(!followupStatus?.active)}
+                  disabled={toggleFollowupMutation.isPending}
+                  data-testid="button-followup-toggle"
+                >
+                  {followupStatus?.active ? (
+                    <>
+                      <Sparkles className="w-3 h-3" />
+                      <span className="hidden md:inline text-xs">Follow-up</span>
+                    </>
+                  ) : (
+                    <>
+                      <SparklesOff className="w-3 h-3" />
+                      <span className="hidden md:inline text-xs">Sem Follow-up</span>
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {followupStatus?.active 
+                  ? `Follow-up ativo (Estágio ${(followupStatus.stage || 0) + 1})` 
+                  : "Follow-up desativado para esta conversa"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           <Badge
             variant={agentStatus?.isDisabled ? "secondary" : "default"}
             className="gap-1 h-7 md:h-auto px-2"

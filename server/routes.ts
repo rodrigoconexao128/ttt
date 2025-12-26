@@ -4,6 +4,8 @@ import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
 import { storage } from "./storage";
 import { followUpService } from "./followUpService";
+import { userFollowUpService } from "./userFollowUpService";
+import { registerFollowUpRoutes } from "./routes_user_followup";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 import { withRetry } from "./db";
 
@@ -82,6 +84,25 @@ function getUserId(req: any): string {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
+
+  // ==================== FOLLOW-UP INTELIGENTE ROUTES ====================
+  registerFollowUpRoutes(app);
+  
+  // Iniciar serviço de follow-up dos usuários
+  userFollowUpService.start();
+  
+  // Registrar callback para enviar mensagens de follow-up via WhatsApp
+  userFollowUpService.registerCallback(async (userId, conversationId, phoneNumber, remoteJid, message, stage) => {
+    try {
+      console.log(`📤 [FOLLOW-UP-CALLBACK] Enviando para ${phoneNumber} (estágio ${stage})`);
+      await whatsappSendMessage(userId, conversationId, message);
+      console.log(`✅ [FOLLOW-UP-CALLBACK] Mensagem enviada com sucesso para ${phoneNumber}`);
+      return { success: true };
+    } catch (error: any) {
+      console.error(`❌ [FOLLOW-UP-CALLBACK] Erro ao enviar para ${phoneNumber}:`, error);
+      return { success: false, error: error.message || "Erro desconhecido" };
+    }
+  });
 
   // ==================== ADMIN AUTH ROUTES ====================
   // Admin login with email/password

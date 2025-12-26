@@ -1,0 +1,258 @@
+import { Express, Request, Response } from "express";
+import { isAuthenticated } from "./supabaseAuth";
+import { userFollowUpService } from "./userFollowUpService";
+import { followupConfigSchema } from "@shared/schema";
+import { db } from "./db";
+import { conversations, userFollowupLogs } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
+
+// ============================================================================
+// ROTAS DO FOLLOW-UP INTELIGENTE
+// ============================================================================
+
+export function registerFollowUpRoutes(app: Express) {
+  
+  // ==================== CONFIGURAÇÃO ====================
+  
+  /**
+   * GET /api/followup/config
+   * Buscar configuração de follow-up do usuário
+   */
+  app.get("/api/followup/config", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const config = await userFollowUpService.getFollowupConfig(userId);
+      res.json(config);
+    } catch (error: any) {
+      console.error("Erro ao buscar config de follow-up:", error);
+      res.status(500).json({ message: "Erro ao buscar configuração" });
+    }
+  });
+
+  /**
+   * PUT /api/followup/config
+   * Atualizar configuração de follow-up
+   */
+  app.put("/api/followup/config", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validar dados
+      const validationResult = followupConfigSchema.partial().safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Dados inválidos",
+          errors: validationResult.error.errors 
+        });
+      }
+
+      const updated = await userFollowUpService.updateFollowupConfig(userId, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Erro ao atualizar config de follow-up:", error);
+      res.status(500).json({ message: "Erro ao atualizar configuração" });
+    }
+  });
+
+  // ==================== CONTROLE POR CONVERSA ====================
+
+  /**
+   * POST /api/followup/conversation/:id/toggle
+   * Ativar/Desativar follow-up para uma conversa específica
+   */
+  app.post("/api/followup/conversation/:id/toggle", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const { active, reason } = req.body;
+
+      if (typeof active !== 'boolean') {
+        return res.status(400).json({ message: "active (boolean) é obrigatório" });
+      }
+
+      // Verificar se a conversa pertence ao usuário
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, id),
+        with: { connection: true }
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      if (conversation.connection?.userId !== userId) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      if (active) {
+        await userFollowUpService.enableFollowUp(id, userId);
+      } else {
+        await userFollowUpService.disableFollowUp(id, reason || "Desativado pelo usuário");
+      }
+
+      res.json({ success: true, active });
+    } catch (error: any) {
+      console.error("Erro ao alternar follow-up:", error);
+      res.status(500).json({ message: "Erro ao alternar follow-up" });
+    }
+  });
+
+  /**
+   * GET /api/followup/conversation/:id/status
+   * Verificar status do follow-up de uma conversa
+   */
+  app.get("/api/followup/conversation/:id/status", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, id),
+        with: { connection: true }
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      if (conversation.connection?.userId !== userId) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      res.json({
+        active: conversation.followupActive,
+        stage: conversation.followupStage,
+        nextFollowupAt: conversation.nextFollowupAt,
+        disabledReason: conversation.followupDisabledReason
+      });
+    } catch (error: any) {
+      console.error("Erro ao buscar status de follow-up:", error);
+      res.status(500).json({ message: "Erro ao buscar status" });
+    }
+  });
+
+  // ==================== ESTATÍSTICAS E LOGS ====================
+
+  /**
+   * GET /api/followup/stats
+   * Estatísticas gerais de follow-up do usuário
+   */
+  app.get("/api/followup/stats", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const stats = await userFollowUpService.getFollowUpStats(userId);
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Erro ao buscar estatísticas de follow-up:", error);
+      res.status(500).json({ message: "Erro ao buscar estatísticas" });
+    }
+  });
+
+  /**
+   * GET /api/followup/logs
+   * Logs de follow-up do usuário
+   */
+  app.get("/api/followup/logs", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const logs = await userFollowUpService.getFollowUpLogs(userId, limit);
+      res.json(logs);
+    } catch (error: any) {
+      console.error("Erro ao buscar logs de follow-up:", error);
+      res.status(500).json({ message: "Erro ao buscar logs" });
+    }
+  });
+
+  /**
+   * GET /api/followup/pending
+   * Lista conversas com follow-up pendente
+   */
+  app.get("/api/followup/pending", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const pending = await userFollowUpService.getPendingFollowUps(userId);
+      
+      res.json(pending.map(conv => ({
+        id: conv.id,
+        contactNumber: conv.contactNumber,
+        contactName: conv.contactName,
+        stage: conv.followupStage,
+        nextFollowupAt: conv.nextFollowupAt,
+        lastMessageText: conv.lastMessageText,
+        lastMessageTime: conv.lastMessageTime
+      })));
+    } catch (error: any) {
+      console.error("Erro ao buscar follow-ups pendentes:", error);
+      res.status(500).json({ message: "Erro ao buscar pendentes" });
+    }
+  });
+
+  // ==================== AÇÕES MANUAIS ====================
+
+  /**
+   * POST /api/followup/conversation/:id/trigger
+   * Disparar follow-up manualmente (para testes)
+   */
+  app.post("/api/followup/conversation/:id/trigger", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, id),
+        with: { connection: true }
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      if (conversation.connection?.userId !== userId) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      // Forçar próximo follow-up para agora
+      await db.update(conversations)
+        .set({ nextFollowupAt: new Date() })
+        .where(eq(conversations.id, id));
+
+      res.json({ success: true, message: "Follow-up será processado em breve" });
+    } catch (error: any) {
+      console.error("Erro ao disparar follow-up:", error);
+      res.status(500).json({ message: "Erro ao disparar follow-up" });
+    }
+  });
+
+  /**
+   * POST /api/followup/conversation/:id/reset
+   * Resetar ciclo de follow-up
+   */
+  app.post("/api/followup/conversation/:id/reset", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, id),
+        with: { connection: true }
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      if (conversation.connection?.userId !== userId) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      await userFollowUpService.resetFollowUpCycle(id, userId);
+      res.json({ success: true, message: "Ciclo de follow-up resetado" });
+    } catch (error: any) {
+      console.error("Erro ao resetar follow-up:", error);
+      res.status(500).json({ message: "Erro ao resetar follow-up" });
+    }
+  });
+
+  console.log("✅ [FOLLOW-UP] Rotas registradas");
+}

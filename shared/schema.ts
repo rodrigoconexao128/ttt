@@ -98,6 +98,11 @@ export const conversations = pgTable("conversations", {
   lastMessageText: text("last_message_text"),
   lastMessageTime: timestamp("last_message_time"),
   unreadCount: integer("unread_count").default(0).notNull(),
+  // Follow-up Inteligente
+  followupActive: boolean("followup_active").default(true).notNull(),
+  followupStage: integer("followup_stage").default(0).notNull(),
+  nextFollowupAt: timestamp("next_followup_at"),
+  followupDisabledReason: text("followup_disabled_reason"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -419,7 +424,7 @@ export const systemConfig = pgTable("system_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Follow-up Logs table
+// Follow-up Logs table (Admin)
 export const followupLogs = pgTable("followup_logs", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   conversationId: varchar("conversation_id").references(() => adminConversations.id),
@@ -431,6 +436,62 @@ export const followupLogs = pgTable("followup_logs", {
 }, (table) => [
   index("idx_followup_logs_conversation").on(table.conversationId),
   index("idx_followup_logs_status").on(table.status),
+]);
+
+// ============================================================================
+// FOLLOW-UP INTELIGENTE - Configuração por Usuário
+// ============================================================================
+
+// Configuração de Follow-up por Usuário
+export const followupConfigs = pgTable("followup_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Configurações gerais
+  isEnabled: boolean("is_enabled").default(true).notNull(),
+  maxAttempts: integer("max_attempts").default(8).notNull(),
+  
+  // Intervalos customizados (em minutos) - padrão: 10m, 30m, 3h, 24h, 48h, 3d, 7d, 15d
+  intervalsMinutes: jsonb("intervals_minutes").$type<number[]>().default([10, 30, 180, 1440, 2880, 4320, 10080, 21600]),
+  
+  // Horário comercial
+  businessHoursStart: text("business_hours_start").default("09:00"),
+  businessHoursEnd: text("business_hours_end").default("18:00"),
+  businessDays: jsonb("business_days").$type<number[]>().default([1, 2, 3, 4, 5]), // 0=dom, 1=seg, ... 6=sab
+  respectBusinessHours: boolean("respect_business_hours").default(true).notNull(),
+  
+  // Tom e estilo das mensagens
+  tone: varchar("tone", { length: 50 }).default("consultivo").notNull(), // consultivo, vendedor, humano, técnico
+  formalityLevel: integer("formality_level").default(5).notNull(), // 1-10
+  useEmojis: boolean("use_emojis").default(true).notNull(),
+  
+  // Informações importantes para argumentos (a IA pode usar)
+  importantInfo: jsonb("important_info").$type<Array<{ titulo: string; conteudo: string; usado?: boolean }>>().default([]),
+  
+  // Loop infinito após acabar sequência
+  infiniteLoop: boolean("infinite_loop").default(true).notNull(),
+  infiniteLoopMinDays: integer("infinite_loop_min_days").default(15).notNull(),
+  infiniteLoopMaxDays: integer("infinite_loop_max_days").default(30).notNull(),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Logs de Follow-up dos Usuários
+export const userFollowupLogs = pgTable("user_followup_logs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  contactNumber: text("contact_number").notNull(),
+  status: text("status").notNull(), // 'sent', 'failed', 'cancelled', 'skipped'
+  messageContent: text("message_content"),
+  aiDecision: jsonb("ai_decision").$type<{ action: string; reason: string; context?: string }>(),
+  stage: integer("stage").default(0).notNull(),
+  executedAt: timestamp("executed_at").defaultNow(),
+  errorReason: text("error_reason"),
+}, (table) => [
+  index("idx_user_followup_logs_conv").on(table.conversationId),
+  index("idx_user_followup_logs_user").on(table.userId),
 ]);
 
 // Relations
@@ -646,6 +707,71 @@ export const insertAdminMessageSchema = createInsertSchema(adminMessages).omit({
 });
 export type InsertAdminMessage = z.infer<typeof insertAdminMessageSchema>;
 export type AdminMessage = typeof adminMessages.$inferSelect;
+
+// ============================================================================
+// FOLLOW-UP INTELIGENTE - Schemas e Types
+// ============================================================================
+
+// Follow-up Config schemas and types
+export const insertFollowupConfigSchema = createInsertSchema(followupConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const followupConfigSchema = z.object({
+  userId: z.string(),
+  isEnabled: z.boolean().default(true),
+  maxAttempts: z.number().min(1).max(20).default(8),
+  intervalsMinutes: z.array(z.number()).default([10, 30, 180, 1440, 2880, 4320, 10080, 21600]),
+  businessHoursStart: z.string().default("09:00"),
+  businessHoursEnd: z.string().default("18:00"),
+  businessDays: z.array(z.number().min(0).max(6)).default([1, 2, 3, 4, 5]),
+  respectBusinessHours: z.boolean().default(true),
+  tone: z.enum(["consultivo", "vendedor", "humano", "técnico"]).default("consultivo"),
+  formalityLevel: z.number().min(1).max(10).default(5),
+  useEmojis: z.boolean().default(true),
+  importantInfo: z.array(z.object({
+    titulo: z.string(),
+    conteudo: z.string(),
+    usado: z.boolean().optional(),
+  })).default([]),
+  infiniteLoop: z.boolean().default(true),
+  infiniteLoopMinDays: z.number().min(1).max(60).default(15),
+  infiniteLoopMaxDays: z.number().min(1).max(90).default(30),
+});
+
+export type InsertFollowupConfig = z.infer<typeof insertFollowupConfigSchema>;
+export type FollowupConfig = typeof followupConfigs.$inferSelect;
+export type FollowupConfigInput = z.infer<typeof followupConfigSchema>;
+
+// User Follow-up Logs schemas and types
+export const insertUserFollowupLogSchema = createInsertSchema(userFollowupLogs).omit({
+  id: true,
+  executedAt: true,
+});
+export type InsertUserFollowupLog = z.infer<typeof insertUserFollowupLogSchema>;
+export type UserFollowupLog = typeof userFollowupLogs.$inferSelect;
+
+// Follow-up Config Relations
+export const followupConfigsRelations = relations(followupConfigs, ({ one }) => ({
+  user: one(users, {
+    fields: [followupConfigs.userId],
+    references: [users.id],
+  }),
+}));
+
+// User Follow-up Logs Relations
+export const userFollowupLogsRelations = relations(userFollowupLogs, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [userFollowupLogs.conversationId],
+    references: [conversations.id],
+  }),
+  user: one(users, {
+    fields: [userFollowupLogs.userId],
+    references: [users.id],
+  }),
+}));
 
 // Business Agent Configuration schemas and types
 export const insertBusinessAgentConfigSchema = createInsertSchema(businessAgentConfigs).omit({
