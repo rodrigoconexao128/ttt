@@ -66,6 +66,7 @@ function Router() {
           <Route path="/reservas" component={Dashboard} />
           <Route path="/qualificacao" component={Dashboard} />
           <Route path="/listas-contatos" component={Dashboard} />
+          <Route path="/followup" component={Dashboard} />
           <Route path="/subscribe/:id" component={Dashboard} />
           <Route path="/settings" component={Dashboard} />
           <Route path="/agent-config" component={AgentConfig} />

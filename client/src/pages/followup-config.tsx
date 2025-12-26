@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { 
   Bell, 
   Clock, 
@@ -23,10 +27,20 @@ import {
   Save,
   BarChart3,
   Calendar,
+  CalendarDays,
   CheckCircle,
   XCircle,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  User,
+  Timer,
+  Send,
+  Grid3X3,
+  List,
+  SkipForward
 } from "lucide-react";
 
 interface ImportantInfo {
@@ -61,7 +75,36 @@ interface FollowupStats {
   totalSkipped: number;
   pending: number;
   scheduledToday: number;
+  scheduledThisWeek?: number;
+  scheduledThisMonth?: number;
 }
+
+interface FollowupEvent {
+  id: string;
+  conversationId?: string;
+  contactNumber: string;
+  contactName: string | null;
+  stage: number;
+  nextFollowupAt: string;
+  status?: 'pending' | 'sent' | 'cancelled' | 'failed' | 'skipped';
+  type?: 'auto' | 'manual';
+  note?: string;
+}
+
+const MONTHS = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
+const WEEKDAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof Timer }> = {
+  pending: { label: "Pendente", color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20", icon: Timer },
+  sent: { label: "Enviado", color: "bg-green-500/10 text-green-600 border-green-500/20", icon: CheckCircle },
+  cancelled: { label: "Cancelado", color: "bg-gray-500/10 text-gray-600 border-gray-500/20", icon: XCircle },
+  failed: { label: "Falhou", color: "bg-red-500/10 text-red-600 border-red-500/20", icon: AlertCircle },
+  skipped: { label: "Pulado", color: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: SkipForward },
+};
 
 const WEEKDAYS = [
   { value: 0, label: "Dom" },
@@ -83,6 +126,14 @@ const TONE_OPTIONS = [
 export default function FollowupConfigPage() {
   const { toast } = useToast();
   const [newInfo, setNewInfo] = useState({ titulo: "", conteudo: "" });
+  
+  // Calendar state
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [selectedEvent, setSelectedEvent] = useState<FollowupEvent | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mainTab, setMainTab] = useState('agenda');
 
   // Buscar configuração
   const { data: config, isLoading: configLoading } = useQuery<FollowupConfig>({
@@ -90,13 +141,13 @@ export default function FollowupConfigPage() {
   });
 
   // Buscar estatísticas
-  const { data: stats } = useQuery<FollowupStats>({
+  const { data: stats, refetch: refetchStats } = useQuery<FollowupStats>({
     queryKey: ["/api/followup/stats"],
     refetchInterval: 30000, // Atualiza a cada 30s
   });
 
   // Buscar pendentes
-  const { data: pending } = useQuery<any[]>({
+  const { data: pending, refetch: refetchPending } = useQuery<FollowupEvent[]>({
     queryKey: ["/api/followup/pending"],
     refetchInterval: 30000,
   });
@@ -109,6 +160,37 @@ export default function FollowupConfigPage() {
       setFormData(config);
     }
   }, [config]);
+
+  // Cancel mutation
+  const cancelMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      return await apiRequest("POST", `/api/followup/conversation/${conversationId}/toggle`, { active: false });
+    },
+    onSuccess: () => {
+      toast({ title: "Follow-up cancelado com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/stats"] });
+      setDialogOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Erro ao cancelar follow-up", variant: "destructive" });
+    },
+  });
+
+  // Trigger follow-up now
+  const triggerMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      return await apiRequest("POST", `/api/followup/conversation/${conversationId}/trigger`);
+    },
+    onSuccess: () => {
+      toast({ title: "Follow-up enviado!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/pending"] });
+      setDialogOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Erro ao enviar follow-up", variant: "destructive" });
+    },
+  });
 
   // Mutation para salvar
   const saveMutation = useMutation({
@@ -184,6 +266,244 @@ export default function FollowupConfigPage() {
     return `${Math.floor(minutes / 1440)}d`;
   };
 
+  // Calendar helpers
+  const events: FollowupEvent[] = pending || [];
+  
+  const filteredEvents = useMemo(() => {
+    if (!searchQuery) return events;
+    const query = searchQuery.toLowerCase();
+    return events.filter(event => 
+      event.contactNumber?.toLowerCase().includes(query) ||
+      event.contactName?.toLowerCase().includes(query)
+    );
+  }, [events, searchQuery]);
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    return { daysInMonth, startingDayOfWeek, year, month };
+  };
+
+  const getEventsForDate = (date: Date) => {
+    return filteredEvents.filter(event => {
+      const eventDate = new Date(event.nextFollowupAt);
+      return (
+        eventDate.getDate() === date.getDate() &&
+        eventDate.getMonth() === date.getMonth() &&
+        eventDate.getFullYear() === date.getFullYear()
+      );
+    });
+  };
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    setCurrentDate(prev => {
+      const newDate = new Date(prev);
+      if (direction === 'prev') {
+        newDate.setMonth(newDate.getMonth() - 1);
+      } else {
+        newDate.setMonth(newDate.getMonth() + 1);
+      }
+      return newDate;
+    });
+  };
+
+  const goToToday = () => setCurrentDate(new Date());
+
+  const formatPhone = (phone: string) => {
+    if (!phone) return "Sem número";
+    if (phone.length >= 12) {
+      return `(${phone.slice(2, 4)}) ${phone.slice(4, 9)}-${phone.slice(9)}`;
+    }
+    return phone;
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  const formatRelativeTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = date.getTime() - now.getTime();
+    const diffMins = Math.round(diffMs / 60000);
+    const diffHours = Math.round(diffMs / 3600000);
+    const diffDays = Math.round(diffMs / 86400000);
+
+    if (diffMs < 0) {
+      if (diffMins > -60) return `${Math.abs(diffMins)}min atrás`;
+      if (diffHours > -24) return `${Math.abs(diffHours)}h atrás`;
+      return `${Math.abs(diffDays)}d atrás`;
+    } else {
+      if (diffMins < 60) return `em ${diffMins}min`;
+      if (diffHours < 24) return `em ${diffHours}h`;
+      return `em ${diffDays}d`;
+    }
+  };
+
+  const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentDate);
+  const today = new Date();
+
+  // Render Calendar Grid
+  const renderCalendarGrid = () => {
+    const days = [];
+    const totalCells = Math.ceil((startingDayOfWeek + daysInMonth) / 7) * 7;
+
+    for (let i = 0; i < totalCells; i++) {
+      const dayNumber = i - startingDayOfWeek + 1;
+      const isCurrentMonth = dayNumber > 0 && dayNumber <= daysInMonth;
+      const currentCellDate = isCurrentMonth ? new Date(year, month, dayNumber) : null;
+      const isToday = currentCellDate && 
+        currentCellDate.getDate() === today.getDate() &&
+        currentCellDate.getMonth() === today.getMonth() &&
+        currentCellDate.getFullYear() === today.getFullYear();
+      
+      const dayEvents = currentCellDate ? getEventsForDate(currentCellDate) : [];
+
+      days.push(
+        <div
+          key={i}
+          className={cn(
+            "min-h-[90px] border border-border/50 p-1 transition-colors",
+            isCurrentMonth ? "bg-background" : "bg-muted/30",
+            isToday && "bg-primary/5 border-primary"
+          )}
+        >
+          {isCurrentMonth && (
+            <>
+              <div className={cn(
+                "text-sm font-medium mb-1",
+                isToday && "text-primary"
+              )}>
+                {dayNumber}
+              </div>
+              <div className="space-y-0.5">
+                {dayEvents.slice(0, 3).map((event) => (
+                  <TooltipProvider key={event.id}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "text-[10px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity",
+                            event.type === 'manual' 
+                              ? "bg-purple-500/20 text-purple-700" 
+                              : "bg-blue-500/20 text-blue-700"
+                          )}
+                          onClick={() => {
+                            setSelectedEvent(event);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          {new Date(event.nextFollowupAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - {event.contactName || formatPhone(event.contactNumber)}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="font-medium">{event.contactName || formatPhone(event.contactNumber)}</p>
+                        <p className="text-xs">Estágio {event.stage + 1}</p>
+                        <p className="text-xs">{formatDateTime(event.nextFollowupAt)}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ))}
+                {dayEvents.length > 3 && (
+                  <div className="text-[10px] text-muted-foreground">
+                    +{dayEvents.length - 3} mais
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    return days;
+  };
+
+  // Render List View
+  const renderListView = () => {
+    const groupedByDate = filteredEvents.reduce((acc, event) => {
+      const date = new Date(event.nextFollowupAt).toLocaleDateString('pt-BR');
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(event);
+      return acc;
+    }, {} as Record<string, FollowupEvent[]>);
+
+    const sortedDates = Object.keys(groupedByDate).sort((a, b) => {
+      const [dayA, monthA, yearA] = a.split('/').map(Number);
+      const [dayB, monthB, yearB] = b.split('/').map(Number);
+      return new Date(yearA, monthA - 1, dayA).getTime() - new Date(yearB, monthB - 1, dayB).getTime();
+    });
+
+    if (sortedDates.length === 0) {
+      return (
+        <div className="text-center py-12 text-muted-foreground">
+          <Calendar className="w-16 h-16 mx-auto mb-4 opacity-50" />
+          <p className="text-lg font-medium">Nenhum follow-up agendado</p>
+          <p className="text-sm">Quando clientes pararem de responder, os follow-ups aparecerão aqui</p>
+        </div>
+      );
+    }
+
+    return (
+      <ScrollArea className="h-[500px]">
+        <div className="space-y-4">
+          {sortedDates.map(date => (
+            <div key={date}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-px flex-1 bg-border" />
+                <Badge variant="outline" className="font-medium">{date}</Badge>
+                <Badge variant="secondary">{groupedByDate[date].length}</Badge>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <div className="space-y-2">
+                {groupedByDate[date].map(event => (
+                  <Card 
+                    key={event.id} 
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => { setSelectedEvent(event); setDialogOpen(true); }}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-9 h-9 rounded-full flex items-center justify-center",
+                            event.type === 'manual' ? "bg-purple-100" : "bg-blue-100"
+                          )}>
+                            <User className={cn("w-4 h-4", event.type === 'manual' ? "text-purple-600" : "text-blue-600")} />
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">{event.contactName || formatPhone(event.contactNumber)}</p>
+                            <p className="text-xs text-muted-foreground">{formatPhone(event.contactNumber)}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <p className="text-xs font-medium">
+                              {new Date(event.nextFollowupAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">{formatRelativeTime(event.nextFollowupAt)}</p>
+                          </div>
+                          <Badge variant="outline" className="text-[10px]">#{event.stage + 1}</Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    );
+  };
+
   if (configLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -201,13 +521,21 @@ export default function FollowupConfigPage() {
             Follow-up Inteligente
           </h1>
           <p className="text-muted-foreground mt-1">
-            Configure mensagens automáticas para recuperar conversas paradas
+            Agenda de follow-ups e configurações automáticas
           </p>
         </div>
-        <Button onClick={handleSave} disabled={saveMutation.isPending}>
-          <Save className="w-4 h-4 mr-2" />
-          {saveMutation.isPending ? "Salvando..." : "Salvar Alterações"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => { refetchPending(); refetchStats(); }}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Atualizar
+          </Button>
+          {mainTab === 'config' && (
+            <Button onClick={handleSave} disabled={saveMutation.isPending}>
+              <Save className="w-4 h-4 mr-2" />
+              {saveMutation.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Cards de Estatísticas */}
@@ -258,8 +586,12 @@ export default function FollowupConfigPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="config" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs value={mainTab} onValueChange={setMainTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="agenda">
+            <Calendar className="w-4 h-4 mr-2" />
+            Agenda
+          </TabsTrigger>
           <TabsTrigger value="config">
             <Settings className="w-4 h-4 mr-2" />
             Configuração
@@ -277,6 +609,103 @@ export default function FollowupConfigPage() {
             Pendentes ({pending?.length || 0})
           </TabsTrigger>
         </TabsList>
+
+        {/* Tab Agenda - Calendário Interativo */}
+        <TabsContent value="agenda" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Agenda de Follow-ups
+                  </CardTitle>
+                  <CardDescription>
+                    Visualize e gerencie todos os follow-ups agendados
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-8 w-[200px]"
+                    />
+                  </div>
+                  <div className="flex border rounded-md">
+                    <Button
+                      variant={viewMode === 'calendar' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('calendar')}
+                      className="rounded-r-none"
+                    >
+                      <Grid3X3 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('list')}
+                      className="rounded-l-none"
+                    >
+                      <List className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {viewMode === 'calendar' ? (
+                <div className="space-y-4">
+                  {/* Navegação do Mês */}
+                  <div className="flex items-center justify-between">
+                    <Button variant="outline" size="sm" onClick={() => navigateMonth('prev')}>
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold">
+                        {MONTHS[month]} {year}
+                      </h3>
+                      <Button variant="ghost" size="sm" onClick={goToToday}>
+                        Hoje
+                      </Button>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => navigateMonth('next')}>
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Cabeçalho dos Dias */}
+                  <div className="grid grid-cols-7 text-center text-sm font-medium text-muted-foreground">
+                    {WEEKDAY_NAMES.map(day => (
+                      <div key={day} className="py-2">{day}</div>
+                    ))}
+                  </div>
+
+                  {/* Grid do Calendário */}
+                  <div className="grid grid-cols-7">
+                    {renderCalendarGrid()}
+                  </div>
+
+                  {/* Legenda */}
+                  <div className="flex items-center gap-4 justify-center text-xs text-muted-foreground pt-2 border-t">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded bg-blue-500/20" />
+                      <span>Automático</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded bg-purple-500/20" />
+                      <span>Manual</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                renderListView()
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Tab Configuração */}
         <TabsContent value="config" className="space-y-4">
@@ -595,6 +1024,78 @@ export default function FollowupConfigPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog de Detalhes do Follow-up */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5" />
+              {selectedEvent?.contactName || formatPhone(selectedEvent?.contactNumber || '')}
+            </DialogTitle>
+            <DialogDescription>
+              Detalhes do follow-up agendado
+            </DialogDescription>
+          </DialogHeader>
+          {selectedEvent && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Telefone</p>
+                  <p className="font-medium">{formatPhone(selectedEvent.contactNumber)}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Estágio</p>
+                  <Badge variant="outline">#{selectedEvent.stage + 1}</Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Tipo</p>
+                  <Badge variant={selectedEvent.type === 'manual' ? 'default' : 'secondary'}>
+                    {selectedEvent.type === 'manual' ? 'Manual' : 'Automático'}
+                  </Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Agendado para</p>
+                  <p className="font-medium text-sm">{formatDateTime(selectedEvent.nextFollowupAt)}</p>
+                </div>
+              </div>
+
+              {selectedEvent.note && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Observação</p>
+                  <p className="text-sm bg-muted p-2 rounded">{selectedEvent.note}</p>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    cancelMutation.mutate(selectedEvent.conversationId);
+                    setDialogOpen(false);
+                  }}
+                  disabled={cancelMutation.isPending}
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    triggerMutation.mutate(selectedEvent.conversationId);
+                    setDialogOpen(false);
+                  }}
+                  disabled={triggerMutation.isPending}
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Enviar Agora
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
