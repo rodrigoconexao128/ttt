@@ -164,10 +164,27 @@ export class UserFollowUpService {
             result.error
           );
           
-          // Agendar próximo estágio
-          await this.advanceToNextStage(conversation, config);
+          if (result.success) {
+            // Sucesso: Agendar próximo estágio
+            await this.advanceToNextStage(conversation, config);
+          } else {
+            // Falha (ex: WhatsApp desconectado): Reagendar para tentar em 5 minutos
+            console.log(`⚠️ [USER-FOLLOW-UP] Falha ao enviar, reagendando em 5 minutos: ${result.error}`);
+            const retryDate = new Date(Date.now() + 5 * 60 * 1000);
+            await db.update(conversations)
+              .set({ 
+                nextFollowupAt: retryDate,
+                followupDisabledReason: `⚠️ Aguardando conexão: ${result.error}`
+              })
+              .where(eq(conversations.id, conversation.id));
+          }
         } else {
           console.warn("⚠️ [USER-FOLLOW-UP] Callback não registrado ou remoteJid ausente");
+          // Reagendar para tentar em 5 minutos
+          const retryDate = new Date(Date.now() + 5 * 60 * 1000);
+          await db.update(conversations)
+            .set({ nextFollowupAt: retryDate })
+            .where(eq(conversations.id, conversation.id));
         }
       }
 
@@ -410,8 +427,10 @@ Responda APENAS um JSON válido:
         return;
       }
     } else {
-      const delayMinutes = intervals[currentStage];
+      // FIX: Usar o intervalo do PRÓXIMO estágio, não do atual
+      const delayMinutes = intervals[nextStage];
       nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
+      console.log(`⏰ [USER-FOLLOW-UP] Estágio ${currentStage} → ${nextStage}, intervalo: ${delayMinutes} minutos`);
     }
 
     await db.update(conversations)

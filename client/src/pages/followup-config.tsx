@@ -799,6 +799,14 @@ export default function FollowupConfigPage() {
                   Tempo entre cada tentativa de follow-up
                 </p>
               </div>
+
+              {/* Botão Salvar */}
+              <div className="pt-4 border-t">
+                <Button onClick={handleSave} disabled={saveMutation.isPending} className="w-full">
+                  <Save className="w-4 h-4 mr-2" />
+                  {saveMutation.isPending ? "Salvando..." : "Salvar Configurações"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -864,6 +872,14 @@ export default function FollowupConfigPage() {
                   </div>
                 </>
               )}
+
+              {/* Botão Salvar */}
+              <div className="pt-4 border-t">
+                <Button onClick={handleSave} disabled={saveMutation.isPending} className="w-full">
+                  <Save className="w-4 h-4 mr-2" />
+                  {saveMutation.isPending ? "Salvando..." : "Salvar Horários"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -982,6 +998,14 @@ export default function FollowupConfigPage() {
                   </Button>
                 </div>
               )}
+
+              {/* Botão Salvar */}
+              <div className="pt-4 border-t">
+                <Button onClick={handleSave} disabled={saveMutation.isPending} className="w-full">
+                  <Save className="w-4 h-4 mr-2" />
+                  {saveMutation.isPending ? "Salvando..." : "Salvar Conteúdo"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -992,26 +1016,65 @@ export default function FollowupConfigPage() {
             <CardHeader>
               <CardTitle>Conversas com Follow-up Pendente</CardTitle>
               <CardDescription>
-                Lista de conversas que receberão mensagens de follow-up
+                Lista de conversas que receberão mensagens de follow-up. Clique para ver opções.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {pending && pending.length > 0 ? (
                 <div className="space-y-3">
-                  {pending.map((conv) => (
-                    <div key={conv.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div>
-                        <p className="font-medium">{conv.contactName || conv.contactNumber}</p>
-                        <p className="text-sm text-muted-foreground">{conv.contactNumber}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Estágio {conv.stage + 1} • Próximo: {conv.nextFollowupAt ? new Date(conv.nextFollowupAt).toLocaleString('pt-BR') : 'N/A'}
-                        </p>
+                  {pending.map((conv) => {
+                    const hasError = conv.note?.includes('Aguardando conexão') || conv.note?.includes('⚠️');
+                    return (
+                      <div 
+                        key={conv.id} 
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-muted transition-colors",
+                          hasError ? "bg-red-50 border border-red-200" : "bg-muted/50"
+                        )}
+                        onClick={() => {
+                          setSelectedEvent(conv);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{conv.contactName || conv.contactNumber}</p>
+                            {hasError && (
+                              <Badge variant="destructive" className="text-[10px]">
+                                <AlertCircle className="w-3 h-3 mr-1" />
+                                Aguardando conexão
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{conv.contactNumber}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Estágio {conv.stage + 1} • Próximo: {conv.nextFollowupAt ? new Date(conv.nextFollowupAt).toLocaleString('pt-BR') : 'N/A'}
+                          </p>
+                          {conv.note && (
+                            <p className={cn("text-xs mt-1", hasError ? "text-red-600" : "text-muted-foreground")}>
+                              {conv.note}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={conv.stage === 0 ? "default" : "secondary"}>
+                            #{conv.stage + 1}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              cancelMutation.mutate(conv.conversationId || conv.id);
+                            }}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <Badge variant={conv.stage === 0 ? "default" : "secondary"}>
-                        #{conv.stage + 1}
-                      </Badge>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
