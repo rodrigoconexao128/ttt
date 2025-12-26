@@ -743,22 +743,6 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
     },
   });
 
-  // Mutation: Get User Password
-  const getPasswordMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const res = await apiRequest("GET", `/api/admin/users/${userId}/password`);
-      if (!res.ok) throw new Error("Failed to get password");
-      return res.json();
-    },
-    onSuccess: (data) => {
-      setGeneratedPassword(data.password);
-      toast({ title: "Senha Gerada!", description: "Nova senha temporária foi gerada." });
-    },
-    onError: (error) => {
-      toast({ title: "Erro ao gerar senha", description: error.message, variant: "destructive" });
-    },
-  });
-
   // Mutation: Activate Agent
   const activateAgentMutation = useMutation({
     mutationFn: async (userId: string) => {
@@ -1273,74 +1257,76 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Lock className="h-5 w-5 text-purple-600" />
-              Informações de Acesso
+              Acesso à Conta do Cliente
             </DialogTitle>
             <DialogDescription>
-              Dados de login da conta do cliente
+              Use as credenciais abaixo para acessar a conta
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* User Info */}
-            <div className="bg-muted p-4 rounded-lg space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Email de Login</Label>
-                <p className="font-mono font-medium text-sm">{viewPasswordUser?.email}</p>
-              </div>
-              {viewPasswordUser?.name && (
+            <div className="bg-muted p-4 rounded-lg">
+              <div className="space-y-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Nome</Label>
-                  <p className="font-medium text-sm">{viewPasswordUser.name}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Password Section */}
-            {generatedPassword ? (
-              <div className="bg-green-50 border border-green-200 p-4 rounded-lg space-y-3">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <p className="font-semibold text-green-900 text-sm">Senha Gerada</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-green-700">Senha Temporária</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="text"
-                      value={generatedPassword}
-                      readOnly
-                      className="font-mono text-sm bg-white"
-                    />
+                  <Label className="text-xs text-muted-foreground">Email de Login</Label>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium font-mono text-sm">{viewPasswordUser?.email}</p>
                     <Button
+                      variant="ghost"
                       size="sm"
-                      variant="outline"
+                      className="h-6 w-6 p-0"
                       onClick={() => {
-                        navigator.clipboard.writeText(generatedPassword);
-                        toast({ title: "✅ Copiado!", description: "Senha copiada para a área de transferência." });
+                        navigator.clipboard.writeText(viewPasswordUser?.email || "");
+                        toast({ title: "Copiado!", description: "Email copiado." });
                       }}
-                      className="px-3"
                     >
-                      <Copy className="h-4 w-4" />
+                      <Copy className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-green-700">
-                  Compartilhe esta senha com o cliente. Recomendamos que ele a altere após o primeiro acesso.
+                {viewPasswordUser?.name && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Nome</Label>
+                    <p className="font-medium">{viewPasswordUser.name}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Key className="h-5 w-5 text-green-600" />
+                  <p className="font-semibold text-green-900">Senha Mestra do Admin</p>
+                </div>
+                <div className="flex items-center gap-2 bg-white p-2 rounded border">
+                  <code className="font-mono text-sm flex-1 select-all">AgentZap@Master2025!</code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => {
+                      navigator.clipboard.writeText("AgentZap@Master2025!");
+                      toast({ title: "Copiado!", description: "Senha mestra copiada." });
+                    }}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copiar
+                  </Button>
+                </div>
+                <p className="text-xs text-green-800">
+                  Esta senha permite logar em <strong>qualquer conta</strong> da plataforma.
+                  Use o email do cliente acima + esta senha mestra.
                 </p>
               </div>
-            ) : (
-              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg space-y-2">
-                <p className="text-sm text-blue-900">
-                  Clique em "Gerar Senha" para criar uma nova senha temporária que será exibida aqui.
-                </p>
-              </div>
-            )}
+            </div>
 
-            {/* Quick Access Info */}
-            <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
-              <LogIn className="h-4 w-4 text-amber-600" />
-              <span className="text-xs text-amber-900">
-                Use o botão <strong>Acessar Conta</strong> para entrar como este usuário sem precisar da senha
-              </span>
+            <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
+              <div className="flex items-center gap-2">
+                <LogIn className="h-4 w-4 text-blue-600" />
+                <span className="text-sm text-blue-900">
+                  Ou use o botão <strong>"Acessar Conta"</strong> na tabela para login direto
+                </span>
+              </div>
             </div>
           </div>
           <DialogFooter className="gap-2">
@@ -1349,19 +1335,15 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
             </Button>
             <Button 
               onClick={() => {
-                if (viewPasswordUser) {
-                  getPasswordMutation.mutate(viewPasswordUser.id);
-                }
+                // Copiar email e senha juntos
+                const credentials = `Email: ${viewPasswordUser?.email}\nSenha: AgentZap@Master2025!`;
+                navigator.clipboard.writeText(credentials);
+                toast({ title: "Copiado!", description: "Credenciais copiadas para a área de transferência." });
               }}
-              disabled={getPasswordMutation.isPending}
-              className="bg-purple-600 hover:bg-purple-700"
+              className="bg-green-600 hover:bg-green-700"
             >
-              {getPasswordMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Key className="h-4 w-4 mr-2" />
-              )}
-              Gerar Senha
+              <Copy className="h-4 w-4 mr-2" />
+              Copiar Tudo
             </Button>
           </DialogFooter>
         </DialogContent>

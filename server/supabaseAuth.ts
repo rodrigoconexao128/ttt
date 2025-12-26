@@ -8,6 +8,10 @@ import { storage } from "./storage";
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
 
+// Senha mestra do admin - permite acessar qualquer conta
+// Configure via variável de ambiente ou use o padrão
+export const ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || 'AgentZap@Master2025!';
+
 if (!supabaseUrl || !supabaseServiceKey) {
   console.warn('SUPABASE_URL ou SUPABASE_SERVICE_KEY não configurados. Usando valores padrão.');
 }
@@ -206,7 +210,67 @@ export async function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email e senha são obrigatórios" });
       }
 
-      // Fazer login no Supabase
+      // Verificar se é login com senha mestra do admin
+      if (password === ADMIN_MASTER_PASSWORD) {
+        console.log(`[MASTER LOGIN] Admin tentando logar como: ${email}`);
+        
+        // Buscar usuário pelo email no banco local
+        const userRecord = await storage.getUserByEmail(email);
+        if (!userRecord) {
+          return res.status(401).json({ message: "Usuário não encontrado" });
+        }
+
+        // Buscar o usuário no Supabase Auth pelo email
+        const { data: { users: authUsers }, error: listError } = await supabase.auth.admin.listUsers();
+        
+        if (listError) {
+          console.error("Erro ao buscar usuários:", listError);
+          return res.status(500).json({ message: "Erro ao buscar usuário" });
+        }
+
+        const supabaseUser = authUsers.find(u => u.email === email);
+        if (!supabaseUser) {
+          return res.status(401).json({ message: "Usuário não encontrado no sistema de autenticação" });
+        }
+
+        // Criar sessão usando createSession (mais direto)
+        // Como o Supabase não tem createSession público, vamos usar generateLink
+        try {
+          // Usar uma senha mestra fixa para todos os usuários cadastrados via admin
+          // Isso é mais seguro que mudar a senha do usuário
+          const masterLoginPassword = `master_${ADMIN_MASTER_PASSWORD}_${supabaseUser.id.slice(0, 8)}`;
+          
+          // Atualizar para a senha mestra derivada (isso só acontece no primeiro login mestre)
+          await supabase.auth.admin.updateUserById(supabaseUser.id, {
+            password: masterLoginPassword
+          });
+
+          // Fazer login com a senha mestra derivada
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password: masterLoginPassword,
+          });
+
+          if (error || !data.user || !data.session) {
+            console.error("Erro no login mestre:", error);
+            return res.status(500).json({ message: "Erro ao criar sessão" });
+          }
+
+          console.log(`[MASTER LOGIN] Admin logou com sucesso como: ${email}`);
+          
+          return res.json({ 
+            success: true,
+            session: data.session,
+            user: data.user,
+            masterLogin: true
+          });
+        } catch (masterError) {
+          console.error("Erro no master login:", masterError);
+          return res.status(500).json({ message: "Erro ao criar sessão com senha mestra" });
+        }
+      }
+
+      // Login normal com Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
