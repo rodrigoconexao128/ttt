@@ -841,9 +841,9 @@ O QUE NÃO FAZER:
                     <History className="w-5 h-5 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <Label className="text-base font-semibold">Buscar Histórico do WhatsApp</Label>
+                    <Label className="text-base font-semibold">Memória de Conversas Inteligente</Label>
                     <p className="text-sm text-muted-foreground">
-                      Quando ativado, a IA busca o histórico de conversas anteriores do cliente antes de responder pela primeira vez
+                      Quando ativado, a IA analisa SEMPRE todo o histórico de conversas do cliente para entender o contexto completo
                     </p>
                   </div>
                 </div>
@@ -855,12 +855,12 @@ O QUE NÃO FAZER:
                     </div>
                     <div>
                       <p className="font-medium">
-                        {fetchHistoryOnFirstResponse ? 'Histórico Ativo' : 'Histórico Desativado'}
+                        {fetchHistoryOnFirstResponse ? 'Memória Ativa' : 'Memória Desativada'}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {fetchHistoryOnFirstResponse 
-                          ? 'A IA irá analisar conversas anteriores para entender melhor o cliente' 
-                          : 'A IA responderá sem contexto de conversas anteriores'}
+                          ? 'A IA analisa todo o histórico em cada resposta (otimizado para economia de tokens)' 
+                          : 'A IA usa apenas o contexto recente da conversa'}
                       </p>
                     </div>
                   </div>
@@ -872,7 +872,7 @@ O QUE NÃO FAZER:
                 </div>
 
                 <p className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md">
-                  💡 Útil quando você já conversou com clientes pelo WhatsApp manualmente e quer que a IA entenda o contexto anterior antes de assumir o atendimento.
+                  💡 Ideal para advocacias, clínicas, e empresas que já têm histórico de conversas com clientes. A IA usa um sistema inteligente: últimas 30 mensagens na íntegra + resumo das anteriores. Isso economiza tokens mas mantém o contexto completo.
                 </p>
               </div>
             </Card>

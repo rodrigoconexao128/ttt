@@ -176,13 +176,12 @@ export async function generateAIResponse(
     console.log(`   📊 Business (business_agent_configs): ${businessConfig ? `exists, isActive=${businessConfig.isActive}` : 'NOT FOUND'}`);
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 🎯 VERIFICAR SE É PRIMEIRA RESPOSTA COM HISTÓRICO ATIVO
+    // 🎯 VERIFICAR SE HISTÓRICO ESTÁ ATIVO (busca SEMPRE, não só primeira vez)
     // ═══════════════════════════════════════════════════════════════════════
-    const hasAgentResponded = conversationHistory.some(m => m.isFromAgent);
-    const isFirstResponseWithHistory = agentConfig?.fetchHistoryOnFirstResponse && !hasAgentResponded && conversationHistory.length > 0;
+    const isHistoryModeActive = agentConfig?.fetchHistoryOnFirstResponse === true;
     
-    if (isFirstResponseWithHistory) {
-      console.log(`📜 [AI Agent] PRIMEIRA RESPOSTA com histórico ativo - ${conversationHistory.length} mensagens anteriores serão analisadas`);
+    if (isHistoryModeActive) {
+      console.log(`📜 [AI Agent] MODO HISTÓRICO ATIVO - ${conversationHistory.length} mensagens serão analisadas com sistema inteligente`);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -405,61 +404,139 @@ export async function generateAIResponse(
       },
      ];
 
-    // 📜 INSTRUÇÃO ESPECIAL PARA PRIMEIRA RESPOSTA COM HISTÓRICO
-    // Quando fetchHistoryOnFirstResponse está ativo e é a primeira vez que a IA responde
-    if (isFirstResponseWithHistory) {
-      const historyContext = `
-[CONTEXTO IMPORTANTE - PRIMEIRA INTERAÇÃO DA IA]
+    // 📜 INSTRUÇÃO ESPECIAL QUANDO MODO HISTÓRICO ESTÁ ATIVO
+    // Ajuda a IA a entender que deve analisar o contexto completo da conversa
+    if (isHistoryModeActive && conversationHistory.length > 0) {
+      // Verificar se a IA já respondeu antes
+      const hasAgentResponded = conversationHistory.some(m => m.isFromAgent);
+      
+      const historyContext = hasAgentResponded 
+        ? `
+[📜 CONTEXTO DE HISTÓRICO ATIVO]
 
-Você está assumindo o atendimento de um cliente que JÁ CONVERSOU anteriormente com um humano. 
-Abaixo está o histórico completo dessa conversa anterior.
+Esta conversa tem histórico ativo. Você já interagiu com este cliente antes.
+ANALISE o histórico completo para manter consistência e continuidade.
+NÃO repita informações já fornecidas. Continue de onde parou.
+`
+        : `
+[📜 CONTEXTO IMPORTANTE - ASSUMINDO ATENDIMENTO]
+
+Você está ASSUMINDO o atendimento de um cliente que JÁ CONVERSOU anteriormente.
+O histórico abaixo mostra todas as interações anteriores (possivelmente com humano).
 
 INSTRUÇÕES CRÍTICAS:
 1. ANALISE todo o histórico para entender o contexto
 2. IDENTIFIQUE o que o cliente já perguntou/comprou/quer
 3. CONTINUE a conversa de forma natural, sem repetir informações já dadas
 4. NÃO se apresente como se fosse a primeira vez - o cliente já conhece a empresa
-5. Se o cliente fez um pedido/solicitação anterior, REFERENCIE isso naturalmente
+5. Se houve algum pedido/solicitação anterior, REFERENCIE isso naturalmente
 6. Seja CONSISTENTE com qualquer promessa ou informação dada anteriormente
 
-Exemplo: Se no histórico alguém disse "te mando o orçamento amanhã", você pode dizer algo como "Sobre aquele orçamento que mencionamos..."
-
-LEMBRE-SE: O cliente não sabe que você é uma IA diferente da pessoa que respondeu antes. Mantenha a continuidade!
+O cliente NÃO SABE que você é uma IA assumindo. Mantenha a continuidade!
 `;
+      
       messages.push({
         role: "system",
         content: historyContext
       });
-      console.log(`📜 [AI Agent] Adicionada instrução especial para análise de histórico anterior`);
+      console.log(`📜 [AI Agent] Instrução de histórico adicionada (já respondeu: ${hasAgentResponded})`);
     }
 
-    // 🧠 CONVERSATION MEMORY: Sistema inspirado em Claude/GPT/Intercom
-    // AUMENTADO: Manter últimas 100 mensagens para garantir contexto total
-    let recentMessages = conversationHistory.slice(-100);
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🧠 SISTEMA DE MEMÓRIA INTELIGENTE (ConversationSummaryBufferMemory)
+    // 
+    // Baseado em pesquisa: https://www.pinecone.io/learn/series/langchain/langchain-conversational-memory/
+    // 
+    // ESTRATÉGIA:
+    // 1. Se histórico <= 40 msgs: enviar tudo na íntegra
+    // 2. Se histórico > 40 msgs: 
+    //    - Últimas 30 mensagens: enviar na íntegra (contexto recente detalhado)
+    //    - Mensagens antigas: criar RESUMO compacto (economia de tokens)
+    // 
+    // Isso permite:
+    // - Conversas longas sem explodir tokens
+    // - Manter contexto completo do histórico
+    // - IA entende todo o relacionamento com o cliente
+    // ═══════════════════════════════════════════════════════════════════════
     
-    // Se ainda tem >90 mensagens, criar RESUMO das antigas + últimas 90 completas
-    if (recentMessages.length > 90) {
-      const oldMessages = recentMessages.slice(0, -90);
-      const recentNinety = recentMessages.slice(-90);
+    const RECENT_MESSAGES_COUNT = 30; // Quantas mensagens recentes manter na íntegra
+    const MAX_MESSAGES_BEFORE_SUMMARY = 40; // Quando começar a resumir
+    
+    let recentMessages: Message[] = [];
+    let historySummary: string | null = null;
+    
+    if (isHistoryModeActive && conversationHistory.length > MAX_MESSAGES_BEFORE_SUMMARY) {
+      // 📚 MODO RESUMO: Histórico grande - criar resumo das antigas + recentes na íntegra
+      const oldMessages = conversationHistory.slice(0, -RECENT_MESSAGES_COUNT);
+      recentMessages = conversationHistory.slice(-RECENT_MESSAGES_COUNT);
       
-      // Criar resumo simples das mensagens antigas
-      const summary = `[RESUMO DO HISTÓRICO ANTERIOR: O cliente já interagiu. Tópicos: ${oldMessages.filter(m => !m.fromMe).map(m => (m.text || '').substring(0, 20)).join(', ')}. Você já respondeu.]`;
+      // Criar resumo inteligente das mensagens antigas
+      // Agrupa por tópicos/intenções detectadas
+      const clientMessages = oldMessages.filter(m => !m.fromMe).map(m => m.text || '');
+      const agentMessages = oldMessages.filter(m => m.fromMe).map(m => m.text || '');
       
-      console.log(`📚 [AI Agent] Resumindo ${oldMessages.length} mensagens antigas em contexto`);
+      // Extrair tópicos principais (primeiras palavras de cada mensagem do cliente)
+      const topics = clientMessages
+        .map(text => text.substring(0, 60).replace(/[^\w\sáàãâéèêíìîóòõôúùûç]/gi, ''))
+        .filter(t => t.length > 5)
+        .slice(0, 10); // Max 10 tópicos
       
-      // Adicionar resumo como mensagem de sistema
+      // Detectar intenções comuns
+      const intentKeywords = {
+        preco: ['preço', 'valor', 'quanto', 'custa', 'custo'],
+        agendamento: ['agendar', 'marcar', 'horário', 'agenda', 'disponível'],
+        duvida: ['dúvida', 'pergunta', 'como', 'funciona', 'pode'],
+        problema: ['problema', 'erro', 'não funciona', 'ajuda', 'urgente'],
+        compra: ['comprar', 'adquirir', 'pedido', 'encomendar', 'quero'],
+        informacao: ['informação', 'saber', 'qual', 'onde', 'quando']
+      };
+      
+      const detectedIntents: string[] = [];
+      const allClientText = clientMessages.join(' ').toLowerCase();
+      
+      for (const [intent, keywords] of Object.entries(intentKeywords)) {
+        if (keywords.some(kw => allClientText.includes(kw))) {
+          detectedIntents.push(intent);
+        }
+      }
+      
+      historySummary = `
+[📜 RESUMO DO HISTÓRICO ANTERIOR - ${oldMessages.length} mensagens]
+
+👤 CLIENTE já interagiu ${clientMessages.length}x. Tópicos abordados:
+${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas gerais'}
+
+🎯 INTENÇÕES DETECTADAS: ${detectedIntents.length > 0 ? detectedIntents.join(', ') : 'conversação geral'}
+
+🤖 VOCÊ já respondeu ${agentMessages.length}x nesta conversa.
+
+⚠️ IMPORTANTE: Use este contexto para entender o relacionamento com o cliente. Não repita informações já dadas. Continue de onde parou.
+`;
+      
+      console.log(`📚 [AI Agent] Histórico grande (${conversationHistory.length} msgs) - Resumindo ${oldMessages.length} antigas + ${recentMessages.length} recentes na íntegra`);
+      console.log(`📚 [AI Agent] Intenções detectadas: ${detectedIntents.join(', ') || 'nenhuma específica'}`);
+      
+    } else if (isHistoryModeActive) {
+      // 📋 MODO COMPLETO: Histórico pequeno - enviar tudo na íntegra
+      recentMessages = conversationHistory.slice(-100); // Limite de segurança
+      console.log(`📋 [AI Agent] Histórico pequeno (${conversationHistory.length} msgs) - Enviando tudo na íntegra`);
+      
+    } else {
+      // 📝 MODO PADRÃO: Sem histórico ativo - comportamento original
+      recentMessages = conversationHistory.slice(-100);
+    }
+    
+    // Adicionar resumo do histórico se existir
+    if (historySummary) {
       messages.push({
         role: "system",
-        content: summary
+        content: historySummary
       });
-      
-      recentMessages = recentNinety;
     }
 
     // 🛡️ ANTI-AMNESIA PROMPT INJECTION
     // Adicionar instrução explícita para não se repetir se já houver histórico
-    // MAS não adicionar se for primeira resposta com histórico (já tem instrução especial)
-    if (conversationHistory.length > 2 && !isFirstResponseWithHistory) {
+    if (conversationHistory.length > 2) {
         messages.push({
             role: "system",
             content: `[SISTEMA: Esta é uma conversa em andamento. O cliente JÁ TE CONHECE. NÃO se apresente novamente. NÃO diga "Sou o X da empresa Y" de novo. Apenas continue a conversa de onde parou.]`

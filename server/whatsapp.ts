@@ -1921,23 +1921,17 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     const combinedText = messages.join('\n\n');
     console.log(`   📝 Texto combinado: "${combinedText.substring(0, 150)}..."`);
 
-    // 📜 BUSCAR HISTÓRICO DE CONVERSAS SE OPÇÃO ATIVA
+    // 📜 BUSCAR HISTÓRICO DE CONVERSAS
     let conversationHistory = await storage.getMessagesByConversationId(conversationId);
     
-    // Verificar se a IA já respondeu antes nesta conversa
+    // Verificar se modo histórico está ativo
     const agentConfig = await storage.getAgentConfig(userId);
-    const hasAgentResponded = conversationHistory.some(m => m.isFromAgent);
     
-    if (agentConfig?.fetchHistoryOnFirstResponse && !hasAgentResponded) {
-      console.log(`📜 [AI AGENT] Primeira resposta da IA - buscando histórico do WhatsApp para contexto...`);
+    if (agentConfig?.fetchHistoryOnFirstResponse) {
+      console.log(`📜 [AI AGENT] Modo histórico ATIVO - ${conversationHistory.length} mensagens disponíveis para contexto`);
       
-      // O histórico já está carregado da tabela messages
-      // Vamos adicionar uma mensagem de contexto especial para a IA entender
-      if (conversationHistory.length > 0) {
-        console.log(`📜 [AI AGENT] Histórico encontrado: ${conversationHistory.length} mensagens anteriores`);
-        console.log(`📜 [AI AGENT] A IA vai analisar o contexto antes de responder`);
-      } else {
-        console.log(`📜 [AI AGENT] Nenhum histórico anterior encontrado - primeira interação`);
+      if (conversationHistory.length > 40) {
+        console.log(`📜 [AI AGENT] Histórico grande - será usado sistema de resumo inteligente`);
       }
     }
 
