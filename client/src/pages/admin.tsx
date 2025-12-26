@@ -28,7 +28,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -455,8 +455,8 @@ export default function AdminPanel() {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <div className="flex-1 overflow-auto p-6">
-          <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex-1 overflow-auto p-4">
+          <div className="w-full space-y-6">
             {renderContent()}
           </div>
         </div>
@@ -482,6 +482,7 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
   const [reconnectingUserId, setReconnectingUserId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
+  const [viewPasswordUser, setViewPasswordUser] = useState<User | null>(null);
   
   // Bulk selection state
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
@@ -916,7 +917,7 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -1102,6 +1103,15 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
                   </Button>
                   <Button 
                     size="sm" 
+                    variant="ghost"
+                    className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                    onClick={() => setViewPasswordUser(user)}
+                    title="Ver Informações de Acesso"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    size="sm" 
                     variant="ghost" 
                     onClick={() => handleSendCredentials(user.id)}
                     title="Gerar Nova Senha"
@@ -1237,6 +1247,73 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
             >
               {updateEmailMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={viewPasswordUser !== null} onOpenChange={(open) => !open && setViewPasswordUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-purple-600" />
+              Informações de Acesso
+            </DialogTitle>
+            <DialogDescription>
+              Informações sobre a conta do cliente
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-muted p-4 rounded-lg">
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Email de Login</Label>
+                  <p className="font-medium">{viewPasswordUser?.email}</p>
+                </div>
+                {viewPasswordUser?.name && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Nome</Label>
+                    <p className="font-medium">{viewPasswordUser.name}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+              <div className="flex gap-2">
+                <Lock className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-medium text-amber-900 text-sm">Senha Protegida</p>
+                  <p className="text-xs text-amber-800">
+                    Por segurança, as senhas são criptografadas e não podem ser visualizadas. 
+                    Use o botão "Gerar Nova Senha" para criar e enviar novas credenciais ao cliente.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <LogIn className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-blue-900">
+                Use o botão <strong>Acessar Conta</strong> para entrar como este usuário
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewPasswordUser(null)}>
+              Fechar
+            </Button>
+            <Button 
+              onClick={() => {
+                if (viewPasswordUser) {
+                  handleSendCredentials(viewPasswordUser.id);
+                  setViewPasswordUser(null);
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              <Key className="h-4 w-4 mr-2" />
+              Gerar Nova Senha
             </Button>
           </DialogFooter>
         </DialogContent>
