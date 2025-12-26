@@ -230,19 +230,22 @@ export class UserFollowUpService {
    * Atualiza configuração de follow-up
    */
   async updateFollowupConfig(userId: string, data: Partial<typeof followupConfigs.$inferInsert>) {
+    // Remover campos que não devem ser atualizados pelo frontend
+    const { id, userId: _, createdAt, updatedAt, ...cleanData } = data as any;
+    
     const existing = await db.query.followupConfigs.findFirst({
       where: eq(followupConfigs.userId, userId)
     });
 
     if (existing) {
       const [updated] = await db.update(followupConfigs)
-        .set({ ...data, updatedAt: new Date() })
+        .set({ ...cleanData, updatedAt: new Date() })
         .where(eq(followupConfigs.userId, userId))
         .returning();
       return updated;
     } else {
       const [created] = await db.insert(followupConfigs)
-        .values({ userId, ...data })
+        .values({ userId, ...cleanData })
         .returning();
       return created;
     }
