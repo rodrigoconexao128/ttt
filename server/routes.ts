@@ -442,6 +442,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get current user password (generates temporary password for viewing)
+  app.get("/api/admin/users/:id/password", isAdmin, async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+      const user = await storage.getUser(id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      // Generate random password
+      const password = Math.random().toString(36).slice(-8);
+      
+      // Update password in Supabase Auth
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        id,
+        { password: password }
+      );
+
+      if (updateError) {
+        console.error("Error updating password in Supabase:", updateError);
+        return res.status(500).json({ message: "Failed to update password" });
+      }
+      
+      // Return password to admin
+      res.json({ 
+        success: true, 
+        password: password,
+        email: user.email,
+        message: "Nova senha gerada com sucesso"
+      });
+    } catch (error) {
+      console.error("Error getting password:", error);
+      res.status(500).json({ message: "Error getting password" });
+    }
+  });
+
   // ==================== USER AGENT CONFIG ROUTES ====================
   
   // Get user agent config
