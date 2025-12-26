@@ -48,7 +48,8 @@ export default function Login() {
       }
 
       if (data.session) {
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
         toast({
           title: "Login realizado com sucesso!",
           description: "Bem-vindo de volta!",

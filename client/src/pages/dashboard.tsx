@@ -48,6 +48,7 @@ import SmartNotifierPage from "@/pages/smart-notifier";
 import { useLocation } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan } from "@shared/schema";
 import { supabase } from "@/lib/supabase";
+import { TourGuide } from "@/components/tour-guide";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
@@ -189,11 +190,11 @@ export default function Dashboard() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        setLocation("/login");
       }, 500);
       return;
     }
-  }, [isAuthenticated, isLoading, toast]);
+  }, [isAuthenticated, isLoading, toast, setLocation]);
 
   const { data: connection } = useQuery<WhatsappConnection>({
     queryKey: ["/api/whatsapp/connection"],
@@ -743,6 +744,7 @@ const toolsNavigation: ToolNavItem[] = [
           </DrawerContent>
         </Drawer>
       </SidebarInset>
+      <TourGuide />
     </SidebarProvider>
   );
 }
