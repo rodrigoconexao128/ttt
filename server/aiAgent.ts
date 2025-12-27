@@ -96,6 +96,27 @@ function processResponsePlaceholders(text: string, contactName?: string): string
   
   let processed = text;
   
+  // 🛡️ FIX CRÍTICO: Remover prefixos de mídia que a IA pode ter "aprendido" incorretamente
+  // Isso acontece quando a IA vê "🎤 Áudio" no histórico e imita como prefixo
+  if (processed.startsWith('🎤 Áudio ') || processed.startsWith('🎤 Audio ')) {
+    processed = processed.replace(/^🎤 [ÁáAa]udio\s+/i, '');
+    console.log(`🛡️ [AI Agent] Removido prefixo "🎤 Áudio" incorreto da resposta da IA`);
+  }
+  if (processed.startsWith('🖼️ Imagem ') || processed.startsWith('📷 Imagem ')) {
+    processed = processed.replace(/^[🖼️📷]\s*Imagem\s+/i, '');
+    console.log(`🛡️ [AI Agent] Removido prefixo de imagem incorreto da resposta da IA`);
+  }
+  if (processed.startsWith('🎥 Vídeo ') || processed.startsWith('🎬 Vídeo ')) {
+    processed = processed.replace(/^[🎥🎬]\s*Vídeo\s+/i, '');
+    console.log(`🛡️ [AI Agent] Removido prefixo de vídeo incorreto da resposta da IA`);
+  }
+  
+  // Limpar marcadores internos que não devem aparecer na resposta
+  processed = processed.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:\s*/gi, '');
+  processed = processed.replace(/\[IMAGEM ENVIADA:[^\]]*\]/gi, '');
+  processed = processed.replace(/\[VÍDEO ENVIADO:[^\]]*\]/gi, '');
+  processed = processed.replace(/\[DOCUMENTO ENVIADO:[^\]]*\]/gi, '');
+  
   // Regex genérico para capturar QUALQUER variável de nome comum
   // Captura: {{nome}}, {nome}, [nome], {{name}}, {cliente}, {{usuario}}, etc.
   const genericNamePattern = /\{\{?(nome|name|cliente|customer|user|usuario|contato)\}?\}|\[(nome|name|cliente|customer|contato)\]/gi;
@@ -746,20 +767,53 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
         }
       }
       
-      // 🛡️ FIX: Limpar marcadores internos de mídia que não devem aparecer no contexto da IA
-      // Isso evita que a IA "aprenda" a repetir esses textos
+      // 🛡️ FIX: Limpar TODOS os marcadores internos de mídia que não devem aparecer no contexto da IA
+      // Isso evita que a IA "aprenda" a repetir esses textos problemáticos
+      
+      // 1. Limpar padrões de mídia sincronizada do WhatsApp (🎤 Áudio, 📷 Imagem, etc.)
+      // CRÍTICO: Esses textos são salvos quando mídias são sincronizadas do WhatsApp
+      if (content === '🎤 Áudio' || content === '🎤 Audio') {
+        // Se a mensagem é APENAS o marcador de áudio, pular completamente
+        content = '[Áudio recebido/enviado]';
+      } else if (content.startsWith('🎤 Áudio ') || content.startsWith('🎤 Audio ')) {
+        // PROBLEMA CRÍTICO: A IA está gerando texto que começa com "🎤 Áudio"
+        // Remover esse prefixo para evitar que a IA aprenda este padrão
+        content = content.replace(/^🎤 [ÁáAa]udio\s*/i, '');
+      }
+      if (content === '📷 Imagem' || content === '🖼️ Imagem') {
+        content = '[Imagem recebida/enviada]';
+      }
+      if (content === '🎥 Vídeo' || content === '🎬 Vídeo') {
+        content = '[Vídeo recebido/enviado]';
+      }
+      if (content === '📄 Documento' || content === '📎 Documento') {
+        content = '[Documento recebido/enviado]';
+      }
+      
+      // 2. Limpar padrões internos de mídia enviada pelo agente
       if (content.includes('[ÁUDIO ENVIADO PELO AGENTE]')) {
         // Substituir por uma versão mais limpa que não confunde a IA
-        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:\s*/gi, '[Áudio explicativo enviado] ');
+        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:\s*/gi, '');
       }
       if (content.includes('[IMAGEM ENVIADA:')) {
-        content = content.replace(/\[IMAGEM ENVIADA:[^\]]*\]/gi, '[Imagem enviada]');
+        content = content.replace(/\[IMAGEM ENVIADA:[^\]]*\]/gi, '');
       }
       if (content.includes('[VÍDEO ENVIADO:')) {
-        content = content.replace(/\[VÍDEO ENVIADO:[^\]]*\]/gi, '[Vídeo enviado]');
+        content = content.replace(/\[VÍDEO ENVIADO:[^\]]*\]/gi, '');
       }
       if (content.includes('[DOCUMENTO ENVIADO:')) {
-        content = content.replace(/\[DOCUMENTO ENVIADO:[^\]]*\]/gi, '[Documento enviado]');
+        content = content.replace(/\[DOCUMENTO ENVIADO:[^\]]*\]/gi, '');
+      }
+      
+      // 3. Limpar qualquer texto vazio resultante
+      content = content.trim();
+      if (!content) {
+        // Se após limpar ficou vazio, marcar que foi mídia
+        if (msg.mediaType) {
+          content = `[${msg.mediaType === 'audio' ? 'Áudio' : msg.mediaType === 'image' ? 'Imagem' : msg.mediaType === 'video' ? 'Vídeo' : 'Arquivo'} enviado]`;
+        } else {
+          content = '[Mensagem de mídia]';
+        }
       }
       
       messages.push({

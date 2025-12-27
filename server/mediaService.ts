@@ -276,21 +276,26 @@ EXEMPLOS:
 
   mediaBlock += `
 ═══════════════════════════════════════════════════════════════════════════════
-❌ REGRAS IMPORTANTES - NUNCA FAÇA ISSO:
+❌ REGRAS CRÍTICAS - NUNCA FAÇA ISSO:
 ═══════════════════════════════════════════════════════════════════════════════
 
+❌ NUNCA comece sua resposta com "🎤 Áudio" ou "🎤 Audio"
 ❌ NUNCA escreva "[ÁUDIO ENVIADO PELO AGENTE]" no texto
 ❌ NUNCA mencione "vou te enviar um áudio/imagem/vídeo"
 ❌ NUNCA anuncie que está enviando mídia
 ❌ NUNCA repita uma mídia que já foi enviada na conversa
+❌ NUNCA use emojis de mídia (🎤🎥🖼️📷📄) no início das suas respostas
 
 ✅ APENAS coloque a tag [MEDIA:...] no final e deixe o sistema enviar silenciosamente
+✅ Sua resposta deve ser texto NORMAL sem prefixos de mídia
 
 EXEMPLO CORRETO:
 "Perfeito! Funciona assim: você configura e a IA atende. [MEDIA:COMO_FUNCIONA]"
 
-EXEMPLO ERRADO:
-"Vou te enviar um áudio explicando [MEDIA:COMO_FUNCIONA]" ← NÃO FAÇA ISSO
+EXEMPLOS ERRADOS:
+"🎤 Áudio Opa! Vou explicar..." ← NÃO FAÇA ISSO
+"Vou te enviar um áudio explicando..." ← NÃO FAÇA ISSO
+"[ÁUDIO ENVIADO PELO AGENTE]: texto" ← NÃO FAÇA ISSO
 ════════════════════════════════════════════════════════════════════════════════
 `;
 
