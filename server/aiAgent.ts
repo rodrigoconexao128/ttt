@@ -791,9 +791,11 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
       }
       
       // 2. Limpar padrões internos de mídia enviada pelo agente
+      // CRÍTICO: Remover completamente este texto para não confundir a IA
       if (content.includes('[ÁUDIO ENVIADO PELO AGENTE]')) {
-        // Substituir por uma versão mais limpa que não confunde a IA
-        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:\s*/gi, '');
+        // Remover o marcador E a transcrição que segue (ela está no áudio, não precisa no contexto)
+        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:[^]*/gi, '[Explicação em áudio foi enviada]');
+        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]/gi, '[Áudio enviado]');
       }
       if (content.includes('[IMAGEM ENVIADA:')) {
         content = content.replace(/\[IMAGEM ENVIADA:[^\]]*\]/gi, '');
@@ -934,20 +936,40 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
         responseText = responseText.replace(/🔔[^]*?Motivo:[^\n]*/gi, '').trim();
       }
       
-      // 🚨 POST-PROCESSING: Detectar se resposta parece "dump de instruções"
-      const hasManyHeaders = (responseText.match(/^#{1,3}\s/gm) || []).length > 2;
-      const hasManyBullets = (responseText.match(/^\*/gm) || []).length > 5;
-      const hasManyNumbers = (responseText.match(/^\d+\./gm) || []).length > 5;
-      const isTooLong = responseText.length > 1000;
+      // 🚨 POST-PROCESSING: Detectar e limpar possíveis vazamentos de instruções do prompt
+      // CUIDADO: Não truncar agressivamente - apenas limpar padrões específicos problemáticos
       
-      if (hasManyHeaders || hasManyBullets || hasManyNumbers || isTooLong) {
-        console.log(`⚠️ [AI Agent] Resposta parece dump de instruções! Reescrevendo...`);
+      // 1. Detectar se tem texto que parece ser do prompt (padrões de instrução)
+      const hasPromptLeak = responseText.includes('online/cadastro)') ||
+                           responseText.includes('Depois de logado, no menu') ||
+                           responseText.includes('clica em Ilimitado') ||
+                           responseText.match(/\[MEDIA:[^\]]+\]\s*\[MEDIA:/) || // Múltiplas tags seguidas
+                           responseText.match(/^#{1,3}\s.*\n#{1,3}\s/m); // Múltiplos headers seguidos
+      
+      if (hasPromptLeak) {
+        console.log(`⚠️ [AI Agent] Detectado vazamento de prompt! Limpando...`);
+        const originalLength = responseText.length;
         
-        // Truncar para primeira parte mais conversacional (até primeiro \n\n)
-        const firstParagraphs = responseText.split('\n\n').slice(0, 2).join('\n\n');
-        responseText = firstParagraphs.length > 200 ? firstParagraphs : responseText.substring(0, 500) + '...';
+        // Tentar cortar no primeiro ponto final após conteúdo válido
+        const sentences = responseText.split(/\.\s+/);
+        let cleanedResponse = '';
         
-        console.log(`✂️ [AI Agent] Resposta truncada de ${responseText.length} para ${firstParagraphs.length} chars`);
+        for (const sentence of sentences) {
+          // Parar se encontrar texto que parece instrução
+          if (sentence.includes('online/cadastro') ||
+              sentence.includes('Depois de logado') ||
+              sentence.includes('clica em Ilimitado') ||
+              sentence.includes('no menu do lado esquerdo')) {
+            break;
+          }
+          cleanedResponse += sentence + '. ';
+        }
+        
+        // Se conseguiu extrair algo válido, usar
+        if (cleanedResponse.trim().length > 50) {
+          responseText = cleanedResponse.trim();
+          console.log(`✂️ [AI Agent] Resposta limpa de ${originalLength} para ${responseText.length} chars`);
+        }
       }
       
       // 🛡️ VALIDAÇÃO DE RESPOSTA (apenas no sistema avançado)
