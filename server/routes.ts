@@ -42,6 +42,8 @@ import {
   sendMessage as whatsappSendMessage,
   addWebSocketClient,
   addAdminWebSocketClient,
+  triggerAgentResponseForConversation,
+  triggerAdminAgentResponseForConversation,
 } from "./whatsapp";
 import { 
   sendMessageSchema, 
@@ -1346,6 +1348,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.enableAgentForConversation(conversationId);
+      
+      // 🔄 Quando IA é reativada, verificar se há mensagens pendentes e responder
+      try {
+        const triggerResult = await triggerAgentResponseForConversation(userId, conversationId);
+        console.log(`🔄 [ENABLE] IA reativada para ${conversationId}: ${triggerResult.reason}`);
+      } catch (triggerError) {
+        console.error("Erro ao disparar resposta após reativar IA:", triggerError);
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Error enabling agent:", error);
@@ -1374,6 +1385,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await storage.disableAgentForConversation(conversationId);
       } else {
         await storage.enableAgentForConversation(conversationId);
+        
+        // 🔄 Quando IA é reativada, verificar se há mensagens pendentes e responder
+        try {
+          const triggerResult = await triggerAgentResponseForConversation(userId, conversationId);
+          console.log(`🔄 [TOGGLE] IA reativada para ${conversationId}: ${triggerResult.reason}`);
+        } catch (triggerError) {
+          console.error("Erro ao disparar resposta após reativar IA:", triggerError);
+        }
       }
 
       res.json({ success: true, isDisabled: disable });
@@ -2307,6 +2326,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const conversation = await storage.toggleAdminConversationAgent(id, true);
+      
+      // 🔄 Quando IA admin é reativada, verificar se há mensagens pendentes e responder
+      try {
+        const triggerResult = await triggerAdminAgentResponseForConversation(id);
+        console.log(`🔄 [ADMIN RESUME] IA reativada para ${id}: ${triggerResult.reason}`);
+      } catch (triggerError) {
+        console.error("Erro ao disparar resposta após reativar IA admin:", triggerError);
+      }
+      
       res.json({ success: true, conversation });
     } catch (error) {
       console.error("Error resuming admin agent:", error);

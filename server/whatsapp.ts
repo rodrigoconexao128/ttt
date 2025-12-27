@@ -2308,6 +2308,214 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔄 TRIGGER RESPONSE ON AI RE-ENABLE
+// ═══════════════════════════════════════════════════════════════════════════
+// Quando o usuário reativa a IA para uma conversa, verificamos se há mensagens
+// pendentes do cliente que ainda não foram respondidas e disparamos a resposta.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function triggerAgentResponseForConversation(
+  userId: string,
+  conversationId: string
+): Promise<{ triggered: boolean; reason: string }> {
+  console.log(`\n🔄 [TRIGGER ON ENABLE] Verificando mensagens pendentes para conversa ${conversationId}...`);
+  
+  try {
+    // 1. Buscar a sessão do usuário
+    const session = sessions.get(userId);
+    if (!session?.socket) {
+      console.log(`⚠️ [TRIGGER ON ENABLE] Sessão WhatsApp não disponível para usuário ${userId}`);
+      return { triggered: false, reason: "WhatsApp não conectado" };
+    }
+    
+    // 2. Verificar se o agente está ativo globalmente
+    const agentConfig = await storage.getAgentConfig(userId);
+    if (!agentConfig?.isActive) {
+      console.log(`⚠️ [TRIGGER ON ENABLE] Agente globalmente inativo para usuário ${userId}`);
+      return { triggered: false, reason: "Agente inativo" };
+    }
+    
+    // 3. Buscar dados da conversa
+    const conversation = await storage.getConversation(conversationId);
+    if (!conversation) {
+      console.log(`⚠️ [TRIGGER ON ENABLE] Conversa ${conversationId} não encontrada`);
+      return { triggered: false, reason: "Conversa não encontrada" };
+    }
+    
+    // 4. Buscar mensagens da conversa
+    const messages = await storage.getMessagesByConversationId(conversationId);
+    if (messages.length === 0) {
+      console.log(`ℹ️ [TRIGGER ON ENABLE] Nenhuma mensagem na conversa`);
+      return { triggered: false, reason: "Nenhuma mensagem na conversa" };
+    }
+    
+    // 5. Verificar última mensagem
+    const lastMessage = messages[messages.length - 1];
+    
+    // Se última mensagem é do agente/dono, não precisa responder
+    if (lastMessage.fromMe) {
+      console.log(`ℹ️ [TRIGGER ON ENABLE] Última mensagem é do agente/dono - não precisa responder`);
+      return { triggered: false, reason: "Última mensagem já foi respondida" };
+    }
+    
+    // 6. Verificar se já tem resposta pendente
+    if (pendingResponses.has(conversationId)) {
+      console.log(`⏳ [TRIGGER ON ENABLE] Já existe resposta pendente para esta conversa`);
+      return { triggered: false, reason: "Resposta já em processamento" };
+    }
+    
+    console.log(`📨 [TRIGGER ON ENABLE] Mensagem do cliente sem resposta encontrada!`);
+    console.log(`   👤 Cliente: ${conversation.contactNumber}`);
+    console.log(`   💬 Última mensagem: "${(lastMessage.text || '[mídia]').substring(0, 50)}..."`);
+    console.log(`   🕐 Enviada em: ${lastMessage.timestamp}`);
+    
+    // 7. Coletar todas as mensagens do cliente desde a última mensagem do agente
+    const clientMessagesBuffer: string[] = [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.fromMe) break; // Parar quando encontrar mensagem do agente/dono
+      if (msg.text) {
+        clientMessagesBuffer.unshift(msg.text); // Manter ordem cronológica
+      }
+    }
+    
+    if (clientMessagesBuffer.length === 0) {
+      clientMessagesBuffer.push('[mensagem recebida]');
+    }
+    
+    console.log(`📝 [TRIGGER ON ENABLE] ${clientMessagesBuffer.length} mensagem(s) do cliente para processar`);
+    
+    // 8. Criar resposta pendente com delay mínimo (3 segundos para parecer natural)
+    const responseDelaySeconds = Math.max(agentConfig?.responseDelaySeconds ?? 3, 3);
+    
+    const pending: PendingResponse = {
+      timeout: null as any,
+      messages: clientMessagesBuffer,
+      conversationId,
+      userId,
+      contactNumber: conversation.contactNumber,
+      jidSuffix: conversation.jidSuffix || DEFAULT_JID_SUFFIX,
+      startTime: Date.now(),
+    };
+    
+    pending.timeout = setTimeout(async () => {
+      console.log(`🚀 [TRIGGER ON ENABLE] Processando resposta para ${conversation.contactNumber}`);
+      await processAccumulatedMessages(pending);
+    }, responseDelaySeconds * 1000);
+    
+    pendingResponses.set(conversationId, pending);
+    
+    console.log(`✅ [TRIGGER ON ENABLE] Resposta agendada em ${responseDelaySeconds}s para ${conversation.contactNumber}`);
+    
+    return { triggered: true, reason: `Resposta agendada para ${clientMessagesBuffer.length} mensagem(s) pendente(s)` };
+    
+  } catch (error) {
+    console.error(`❌ [TRIGGER ON ENABLE] Erro:`, error);
+    return { triggered: false, reason: "Erro ao processar" };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔄 TRIGGER RESPONSE ON ADMIN AI RE-ENABLE
+// ═══════════════════════════════════════════════════════════════════════════
+// Para conversas do ADMIN (sistema de vendas AgenteZap) - quando a IA é 
+// reativada, verifica se há mensagens do cliente sem resposta e dispara.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function triggerAdminAgentResponseForConversation(
+  conversationId: string
+): Promise<{ triggered: boolean; reason: string }> {
+  console.log(`\n🔄 [ADMIN TRIGGER ON ENABLE] Verificando mensagens pendentes para conversa admin ${conversationId}...`);
+  
+  try {
+    // 1. Buscar dados da conversa admin
+    const conversation = await storage.getAdminConversation(conversationId);
+    if (!conversation) {
+      console.log(`⚠️ [ADMIN TRIGGER ON ENABLE] Conversa ${conversationId} não encontrada`);
+      return { triggered: false, reason: "Conversa não encontrada" };
+    }
+    
+    // 2. Verificar se há sessão admin ativa
+    const adminSession = adminSessions.values().next().value;
+    if (!adminSession?.socket) {
+      console.log(`⚠️ [ADMIN TRIGGER ON ENABLE] Sessão admin WhatsApp não disponível`);
+      return { triggered: false, reason: "WhatsApp admin não conectado" };
+    }
+    
+    // 3. Buscar mensagens da conversa admin
+    const messages = await storage.getAdminMessages(conversationId);
+    if (messages.length === 0) {
+      console.log(`ℹ️ [ADMIN TRIGGER ON ENABLE] Nenhuma mensagem na conversa`);
+      return { triggered: false, reason: "Nenhuma mensagem na conversa" };
+    }
+    
+    // 4. Verificar última mensagem
+    const lastMessage = messages[messages.length - 1];
+    
+    // Se última mensagem é do admin/agente (fromMe = true), não precisa responder
+    if (lastMessage.fromMe) {
+      console.log(`ℹ️ [ADMIN TRIGGER ON ENABLE] Última mensagem é do agente - não precisa responder`);
+      return { triggered: false, reason: "Última mensagem já foi respondida" };
+    }
+    
+    // 5. Verificar se já tem resposta pendente
+    const contactNumber = conversation.contactNumber;
+    if (pendingAdminResponses.has(contactNumber)) {
+      console.log(`⏳ [ADMIN TRIGGER ON ENABLE] Já existe resposta pendente para este contato`);
+      return { triggered: false, reason: "Resposta já em processamento" };
+    }
+    
+    console.log(`📨 [ADMIN TRIGGER ON ENABLE] Mensagem do cliente sem resposta encontrada!`);
+    console.log(`   👤 Cliente: ${contactNumber}`);
+    console.log(`   💬 Última mensagem: "${(lastMessage.text || '[mídia]').substring(0, 50)}..."`);
+    console.log(`   🕐 Enviada em: ${lastMessage.timestamp}`);
+    
+    // 6. Coletar todas as mensagens do cliente desde a última do agente
+    const clientMessagesBuffer: string[] = [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.fromMe) break;
+      if (msg.text) {
+        clientMessagesBuffer.unshift(msg.text);
+      }
+    }
+    
+    if (clientMessagesBuffer.length === 0) {
+      clientMessagesBuffer.push('[mensagem recebida]');
+    }
+    
+    console.log(`📝 [ADMIN TRIGGER ON ENABLE] ${clientMessagesBuffer.length} mensagem(s) do cliente para processar`);
+    
+    // 7. Agendar resposta usando o sistema de acumulação existente
+    const config = await getAdminAgentRuntimeConfig();
+    const responseDelayMs = Math.max(config.responseDelayMs, 3000); // Mínimo 3 segundos
+    
+    const pending: PendingAdminResponse = {
+      timeout: null,
+      messages: clientMessagesBuffer,
+      remoteJid: conversation.remoteJid || `${contactNumber}@s.whatsapp.net`,
+      contactNumber,
+      generation: 1,
+      startTime: Date.now(),
+      conversationId,
+    };
+    
+    pending.timeout = setTimeout(() => {
+      console.log(`🚀 [ADMIN TRIGGER ON ENABLE] Processando resposta para ${contactNumber}`);
+      void processAdminAccumulatedMessages({ socket: adminSession.socket!, key: contactNumber, generation: 1 });
+    }, responseDelayMs);
+    
+    pendingAdminResponses.set(contactNumber, pending);
+    
+    console.log(`✅ [ADMIN TRIGGER ON ENABLE] Resposta agendada em ${responseDelayMs/1000}s para ${contactNumber}`);
+    
+    return { triggered: true, reason: `Resposta agendada para ${clientMessagesBuffer.length} mensagem(s) pendente(s)` };
+    
+  } catch (error) {
+    console.error(`❌ [ADMIN TRIGGER ON ENABLE] Erro:`, error);
+    return { triggered: false, reason: "Erro ao processar" };
+  }
+}
+
 export async function sendMessage(userId: string, conversationId: string, text: string): Promise<void> {
   const session = sessions.get(userId);
   if (!session?.socket) {
