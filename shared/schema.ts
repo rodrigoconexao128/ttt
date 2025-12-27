@@ -20,7 +20,7 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
   name: varchar("name").notNull(),
-  phone: varchar("phone").unique().notNull(),
+  phone: varchar("phone").notNull(),
   profileImageUrl: varchar("profile_image_url"),
   role: varchar("role", { length: 50 }).default("user").notNull(),
   whatsappNumber: varchar("whatsapp_number"),
