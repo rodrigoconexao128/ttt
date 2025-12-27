@@ -180,7 +180,8 @@ export function registerFollowUpRoutes(app: Express) {
         stage: conv.followupStage,
         nextFollowupAt: conv.nextFollowupAt,
         lastMessageText: conv.lastMessageText,
-        lastMessageTime: conv.lastMessageTime
+        lastMessageTime: conv.lastMessageTime,
+        note: conv.followupDisabledReason || null
       })));
     } catch (error: any) {
       console.error("Erro ao buscar follow-ups pendentes:", error);
@@ -301,6 +302,31 @@ export function registerFollowUpRoutes(app: Express) {
     } catch (error: any) {
       console.error("Erro ao agendar follow-up:", error);
       res.status(500).json({ message: "Erro ao agendar follow-up" });
+    }
+  });
+
+  /**
+   * POST /api/followup/reorganize
+   * Reorganiza todos os follow-ups pendentes do usuário
+   * Recalcula as datas baseado na configuração atual
+   */
+  app.post("/api/followup/reorganize", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      console.log(`🔄 [FOLLOW-UP] Reorganizando follow-ups para usuário ${userId}`);
+      
+      const result = await userFollowUpService.reorganizeAllFollowups(userId);
+      
+      res.json({ 
+        success: true, 
+        message: `Reorganização concluída`,
+        reorganized: result.reorganized,
+        skipped: result.skipped
+      });
+    } catch (error: any) {
+      console.error("Erro ao reorganizar follow-ups:", error);
+      res.status(500).json({ message: "Erro ao reorganizar follow-ups" });
     }
   });
 

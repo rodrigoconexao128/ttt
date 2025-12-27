@@ -40,7 +40,9 @@ import {
   Send,
   Grid3X3,
   List,
-  SkipForward
+  SkipForward,
+  Zap,
+  ZapOff
 } from "lucide-react";
 
 interface ImportantInfo {
@@ -152,6 +154,24 @@ export default function FollowupConfigPage() {
     refetchInterval: 30000,
   });
 
+  // Buscar histórico de logs
+  interface FollowupLog {
+    id: number;
+    conversationId: string;
+    contactNumber: string;
+    status: 'sent' | 'failed' | 'cancelled' | 'skipped';
+    messageContent: string | null;
+    aiDecision: { action: string; reason: string; context?: string } | null;
+    stage: number;
+    executedAt: string;
+    errorReason: string | null;
+  }
+  
+  const { data: logs, refetch: refetchLogs } = useQuery<FollowupLog[]>({
+    queryKey: ["/api/followup/logs"],
+    refetchInterval: 30000,
+  });
+
   // Estado local para edição
   const [formData, setFormData] = useState<Partial<FollowupConfig>>({});
 
@@ -174,6 +194,24 @@ export default function FollowupConfigPage() {
     },
     onError: () => {
       toast({ title: "Erro ao cancelar follow-up", variant: "destructive" });
+    },
+  });
+
+  // Reorganize all follow-ups
+  const reorganizeMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/followup/reorganize");
+    },
+    onSuccess: (data: any) => {
+      toast({ 
+        title: "Follow-ups reorganizados!", 
+        description: `${data.reorganized} reagendados, ${data.skipped} ignorados`
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/stats"] });
+    },
+    onError: () => {
+      toast({ title: "Erro ao reorganizar follow-ups", variant: "destructive" });
     },
   });
 
@@ -514,7 +552,8 @@ export default function FollowupConfigPage() {
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
-      <div className="flex items-center justify-between mb-6">
+      {/* Header com Toggle Principal */}
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Sparkles className="w-8 h-8 text-primary" />
@@ -524,11 +563,7 @@ export default function FollowupConfigPage() {
             Agenda de follow-ups e configurações automáticas
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { refetchPending(); refetchStats(); }}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Atualizar
-          </Button>
+        <div className="flex items-center gap-3">
           {mainTab === 'config' && (
             <Button onClick={handleSave} disabled={saveMutation.isPending}>
               <Save className="w-4 h-4 mr-2" />
@@ -537,6 +572,55 @@ export default function FollowupConfigPage() {
           )}
         </div>
       </div>
+
+      {/* Toggle de Ativar/Desativar + Botão Reorganizar - SEMPRE VISÍVEL */}
+      <Card className="mb-6">
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center space-x-3">
+                <Switch
+                  id="followup-enabled-main"
+                  checked={formData.isEnabled ?? false}
+                  onCheckedChange={(checked) => {
+                    setFormData({ ...formData, isEnabled: checked });
+                    saveMutation.mutate({ ...formData, isEnabled: checked });
+                  }}
+                />
+                <Label htmlFor="followup-enabled-main" className="flex items-center gap-2">
+                  {formData.isEnabled ? (
+                    <>
+                      <Zap className="w-5 h-5 text-green-500" />
+                      <span className="font-medium text-green-600">Follow-up Ativado</span>
+                    </>
+                  ) : (
+                    <>
+                      <ZapOff className="w-5 h-5 text-muted-foreground" />
+                      <span className="font-medium text-muted-foreground">Follow-up Desativado</span>
+                    </>
+                  )}
+                </Label>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => reorganizeMutation.mutate()}
+                disabled={reorganizeMutation.isPending || !formData.isEnabled}
+                title="Reagenda todos os follow-ups pendentes baseado na configuração atual"
+              >
+                <RefreshCw className={cn("w-4 h-4 mr-2", reorganizeMutation.isPending && "animate-spin")} />
+                {reorganizeMutation.isPending ? "Reorganizando..." : "Reorganizar Follow-ups"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => { refetchPending(); refetchStats(); refetchLogs(); }}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Atualizar
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Cards de Estatísticas */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -587,7 +671,7 @@ export default function FollowupConfigPage() {
       </div>
 
       <Tabs value={mainTab} onValueChange={setMainTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="agenda">
             <Calendar className="w-4 h-4 mr-2" />
             Agenda
@@ -607,6 +691,10 @@ export default function FollowupConfigPage() {
           <TabsTrigger value="pending">
             <Bell className="w-4 h-4 mr-2" />
             Pendentes ({pending?.length || 0})
+          </TabsTrigger>
+          <TabsTrigger value="history">
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Histórico
           </TabsTrigger>
         </TabsList>
 
@@ -1081,6 +1169,99 @@ export default function FollowupConfigPage() {
                   <Bell className="w-12 h-12 mx-auto mb-3 opacity-50" />
                   <p>Nenhum follow-up pendente</p>
                   <p className="text-sm">Quando clientes pararem de responder, aparecerão aqui</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Histórico */}
+        <TabsContent value="history" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5" />
+                    Histórico de Follow-ups
+                  </CardTitle>
+                  <CardDescription>
+                    Veja todos os follow-ups enviados, falhados e cancelados
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => refetchLogs()}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Atualizar
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {logs && logs.length > 0 ? (
+                <div className="space-y-3">
+                  {logs.map((log) => {
+                    const statusConfig = {
+                      sent: { icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-50', label: 'Enviado' },
+                      failed: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-50', label: 'Falhou' },
+                      cancelled: { icon: XCircle, color: 'text-orange-500', bg: 'bg-orange-50', label: 'Cancelado' },
+                      skipped: { icon: SkipForward, color: 'text-blue-500', bg: 'bg-blue-50', label: 'Pulado' },
+                    };
+                    const cfg = statusConfig[log.status] || statusConfig.failed;
+                    const StatusIcon = cfg.icon;
+                    
+                    return (
+                      <div 
+                        key={log.id} 
+                        className={cn(
+                          "flex items-start justify-between p-4 rounded-lg border",
+                          cfg.bg
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <StatusIcon className={cn("w-5 h-5 mt-0.5", cfg.color)} />
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{formatPhone(log.contactNumber)}</p>
+                              <Badge variant="outline" className="text-xs">
+                                Estágio #{log.stage + 1}
+                              </Badge>
+                              <Badge className={cn("text-xs", 
+                                log.status === 'sent' ? 'bg-green-500' : 
+                                log.status === 'failed' ? 'bg-red-500' : 
+                                log.status === 'cancelled' ? 'bg-orange-500' : 'bg-blue-500'
+                              )}>
+                                {cfg.label}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(log.executedAt).toLocaleString('pt-BR')}
+                            </p>
+                            {log.messageContent && (
+                              <p className="text-sm text-muted-foreground line-clamp-2 max-w-lg">
+                                "{log.messageContent}"
+                              </p>
+                            )}
+                            {log.errorReason && (
+                              <p className="text-sm text-red-600 flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" />
+                                {log.errorReason}
+                              </p>
+                            )}
+                            {log.aiDecision && (
+                              <p className="text-xs text-muted-foreground">
+                                IA: {log.aiDecision.action} - {log.aiDecision.reason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>Nenhum follow-up executado ainda</p>
+                  <p className="text-sm">O histórico aparecerá aqui quando houver envios</p>
                 </div>
               )}
             </CardContent>

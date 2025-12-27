@@ -364,37 +364,49 @@ Responda APENAS um JSON válido:
   /**
    * Verifica se está em horário comercial
    */
+  /**
+   * Verifica se está em horário comercial (timezone Brasil)
+   */
   private isBusinessHours(config: any): boolean {
+    // Usar timezone do Brasil
     const now = new Date();
-    const currentDay = now.getDay(); // 0 = domingo
-    const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
+    const brazilTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const currentDay = brazilTime.getDay(); // 0 = domingo
+    const currentHour = brazilTime.getHours();
+    const currentMin = brazilTime.getMinutes();
+    const currentTime = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
 
     const businessDays = config.businessDays || [1, 2, 3, 4, 5];
     if (!businessDays.includes(currentDay)) {
+      console.log(`⏰ [FOLLOW-UP] Dia ${currentDay} não está nos dias úteis ${JSON.stringify(businessDays)}`);
       return false;
     }
 
-    const start = config.businessHoursStart || "09:00";
-    const end = config.businessHoursEnd || "18:00";
+    const start = String(config.businessHoursStart || "09:00").slice(0, 5);
+    const end = String(config.businessHoursEnd || "18:00").slice(0, 5);
 
-    return currentTime >= start && currentTime <= end;
+    const isOpen = currentTime >= start && currentTime <= end;
+    console.log(`⏰ [FOLLOW-UP] Horário atual: ${currentTime}, Horário comercial: ${start}-${end}, Aberto: ${isOpen}`);
+    
+    return isOpen;
   }
 
   /**
-   * Calcula próximo horário comercial disponível
+   * Calcula próximo horário comercial disponível (timezone Brasil)
    */
   private getNextBusinessTime(config: any): Date {
     const now = new Date();
+    const brazilTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
     const businessDays = config.businessDays || [1, 2, 3, 4, 5];
-    const start = config.businessHoursStart || "09:00";
+    const start = String(config.businessHoursStart || "09:00").slice(0, 5);
     const [startHour, startMin] = start.split(':').map(Number);
 
     // Próximo dia útil às 9h
-    let next = new Date(now);
+    let next = new Date(brazilTime);
     next.setHours(startHour, startMin, 0, 0);
 
     // Se já passou do horário de início hoje, ir para amanhã
-    if (now >= next) {
+    if (brazilTime >= next) {
       next.setDate(next.getDate() + 1);
     }
 
@@ -403,6 +415,7 @@ Responda APENAS um JSON válido:
       next.setDate(next.getDate() + 1);
     }
 
+    console.log(`📅 [FOLLOW-UP] Próximo horário comercial: ${next.toLocaleString('pt-BR')}`);
     return next;
   }
 
@@ -662,6 +675,102 @@ Responda APENAS um JSON válido:
     });
 
     return allPending.filter(c => c.connection?.userId === userId);
+  }
+
+  /**
+   * Reorganiza todos os follow-ups pendentes de um usuário
+   * Recalcula as datas baseado na configuração atual (horários, dias úteis, etc.)
+   */
+  async reorganizeAllFollowups(userId: string): Promise<{ reorganized: number; skipped: number }> {
+    console.log(`🔄 [USER-FOLLOW-UP] Reorganizando todos os follow-ups para usuário ${userId}`);
+    
+    const config = await this.getFollowupConfig(userId);
+    if (!config || !config.isEnabled) {
+      console.log(`⚠️ [USER-FOLLOW-UP] Follow-up desabilitado para usuário ${userId}`);
+      return { reorganized: 0, skipped: 0 };
+    }
+
+    // Buscar todas as conversas com follow-up ativo
+    const pendingConversations = await db.query.conversations.findMany({
+      where: and(
+        eq(conversations.followupActive, true),
+        isNotNull(conversations.nextFollowupAt)
+      ),
+      with: {
+        connection: true
+      }
+    });
+
+    // Filtrar só as do usuário
+    const userConversations = pendingConversations.filter(c => c.connection?.userId === userId);
+    
+    let reorganized = 0;
+    let skipped = 0;
+    const intervals = config.intervalsMinutes || DEFAULT_INTERVALS;
+    const now = new Date();
+
+    for (const conversation of userConversations) {
+      try {
+        const stage = conversation.followupStage || 0;
+        const delayMinutes = intervals[stage] || intervals[intervals.length - 1] || 10;
+        
+        // Calcular nova data baseada em lastMessageAt ou now
+        const baseDate = conversation.lastMessageAt 
+          ? new Date(conversation.lastMessageAt) 
+          : now;
+        
+        let newDate = new Date(baseDate.getTime() + delayMinutes * 60 * 1000);
+        
+        // Se a nova data já passou, usar a partir de agora
+        if (newDate < now) {
+          newDate = new Date(now.getTime() + 1 * 60 * 1000); // 1 minuto a partir de agora
+        }
+        
+        // Verificar horário comercial e ajustar se necessário
+        if (!this.isBusinessHours(config)) {
+          const nextBusinessTime = this.getNextBusinessTime(config);
+          if (nextBusinessTime && nextBusinessTime > newDate) {
+            newDate = nextBusinessTime;
+          }
+        } else {
+          // Verificar se a nova data está dentro do horário comercial
+          const brazilTime = new Date(newDate.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+          const day = brazilTime.getDay();
+          const hours = brazilTime.getHours();
+          const minutes = brazilTime.getMinutes();
+          const currentMinutes = hours * 60 + minutes;
+          
+          const businessDays = config.businessDays || [1, 2, 3, 4, 5];
+          const [startHour, startMin] = (config.businessHoursStart || '09:00').split(':').map(Number);
+          const [endHour, endMin] = (config.businessHoursEnd || '18:00').split(':').map(Number);
+          const startMinutes = startHour * 60 + startMin;
+          const endMinutes = endHour * 60 + endMin;
+          
+          if (!businessDays.includes(day) || currentMinutes < startMinutes || currentMinutes >= endMinutes) {
+            const nextBusinessTime = this.getNextBusinessTime(config);
+            if (nextBusinessTime) {
+              newDate = nextBusinessTime;
+            }
+          }
+        }
+        
+        await db.update(conversations)
+          .set({ 
+            nextFollowupAt: newDate,
+            followupDisabledReason: null
+          })
+          .where(eq(conversations.id, conversation.id));
+        
+        reorganized++;
+        console.log(`✅ [USER-FOLLOW-UP] Reorganizado: ${conversation.contactNumber} -> ${newDate.toISOString()}`);
+      } catch (error) {
+        console.error(`❌ [USER-FOLLOW-UP] Erro ao reorganizar ${conversation.id}:`, error);
+        skipped++;
+      }
+    }
+    
+    console.log(`🔄 [USER-FOLLOW-UP] Reorganização concluída: ${reorganized} reorganizados, ${skipped} ignorados`);
+    return { reorganized, skipped };
   }
 }
 
