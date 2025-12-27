@@ -58,6 +58,15 @@ const DEFAULT_JID_SUFFIX = "s.whatsapp.net";
 // Evita duplicatas quando Baileys dispara evento fromMe após socket.sendMessage()
 const agentMessageIds = new Set<string>();
 
+// 🔧 Função exportada para registrar messageIds de mídias enviadas pelo agente
+// Usado pelo mediaService para evitar que handleOutgoingMessage pause a IA incorretamente
+export function registerAgentMessageId(messageId: string): void {
+  if (messageId) {
+    agentMessageIds.add(messageId);
+    console.log(`📌 [AGENT MSG] Registrado messageId do agente: ${messageId}`);
+  }
+}
+
 // 🔒 Map para rastrear solicitações de código de pareamento em andamento
 // Evita múltiplas solicitações simultâneas para o mesmo usuário
 const pendingPairingRequests = new Map<string, Promise<string | null>>();
@@ -1615,16 +1624,62 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     });
   }
 
-  // Salvar mensagem como fromMe: true
-  await storage.createMessage({
-    conversationId: conversation.id,
-    messageId: waMessage.key.id!,
-    fromMe: true,
-    text: messageText,
-    timestamp: new Date(Number(waMessage.messageTimestamp) * 1000),
-    isFromAgent: false,
-    mediaType,
-  });
+  // 🔍 VERIFICAÇÃO DE DUPLICATA: Antes de salvar, verificar se a mensagem já existe no banco
+  // Isso resolve race conditions onde o agente pode salvar antes ou depois deste handler
+  let existingMessage = await storage.getMessageByMessageId(waMessage.key.id!);
+  
+  // 🔄 RACE CONDITION FIX: Se não existe, esperar 500ms e verificar novamente
+  // O agente pode estar salvando a mensagem neste exato momento
+  if (!existingMessage) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    existingMessage = await storage.getMessageByMessageId(waMessage.key.id!);
+  }
+  
+  if (existingMessage) {
+    console.log(`⚠️ [FROM ME] Mensagem já existe no banco (messageId: ${waMessage.key.id}), ignorando duplicata`);
+    
+    // Se a mensagem existente é do agente, NÃO pausar a IA e sair
+    if (existingMessage.isFromAgent) {
+      console.log(`✅ [FROM ME] Mensagem é do agente - NÃO pausar IA`);
+      return;
+    }
+    
+    // Se não é do agente mas já existe, apenas atualizar conversa e sair (evita duplicata)
+    await storage.updateConversation(conversation.id, {
+      lastMessageText: messageText,
+      lastMessageTime: new Date(),
+      unreadCount: 0,
+    });
+    return;
+  }
+  
+  // Mensagem realmente nova do dono - salvar e processar auto-pause
+  try {
+    await storage.createMessage({
+      conversationId: conversation.id,
+      messageId: waMessage.key.id!,
+      fromMe: true,
+      text: messageText,
+      timestamp: new Date(Number(waMessage.messageTimestamp) * 1000),
+      isFromAgent: false,
+      mediaType,
+    });
+  } catch (createError: any) {
+    // Se erro for de duplicata (constraint unique), verificar se é do agente
+    if (createError?.message?.includes('unique') || createError?.code === '23505') {
+      console.log(`⚠️ [FROM ME] Erro de duplicata ao salvar - mensagem já existe (messageId: ${waMessage.key.id})`);
+      
+      // Re-verificar se é do agente
+      const recheck = await storage.getMessageByMessageId(waMessage.key.id!);
+      if (recheck?.isFromAgent) {
+        console.log(`✅ [FROM ME] Confirmado: mensagem é do agente - NÃO pausar IA`);
+        return;
+      }
+    } else {
+      console.error(`❌ [FROM ME] Erro ao salvar mensagem:`, createError);
+    }
+    return;
+  }
 
   // Atualizar conversa
   await storage.updateConversation(conversation.id, {

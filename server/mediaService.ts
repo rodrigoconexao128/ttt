@@ -9,6 +9,7 @@ import { db } from "./db";
 import { agentMediaLibrary, messages, type AgentMedia, type InsertAgentMedia, mistralResponseSchema, type MistralResponse } from "@shared/schema";
 import { eq, and, asc, or, sql } from "drizzle-orm";
 import { transcribeAudioWithMistral } from "./mistralClient";
+import { registerAgentMessageId } from "./whatsapp";
 
 // =============================================================================
 // MEDIA LIBRARY CRUD
@@ -951,7 +952,13 @@ export async function executeMediaActions(
           continue;
         }
 
-        // 📝 SALVAR MENSAGEM DE MÍDIA NO BANCO DE DADOS
+        // � CRÍTICO: Registrar messageId para evitar que handleOutgoingMessage pause a IA
+        // Quando Baileys envia mídia, dispara evento fromMe:true que pode ser confundido com mensagem manual
+        if (sendResult.success && sendResult.messageId) {
+          registerAgentMessageId(sendResult.messageId);
+        }
+
+        // �📝 SALVAR MENSAGEM DE MÍDIA NO BANCO DE DADOS
         if (sendResult.success && conversationId) {
           try {
             let transcriptionText: string | null = null;
