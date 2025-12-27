@@ -567,8 +567,8 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
                       fromMe={message.fromMe}
                     />
                     {message.text && (
-                      <p className="text-sm whitespace-pre-wrap break-words">
-                        {message.text}
+                      <p className="text-sm whitespace-pre-wrap break-words italic opacity-80">
+                        📝 {message.text.replace(/^\[ÁUDIO ENVIADO PELO AGENTE\]:\s*/i, '')}
                       </p>
                     )}
                   </div>
@@ -579,9 +579,24 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
                       controls 
                       className="max-w-[280px] max-h-[280px] rounded-lg"
                     />
-                    {message.mediaCaption && (
-                      <p className="text-sm whitespace-pre-wrap break-words">{message.mediaCaption}</p>
+                    {(message.mediaCaption || message.text) && (
+                      <p className="text-sm whitespace-pre-wrap break-words">{message.mediaCaption || message.text}</p>
                     )}
+                  </div>
+                ) : message.mediaType === "document" && message.mediaUrl ? (
+                  <div className="space-y-2">
+                    <a 
+                      href={message.mediaUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className={`flex items-center gap-2 p-2 rounded border ${
+                        message.fromMe 
+                          ? "border-primary-foreground/30 hover:bg-primary-foreground/10" 
+                          : "border-muted-foreground/30 hover:bg-muted-foreground/10"
+                      }`}
+                    >
+                      📄 <span className="text-sm underline">{message.text || "Documento"}</span>
+                    </a>
                   </div>
                 ) : (
                   <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>

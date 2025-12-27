@@ -2286,6 +2286,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         await executeMediaActions({
           userId,
           jid: mediaJid,
+          conversationId, // Passar conversationId para salvar mensagens de mídia
           actions: mediaActions,
           socket: currentSession.socket,
         });

@@ -6,8 +6,9 @@
  */
 
 import { db } from "./db";
-import { agentMediaLibrary, type AgentMedia, type InsertAgentMedia, mistralResponseSchema, type MistralResponse } from "@shared/schema";
+import { agentMediaLibrary, messages, type AgentMedia, type InsertAgentMedia, mistralResponseSchema, type MistralResponse } from "@shared/schema";
 import { eq, and, asc, or, sql } from "drizzle-orm";
+import { transcribeAudioWithMistral } from "./mistralClient";
 
 // =============================================================================
 // MEDIA LIBRARY CRUD
@@ -902,6 +903,7 @@ export async function transcribeAudio(
 interface ExecuteMediaActionsParams {
   userId: string;
   jid: string; // WhatsApp JID do destinatário
+  conversationId: string; // ID da conversa para salvar mensagens
   actions: MistralResponse['actions'];
   socket?: any; // WASocket do Baileys
   wapiConfig?: WApiConfig; // Configuração W-API
@@ -912,11 +914,13 @@ interface ExecuteMediaActionsParams {
  * 
  * Suporta enviar múltiplas mídias quando elas compartilham a mesma tag
  * (ex: vídeo + áudio + imagem para "restaurante")
+ * 
+ * NOVO: Salva as mensagens de mídia no banco de dados e transcreve áudios
  */
 export async function executeMediaActions(
   params: ExecuteMediaActionsParams
 ): Promise<void> {
-  const { userId, jid, actions, socket, wapiConfig } = params;
+  const { userId, jid, conversationId, actions, socket, wapiConfig } = params;
 
   if (!actions || actions.length === 0) {
     return;
@@ -961,9 +965,11 @@ export async function executeMediaActions(
 
         console.log(`📤 [MediaService] Enviando ${media.mediaType} "${media.name}" para ${jid}...`);
 
+        let sendResult: { success: boolean; messageId?: string; error?: string } = { success: false };
+
         // Tenta enviar via W-API primeiro, depois Baileys
         if (wapiConfig) {
-          await sendMediaViaWApi(wapiConfig, {
+          sendResult = await sendMediaViaWApi(wapiConfig, {
             to: jid.split('@')[0],
             mediaType: media.mediaType as any,
             mediaUrl: media.storageUrl,
@@ -972,10 +978,82 @@ export async function executeMediaActions(
             isPtt: media.isPtt !== false, // PTT por padrão para áudio
           });
         } else if (socket) {
-          await sendMediaViaBaileys(socket, jid, media);
+          sendResult = await sendMediaViaBaileys(socket, jid, media);
         } else {
           console.error(`[MediaService] ❌ Nenhum transporte disponível para enviar mídia ${media.name}`);
           continue;
+        }
+
+        // 📝 SALVAR MENSAGEM DE MÍDIA NO BANCO DE DADOS
+        if (sendResult.success && conversationId) {
+          try {
+            let transcriptionText: string | null = null;
+            
+            // 🎤 Se for áudio, transcrever para manter contexto na conversa
+            if (media.mediaType === 'audio') {
+              console.log(`🎤 [MediaService] Transcrevendo áudio enviado "${media.name}"...`);
+              
+              // Primeiro verificar se já temos transcrição salva na mídia
+              if (media.transcription) {
+                transcriptionText = media.transcription;
+                console.log(`🎤 [MediaService] Usando transcrição existente da mídia`);
+              } else {
+                // Transcrever o áudio
+                try {
+                  const audioBuffer = await downloadMediaAsBuffer(media.storageUrl);
+                  transcriptionText = await transcribeAudioWithMistral(audioBuffer, {
+                    fileName: media.fileName || 'agent-audio.ogg',
+                  });
+                  
+                  if (transcriptionText) {
+                    console.log(`🎤 [MediaService] Áudio transcrito: "${transcriptionText.substring(0, 100)}..."`);
+                    
+                    // Atualizar a mídia com a transcrição para uso futuro
+                    await db
+                      .update(agentMediaLibrary)
+                      .set({ transcription: transcriptionText, updatedAt: new Date() })
+                      .where(eq(agentMediaLibrary.id, media.id));
+                  }
+                } catch (transcribeError) {
+                  console.error(`🎤 [MediaService] Erro ao transcrever áudio:`, transcribeError);
+                }
+              }
+            }
+
+            // Gerar texto descritivo da mensagem
+            let messageText = '';
+            if (media.mediaType === 'audio' && transcriptionText) {
+              messageText = `[ÁUDIO ENVIADO PELO AGENTE]: ${transcriptionText}`;
+            } else if (media.mediaType === 'image') {
+              messageText = media.caption || `[IMAGEM ENVIADA: ${media.description || media.name}]`;
+            } else if (media.mediaType === 'video') {
+              messageText = media.caption || `[VÍDEO ENVIADO: ${media.description || media.name}]`;
+            } else if (media.mediaType === 'document') {
+              messageText = `[DOCUMENTO ENVIADO: ${media.fileName || media.name}]`;
+            }
+
+            // Salvar mensagem no banco
+            const messageId = sendResult.messageId || `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            
+            await db.insert(messages).values({
+              conversationId: conversationId,
+              messageId: messageId,
+              fromMe: true,
+              text: messageText,
+              timestamp: new Date(),
+              status: 'sent',
+              isFromAgent: true,
+              mediaType: media.mediaType,
+              mediaUrl: media.storageUrl,
+              mediaMimeType: media.mimeType || undefined,
+              mediaDuration: media.durationSeconds || undefined,
+              mediaCaption: media.caption || undefined,
+            });
+
+            console.log(`📝 [MediaService] Mensagem de mídia salva no banco (conversationId: ${conversationId}, type: ${media.mediaType})`);
+          } catch (saveError) {
+            console.error(`📝 [MediaService] Erro ao salvar mensagem de mídia:`, saveError);
+          }
         }
 
         // Pequeno delay entre envios para não sobrecarregar
