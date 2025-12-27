@@ -27,6 +27,7 @@ import { ConversationsList } from "@/components/conversations-list";
 import { ChatArea } from "@/components/chat-area";
 import { ConnectionPanel } from "@/components/connection-panel";
 import { DashboardStats } from "@/components/dashboard-stats";
+import { LimitReachedTopBanner } from "@/components/usage-limit-banner";
 import MyAgent from "@/pages/my-agent";
 import PlansPage from "@/pages/plans";
 import SubscribePage from "@/pages/subscribe";
@@ -259,7 +260,11 @@ const toolsNavigation: ToolNavItem[] = [
   }
 
   return (
-    <SidebarProvider>
+    <>
+      {/* Banner fixo no topo quando limite atingido */}
+      <LimitReachedTopBanner />
+      
+      <SidebarProvider>
       <Sidebar>
         <SidebarHeader>
           <div className="px-2 py-1.5 text-sm font-semibold flex items-center gap-2"><Bot className="w-4 h-4 text-muted-foreground" /><span>AgenteZap</span></div>
@@ -718,6 +723,7 @@ const toolsNavigation: ToolNavItem[] = [
         </Drawer>
       </SidebarInset>
     </SidebarProvider>
+    </>
   );
 }
 

@@ -805,22 +805,9 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
     
     console.log(`✅ [SALES] Agente "${agentName}" criado para ${companyName} (prompt: ${fullPrompt.length} chars)`);
     
-    // Criar trial de 24h
-    const plans = await storage.getActivePlans();
-    const basicPlan = plans[0];
-    
-    if (basicPlan) {
-      const trialEnd = new Date();
-      trialEnd.setHours(trialEnd.getHours() + 24);
-      
-      await storage.createSubscription({
-        userId: user.id,
-        planId: basicPlan.id,
-        status: "trialing",
-        dataInicio: new Date(),
-        dataFim: trialEnd,
-      });
-    }
+    // Usuário criado sem assinatura - tem limite de 25 mensagens gratuitas
+    // Para ter mensagens ilimitadas, precisa assinar plano pago
+    console.log(`📊 [SALES] Usuário ${user.id} criado com limite de 25 mensagens gratuitas`);
     
     updateClientSession(session.phoneNumber, { 
       userId: user.id, 

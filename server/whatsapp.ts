@@ -2051,25 +2051,26 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       return;
     }
     
-    // 🔒 CHECK DE LIMITE DE MENSAGENS PARA USUÁRIOS SEM PLANO
+    // 🔒 CHECK DE LIMITE DE MENSAGENS PARA USUÁRIOS SEM PLANO PAGO
     const FREE_TRIAL_LIMIT = 25;
     const connection = await storage.getConnectionByUserId(userId);
     if (connection) {
       const subscription = await storage.getUserSubscription(userId);
-      const hasActiveSubscription = subscription?.status === 'active' || subscription?.status === 'trialing';
+      // Apenas status 'active' (plano pago) é ilimitado
+      const hasActiveSubscription = subscription?.status === 'active';
       
       if (!hasActiveSubscription) {
         const agentMessagesCount = await storage.getAgentMessagesCount(connection.id);
         
         if (agentMessagesCount >= FREE_TRIAL_LIMIT) {
-          console.log(`🚫 [AI AGENT] Limite de teste gratuito atingido (${agentMessagesCount}/${FREE_TRIAL_LIMIT}). Usuário precisa assinar plano.`);
+          console.log(`🚫 [AI AGENT] Limite de ${FREE_TRIAL_LIMIT} mensagens atingido (${agentMessagesCount}/${FREE_TRIAL_LIMIT}). Usuário precisa assinar plano.`);
           // Não enviar resposta - limite atingido
           return;
         }
         
-        console.log(`📊 [AI AGENT] Uso do período de teste: ${agentMessagesCount + 1}/${FREE_TRIAL_LIMIT}`);
+        console.log(`📊 [AI AGENT] Uso: ${agentMessagesCount + 1}/${FREE_TRIAL_LIMIT} mensagens`);
       } else {
-        console.log(`✅ [AI AGENT] Usuário tem plano ativo: ${subscription.plan.nome}`);
+        console.log(`✅ [AI AGENT] Usuário tem plano pago ativo: ${subscription.plan?.nome || 'Plano'}`);
       }
     }
     

@@ -945,10 +945,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const connection = await storage.getConnectionByUserId(userId);
       const subscription = await storage.getUserSubscription(userId);
       
-      // Check if user has active subscription
-      const hasActiveSubscription = subscription?.status === 'active' || subscription?.status === 'trialing';
+      // Apenas plano PAGO (status 'active') é ilimitado
+      // Sem plano ou qualquer outro status = limite de 25 mensagens
+      const hasActiveSubscription = subscription?.status === 'active';
       
-      // Free trial limit: 25 messages
+      // Limite de teste: 25 mensagens (para usuários sem plano pago)
       const FREE_TRIAL_LIMIT = 25;
       
       let agentMessagesCount = 0;
@@ -956,7 +957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         agentMessagesCount = await storage.getAgentMessagesCount(connection.id);
       }
       
-      // If user has active subscription, they have unlimited messages
+      // Se tem plano pago = ilimitado, senão = limite de 25
       const limit = hasActiveSubscription ? -1 : FREE_TRIAL_LIMIT;
       const remaining = hasActiveSubscription ? -1 : Math.max(0, FREE_TRIAL_LIMIT - agentMessagesCount);
       const isLimitReached = !hasActiveSubscription && agentMessagesCount >= FREE_TRIAL_LIMIT;
