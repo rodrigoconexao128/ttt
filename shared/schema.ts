@@ -955,6 +955,35 @@ export type QuickReply = typeof adminQuickReplies.$inferSelect;
 export type InsertQuickReply = z.infer<typeof insertQuickReplySchema>;
 
 // =============================================================================
+// USER QUICK REPLIES - Respostas Rápidas para Usuários do SaaS
+// =============================================================================
+
+export const userQuickReplies = pgTable("user_quick_replies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  title: varchar("title", { length: 100 }).notNull(),
+  content: text("content").notNull(),
+  shortcut: varchar("shortcut", { length: 50 }),
+  category: varchar("category", { length: 50 }),
+  usageCount: integer("usage_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_user_quick_replies_user").on(table.userId),
+  index("idx_user_quick_replies_shortcut").on(table.shortcut),
+]);
+
+export const insertUserQuickReplySchema = createInsertSchema(userQuickReplies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  usageCount: true,
+});
+
+export type UserQuickReply = typeof userQuickReplies.$inferSelect;
+export type InsertUserQuickReply = z.infer<typeof insertUserQuickReplySchema>;
+
+// =============================================================================
 // STRUCTURED RESPONSE FORMAT FOR MISTRAL (Media Actions)
 // =============================================================================
 

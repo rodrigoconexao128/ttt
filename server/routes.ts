@@ -3968,6 +3968,255 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
     }
   });
 
+  // ==================== USER QUICK REPLIES (SaaS Users) ====================
+
+  // GET - Listar respostas rápidas do usuário
+  app.get("/api/user/quick-replies", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const replies = await storage.getUserQuickReplies(userId);
+      res.json(replies);
+    } catch (error) {
+      console.error("Error fetching user quick replies:", error);
+      res.status(500).json({ message: "Failed to fetch quick replies" });
+    }
+  });
+
+  // POST - Criar resposta rápida do usuário
+  app.post("/api/user/quick-replies", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { title, content, shortcut, category } = req.body;
+
+      if (!title || !content) {
+        return res.status(400).json({ message: "Title and content are required" });
+      }
+
+      const reply = await storage.createUserQuickReply({
+        userId,
+        title,
+        content,
+        shortcut: shortcut || null,
+        category: category || null,
+      });
+
+      res.json(reply);
+    } catch (error) {
+      console.error("Error creating user quick reply:", error);
+      res.status(500).json({ message: "Failed to create quick reply" });
+    }
+  });
+
+  // PUT - Atualizar resposta rápida do usuário
+  app.put("/api/user/quick-replies/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { title, content, shortcut, category } = req.body;
+
+      // Verificar propriedade
+      const existing = await storage.getUserQuickReply(id);
+      if (!existing || existing.userId !== userId) {
+        return res.status(404).json({ message: "Quick reply not found" });
+      }
+
+      const reply = await storage.updateUserQuickReply(id, {
+        title,
+        content,
+        shortcut: shortcut || null,
+        category: category || null,
+        updatedAt: new Date(),
+      });
+
+      res.json(reply);
+    } catch (error) {
+      console.error("Error updating user quick reply:", error);
+      res.status(500).json({ message: "Failed to update quick reply" });
+    }
+  });
+
+  // DELETE - Excluir resposta rápida do usuário
+  app.delete("/api/user/quick-replies/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      // Verificar propriedade
+      const existing = await storage.getUserQuickReply(id);
+      if (!existing || existing.userId !== userId) {
+        return res.status(404).json({ message: "Quick reply not found" });
+      }
+
+      await storage.deleteUserQuickReply(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting user quick reply:", error);
+      res.status(500).json({ message: "Failed to delete quick reply" });
+    }
+  });
+
+  // POST - Incrementar uso de resposta rápida
+  app.post("/api/user/quick-replies/:id/use", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.incrementUserQuickReplyUsage(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error incrementing usage:", error);
+      res.status(500).json({ message: "Failed to increment usage" });
+    }
+  });
+
+  // POST - Gerar resposta rápida com IA para usuário
+  app.post("/api/user/quick-replies/generate", isAuthenticated, async (req: any, res) => {
+    try {
+      const { title } = req.body;
+
+      if (!title) {
+        return res.status(400).json({ message: "Title is required" });
+      }
+
+      const { generateWithMistral } = await import("./mistralClient");
+      
+      const systemPrompt = `Você é um assistente que cria mensagens prontas para atendimento ao cliente.
+Crie uma mensagem profissional, amigável e concisa baseada no título fornecido.
+Responda APENAS com a mensagem pronta, sem explicações adicionais.
+A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
+
+      const result = await generateWithMistral(systemPrompt, `Crie uma mensagem de: ${title}`);
+
+      res.json({ content: result.trim() });
+    } catch (error) {
+      console.error("Error generating user quick reply:", error);
+      res.status(500).json({ message: "Failed to generate quick reply" });
+    }
+  });
+
+  // POST - Gerar mensagem com IA para usuário
+  app.post("/api/user/ai/generate-message", isAuthenticated, async (req: any, res) => {
+    try {
+      const { prompt, contactName, context } = req.body;
+
+      if (!prompt) {
+        return res.status(400).json({ message: "Prompt is required" });
+      }
+
+      const { generateWithMistral } = await import("./mistralClient");
+      
+      let systemPrompt = `Você é um assistente que ajuda a criar mensagens para WhatsApp.
+Crie uma mensagem profissional, amigável e natural baseada na instrução do usuário.
+Responda APENAS com a mensagem pronta, sem explicações adicionais.
+A mensagem deve ser adequada para WhatsApp (informal mas profissional).
+Use emojis com moderação quando apropriado.`;
+
+      if (contactName) {
+        systemPrompt += `\n\nO nome do cliente é: ${contactName}`;
+      }
+
+      if (context && context.length > 0) {
+        systemPrompt += `\n\nÚltimas mensagens da conversa para contexto:\n${context.slice(-5).join('\n')}`;
+      }
+
+      const result = await generateWithMistral(systemPrompt, prompt);
+
+      res.json({ message: result.trim() });
+    } catch (error) {
+      console.error("Error generating user AI message:", error);
+      res.status(500).json({ message: "Failed to generate message" });
+    }
+  });
+
+  // ==================== USER MEDIA SEND ====================
+
+  // POST - Enviar mídia para conversa do usuário (áudio, imagem, vídeo, documento)
+  app.post("/api/conversations/:id/send-media", isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { caption, mediaType } = req.body;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ message: "File is required" });
+      }
+
+      // Verificar propriedade da conversa
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Upload para storage (base64)
+      const base64Data = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+
+      // Determinar tipo de mídia
+      const detectedType = mediaType || (
+        file.mimetype.startsWith('image/') ? 'image' :
+        file.mimetype.startsWith('video/') ? 'video' :
+        file.mimetype.startsWith('audio/') ? 'audio' : 'document'
+      );
+
+      // Enviar via WhatsApp
+      const { sendUserMediaMessage } = await import("./whatsapp");
+      await sendUserMediaMessage(userId, id, {
+        type: detectedType,
+        data: base64Data,
+        mimetype: file.mimetype,
+        filename: file.originalname,
+        caption: caption || undefined,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error sending user media:", error);
+      res.status(500).json({ message: error.message || "Failed to send media" });
+    }
+  });
+
+  // POST - Enviar áudio gravado pelo usuário (base64)
+  app.post("/api/conversations/:id/send-audio", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { audioData, duration } = req.body;
+
+      if (!audioData) {
+        return res.status(400).json({ message: "Audio data is required" });
+      }
+
+      // Verificar propriedade da conversa
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Enviar via WhatsApp
+      const { sendUserMediaMessage } = await import("./whatsapp");
+      await sendUserMediaMessage(userId, id, {
+        type: 'audio',
+        data: audioData,
+        mimetype: 'audio/ogg; codecs=opus',
+        ptt: true, // Push to talk (nota de voz)
+        seconds: duration || 0,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error sending user audio:", error);
+      res.status(500).json({ message: error.message || "Failed to send audio" });
+    }
+  });
+
   // ==================== AI MESSAGE GENERATOR ====================
 
   // POST - Gerar mensagem com IA

@@ -1701,6 +1701,76 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(adminQuickReplies.id, id));
   }
+
+  // ==================== USER QUICK REPLIES / RESPOSTAS RÁPIDAS USUÁRIOS ====================
+
+  async getUserQuickReplies(userId: string): Promise<any[]> {
+    const { userQuickReplies } = await import("@shared/schema");
+    return db
+      .select()
+      .from(userQuickReplies)
+      .where(eq(userQuickReplies.userId, userId))
+      .orderBy(userQuickReplies.createdAt);
+  }
+
+  async getUserQuickReply(id: string): Promise<any | undefined> {
+    const { userQuickReplies } = await import("@shared/schema");
+    const [reply] = await db
+      .select()
+      .from(userQuickReplies)
+      .where(eq(userQuickReplies.id, id));
+    return reply;
+  }
+
+  async createUserQuickReply(data: {
+    userId: string;
+    title: string;
+    content: string;
+    shortcut?: string | null;
+    category?: string | null;
+  }): Promise<any> {
+    const { userQuickReplies } = await import("@shared/schema");
+    const [reply] = await db
+      .insert(userQuickReplies)
+      .values(data)
+      .returning();
+    return reply;
+  }
+
+  async updateUserQuickReply(id: string, data: Partial<{
+    title: string;
+    content: string;
+    shortcut: string | null;
+    category: string | null;
+    usageCount: number;
+    updatedAt: Date;
+  }>): Promise<any> {
+    const { userQuickReplies } = await import("@shared/schema");
+    const [reply] = await db
+      .update(userQuickReplies)
+      .set(data)
+      .where(eq(userQuickReplies.id, id))
+      .returning();
+    return reply;
+  }
+
+  async deleteUserQuickReply(id: string): Promise<void> {
+    const { userQuickReplies } = await import("@shared/schema");
+    await db
+      .delete(userQuickReplies)
+      .where(eq(userQuickReplies.id, id));
+  }
+
+  async incrementUserQuickReplyUsage(id: string): Promise<void> {
+    const { userQuickReplies } = await import("@shared/schema");
+    await db
+      .update(userQuickReplies)
+      .set({
+        usageCount: sql`${userQuickReplies.usageCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(userQuickReplies.id, id));
+  }
 }
 
 export const storage = new DatabaseStorage();

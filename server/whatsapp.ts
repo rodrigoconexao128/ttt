@@ -2786,6 +2786,140 @@ export async function sendAdminMediaMessage(
   });
 }
 
+// ==================== USER MEDIA SEND (SaaS Users) ====================
+
+export interface UserMediaPayload {
+  type: 'audio' | 'image' | 'video' | 'document';
+  data: string; // base64 data URL or URL
+  mimetype: string;
+  filename?: string;
+  caption?: string;
+  ptt?: boolean; // push to talk (voice note)
+  seconds?: number;
+}
+
+export async function sendUserMediaMessage(
+  userId: string, 
+  conversationId: string, 
+  media: UserMediaPayload
+): Promise<void> {
+  const session = sessions.get(userId);
+  if (!session?.socket) {
+    throw new Error("WhatsApp not connected");
+  }
+
+  const conversation = await storage.getConversation(conversationId);
+  if (!conversation) {
+    throw new Error("Conversation not found");
+  }
+
+  // Resolver JID
+  let jid = conversation.remoteJid;
+  
+  if (jid && jid.includes("@lid")) {
+    const cached = session.contactsCache.get(jid);
+    if (cached && cached.phoneNumber) {
+      jid = cached.phoneNumber;
+    } else if (conversation.contactNumber) {
+      jid = `${conversation.contactNumber}@s.whatsapp.net`;
+    }
+  }
+  
+  if (!jid && conversation.contactNumber) {
+    jid = `${conversation.contactNumber}@s.whatsapp.net`;
+  }
+  
+  if (!jid) {
+    throw new Error("Could not determine destination JID");
+  }
+
+  console.log(`[sendUserMediaMessage] Sending ${media.type} to: ${jid}`);
+
+  // Converter base64 para buffer se necessário
+  let mediaBuffer: Buffer;
+  if (media.data.startsWith('data:')) {
+    const base64Data = media.data.split(',')[1];
+    mediaBuffer = Buffer.from(base64Data, 'base64');
+  } else {
+    mediaBuffer = Buffer.from(media.data, 'base64');
+  }
+
+  let messageContent: any;
+  let mediaTypeForStorage = media.type;
+
+  switch (media.type) {
+    case 'audio':
+      messageContent = {
+        audio: mediaBuffer,
+        mimetype: media.mimetype || 'audio/ogg; codecs=opus',
+        ptt: media.ptt !== false, // Default to true for voice notes
+        seconds: media.seconds,
+      };
+      break;
+      
+    case 'image':
+      messageContent = {
+        image: mediaBuffer,
+        mimetype: media.mimetype || 'image/jpeg',
+        caption: media.caption,
+      };
+      break;
+      
+    case 'video':
+      messageContent = {
+        video: mediaBuffer,
+        mimetype: media.mimetype || 'video/mp4',
+        caption: media.caption,
+      };
+      break;
+      
+    case 'document':
+      messageContent = {
+        document: mediaBuffer,
+        mimetype: media.mimetype || 'application/pdf',
+        fileName: media.filename || 'document',
+        caption: media.caption,
+      };
+      break;
+      
+    default:
+      throw new Error(`Unsupported media type: ${media.type}`);
+  }
+
+  const sentMessage = await session.socket.sendMessage(jid, messageContent);
+
+  // Salvar mensagem no banco
+  await storage.createMessage({
+    conversationId,
+    messageId: sentMessage?.key?.id || Date.now().toString(),
+    fromMe: true,
+    text: media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)} enviado]`,
+    timestamp: new Date(),
+    status: "sent",
+    isFromAgent: false,
+    mediaType: mediaTypeForStorage,
+    mediaUrl: media.data, // Guardar base64 para exibição
+    mediaMimeType: media.mimetype,
+    mediaCaption: media.caption,
+  });
+
+  await storage.updateConversation(conversationId, {
+    lastMessageText: media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)}]`,
+    lastMessageTime: new Date(),
+  });
+
+  // 🛑 AUTO-PAUSE IA: Quando o dono envia mídia pelo sistema, PAUSA a IA
+  try {
+    const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversationId);
+    if (!isAlreadyDisabled) {
+      await storage.disableAgentForConversation(conversationId);
+      console.log(`🛑 [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversationId} - dono enviou mídia pelo sistema`);
+    }
+  } catch (pauseError) {
+    console.error("Erro ao pausar IA automaticamente:", pauseError);
+  }
+}
+
 // ==================== BULK SEND / ENVIO EM MASSA ====================
 export async function sendBulkMessages(
   userId: string, 

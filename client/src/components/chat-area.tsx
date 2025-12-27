@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus } from "lucide-react";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -28,6 +28,10 @@ import { ptBR } from "date-fns/locale";
 import type { Message, Conversation, AiAgentConfig } from "@shared/schema";
 import { MessageImage } from "@/components/message-image";
 import { MessageAudio } from "@/components/message-audio";
+import { UserAudioRecorder } from "@/components/user-audio-recorder";
+import { UserMediaUploader } from "@/components/user-media-uploader";
+import { UserQuickReplies } from "@/components/user-quick-replies";
+import { UserAIMessageGenerator } from "@/components/user-ai-message-generator";
 
 interface ChatAreaProps {
   conversationId: string | null;
@@ -47,6 +51,16 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [scheduleNote, setScheduleNote] = useState("");
+
+  // Estados para novas funcionalidades
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [isSendingMedia, setIsSendingMedia] = useState(false);
+  
+  // Detectar se é mobile
+  const isMobile = typeof window !== 'undefined' && (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth < 768
+  );
 
   const { data: conversation } = useQuery<Conversation>({
     queryKey: ["/api/conversation", conversationId],
@@ -208,6 +222,92 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
       });
     },
   });
+
+  // Mutation para enviar áudio
+  const sendAudioMutation = useMutation({
+    mutationFn: async ({ audioData, duration }: { audioData: string; duration: number }) => {
+      return await apiRequest("POST", `/api/conversations/${conversationId}/send-audio`, {
+        audioData,
+        duration,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
+      toast({ title: "Áudio enviado!" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao enviar áudio",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para enviar mídia
+  const sendMediaMutation = useMutation({
+    mutationFn: async ({ file, type, caption }: { file: File; type: string; caption?: string }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('mediaType', type);
+      if (caption) formData.append('caption', caption);
+      
+      const response = await fetch(`/api/conversations/${conversationId}/send-media`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to send media');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      setIsSendingMedia(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
+      toast({ title: "Mídia enviada!" });
+    },
+    onError: (error: Error) => {
+      setIsSendingMedia(false);
+      toast({
+        title: "Erro ao enviar mídia",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handler para enviar áudio
+  const handleSendAudio = useCallback(async (audioBlob: Blob, duration: number) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      sendAudioMutation.mutate({ audioData: base64, duration });
+    };
+    reader.readAsDataURL(audioBlob);
+  }, [sendAudioMutation]);
+
+  // Handler para enviar mídia
+  const handleSendMedia = useCallback((file: File, type: "image" | "video" | "document" | "audio", caption?: string) => {
+    setIsSendingMedia(true);
+    sendMediaMutation.mutate({ file, type, caption });
+  }, [sendMediaMutation]);
+
+  // Handler para selecionar resposta rápida
+  const handleQuickReplySelect = useCallback((content: string) => {
+    setMessageText(content);
+  }, []);
+
+  // Handler para gerar mensagem com IA
+  const handleAIGenerate = useCallback((message: string) => {
+    setMessageText(message);
+  }, []);
 
   const handleSend = () => {
     if (!messageText.trim() || !conversationId) return;
@@ -618,24 +718,78 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
 
       {/* Message Input */}
       <div className="p-4 border-t bg-background">
-        <div className="flex gap-2">
-          <Textarea
-            placeholder="Digite sua mensagem..."
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            onKeyDown={handleKeyPress}
-            className="resize-none min-h-12 max-h-32"
-            data-testid="input-message"
+        {/* Se está gravando áudio ou enviando mídia, mostra o componente correspondente */}
+        {isRecordingAudio ? (
+          <UserAudioRecorder
+            onSend={handleSendAudio}
+            onCancel={() => setIsRecordingAudio(false)}
+            isRecording={isRecordingAudio}
+            setIsRecording={setIsRecordingAudio}
+            disabled={sendAudioMutation.isPending}
           />
-          <Button
-            size="icon"
-            onClick={handleSend}
-            disabled={!messageText.trim() || sendMutation.isPending}
-            data-testid="button-send"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
-        </div>
+        ) : isSendingMedia ? (
+          <div className="flex items-center justify-center gap-2 py-3">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Enviando mídia...</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {/* Botões de ação à esquerda */}
+            <div className="flex items-center gap-1">
+              <UserMediaUploader
+                onUpload={handleSendMedia}
+                disabled={sendMediaMutation.isPending}
+              />
+              <UserQuickReplies
+                onSelect={handleQuickReplySelect}
+                disabled={false}
+              />
+              <UserAIMessageGenerator
+                onGenerate={handleAIGenerate}
+                contactName={conversation?.contactName || undefined}
+                lastMessages={messages?.slice(-5).map(m => m.text || "").filter(Boolean) || []}
+                disabled={false}
+              />
+            </div>
+            
+            {/* Input de texto */}
+            <Textarea
+              placeholder="Digite sua mensagem..."
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              onKeyDown={handleKeyPress}
+              className="resize-none min-h-12 max-h-32 flex-1"
+              data-testid="input-message"
+            />
+            
+            {/* Botões de ação à direita */}
+            <div className="flex items-center gap-1">
+              {/* Botão de gravar áudio (aparece quando não tem texto) */}
+              {!messageText.trim() && (
+                <UserAudioRecorder
+                  onSend={handleSendAudio}
+                  onCancel={() => setIsRecordingAudio(false)}
+                  isRecording={isRecordingAudio}
+                  setIsRecording={setIsRecordingAudio}
+                  disabled={sendAudioMutation.isPending}
+                />
+              )}
+              
+              {/* Botão de enviar (aparece quando tem texto) */}
+              {messageText.trim() && (
+                <Button
+                  size="icon"
+                  onClick={handleSend}
+                  disabled={!messageText.trim() || sendMutation.isPending}
+                  data-testid="button-send"
+                  className={isMobile ? "h-11 w-11" : ""}
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Avatar Modal */}
