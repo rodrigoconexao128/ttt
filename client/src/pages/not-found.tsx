@@ -1,18 +1,56 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { supabase } from "@/lib/supabase";
+
+// Função para limpar todos os dados de autenticação
+async function clearAuthData() {
+  try {
+    // Limpa sessão do Supabase
+    await supabase.auth.signOut();
+  } catch (e) {
+    console.warn("Erro ao fazer signOut do Supabase:", e);
+  }
+  
+  // Limpa localStorage relacionado à autenticação
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.includes('supabase') || key.includes('auth') || key.includes('token'))) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach(key => localStorage.removeItem(key));
+  
+  // Limpa sessionStorage também
+  const sessionKeysToRemove: string[] = [];
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key && (key.includes('supabase') || key.includes('auth') || key.includes('token'))) {
+      sessionKeysToRemove.push(key);
+    }
+  }
+  sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+}
 
 export default function NotFound() {
   const [, setLocation] = useLocation();
+  const [isClearing, setIsClearing] = useState(true);
 
   useEffect(() => {
-    // Redireciona para login após 2 segundos
-    const timer = setTimeout(() => {
-      setLocation("/login");
-    }, 2000);
-
-    return () => clearTimeout(timer);
+    // Limpa dados de autenticação e redireciona para login
+    const clearAndRedirect = async () => {
+      await clearAuthData();
+      setIsClearing(false);
+      
+      // Redireciona para login após 1 segundo
+      setTimeout(() => {
+        setLocation("/login");
+      }, 1000);
+    };
+    
+    clearAndRedirect();
   }, [setLocation]);
 
   return (
