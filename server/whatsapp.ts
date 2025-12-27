@@ -2663,6 +2663,129 @@ export async function sendAdminDirectMessage(adminId: string, phoneNumber: strin
   await session.socket.sendMessage(jid, { text });
 }
 
+// ==================== ADMIN MEDIA MESSAGE ====================
+
+interface AdminMediaPayload {
+  type: 'audio' | 'image' | 'video' | 'document';
+  data: string; // base64 data URL or URL
+  mimetype: string;
+  filename?: string;
+  caption?: string;
+  ptt?: boolean; // push to talk (voice note)
+  seconds?: number;
+}
+
+export async function sendAdminMediaMessage(
+  adminId: string, 
+  conversationId: string, 
+  media: AdminMediaPayload
+): Promise<void> {
+  const session = adminSessions.get(adminId);
+  if (!session?.socket) {
+    throw new Error("Admin WhatsApp not connected");
+  }
+
+  const conversation = await storage.getAdminConversation(conversationId);
+  if (!conversation) {
+    throw new Error("Conversation not found");
+  }
+
+  // Resolver JID
+  let jid = conversation.remoteJid;
+  
+  if (jid && jid.includes("@lid")) {
+    const cached = session.contactsCache.get(jid);
+    if (cached && cached.phoneNumber) {
+      jid = cached.phoneNumber;
+    } else if (conversation.contactNumber) {
+      jid = `${conversation.contactNumber}@s.whatsapp.net`;
+    }
+  }
+  
+  if (!jid && conversation.contactNumber) {
+    jid = `${conversation.contactNumber}@s.whatsapp.net`;
+  }
+  
+  if (!jid) {
+    throw new Error("Could not determine destination JID");
+  }
+
+  console.log(`[sendAdminMediaMessage] Sending ${media.type} to: ${jid}`);
+
+  // Converter base64 para buffer se necessário
+  let mediaBuffer: Buffer;
+  if (media.data.startsWith('data:')) {
+    const base64Data = media.data.split(',')[1];
+    mediaBuffer = Buffer.from(base64Data, 'base64');
+  } else {
+    mediaBuffer = Buffer.from(media.data, 'base64');
+  }
+
+  let messageContent: any;
+  let mediaTypeForStorage = media.type;
+
+  switch (media.type) {
+    case 'audio':
+      messageContent = {
+        audio: mediaBuffer,
+        mimetype: media.mimetype || 'audio/ogg; codecs=opus',
+        ptt: media.ptt !== false, // Default to true for voice notes
+        seconds: media.seconds,
+      };
+      break;
+      
+    case 'image':
+      messageContent = {
+        image: mediaBuffer,
+        mimetype: media.mimetype || 'image/jpeg',
+        caption: media.caption,
+      };
+      break;
+      
+    case 'video':
+      messageContent = {
+        video: mediaBuffer,
+        mimetype: media.mimetype || 'video/mp4',
+        caption: media.caption,
+      };
+      break;
+      
+    case 'document':
+      messageContent = {
+        document: mediaBuffer,
+        mimetype: media.mimetype || 'application/pdf',
+        fileName: media.filename || 'document',
+        caption: media.caption,
+      };
+      break;
+      
+    default:
+      throw new Error(`Unsupported media type: ${media.type}`);
+  }
+
+  const sentMessage = await session.socket.sendMessage(jid, messageContent);
+
+  // Salvar mensagem no banco
+  await storage.createAdminMessage({
+    conversationId,
+    messageId: sentMessage?.key?.id || Date.now().toString(),
+    fromMe: true,
+    text: media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)} enviado]`,
+    timestamp: new Date(),
+    status: "sent",
+    isFromAgent: false,
+    mediaType: mediaTypeForStorage,
+    mediaUrl: media.data, // Guardar base64 para exibição
+    mediaMimeType: media.mimetype,
+    mediaCaption: media.caption,
+  });
+
+  await storage.updateAdminConversation(conversationId, {
+    lastMessageText: media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)}]`,
+    lastMessageTime: new Date(),
+  });
+}
+
 // ==================== BULK SEND / ENVIO EM MASSA ====================
 export async function sendBulkMessages(
   userId: string, 

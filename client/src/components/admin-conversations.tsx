@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
-import { Send, MessageCircle, Search, Smartphone, Bot, X, Trash2, AlertTriangle } from "lucide-react";
+import { Send, MessageCircle, Search, Smartphone, Bot, X, Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
@@ -15,6 +15,11 @@ import { ptBR } from "date-fns/locale";
 import type { Conversation, AiAgentConfig, AdminMessage } from "@shared/schema";
 import { MessageImage } from "@/components/message-image";
 import { MessageAudio } from "@/components/message-audio";
+import { AudioRecorder } from "@/components/audio-recorder";
+import { MediaUploader, type MediaType } from "@/components/media-uploader";
+import { QuickReplies } from "@/components/quick-replies";
+import { AIMessageGenerator } from "@/components/ai-message-generator";
+import { cn } from "@/lib/utils";
 
 interface AdminConversation extends Conversation {
   userId?: string;
@@ -33,6 +38,17 @@ export default function AdminConversations() {
   const [avatarModalName, setAvatarModalName] = useState("");
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
+  const [isSendingMedia, setIsSendingMedia] = useState(false);
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  // Detectar se está em mobile
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Fetch all conversations from admin endpoint
   const { data: conversations = [], isLoading } = useQuery<AdminConversation[]>({
@@ -154,6 +170,98 @@ export default function AdminConversations() {
       });
     },
   });
+
+  // Mutation para enviar áudio gravado
+  const sendAudioMutation = useMutation({
+    mutationFn: async ({ audioBlob, duration }: { audioBlob: Blob; duration: number }) => {
+      // Converter blob para base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(audioBlob);
+      });
+      const audioData = await base64Promise;
+      
+      return await apiRequest("POST", `/api/admin/conversations/${selectedConversationId}/send-audio`, {
+        audioData,
+        duration,
+      });
+    },
+    onSuccess: () => {
+      setIsRecordingAudio(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/messages", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+      toast({
+        title: "Áudio enviado!",
+        description: "Sua mensagem de voz foi enviada com sucesso.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao enviar áudio",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para enviar mídia (imagem, vídeo, documento)
+  const sendMediaMutation = useMutation({
+    mutationFn: async ({ file, mediaType }: { file: File; mediaType: MediaType }) => {
+      setIsSendingMedia(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('mediaType', mediaType);
+      
+      const response = await fetch(`/api/admin/conversations/${selectedConversationId}/send-media`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to send media');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      setIsSendingMedia(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/messages", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+      toast({
+        title: "Mídia enviada!",
+        description: "Seu arquivo foi enviado com sucesso.",
+      });
+    },
+    onError: (error: Error) => {
+      setIsSendingMedia(false);
+      toast({
+        title: "Erro ao enviar mídia",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handlers para os novos componentes
+  const handleAudioRecordingComplete = useCallback((audioBlob: Blob, duration: number) => {
+    sendAudioMutation.mutate({ audioBlob, duration });
+  }, [sendAudioMutation]);
+
+  const handleMediaSelect = useCallback((file: File, type: MediaType) => {
+    sendMediaMutation.mutate({ file, mediaType: type });
+  }, [sendMediaMutation]);
+
+  const handleQuickReplySelect = useCallback((content: string) => {
+    setMessageText(content);
+  }, []);
+
+  const handleAIMessageGenerate = useCallback((message: string) => {
+    setMessageText(message);
+  }, []);
 
   // Mutation para limpar histórico
   const clearHistoryMutation = useMutation({
@@ -572,25 +680,100 @@ export default function AdminConversations() {
             </div>
 
             {/* Message Input */}
-            <div className="border-t p-4 flex-shrink-0 space-y-2">
-              <div className="flex gap-2">
-                <Textarea
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Digite sua mensagem..."
-                  className="flex-1 min-h-12 resize-none"
-                  data-testid="textarea-admin-message"
-                />
-                <Button
-                  onClick={handleSend}
-                  disabled={sendMutation.isPending || !messageText.trim()}
-                  size="icon"
-                  data-testid="button-admin-send-message"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
+            <div className={cn(
+              "border-t p-3 md:p-4 flex-shrink-0 space-y-2 bg-background",
+              isMobile && "sticky bottom-0"
+            )}>
+              {/* Loading state para envio de mídia */}
+              {isSendingMedia && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted rounded-lg p-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Enviando mídia...</span>
+                </div>
+              )}
+              
+              {/* Área de gravação de áudio (quando estiver gravando) */}
+              {isRecordingAudio && (
+                <div className="flex items-center justify-center py-2">
+                  <AudioRecorder
+                    onRecordingComplete={handleAudioRecordingComplete}
+                    onCancel={() => setIsRecordingAudio(false)}
+                    disabled={sendAudioMutation.isPending}
+                  />
+                </div>
+              )}
+              
+              {/* Input normal */}
+              {!isRecordingAudio && (
+                <div className="flex items-end gap-2">
+                  {/* Botões de mídia (esquerda) */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Anexar arquivo */}
+                    <MediaUploader
+                      onFileSelect={handleMediaSelect}
+                      disabled={sendMutation.isPending || isSendingMedia}
+                    />
+                  </div>
+                  
+                  {/* Textarea */}
+                  <div className="flex-1 relative">
+                    <Textarea
+                      value={messageText}
+                      onChange={(e) => setMessageText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      placeholder="Digite sua mensagem..."
+                      className={cn(
+                        "min-h-[44px] max-h-32 resize-none pr-10",
+                        isMobile && "text-base" // Maior em mobile
+                      )}
+                      data-testid="textarea-admin-message"
+                    />
+                  </div>
+                  
+                  {/* Botões de ação (direita) */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Respostas rápidas */}
+                    <QuickReplies
+                      onSelect={handleQuickReplySelect}
+                      disabled={sendMutation.isPending}
+                    />
+                    
+                    {/* Gerar com IA */}
+                    <AIMessageGenerator
+                      onGenerate={handleAIMessageGenerate}
+                      context={{
+                        contactName: selectedConversation?.contactName || undefined,
+                        lastMessages: messages.slice(-5).map(m => m.text || ''),
+                      }}
+                      disabled={sendMutation.isPending}
+                    />
+                    
+                    {/* Gravar áudio ou Enviar texto */}
+                    {messageText.trim() ? (
+                      <Button
+                        onClick={handleSend}
+                        disabled={sendMutation.isPending}
+                        size="icon"
+                        className="h-10 w-10"
+                        data-testid="button-admin-send-message"
+                      >
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    ) : (
+                      <AudioRecorder
+                        onRecordingComplete={handleAudioRecordingComplete}
+                        onCancel={() => {}}
+                        disabled={sendMutation.isPending || sendAudioMutation.isPending}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

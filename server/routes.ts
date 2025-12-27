@@ -3865,6 +3865,224 @@ Foco: fazer o cliente TESTAR a ferramenta.`
     }
   });
 
+  // ==================== QUICK REPLIES / RESPOSTAS RÁPIDAS ====================
+
+  // GET - Listar respostas rápidas do admin
+  app.get("/api/admin/quick-replies", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const replies = await storage.getQuickReplies(adminId);
+      res.json(replies);
+    } catch (error) {
+      console.error("Error fetching quick replies:", error);
+      res.status(500).json({ message: "Failed to fetch quick replies" });
+    }
+  });
+
+  // POST - Criar resposta rápida
+  app.post("/api/admin/quick-replies", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { title, content, shortcut, category } = req.body;
+
+      if (!title || !content) {
+        return res.status(400).json({ message: "Title and content are required" });
+      }
+
+      const reply = await storage.createQuickReply({
+        adminId,
+        title,
+        content,
+        shortcut: shortcut || null,
+        category: category || null,
+      });
+
+      res.json(reply);
+    } catch (error) {
+      console.error("Error creating quick reply:", error);
+      res.status(500).json({ message: "Failed to create quick reply" });
+    }
+  });
+
+  // PUT - Atualizar resposta rápida
+  app.put("/api/admin/quick-replies/:id", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { title, content, shortcut, category } = req.body;
+
+      const reply = await storage.updateQuickReply(id, {
+        title,
+        content,
+        shortcut: shortcut || null,
+        category: category || null,
+        updatedAt: new Date(),
+      });
+
+      res.json(reply);
+    } catch (error) {
+      console.error("Error updating quick reply:", error);
+      res.status(500).json({ message: "Failed to update quick reply" });
+    }
+  });
+
+  // DELETE - Remover resposta rápida
+  app.delete("/api/admin/quick-replies/:id", isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteQuickReply(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting quick reply:", error);
+      res.status(500).json({ message: "Failed to delete quick reply" });
+    }
+  });
+
+  // POST - Gerar resposta rápida com IA
+  app.post("/api/admin/quick-replies/generate", isAdmin, async (req: any, res) => {
+    try {
+      const { prompt } = req.body;
+
+      if (!prompt) {
+        return res.status(400).json({ message: "Prompt is required" });
+      }
+
+      const { generateWithMistral } = await import("./mistralClient");
+      
+      const systemPrompt = `Você é um assistente que cria mensagens prontas para atendimento ao cliente.
+Crie uma mensagem profissional, amigável e concisa baseada na descrição do usuário.
+Responda APENAS com a mensagem pronta, sem explicações adicionais.
+A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
+
+      const result = await generateWithMistral(systemPrompt, prompt);
+      
+      // Extrair título do prompt
+      const title = prompt.length > 30 ? prompt.substring(0, 30) + "..." : prompt;
+
+      res.json({ 
+        content: result.trim(),
+        title: title.charAt(0).toUpperCase() + title.slice(1)
+      });
+    } catch (error) {
+      console.error("Error generating quick reply:", error);
+      res.status(500).json({ message: "Failed to generate quick reply" });
+    }
+  });
+
+  // ==================== AI MESSAGE GENERATOR ====================
+
+  // POST - Gerar mensagem com IA
+  app.post("/api/admin/ai/generate-message", isAdmin, async (req: any, res) => {
+    try {
+      const { prompt, context } = req.body;
+
+      if (!prompt) {
+        return res.status(400).json({ message: "Prompt is required" });
+      }
+
+      const { generateWithMistral } = await import("./mistralClient");
+      
+      let systemPrompt = `Você é um assistente que ajuda a criar mensagens para WhatsApp.
+Crie uma mensagem profissional, amigável e natural baseada na instrução do usuário.
+Responda APENAS com a mensagem pronta, sem explicações adicionais.
+A mensagem deve ser adequada para WhatsApp (informal mas profissional).
+Use emojis com moderação quando apropriado.`;
+
+      if (context?.contactName) {
+        systemPrompt += `\n\nO nome do cliente é: ${context.contactName}`;
+      }
+
+      if (context?.lastMessages && context.lastMessages.length > 0) {
+        systemPrompt += `\n\nÚltimas mensagens da conversa para contexto:\n${context.lastMessages.slice(-5).join('\n')}`;
+      }
+
+      const result = await generateWithMistral(systemPrompt, prompt);
+
+      res.json({ message: result.trim() });
+    } catch (error) {
+      console.error("Error generating AI message:", error);
+      res.status(500).json({ message: "Failed to generate message" });
+    }
+  });
+
+  // ==================== ADMIN MEDIA SEND ====================
+
+  // POST - Enviar mídia para conversa (áudio, imagem, vídeo, documento)
+  app.post("/api/admin/conversations/:id/send-media", isAdmin, upload.single('file'), async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+      const { caption, mediaType } = req.body;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ message: "File is required" });
+      }
+
+      const conversation = await storage.getAdminConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      // Upload para storage (base64)
+      const base64Data = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+
+      // Determinar tipo de mídia
+      const detectedType = mediaType || (
+        file.mimetype.startsWith('image/') ? 'image' :
+        file.mimetype.startsWith('video/') ? 'video' :
+        file.mimetype.startsWith('audio/') ? 'audio' : 'document'
+      );
+
+      // Enviar via WhatsApp
+      const { sendAdminMediaMessage } = await import("./whatsapp");
+      await sendAdminMediaMessage(adminId, id, {
+        type: detectedType,
+        data: base64Data,
+        mimetype: file.mimetype,
+        filename: file.originalname,
+        caption: caption || undefined,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error sending media:", error);
+      res.status(500).json({ message: error.message || "Failed to send media" });
+    }
+  });
+
+  // POST - Enviar áudio gravado (base64)
+  app.post("/api/admin/conversations/:id/send-audio", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+      const { audioData, duration } = req.body;
+
+      if (!audioData) {
+        return res.status(400).json({ message: "Audio data is required" });
+      }
+
+      const conversation = await storage.getAdminConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      // Enviar via WhatsApp
+      const { sendAdminMediaMessage } = await import("./whatsapp");
+      await sendAdminMediaMessage(adminId, id, {
+        type: 'audio',
+        data: audioData,
+        mimetype: 'audio/ogg; codecs=opus',
+        ptt: true, // Push to talk (nota de voz)
+        seconds: duration || 0,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error sending audio:", error);
+      res.status(500).json({ message: error.message || "Failed to send audio" });
+    }
+  });
+
   // ==================== DEV ENDPOINTS ====================
   
   // POST - Atualizar prompt do agente com instruções completas do sistema

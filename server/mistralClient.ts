@@ -195,3 +195,44 @@ export async function analyzeImageForAdmin(
   }
 }
 
+// ==================== TEXT GENERATION ====================
+
+/**
+ * Gera texto usando a API Mistral
+ * Útil para geração de mensagens, respostas rápidas, etc.
+ */
+export async function generateWithMistral(
+  systemPrompt: string,
+  userMessage: string,
+  options?: {
+    model?: string;
+    maxTokens?: number;
+    temperature?: number;
+  }
+): Promise<string> {
+  try {
+    const mistral = await getMistralClient();
+    
+    const model = options?.model || "mistral-small-latest";
+    
+    const response = await mistral.chat.complete({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage }
+      ],
+      maxTokens: options?.maxTokens || 500,
+      temperature: options?.temperature ?? 0.7,
+    });
+    
+    if (!response || !response.choices || response.choices.length === 0) {
+      throw new Error("No response from Mistral");
+    }
+    
+    return (response.choices[0].message.content as string) || "";
+  } catch (error: any) {
+    console.error("Error generating text with Mistral:", error);
+    throw new Error(`Failed to generate text: ${error.message}`);
+  }
+}
+

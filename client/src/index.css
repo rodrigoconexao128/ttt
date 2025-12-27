@@ -466,4 +466,45 @@
   .h-safe {
     height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
+  
+  /* Animação de pulso suave para gravação */
+  .animate-pulse-slow {
+    animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  @keyframes pulse-slow {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+  
+  /* Touch manipulation para botões mobile */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+}
+
+/* Mobile-specific styles for conversation input */
+@media (max-width: 768px) {
+  .conversation-input {
+    position: sticky;
+    bottom: 0;
+    background: var(--background);
+    border-top: 1px solid var(--border);
+    padding: 0.75rem;
+  }
+  
+  .conversation-input textarea {
+    font-size: 16px; /* Prevent iOS zoom */
+    min-height: 44px;
+  }
+  
+  /* Larger touch targets for mobile */
+  .conversation-input button {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }

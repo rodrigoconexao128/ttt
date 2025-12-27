@@ -926,6 +926,35 @@ export const adminAgentMediaRelations = relations(adminAgentMedia, ({ one }) => 
 }));
 
 // =============================================================================
+// QUICK REPLIES - Respostas Rápidas para Admin
+// =============================================================================
+
+export const adminQuickReplies = pgTable("admin_quick_replies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminId: varchar("admin_id").references(() => admins.id, { onDelete: 'cascade' }),
+  title: varchar("title", { length: 100 }).notNull(),
+  content: text("content").notNull(),
+  shortcut: varchar("shortcut", { length: 50 }),
+  category: varchar("category", { length: 50 }),
+  usageCount: integer("usage_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_quick_replies_admin").on(table.adminId),
+  index("idx_quick_replies_shortcut").on(table.shortcut),
+]);
+
+export const insertQuickReplySchema = createInsertSchema(adminQuickReplies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  usageCount: true,
+});
+
+export type QuickReply = typeof adminQuickReplies.$inferSelect;
+export type InsertQuickReply = z.infer<typeof insertQuickReplySchema>;
+
+// =============================================================================
 // STRUCTURED RESPONSE FORMAT FOR MISTRAL (Media Actions)
 // =============================================================================
 

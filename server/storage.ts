@@ -1631,6 +1631,76 @@ export class DatabaseStorage implements IStorage {
       };
     }
   }
+
+  // ==================== QUICK REPLIES / RESPOSTAS RÁPIDAS ====================
+
+  async getQuickReplies(adminId: string): Promise<any[]> {
+    const { adminQuickReplies } = await import("@shared/schema");
+    return db
+      .select()
+      .from(adminQuickReplies)
+      .where(eq(adminQuickReplies.adminId, adminId))
+      .orderBy(adminQuickReplies.createdAt);
+  }
+
+  async getQuickReply(id: string): Promise<any | undefined> {
+    const { adminQuickReplies } = await import("@shared/schema");
+    const [reply] = await db
+      .select()
+      .from(adminQuickReplies)
+      .where(eq(adminQuickReplies.id, id));
+    return reply;
+  }
+
+  async createQuickReply(data: {
+    adminId: string;
+    title: string;
+    content: string;
+    shortcut?: string | null;
+    category?: string | null;
+  }): Promise<any> {
+    const { adminQuickReplies } = await import("@shared/schema");
+    const [reply] = await db
+      .insert(adminQuickReplies)
+      .values(data)
+      .returning();
+    return reply;
+  }
+
+  async updateQuickReply(id: string, data: Partial<{
+    title: string;
+    content: string;
+    shortcut: string | null;
+    category: string | null;
+    usageCount: number;
+    updatedAt: Date;
+  }>): Promise<any> {
+    const { adminQuickReplies } = await import("@shared/schema");
+    const [reply] = await db
+      .update(adminQuickReplies)
+      .set(data)
+      .where(eq(adminQuickReplies.id, id))
+      .returning();
+    return reply;
+  }
+
+  async deleteQuickReply(id: string): Promise<void> {
+    const { adminQuickReplies } = await import("@shared/schema");
+    await db
+      .delete(adminQuickReplies)
+      .where(eq(adminQuickReplies.id, id));
+  }
+
+  async incrementQuickReplyUsage(id: string): Promise<void> {
+    const { adminQuickReplies } = await import("@shared/schema");
+    await db
+      .update(adminQuickReplies)
+      .set({
+        usageCount: sql`${adminQuickReplies.usageCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(adminQuickReplies.id, id));
+  }
 }
 
 export const storage = new DatabaseStorage();
