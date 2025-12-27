@@ -249,20 +249,24 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
   // Mutation para enviar mídia
   const sendMediaMutation = useMutation({
     mutationFn: async ({ file, type, caption }: { file: File; type: string; caption?: string }) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('mediaType', type);
-      if (caption) formData.append('caption', caption);
-      
-      const response = await fetch(`/api/conversations/${conversationId}/send-media`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
+      // Converter arquivo para base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to send media');
-      }
+      const base64Data = await base64Promise;
+      
+      // Enviar como JSON com apiRequest (que tem autenticação)
+      const response = await apiRequest("POST", `/api/conversations/${conversationId}/send-media-base64`, {
+        fileData: base64Data,
+        fileName: file.name,
+        mimeType: file.type,
+        mediaType: type,
+        caption: caption || undefined,
+      });
       
       return response.json();
     },

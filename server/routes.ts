@@ -4178,6 +4178,52 @@ Use emojis com moderação quando apropriado.`;
     }
   });
 
+  // POST - Enviar mídia como base64 (para autenticação via Bearer token)
+  app.post("/api/conversations/:id/send-media-base64", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { fileData, fileName, mimeType, mediaType, caption } = req.body;
+
+      if (!fileData) {
+        return res.status(400).json({ message: "File data is required" });
+      }
+
+      // Verificar propriedade da conversa
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Determinar tipo de mídia
+      const detectedType = mediaType || (
+        mimeType?.startsWith('image/') ? 'image' :
+        mimeType?.startsWith('video/') ? 'video' :
+        mimeType?.startsWith('audio/') ? 'audio' : 'document'
+      );
+
+      // Enviar via WhatsApp
+      const { sendUserMediaMessage } = await import("./whatsapp");
+      await sendUserMediaMessage(userId, id, {
+        type: detectedType,
+        data: fileData,
+        mimetype: mimeType || 'application/octet-stream',
+        filename: fileName || 'file',
+        caption: caption || undefined,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error sending user media (base64):", error);
+      res.status(500).json({ message: error.message || "Failed to send media" });
+    }
+  });
+
   // POST - Enviar áudio gravado pelo usuário (base64)
   app.post("/api/conversations/:id/send-audio", isAuthenticated, async (req: any, res) => {
     try {
