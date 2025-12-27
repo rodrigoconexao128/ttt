@@ -314,8 +314,29 @@ export class UserFollowUpService {
       .reverse()
       .map(m => ({
         role: m.fromMe ? "assistant" : "user",
-        content: m.text || (m.mediaType ? `[Mídia: ${m.mediaType}]` : "")
+        content: m.text || (m.mediaType ? `[Mídia: ${m.mediaType}]` : ""),
+        timestamp: m.timestamp
       }));
+
+    // Calcular tempo desde última mensagem do cliente
+    const lastClientMessage = recentMessages.find(m => !m.fromMe);
+    const lastOurMessage = recentMessages.find(m => m.fromMe);
+    const lastClientTime = lastClientMessage?.timestamp ? new Date(lastClientMessage.timestamp) : null;
+    const lastOurTime = lastOurMessage?.timestamp ? new Date(lastOurMessage.timestamp) : null;
+    const now = new Date();
+    
+    const minutesSinceClient = lastClientTime 
+      ? Math.floor((now.getTime() - lastClientTime.getTime()) / (1000 * 60)) 
+      : 9999;
+    const minutesSinceOur = lastOurTime 
+      ? Math.floor((now.getTime() - lastOurTime.getTime()) / (1000 * 60)) 
+      : 9999;
+    
+    // Determinar quem falou por último
+    const lastMessageWasOurs = lastOurTime && lastClientTime ? lastOurTime > lastClientTime : !!lastOurTime;
+    
+    // Extrair contexto da conversa
+    const clientMessages = recentMessages.filter(m => !m.fromMe).map(m => m.text).join(' ');
 
     // Preparar informações importantes não usadas
     const importantInfo = (config.importantInfo || [])
@@ -331,51 +352,75 @@ export class UserFollowUpService {
     };
 
     const prompt = `
-Você é um especialista em follow-up de vendas. Analise esta conversa e decida o próximo passo.
+Você é um ESPECIALISTA em follow-up de vendas e conversão de leads via WhatsApp.
+Sua missão é criar follow-ups que parecem 100% HUMANOS e CONTEXTUALIZADOS.
 
-## CONTEXTO
+## ANÁLISE TEMPORAL CRÍTICA
+- Tempo desde última msg do CLIENTE: ${minutesSinceClient} minutos (${Math.floor(minutesSinceClient/60)}h ${minutesSinceClient%60}m)
+- Tempo desde NOSSA última msg: ${minutesSinceOur} minutos (${Math.floor(minutesSinceOur/60)}h ${minutesSinceOur%60}m)
+- Quem falou por último: ${lastMessageWasOurs ? 'NÓS (cliente não respondeu)' : 'CLIENTE (devemos resposta?)'}
 - Estágio atual do follow-up: ${conversation.followupStage || 0}
-- Tom desejado: ${toneMap[config.tone] || toneMap.consultivo}
-- Nível de formalidade: ${config.formalityLevel}/10
-- Usar emojis: ${config.useEmojis ? 'Sim, moderadamente' : 'Não'}
 
-## INFORMAÇÕES IMPORTANTES (ainda não mencionadas)
-${importantInfo || 'Nenhuma informação adicional disponível'}
+## REGRAS DE CUMPRIMENTO (CRÍTICO!)
+⚠️ NUNCA use "Oi", "Olá", "Bom dia", "Boa tarde" se:
+- A última mensagem foi há MENOS de 4 horas
+- Você já cumprimentou na conversa recentemente
+- Seria estranho cumprimentar de novo no contexto
 
-## HISTÓRICO DA CONVERSA
+✅ PODE cumprimentar SE:
+- Passou mais de 24 horas desde a última interação
+- É um novo dia (manhã seguinte)
+- Faz sentido no contexto
+
+## CONFIGURAÇÕES DO AGENTE
+- Tom: ${toneMap[config.tone] || toneMap.consultivo}
+- Formalidade: ${config.formalityLevel}/10 (1=muito informal, 10=muito formal)
+- Emojis: ${config.useEmojis ? 'Sim, 1-2 no máximo' : 'Não usar'}
+
+## O QUE O CLIENTE DISSE (resumo)
+${clientMessages || 'Cliente não falou muito ainda'}
+
+## HISTÓRICO COMPLETO
 ${JSON.stringify(historyFormatted, null, 2)}
 
-## REGRAS CRÍTICAS
-1. ABORT se:
-   - Cliente já comprou/contratou ("fechado", "paguei", "contratado")
-   - Cliente disse claramente "não tenho interesse", "pare de enviar"
-   - Cliente bloqueou ou não responde há mais de 30 dias
+## INFORMAÇÕES PARA USAR (se fizer sentido)
+${importantInfo || 'Nenhuma info extra disponível'}
 
-2. WAIT se:
-   - Estamos devendo uma resposta ao cliente
-   - Cliente disse "vou pensar e te aviso"
-   - Última mensagem do cliente foi há menos de 2 horas
+## QUANDO ABORTAR (action: "abort")
+- Cliente comprou: "fechado", "paguei", "contratei"
+- Recusa clara: "não quero", "para de enviar", "não tenho interesse"
+- Sem resposta há 30+ dias
 
-3. SEND se:
-   - Cliente parou de responder e faz sentido retomar
-   - Podemos agregar valor com informação nova
-   - É um bom momento para reengajar
+## QUANDO ESPERAR (action: "wait")
+- Cliente disse "vou ver", "depois te falo" recentemente
+- Última msg do cliente foi há menos de 2 horas
+- NÓS devemos uma resposta ao cliente (última msg foi do cliente)
 
-## ESTRATÉGIAS DE FOLLOW-UP (escolha uma)
-- Valor: compartilhar informação útil sem pressão
-- Esclarecimento: tirar dúvida comum
-- Leve: retomar sem pressão ("oi, só passando pra ver se ficou dúvida")
-- Autoridade: mencionar experiência/casos similares
-- Loop aberto: fazer pergunta que estimule resposta
+## QUANDO ENVIAR (action: "send")
+- Cliente parou de responder (nós falamos por último)
+- Faz mais de 2-3 horas que o cliente não responde
+- Podemos agregar valor ou retomar naturalmente
 
-## RESPOSTA
-Responda APENAS um JSON válido:
+## TÉCNICAS DE FOLLOW-UP PARA CONVERSÃO
+1. **Continuidade**: Continuar exatamente de onde parou ("Sobre o que você mencionou sobre [X]...")
+2. **Valor**: Compartilhar algo útil relacionado ao interesse do cliente
+3. **Pergunta**: Fazer pergunta específica sobre o que o cliente disse
+4. **Prova social**: Mencionar caso similar ("Inclusive, uma loja de beleza como a sua...")
+5. **Urgência sutil**: Criar senso de oportunidade sem pressão
+
+## RESPOSTA OBRIGATÓRIA (JSON)
 {
   "action": "send" | "wait" | "abort",
-  "reason": "explicação breve",
-  "message": "mensagem de follow-up (APENAS se action = send, máximo 300 caracteres)",
-  "strategy": "qual estratégia usou"
+  "reason": "explicação clara e breve",
+  "message": "mensagem de follow-up CONTEXTUALIZADA e NATURAL (só se action=send, máx 280 chars)",
+  "strategy": "qual técnica usou"
 }
+
+LEMBRE-SE: 
+- A mensagem deve parecer CONTINUAÇÃO NATURAL da conversa
+- NÃO repita saudações se já cumprimentou
+- FOQUE no que o cliente disse/precisa
+- Seja ESPECÍFICO ao contexto, não genérico
 `;
 
     try {
