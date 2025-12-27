@@ -193,11 +193,11 @@ export default function Dashboard() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        setLocation("/login");
       }, 500);
       return;
     }
-  }, [isAuthenticated, isLoading, toast]);
+  }, [isAuthenticated, isLoading, toast, setLocation]);
 
   const { data: connection } = useQuery<WhatsappConnection>({
     queryKey: ["/api/whatsapp/connection"],

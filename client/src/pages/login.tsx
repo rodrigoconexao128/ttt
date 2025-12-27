@@ -17,16 +17,18 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Garantir que, ao acessar /login (inclusive via /api/logout -> redirect),
-  // qualquer sessÃ£o local do Supabase seja removida.
+  // Verificar se usuário já está autenticado e redirecionar para dashboard
   useEffect(() => {
     (async () => {
       try {
-        await supabase.auth.signOut();
-        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Usuário já está logado, redirecionar para dashboard
+          setLocation("/dashboard");
+        }
       } catch {}
     })();
-  }, []);
+  }, [setLocation]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
