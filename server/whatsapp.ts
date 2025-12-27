@@ -2099,14 +2099,29 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     // 📁 BUSCAR MÍDIAS JÁ ENVIADAS NESTA CONVERSA (para evitar repetição)
     const sentMedias: string[] = [];
     for (const msg of conversationHistory) {
-      if (msg.fromMe && msg.text) {
-        // Detectar tags de mídia nas mensagens anteriores do agente
-        const mediaMatches = msg.text.match(/\[MEDIA:([A-Z0-9_]+)\]/gi);
-        if (mediaMatches) {
-          for (const match of mediaMatches) {
-            const mediaName = match.replace(/\[MEDIA:|]/gi, '').toUpperCase();
-            if (!sentMedias.includes(mediaName)) {
-              sentMedias.push(mediaName);
+      if (msg.fromMe && msg.isFromAgent) {
+        // Método 1: Detectar tags de mídia no texto das mensagens
+        if (msg.text) {
+          const mediaMatches = msg.text.match(/\[MEDIA:([A-Z0-9_]+)\]/gi);
+          if (mediaMatches) {
+            for (const match of mediaMatches) {
+              const mediaName = match.replace(/\[MEDIA:|]/gi, '').toUpperCase();
+              if (!sentMedias.includes(mediaName)) {
+                sentMedias.push(mediaName);
+              }
+            }
+          }
+        }
+        
+        // Método 2: Detectar tags no campo mediaCaption (novo formato)
+        if (msg.mediaCaption) {
+          const captionMatches = msg.mediaCaption.match(/\[MEDIA:([A-Z0-9_]+)\]/gi);
+          if (captionMatches) {
+            for (const match of captionMatches) {
+              const mediaName = match.replace(/\[MEDIA:|]/gi, '').toUpperCase();
+              if (!sentMedias.includes(mediaName)) {
+                sentMedias.push(mediaName);
+              }
             }
           }
         }

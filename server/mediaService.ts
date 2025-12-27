@@ -990,6 +990,7 @@ export async function executeMediaActions(
             // Gerar texto descritivo da mensagem
             // IMPORTANTE: Usar formato SIMPLES que NÃO confunde a IA quando volta no contexto
             // A IA estava copiando o formato "[Áudio enviado: ...]" na resposta
+            // MAS precisamos salvar o NOME da mídia para detectar repetições
             let messageText = '';
             if (media.mediaType === 'audio') {
               // Salvar apenas "*Áudio*" - formato simples que IA não imita
@@ -1003,6 +1004,7 @@ export async function executeMediaActions(
             }
 
             // Salvar mensagem no banco
+            // IMPORTANTE: Salvar o NOME da mídia no media_caption para detectar repetições
             const messageId = sendResult.messageId || `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             
             await db.insert(messages).values({
@@ -1017,7 +1019,8 @@ export async function executeMediaActions(
               mediaUrl: media.storageUrl,
               mediaMimeType: media.mimeType || undefined,
               mediaDuration: media.durationSeconds || undefined,
-              mediaCaption: media.caption || undefined,
+              // 🛡️ CRÍTICO: Salvar nome da mídia para detectar repetições
+              mediaCaption: `[MEDIA:${media.name}]`,
             });
 
             console.log(`📝 [MediaService] Mensagem de mídia salva no banco (conversationId: ${conversationId}, type: ${media.mediaType})`);
