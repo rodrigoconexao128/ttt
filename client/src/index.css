@@ -507,4 +507,27 @@
     min-width: 44px;
     min-height: 44px;
   }
+  
+  /* Hide sidebar on mobile */
+  [data-slot="sidebar"] {
+    display: none !important;
+  }
+  
+  /* Full width conversation list on mobile when visible */
+  .conversations-mobile-full {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  /* Better scroll behavior */
+  .scroll-container {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Safe area padding for iOS notch */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .mobile-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

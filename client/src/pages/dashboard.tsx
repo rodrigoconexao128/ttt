@@ -606,14 +606,16 @@ const toolsNavigation: ToolNavItem[] = [
           {/* Conversations */}
           {(isConversasRoute || (isDashboardMode && selectedView === "conversations")) && (
             <>
-              <div className="w-80 border-r bg-card flex flex-col h-full overflow-hidden">
+              {/* Lista de conversas - esconde no mobile quando uma conversa está selecionada */}
+              <div className={`w-full md:w-80 border-r bg-card flex flex-col h-full overflow-hidden ${selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
                 <ConversationsList
                   connectionId={connection?.id}
                   selectedConversationId={selectedConversationId}
                   onSelectConversation={setSelectedConversationId}
                 />
               </div>
-              <div className="flex-1 flex flex-col h-full overflow-hidden">
+              {/* Área do chat - esconde no mobile quando nenhuma conversa está selecionada */}
+              <div className={`flex-1 flex flex-col h-full overflow-hidden ${!selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
                 {false && (
                   <div className="p-4 space-y-3">
                     {!agentConfig && (
@@ -647,7 +649,11 @@ const toolsNavigation: ToolNavItem[] = [
                     )}
                   </div>
                 )}
-                <ChatArea conversationId={selectedConversationId} connectionId={connection?.id} />
+                <ChatArea 
+                  conversationId={selectedConversationId} 
+                  connectionId={connection?.id}
+                  onBack={() => setSelectedConversationId(null)}
+                />
               </div>
             </>
           )}

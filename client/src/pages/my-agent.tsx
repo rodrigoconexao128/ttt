@@ -404,25 +404,25 @@ export default function MyAgent() {
         
         {/* ============== HEADER COM PROGRESSO ============== */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
-                <Bot className="w-7 h-7 text-white" />
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg flex-shrink-0">
+                <Bot className="w-6 h-6 md:w-7 md:h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
                   Meu Agente IA
                 </h1>
-                <p className="text-muted-foreground">
+                <p className="text-sm md:text-base text-muted-foreground">
                   Configure seu assistente inteligente
                 </p>
               </div>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 md:gap-4">
               <Badge
                 variant={isActive ? "default" : "secondary"}
-                className={`gap-2 px-4 py-2 text-sm ${isActive ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                className={`gap-2 px-3 md:px-4 py-1.5 md:py-2 text-sm ${isActive ? 'bg-green-500 hover:bg-green-600' : ''}`}
               >
                 {isActive ? (
                   <><CheckCircle2 className="w-4 h-4" /> Ativo</>
@@ -433,14 +433,14 @@ export default function MyAgent() {
               <Switch
                 checked={isActive}
                 onCheckedChange={setIsActive}
-                className="scale-125"
+                className="scale-110 md:scale-125"
               />
             </div>
           </div>
 
           {/* Barra de Progresso */}
-          <Card className="p-4">
-            <div className="flex items-center gap-4">
+          <Card className="p-3 md:p-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
               <div className="flex-1 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Progresso da configuração</span>
@@ -448,7 +448,7 @@ export default function MyAgent() {
                 </div>
                 <Progress value={progressPercent} className="h-2" />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {[
                   { done: prompt.length > 50, label: "Prompt" },
                   { done: isActive, label: "Ativado" },

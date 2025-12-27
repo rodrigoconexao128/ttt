@@ -141,7 +141,7 @@ export function ConversationsList({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4 border-b space-y-4 flex-shrink-0">
+      <div className="p-3 md:p-4 border-b space-y-3 md:space-y-4 flex-shrink-0">
         <h2 className="font-semibold text-lg">Conversas</h2>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -150,6 +150,7 @@ export function ConversationsList({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
+            style={{ fontSize: '16px' }} // Prevent iOS zoom
             data-testid="input-search-conversations"
           />
         </div>
@@ -205,7 +206,7 @@ export function ConversationsList({
               <button
                 key={conversation.id}
                 onClick={() => onSelectConversation(conversation.id)}
-                className={`w-full p-4 text-left hover-elevate active-elevate-2 transition-colors ${
+                className={`w-full p-3 md:p-4 text-left hover-elevate active-elevate-2 transition-colors touch-manipulation ${
                   selectedConversationId === conversation.id
                     ? "bg-sidebar-accent"
                     : ""
@@ -213,7 +214,7 @@ export function ConversationsList({
                 data-testid={`conversation-item-${conversation.id}`}
               >
                 <div className="flex items-start gap-3">
-                  <Avatar className="w-12 h-12 flex-shrink-0">
+                  <Avatar className="w-11 h-11 md:w-12 md:h-12 flex-shrink-0">
                     {conversation.contactAvatar ? (
                       <img 
                         src={conversation.contactAvatar} 

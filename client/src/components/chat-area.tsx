@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2 } from "lucide-react";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -36,9 +36,10 @@ import { UserAIMessageGenerator } from "@/components/user-ai-message-generator";
 interface ChatAreaProps {
   conversationId: string | null;
   connectionId?: string;
+  onBack?: () => void;
 }
 
-export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
+export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps) {
   const { toast } = useToast();
   const [messageText, setMessageText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -468,9 +469,21 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Chat Header */}
-      <div className="p-3 md:p-4 border-b flex items-center gap-3 bg-background/95 backdrop-blur sticky top-0 z-10">
+      <div className="p-3 md:p-4 border-b flex items-center gap-2 md:gap-3 bg-background/95 backdrop-blur sticky top-0 z-10">
+        {/* Botão voltar - apenas mobile */}
+        {onBack && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden h-9 w-9 flex-shrink-0"
+            onClick={onBack}
+            data-testid="button-back-conversations"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+        )}
         <Avatar 
-          className="w-8 h-8 md:w-10 md:h-10 cursor-pointer hover:opacity-80 transition-opacity" 
+          className="w-8 h-8 md:w-10 md:h-10 cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0" 
           onClick={(e) => {
             e.stopPropagation();
             if (conversation?.contactAvatar) {
@@ -611,7 +624,7 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-auto p-4 space-y-4" data-testid="container-messages">
+      <div className="flex-1 overflow-auto p-3 md:p-4 space-y-3 md:space-y-4" data-testid="container-messages">
         {/* Filtrar mensagens de sistema/eco que vieram de integrações antigas,
             por exemplo textos \"[Mensagem n\u00e3o suportada]\" */}
         {isLoading ? (
@@ -643,7 +656,7 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
               data-testid={`message-${message.id}`}
             >
               <div
-                className={`max-w-md rounded-md px-4 py-2 ${
+                className={`max-w-[85%] md:max-w-md rounded-md px-3 py-2 md:px-4 ${
                   message.fromMe
                     ? "bg-primary text-primary-foreground ml-auto"
                     : "bg-muted mr-auto"
@@ -721,7 +734,7 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
       </div>
 
       {/* Message Input */}
-      <div className="p-4 border-t bg-background">
+      <div className="p-3 md:p-4 border-t bg-background">
         {/* Se está gravando áudio ou enviando mídia, mostra o componente correspondente */}
         {isRecordingAudio ? (
           <UserAudioRecorder
@@ -738,8 +751,8 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            {/* Botões de ação à esquerda */}
-            <div className="flex items-center gap-1">
+            {/* Botões de ação à esquerda - escondidos no mobile para dar mais espaço */}
+            <div className="hidden md:flex items-center gap-1">
               <UserMediaUploader
                 onUpload={handleSendMedia}
                 disabled={sendMediaMutation.isPending}
@@ -756,13 +769,22 @@ export function ChatArea({ conversationId, connectionId }: ChatAreaProps) {
               />
             </div>
             
+            {/* Botão de anexo no mobile */}
+            <div className="md:hidden">
+              <UserMediaUploader
+                onUpload={handleSendMedia}
+                disabled={sendMediaMutation.isPending}
+              />
+            </div>
+            
             {/* Input de texto */}
             <Textarea
               placeholder="Digite sua mensagem..."
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               onKeyDown={handleKeyPress}
-              className="resize-none min-h-12 max-h-32 flex-1"
+              className="resize-none min-h-11 max-h-32 flex-1 text-base"
+              style={{ fontSize: '16px' }} // Prevent iOS zoom
               data-testid="input-message"
             />
             

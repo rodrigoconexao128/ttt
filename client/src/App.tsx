@@ -44,36 +44,36 @@ function Router() {
       <Route path="/admin" component={AdminPanel} />
       <Route path="/login" component={Login} />
       <Route path="/cadastro" component={Register} />
-      {!isAuthenticated ? (
-        <Route path="/" component={LandingStatic} />
-      ) : (
-        <>
-          <Route path="/" component={Dashboard} />
-          <Route path="/dashboard" component={Dashboard} />
-          <Route path="/conversas" component={Dashboard} />
-          <Route path="/conexao" component={Dashboard} />
-          <Route path="/meu-agente-ia" component={Dashboard} />
-          <Route path="/plans" component={Dashboard} />
-          <Route path="/envio-em-massa" component={Dashboard} />
-          <Route path="/campanhas" component={Dashboard} />
-          <Route path="/kanban" component={Dashboard} />
-          <Route path="/contatos" component={Dashboard} />
-          <Route path="/contatos-sincronizados" component={Dashboard} />
-          <Route path="/etiquetas" component={Dashboard} />
-          <Route path="/funil" component={Dashboard} />
-          <Route path="/integracoes" component={Dashboard} />
-          <Route path="/agendamentos" component={Dashboard} />
-          <Route path="/reservas" component={Dashboard} />
-          <Route path="/qualificacao" component={Dashboard} />
-          <Route path="/listas-contatos" component={Dashboard} />
-          <Route path="/followup" component={Dashboard} />
-          <Route path="/subscribe/:id" component={Dashboard} />
-          <Route path="/settings" component={Dashboard} />
-          <Route path="/agent-config" component={AgentConfig} />
-          <Route path="/notificador" component={Dashboard} />
-          <Route path="/biblioteca-midias" component={Dashboard} />
-        </>
-      )}
+      
+      {/* Landing page apenas para não autenticados */}
+      {!isAuthenticated && <Route path="/" component={LandingStatic} />}
+      
+      {/* Rotas protegidas - sempre registradas, Dashboard faz o redirecionamento */}
+      <Route path="/" component={Dashboard} />
+      <Route path="/dashboard" component={Dashboard} />
+      <Route path="/conversas" component={Dashboard} />
+      <Route path="/conexao" component={Dashboard} />
+      <Route path="/meu-agente-ia" component={Dashboard} />
+      <Route path="/plans" component={Dashboard} />
+      <Route path="/envio-em-massa" component={Dashboard} />
+      <Route path="/campanhas" component={Dashboard} />
+      <Route path="/kanban" component={Dashboard} />
+      <Route path="/contatos" component={Dashboard} />
+      <Route path="/contatos-sincronizados" component={Dashboard} />
+      <Route path="/etiquetas" component={Dashboard} />
+      <Route path="/funil" component={Dashboard} />
+      <Route path="/integracoes" component={Dashboard} />
+      <Route path="/agendamentos" component={Dashboard} />
+      <Route path="/reservas" component={Dashboard} />
+      <Route path="/qualificacao" component={Dashboard} />
+      <Route path="/listas-contatos" component={Dashboard} />
+      <Route path="/followup" component={Dashboard} />
+      <Route path="/subscribe/:id" component={Dashboard} />
+      <Route path="/settings" component={Dashboard} />
+      <Route path="/agent-config" component={AgentConfig} />
+      <Route path="/notificador" component={Dashboard} />
+      <Route path="/biblioteca-midias" component={Dashboard} />
+      
       <Route component={NotFound} />
     </Switch>
   );
