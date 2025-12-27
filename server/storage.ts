@@ -196,16 +196,55 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // Primeiro, verificar se já existe usuário com este telefone
+    if (userData.phone) {
+      const [existingByPhone] = await db
+        .select()
+        .from(users)
+        .where(eq(users.phone, userData.phone))
+        .limit(1);
+      
+      if (existingByPhone) {
+        // Se existe por telefone, atualizar esse usuário
+        const [updated] = await db
+          .update(users)
+          .set({
+            ...userData,
+            id: existingByPhone.id, // Manter o ID original
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, existingByPhone.id))
+          .returning();
+        return updated;
+      }
+    }
+    
+    // Se tem ID, verificar se existe por ID
+    if (userData.id) {
+      const [existingById] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userData.id))
+        .limit(1);
+      
+      if (existingById) {
+        // Atualizar usuário existente por ID
+        const [updated] = await db
+          .update(users)
+          .set({
+            ...userData,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userData.id))
+          .returning();
+        return updated;
+      }
+    }
+    
+    // Usuário não existe, criar novo
     const [user] = await db
       .insert(users)
       .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
       .returning();
     return user;
   }
