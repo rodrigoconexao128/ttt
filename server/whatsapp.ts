@@ -14,7 +14,7 @@ import path from "path";
 import fs from "fs/promises";
 import { storage } from "./storage";
 import WebSocket from "ws";
-import { generateAIResponse, type AIResponseResult } from "./aiAgent";
+import { generateAIResponse, type AIResponseResult, type AIResponseOptions } from "./aiAgent";
 import { executeMediaActions, downloadMediaAsBuffer } from "./mediaService";
 import { registerFollowUpCallback, registerScheduledContactCallback, followUpService } from "./followUpService";
 import { userFollowUpService } from "./userFollowUpService";
@@ -1954,6 +1954,29 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     // 📜 BUSCAR HISTÓRICO DE CONVERSAS
     let conversationHistory = await storage.getMessagesByConversationId(conversationId);
     
+    // 👤 BUSCAR NOME DO CLIENTE DA CONVERSA
+    const conversation = await storage.getConversation(conversationId);
+    const contactName = conversation?.contactName || undefined;
+    console.log(`👤 [AI AGENT] Nome do cliente: ${contactName || 'Não identificado'}`);
+    
+    // 📁 BUSCAR MÍDIAS JÁ ENVIADAS NESTA CONVERSA (para evitar repetição)
+    const sentMedias: string[] = [];
+    for (const msg of conversationHistory) {
+      if (msg.fromMe && msg.text) {
+        // Detectar tags de mídia nas mensagens anteriores do agente
+        const mediaMatches = msg.text.match(/\[MEDIA:([A-Z0-9_]+)\]/gi);
+        if (mediaMatches) {
+          for (const match of mediaMatches) {
+            const mediaName = match.replace(/\[MEDIA:|]/gi, '').toUpperCase();
+            if (!sentMedias.includes(mediaName)) {
+              sentMedias.push(mediaName);
+            }
+          }
+        }
+      }
+    }
+    console.log(`📁 [AI AGENT] Mídias já enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
+    
     // Verificar se modo histórico está ativo
     const agentConfig = await storage.getAgentConfig(userId);
     
@@ -1965,20 +1988,14 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       }
     }
 
-    // 🔍 TENTAR IDENTIFICAR NOME DO CLIENTE
-    const remoteJid = `${contactNumber}@${jidSuffix}`;
-    const contact = currentSession.contactsCache.get(remoteJid);
-    const customerName = contact?.name || contact?.notify || undefined;
-    
-    if (customerName) {
-      console.log(`   👤 Cliente identificado: ${customerName}`);
-    }
-
     const aiResult = await generateAIResponse(
       userId,
       conversationHistory,
       combinedText, // ✅ Todas as mensagens combinadas
-      customerName
+      {
+        contactName, // ✅ Nome do cliente para personalização
+        sentMedias,  // ✅ Mídias já enviadas para evitar repetição
+      }
     );
 
     // 📁 Extrair texto e ações de mídia da resposta

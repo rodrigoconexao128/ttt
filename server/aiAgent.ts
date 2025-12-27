@@ -21,6 +21,126 @@ import {
   executeMediaActions,
 } from "./mediaService";
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🌅 FUNÇÃO DE SAUDAÇÃO BASEADA NO HORÁRIO DO BRASIL
+// ═══════════════════════════════════════════════════════════════════════
+function getBrazilGreeting(): { greeting: string; period: string } {
+  // Usar fuso horário do Brasil (America/Sao_Paulo = UTC-3)
+  const now = new Date();
+  const brazilOffset = -3 * 60; // UTC-3 em minutos
+  const localOffset = now.getTimezoneOffset();
+  const brazilTime = new Date(now.getTime() + (localOffset + brazilOffset) * 60 * 1000);
+  const hour = brazilTime.getHours();
+  
+  if (hour >= 5 && hour < 12) {
+    return { greeting: "Bom dia", period: "manhã" };
+  } else if (hour >= 12 && hour < 18) {
+    return { greeting: "Boa tarde", period: "tarde" };
+  } else {
+    return { greeting: "Boa noite", period: "noite" };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧠 FUNÇÃO PARA GERAR BLOCO DE CONTEXTO DINÂMICO (NOME, HORÁRIO, ETC)
+// ═══════════════════════════════════════════════════════════════════════
+function generateDynamicContextBlock(contactName?: string, sentMedias?: string[]): string {
+  const { greeting, period } = getBrazilGreeting();
+  const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
+    ? contactName.trim() 
+    : "";
+  
+  const sentMediasList = sentMedias && sentMedias.length > 0 
+    ? sentMedias.join(", ") 
+    : "nenhuma ainda";
+  
+  return `
+═══════════════════════════════════════════════════════════════════════════════
+📋 CONTEXTO DINÂMICO DA CONVERSA (LEIA COM ATENÇÃO)
+═══════════════════════════════════════════════════════════════════════════════
+
+🕐 HORÁRIO ATUAL DO BRASIL: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })} (${period})
+🌅 SAUDAÇÃO CORRETA PARA USAR: "${greeting}"
+
+👤 NOME DO CLIENTE: ${formattedName || "Não identificado"}
+
+📁 MÍDIAS JÁ ENVIADAS NESTA CONVERSA: ${sentMediasList}
+
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ REGRAS CRÍTICAS DE PERSONALIZAÇÃO
+═══════════════════════════════════════════════════════════════════════════════
+
+1. SAUDAÇÃO CORRETA:
+   - Use SEMPRE "${greeting}" ao cumprimentar
+   - NUNCA use "Boa tarde" de noite ou "Bom dia" à tarde
+   - A saudação já está definida pelo horário do Brasil
+
+2. NOME DO CLIENTE:
+   ${formattedName 
+    ? `- O cliente se chama "${formattedName}"
+   - Use o nome naturalmente: "${greeting} ${formattedName}!"
+   - NÃO use {{nome}} literal - substitua sempre pelo nome real
+   - Exemplo: "Perfeito, ${formattedName}!" ao invés de "Perfeito, {{nome}}!"`
+    : `- Cliente sem nome identificado
+   - NÃO use {{nome}} literal na resposta
+   - Use saudação genérica: "${greeting}!" ou "Olá!"`}
+
+3. MÍDIAS - NUNCA REPETIR:
+   ${sentMedias && sentMedias.length > 0 
+    ? `- VOCÊ JÁ ENVIOU: ${sentMediasList}
+   - PROIBIDO enviar qualquer uma dessas novamente
+   - Se o cliente pedir algo que já foi enviado, diga: "Já te enviei isso anteriormente!"`
+    : `- Nenhuma mídia enviada ainda
+   - Pode enviar a mídia apropriada quando necessário`}
+
+4. RESPOSTAS ÚNICAS:
+   - NUNCA repita a mesma resposta ou frase
+   - Varie suas palavras e abordagens
+   - Seja criativo mas mantenha a identidade
+
+═══════════════════════════════════════════════════════════════════════════════
+`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 FUNÇÃO PARA SUBSTITUIR PLACEHOLDERS NO TEXTO DE SAÍDA
+// ═══════════════════════════════════════════════════════════════════════
+function processResponsePlaceholders(text: string, contactName?: string): string {
+  if (!text) return text;
+  
+  const { greeting } = getBrazilGreeting();
+  const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
+    ? contactName.trim() 
+    : "";
+  
+  let processed = text;
+  
+  // Substituir {{nome}} ou {nome} pelo nome real
+  if (formattedName) {
+    processed = processed.replace(/\{\{nome\}\}/gi, formattedName);
+    processed = processed.replace(/\{nome\}/gi, formattedName);
+  } else {
+    // Remover {{nome}} e vírgula/espaço anterior se não tem nome
+    processed = processed.replace(/,?\s*\{\{nome\}\}/gi, "");
+    processed = processed.replace(/,?\s*\{nome\}/gi, "");
+  }
+  
+  // Substituir saudações incorretas pela correta do horário
+  // Só substitui se a saudação está no início da mensagem ou após quebra de linha
+  if (greeting === "Bom dia") {
+    processed = processed.replace(/^Boa tarde/gi, "Bom dia");
+    processed = processed.replace(/^Boa noite/gi, "Bom dia");
+  } else if (greeting === "Boa tarde") {
+    processed = processed.replace(/^Bom dia/gi, "Boa tarde");
+    processed = processed.replace(/^Boa noite/gi, "Boa tarde");
+  } else if (greeting === "Boa noite") {
+    processed = processed.replace(/^Bom dia/gi, "Boa noite");
+    processed = processed.replace(/^Boa tarde/gi, "Boa noite");
+  }
+  
+  return processed;
+}
+
 // � FUNÇÃO DE RETRY AUTOMÁTICO PARA CHAMADAS DE API
 // Implementa exponential backoff para lidar com rate limits e erros temporários
 async function withRetry<T>(
@@ -202,13 +322,26 @@ function convertMarkdownToWhatsApp(text: string): string {
   return converted;
 }
 
+// Opções extras para contexto dinâmico
+export interface AIResponseOptions {
+  contactName?: string;  // Nome do cliente (pushName do WhatsApp)
+  sentMedias?: string[]; // Lista de mídias já enviadas nesta conversa
+}
+
 export async function generateAIResponse(
   userId: string,
   conversationHistory: Message[],
   newMessageText: string,
-  customerName?: string
+  options?: AIResponseOptions
 ): Promise<AIResponseResult | null> {
   try {
+    // 🌅 EXTRAIR CONTEXTO DINÂMICO
+    const contactName = options?.contactName;
+    const sentMedias = options?.sentMedias || [];
+    
+    console.log(`👤 [AI Agent] Nome do cliente: ${contactName || 'Não identificado'}`);
+    console.log(`📁 [AI Agent] Mídias já enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
+    
     // 🆕 TENTAR BUSCAR BUSINESS CONFIG PRIMEIRO (novo sistema)
     let businessConfig = await storage.getBusinessAgentConfig?.(userId);
     
@@ -371,10 +504,13 @@ export async function generateAIResponse(
      // 📁 GERAR BLOCO DE MÍDIAS SE DISPONÍVEL
      const mediaPromptBlock = hasMedia ? generateMediaPromptBlock(mediaLibrary) : '';
      
+     // 🌅 GERAR BLOCO DE CONTEXTO DINÂMICO (NOME, HORÁRIO, MÍDIAS JÁ ENVIADAS)
+     const dynamicContextBlock = generateDynamicContextBlock(contactName, sentMedias);
+     
      if (useAdvancedSystem && businessConfig) {
        // 🆕 NOVO SISTEMA: Usar template avançado com contexto
        const promptContext: PromptContext = {
-         customerName: customerName,
+         customerName: contactName, // ✅ AGORA PASSA O NOME DO CLIENTE
          conversationHistory: conversationHistory.slice(-6).map(m => ({
            role: m.fromMe ? "assistant" : "user",
            content: m.text || "",
@@ -383,6 +519,9 @@ export async function generateAIResponse(
        };
        
        systemPrompt = generateSystemPrompt(businessConfig, promptContext);
+       
+       // 🌅 ADICIONAR CONTEXTO DINÂMICO (horário, nome, mídias enviadas)
+       systemPrompt += dynamicContextBlock;
        
        // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT
        if (mediaPromptBlock) {
@@ -402,34 +541,11 @@ export async function generateAIResponse(
        console.log(`🎨 [AI Agent] Generated advanced prompt (${systemPrompt.length} chars)${hasMedia ? ' + media library' : ''}`);
      } else {
        // 📝 SISTEMA LEGADO: Usar prompt manual com guardrails básicos
-       let rawPrompt = agentConfig.prompt;
-
-       // 🆕 CAMADA DE VARIÁVEIS DINÂMICAS (Legacy)
-       if (customerName) {
-         rawPrompt = rawPrompt.replace(/{{nome}}/g, customerName);
-       } else {
-         rawPrompt = rawPrompt.replace(/ {{nome}}/g, "");
-         rawPrompt = rawPrompt.replace(/{{nome}}/g, "");
-       }
-
-       // Substituição de {{SAUDACAO}}
-       const currentTime = new Date();
-       const utcHour = currentTime.getUTCHours();
-       const brazilHour = (utcHour - 3 + 24) % 24;
-       
-       let saudacao = "Olá";
-       if (brazilHour >= 5 && brazilHour < 12) {
-         saudacao = "Bom dia";
-       } else if (brazilHour >= 12 && brazilHour < 18) {
-         saudacao = "Boa tarde";
-       } else {
-         saudacao = "Boa noite";
-       }
-       rawPrompt = rawPrompt.replace(/{{SAUDACAO}}/g, saudacao);
-
-       systemPrompt = rawPrompt + `
+       systemPrompt = agentConfig.prompt + `
 
   ---
+  
+  ${dynamicContextBlock}
 
   **REGRAS DE IDENTIDADE E ESCOPO (OBRIGATÓRIAS - NUNCA VIOLE):**
 
@@ -870,8 +986,29 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
         
         if (mediaActions.length > 0) {
           console.log(`📁 [AI Agent] Tags de mídia detectadas: ${mediaActions.map(a => a.media_name).join(', ')}`);
+          
+          // 🛡️ FILTRAR MÍDIAS JÁ ENVIADAS (nunca repetir)
+          const originalCount = mediaActions.length;
+          mediaActions = mediaActions.filter(action => {
+            const mediaName = action.media_name?.toUpperCase();
+            const alreadySent = sentMedias.some(sent => sent.toUpperCase() === mediaName);
+            if (alreadySent) {
+              console.log(`⚠️ [AI Agent] Mídia ${mediaName} já foi enviada - REMOVIDA para evitar duplicação`);
+            }
+            return !alreadySent;
+          });
+          
+          if (mediaActions.length < originalCount) {
+            console.log(`📁 [AI Agent] ${originalCount - mediaActions.length} mídia(s) removida(s) por já terem sido enviadas`);
+          }
         }
       }
+    }
+    
+    // 🔄 PROCESSAR PLACEHOLDERS NA RESPOSTA FINAL ({{nome}}, saudações)
+    if (responseText) {
+      responseText = processResponsePlaceholders(responseText, contactName);
+      console.log(`🔄 [AI Agent] Placeholders processados na resposta`);
     }
     
     return {
