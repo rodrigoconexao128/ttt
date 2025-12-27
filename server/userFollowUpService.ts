@@ -9,6 +9,7 @@ import {
 } from "@shared/schema";
 import { eq, and, lte, isNotNull } from "drizzle-orm";
 import { getMistralClient } from "./mistralClient";
+import { storage } from "./storage";
 
 // ============================================================================
 // FOLLOW-UP INTELIGENTE PARA USUÁRIOS
@@ -175,6 +176,14 @@ export class UserFollowUpService {
               null
             );
             await this.advanceToNextStage(conversation, config);
+            
+            // 🔄 REATIVAR IA: Quando follow-up é enviado, reativar IA para capturar resposta do cliente
+            try {
+              await storage.enableAgentForConversation(conversation.id);
+              console.log(`🤖 [USER-FOLLOW-UP] IA reativada para ${conversation.contactNumber} após follow-up`);
+            } catch (reactivateError) {
+              console.warn(`⚠️ [USER-FOLLOW-UP] Erro ao reativar IA para ${conversation.contactNumber}:`, reactivateError);
+            }
           } else {
             // Falha (ex: WhatsApp desconectado): NÃO logar como falha, apenas reagendar
             // Isso evita poluir o histórico com "falhas" que são apenas reconexões
