@@ -91,6 +91,7 @@ export default function MyAgent() {
   const [messageSplitChars, setMessageSplitChars] = useState(400);
   const [responseDelaySeconds, setResponseDelaySeconds] = useState(30);
   const [fetchHistoryOnFirstResponse, setFetchHistoryOnFirstResponse] = useState(false);
+  const [pauseOnManualReply, setPauseOnManualReply] = useState(true);
   
   // Estado do teste
   const [testMessage, setTestMessage] = useState("");
@@ -122,6 +123,7 @@ export default function MyAgent() {
       setMessageSplitChars(config.messageSplitChars ?? 400);
       setResponseDelaySeconds(config.responseDelaySeconds ?? 30);
       setFetchHistoryOnFirstResponse(config.fetchHistoryOnFirstResponse ?? false);
+      setPauseOnManualReply((config as any).pauseOnManualReply ?? true);
     }
   }, [config]);
 
@@ -160,6 +162,7 @@ export default function MyAgent() {
         messageSplitChars,
         responseDelaySeconds,
         fetchHistoryOnFirstResponse,
+        pauseOnManualReply,
       });
     },
     onSuccess: () => {
@@ -873,6 +876,52 @@ O QUE NÃO FAZER:
 
                 <p className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md">
                   💡 Ideal para advocacias, clínicas, e empresas que já têm histórico de conversas com clientes. A IA usa um sistema inteligente: últimas 30 mensagens na íntegra + resumo das anteriores. Isso economiza tokens mas mantém o contexto completo.
+                </p>
+              </div>
+            </Card>
+
+            {/* Pausar IA ao Responder Manualmente */}
+            <Card className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-orange-500/10">
+                    <AlertCircle className="w-5 h-5 text-orange-500" />
+                  </div>
+                  <div className="flex-1">
+                    <Label className="text-base font-semibold">Pausar IA ao Responder Manualmente</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Quando você responde manualmente a um cliente, a IA pode ser pausada automaticamente para aquela conversa
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${pauseOnManualReply ? 'bg-orange-500/20' : 'bg-green-500/20'}`}>
+                      <Bot className={`w-5 h-5 ${pauseOnManualReply ? 'text-orange-500' : 'text-green-500'}`} />
+                    </div>
+                    <div>
+                      <p className="font-medium">
+                        {pauseOnManualReply ? 'Pausar IA ao Responder' : 'Manter IA Sempre Ativa'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {pauseOnManualReply 
+                          ? 'Quando você responder, a IA será pausada para aquela conversa' 
+                          : 'A IA continua ativa mesmo após você responder manualmente'}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={pauseOnManualReply}
+                    onCheckedChange={setPauseOnManualReply}
+                    className="scale-125"
+                  />
+                </div>
+
+                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-md">
+                  ⚠️ <strong>Recomendado: Ativado.</strong> Quando você responde manualmente, geralmente deseja assumir a conversa. 
+                  Se desativar, a IA pode enviar respostas duplicadas ou conflitantes.
+                  Para reativar a IA em uma conversa pausada, use o toggle na tela de conversas.
                 </p>
               </div>
             </Card>

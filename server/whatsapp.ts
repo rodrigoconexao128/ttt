@@ -1307,7 +1307,16 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       
       if (!message.message) return;
       
-      // 🔄 NOVA LÓGICA: Capturar mensagens enviadas pelo próprio usuário (fromMe: true)
+      // � IMPORTANTE: Ignorar mensagens de sincronização/histórico
+      // m.type === "notify" = mensagem NOVA (em tempo real)
+      // m.type === "append" = sincronização de histórico (ao abrir conversa)
+      // Só processar mensagens novas para evitar pausar IA ao entrar na conversa!
+      if (m.type !== "notify") {
+        console.log(`📱 [SYNC] Ignorando mensagem de sincronização (type: ${m.type})`);
+        return;
+      }
+      
+      // �🔄 NOVA LÓGICA: Capturar mensagens enviadas pelo próprio usuário (fromMe: true)
       if (message.key.fromMe) {
         console.log(`📱 [FROM ME] Mensagem enviada pelo dono no WhatsApp detectada`);
         try {
@@ -1498,23 +1507,47 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   // ═══════════════════════════════════════════════════════════════════════
   // 🛑 AUTO-PAUSE IA: Quando o dono responde manualmente, PAUSA a IA
   // A IA só volta a responder quando o usuário reativar em /conversas
+  // CONFIGURÁVEL: Só pausa se pauseOnManualReply estiver ativado (padrão: true)
   // ═══════════════════════════════════════════════════════════════════════
   try {
-    const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversation.id);
-    if (!isAlreadyDisabled) {
-      await storage.disableAgentForConversation(conversation.id);
-      console.log(`🛑 [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversation.id} - dono respondeu manualmente`);
+    // Verificar configuração do agente para pauseOnManualReply
+    const agentConfig = await storage.getAgentConfig(session.userId);
+    const shouldPauseOnManualReply = agentConfig?.pauseOnManualReply !== false; // Padrão: true
+    
+    if (shouldPauseOnManualReply) {
+      const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversation.id);
+      if (!isAlreadyDisabled) {
+        await storage.disableAgentForConversation(conversation.id);
+        console.log(`🛑 [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversation.id} - dono respondeu manualmente`);
+        
+        // Cancelar qualquer resposta pendente do agente para esta conversa
+        const pendingResponse = pendingResponses.get(conversation.id);
+        if (pendingResponse) {
+          clearTimeout(pendingResponse.timeout);
+          pendingResponses.delete(conversation.id);
+          console.log(`🛑 [AUTO-PAUSE] Resposta pendente do agente cancelada para ${contactNumber}`);
+        }
+        
+        // 🔔 Notificar que a IA foi pausada para esta conversa (APENAS quando realmente pausar)
+        broadcastToUser(session.userId, {
+          type: "agent_auto_paused",
+          conversationId: conversation.id,
+          reason: "manual_reply",
+        });
+      }
+    } else {
+      console.log(`✅ [AUTO-PAUSE DESATIVADO] Dono respondeu manualmente mas pauseOnManualReply está desativado - IA continua ativa`);
       
-      // Cancelar qualquer resposta pendente do agente para esta conversa
+      // Ainda cancelar resposta pendente para evitar duplicação
       const pendingResponse = pendingResponses.get(conversation.id);
       if (pendingResponse) {
         clearTimeout(pendingResponse.timeout);
         pendingResponses.delete(conversation.id);
-        console.log(`🛑 [AUTO-PAUSE] Resposta pendente do agente cancelada para ${contactNumber}`);
+        console.log(`✅ [AUTO-PAUSE DESATIVADO] Resposta pendente cancelada (dono respondeu primeiro) para ${contactNumber}`);
       }
     }
   } catch (error) {
-    console.error("Erro ao pausar IA automaticamente:", error);
+    console.error("Erro ao verificar pauseOnManualReply:", error);
   }
 
   // Broadcast para atualizar UI em tempo real
@@ -1523,13 +1556,6 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     conversationId: conversation.id,
     message: messageText,
     mediaType,
-  });
-  
-  // 🔔 Notificar que a IA foi pausada para esta conversa
-  broadcastToUser(session.userId, {
-    type: "agent_auto_paused",
-    conversationId: conversation.id,
-    reason: "manual_reply",
   });
 
   console.log(`📱 [FROM ME] Mensagem sincronizada: ${contactNumber} - "${messageText}"`);
@@ -3574,6 +3600,14 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
     sock.ev.on("messages.upsert", async (m) => {
       const message = m.messages[0];
       if (!message.message) return;
+      
+      // 🚫 IMPORTANTE: Ignorar mensagens de sincronização/histórico
+      // m.type === "notify" = mensagem NOVA (em tempo real)
+      // m.type === "append" = sincronização de histórico (ao abrir conversa)
+      if (m.type !== "notify") {
+        console.log(`📱 [SYNC] Ignorando mensagem de sincronização (type: ${m.type})`);
+        return;
+      }
       
       if (message.key.fromMe) {
         try {

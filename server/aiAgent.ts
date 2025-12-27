@@ -21,7 +21,53 @@ import {
   executeMediaActions,
 } from "./mediaService";
 
-// 🔔 FUNÇÃO PARA GERAR PROMPT DE NOTIFICAÇÃO DINÂMICO E UNIVERSAL
+// � FUNÇÃO DE RETRY AUTOMÁTICO PARA CHAMADAS DE API
+// Implementa exponential backoff para lidar com rate limits e erros temporários
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelayMs: number = 1000,
+  operationName: string = "API call"
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Verificar se é um erro que vale a pena tentar novamente
+      const isRetryable = 
+        error?.statusCode === 429 || // Rate limit
+        error?.statusCode === 500 || // Server error
+        error?.statusCode === 502 || // Bad gateway
+        error?.statusCode === 503 || // Service unavailable
+        error?.statusCode === 504 || // Gateway timeout
+        error?.code === 'ECONNRESET' ||
+        error?.code === 'ETIMEDOUT' ||
+        error?.code === 'ENOTFOUND' ||
+        error?.message?.includes('rate limit') ||
+        error?.message?.includes('timeout') ||
+        error?.message?.includes('connection');
+      
+      if (!isRetryable || attempt === maxRetries) {
+        console.error(`❌ [AI Agent] ${operationName} falhou após ${attempt} tentativa(s):`, error?.message || error);
+        throw error;
+      }
+      
+      // Exponential backoff: 1s, 2s, 4s...
+      const delay = initialDelayMs * Math.pow(2, attempt - 1);
+      console.log(`⚠️ [AI Agent] ${operationName} falhou (tentativa ${attempt}/${maxRetries}). Retry em ${delay}ms... Erro: ${error?.message || 'Unknown'}`);
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError || new Error(`${operationName} falhou após ${maxRetries} tentativas`);
+}
+
+// �🔔 FUNÇÃO PARA GERAR PROMPT DE NOTIFICAÇÃO DINÂMICO E UNIVERSAL
 // Suporta detecção em mensagens do cliente E respostas do agente
 function getNotificationPrompt(trigger: string, manualKeywords?: string): string {
   const triggerLower = trigger.toLowerCase();
@@ -637,12 +683,20 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
       ? businessConfig.model 
       : agentConfig.model;
     
-    const chatResponse = await mistral.chat.complete({
-      model,
-      messages: messages as any,
-      maxTokens, // Dinâmico baseado na pergunta e config
-      temperature: 0.7, // Menos criativo = mais consistente
-    });
+    // 🔄 CHAMADA COM RETRY AUTOMÁTICO PARA ERROS DE API (rate limit, timeout, etc)
+    const chatResponse = await withRetry(
+      async () => {
+        return await mistral.chat.complete({
+          model,
+          messages: messages as any,
+          maxTokens, // Dinâmico baseado na pergunta e config
+          temperature: 0.7, // Menos criativo = mais consistente
+        });
+      },
+      3, // 3 tentativas
+      1500, // Delay inicial de 1.5s
+      `Mistral API (${model})`
+    );
 
     const content = chatResponse.choices?.[0]?.message?.content;
     let responseText = typeof content === 'string' ? content : null;

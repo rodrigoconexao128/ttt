@@ -525,8 +525,22 @@ Responda APENAS um JSON válido:
       return;
     }
 
+    // 🔧 FIX: Só resetar se follow-up estava ativo
+    // Se estava desativado pelo usuário, não ativar automaticamente
+    if (!conversation.followupActive) {
+      console.log(`ℹ️ [USER-FOLLOW-UP] Follow-up estava desativado para ${conversationId}, não resetando automaticamente`);
+      return;
+    }
+
     const userId = conversation.connection.userId;
     const config = await this.getFollowupConfig(userId);
+    
+    // 🔧 FIX: Verificar se follow-up global está ativado para este usuário
+    if (!config?.isEnabled) {
+      console.log(`ℹ️ [USER-FOLLOW-UP] Follow-up global desativado para usuário ${userId}`);
+      return;
+    }
+    
     const intervals = config?.intervalsMinutes || DEFAULT_INTERVALS;
     const delayMinutes = intervals[0] || 10;
     const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
@@ -540,7 +554,7 @@ Responda APENAS um JSON válido:
       })
       .where(eq(conversations.id, conversationId));
       
-    console.log(`🔄 [USER-FOLLOW-UP] ${reason || 'Cliente respondeu'}. Ciclo resetado para ${conversationId}`);
+    console.log(`🔄 [USER-FOLLOW-UP] ${reason || 'Cliente respondeu'}. Ciclo resetado para ${conversationId}, próximo em ${delayMinutes} min`);
   }
 
   /**
