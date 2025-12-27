@@ -102,6 +102,118 @@ interface PendingAdminResponse {
 }
 const pendingAdminResponses = new Map<string, PendingAdminResponse>(); // key: contactNumber
 
+// 🔄 Set para rastrear conversas já verificadas na sessão atual (evita reprocessamento)
+const checkedConversationsThisSession = new Set<string>();
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 VERIFICAÇÃO DE MENSAGENS NÃO RESPONDIDAS AO RECONECTAR
+// ═══════════════════════════════════════════════════════════════════════
+// Quando o WhatsApp reconecta (após desconexão/restart), verificamos se há
+// clientes que mandaram mensagem nas últimas 24h e não foram respondidos.
+// Isso resolve o problema de mensagens perdidas durante desconexões.
+// ═══════════════════════════════════════════════════════════════════════
+async function checkUnrespondedMessages(session: WhatsAppSession): Promise<void> {
+  const { userId, connectionId } = session;
+  
+  console.log(`\n🔍 [UNRESPONDED CHECK] Iniciando verificação de mensagens não respondidas...`);
+  console.log(`   👤 Usuário: ${userId}`);
+  
+  try {
+    // 1. Verificar se o agente está ativo
+    const agentConfig = await storage.getAgentConfig(userId);
+    if (!agentConfig?.isActive) {
+      console.log(`⏹️ [UNRESPONDED CHECK] Agente inativo, pulando verificação`);
+      return;
+    }
+    
+    // 2. Buscar todas as conversas deste usuário
+    const allConversations = await storage.getConversationsByConnectionId(connectionId);
+    
+    // 3. Filtrar conversas das últimas 24 horas
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    const recentConversations = allConversations.filter(conv => {
+      if (!conv.lastMessageTime) return false;
+      const lastMsgTime = new Date(conv.lastMessageTime);
+      return lastMsgTime >= twentyFourHoursAgo;
+    });
+    
+    console.log(`📊 [UNRESPONDED CHECK] ${recentConversations.length} conversas nas últimas 24h`);
+    
+    let unrespondedCount = 0;
+    let processedCount = 0;
+    
+    for (const conversation of recentConversations) {
+      // Evitar reprocessar na mesma sessão
+      if (checkedConversationsThisSession.has(conversation.id)) {
+        continue;
+      }
+      checkedConversationsThisSession.add(conversation.id);
+      
+      // 4. Verificar se agente está pausado para esta conversa
+      const isDisabled = await storage.isAgentDisabledForConversation(conversation.id);
+      if (isDisabled) {
+        continue;
+      }
+      
+      // 5. Buscar mensagens desta conversa
+      const messages = await storage.getMessagesByConversationId(conversation.id);
+      if (messages.length === 0) continue;
+      
+      // 6. Verificar última mensagem
+      const lastMessage = messages[messages.length - 1];
+      
+      // Se última mensagem é do cliente (não é fromMe), precisa responder
+      if (!lastMessage.fromMe) {
+        unrespondedCount++;
+        
+        // 7. Verificar se já tem resposta pendente
+        if (pendingResponses.has(conversation.id)) {
+          console.log(`⏳ [UNRESPONDED CHECK] ${conversation.contactNumber} - Já tem resposta pendente`);
+          continue;
+        }
+        
+        console.log(`📨 [UNRESPONDED CHECK] ${conversation.contactNumber} - Última mensagem do cliente SEM RESPOSTA`);
+        console.log(`   💬 Mensagem: "${(lastMessage.text || '[mídia]').substring(0, 50)}..."`);
+        console.log(`   🕐 Enviada em: ${lastMessage.timestamp}`);
+        
+        // 8. Agendar resposta com delay para não sobrecarregar
+        const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
+        const delayForThisMessage = (processedCount * 5000) + (responseDelaySeconds * 1000); // 5s entre cada + delay normal
+        
+        const pending: PendingResponse = {
+          timeout: null as any,
+          messages: [lastMessage.text || '[mídia recebida]'],
+          conversationId: conversation.id,
+          userId,
+          contactNumber: conversation.contactNumber,
+          jidSuffix: conversation.jidSuffix || DEFAULT_JID_SUFFIX,
+          startTime: Date.now(),
+        };
+        
+        pending.timeout = setTimeout(async () => {
+          console.log(`🚀 [UNRESPONDED CHECK] Processando resposta atrasada para ${conversation.contactNumber}`);
+          await processAccumulatedMessages(pending);
+        }, delayForThisMessage);
+        
+        pendingResponses.set(conversation.id, pending);
+        processedCount++;
+        
+        console.log(`⏱️ [UNRESPONDED CHECK] Resposta agendada em ${Math.round(delayForThisMessage/1000)}s`);
+      }
+    }
+    
+    console.log(`\n✅ [UNRESPONDED CHECK] Verificação concluída:`);
+    console.log(`   📊 Total conversas 24h: ${recentConversations.length}`);
+    console.log(`   ❓ Não respondidas: ${unrespondedCount}`);
+    console.log(`   🚀 Respostas agendadas: ${processedCount}\n`);
+    
+  } catch (error) {
+    console.error(`❌ [UNRESPONDED CHECK] Erro na verificação:`, error);
+  }
+}
+
 function clampInt(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.floor(value)));
 }
@@ -1299,6 +1411,20 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         console.log(`   1. Evento contacts.upsert do Baileys disparar`);
         console.log(`   2. Mensagens forem recebidas/enviadas`);
         console.log(`   Cache warming carregou ${contactsCache.size} contatos do DB\n`);
+        
+        // ======================================================================
+        // 🔄 VERIFICAÇÃO DE MENSAGENS NÃO RESPONDIDAS (24H)
+        // ======================================================================
+        // Aguardar 10s para socket estabilizar, depois verificar se há clientes
+        // que mandaram mensagem nas últimas 24h e não foram respondidos
+        // (resolve problema de mensagens perdidas durante desconexões)
+        setTimeout(async () => {
+          try {
+            await checkUnrespondedMessages(session);
+          } catch (error) {
+            console.error(`❌ [UNRESPONDED CHECK] Erro ao verificar mensagens:`, error);
+          }
+        }, 10000); // 10 segundos após conexão
       }
     });
 
