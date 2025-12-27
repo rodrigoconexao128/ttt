@@ -1484,9 +1484,9 @@ async function getMasterPrompt(session: ClientSession): Promise<string> {
       const connection = await storage.getConnectionByUserId(existingUser.id);
       const hasActiveConnection = connection?.isConnected === true;
       
-      // Verificar se tem assinatura ativa
+      // Verificar se tem assinatura paga ativa (apenas 'active' = plano pago)
       const subscription = await storage.getUserSubscription(existingUser.id);
-      const hasActiveSubscription = subscription?.status === 'active' || subscription?.status === 'trialing';
+      const hasActiveSubscription = subscription?.status === 'active';
       
       // Só é cliente ativo se tiver conexão E assinatura
       isReallyActive = hasActiveConnection && hasActiveSubscription;
@@ -1933,8 +1933,8 @@ async function getReturningClientContext(session: ClientSession, existingUser: a
     // Verificar assinatura
     const sub = await storage.getUserSubscription(existingUser.id);
     if (sub) {
-      const isActive = sub.status === 'active' || sub.status === 'trialing';
-      subscriptionStatus = isActive ? `✅ ${sub.status}` : `⚠️ ${sub.status}`;
+      const isActive = sub.status === 'active';
+      subscriptionStatus = isActive ? `✅ Plano ativo` : `⚠️ Sem plano (limite de 25 msgs)`;
     }
   } catch (e) {
     console.error("[SALES] Erro ao buscar info do cliente:", e);
@@ -2014,8 +2014,8 @@ async function getActiveClientContext(session: ClientSession): Promise<string> {
     try {
       const sub = await storage.getUserSubscription(session.userId);
       if (sub) {
-        const isActive = sub.status === 'active' || sub.status === 'trialing';
-        subscriptionStatus = isActive ? `✅ ${sub.status}` : `❌ ${sub.status}`;
+        const isActive = sub.status === 'active';
+        subscriptionStatus = isActive ? `✅ Plano ativo` : `❌ Sem plano (limite de 25 msgs)`;
       }
     } catch {}
   }
@@ -3359,22 +3359,9 @@ REGRAS:
       });
     }
     
-    // Criar trial de 24h
-    const plans = await storage.getActivePlans();
-    const basicPlan = plans[0];
-    
-    if (basicPlan) {
-      const trialEnd = new Date();
-      trialEnd.setHours(trialEnd.getHours() + 24);
-      
-      await storage.createSubscription({
-        userId: user.id,
-        planId: basicPlan.id,
-        status: "trialing",
-        dataInicio: new Date(),
-        dataFim: trialEnd,
-      });
-    }
+    // Usuário criado sem assinatura - tem limite de 25 mensagens gratuitas
+    // Para ter mensagens ilimitadas, precisa assinar plano pago (status: 'active')
+    console.log(`📊 [SALES] Conta criada com limite de 25 mensagens gratuitas`);
     
     updateClientSession(session.phoneNumber, { userId: user.id, email: email });
     console.log(`✅ [SALES] Conta criada: ${email} (ID: ${user.id})`);
