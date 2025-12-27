@@ -1965,10 +1965,20 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       }
     }
 
+    // 🔍 TENTAR IDENTIFICAR NOME DO CLIENTE
+    const remoteJid = `${contactNumber}@${jidSuffix}`;
+    const contact = currentSession.contactsCache.get(remoteJid);
+    const customerName = contact?.name || contact?.notify || undefined;
+    
+    if (customerName) {
+      console.log(`   👤 Cliente identificado: ${customerName}`);
+    }
+
     const aiResult = await generateAIResponse(
       userId,
       conversationHistory,
-      combinedText // ✅ Todas as mensagens combinadas
+      combinedText, // ✅ Todas as mensagens combinadas
+      customerName
     );
 
     // 📁 Extrair texto e ações de mídia da resposta

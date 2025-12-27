@@ -205,7 +205,8 @@ function convertMarkdownToWhatsApp(text: string): string {
 export async function generateAIResponse(
   userId: string,
   conversationHistory: Message[],
-  newMessageText: string
+  newMessageText: string,
+  customerName?: string
 ): Promise<AIResponseResult | null> {
   try {
     // 🆕 TENTAR BUSCAR BUSINESS CONFIG PRIMEIRO (novo sistema)
@@ -373,7 +374,7 @@ export async function generateAIResponse(
      if (useAdvancedSystem && businessConfig) {
        // 🆕 NOVO SISTEMA: Usar template avançado com contexto
        const promptContext: PromptContext = {
-         customerName: undefined, // TODO: extrair nome do contato se disponível
+         customerName: customerName,
          conversationHistory: conversationHistory.slice(-6).map(m => ({
            role: m.fromMe ? "assistant" : "user",
            content: m.text || "",
@@ -401,7 +402,32 @@ export async function generateAIResponse(
        console.log(`🎨 [AI Agent] Generated advanced prompt (${systemPrompt.length} chars)${hasMedia ? ' + media library' : ''}`);
      } else {
        // 📝 SISTEMA LEGADO: Usar prompt manual com guardrails básicos
-       systemPrompt = agentConfig.prompt + `
+       let rawPrompt = agentConfig.prompt;
+
+       // 🆕 CAMADA DE VARIÁVEIS DINÂMICAS (Legacy)
+       if (customerName) {
+         rawPrompt = rawPrompt.replace(/{{nome}}/g, customerName);
+       } else {
+         rawPrompt = rawPrompt.replace(/ {{nome}}/g, "");
+         rawPrompt = rawPrompt.replace(/{{nome}}/g, "");
+       }
+
+       // Substituição de {{SAUDACAO}}
+       const currentTime = new Date();
+       const utcHour = currentTime.getUTCHours();
+       const brazilHour = (utcHour - 3 + 24) % 24;
+       
+       let saudacao = "Olá";
+       if (brazilHour >= 5 && brazilHour < 12) {
+         saudacao = "Bom dia";
+       } else if (brazilHour >= 12 && brazilHour < 18) {
+         saudacao = "Boa tarde";
+       } else {
+         saudacao = "Boa noite";
+       }
+       rawPrompt = rawPrompt.replace(/{{SAUDACAO}}/g, saudacao);
+
+       systemPrompt = rawPrompt + `
 
   ---
 

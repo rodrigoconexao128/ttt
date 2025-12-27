@@ -413,6 +413,36 @@ Ou se você não conseguir resolver o problema, diga:
   const objetivo = objetivos[config.templateType || "custom"] || objetivos.custom;
   prompt = prompt.replace(/{{OBJETIVO_PRINCIPAL}}/g, objetivo);
 
+  // 🆕 CAMADA DE VARIÁVEIS DINÂMICAS (Solicitado pelo usuário)
+  // Substituição de {{nome}} pelo nome do cliente
+  if (context?.customerName) {
+    prompt = prompt.replace(/{{nome}}/g, context.customerName);
+  } else {
+    // Se não tiver nome, remove o placeholder ou substitui por algo genérico se fizer sentido no contexto
+    // O usuário pediu para remover se não tiver, ou o prompt pode ficar estranho "Boa tarde , tudo bem?"
+    // Vamos tentar limpar espaços extras se ficar vazio
+    prompt = prompt.replace(/ {{nome}}/g, ""); 
+    prompt = prompt.replace(/{{nome}}/g, "");
+  }
+
+  // Substituição de {{SAUDACAO}} baseada no horário do Brasil (UTC-3)
+  if (context?.currentTime) {
+    const utcHour = context.currentTime.getUTCHours();
+    const brazilHour = (utcHour - 3 + 24) % 24;
+    
+    let saudacao = "Olá";
+    if (brazilHour >= 5 && brazilHour < 12) {
+      saudacao = "Bom dia";
+    } else if (brazilHour >= 12 && brazilHour < 18) {
+      saudacao = "Boa tarde";
+    } else {
+      saudacao = "Boa noite";
+    }
+    prompt = prompt.replace(/{{SAUDACAO}}/g, saudacao);
+  } else {
+    prompt = prompt.replace(/{{SAUDACAO}}/g, "Olá");
+  }
+
   // Cleanup de placeholders vazios
   prompt = prompt.replace(/{{[A-Z_]+}}/g, "");
 
