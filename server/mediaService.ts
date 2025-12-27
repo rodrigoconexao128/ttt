@@ -988,17 +988,18 @@ export async function executeMediaActions(
             }
 
             // Gerar texto descritivo da mensagem
-            // IMPORTANTE: Usar formato que NÃO confunde a IA quando volta no contexto
+            // IMPORTANTE: Usar formato SIMPLES que NÃO confunde a IA quando volta no contexto
+            // A IA estava copiando o formato "[Áudio enviado: ...]" na resposta
             let messageText = '';
             if (media.mediaType === 'audio') {
-              // Salvar apenas marcador simples - transcrição já está no áudio
-              messageText = `[Áudio enviado: ${media.description || media.name}]`;
+              // Salvar apenas "*Áudio*" - formato simples que IA não imita
+              messageText = '*Áudio*';
             } else if (media.mediaType === 'image') {
-              messageText = media.caption || `[Imagem enviada: ${media.description || media.name}]`;
+              messageText = media.caption || '*Imagem*';
             } else if (media.mediaType === 'video') {
-              messageText = media.caption || `[Vídeo enviado: ${media.description || media.name}]`;
+              messageText = media.caption || '*Vídeo*';
             } else if (media.mediaType === 'document') {
-              messageText = `[Documento enviado: ${media.fileName || media.name}]`;
+              messageText = '*Documento*';
             }
 
             // Salvar mensagem no banco

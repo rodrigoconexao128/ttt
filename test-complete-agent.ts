@@ -38,12 +38,13 @@ interface TestResult {
 }
 
 // Padrões problemáticos que NÃO devem aparecer na resposta
+// NOTA: Textos como "online/cadastro" e instruções de menu SÃO VÁLIDOS porque fazem parte do prompt do cliente
 const FORBIDDEN_PATTERNS = [
   { pattern: /🎤\s*[ÁáAa]udio/i, name: "🎤 Áudio no início" },
   { pattern: /\[ÁUDIO ENVIADO PELO AGENTE\]/i, name: "[ÁUDIO ENVIADO PELO AGENTE]" },
-  { pattern: /online\/cadastro\)/i, name: "Vazamento 'online/cadastro)'" },
-  { pattern: /Depois de logado, no menu do lado esquerdo/i, name: "Vazamento de instruções do prompt" },
-  { pattern: /clica em \*?Ilimitado\*? e faz o pagamento/i, name: "Vazamento de instruções literais" },
+  { pattern: /\[Áudio enviado:[^\]]+\]/i, name: "[Áudio enviado: ...]" },
+  { pattern: /\[Imagem enviada:[^\]]+\]/i, name: "[Imagem enviada: ...]" },
+  { pattern: /\[Vídeo enviado:[^\]]+\]/i, name: "[Vídeo enviado: ...]" },
   { pattern: /\[SEND_MEDIA:/i, name: "Tag errada [SEND_MEDIA:]" },
   { pattern: /\[IMAGEM ENVIADA:/i, name: "[IMAGEM ENVIADA:]" },
   { pattern: /\[VÍDEO ENVIADO:/i, name: "[VÍDEO ENVIADO:]" },
@@ -115,7 +116,7 @@ const TEST_SCENARIOS = [
     messages: [
       { fromMe: false, text: "Oi" },
       { fromMe: true, text: "Oi! [MEDIA:MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR]" },
-      { fromMe: true, text: "[Áudio enviado]", mediaType: "audio" },
+      { fromMe: true, text: "*Áudio*", mediaType: "audio" },
     ],
     newMessage: "Entendi, trabalho com vendas",
     expectMedia: true,

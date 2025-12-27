@@ -117,6 +117,13 @@ function processResponsePlaceholders(text: string, contactName?: string): string
   processed = processed.replace(/\[VÍDEO ENVIADO:[^\]]*\]/gi, '');
   processed = processed.replace(/\[DOCUMENTO ENVIADO:[^\]]*\]/gi, '');
   
+  // 🛡️ FIX CRÍTICO: Limpar padrão [Áudio enviado: ...] que a IA está copiando do contexto
+  // Este texto NÃO deve aparecer na resposta final - apenas a tag [MEDIA:NOME] é válida
+  processed = processed.replace(/\[Áudio enviado:[^\]]*\]/gi, '');
+  processed = processed.replace(/\[Imagem enviada:[^\]]*\]/gi, '');
+  processed = processed.replace(/\[Vídeo enviado:[^\]]*\]/gi, '');
+  processed = processed.replace(/\[Documento enviado:[^\]]*\]/gi, '');
+  
   // Regex genérico para capturar QUALQUER variável de nome comum
   // Captura: {{nome}}, {nome}, [nome], {{name}}, {cliente}, {{usuario}}, etc.
   const genericNamePattern = /\{\{?(nome|name|cliente|customer|user|usuario|contato)\}?\}|\[(nome|name|cliente|customer|contato)\]/gi;
@@ -793,9 +800,21 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
       // 2. Limpar padrões internos de mídia enviada pelo agente
       // CRÍTICO: Remover completamente este texto para não confundir a IA
       if (content.includes('[ÁUDIO ENVIADO PELO AGENTE]')) {
-        // Remover o marcador E a transcrição que segue (ela está no áudio, não precisa no contexto)
-        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:[^]*/gi, '[Explicação em áudio foi enviada]');
-        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]/gi, '[Áudio enviado]');
+        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:[^]*/gi, '*Áudio*');
+        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]/gi, '*Áudio*');
+      }
+      // Limpar formato antigo [Áudio enviado: ...] - IA estava copiando isso na resposta
+      if (content.includes('[Áudio enviado:')) {
+        content = content.replace(/\[Áudio enviado:[^\]]*\]/gi, '*Áudio*');
+      }
+      if (content.includes('[Imagem enviada:')) {
+        content = content.replace(/\[Imagem enviada:[^\]]*\]/gi, '*Imagem*');
+      }
+      if (content.includes('[Vídeo enviado:')) {
+        content = content.replace(/\[Vídeo enviado:[^\]]*\]/gi, '*Vídeo*');
+      }
+      if (content.includes('[Documento enviado:')) {
+        content = content.replace(/\[Documento enviado:[^\]]*\]/gi, '*Documento*');
       }
       if (content.includes('[IMAGEM ENVIADA:')) {
         content = content.replace(/\[IMAGEM ENVIADA:[^\]]*\]/gi, '');
