@@ -28,6 +28,89 @@ function addRandomSeconds(date: Date): Date {
   return new Date(date.getTime() + randomSeconds * 1000);
 }
 
+/**
+ * Valida e sanitiza a mensagem de follow-up
+ * Detecta problemas como texto duplicado, repetições, ou erros
+ * Retorna null se a mensagem é inválida
+ */
+function validateAndSanitizeMessage(message: string): string | null {
+  if (!message || message.trim().length < 10) {
+    console.warn(`⚠️ [FOLLOW-UP] Mensagem muito curta ou vazia`);
+    return null;
+  }
+
+  let sanitized = message.trim();
+
+  // 1. Detectar texto duplicado (ex: "Oi! Oi!" ou frases repetidas)
+  const words = sanitized.split(/\s+/);
+  const halfLength = Math.floor(words.length / 2);
+  
+  if (halfLength >= 5) {
+    const firstHalf = words.slice(0, halfLength).join(' ');
+    const secondHalf = words.slice(halfLength, halfLength * 2).join(' ');
+    
+    // Se as duas metades são muito similares (>70% iguais), é duplicado
+    const similarity = calculateSimilarity(firstHalf, secondHalf);
+    if (similarity > 0.7) {
+      console.warn(`⚠️ [FOLLOW-UP] Mensagem duplicada detectada (${Math.round(similarity * 100)}% similar)`);
+      // Usar apenas a primeira metade
+      sanitized = firstHalf;
+    }
+  }
+
+  // 2. Detectar frases repetidas consecutivas
+  const sentences = sanitized.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const uniqueSentences: string[] = [];
+  for (const sentence of sentences) {
+    const trimmed = sentence.trim();
+    const isDuplicate = uniqueSentences.some(s => 
+      calculateSimilarity(s.toLowerCase(), trimmed.toLowerCase()) > 0.8
+    );
+    if (!isDuplicate && trimmed.length > 0) {
+      uniqueSentences.push(trimmed);
+    }
+  }
+  
+  if (uniqueSentences.length < sentences.length) {
+    console.warn(`⚠️ [FOLLOW-UP] Frases repetidas removidas: ${sentences.length} → ${uniqueSentences.length}`);
+    sanitized = uniqueSentences.join('. ') + (sanitized.endsWith('😊') ? ' 😊' : '');
+  }
+
+  // 3. Remover múltiplos emojis iguais consecutivos
+  sanitized = sanitized.replace(/(😊|😄|🙂|👍){2,}/g, '$1');
+
+  // 4. Verificar se ainda faz sentido (mínimo de palavras)
+  if (sanitized.split(/\s+/).length < 4) {
+    console.warn(`⚠️ [FOLLOW-UP] Mensagem muito curta após sanitização`);
+    return null;
+  }
+
+  // 5. Garantir que termina bem (não corta no meio)
+  if (!sanitized.match(/[.!?😊😄🙂]$/)) {
+    sanitized = sanitized.trim() + '.';
+  }
+
+  return sanitized;
+}
+
+/**
+ * Calcula similaridade entre duas strings (0 a 1)
+ * Usa algoritmo simples de comparação de palavras
+ */
+function calculateSimilarity(str1: string, str2: string): number {
+  const words1 = str1.toLowerCase().split(/\s+/);
+  const words2 = str2.toLowerCase().split(/\s+/);
+  
+  if (words1.length === 0 || words2.length === 0) return 0;
+  
+  let matches = 0;
+  for (const word of words1) {
+    if (words2.includes(word)) matches++;
+  }
+  
+  return matches / Math.max(words1.length, words2.length);
+}
+
 type FollowUpCallback = (
   userId: string,
   conversationId: string,
@@ -153,6 +236,18 @@ export class UserFollowUpService {
 
       // 4. Gerar mensagem de follow-up
       if (decision.action === 'send' && decision.message) {
+        // 4.1 Validar e sanitizar mensagem antes de enviar
+        const validatedMessage = validateAndSanitizeMessage(decision.message);
+        
+        if (!validatedMessage) {
+          console.warn(`⚠️ [USER-FOLLOW-UP] Mensagem inválida/duplicada para ${conversation.contactNumber}, reagendando`);
+          // Reagendar para próximo estágio (a IA vai gerar nova mensagem)
+          const nextDate = addRandomSeconds(new Date(Date.now() + 30 * 60 * 1000)); // 30 min
+          await this.scheduleNextFollowUp(conversation.id, nextDate);
+          await this.logFollowUp(conversation, userId, 'skipped', decision.message, decision, 'Mensagem invalidada por duplicação/erro');
+          return;
+        }
+
         if (this.onFollowUpReady && conversation.remoteJid) {
           console.log(`📤 [USER-FOLLOW-UP] Disparando follow-up para ${conversation.contactNumber}`);
           
@@ -161,7 +256,7 @@ export class UserFollowUpService {
             conversation.id,
             conversation.contactNumber,
             conversation.remoteJid,
-            decision.message,
+            validatedMessage, // Usar mensagem validada/sanitizada
             conversation.followupStage || 0
           );
 
@@ -171,7 +266,7 @@ export class UserFollowUpService {
               conversation, 
               userId, 
               'sent', 
-              decision.message, 
+              validatedMessage, // Usar mensagem validada
               decision, 
               null
             );
