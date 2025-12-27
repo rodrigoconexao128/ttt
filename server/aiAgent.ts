@@ -746,6 +746,22 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
         }
       }
       
+      // 🛡️ FIX: Limpar marcadores internos de mídia que não devem aparecer no contexto da IA
+      // Isso evita que a IA "aprenda" a repetir esses textos
+      if (content.includes('[ÁUDIO ENVIADO PELO AGENTE]')) {
+        // Substituir por uma versão mais limpa que não confunde a IA
+        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:\s*/gi, '[Áudio explicativo enviado] ');
+      }
+      if (content.includes('[IMAGEM ENVIADA:')) {
+        content = content.replace(/\[IMAGEM ENVIADA:[^\]]*\]/gi, '[Imagem enviada]');
+      }
+      if (content.includes('[VÍDEO ENVIADO:')) {
+        content = content.replace(/\[VÍDEO ENVIADO:[^\]]*\]/gi, '[Vídeo enviado]');
+      }
+      if (content.includes('[DOCUMENTO ENVIADO:')) {
+        content = content.replace(/\[DOCUMENTO ENVIADO:[^\]]*\]/gi, '[Documento enviado]');
+      }
+      
       messages.push({
         role,
         content,

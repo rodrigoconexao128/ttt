@@ -205,20 +205,23 @@ export async function upsertAgentMedia(data: InsertAgentMedia): Promise<AgentMed
  * Gera o bloco de mídias para incluir no prompt do Mistral
  * O Mistral vai usar essas descrições para decidir quando enviar cada mídia
  * SISTEMA UNIVERSAL - Funciona para QUALQUER tipo de negócio
+ * 
+ * PRIORIZA o campo "whenToUse" configurado pelo usuário para cada mídia
  */
 export function generateMediaPromptBlock(mediaList: AgentMedia[]): string {
   if (!mediaList || mediaList.length === 0) {
     return '';
   }
 
-  // Organizar mídias por tipo
-  const audioMidias = mediaList.filter(m => m.mediaType === 'audio');
-  const imageMidias = mediaList.filter(m => m.mediaType === 'image');
-  const videoMidias = mediaList.filter(m => m.mediaType === 'video');
-  const documentMidias = mediaList.filter(m => m.mediaType === 'document');
+  // Filtrar apenas mídias ativas
+  const activeMedias = mediaList.filter(m => m.isActive !== false);
+  
+  if (activeMedias.length === 0) {
+    return '';
+  }
 
   // Construir lista de mídias disponíveis
-  const allMediaNames = mediaList.map(m => m.name).join(', ');
+  const allMediaNames = activeMedias.map(m => m.name).join(', ');
 
   let mediaBlock = `
 
@@ -226,110 +229,69 @@ export function generateMediaPromptBlock(mediaList: AgentMedia[]): string {
 📁 SISTEMA DE ENVIO DE MÍDIAS - INSTRUÇÕES OBRIGATÓRIAS
 ═══════════════════════════════════════════════════════════════════════════════
 
-Você tem as seguintes mídias disponíveis para enviar: ${allMediaNames}
+Você pode enviar mídias (áudios, imagens, vídeos, documentos) usando tags especiais.
+O sistema vai detectar a tag e enviar a mídia automaticamente.
 
+🎯 MÍDIAS CONFIGURADAS E QUANDO USAR:
 `;
 
-  if (imageMidias.length > 0) {
-    mediaBlock += `🖼️ IMAGENS DISPONÍVEIS:
-`;
-    for (const m of imageMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Imagem'}
-     Enviar quando: ${m.whenToUse || 'cliente pedir catálogo, foto, imagem'}
-`;
-    }
-    mediaBlock += '\n';
-  }
-
-  if (audioMidias.length > 0) {
-    mediaBlock += `🎵 ÁUDIOS DISPONÍVEIS:
-`;
-    for (const m of audioMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Áudio'}
-     Enviar quando: ${m.whenToUse || 'cliente pedir áudio, explicação por voz'}
-`;
-    }
-    mediaBlock += '\n';
-  }
-
-  if (videoMidias.length > 0) {
-    mediaBlock += `🎬 VÍDEOS DISPONÍVEIS:
-`;
-    for (const m of videoMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Vídeo'}
-     Enviar quando: ${m.whenToUse || 'cliente pedir vídeo, demonstração'}
-`;
-    }
-    mediaBlock += '\n';
-  }
-
-  if (documentMidias.length > 0) {
-    mediaBlock += `📄 DOCUMENTOS DISPONÍVEIS:
-`;
-    for (const m of documentMidias) {
-      mediaBlock += `   • ${m.name} - ${m.description || 'Documento'}
-     Enviar quando: ${m.whenToUse || 'cliente pedir documento, PDF, contrato'}
-`;
-    }
-    mediaBlock += '\n';
-  }
-
-  mediaBlock += `
-═══════════════════════════════════════════════════════════════════════════════
-⚠️ REGRA CRÍTICA: COMO ENVIAR MÍDIA (OBRIGATÓRIO)
-═══════════════════════════════════════════════════════════════════════════════
-
-Quando o cliente pedir uma mídia listada acima, você DEVE:
-1. Responder normalmente
-2. ADICIONAR A TAG NO FINAL: [MEDIA:NOME_DA_MIDIA]
-
-✅ EXEMPLOS CORRETOS:
-
-CLIENTE: "me manda o catálogo"
-VOCÊ: "Claro! Aqui está nosso catálogo. [MEDIA:MEDIA_1765830878862]"
-
-CLIENTE: "quero ver o catalogo"
-VOCÊ: "Perfeito! Vou te mostrar. [MEDIA:MEDIA_1765830878862]"
-
-CLIENTE: "tem cardápio?"
-VOCÊ: "Tenho sim! Veja nosso cardápio. [MEDIA:CARDAPIO]"
-
-⚠️ IMPORTANTE: Use o nome EXATO da mídia listado acima!
-
-═══════════════════════════════════════════════════════════════════════════════
-❌ QUANDO NÃO ENVIAR (apenas responda normalmente SEM tag):
-═══════════════════════════════════════════════════════════════════════════════
-- "Oi", "Bom dia" → responder saudação SEM mídia
-- "Obrigado" → responder agradecimento SEM mídia  
-- "Qual horário?" → responder pergunta SEM mídia
-- "Ok", "Fechado" → confirmar SEM mídia
-
-═══════════════════════════════════════════════════════════════════════════════
-🎯 MAPEAMENTO DE PALAVRAS → MÍDIAS:
-═══════════════════════════════════════════════════════════════════════════════
-`;
-
-  // Lista compacta e clara de mídias
-  mediaBlock += `
-📋 MÍDIAS DISPONÍVEIS PARA ENVIAR:
-`;
-
-  for (const media of mediaList) {
-    const tipo = media.mediaType === 'audio' ? '🎤' :
-                 media.mediaType === 'video' ? '🎥' :
-                 media.mediaType === 'image' ? '🖼️' : '📄';
+  // Lista cada mídia com seu gatilho de uso (prioriza whenToUse)
+  for (const media of activeMedias) {
+    const tipoIcon = media.mediaType === 'audio' ? '🎤' :
+                     media.mediaType === 'video' ? '🎥' :
+                     media.mediaType === 'image' ? '🖼️' : '📄';
     
-    mediaBlock += `${tipo} ${media.name} - ${media.description || 'Sem descrição'}
-   Enviar quando: ${media.whenToUse || 'relevante'}
-   Tag: [MEDIA:${media.name}]
-
+    const tipoNome = media.mediaType === 'audio' ? 'ÁUDIO' :
+                     media.mediaType === 'video' ? 'VÍDEO' :
+                     media.mediaType === 'image' ? 'IMAGEM' : 'DOCUMENTO';
+    
+    mediaBlock += `
+${tipoIcon} ${tipoNome}: ${media.name}
+   📝 Descrição: ${media.description || 'Sem descrição'}
+   ⏰ ENVIAR QUANDO: ${media.whenToUse || 'cliente solicitar'}
+   🏷️ Tag para enviar: [MEDIA:${media.name}]
 `;
   }
 
   mediaBlock += `
-⚠️ ATENÇÃO: Se o cliente pedir por "${mediaList.map(m => m.whenToUse || m.name).join('", "')}"
-você DEVE incluir a tag [MEDIA:NOME] correspondente no final da sua resposta!
-════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════════════
+✅ COMO ENVIAR MÍDIA (OBRIGATÓRIO)
+═══════════════════════════════════════════════════════════════════════════════
+
+Quando a SITUAÇÃO corresponder ao "ENVIAR QUANDO" de uma mídia:
+1. Escreva sua resposta normalmente
+2. Adicione a tag [MEDIA:NOME] NO FINAL do texto
+
+EXEMPLOS:
+`;
+
+  // Gerar exemplos baseados nas mídias configuradas
+  for (const media of activeMedias.slice(0, 2)) { // Máximo 2 exemplos
+    const gatilho = media.whenToUse || 'cliente perguntar';
+    mediaBlock += `
+• Situação: ${gatilho}
+  Resposta: "Sua resposta aqui... [MEDIA:${media.name}]"
+`;
+  }
+
+  mediaBlock += `
+═══════════════════════════════════════════════════════════════════════════════
+❌ REGRAS IMPORTANTES - NUNCA FAÇA ISSO:
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ NUNCA escreva "[ÁUDIO ENVIADO PELO AGENTE]" no texto
+❌ NUNCA mencione "vou te enviar um áudio/imagem/vídeo"
+❌ NUNCA anuncie que está enviando mídia
+❌ NUNCA repita uma mídia que já foi enviada na conversa
+
+✅ APENAS coloque a tag [MEDIA:...] no final e deixe o sistema enviar silenciosamente
+
+EXEMPLO CORRETO:
+"Perfeito! Funciona assim: você configura e a IA atende. [MEDIA:COMO_FUNCIONA]"
+
+EXEMPLO ERRADO:
+"Vou te enviar um áudio explicando [MEDIA:COMO_FUNCIONA]" ← NÃO FAÇA ISSO
+════════════════════════════════════════════════════════════════════════════════
 `;
 
   return mediaBlock;
