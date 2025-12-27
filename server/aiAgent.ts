@@ -44,6 +44,11 @@ function getBrazilGreeting(): { greeting: string; period: string } {
 // ═══════════════════════════════════════════════════════════════════════
 // 🧠 FUNÇÃO PARA GERAR BLOCO DE CONTEXTO DINÂMICO (NOME, HORÁRIO, ETC)
 // ═══════════════════════════════════════════════════════════════════════
+// FILOSOFIA: Passar APENAS informações para a IA decidir como usar.
+// A IA lê o prompt do cliente e decide: se tem {{nome}}, substitui.
+// Se tem gíria no prompt, usa gíria. Se tem formalidade, usa formalidade.
+// NÃO IMPOR REGRAS - apenas INFORMAR contexto.
+// ═══════════════════════════════════════════════════════════════════════
 function generateDynamicContextBlock(contactName?: string, sentMedias?: string[]): string {
   const { greeting, period } = getBrazilGreeting();
   const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
@@ -54,91 +59,57 @@ function generateDynamicContextBlock(contactName?: string, sentMedias?: string[]
     ? sentMedias.join(", ") 
     : "nenhuma ainda";
   
+  const brazilTime = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  
+  // CONTEXTO SIMPLES - IA interpreta conforme prompt do cliente
   return `
 ═══════════════════════════════════════════════════════════════════════════════
-📋 CONTEXTO DINÂMICO DA CONVERSA (LEIA COM ATENÇÃO)
+📋 INFORMAÇÕES DO CLIENTE (use conforme seu prompt)
 ═══════════════════════════════════════════════════════════════════════════════
 
-🕐 HORÁRIO ATUAL DO BRASIL: ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })} (${period})
-🌅 SAUDAÇÃO CORRETA PARA USAR: "${greeting}"
+🕐 Horário Brasil: ${brazilTime} (${period}) | Saudação sugerida: "${greeting}"
+👤 Nome do cliente: ${formattedName || "(não identificado - use 'você' se precisar)"}
+📁 Mídias já enviadas nesta conversa: ${sentMediasList}
 
-👤 NOME DO CLIENTE: ${formattedName || "Não identificado"}
-
-📁 MÍDIAS JÁ ENVIADAS NESTA CONVERSA: ${sentMediasList}
-
-═══════════════════════════════════════════════════════════════════════════════
-⚠️ REGRAS CRÍTICAS DE PERSONALIZAÇÃO
-═══════════════════════════════════════════════════════════════════════════════
-
-1. SAUDAÇÃO CORRETA:
-   - Use SEMPRE "${greeting}" ao cumprimentar
-   - NUNCA use "Boa tarde" de noite ou "Bom dia" à tarde
-   - A saudação já está definida pelo horário do Brasil
-
-2. NOME DO CLIENTE:
-   ${formattedName 
-    ? `- O cliente se chama "${formattedName}"
-   - Use o nome naturalmente: "${greeting} ${formattedName}!"
-   - NÃO use {{nome}} literal - substitua sempre pelo nome real
-   - Exemplo: "Perfeito, ${formattedName}!" ao invés de "Perfeito, {{nome}}!"`
-    : `- Cliente sem nome identificado
-   - NÃO use {{nome}} literal na resposta
-   - Use saudação genérica: "${greeting}!" ou "Olá!"`}
-
-3. MÍDIAS - NUNCA REPETIR:
-   ${sentMedias && sentMedias.length > 0 
-    ? `- VOCÊ JÁ ENVIOU: ${sentMediasList}
-   - PROIBIDO enviar qualquer uma dessas novamente
-   - Se o cliente pedir algo que já foi enviado, diga: "Já te enviei isso anteriormente!"`
-    : `- Nenhuma mídia enviada ainda
-   - Pode enviar a mídia apropriada quando necessário`}
-
-4. RESPOSTAS ÚNICAS:
-   - NUNCA repita a mesma resposta ou frase
-   - Varie suas palavras e abordagens
-   - Seja criativo mas mantenha a identidade
-
+INSTRUÇÕES IMPORTANTES:
+- Se seu prompt usa variáveis como {{nome}}, {nome}, [nome], [cliente] etc → substitua por "${formattedName || 'você'}"
+- Se seu prompt pede para usar o nome do cliente → use "${formattedName || 'você'}"
+- Não repita mídias que já foram enviadas
+- SIGA O ESTILO DO SEU PROMPT (gírias, formalidade, etc)
 ═══════════════════════════════════════════════════════════════════════════════
 `;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 🔄 FUNÇÃO PARA SUBSTITUIR PLACEHOLDERS NO TEXTO DE SAÍDA
+// 🔄 FUNÇÃO PARA LIMPAR PLACEHOLDERS QUE A IA NÃO SUBSTITUIU
+// ═══════════════════════════════════════════════════════════════════════
+// FILOSOFIA: A IA deve substituir as variáveis. Esta função é apenas
+// uma rede de segurança para limpar qualquer {{nome}} ou {nome} que
+// escapou. NÃO força saudações - respeita 100% o estilo do prompt.
 // ═══════════════════════════════════════════════════════════════════════
 function processResponsePlaceholders(text: string, contactName?: string): string {
   if (!text) return text;
   
-  const { greeting } = getBrazilGreeting();
   const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
     ? contactName.trim() 
     : "";
   
   let processed = text;
   
-  // Substituir {{nome}} ou {nome} pelo nome real
+  // Regex genérico para capturar QUALQUER variável de nome comum
+  // Captura: {{nome}}, {nome}, [nome], {{name}}, {cliente}, {{usuario}}, etc.
+  const genericNamePattern = /\{\{?(nome|name|cliente|customer|user|usuario|contato)\}?\}|\[(nome|name|cliente|customer|contato)\]/gi;
+  
   if (formattedName) {
-    processed = processed.replace(/\{\{nome\}\}/gi, formattedName);
-    processed = processed.replace(/\{nome\}/gi, formattedName);
+    // Substituir qualquer variável de nome pelo nome real
+    processed = processed.replace(genericNamePattern, formattedName);
   } else {
-    // Remover {{nome}} e vírgula/espaço anterior se não tem nome
-    processed = processed.replace(/,?\s*\{\{nome\}\}/gi, "");
-    processed = processed.replace(/,?\s*\{nome\}/gi, "");
+    // Remover placeholders não substituídos (incluindo vírgula/espaço antes)
+    processed = processed.replace(/,?\s*\{\{?(nome|name|cliente|customer|user|usuario|contato)\}?\}/gi, "");
+    processed = processed.replace(/,?\s*\[(nome|name|cliente|customer|contato)\]/gi, "");
   }
   
-  // Substituir saudações incorretas pela correta do horário
-  // Só substitui se a saudação está no início da mensagem ou após quebra de linha
-  if (greeting === "Bom dia") {
-    processed = processed.replace(/^Boa tarde/gi, "Bom dia");
-    processed = processed.replace(/^Boa noite/gi, "Bom dia");
-  } else if (greeting === "Boa tarde") {
-    processed = processed.replace(/^Bom dia/gi, "Boa tarde");
-    processed = processed.replace(/^Boa noite/gi, "Boa tarde");
-  } else if (greeting === "Boa noite") {
-    processed = processed.replace(/^Bom dia/gi, "Boa noite");
-    processed = processed.replace(/^Boa tarde/gi, "Boa noite");
-  }
-  
-  return processed;
+  return processed.trim();
 }
 
 // � FUNÇÃO DE RETRY AUTOMÁTICO PARA CHAMADAS DE API
