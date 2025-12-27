@@ -1570,14 +1570,24 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   } else if (msg?.imageMessage?.caption) {
     messageText = msg.imageMessage.caption;
     mediaType = "image";
+  } else if (msg?.imageMessage) {
+    messageText = "[Imagem recebida]";
+    mediaType = "image";
   } else if (msg?.videoMessage?.caption) {
     messageText = msg.videoMessage.caption;
     mediaType = "video";
+  } else if (msg?.videoMessage) {
+    messageText = "[Vídeo recebido]";
+    mediaType = "video";
   } else if (msg?.audioMessage) {
-    messageText = "🎤 Áudio";
+    // IMPORTANTE: Formato simples que não confunde a IA
+    messageText = "[Áudio recebido]";
     mediaType = "audio";
   } else if (msg?.documentMessage?.caption) {
     messageText = msg.documentMessage.caption;
+    mediaType = "document";
+  } else if (msg?.documentMessage) {
+    messageText = "[Documento recebido]";
     mediaType = "document";
   } else {
     console.log(`📱 [FROM ME] Unsupported message type, skipping`);

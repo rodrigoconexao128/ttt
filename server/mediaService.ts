@@ -988,15 +988,17 @@ export async function executeMediaActions(
             }
 
             // Gerar texto descritivo da mensagem
+            // IMPORTANTE: Usar formato que NÃO confunde a IA quando volta no contexto
             let messageText = '';
-            if (media.mediaType === 'audio' && transcriptionText) {
-              messageText = `[ÁUDIO ENVIADO PELO AGENTE]: ${transcriptionText}`;
+            if (media.mediaType === 'audio') {
+              // Salvar apenas marcador simples - transcrição já está no áudio
+              messageText = `[Áudio enviado: ${media.description || media.name}]`;
             } else if (media.mediaType === 'image') {
-              messageText = media.caption || `[IMAGEM ENVIADA: ${media.description || media.name}]`;
+              messageText = media.caption || `[Imagem enviada: ${media.description || media.name}]`;
             } else if (media.mediaType === 'video') {
-              messageText = media.caption || `[VÍDEO ENVIADO: ${media.description || media.name}]`;
+              messageText = media.caption || `[Vídeo enviado: ${media.description || media.name}]`;
             } else if (media.mediaType === 'document') {
-              messageText = `[DOCUMENTO ENVIADO: ${media.fileName || media.name}]`;
+              messageText = `[Documento enviado: ${media.fileName || media.name}]`;
             }
 
             // Salvar mensagem no banco
