@@ -18,6 +18,15 @@ import { getMistralClient } from "./mistralClient";
 // Intervalos padrão em minutos
 const DEFAULT_INTERVALS = [10, 30, 180, 1440, 2880, 4320, 10080, 21600];
 
+/**
+ * Adiciona segundos aleatórios a uma data para parecer mais humano
+ * Evita que todos os follow-ups sejam no mesmo segundo (parece robô)
+ */
+function addRandomSeconds(date: Date): Date {
+  const randomSeconds = Math.floor(Math.random() * 45) + 5; // Entre 5 e 50 segundos
+  return new Date(date.getTime() + randomSeconds * 1000);
+}
+
 type FollowUpCallback = (
   userId: string,
   conversationId: string,
@@ -134,8 +143,8 @@ export class UserFollowUpService {
 
       if (decision.action === 'wait') {
         console.log(`⏳ [USER-FOLLOW-UP] IA sugeriu esperar para ${conversation.contactNumber}: ${decision.reason}`);
-        // Adiar por 24h
-        const nextDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        // Adiar por 24h com segundos aleatórios
+        const nextDate = addRandomSeconds(new Date(Date.now() + 24 * 60 * 60 * 1000));
         await this.scheduleNextFollowUp(conversation.id, nextDate);
         await this.logFollowUp(conversation, userId, 'skipped', null, decision, decision.reason);
         return;
@@ -155,33 +164,58 @@ export class UserFollowUpService {
             conversation.followupStage || 0
           );
 
-          await this.logFollowUp(
-            conversation, 
-            userId, 
-            result.success ? 'sent' : 'failed', 
-            decision.message, 
-            decision, 
-            result.error
-          );
-          
           if (result.success) {
-            // Sucesso: Agendar próximo estágio
+            // Sucesso: Logar e agendar próximo estágio
+            await this.logFollowUp(
+              conversation, 
+              userId, 
+              'sent', 
+              decision.message, 
+              decision, 
+              null
+            );
             await this.advanceToNextStage(conversation, config);
           } else {
-            // Falha (ex: WhatsApp desconectado): Reagendar para tentar em 5 minutos
-            console.log(`⚠️ [USER-FOLLOW-UP] Falha ao enviar, reagendando em 5 minutos: ${result.error}`);
-            const retryDate = new Date(Date.now() + 5 * 60 * 1000);
-            await db.update(conversations)
-              .set({ 
-                nextFollowupAt: retryDate,
-                followupDisabledReason: `⚠️ Aguardando conexão: ${result.error}`
-              })
-              .where(eq(conversations.id, conversation.id));
+            // Falha (ex: WhatsApp desconectado): NÃO logar como falha, apenas reagendar
+            // Isso evita poluir o histórico com "falhas" que são apenas reconexões
+            const isConnectionError = result.error?.toLowerCase().includes('not connected') || 
+                                       result.error?.toLowerCase().includes('connection') ||
+                                       result.error?.toLowerCase().includes('socket');
+            
+            if (isConnectionError) {
+              // Erro de conexão: reagendar silenciosamente para tentar em 2 minutos
+              console.log(`🔄 [USER-FOLLOW-UP] WhatsApp desconectado, reagendando em 2 minutos: ${result.error}`);
+              const retryDate = addRandomSeconds(new Date(Date.now() + 2 * 60 * 1000));
+              await db.update(conversations)
+                .set({ 
+                  nextFollowupAt: retryDate,
+                  followupDisabledReason: `🔄 Aguardando conexão WhatsApp...`
+                })
+                .where(eq(conversations.id, conversation.id));
+            } else {
+              // Outro tipo de erro: logar como falha
+              await this.logFollowUp(
+                conversation, 
+                userId, 
+                'failed', 
+                decision.message, 
+                decision, 
+                result.error
+              );
+              // Reagendar para tentar novamente em 5 minutos
+              const retryDate = addRandomSeconds(new Date(Date.now() + 5 * 60 * 1000));
+              await db.update(conversations)
+                .set({ 
+                  nextFollowupAt: retryDate,
+                  followupDisabledReason: `⚠️ Erro: ${result.error}`
+                })
+                .where(eq(conversations.id, conversation.id));
+            }
           }
         } else {
           console.warn("⚠️ [USER-FOLLOW-UP] Callback não registrado ou remoteJid ausente");
-          // Reagendar para tentar em 5 minutos
-          const retryDate = new Date(Date.now() + 5 * 60 * 1000);
+          // Reagendar para tentar em 5 minutos com segundos aleatórios
+          const retryDate = addRandomSeconds(new Date(Date.now() + 5 * 60 * 1000));
           await db.update(conversations)
             .set({ nextFollowupAt: retryDate })
             .where(eq(conversations.id, conversation.id));
@@ -435,7 +469,7 @@ Responda APENAS um JSON válido:
         const minDays = config.infiniteLoopMinDays || 15;
         const maxDays = config.infiniteLoopMaxDays || 30;
         const randomDays = Math.floor(Math.random() * (maxDays - minDays + 1) + minDays);
-        nextDate = new Date(Date.now() + randomDays * 24 * 60 * 60 * 1000);
+        nextDate = addRandomSeconds(new Date(Date.now() + randomDays * 24 * 60 * 60 * 1000));
         console.log(`🔄 [USER-FOLLOW-UP] Loop infinito: próximo em ${randomDays} dias`);
       } else {
         // Desativar follow-up
@@ -445,7 +479,7 @@ Responda APENAS um JSON válido:
     } else {
       // FIX: Usar o intervalo do PRÓXIMO estágio, não do atual
       const delayMinutes = intervals[nextStage];
-      nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
+      nextDate = addRandomSeconds(new Date(Date.now() + delayMinutes * 60 * 1000));
       console.log(`⏰ [USER-FOLLOW-UP] Estágio ${currentStage} → ${nextStage}, intervalo: ${delayMinutes} minutos`);
     }
 
@@ -509,7 +543,7 @@ Responda APENAS um JSON válido:
 
     const intervals = config?.intervalsMinutes || DEFAULT_INTERVALS;
     const delayMinutes = intervals[0] || 10;
-    const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
+    const nextDate = addRandomSeconds(new Date(Date.now() + delayMinutes * 60 * 1000));
 
     await db.update(conversations)
       .set({ 
@@ -556,7 +590,7 @@ Responda APENAS um JSON válido:
     
     const intervals = config?.intervalsMinutes || DEFAULT_INTERVALS;
     const delayMinutes = intervals[0] || 10;
-    const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
+    const nextDate = addRandomSeconds(new Date(Date.now() + delayMinutes * 60 * 1000));
 
     await db.update(conversations)
       .set({ 
@@ -753,6 +787,9 @@ Responda APENAS um JSON válido:
             }
           }
         }
+        
+        // Adicionar segundos aleatórios para parecer mais humano
+        newDate = addRandomSeconds(newDate);
         
         await db.update(conversations)
           .set({ 
