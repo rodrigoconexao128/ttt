@@ -4282,8 +4282,14 @@ Use emojis com moderação quando apropriado.`;
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      // Usar o mimeType recebido ou fallback para ogg
-      const audioMimeType = mimeType || 'audio/ogg; codecs=opus';
+      // Forçar mime type compatível com WhatsApp PTT
+      // O WhatsApp aceita audio/ogg; codecs=opus para notas de voz
+      // O navegador pode gravar em webm, mas o Baileys converte internamente
+      let audioMimeType = mimeType || 'audio/ogg; codecs=opus';
+      
+      // Se vier webm do navegador, tentamos enviar assim mesmo
+      // O Baileys vai tentar converter internamente
+      console.log('[send-audio] 🎵 Original mimeType:', mimeType);
       console.log('[send-audio] 🎵 Using mimeType:', audioMimeType);
 
       // Enviar via WhatsApp

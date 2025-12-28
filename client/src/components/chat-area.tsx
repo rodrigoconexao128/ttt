@@ -33,6 +33,7 @@ import { UserMediaUploader } from "@/components/user-media-uploader";
 import { UserQuickReplies } from "@/components/user-quick-replies";
 import { UserAIMessageGenerator } from "@/components/user-ai-message-generator";
 import { cn } from "@/lib/utils";
+import { getAuthToken } from "@/lib/supabase";
 
 interface ChatAreaProps {
   conversationId: string | null;
