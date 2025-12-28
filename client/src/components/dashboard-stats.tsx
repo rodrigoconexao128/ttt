@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Users, CheckCircle, Clock, Bot, AlertCircle, Sparkles, ArrowUpRight, MessageSquare } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { MessageCircle, Users, CheckCircle, Clock, Bot, AlertCircle, Sparkles, Smartphone, ChevronRight, Zap } from "lucide-react";
 import type { WhatsappConnection, AiAgentConfig } from "@shared/schema";
 import { UsageLimitBanner } from "@/components/usage-limit-banner";
-import { OnboardingGuide } from "./onboarding-guide";
+import { useLocation } from "wouter";
 
 interface DashboardStatsProps {
   connection?: WhatsappConnection;
@@ -18,6 +19,8 @@ interface Stats {
 }
 
 export function DashboardStats({ connection }: DashboardStatsProps) {
+  const [, setLocation] = useLocation();
+  
   const { data: stats } = useQuery<Stats>({
     queryKey: ["/api/stats"],
     enabled: !!connection?.isConnected,
@@ -27,144 +30,218 @@ export function DashboardStats({ connection }: DashboardStatsProps) {
     queryKey: ["/api/agent/config"],
   });
 
-  const { data: mediaList } = useQuery<any[]>({
-    queryKey: ["/api/agent/media"],
-  });
-
-  const { data: followupConfig } = useQuery<any>({
-    queryKey: ["/api/followup/config"],
-  });
-
-  const isConnected = !!connection?.isConnected;
-  const isAgentConfigured = !!agentConfig?.isActive;
-  const hasMedia = (mediaList?.length || 0) > 0;
-  const isFollowupActive = !!followupConfig?.enabled;
+  // Calcular progresso de configuração estilo Shopify
+  const setupSteps = [
+    { 
+      id: 1, 
+      title: "Conectar WhatsApp", 
+      done: !!connection?.isConnected,
+      action: () => setLocation("/conexao"),
+      icon: Smartphone
+    },
+    { 
+      id: 2, 
+      title: "Configurar Agente IA", 
+      done: !!agentConfig?.prompt && agentConfig.prompt.length > 50,
+      action: () => setLocation("/meu-agente-ia"),
+      icon: Bot
+    },
+    { 
+      id: 3, 
+      title: "Ativar o Agente", 
+      done: !!agentConfig?.isActive,
+      action: () => setLocation("/meu-agente-ia"),
+      icon: Zap
+    },
+  ];
+  
+  const completedSteps = setupSteps.filter(s => s.done).length;
+  const progressPercent = (completedSteps / setupSteps.length) * 100;
+  const allSetupComplete = completedSteps === setupSteps.length;
 
   return (
-    <div className="h-full overflow-auto bg-[#F6F6F7] dark:bg-black">
-      <div className="container max-w-5xl mx-auto p-4 md:p-8 space-y-8 pb-24 md:pb-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Olá! 👋</h1>
-            <p className="text-sm md:text-base text-gray-500 dark:text-gray-400">
-              Aqui está o que está acontecendo com seu negócio hoje.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="px-3 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm flex items-center gap-2">
-              <div className={cn("w-2 h-2 rounded-full animate-pulse", isConnected ? "bg-green-500" : "bg-red-500")} />
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300">
-                {isConnected ? "WhatsApp Conectado" : "WhatsApp Desconectado"}
-              </span>
-            </div>
-          </div>
+    <div className="h-full overflow-auto">
+      <div className="container max-w-6xl mx-auto p-4 md:p-8 space-y-4 md:space-y-8 pb-24 md:pb-8">
+        <div className="space-y-1 md:space-y-2">
+          <h1 className="text-xl md:text-3xl font-bold">Dashboard</h1>
+          <p className="text-xs md:text-base text-muted-foreground">
+            Visão geral das suas conversas no WhatsApp
+          </p>
         </div>
 
-        {/* Usage Limit Banner */}
+        {/* Usage Limit Banner - shows for free trial users */}
         <UsageLimitBanner />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Coluna da Esquerda: Guia e Stats */}
-          <div className="lg:col-span-2 space-y-8">
-            <OnboardingGuide 
-              isConnected={isConnected}
-              isAgentConfigured={isAgentConfigured}
-              hasMedia={hasMedia}
-              isFollowupActive={isFollowupActive}
-            />
-
+        {/* Guia de Configuração Estilo Shopify - Mostra se setup incompleto */}
+        {!allSetupComplete && (
+          <Card className="p-4 md:p-6 border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
             <div className="space-y-4">
-              <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
-                Desempenho do Agente
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="p-6 border-none shadow-sm bg-white dark:bg-gray-900 rounded-2xl group hover:shadow-md transition-all">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-                      <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-gray-400 transition-colors" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Respostas Automáticas</p>
-                    <div className="flex items-baseline gap-2">
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats?.agentMessages || 0}</p>
-                      <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded-md">+12%</span>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-6 border-none shadow-sm bg-white dark:bg-gray-900 rounded-2xl group hover:shadow-md transition-all">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center">
-                      <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-gray-400 transition-colors" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Leads</p>
-                    <div className="flex items-baseline gap-2">
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats?.totalConversations || 0}</p>
-                      <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded-md">+5%</span>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            </div>
-          </div>
-
-          {/* Coluna da Direita: Resumo Rápido */}
-          <div className="space-y-6">
-            <Card className="p-6 border-none shadow-sm bg-white dark:bg-gray-900 rounded-2xl">
-              <h3 className="font-bold text-gray-900 dark:text-white mb-6">Atividade Recente</h3>
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-orange-500" />
-                    <span className="text-sm text-gray-600 dark:text-gray-300">Mensagens não lidas</span>
-                  </div>
-                  <span className="text-sm font-bold">{stats?.unreadMessages || 0}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    <span className="text-sm text-gray-600 dark:text-gray-300">Mensagens hoje</span>
-                  </div>
-                  <span className="text-sm font-bold">{stats?.todayMessages || 0}</span>
-                </div>
-                <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Status do Sistema</span>
-                    <span className="text-xs font-bold text-green-600">OPERACIONAL</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full w-full bg-green-500" />
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6 border-none shadow-sm bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl border border-primary/10">
-              <div className="space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-primary" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="font-bold text-gray-900 dark:text-white">Dica do Especialista</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Agentes que usam <strong>áudios humanizados</strong> convertem até 3x mais que apenas texto.
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-base md:text-lg font-semibold flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+                    Prepare-se para vender
+                  </h2>
+                  <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
+                    Use este guia para lançar seu agente
                   </p>
                 </div>
-                <Button variant="link" className="p-0 h-auto text-primary font-bold text-sm" onClick={() => window.location.href = "/biblioteca-midias"}>
-                  Adicionar áudios agora →
-                </Button>
+                <span className="text-xs md:text-sm text-muted-foreground font-medium">
+                  {completedSteps} de {setupSteps.length} tarefas
+                </span>
               </div>
-            </Card>
-          </div>
-        </div>
+              
+              <Progress value={progressPercent} className="h-2" />
+              
+              <div className="space-y-2">
+                {setupSteps.map((step) => (
+                  <button
+                    key={step.id}
+                    onClick={step.action}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                      step.done 
+                        ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800' 
+                        : 'bg-background hover:bg-accent border-border hover:border-primary/30'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      step.done 
+                        ? 'bg-green-500 text-white' 
+                        : 'bg-muted text-muted-foreground'
+                    }`}>
+                      {step.done ? (
+                        <CheckCircle className="w-4 h-4" />
+                      ) : (
+                        <step.icon className="w-4 h-4" />
+                      )}
+                    </div>
+                    <span className={`flex-1 text-left text-sm font-medium ${
+                      step.done ? 'text-green-700 dark:text-green-300 line-through' : ''
+                    }`}>
+                      {step.title}
+                    </span>
+                    {!step.done && (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {!connection?.isConnected ? (
+          <Card className="p-8 md:p-12 text-center">
+            <MessageCircle className="w-10 h-10 md:w-12 md:h-12 mx-auto text-muted-foreground mb-3 md:mb-4" />
+            <h3 className="font-semibold text-base md:text-lg mb-2">WhatsApp não conectado</h3>
+            <p className="text-xs md:text-sm text-muted-foreground mb-4">
+              Conecte seu WhatsApp para visualizar as estatísticas
+            </p>
+            <Button onClick={() => setLocation("/conexao")} size="sm">
+              <Smartphone className="w-4 h-4 mr-2" />
+              Conectar WhatsApp
+            </Button>
+          </Card>
+        ) : (
+          <>
+            {/* Cards de estatísticas - Grid responsivo */}
+            <div className="grid gap-3 md:gap-6 grid-cols-2 lg:grid-cols-4">
+              <Card className="p-4 md:p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 md:space-y-1">
+                    <p className="text-[10px] md:text-sm text-muted-foreground">Total de Conversas</p>
+                    <p className="text-2xl md:text-3xl font-bold" data-testid="stat-total-conversations">
+                      {stats?.totalConversations || 0}
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-md bg-primary/10 flex items-center justify-center">
+                    <Users className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 md:p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 md:space-y-1">
+                    <p className="text-[10px] md:text-sm text-muted-foreground">Não Lidas</p>
+                    <p className="text-2xl md:text-3xl font-bold" data-testid="stat-unread">
+                      {stats?.unreadMessages || 0}
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-md bg-primary/10 flex items-center justify-center">
+                    <Clock className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 md:p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 md:space-y-1">
+                    <p className="text-[10px] md:text-sm text-muted-foreground">Mensagens Hoje</p>
+                    <p className="text-2xl md:text-3xl font-bold" data-testid="stat-today">
+                      {stats?.todayMessages || 0}
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-md bg-primary/10 flex items-center justify-center">
+                    <MessageCircle className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 md:p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 md:space-y-1">
+                    <p className="text-[10px] md:text-sm text-muted-foreground">Status WhatsApp</p>
+                    <p className="text-lg md:text-xl font-semibold text-primary">Conectado</p>
+                  </div>
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-md bg-primary/10 flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Cards do Agente */}
+            <div className="grid gap-3 md:gap-6 grid-cols-1 md:grid-cols-2">
+              <Card className="p-4 md:p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 md:space-y-1">
+                    <p className="text-xs md:text-sm text-muted-foreground">Status do Agente IA</p>
+                    <p className={`text-lg md:text-xl font-semibold ${agentConfig?.isActive ? 'text-primary' : 'text-muted-foreground'}`} data-testid="stat-agent-status">
+                      {agentConfig?.isActive ? 'Ativo' : 'Inativo'}
+                    </p>
+                    {agentConfig?.isActive && (
+                      <p className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">
+                        Respondendo automaticamente
+                      </p>
+                    )}
+                  </div>
+                  <div className={`w-10 h-10 md:w-12 md:h-12 rounded-md flex items-center justify-center ${agentConfig?.isActive ? 'bg-primary/10' : 'bg-muted'}`}>
+                    <Bot className={`w-5 h-5 md:w-6 md:h-6 ${agentConfig?.isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 md:p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 md:space-y-1">
+                    <p className="text-xs md:text-sm text-muted-foreground">Respostas do Agente</p>
+                    <p className="text-2xl md:text-3xl font-bold" data-testid="stat-agent-messages">
+                      {stats?.agentMessages || 0}
+                    </p>
+                    <p className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">
+                      Mensagens automáticas enviadas
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-md bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
-

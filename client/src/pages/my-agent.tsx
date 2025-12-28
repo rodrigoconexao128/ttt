@@ -400,55 +400,55 @@ export default function MyAgent() {
 
   return (
     <div className="h-full overflow-auto bg-gradient-to-b from-background to-muted/20">
-      <div className="container max-w-5xl mx-auto p-6 space-y-6">
+      <div className="container max-w-5xl mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
         
         {/* ============== HEADER COM PROGRESSO ============== */}
-        <div className="space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg flex-shrink-0">
-                <Bot className="w-6 h-6 md:w-7 md:h-7 text-white" />
+        <div className="space-y-3 md:space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg flex-shrink-0">
+                <Bot className="w-5 h-5 md:w-7 md:h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                <h1 className="text-xl md:text-3xl font-bold">
                   Meu Agente IA
                 </h1>
-                <p className="text-sm md:text-base text-muted-foreground">
+                <p className="text-xs md:text-base text-muted-foreground">
                   Configure seu assistente inteligente
                 </p>
               </div>
             </div>
             
-            <div className="flex items-center gap-3 md:gap-4">
+            <div className="flex items-center gap-3">
               <Badge
                 variant={isActive ? "default" : "secondary"}
-                className={`gap-2 px-3 md:px-4 py-1.5 md:py-2 text-sm ${isActive ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                className={`gap-1.5 px-2.5 md:px-4 py-1 md:py-2 text-xs md:text-sm ${isActive ? 'bg-green-500 hover:bg-green-600' : ''}`}
               >
                 {isActive ? (
-                  <><CheckCircle2 className="w-4 h-4" /> Ativo</>
+                  <><CheckCircle2 className="w-3.5 h-3.5" /> Ativo</>
                 ) : (
-                  <><AlertCircle className="w-4 h-4" /> Inativo</>
+                  <><AlertCircle className="w-3.5 h-3.5" /> Inativo</>
                 )}
               </Badge>
               <Switch
                 checked={isActive}
                 onCheckedChange={setIsActive}
-                className="scale-110 md:scale-125"
+                className="scale-100 md:scale-125"
               />
             </div>
           </div>
 
           {/* Barra de Progresso */}
-          <Card className="p-3 md:p-4">
-            <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
-              <div className="flex-1 space-y-2">
-                <div className="flex justify-between text-sm">
+          <Card className="p-3">
+            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+              <div className="flex-1 space-y-1.5">
+                <div className="flex justify-between text-xs md:text-sm">
                   <span className="text-muted-foreground">Progresso da configuração</span>
                   <span className="font-medium">{configProgress}/3 etapas</span>
                 </div>
-                <Progress value={progressPercent} className="h-2" />
+                <Progress value={progressPercent} className="h-1.5 md:h-2" />
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5 md:gap-2">
                 {[
                   { done: prompt.length > 50, label: "Prompt" },
                   { done: isActive, label: "Ativado" },
@@ -457,9 +457,9 @@ export default function MyAgent() {
                   <Badge
                     key={i}
                     variant={step.done ? "default" : "outline"}
-                    className={`text-xs ${step.done ? 'bg-green-500' : ''}`}
+                    className={`text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 ${step.done ? 'bg-green-500' : ''}`}
                   >
-                    {step.done && <Check className="w-3 h-3 mr-1" />}
+                    {step.done && <Check className="w-2.5 h-2.5 mr-0.5" />}
                     {step.label}
                   </Badge>
                 ))}
@@ -469,40 +469,40 @@ export default function MyAgent() {
         </div>
 
         {/* ============== TABS PRINCIPAIS ============== */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="w-full flex overflow-x-auto h-auto p-1 gap-1 md:grid md:grid-cols-4 md:h-14 no-scrollbar">
-            <TabsTrigger value="prompt" className="gap-2 text-sm shrink-0 whitespace-nowrap px-3">
-              <MessageSquare className="w-4 h-4" />
-              <span className="inline">Instruções</span>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
+          <TabsList className="w-full grid grid-cols-4 h-10 md:h-14 p-1">
+            <TabsTrigger value="prompt" className="gap-1 md:gap-2 text-[10px] md:text-sm px-1 md:px-3">
+              <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="hidden xs:inline">Instruções</span>
             </TabsTrigger>
-            <TabsTrigger value="media" className="gap-2 text-sm shrink-0 whitespace-nowrap px-3">
-              <ImageIcon className="w-4 h-4" />
-              <span className="inline">Mídias</span>
+            <TabsTrigger value="media" className="gap-1 md:gap-2 text-[10px] md:text-sm px-1 md:px-3">
+              <ImageIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="hidden xs:inline">Mídias</span>
               {mediaList.length > 0 && (
-                <Badge variant="secondary" className="ml-1 text-xs">{mediaList.length}</Badge>
+                <Badge variant="secondary" className="ml-0.5 text-[9px] md:text-xs h-4 md:h-5 px-1">{mediaList.length}</Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2 text-sm shrink-0 whitespace-nowrap px-3">
-              <Settings2 className="w-4 h-4" />
-              <span className="inline">Config</span>
+            <TabsTrigger value="settings" className="gap-1 md:gap-2 text-[10px] md:text-sm px-1 md:px-3">
+              <Settings2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="hidden xs:inline">Config</span>
             </TabsTrigger>
-            <TabsTrigger value="test" className="gap-2 text-sm shrink-0 whitespace-nowrap px-3">
-              <TestTube className="w-4 h-4" />
-              <span className="inline">Testar</span>
+            <TabsTrigger value="test" className="gap-1 md:gap-2 text-[10px] md:text-sm px-1 md:px-3">
+              <TestTube className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="hidden xs:inline">Testar</span>
             </TabsTrigger>
           </TabsList>
 
           {/* ============== ABA: INSTRUÇÕES ============== */}
           <TabsContent value="prompt" className="space-y-4">
-            <Card className="p-6">
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Sparkles className="w-5 h-5 text-primary" />
+            <Card className="p-4 md:p-6">
+              <div className="space-y-3 md:space-y-4">
+                <div className="flex items-start gap-2.5 md:gap-3">
+                  <div className="p-1.5 md:p-2 rounded-lg bg-primary/10">
+                    <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-primary" />
                   </div>
-                  <div className="flex-1 space-y-1">
-                    <Label className="text-lg font-semibold">Prompt do Agente</Label>
-                    <p className="text-sm text-muted-foreground">
+                  <div className="flex-1 space-y-0.5 md:space-y-1">
+                    <Label className="text-base md:text-lg font-semibold">Prompt do Agente</Label>
+                    <p className="text-xs md:text-sm text-muted-foreground">
                       Defina a personalidade, tom e comportamento do seu agente. Seja específico!
                     </p>
                   </div>
@@ -532,12 +532,12 @@ O QUE NÃO FAZER:
 - Se não souber, diga que vai verificar e retorna`}
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  rows={16}
-                  className="resize-none text-base leading-relaxed"
+                  rows={12}
+                  className="resize-none text-sm md:text-base leading-relaxed min-h-[250px] md:min-h-[400px]"
                 />
 
-                <div className="flex items-center justify-between pt-4 border-t">
-                  <div className="text-sm text-muted-foreground">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-3 md:pt-4 border-t">
+                  <div className="text-xs md:text-sm text-muted-foreground">
                     {prompt.length} caracteres
                     {prompt.length < 50 && (
                       <span className="text-amber-500 ml-2">
@@ -548,6 +548,7 @@ O QUE NÃO FAZER:
                   <Button
                     onClick={() => saveConfigMutation.mutate()}
                     disabled={saveConfigMutation.isPending || !prompt.trim()}
+                    className="w-full md:w-auto h-11"
                     size="lg"
                   >
                     {saveConfigMutation.isPending ? (

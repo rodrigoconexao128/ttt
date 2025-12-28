@@ -709,17 +709,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update user password (Replit Auth users don't have passwords, so this is a placeholder)
+  // Update user password (via Supabase Auth)
   app.put("/api/user/password", isAuthenticated, async (req: any, res) => {
     try {
-      // Since we're using Replit Auth (OIDC), password management is handled by Replit
-      // This endpoint is here for future compatibility or if switching to custom auth
-      res.status(400).json({ 
-        message: "A autenticação é gerenciada pelo Replit. Use a página de configurações do Replit para alterar sua senha." 
-      });
+      const { currentPassword, newPassword } = req.body;
+      
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ 
+          message: "A nova senha deve ter pelo menos 6 caracteres" 
+        });
+      }
+
+      // Get user email from session
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      
+      if (!user || !user.email) {
+        return res.status(400).json({ 
+          message: "Usuário não encontrado" 
+        });
+      }
+
+      // Import Supabase client to update password
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      
+      if (!supabaseUrl || !supabaseServiceKey) {
+        return res.status(500).json({ 
+          message: "Configuração do servidor incompleta" 
+        });
+      }
+      
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // Get auth token from header to validate current session
+      const authHeader = req.headers.authorization;
+      const token = authHeader?.replace("Bearer ", "");
+      
+      if (token) {
+        // Verify current password by trying to sign in
+        const { createClient: createClientAnon } = await import("@supabase/supabase-js");
+        const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+        if (anonKey) {
+          const anonClient = createClientAnon(supabaseUrl, anonKey);
+          const { error: signInError } = await anonClient.auth.signInWithPassword({
+            email: user.email,
+            password: currentPassword
+          });
+          
+          if (signInError) {
+            return res.status(400).json({ 
+              message: "Senha atual incorreta" 
+            });
+          }
+        }
+      }
+      
+      // Update password using admin API
+      const { data: authUser, error: getUserError } = await supabase.auth.admin.getUserById(
+        req.user?.supabaseId || userId
+      );
+      
+      if (getUserError) {
+        // Try to find user by email
+        const { data: users, error: listError } = await supabase.auth.admin.listUsers();
+        if (!listError && users) {
+          const foundUser = users.users.find((u: any) => u.email === user.email);
+          if (foundUser) {
+            const { error: updateError } = await supabase.auth.admin.updateUserById(
+              foundUser.id,
+              { password: newPassword }
+            );
+            
+            if (updateError) {
+              console.error("Error updating password:", updateError);
+              return res.status(500).json({ 
+                message: "Erro ao alterar senha. Tente novamente." 
+              });
+            }
+            
+            return res.json({ success: true, message: "Senha alterada com sucesso" });
+          }
+        }
+        
+        return res.status(400).json({ 
+          message: "Não foi possível encontrar o usuário para alterar a senha" 
+        });
+      }
+      
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        authUser.user.id,
+        { password: newPassword }
+      );
+      
+      if (updateError) {
+        console.error("Error updating password:", updateError);
+        return res.status(500).json({ 
+          message: "Erro ao alterar senha. Tente novamente." 
+        });
+      }
+      
+      res.json({ success: true, message: "Senha alterada com sucesso" });
     } catch (error) {
       console.error("Error updating password:", error);
-      res.status(500).json({ message: "Failed to update password" });
+      res.status(500).json({ message: "Falha ao alterar senha" });
     }
   });
 

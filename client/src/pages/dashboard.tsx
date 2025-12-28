@@ -498,10 +498,30 @@ const toolsNavigation: ToolNavItem[] = [
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="h-screen overflow-hidden">
-        {/* Sticky CTA de upgrade no topo (mobile only, exceto /conversas que tem header próprio) */}
-        {!subscription?.plan && !isConversasRoute && !(isDashboardMode && selectedView === "conversations") && (
-          <div className="md:hidden sticky top-0 z-40">
-            <UpgradeBanner />
+        {/* Mobile Header com logo e botão sair */}
+        {!isConversasRoute && !(isDashboardMode && selectedView === "conversations") && (
+          <div className="md:hidden sticky top-0 z-50 bg-background border-b border-border/60">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Bot className="w-6 h-6 text-primary" />
+                <span className="font-bold text-lg">AgenteZap</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleLogout}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <LogOut className="w-4 h-4 mr-1" />
+                  Sair
+                </Button>
+              </div>
+            </div>
+            {/* Sticky CTA de upgrade */}
+            {!subscription?.plan && (
+              <UpgradeBanner />
+            )}
           </div>
         )}
         <div
@@ -510,7 +530,7 @@ const toolsNavigation: ToolNavItem[] = [
             // No /conversas o próprio chat controla header/input. Evita faixa branca no fim.
             (isConversasRoute || (isDashboardMode && selectedView === "conversations"))
               ? "h-[100dvh] pb-0"
-              : "h-[calc(100dvh-3rem)] pb-[calc(5rem+env(safe-area-inset-bottom))]"
+              : "h-[calc(100dvh-3rem-env(safe-area-inset-top))] pb-[calc(4.5rem+env(safe-area-inset-bottom))]"
           )}
         >
           {isPlansRoute && (
@@ -681,72 +701,110 @@ const toolsNavigation: ToolNavItem[] = [
           )}
         </div>
         {/* Mobile bottom navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background pb-[env(safe-area-inset-bottom)]">
-          <div className="grid grid-cols-5 text-xs">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom)]">
+          <div className="grid grid-cols-5 text-[10px]">
             <button
-              className={`flex flex-col items-center py-2 ${isDashboardMode && selectedView === "stats" ? "text-primary" : "text-muted-foreground"}`}
+              className={`flex flex-col items-center py-2.5 gap-0.5 ${isDashboardMode && selectedView === "stats" ? "text-primary font-medium" : "text-muted-foreground"}`}
               onClick={() => goToSection("stats")}
             >
               <LayoutDashboard className="w-5 h-5" />
-              <span>Dashboard</span>
+              <span>Início</span>
             </button>
             <button
-              className={`flex flex-col items-center py-2 ${isDashboardMode && selectedView === "conversations" ? "text-primary" : "text-muted-foreground"}`}
+              className={`flex flex-col items-center py-2.5 gap-0.5 ${isDashboardMode && selectedView === "conversations" || isConversasRoute ? "text-primary font-medium" : "text-muted-foreground"}`}
               onClick={() => goToSection("conversations")}
             >
               <MessageCircle className="w-5 h-5" />
               <span>Conversas</span>
             </button>
             <button
-              className={`flex flex-col items-center py-2 ${isDashboardMode && selectedView === "connection" ? "text-primary" : "text-muted-foreground"}`}
+              className={`flex flex-col items-center py-2.5 gap-0.5 ${isDashboardMode && selectedView === "connection" || isConexaoRoute ? "text-primary font-medium" : "text-muted-foreground"}`}
               onClick={() => goToSection("connection")}
             >
               <Smartphone className="w-5 h-5" />
               <span>Conexão</span>
             </button>
             <button
-              className={`flex flex-col items-center py-2 ${isDashboardMode && selectedView === "agent" ? "text-primary" : "text-muted-foreground"}`}
+              className={`flex flex-col items-center py-2.5 gap-0.5 ${isDashboardMode && selectedView === "agent" || isMeuAgenteRoute ? "text-primary font-medium" : "text-muted-foreground"}`}
               onClick={() => goToSection("agent")}
             >
               <Bot className="w-5 h-5" />
               <span>Agente</span>
             </button>
             <button
-              className={`flex flex-col items-center py-2 ${isToolsRoute ? "text-primary" : "text-muted-foreground"}`}
+              className={`flex flex-col items-center py-2.5 gap-0.5 ${isToolsRoute ? "text-primary font-medium" : "text-muted-foreground"}`}
               onClick={() => setToolsPickerOpen(true)}
             >
               <Wrench className="w-5 h-5" />
-              <span>Ferramentas</span>
+              <span>Menu</span>
             </button>
           </div>
         </div>
 
         {/* Drawer de seleção de ferramentas (mobile) */}
         <Drawer open={toolsPickerOpen} onOpenChange={setToolsPickerOpen}>
-          <DrawerContent>
-            <DrawerHeader>
-              <DrawerTitle>Ferramentas</DrawerTitle>
-              <DrawerDescription>Escolha uma ferramenta para abrir</DrawerDescription>
+          <DrawerContent className="max-h-[85vh]">
+            <DrawerHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <DrawerTitle className="text-left">Menu</DrawerTitle>
+                  <DrawerDescription className="text-left">Todas as funcionalidades do AgenteZap</DrawerDescription>
+                </div>
+              </div>
             </DrawerHeader>
-            <div className="p-4 grid grid-cols-3 gap-3">
-              {toolsNavigation.map((item) => (
-                <button
-                  key={item.testId}
-                  className={`border rounded-md p-3 flex flex-col items-center gap-2 text-xs ${item.isActive ? "border-primary text-primary" : "text-foreground"}`}
-                  onClick={() => {
-                    if (item.href) {
-                      setLocation(item.href);
-                    } else if (item.action) {
-                      item.action();
-                    }
-                    setToolsPickerOpen(false);
-                  }}
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span className="text-center leading-tight">{item.label}</span>
-                </button>
-              ))}
+            
+            {/* Aviso sobre configuração desktop */}
+            <div className="px-4 pb-3">
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <p className="text-xs text-blue-700 dark:text-blue-300 text-center">
+                  💻 Para melhor experiência em configurações avançadas, use o computador
+                </p>
+              </div>
             </div>
+            
+            <div className="px-4 pb-4 overflow-y-auto max-h-[55vh]">
+              <div className="grid grid-cols-3 gap-2.5">
+                {toolsNavigation.map((item) => (
+                  <button
+                    key={item.testId}
+                    className={cn(
+                      "border rounded-xl p-3 flex flex-col items-center gap-1.5 text-[10px] leading-tight transition-all active:scale-95",
+                      item.isActive 
+                        ? "border-primary bg-primary/5 text-primary font-medium" 
+                        : "border-border bg-card text-foreground hover:bg-accent"
+                    )}
+                    onClick={() => {
+                      if (item.href) {
+                        setLocation(item.href);
+                      } else if (item.action) {
+                        item.action();
+                      }
+                      setToolsPickerOpen(false);
+                    }}
+                  >
+                    <div className={cn(
+                      "w-9 h-9 rounded-lg flex items-center justify-center",
+                      item.isActive ? "bg-primary/10" : "bg-muted"
+                    )}>
+                      <item.icon className="w-4 h-4" />
+                    </div>
+                    <span className="text-center">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Footer com botão Fechar */}
+            <div className="px-4 py-4 border-t border-border/60 bg-background">
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={() => setToolsPickerOpen(false)}
+              >
+                Fechar Menu
+              </Button>
+            </div>
+            
             {(!subscription || subscription.status !== 'active') && (
               <div className="p-4 pt-0">
                 <UpgradeBanner />
