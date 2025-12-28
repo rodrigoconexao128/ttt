@@ -4237,14 +4237,28 @@ Use emojis com moderação quando apropriado.`;
         mimeType?.startsWith('audio/') ? 'audio' : 'document'
       );
 
+      // Para áudio, converter para OGG/Opus (WhatsApp requer este formato para PTT)
+      let finalFileData = fileData;
+      let finalMimeType = mimeType || 'application/octet-stream';
+      
+      if (detectedType === 'audio') {
+        console.log(`[send-media-base64] 🎵 Audio detected, converting to OGG/Opus...`);
+        const { convertToWhatsAppAudio } = await import("./audioConverter");
+        const converted = await convertToWhatsAppAudio(fileData, mimeType || 'audio/mpeg');
+        finalFileData = converted.data;
+        finalMimeType = converted.mimeType;
+        console.log(`[send-media-base64] ✅ Audio converted to: ${converted.mimeType}`);
+      }
+
       // Enviar via WhatsApp
       const { sendUserMediaMessage } = await import("./whatsapp");
       await sendUserMediaMessage(userId, id, {
         type: detectedType,
-        data: fileData,
-        mimetype: mimeType || 'application/octet-stream',
+        data: finalFileData,
+        mimetype: finalMimeType,
         filename: fileName || 'file',
         caption: caption || undefined,
+        ptt: detectedType === 'audio', // Enviar como PTT se for áudio
       });
 
       res.json({ success: true });

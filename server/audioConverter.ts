@@ -43,14 +43,18 @@ export async function convertToWhatsAppAudio(
     console.log('[AudioConverter] 📝 Arquivo de entrada criado:', inputBuffer.length, 'bytes');
 
     // Comando FFmpeg para converter para OGG/Opus
+    // Baseado na solução do Baileys issue #1833:
+    // https://github.com/WhiskeySockets/Baileys/issues/1833
     // -y: sobrescrever output
     // -i: input file
     // -c:a libopus: usar codec opus
     // -b:a 64k: bitrate de 64kbps (bom para voz)
+    // -vbr on: variable bitrate (melhor qualidade)
     // -vn: sem vídeo
-    // -ar 48000: sample rate 48kHz (padrão opus)
+    // -ar 48000: sample rate 48kHz (padrão opus para WhatsApp)
     // -ac 1: mono (melhor para voz e menor tamanho)
-    const ffmpegCmd = `ffmpeg -y -i "${inputPath}" -c:a libopus -b:a 64k -vn -ar 48000 -ac 1 "${outputPath}"`;
+    // -application voip: otimizado para voz (recomendado para PTT)
+    const ffmpegCmd = `ffmpeg -y -i "${inputPath}" -c:a libopus -b:a 64k -vbr on -vn -ar 48000 -ac 1 -application voip "${outputPath}"`;
     
     console.log('[AudioConverter] 🎬 Executando FFmpeg...');
     
