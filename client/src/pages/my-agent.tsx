@@ -15,7 +15,7 @@ import {
   Bot, Sparkles, TestTube, Save, AlertCircle, CheckCircle2, 
   Plus, X, Zap, Settings2, Image as ImageIcon, Music, Video, 
   FileText, Upload, Trash2, Edit2, Loader2, RefreshCw, Check,
-  Clock, MessageSquare, Filter, Info, ArrowRight, History, Maximize2
+  Clock, MessageSquare, Filter, Info, ArrowRight, History, Maximize2, Wand2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -23,6 +23,7 @@ import { getAuthToken } from "@/lib/supabase";
 import type { AiAgentConfig } from "@shared/schema";
 import { PromptGenerator } from "@/components/prompt-generator";
 import { ExpandedEditor, ExpandButton } from "@/components/expanded-editor";
+import { PromptImprover } from "@/components/prompt-improver";
 
 // ============== TIPOS ==============
 interface AgentMedia {
@@ -102,6 +103,7 @@ export default function MyAgent() {
   // Estado do gerador de prompt e editor expandido
   const [showPromptGenerator, setShowPromptGenerator] = useState(false);
   const [isExpandedEditorOpen, setIsExpandedEditorOpen] = useState(false);
+  const [isPromptImproverOpen, setIsPromptImproverOpen] = useState(false);
   
   // Estado da biblioteca de mídias
   const [mediaList, setMediaList] = useState<AgentMedia[]>([]);
@@ -450,6 +452,14 @@ export default function MyAgent() {
         placeholder="Digite as instruções do seu agente aqui..."
       />
       
+      {/* Melhorador de Prompt com técnica de patch */}
+      <PromptImprover
+        currentPrompt={prompt}
+        onImproved={(newPrompt) => setPrompt(newPrompt)}
+        isOpen={isPromptImproverOpen}
+        onClose={() => setIsPromptImproverOpen(false)}
+      />
+      
       <div className="container max-w-5xl mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
         
         {/* ============== HEADER COM PROGRESSO ============== */}
@@ -559,15 +569,30 @@ export default function MyAgent() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowPromptGenerator(true)}
-                      className="gap-1.5 text-xs"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span className="hidden md:inline">Gerar com IA</span>
-                    </Button>
+                    {/* Se NÃO tem prompt, mostra botão de Gerar */}
+                    {!prompt.trim() && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowPromptGenerator(true)}
+                        className="gap-1.5 text-xs"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span className="hidden md:inline">Gerar com IA</span>
+                      </Button>
+                    )}
+                    {/* Se JÁ tem prompt, mostra botão de Melhorar */}
+                    {prompt.trim() && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsPromptImproverOpen(true)}
+                        className="gap-1.5 text-xs"
+                      >
+                        <Wand2 className="w-3.5 h-3.5" />
+                        <span className="hidden md:inline">Melhorar</span>
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
