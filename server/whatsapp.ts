@@ -2914,17 +2914,26 @@ export async function sendUserMediaMessage(
     mediaBuffer = Buffer.from(media.data, 'base64');
   }
 
+  console.log(`[sendUserMediaMessage] 📦 Buffer size: ${mediaBuffer.length} bytes, mimetype: ${media.mimetype}`);
+
   let messageContent: any;
   let mediaTypeForStorage = media.type;
 
   switch (media.type) {
     case 'audio':
+      // Para áudio PTT (nota de voz), usar o mimetype fornecido
       messageContent = {
         audio: mediaBuffer,
         mimetype: media.mimetype || 'audio/ogg; codecs=opus',
         ptt: media.ptt !== false, // Default to true for voice notes
         seconds: media.seconds,
       };
+      console.log(`[sendUserMediaMessage] 🎤 Audio prepared:`, {
+        size: mediaBuffer.length,
+        mimetype: messageContent.mimetype,
+        ptt: messageContent.ptt,
+        seconds: messageContent.seconds
+      });
       break;
       
     case 'image':
@@ -2956,7 +2965,9 @@ export async function sendUserMediaMessage(
       throw new Error(`Unsupported media type: ${media.type}`);
   }
 
+  console.log(`[sendUserMediaMessage] 📤 Sending to WhatsApp...`);
   const sentMessage = await session.socket.sendMessage(jid, messageContent);
+  console.log(`[sendUserMediaMessage] ✅ Message sent! ID: ${sentMessage?.key?.id}`);
 
   // Salvar mensagem no banco
   await storage.createMessage({

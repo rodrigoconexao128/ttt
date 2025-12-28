@@ -4261,25 +4261,30 @@ Use emojis com moderação quando apropriado.`;
       const { id } = req.params;
       const { audioData, duration, mimeType } = req.body;
 
+      console.log('[send-audio] 🎤 Request received for conversation:', id);
+      console.log('[send-audio] 📊 Data size:', audioData?.length || 0, 'chars, mimeType:', mimeType, 'duration:', duration);
+
       if (!audioData) {
+        console.log('[send-audio] ❌ No audio data provided');
         return res.status(400).json({ message: "Audio data is required" });
       }
 
       // Verificar propriedade da conversa
       const conversation = await storage.getConversation(id);
       if (!conversation) {
+        console.log('[send-audio] ❌ Conversation not found:', id);
         return res.status(404).json({ message: "Conversation not found" });
       }
 
       const connection = await storage.getConnectionByUserId(userId);
       if (!connection || conversation.connectionId !== connection.id) {
+        console.log('[send-audio] ❌ Forbidden - connection mismatch');
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      console.log('[send-audio] Received audio, mimeType:', mimeType, 'duration:', duration);
-
       // Usar o mimeType recebido ou fallback para ogg
       const audioMimeType = mimeType || 'audio/ogg; codecs=opus';
+      console.log('[send-audio] 🎵 Using mimeType:', audioMimeType);
 
       // Enviar via WhatsApp
       const { sendUserMediaMessage } = await import("./whatsapp");
@@ -4291,9 +4296,10 @@ Use emojis com moderação quando apropriado.`;
         seconds: duration || 0,
       });
 
+      console.log('[send-audio] ✅ Audio sent successfully!');
       res.json({ success: true });
     } catch (error: any) {
-      console.error("Error sending user audio:", error);
+      console.error("[send-audio] ❌ Error sending user audio:", error);
       res.status(500).json({ message: error.message || "Failed to send audio" });
     }
   });
