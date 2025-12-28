@@ -188,8 +188,8 @@ ${instruction}`;
     onImproved(previewPrompt);
     handleClose();
     toast({
-      title: "Prompt melhorado!",
-      description: "O prompt foi atualizado com as melhorias",
+      title: "Instruções melhoradas!",
+      description: "As instruções do agente foram atualizadas",
     });
   };
 
@@ -207,10 +207,10 @@ ${instruction}`;
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wand2 className="w-5 h-5 text-primary" />
-            Melhorar Prompt
+            Melhorar Instruções
           </DialogTitle>
           <DialogDescription>
-            Descreva o que você quer melhorar e a IA vai ajustar o prompt usando edição inteligente
+            Descreva o que você quer melhorar e a IA vai ajustar as instruções do agente
           </DialogDescription>
         </DialogHeader>
 

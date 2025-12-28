@@ -448,8 +448,8 @@ export default function MyAgent() {
         onChange={setPrompt}
         onSave={() => saveConfigMutation.mutate()}
         isSaving={saveConfigMutation.isPending}
-        title="Editor de Prompt"
-        placeholder="Digite as instruções do seu agente aqui..."
+        title="Instruções do Agente"
+        placeholder="Digite as instruções de atendimento do seu agente..."
       />
       
       {/* Melhorador de Prompt com técnica de patch */}
@@ -562,9 +562,9 @@ export default function MyAgent() {
                       <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-primary" />
                     </div>
                     <div className="flex-1 space-y-0.5 md:space-y-1">
-                      <Label className="text-base md:text-lg font-semibold">Prompt do Agente</Label>
+                      <Label className="text-base md:text-lg font-semibold">Instruções do Agente</Label>
                       <p className="text-xs md:text-sm text-muted-foreground">
-                        Defina a personalidade, tom e comportamento do seu agente
+                        Defina como seu agente deve atender os clientes
                       </p>
                     </div>
                   </div>
