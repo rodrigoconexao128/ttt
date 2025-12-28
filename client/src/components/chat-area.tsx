@@ -32,6 +32,7 @@ import { UserAudioRecorder } from "@/components/user-audio-recorder";
 import { UserMediaUploader } from "@/components/user-media-uploader";
 import { UserQuickReplies } from "@/components/user-quick-replies";
 import { UserAIMessageGenerator } from "@/components/user-ai-message-generator";
+import { cn } from "@/lib/utils";
 
 interface ChatAreaProps {
   conversationId: string | null;
@@ -62,6 +63,9 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     window.innerWidth < 768
   );
+
+  // Altura do menu inferior no mobile (Dashboard). Usado para posicionar o composer como no WhatsApp.
+  const mobileBottomNavOffset = "calc(4rem + env(safe-area-inset-bottom))";
 
   const { data: conversation } = useQuery<Conversation>({
     queryKey: ["/api/conversation", conversationId],
@@ -626,7 +630,14 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-auto p-3 md:p-4 space-y-3 md:space-y-4" data-testid="container-messages">
+      <div
+        className={cn(
+          "flex-1 overflow-auto p-3 md:p-4 space-y-3 md:space-y-4",
+          // Garante que o fim da conversa nunca fique escondido atrás do composer sticky.
+          isMobile && "pb-[calc(4rem+env(safe-area-inset-bottom)+5rem)]"
+        )}
+        data-testid="container-messages"
+      >
         {/* Filtrar mensagens de sistema/eco que vieram de integrações antigas,
             por exemplo textos \"[Mensagem n\u00e3o suportada]\" */}
         {isLoading ? (
@@ -736,7 +747,14 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
       </div>
 
       {/* Message Input */}
-      <div className="p-3 md:p-4 border-t bg-background">
+      <div
+        className={cn(
+          "p-3 md:p-4 border-t bg-background",
+          // Sticky acima do menu inferior (WhatsApp-like) no mobile
+          isMobile && "sticky z-20 bottom-[calc(4rem+env(safe-area-inset-bottom))]"
+        )}
+        style={isMobile ? ({ bottom: mobileBottomNavOffset } as React.CSSProperties) : undefined}
+      >
         {/* Se está gravando áudio ou enviando mídia, mostra o componente correspondente */}
         {isRecordingAudio ? (
           <UserAudioRecorder

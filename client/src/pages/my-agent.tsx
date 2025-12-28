@@ -471,22 +471,22 @@ export default function MyAgent() {
         {/* ============== TABS PRINCIPAIS ============== */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="w-full flex overflow-x-auto h-auto p-1 gap-1 md:grid md:grid-cols-4 md:h-14 no-scrollbar">
-            <TabsTrigger value="prompt" className="gap-2 text-sm flex-1 min-w-[100px]">
+            <TabsTrigger value="prompt" className="gap-2 text-sm shrink-0 whitespace-nowrap px-3">
               <MessageSquare className="w-4 h-4" />
               <span className="inline">Instruções</span>
             </TabsTrigger>
-            <TabsTrigger value="media" className="gap-2 text-sm flex-1 min-w-[100px]">
+            <TabsTrigger value="media" className="gap-2 text-sm shrink-0 whitespace-nowrap px-3">
               <ImageIcon className="w-4 h-4" />
               <span className="inline">Mídias</span>
               {mediaList.length > 0 && (
                 <Badge variant="secondary" className="ml-1 text-xs">{mediaList.length}</Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2 text-sm flex-1 min-w-[100px]">
+            <TabsTrigger value="settings" className="gap-2 text-sm shrink-0 whitespace-nowrap px-3">
               <Settings2 className="w-4 h-4" />
               <span className="inline">Config</span>
             </TabsTrigger>
-            <TabsTrigger value="test" className="gap-2 text-sm flex-1 min-w-[100px]">
+            <TabsTrigger value="test" className="gap-2 text-sm shrink-0 whitespace-nowrap px-3">
               <TestTube className="w-4 h-4" />
               <span className="inline">Testar</span>
             </TabsTrigger>

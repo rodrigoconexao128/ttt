@@ -498,7 +498,15 @@ const toolsNavigation: ToolNavItem[] = [
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="h-screen overflow-hidden">
-        <div className="flex h-[100dvh] overflow-hidden pb-20 md:pb-0">
+        <div
+          className={cn(
+            "flex h-[100dvh] overflow-hidden md:pb-0",
+            // No /conversas o próprio chat controla header/input. Evita faixa branca no fim.
+            (isConversasRoute || (isDashboardMode && selectedView === "conversations"))
+              ? "pb-0"
+              : "pb-[calc(5rem+env(safe-area-inset-bottom))]"
+          )}
+        >
           {isPlansRoute && (
             <div className="flex-1 overflow-auto">
               <PlansPage />
@@ -667,7 +675,7 @@ const toolsNavigation: ToolNavItem[] = [
           )}
         </div>
         {/* Mobile bottom navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-background">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background pb-[env(safe-area-inset-bottom)]">
           <div className="grid grid-cols-5 text-xs">
             <button
               className={`flex flex-col items-center py-2 ${isDashboardMode && selectedView === "stats" ? "text-primary" : "text-muted-foreground"}`}
