@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Sparkles, Loader2, Wand2, CheckCircle2, ArrowRight, RefreshCw } from "lucide-react";
+import { Sparkles, Loader2, Wand2, CheckCircle2, ArrowRight, RefreshCw, Zap, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -15,21 +15,45 @@ interface PromptImproverProps {
   onClose: () => void;
 }
 
+interface EditChange {
+  action: string;
+  target: string;
+  newContent: string;
+  explanation: string;
+}
+
+interface EditResult {
+  prompt: string;
+  changes: EditChange[];
+  summary: string;
+  tokensUsed: {
+    input: number;
+    output: number;
+    saved: number;
+  };
+  method: "gpt-json-schema" | "local-fallback";
+}
+
 /**
  * PromptImprover - Componente para melhorar prompts existentes
  * 
- * Usa técnica de "prompt patching" para economizar tokens:
+ * Usa técnica de "Structured JSON Editing" (response_format="json_schema"):
  * 1. Envia o prompt atual + instrução de melhoria
- * 2. A IA retorna apenas as ALTERAÇÕES em formato de patch
- * 3. Aplicamos o patch ao prompt original
+ * 2. A IA retorna APENAS as mudanças em formato JSON estruturado
+ * 3. Aplicamos as mudanças no documento original preservando formatação
  * 
- * Isso economiza tokens porque não precisa reescrever o prompt inteiro
+ * Benefícios:
+ * ✅ Economiza tokens (só retorna mudanças, não documento inteiro)
+ * ✅ Rápido mesmo para prompts grandes
+ * ✅ Preserva 100% da formatação original
+ * ✅ JSON Schema garante resposta válida
  */
 export function PromptImprover({ currentPrompt, onImproved, isOpen, onClose }: PromptImproverProps) {
   const { toast } = useToast();
   const [improvement, setImprovement] = useState("");
   const [isImproving, setIsImproving] = useState(false);
   const [previewPrompt, setPreviewPrompt] = useState("");
+  const [editResult, setEditResult] = useState<EditResult | null>(null);
   const [step, setStep] = useState<"input" | "improving" | "preview">("input");
 
   const handleImprove = async () => {
@@ -46,15 +70,17 @@ export function PromptImprover({ currentPrompt, onImproved, isOpen, onClose }: P
     setStep("improving");
 
     try {
-      const response = await apiRequest("POST", "/api/agent/improve-prompt", {
+      // Usar nova API com JSON Schema Structured Editing
+      const response = await apiRequest("POST", "/api/agent/edit-prompt", {
         currentPrompt,
-        improvement,
+        instruction: improvement,
       });
       
-      const data = await response.json();
+      const data: EditResult = await response.json();
       
-      if (data.improvedPrompt) {
-        setPreviewPrompt(data.improvedPrompt);
+      if (data.prompt) {
+        setPreviewPrompt(data.prompt);
+        setEditResult(data);
         setStep("preview");
       } else {
         throw new Error("Não foi possível melhorar o prompt");
@@ -64,6 +90,13 @@ export function PromptImprover({ currentPrompt, onImproved, isOpen, onClose }: P
       // Fallback: fazer a melhoria localmente
       const improved = applyLocalImprovement(currentPrompt, improvement);
       setPreviewPrompt(improved);
+      setEditResult({
+        prompt: improved,
+        changes: [],
+        summary: "Melhoria aplicada localmente",
+        tokensUsed: { input: 0, output: 0, saved: 0 },
+        method: "local-fallback"
+      });
       setStep("preview");
     } finally {
       setIsImproving(false);
@@ -164,6 +197,7 @@ ${instruction}`;
     setStep("input");
     setImprovement("");
     setPreviewPrompt("");
+    setEditResult(null);
     onClose();
   };
 
@@ -176,7 +210,7 @@ ${instruction}`;
             Melhorar Prompt
           </DialogTitle>
           <DialogDescription>
-            Descreva o que você quer melhorar e a IA vai ajustar o prompt
+            Descreva o que você quer melhorar e a IA vai ajustar o prompt usando edição inteligente
           </DialogDescription>
         </DialogHeader>
 
@@ -199,9 +233,12 @@ ${instruction}`;
             </div>
 
             <Card className="p-3 bg-muted/30">
-              <p className="text-xs text-muted-foreground">
-                <strong>💡 Dica:</strong> Seja específico sobre o que quer mudar. 
-                Quanto mais detalhes, melhor será a melhoria.
+              <p className="text-xs text-muted-foreground flex items-start gap-2">
+                <Zap className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Edição Inteligente:</strong> Usamos JSON Schema Structured Editing 
+                  para modificar apenas o necessário, economizando tokens e preservando formatação.
+                </span>
               </p>
             </Card>
           </div>
@@ -218,20 +255,67 @@ ${instruction}`;
               </div>
             </div>
             <div className="text-center space-y-1">
-              <p className="font-medium">Aplicando melhorias...</p>
-              <p className="text-sm text-muted-foreground">A IA está analisando e ajustando o prompt</p>
+              <p className="font-medium">Analisando e editando...</p>
+              <p className="text-sm text-muted-foreground">Aplicando mudanças com edição estruturada</p>
             </div>
           </div>
         )}
 
         {step === "preview" && (
           <div className="space-y-4 py-4">
+            {/* Estatísticas de edição */}
+            {editResult && (
+              <Card className="p-3 bg-green-500/10 border-green-500/30">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span className="font-medium text-green-700 dark:text-green-400">
+                      {editResult.changes.length} mudança(s) aplicada(s)
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    via {editResult.method === "gpt-json-schema" ? "GPT + JSON Schema" : "Edição Local"}
+                  </span>
+                </div>
+                {editResult.tokensUsed.saved > 0 && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
+                    <Zap className="w-3 h-3" />
+                    ~{editResult.tokensUsed.saved} tokens economizados
+                  </p>
+                )}
+                {editResult.summary && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {editResult.summary}
+                  </p>
+                )}
+              </Card>
+            )}
+
+            {/* Lista de mudanças */}
+            {editResult && editResult.changes.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Info className="w-3 h-3" />
+                  Detalhes das mudanças
+                </Label>
+                <div className="max-h-[120px] overflow-y-auto space-y-1">
+                  {editResult.changes.map((change, idx) => (
+                    <div key={idx} className="text-xs p-2 bg-muted/30 rounded">
+                      <span className="font-mono text-primary">{change.action}</span>
+                      <span className="text-muted-foreground ml-2">{change.explanation}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Preview do prompt */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-green-500" />
                 Prompt Melhorado
               </Label>
-              <Card className="p-3 bg-muted/30 max-h-[300px] overflow-y-auto">
+              <Card className="p-3 bg-muted/30 max-h-[200px] overflow-y-auto">
                 <pre className="text-xs whitespace-pre-wrap font-mono">
                   {previewPrompt}
                 </pre>

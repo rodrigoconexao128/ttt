@@ -1359,6 +1359,54 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // ============ EDITOR DE PROMPTS COM JSON SCHEMA (Structured Editing) ============
+  app.post("/api/agent/edit-prompt", isAuthenticated, async (req: any, res) => {
+    try {
+      const { currentPrompt, instruction } = req.body;
+
+      if (!currentPrompt || !instruction) {
+        return res.status(400).json({ message: "currentPrompt e instruction são obrigatórios" });
+      }
+
+      // Importar funções de edição
+      const { editPromptWithGPT, editPromptLocally } = await import("./promptEditFullDocument");
+      
+      // Tentar usar OpenAI com JSON Schema
+      const openaiApiKey = process.env.OPENAI_API_KEY;
+      
+      if (openaiApiKey && openaiApiKey !== 'your-openai-key') {
+        try {
+          const result = await editPromptWithGPT(currentPrompt, instruction, openaiApiKey);
+          
+          return res.json({
+            prompt: result.newPrompt,
+            changes: result.changes,
+            summary: result.summary,
+            tokensUsed: result.tokensUsed,
+            method: "gpt-json-schema"
+          });
+        } catch (gptError) {
+          console.error("Erro ao usar GPT para editar prompt:", gptError);
+          // Fallback para edição local
+        }
+      }
+
+      // Fallback: edição local com heurísticas
+      const localResult = editPromptLocally(currentPrompt, instruction);
+      
+      res.json({
+        prompt: localResult.newPrompt,
+        changes: localResult.changes,
+        summary: localResult.summary,
+        tokensUsed: { input: 0, output: 0, saved: 0 },
+        method: "local-fallback"
+      });
+    } catch (error) {
+      console.error("Error editing prompt:", error);
+      res.status(500).json({ message: "Failed to edit prompt" });
+    }
+  });
+
   app.post("/api/agent/test", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
