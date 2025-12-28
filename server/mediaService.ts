@@ -230,48 +230,46 @@ export function generateMediaPromptBlock(mediaList: AgentMedia[]): string {
   let mediaBlock = `
 
 ═══════════════════════════════════════════════════════════════════════════════
-🎯 SISTEMA AUTOMÁTICO DE MÍDIAS (OBRIGATÓRIO - SIGA ESTAS REGRAS)
+🎯 SISTEMA DE MÍDIAS AUTOMÁTICO (OBRIGATÓRIO)
 ═══════════════════════════════════════════════════════════════════════════════
 
-Você DEVE enviar mídias automaticamente quando a situação corresponder.
-Isso é INDEPENDENTE do prompt acima - você PRECISA seguir estas regras.
+VOCÊ DEVE enviar mídias quando a mensagem do cliente corresponder às condições.
+Analise a mensagem do cliente e compare com cada condição abaixo.
 
-📁 MÍDIAS DISPONÍVEIS E QUANDO ENVIAR:
+📁 MÍDIAS E SUAS CONDIÇÕES DE ENVIO:
 `;
 
-  // Lista cada mídia com seu gatilho
+  // Lista cada mídia com seu gatilho - mais direto
   for (let i = 0; i < activeMedias.length; i++) {
     const media = activeMedias[i];
-    const tipoIcon = media.mediaType === 'audio' ? '🎤' :
-                     media.mediaType === 'video' ? '🎥' :
-                     media.mediaType === 'image' ? '🖼️' : '📄';
+    const whenToUse = media.whenToUse || 'quando solicitado';
     
     mediaBlock += `
-${i + 1}. ${tipoIcon} ${media.name}
-   📌 ENVIAR QUANDO: ${media.whenToUse || 'cliente solicitar'}
-   🏷️ TAG: [MEDIA:${media.name}]
+▸ ${media.name}
+  CONDIÇÃO: ${whenToUse}
+  COMO USAR: Adicione [MEDIA:${media.name}] no final da sua resposta
 `;
   }
 
   mediaBlock += `
 ═══════════════════════════════════════════════════════════════════════════════
-📝 COMO ENVIAR (SIMPLES):
+📝 INSTRUÇÕES:
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. Verifique se a mensagem do cliente corresponde a algum "ENVIAR QUANDO" acima
-2. Se corresponder, escreva sua resposta normalmente
-3. Adicione a tag [MEDIA:NOME] NO FINAL da sua resposta
+1. Leia a mensagem do cliente
+2. Compare com as CONDIÇÕES listadas acima
+3. Se corresponder, adicione a TAG no FINAL da sua resposta
+4. Escolha APENAS UMA mídia (a mais relevante para a situação atual)
 
-EXEMPLO PRÁTICO:
-- Cliente disse: "Oi, boa tarde"
-- Corresponde a: "primeira mensagem" → Enviar MENSAGEM_DE_INICIO
-- Sua resposta: "Oi! Tudo bem? Sou o Rodrigo da AgenteZap... [MEDIA:MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR]"
+FORMATO: Responda normalmente, depois adicione [MEDIA:NOME_DA_MIDIA]
 
-⚠️ REGRAS IMPORTANTES:
-- NUNCA repita uma mídia já enviada na conversa (verifique "Mídias já enviadas" no contexto)
-- NUNCA mencione que está enviando áudio/vídeo/imagem
-- NUNCA escreva "🎤 Áudio" ou "[ÁUDIO ENVIADO]" 
-- A tag deve ficar NO FINAL, invisível para o cliente
+EXEMPLO:
+Cliente: "Oi, boa tarde!"
+Resposta: "Oi! Tudo bem? Com o que você trabalha? [MEDIA:AUDIO_BOAS_VINDAS]"
+
+⚠️ NÃO repita mídias já enviadas nesta conversa
+⚠️ NÃO mencione que está enviando áudio/vídeo/imagem
+⚠️ Se nenhuma condição corresponder, NÃO envie mídia
 
 ═══════════════════════════════════════════════════════════════════════════════
 `;
