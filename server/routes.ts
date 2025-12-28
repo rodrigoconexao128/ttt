@@ -4269,6 +4269,11 @@ Use emojis com moderação quando apropriado.`;
         return res.status(400).json({ message: "Audio data is required" });
       }
 
+      // Converter áudio para OGG/Opus se necessário (WhatsApp requer este formato para PTT)
+      const { convertToWhatsAppAudio } = await import("./audioConverter");
+      const converted = await convertToWhatsAppAudio(audioData, mimeType || 'audio/webm');
+      console.log('[send-audio] 🔄 Converted audio mimeType:', converted.mimeType);
+
       // Verificar propriedade da conversa
       const conversation = await storage.getConversation(id);
       if (!conversation) {
@@ -4282,22 +4287,15 @@ Use emojis com moderação quando apropriado.`;
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      // Forçar mime type compatível com WhatsApp PTT
-      // O WhatsApp aceita audio/ogg; codecs=opus para notas de voz
-      // O navegador pode gravar em webm, mas o Baileys converte internamente
-      let audioMimeType = mimeType || 'audio/ogg; codecs=opus';
-      
-      // Se vier webm do navegador, tentamos enviar assim mesmo
-      // O Baileys vai tentar converter internamente
-      console.log('[send-audio] 🎵 Original mimeType:', mimeType);
-      console.log('[send-audio] 🎵 Using mimeType:', audioMimeType);
+      // Usar áudio convertido (já processado acima)
+      console.log('[send-audio] 🎵 Sending converted audio, mimeType:', converted.mimeType);
 
       // Enviar via WhatsApp
       const { sendUserMediaMessage } = await import("./whatsapp");
       await sendUserMediaMessage(userId, id, {
         type: 'audio',
-        data: audioData,
-        mimetype: audioMimeType,
+        data: converted.data,
+        mimetype: converted.mimeType,
         ptt: true, // Push to talk (nota de voz)
         seconds: duration || 0,
       });
