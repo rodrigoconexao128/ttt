@@ -15,12 +15,14 @@ import {
   Bot, Sparkles, TestTube, Save, AlertCircle, CheckCircle2, 
   Plus, X, Zap, Settings2, Image as ImageIcon, Music, Video, 
   FileText, Upload, Trash2, Edit2, Loader2, RefreshCw, Check,
-  Clock, MessageSquare, Filter, Info, ArrowRight, History
+  Clock, MessageSquare, Filter, Info, ArrowRight, History, Maximize2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getAuthToken } from "@/lib/supabase";
 import type { AiAgentConfig } from "@shared/schema";
+import { PromptGenerator } from "@/components/prompt-generator";
+import { ExpandedEditor, ExpandButton } from "@/components/expanded-editor";
 
 // ============== TIPOS ==============
 interface AgentMedia {
@@ -97,6 +99,10 @@ export default function MyAgent() {
   const [testMessage, setTestMessage] = useState("");
   const [testResponse, setTestResponse] = useState("");
   
+  // Estado do gerador de prompt e editor expandido
+  const [showPromptGenerator, setShowPromptGenerator] = useState(false);
+  const [isExpandedEditorOpen, setIsExpandedEditorOpen] = useState(false);
+  
   // Estado da biblioteca de mídias
   const [mediaList, setMediaList] = useState<AgentMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
@@ -124,6 +130,14 @@ export default function MyAgent() {
       setResponseDelaySeconds(config.responseDelaySeconds ?? 30);
       setFetchHistoryOnFirstResponse(config.fetchHistoryOnFirstResponse ?? false);
       setPauseOnManualReply((config as any).pauseOnManualReply ?? true);
+      
+      // Se não tem prompt configurado, mostra o gerador
+      if (!config.prompt || config.prompt.length < 50) {
+        setShowPromptGenerator(true);
+      }
+    } else if (config === null) {
+      // Config carregou mas está vazia - mostrar gerador
+      setShowPromptGenerator(true);
     }
   }, [config]);
 
@@ -398,8 +412,44 @@ export default function MyAgent() {
     );
   }
 
+  // Handler quando o prompt é gerado pelo assistente
+  const handlePromptGenerated = (generatedPrompt: string) => {
+    setPrompt(generatedPrompt);
+    setShowPromptGenerator(false);
+    // Salvar automaticamente
+    setTimeout(() => {
+      saveConfigMutation.mutate();
+    }, 100);
+  };
+
+  // Mostrar o gerador de prompt se necessário
+  if (showPromptGenerator && !prompt) {
+    return (
+      <div className="h-full overflow-auto bg-gradient-to-b from-background to-muted/20">
+        <div className="container max-w-2xl mx-auto p-4 md:p-8">
+          <PromptGenerator 
+            onPromptGenerated={handlePromptGenerated}
+            onSkip={() => setShowPromptGenerator(false)}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-auto bg-gradient-to-b from-background to-muted/20">
+      {/* Editor Expandido (Canvas/Lousa) */}
+      <ExpandedEditor
+        isOpen={isExpandedEditorOpen}
+        onClose={() => setIsExpandedEditorOpen(false)}
+        value={prompt}
+        onChange={setPrompt}
+        onSave={() => saveConfigMutation.mutate()}
+        isSaving={saveConfigMutation.isPending}
+        title="Editor de Prompt"
+        placeholder="Digite as instruções do seu agente aqui..."
+      />
+      
       <div className="container max-w-5xl mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
         
         {/* ============== HEADER COM PROGRESSO ============== */}
@@ -496,15 +546,37 @@ export default function MyAgent() {
           <TabsContent value="prompt" className="space-y-4">
             <Card className="p-4 md:p-6">
               <div className="space-y-3 md:space-y-4">
-                <div className="flex items-start gap-2.5 md:gap-3">
-                  <div className="p-1.5 md:p-2 rounded-lg bg-primary/10">
-                    <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2.5 md:gap-3">
+                    <div className="p-1.5 md:p-2 rounded-lg bg-primary/10">
+                      <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 space-y-0.5 md:space-y-1">
+                      <Label className="text-base md:text-lg font-semibold">Prompt do Agente</Label>
+                      <p className="text-xs md:text-sm text-muted-foreground">
+                        Defina a personalidade, tom e comportamento do seu agente
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 space-y-0.5 md:space-y-1">
-                    <Label className="text-base md:text-lg font-semibold">Prompt do Agente</Label>
-                    <p className="text-xs md:text-sm text-muted-foreground">
-                      Defina a personalidade, tom e comportamento do seu agente. Seja específico!
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowPromptGenerator(true)}
+                      className="gap-1.5 text-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span className="hidden md:inline">Gerar com IA</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsExpandedEditorOpen(true)}
+                      className="gap-1.5 text-xs"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span className="hidden md:inline">Expandir</span>
+                    </Button>
                   </div>
                 </div>
 
