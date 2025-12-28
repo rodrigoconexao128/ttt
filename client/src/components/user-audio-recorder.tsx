@@ -116,14 +116,13 @@ export function UserAudioRecorder({
           setState('sending');
           onSend(blob, durationRef.current, mimeTypeRef.current);
           
-          // Reset after send
+          // Close the recorder after a brief delay
           setTimeout(() => {
-            setState('idle');
-            setDuration(0);
-          }, 1000);
+            onCancel?.();
+          }, 500);
         } else {
-          setError('Nenhum áudio gravado');
-          setState('idle');
+          console.warn('[AudioRecorder] No audio chunks captured');
+          onCancel?.();
         }
         
         chunksRef.current = [];
@@ -190,7 +189,6 @@ export function UserAudioRecorder({
       mediaRecorderRef.current.stop();
     }
     cleanup();
-    setState('idle');
     setDuration(0);
     onCancel?.();
   }, [cleanup, onCancel]);
