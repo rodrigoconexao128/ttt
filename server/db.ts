@@ -38,7 +38,9 @@ const poolConfig: any = {
   min: 0,
   idleTimeoutMillis: isPoolerConnection ? 10000 : 30000,
   connectionTimeoutMillis: isPoolerConnection ? 120000 : 30000,
-  allowExitOnIdle: true,
+  // IMPORTANTE: allowExitOnIdle: false para manter o servidor rodando
+  // Quando true, o Node.js sai quando o pool fica ocioso
+  allowExitOnIdle: false,
 };
 
 export const pool = new Pool(poolConfig);

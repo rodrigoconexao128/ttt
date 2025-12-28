@@ -4,15 +4,33 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://bnfpcuzjvycudc
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseAnonKey) {
-  console.warn('VITE_SUPABASE_ANON_KEY não configurado');
+  console.error('❌ VITE_SUPABASE_ANON_KEY não configurado - autenticação não funcionará!');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Criar cliente com configuração padrão (usa localStorage automaticamente)
+// A chave padrão é sb-{projectRef}-auth-token
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    // Não definir storageKey para usar a chave padrão do Supabase
+  },
+});
 
 // Função auxiliar para obter o token de autenticação
 export async function getAuthToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || null;
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+      console.error('[SUPABASE] Erro ao obter sessão:', error.message);
+      return null;
+    }
+    return session?.access_token || null;
+  } catch (e) {
+    console.error('[SUPABASE] Exceção ao obter token:', e);
+    return null;
+  }
 }
 
 // Função auxiliar para fazer requisições autenticadas

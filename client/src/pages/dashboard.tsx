@@ -187,16 +187,23 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
+    // Aguardar pelo menos 2 segundos antes de redirecionar para login
+    // Isso dá tempo para o token ser recuperado do localStorage
     if (!isLoading && !isAuthenticated) {
-      toast({
-        title: "NÃ£o autorizado",
-        description: "VocÃª precisa fazer login. Redirecionando...",
-        variant: "destructive",
-      });
-      setTimeout(() => {
-        setLocation("/login");
-      }, 500);
-      return;
+      const timer = setTimeout(() => {
+        // Verificar novamente antes de redirecionar
+        // (pode ter sido uma race condition)
+        toast({
+          title: "Não autorizado",
+          description: "Você precisa fazer login. Redirecionando...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          setLocation("/login");
+        }, 500);
+      }, 1500);
+      
+      return () => clearTimeout(timer);
     }
   }, [isAuthenticated, isLoading, toast, setLocation]);
 

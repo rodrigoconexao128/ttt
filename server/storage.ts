@@ -724,7 +724,9 @@ export class DatabaseStorage implements IStorage {
     
     const result = new Map<string, string>();
     for (const config of configs) {
-      result.set(config.chave, config.valor);
+      if (config.valor !== null) {
+        result.set(config.chave, config.valor);
+      }
     }
     return result;
   }
@@ -1279,7 +1281,7 @@ export class DatabaseStorage implements IStorage {
       .update(adminConversations)
       .set({ 
         lastMessageText: null, 
-        lastMessageAt: new Date(),
+        lastMessageTime: new Date(),
         updatedAt: new Date() 
       })
       .where(eq(adminConversations.id, conversationId));
@@ -1566,7 +1568,7 @@ export class DatabaseStorage implements IStorage {
         // Desconectar WhatsApp antes de deletar
         await db
           .update(whatsappConnections)
-          .set({ isConnected: false, status: 'disconnected', qrCode: null })
+          .set({ isConnected: false, qrCode: null })
           .where(eq(whatsappConnections.id, connection.id));
       }
 
@@ -1615,7 +1617,8 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Validação 6: Verificar idade da conta (segurança extra)
-      const accountAge = Date.now() - new Date(user.createdAt).getTime();
+      const createdAtDate = user.createdAt ? new Date(user.createdAt) : new Date();
+      const accountAge = Date.now() - createdAtDate.getTime();
       const daysOld = accountAge / (1000 * 60 * 60 * 24);
       if (daysOld > 30) {
         return {

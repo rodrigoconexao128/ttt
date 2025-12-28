@@ -37,6 +37,7 @@ async function cleanInvalidSession() {
 async function fetchUser(): Promise<User | null> {
   try {
     const token = await getAuthToken();
+    
     if (!token) {
       return null;
     }
@@ -65,7 +66,8 @@ export function useAuth() {
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     queryFn: fetchUser,
-    retry: false,
+    retry: 2, // Tentar 3 vezes no total (1 original + 2 retries)
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 3000),
     staleTime: 5 * 60 * 1000, // 5 minutos
   });
 

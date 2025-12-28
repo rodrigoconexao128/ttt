@@ -50,11 +50,19 @@ export default function Login() {
       }
 
       if (data.session) {
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        // Aguardar a persistência da sessão no localStorage
+        // O Supabase persiste de forma assíncrona
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Invalidar cache de usuário antes de redirecionar
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        
         toast({
           title: "Login realizado com sucesso!",
           description: "Bem-vindo de volta!",
         });
+        
+        // Redirecionar para dashboard
         setLocation("/dashboard");
       }
     } catch (error) {

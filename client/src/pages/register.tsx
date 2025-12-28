@@ -19,14 +19,18 @@ export default function Register() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
+  // Se usuário já estiver logado, redirecionar para dashboard
   useEffect(() => {
     (async () => {
       try {
-        await supabase.auth.signOut();
-        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Usuário já está logado, redirecionar para dashboard
+          setLocation("/dashboard");
+        }
       } catch {}
     })();
-  }, []);
+  }, [setLocation]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
