@@ -22,7 +22,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getAuthToken } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Message, Conversation, AiAgentConfig } from "@shared/schema";
@@ -204,8 +204,41 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
         text,
       });
     },
-    onSuccess: (data: any) => {
+    // Optimistic update - mostrar mensagem imediatamente
+    onMutate: async (text: string) => {
+      // Cancelar queries em andamento
+      await queryClient.cancelQueries({ queryKey: ["/api/messages", conversationId] });
+      
+      // Snapshot do estado anterior
+      const previousMessages = queryClient.getQueryData<Message[]>(["/api/messages", conversationId]);
+      
+      // Criar mensagem otimista
+      const optimisticMessage: Message = {
+        id: `temp-${Date.now()}`,
+        conversationId: conversationId!,
+        messageId: `temp-${Date.now()}`,
+        fromMe: true,
+        text: text,
+        timestamp: new Date(),
+        status: "sending",
+        isFromAgent: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        mediaType: null,
+        mediaUrl: null,
+        mediaMimeType: null,
+        mediaCaption: null,
+      };
+      
+      // Atualizar cache imediatamente
+      queryClient.setQueryData<Message[]>(["/api/messages", conversationId], (old = []) => [...old, optimisticMessage]);
+      
+      // Limpar input imediatamente
       setMessageText("");
+      
+      return { previousMessages };
+    },
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       
@@ -219,7 +252,11 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
         });
       }
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _text, context) => {
+      // Reverter para estado anterior em caso de erro
+      if (context?.previousMessages) {
+        queryClient.setQueryData(["/api/messages", conversationId], context.previousMessages);
+      }
       toast({
         title: "Erro ao enviar mensagem",
         description: error.message,
@@ -237,13 +274,42 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
         mimeType,
       });
     },
+    // Optimistic update para áudio
+    onMutate: async ({ audioData, duration }) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/messages", conversationId] });
+      const previousMessages = queryClient.getQueryData<Message[]>(["/api/messages", conversationId]);
+      
+      const optimisticMessage: Message = {
+        id: `temp-audio-${Date.now()}`,
+        conversationId: conversationId!,
+        messageId: `temp-audio-${Date.now()}`,
+        fromMe: true,
+        text: `[Áudio ${duration}s]`,
+        timestamp: new Date(),
+        status: "sending",
+        isFromAgent: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        mediaType: "audio",
+        mediaUrl: audioData,
+        mediaMimeType: "audio/ogg",
+        mediaCaption: null,
+      };
+      
+      queryClient.setQueryData<Message[]>(["/api/messages", conversationId], (old = []) => [...old, optimisticMessage]);
+      
+      return { previousMessages };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
       toast({ title: "Áudio enviado!" });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _vars, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(["/api/messages", conversationId], context.previousMessages);
+      }
       toast({
         title: "Erro ao enviar áudio",
         description: error.message,
@@ -254,7 +320,7 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
 
   // Mutation para enviar mídia
   const sendMediaMutation = useMutation({
-    mutationFn: async ({ file, type, caption }: { file: File; type: string; caption?: string }) => {
+    mutationFn: async ({ file, type, caption, previewUrl }: { file: File; type: string; caption?: string; previewUrl?: string }) => {
       // Converter arquivo para base64
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve, reject) => {
@@ -276,14 +342,58 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
       
       return response.json();
     },
-    onSuccess: () => {
+    // Optimistic update para mídia
+    onMutate: async ({ file, type, caption }) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/messages", conversationId] });
+      const previousMessages = queryClient.getQueryData<Message[]>(["/api/messages", conversationId]);
+      
+      // Criar preview URL para imagem/vídeo
+      let previewUrl: string | null = null;
+      if (type === 'image' || type === 'video') {
+        previewUrl = URL.createObjectURL(file);
+      }
+      
+      const mediaLabel = type === 'image' ? 'Imagem' : type === 'video' ? 'Vídeo' : type === 'audio' ? 'Áudio' : 'Documento';
+      
+      const optimisticMessage: Message = {
+        id: `temp-media-${Date.now()}`,
+        conversationId: conversationId!,
+        messageId: `temp-media-${Date.now()}`,
+        fromMe: true,
+        text: caption || `[${mediaLabel}]`,
+        timestamp: new Date(),
+        status: "sending",
+        isFromAgent: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        mediaType: type,
+        mediaUrl: previewUrl,
+        mediaMimeType: file.type,
+        mediaCaption: caption || null,
+      };
+      
+      queryClient.setQueryData<Message[]>(["/api/messages", conversationId], (old = []) => [...old, optimisticMessage]);
+      
+      return { previousMessages, previewUrl };
+    },
+    onSuccess: (_data, _vars, context) => {
+      // Limpar preview URL
+      if (context?.previewUrl) {
+        URL.revokeObjectURL(context.previewUrl);
+      }
       setIsSendingMedia(false);
       queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
       toast({ title: "Mídia enviada!" });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _vars, context) => {
+      if (context?.previewUrl) {
+        URL.revokeObjectURL(context.previewUrl);
+      }
+      if (context?.previousMessages) {
+        queryClient.setQueryData(["/api/messages", conversationId], context.previousMessages);
+      }
       setIsSendingMedia(false);
       toast({
         title: "Erro ao enviar mídia",
@@ -345,6 +455,69 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
       }, 100);
     }
   }, [conversationId]);
+
+  // WebSocket para atualizações em tempo real
+  useEffect(() => {
+    if (!conversationId) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
+
+    const connectWebSocket = async () => {
+      try {
+        const token = await getAuthToken();
+        if (!token) return;
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws?token=${token}`;
+        
+        ws = new WebSocket(wsUrl);
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log('[ChatArea WebSocket] Received:', data.type);
+            
+            // Atualiza mensagens quando recebe nova mensagem ou resposta do agente
+            if (data.type === 'new_message' || data.type === 'agent_response') {
+              // Verifica se é para esta conversa
+              if (data.data?.conversationId === conversationId) {
+                queryClient.invalidateQueries({ 
+                  queryKey: ["/api/messages", conversationId] 
+                });
+              }
+            }
+          } catch (err) {
+            console.error('[ChatArea WebSocket] Parse error:', err);
+          }
+        };
+
+        ws.onclose = () => {
+          console.log('[ChatArea WebSocket] Closed, reconnecting in 3s...');
+          reconnectTimeout = setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = (error) => {
+          console.error('[ChatArea WebSocket] Error:', error);
+        };
+
+      } catch (error) {
+        console.error('[ChatArea WebSocket] Connection error:', error);
+        reconnectTimeout = setTimeout(connectWebSocket, 3000);
+      }
+    };
+
+    connectWebSocket();
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+    };
+  }, [conversationId, queryClient]);
 
   // Número normalizado para exibição (usa remoteJid quando disponível)
   const displayNumber =

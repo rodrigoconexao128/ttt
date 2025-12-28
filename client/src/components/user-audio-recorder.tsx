@@ -20,7 +20,6 @@ export function UserAudioRecorder({
   setIsRecording,
   disabled 
 }: UserAudioRecorderProps) {
-  // Estado interno do gravador
   const [recorderState, setRecorderState] = useState<RecorderState>('idle');
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -33,23 +32,19 @@ export function UserAudioRecorder({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const mimeTypeRef = useRef<string>('audio/webm');
 
-  // Detectar se é mobile
   const isMobile = typeof window !== 'undefined' && (
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     window.innerWidth < 768
   );
 
-  // Sincronizar estado externo com interno
+  // Sync external state
   useEffect(() => {
-    if (recorderState === 'recording' || recorderState === 'paused') {
-      setIsRecording(true);
-    } else {
-      setIsRecording(false);
-    }
+    setIsRecording(recorderState === 'recording' || recorderState === 'paused');
   }, [recorderState, setIsRecording]);
 
-  // Limpar recursos ao desmontar
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -58,173 +53,178 @@ export function UserAudioRecorder({
         streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, [audioUrl]);
-
-  const startTimer = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setRecordingTime(prev => prev + 1);
-    }, 1000);
-  }, []);
-
-  const stopTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
   }, []);
 
   const startRecording = useCallback(async () => {
     try {
-      console.log('[AudioRecorder] 🎤 Requesting microphone access...');
+      console.log('[AudioRecorder] 🎤 Starting...');
       
-      // Limpar estado anterior
+      // Reset state
       audioChunksRef.current = [];
       setAudioBlob(null);
       if (audioUrl) URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
       setRecordingTime(0);
       
+      // Request microphone
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        }
+        audio: true
       });
       
-      console.log('[AudioRecorder] ✅ Microphone access granted');
+      console.log('[AudioRecorder] ✅ Got stream, tracks:', stream.getAudioTracks().length);
+      
+      // Verify we have audio tracks
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        throw new Error('No audio tracks in stream');
+      }
+      
+      console.log('[AudioRecorder] 🎙️ Audio track:', audioTracks[0].label, 'enabled:', audioTracks[0].enabled);
+      
       streamRef.current = stream;
       
-      // Detectar formato suportado
-      let mimeType = 'audio/webm';
+      // Find supported format
+      let mimeType = '';
       const formats = [
         'audio/webm;codecs=opus',
-        'audio/ogg;codecs=opus', 
         'audio/webm',
+        'audio/ogg;codecs=opus',
         'audio/mp4',
+        'audio/mpeg',
+        ''  // Let browser choose default
       ];
       
       for (const format of formats) {
-        if (MediaRecorder.isTypeSupported(format)) {
+        if (format === '' || MediaRecorder.isTypeSupported(format)) {
           mimeType = format;
+          console.log('[AudioRecorder] ✅ Format supported:', format || '(default)');
           break;
         }
       }
       
-      console.log('[AudioRecorder] 📼 Using mimeType:', mimeType);
-      setActualMimeType(mimeType);
+      mimeTypeRef.current = mimeType || 'audio/webm';
+      setActualMimeType(mimeTypeRef.current);
       
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      // Create MediaRecorder
+      const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
+      
+      console.log('[AudioRecorder] 📼 MediaRecorder created, mimeType:', mediaRecorder.mimeType);
 
+      // Handle data - collect chunks
       mediaRecorder.ondataavailable = (event) => {
-        console.log('[AudioRecorder] 📦 Data chunk:', event.data.size, 'bytes');
-        if (event.data.size > 0) {
+        console.log('[AudioRecorder] 📦 Chunk received:', event.data.size, 'bytes, type:', event.data.type);
+        if (event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data);
+          console.log('[AudioRecorder] 📊 Total chunks:', audioChunksRef.current.length);
         }
       };
 
+      // Handle stop
       mediaRecorder.onstop = () => {
-        console.log('[AudioRecorder] ⏹️ MediaRecorder stopped, chunks:', audioChunksRef.current.length);
+        console.log('[AudioRecorder] ⏹️ Stopped, total chunks:', audioChunksRef.current.length);
         
-        // Parar stream
+        // Stop stream tracks
         if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current.getTracks().forEach(track => {
+            track.stop();
+            console.log('[AudioRecorder] 🔇 Track stopped:', track.label);
+          });
           streamRef.current = null;
         }
         
         if (audioChunksRef.current.length > 0) {
-          const blob = new Blob(audioChunksRef.current, { type: mimeType });
-          console.log('[AudioRecorder] 🎵 Created blob:', blob.size, 'bytes');
+          const finalMimeType = mimeTypeRef.current || 'audio/webm';
+          const blob = new Blob(audioChunksRef.current, { type: finalMimeType });
+          console.log('[AudioRecorder] 🎵 Blob created:', blob.size, 'bytes, type:', blob.type);
+          
           setAudioBlob(blob);
-          const url = URL.createObjectURL(blob);
-          setAudioUrl(url);
+          setAudioUrl(URL.createObjectURL(blob));
           setRecorderState('preview');
         } else {
-          console.error('[AudioRecorder] ❌ No audio chunks recorded!');
+          console.error('[AudioRecorder] ❌ No chunks recorded!');
+          alert('Não foi possível gravar o áudio. Tente novamente.');
           setRecorderState('idle');
         }
       };
 
       mediaRecorder.onerror = (event: any) => {
-        console.error('[AudioRecorder] ❌ MediaRecorder error:', event.error);
+        console.error('[AudioRecorder] ❌ Error:', event.error);
         setRecorderState('idle');
       };
 
-      // Iniciar gravação - timeslice de 500ms para capturar dados frequentemente
-      mediaRecorder.start(500);
-      console.log('[AudioRecorder] 🔴 Recording started');
+      // Start recording WITHOUT timeslice - data available on stop
+      mediaRecorder.start();
+      console.log('[AudioRecorder] 🔴 Recording started (state:', mediaRecorder.state, ')');
       
       setRecorderState('recording');
-      startTimer();
+      
+      // Start timer
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
 
     } catch (error: any) {
-      console.error("[AudioRecorder] ❌ Erro ao acessar microfone:", error);
-      alert("Não foi possível acessar o microfone. Verifique as permissões do navegador.\n\nErro: " + error.message);
+      console.error("[AudioRecorder] ❌ Error:", error);
+      alert("Não foi possível acessar o microfone: " + error.message);
       setRecorderState('idle');
     }
-  }, [audioUrl, startTimer]);
+  }, [audioUrl]);
 
   const stopRecording = useCallback(() => {
-    console.log('[AudioRecorder] ⏹️ Stop button clicked, state:', mediaRecorderRef.current?.state);
-    stopTimer();
+    console.log('[AudioRecorder] ⏹️ Stop clicked');
     
-    if (mediaRecorderRef.current) {
-      const state = mediaRecorderRef.current.state;
-      if (state === 'recording' || state === 'paused') {
-        // Requisitar dados pendentes
-        try {
-          mediaRecorderRef.current.requestData();
-        } catch (e) {
-          console.log('[AudioRecorder] requestData not supported');
-        }
-        mediaRecorderRef.current.stop();
-      }
+    // Stop timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
-  }, [stopTimer]);
+    
+    // Stop MediaRecorder
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      console.log('[AudioRecorder] Stopping MediaRecorder (state:', mediaRecorderRef.current.state, ')');
+      mediaRecorderRef.current.stop();
+    }
+  }, []);
 
   const pauseRecording = useCallback(() => {
-    console.log('[AudioRecorder] ⏸️ Pause/Resume clicked, current state:', recorderState);
-    
     if (!mediaRecorderRef.current) return;
     
     if (recorderState === 'paused') {
-      // Resume
       mediaRecorderRef.current.resume();
       setRecorderState('recording');
-      startTimer();
-      console.log('[AudioRecorder] ▶️ Resumed');
+      timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
     } else if (recorderState === 'recording') {
-      // Pause
       mediaRecorderRef.current.pause();
       setRecorderState('paused');
-      stopTimer();
-      console.log('[AudioRecorder] ⏸️ Paused');
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
-  }, [recorderState, startTimer, stopTimer]);
+  }, [recorderState]);
 
   const cancelRecording = useCallback(() => {
-    console.log('[AudioRecorder] 🗑️ Cancel clicked');
-    stopTimer();
+    console.log('[AudioRecorder] 🗑️ Cancel');
     
-    // Parar MediaRecorder
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
     
-    // Parar stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
     
-    // Limpar URL
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-    }
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
     
-    // Reset estado
     audioChunksRef.current = [];
     mediaRecorderRef.current = null;
     setAudioBlob(null);
@@ -234,38 +234,32 @@ export function UserAudioRecorder({
     setIsPlaying(false);
     
     onCancel();
-  }, [audioUrl, stopTimer, onCancel]);
+  }, [audioUrl, onCancel]);
 
   const playPreview = useCallback(() => {
-    console.log('[AudioRecorder] 🔊 Play preview clicked, audioRef:', !!audioRef.current, 'audioUrl:', !!audioUrl);
-    
     if (!audioRef.current || !audioUrl) return;
     
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play().catch(err => {
-        console.error('[AudioRecorder] Error playing audio:', err);
-      });
+      audioRef.current.play().catch(console.error);
       setIsPlaying(true);
     }
   }, [audioUrl, isPlaying]);
 
   const sendAudio = useCallback(() => {
     if (!audioBlob) {
-      console.error('[AudioRecorder] ❌ No audio blob to send!');
+      console.error('[AudioRecorder] ❌ No blob to send');
       return;
     }
     
-    console.log('[AudioRecorder] 📤 Sending audio:', audioBlob.size, 'bytes, duration:', recordingTime, 'mimeType:', actualMimeType);
-    
+    console.log('[AudioRecorder] 📤 Sending:', audioBlob.size, 'bytes, duration:', recordingTime);
     onSend(audioBlob, recordingTime, actualMimeType);
     
     // Reset
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     audioChunksRef.current = [];
-    mediaRecorderRef.current = null;
     setAudioBlob(null);
     setAudioUrl(null);
     setRecordingTime(0);
@@ -273,15 +267,10 @@ export function UserAudioRecorder({
     setIsPlaying(false);
   }, [audioBlob, recordingTime, audioUrl, actualMimeType, onSend]);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
   // === RENDER ===
 
-  // Estado IDLE - Mostrar botão de microfone
   if (recorderState === 'idle') {
     return (
       <Button
@@ -289,10 +278,7 @@ export function UserAudioRecorder({
         size="icon"
         onClick={startRecording}
         disabled={disabled}
-        className={cn(
-          "text-muted-foreground hover:text-primary touch-manipulation",
-          isMobile && "h-11 w-11"
-        )}
+        className={cn("text-muted-foreground hover:text-primary", isMobile && "h-11 w-11")}
         title="Gravar áudio"
         type="button"
       >
@@ -301,79 +287,37 @@ export function UserAudioRecorder({
     );
   }
 
-  // Estado RECORDING ou PAUSED - Interface de gravação
   if (recorderState === 'recording' || recorderState === 'paused') {
     return (
       <div className={cn(
         "flex items-center gap-2 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2 border border-red-200 dark:border-red-900",
         isMobile && "gap-3 px-2"
       )}>
-        {/* Indicador de gravação */}
         <div className="flex items-center gap-2">
-          <div className={cn(
-            "w-3 h-3 rounded-full bg-red-500",
-            recorderState === 'recording' && "animate-pulse"
-          )} />
+          <div className={cn("w-3 h-3 rounded-full bg-red-500", recorderState === 'recording' && "animate-pulse")} />
           <span className="text-sm font-mono text-red-600 dark:text-red-400 min-w-[45px]">
             {formatTime(recordingTime)}
           </span>
         </div>
 
-        {/* Waveform visual */}
         {recorderState === 'recording' && (
           <div className="flex items-center gap-0.5 h-6">
-            {[1,2,3,4,5].map((i) => (
-              <div
-                key={i}
-                className="w-1 bg-red-400 rounded-full animate-pulse"
-                style={{
-                  height: `${8 + (i * 3)}px`,
-                  animationDelay: `${i * 0.1}s`
-                }}
-              />
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className="w-1 bg-red-400 rounded-full animate-pulse" style={{ height: `${8 + i * 3}px`, animationDelay: `${i * 0.1}s` }} />
             ))}
           </div>
         )}
         
-        {recorderState === 'paused' && (
-          <span className="text-xs text-red-500 font-medium">PAUSADO</span>
-        )}
+        {recorderState === 'paused' && <span className="text-xs text-red-500 font-medium">PAUSADO</span>}
 
-        {/* Controles */}
         <div className="flex items-center gap-1 ml-auto">
-          {/* Pausar/Continuar */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={pauseRecording}
-            className={cn("h-8 w-8", isMobile && "h-10 w-10")}
-            title={recorderState === 'paused' ? "Continuar" : "Pausar"}
-            type="button"
-          >
+          <Button variant="ghost" size="icon" onClick={pauseRecording} className={cn("h-8 w-8", isMobile && "h-10 w-10")} type="button">
             {recorderState === 'paused' ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
           </Button>
-          
-          {/* Cancelar */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={cancelRecording}
-            className={cn("h-8 w-8 text-red-500 hover:text-red-600", isMobile && "h-10 w-10")}
-            title="Cancelar"
-            type="button"
-          >
+          <Button variant="ghost" size="icon" onClick={cancelRecording} className={cn("h-8 w-8 text-red-500", isMobile && "h-10 w-10")} type="button">
             <Trash2 className="w-4 h-4" />
           </Button>
-          
-          {/* Parar e ir para preview */}
-          <Button
-            variant="default"
-            size="icon"
-            onClick={stopRecording}
-            className={cn("h-8 w-8 bg-red-500 hover:bg-red-600", isMobile && "h-10 w-10")}
-            title="Parar gravação"
-            type="button"
-          >
+          <Button variant="default" size="icon" onClick={stopRecording} className={cn("h-8 w-8 bg-red-500 hover:bg-red-600", isMobile && "h-10 w-10")} type="button">
             <Square className="w-4 h-4" />
           </Button>
         </div>
@@ -381,71 +325,28 @@ export function UserAudioRecorder({
     );
   }
 
-  // Estado PREVIEW - Mostrar áudio gravado
   if (recorderState === 'preview' && audioBlob && audioUrl) {
     return (
-      <div className={cn(
-        "flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border",
-        isMobile && "gap-3 px-2"
-      )}>
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          onEnded={() => setIsPlaying(false)}
-          className="hidden"
-          preload="auto"
-        />
+      <div className={cn("flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border", isMobile && "gap-3 px-2")}>
+        <audio ref={audioRef} src={audioUrl} onEnded={() => setIsPlaying(false)} className="hidden" preload="auto" />
         
-        {/* Play/Pause preview */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={playPreview}
-          className={cn("h-8 w-8", isMobile && "h-10 w-10")}
-          title={isPlaying ? "Pausar" : "Ouvir"}
-          type="button"
-        >
+        <Button variant="ghost" size="icon" onClick={playPreview} className={cn("h-8 w-8", isMobile && "h-10 w-10")} type="button">
           {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
         </Button>
 
-        {/* Duração */}
-        <span className="text-sm font-mono text-muted-foreground min-w-[45px]">
-          {formatTime(recordingTime)}
-        </span>
+        <span className="text-sm font-mono text-muted-foreground min-w-[45px]">{formatTime(recordingTime)}</span>
 
-        {/* Indicador visual */}
         <div className="flex items-center gap-0.5 h-6 flex-1 max-w-[80px]">
-          {[1,2,3,4,5,6,7,8,9,10].map((i) => (
-            <div
-              key={i}
-              className="w-1 bg-primary/40 rounded-full"
-              style={{ height: `${4 + (i % 5) * 3}px` }}
-            />
+          {[1,2,3,4,5,6,7,8].map(i => (
+            <div key={i} className="w-1 bg-primary/40 rounded-full" style={{ height: `${4 + (i % 4) * 4}px` }} />
           ))}
         </div>
 
         <div className="flex items-center gap-1 ml-auto">
-          {/* Cancelar/Descartar */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={cancelRecording}
-            className={cn("h-8 w-8 text-muted-foreground hover:text-destructive", isMobile && "h-10 w-10")}
-            title="Descartar"
-            type="button"
-          >
+          <Button variant="ghost" size="icon" onClick={cancelRecording} className={cn("h-8 w-8 text-muted-foreground", isMobile && "h-10 w-10")} type="button">
             <X className="w-4 h-4" />
           </Button>
-          
-          {/* Enviar */}
-          <Button
-            variant="default"
-            size="icon"
-            onClick={sendAudio}
-            className={cn("h-8 w-8 bg-primary hover:bg-primary/90", isMobile && "h-10 w-10")}
-            title="Enviar áudio"
-            type="button"
-          >
+          <Button variant="default" size="icon" onClick={sendAudio} className={cn("h-8 w-8", isMobile && "h-10 w-10")} type="button">
             <Send className="w-4 h-4" />
           </Button>
         </div>
