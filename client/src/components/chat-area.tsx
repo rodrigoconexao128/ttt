@@ -57,7 +57,6 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
 
   // Estados para novas funcionalidades
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
-  const [isSendingMedia, setIsSendingMedia] = useState(false);
   
   // Detectar se é mobile
   const isMobile = typeof window !== 'undefined' && (
@@ -379,7 +378,7 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
       if (context?.previewUrl) {
         URL.revokeObjectURL(context.previewUrl);
       }
-      setIsSendingMedia(false);
+      // Não precisa mais setar isSendingMedia pois não bloqueia UI
       queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
@@ -392,7 +391,7 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
       if (context?.previousMessages) {
         queryClient.setQueryData(["/api/messages", conversationId], context.previousMessages);
       }
-      setIsSendingMedia(false);
+      // Não precisa mais setar isSendingMedia pois não bloqueia UI
       toast({
         title: "Erro ao enviar mídia",
         description: error.message,
@@ -414,7 +413,7 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
 
   // Handler para enviar mídia
   const handleSendMedia = useCallback((file: File, type: "image" | "video" | "document" | "audio", caption?: string) => {
-    setIsSendingMedia(true);
+    // Não bloquear UI - optimistic update já adiciona a mensagem
     sendMediaMutation.mutate({ file, type, caption });
   }, [sendMediaMutation]);
 
@@ -935,11 +934,6 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
             onCancel={() => setIsRecordingAudio(false)}
             disabled={sendAudioMutation.isPending}
           />
-        ) : isSendingMedia ? (
-          <div className="flex items-center justify-center gap-2 py-3">
-            <Loader2 className="w-5 h-5 animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">Enviando mídia...</span>
-          </div>
         ) : (
           <div className="flex items-center gap-2">
             {/* Botões de ação à esquerda - escondidos no mobile para dar mais espaço */}

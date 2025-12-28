@@ -43,10 +43,13 @@ export async function convertToWhatsAppAudio(
     console.log('[AudioConverter] 📝 Arquivo de entrada criado:', inputBuffer.length, 'bytes');
 
     // Comando FFmpeg para converter para OGG/Opus
-    // Baseado na solução do Baileys issue #1833:
+    // Baseado na solução do Baileys issue #1833 e #2181:
     // https://github.com/WhiskeySockets/Baileys/issues/1833
+    // https://github.com/WhiskeySockets/Baileys/issues/2181
     // -y: sobrescrever output
+    // -fflags +genpts: gerar timestamps corretos (importante para WebM gravado)
     // -i: input file
+    // -avoid_negative_ts make_zero: evitar timestamps negativos que causam erro no WhatsApp
     // -c:a libopus: usar codec opus
     // -b:a 64k: bitrate de 64kbps (bom para voz)
     // -vbr on: variable bitrate (melhor qualidade)
@@ -54,7 +57,8 @@ export async function convertToWhatsAppAudio(
     // -ar 48000: sample rate 48kHz (padrão opus para WhatsApp)
     // -ac 1: mono (melhor para voz e menor tamanho)
     // -application voip: otimizado para voz (recomendado para PTT)
-    const ffmpegCmd = `ffmpeg -y -i "${inputPath}" -c:a libopus -b:a 64k -vbr on -vn -ar 48000 -ac 1 -application voip "${outputPath}"`;
+    // -f ogg: forçar formato OGG de saída com headers corretos
+    const ffmpegCmd = `ffmpeg -y -fflags +genpts -i "${inputPath}" -avoid_negative_ts make_zero -c:a libopus -b:a 64k -vbr on -vn -ar 48000 -ac 1 -application voip -f ogg "${outputPath}"`;
     
     console.log('[AudioConverter] 🎬 Executando FFmpeg...');
     
