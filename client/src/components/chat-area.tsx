@@ -301,7 +301,6 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
       queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
-      toast({ title: "Áudio enviado!" });
     },
     onError: (error: Error, _vars, context) => {
       if (context?.previousMessages) {
@@ -382,7 +381,6 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
       queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
-      toast({ title: "Mídia enviada!" });
     },
     onError: (error: Error, _vars, context) => {
       if (context?.previewUrl) {
