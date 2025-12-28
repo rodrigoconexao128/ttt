@@ -167,6 +167,19 @@ export class UserFollowUpService {
         return;
       }
 
+      // 📅 NOVO: Cliente pediu para retornar em data específica
+      if (decision.action === 'schedule' && decision.scheduleDate) {
+        const scheduleDate = new Date(decision.scheduleDate);
+        console.log(`📅 [USER-FOLLOW-UP] Cliente pediu para retornar em ${scheduleDate.toLocaleDateString('pt-BR')}: ${decision.reason}`);
+        await this.scheduleNextFollowUp(conversation.id, scheduleDate);
+        await this.logFollowUp(conversation, userId, 'skipped', null, decision, `Reagendado para ${scheduleDate.toLocaleDateString('pt-BR')} conforme combinado`);
+        // Atualizar motivo visível
+        await db.update(conversations)
+          .set({ followupDisabledReason: `📅 Combinado retornar em ${scheduleDate.toLocaleDateString('pt-BR')}` })
+          .where(eq(conversations.id, conversation.id));
+        return;
+      }
+
       if (decision.action === 'wait') {
         console.log(`⏳ [USER-FOLLOW-UP] IA sugeriu esperar para ${conversation.contactNumber}: ${decision.reason}`);
         // Adiar por 24h com segundos aleatórios
@@ -332,10 +345,11 @@ export class UserFollowUpService {
    * Usa IA para analisar se deve enviar follow-up e qual mensagem
    */
   private async analyzeWithAI(conversation: any, config: any): Promise<{
-    action: 'send' | 'wait' | 'abort';
+    action: 'send' | 'wait' | 'abort' | 'schedule';
     reason: string;
     message?: string;
     context?: string;
+    scheduleDate?: string;
   }> {
     // Buscar mensagens recentes
     const recentMessages = await db.query.messages.findMany({
@@ -369,6 +383,13 @@ export class UserFollowUpService {
     const lastClientTime = lastClientMessage?.timestamp ? new Date(lastClientMessage.timestamp) : null;
     const lastOurTime = lastOurMessage?.timestamp ? new Date(lastOurMessage.timestamp) : null;
     const now = new Date();
+    
+    // Data atual em formato brasileiro
+    const brazilNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const todayStr = brazilNow.toLocaleDateString('pt-BR');
+    const dayOfWeek = brazilNow.getDay(); // 0=domingo, 1=segunda...
+    const dayNames = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+    const todayName = dayNames[dayOfWeek];
     
     const minutesSinceClient = lastClientTime 
       ? Math.floor((now.getTime() - lastClientTime.getTime()) / (1000 * 60)) 
@@ -410,6 +431,10 @@ export class UserFollowUpService {
 
     const prompt = `Você é um vendedor HUMANO fazendo follow-up via WhatsApp.
 
+## DATA E HORA ATUAL
+- Hoje: ${todayStr} (${todayName})
+- Dia da semana: ${dayOfWeek} (0=domingo, 1=segunda, ..., 6=sábado)
+
 ## DADOS DO CLIENTE
 - Nome do cliente: ${clientName || 'NÃO INFORMADO (não use nome)'}
 - Tempo sem resposta do cliente: ${minutesSinceClient} min (${Math.floor(minutesSinceClient/60)}h)
@@ -437,13 +462,27 @@ ${historyFormatted.map(h => `${h.de}: ${h.mensagem}`).join('\n')}
 7. ✅ SEMPRE seja específico ao contexto da conversa
 8. ✅ SEMPRE pareça natural e humano
 
+## DETECÇÃO DE DATA COMBINADA (PRIORIDADE MÁXIMA!)
+SEMPRE que o cliente mencionar um dia específico para retornar contato, use action="schedule".
+Exemplos que DEVEM ser SCHEDULE:
+- "segunda", "na segunda", "segunda-feira", "na segunda falamos", "segunda a gente conversa" → próxima segunda às 09:00
+- "terça", "na terça", "terça-feira" → próxima terça às 09:00
+- "amanhã", "amanhã falamos", "amanhã a gente fala" → amanhã às 09:00
+- "semana que vem", "próxima semana" → segunda que vem às 09:00
+- "daqui X dias" → X dias depois às 09:00
+- "depois do ano novo", "depois do feriado", "em janeiro" → dia 02/01 às 09:00
+- "dia 5", "dia 15" → dia específico às 09:00
+IMPORTANTE: Se detectar QUALQUER menção a dia/data de retorno, SEMPRE use action="schedule"!
+Use scheduleDate no formato ISO (YYYY-MM-DDTHH:MM:SS)
+
 ## DECISÃO
+- SCHEDULE: cliente combinou uma data específica para retornar (segunda, amanhã, dia X, etc)
 - ABORT: cliente comprou, recusou claramente, ou 30+ dias sem resposta
 - WAIT: cliente disse "depois falo", "vou ver", ou nossa última msg foi há menos de 2h
 - SEND: cliente parou de responder há mais de 2-3h e podemos agregar valor
 
 ## RESPOSTA (JSON válido, sem explicações extras)
-{"action":"send|wait|abort","reason":"motivo curto","message":"mensagem PRONTA máx 200 chars","strategy":"técnica usada"}`;
+{"action":"send|wait|abort|schedule","reason":"motivo curto","message":"mensagem PRONTA máx 200 chars (só se action=send)","strategy":"técnica usada","scheduleDate":"YYYY-MM-DDTHH:MM:SS (só se action=schedule)"}`;
 
     try {
       const mistral = await getMistralClient();
@@ -458,6 +497,25 @@ ${historyFormatted.map(h => `${h.de}: ${h.mensagem}`).join('\n')}
       
       // Tentar parsear JSON
       const parsed = JSON.parse(jsonStr);
+      
+      // Se action é schedule, validar a data
+      if (parsed.action === 'schedule' && parsed.scheduleDate) {
+        const scheduleDate = new Date(parsed.scheduleDate);
+        if (isNaN(scheduleDate.getTime())) {
+          console.warn(`⚠️ [FOLLOW-UP] Data inválida retornada pela IA: ${parsed.scheduleDate}`);
+          return { action: 'wait', reason: 'Data de agendamento inválida' };
+        }
+        // Se a data é no passado, ajustar para o futuro
+        if (scheduleDate < now) {
+          scheduleDate.setDate(scheduleDate.getDate() + 7); // Adicionar 7 dias
+        }
+        return {
+          action: 'schedule',
+          reason: parsed.reason || 'Cliente combinou data',
+          scheduleDate: scheduleDate.toISOString(),
+          context: parsed.strategy
+        };
+      }
       
       // Validar mensagem gerada
       let message = parsed.message;
