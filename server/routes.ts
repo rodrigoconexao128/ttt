@@ -4189,6 +4189,36 @@ Use emojis com moderação quando apropriado.`;
         return res.status(400).json({ message: "File data is required" });
       }
 
+      // Calcular tamanho aproximado do arquivo (base64 é ~33% maior que o binário)
+      const base64Data = fileData.includes(',') ? fileData.split(',')[1] : fileData;
+      const fileSizeBytes = Math.ceil((base64Data.length * 3) / 4);
+      const fileSizeMB = fileSizeBytes / (1024 * 1024);
+
+      console.log(`[send-media-base64] File: ${fileName}, Type: ${mimeType}, Size: ${fileSizeMB.toFixed(2)}MB`);
+
+      // Limites de tamanho por tipo de mídia
+      const MAX_VIDEO_SIZE_MB = 16; // WhatsApp limita vídeos a ~16MB
+      const MAX_IMAGE_SIZE_MB = 16;
+      const MAX_DOCUMENT_SIZE_MB = 100;
+
+      if (mimeType?.startsWith('video/') && fileSizeMB > MAX_VIDEO_SIZE_MB) {
+        return res.status(400).json({ 
+          message: `Vídeo muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_VIDEO_SIZE_MB}MB para WhatsApp.` 
+        });
+      }
+
+      if (mimeType?.startsWith('image/') && fileSizeMB > MAX_IMAGE_SIZE_MB) {
+        return res.status(400).json({ 
+          message: `Imagem muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_IMAGE_SIZE_MB}MB.` 
+        });
+      }
+
+      if (fileSizeMB > MAX_DOCUMENT_SIZE_MB) {
+        return res.status(400).json({ 
+          message: `Arquivo muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_DOCUMENT_SIZE_MB}MB.` 
+        });
+      }
+
       // Verificar propriedade da conversa
       const conversation = await storage.getConversation(id);
       if (!conversation) {
@@ -4229,7 +4259,7 @@ Use emojis com moderação quando apropriado.`;
     try {
       const userId = getUserId(req);
       const { id } = req.params;
-      const { audioData, duration } = req.body;
+      const { audioData, duration, mimeType } = req.body;
 
       if (!audioData) {
         return res.status(400).json({ message: "Audio data is required" });
@@ -4246,12 +4276,17 @@ Use emojis com moderação quando apropriado.`;
         return res.status(403).json({ message: "Forbidden" });
       }
 
+      console.log('[send-audio] Received audio, mimeType:', mimeType, 'duration:', duration);
+
+      // Usar o mimeType recebido ou fallback para ogg
+      const audioMimeType = mimeType || 'audio/ogg; codecs=opus';
+
       // Enviar via WhatsApp
       const { sendUserMediaMessage } = await import("./whatsapp");
       await sendUserMediaMessage(userId, id, {
         type: 'audio',
         data: audioData,
-        mimetype: 'audio/ogg; codecs=opus',
+        mimetype: audioMimeType,
         ptt: true, // Push to talk (nota de voz)
         seconds: duration || 0,
       });

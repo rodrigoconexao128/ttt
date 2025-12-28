@@ -49,9 +49,24 @@ export function UserMediaUploader({ onUpload, disabled }: UserMediaUploaderProps
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validar tamanho (16MB max)
-    if (file.size > 16 * 1024 * 1024) {
-      alert("Arquivo muito grande. Máximo 16MB.");
+    // Limites de tamanho por tipo
+    const MAX_VIDEO_MB = 16;
+    const MAX_IMAGE_MB = 16;
+    const MAX_DOCUMENT_MB = 100;
+    const fileSizeMB = file.size / (1024 * 1024);
+
+    if (currentType === "video" && fileSizeMB > MAX_VIDEO_MB) {
+      alert(`Vídeo muito grande (${fileSizeMB.toFixed(1)}MB). O limite para WhatsApp é ${MAX_VIDEO_MB}MB. Tente um vídeo menor ou comprimido.`);
+      return;
+    }
+
+    if (currentType === "image" && fileSizeMB > MAX_IMAGE_MB) {
+      alert(`Imagem muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_IMAGE_MB}MB.`);
+      return;
+    }
+
+    if (fileSizeMB > MAX_DOCUMENT_MB) {
+      alert(`Arquivo muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_DOCUMENT_MB}MB.`);
       return;
     }
 

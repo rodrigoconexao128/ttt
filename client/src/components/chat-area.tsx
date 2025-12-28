@@ -226,10 +226,11 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
 
   // Mutation para enviar áudio
   const sendAudioMutation = useMutation({
-    mutationFn: async ({ audioData, duration }: { audioData: string; duration: number }) => {
+    mutationFn: async ({ audioData, duration, mimeType }: { audioData: string; duration: number; mimeType: string }) => {
       return await apiRequest("POST", `/api/conversations/${conversationId}/send-audio`, {
         audioData,
         duration,
+        mimeType,
       });
     },
     onSuccess: () => {
@@ -289,11 +290,12 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
   });
 
   // Handler para enviar áudio
-  const handleSendAudio = useCallback(async (audioBlob: Blob, duration: number) => {
+  const handleSendAudio = useCallback(async (audioBlob: Blob, duration: number, mimeType: string) => {
+    console.log('[ChatArea] Sending audio, size:', audioBlob.size, 'mimeType:', mimeType);
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64 = reader.result as string;
-      sendAudioMutation.mutate({ audioData: base64, duration });
+      sendAudioMutation.mutate({ audioData: base64, duration, mimeType });
     };
     reader.readAsDataURL(audioBlob);
   }, [sendAudioMutation]);

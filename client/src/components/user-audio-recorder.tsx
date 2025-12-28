@@ -4,7 +4,7 @@ import { Mic, Square, Play, Pause, Trash2, Send, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface UserAudioRecorderProps {
-  onSend: (audioBlob: Blob, duration: number) => void;
+  onSend: (audioBlob: Blob, duration: number, mimeType: string) => void;
   onCancel: () => void;
   isRecording: boolean;
   setIsRecording: (value: boolean) => void;
@@ -23,6 +23,7 @@ export function UserAudioRecorder({
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [actualMimeType, setActualMimeType] = useState<string>('audio/webm');
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -49,68 +50,97 @@ export function UserAudioRecorder({
 
   const startRecording = useCallback(async () => {
     try {
+      console.log('[AudioRecorder] Requesting microphone access...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          sampleRate: 48000,
         }
       });
       
+      console.log('[AudioRecorder] Microphone access granted');
       streamRef.current = stream;
       
-      // Detectar formato suportado
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/mp4')
-          ? 'audio/mp4'
-          : 'audio/webm';
+      // Detectar formato suportado - priorizar ogg para compatibilidade com WhatsApp
+      let mimeType = 'audio/webm';
+      if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+        mimeType = 'audio/ogg;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+      }
       
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      console.log('[AudioRecorder] Using mimeType:', mimeType);
+      setActualMimeType(mimeType);
+      
+      const mediaRecorder = new MediaRecorder(stream, { 
+        mimeType,
+        audioBitsPerSecond: 128000 
+      });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
+        console.log('[AudioRecorder] Data available:', event.data.size, 'bytes');
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        setAudioBlob(blob);
-        const url = URL.createObjectURL(blob);
-        setAudioUrl(url);
+        console.log('[AudioRecorder] Recording stopped, chunks:', audioChunksRef.current.length);
+        if (audioChunksRef.current.length > 0) {
+          const blob = new Blob(audioChunksRef.current, { type: mimeType });
+          console.log('[AudioRecorder] Created blob:', blob.size, 'bytes');
+          setAudioBlob(blob);
+          const url = URL.createObjectURL(blob);
+          setAudioUrl(url);
+        } else {
+          console.error('[AudioRecorder] No audio chunks recorded!');
+        }
         
         // Parar todas as tracks
         stream.getTracks().forEach(track => track.stop());
       };
 
-      mediaRecorder.start(100);
+      // Iniciar gravação com timeslice de 1 segundo para garantir dados
+      mediaRecorder.start(1000);
+      console.log('[AudioRecorder] Recording started');
+      
       setIsRecording(true);
       setRecordingTime(0);
+      setAudioBlob(null);
+      setAudioUrl(null);
       
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
 
     } catch (error) {
-      console.error("Erro ao acessar microfone:", error);
-      alert("Não foi possível acessar o microfone. Verifique as permissões.");
+      console.error("[AudioRecorder] Erro ao acessar microfone:", error);
+      alert("Não foi possível acessar o microfone. Verifique as permissões do navegador.");
     }
   }, [setIsRecording]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setIsPaused(false);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+    console.log('[AudioRecorder] Stopping recording...');
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      // Requisitar dados pendentes antes de parar
+      if (mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.requestData();
       }
+      mediaRecorderRef.current.stop();
     }
-  }, [isRecording, setIsRecording]);
+    setIsRecording(false);
+    setIsPaused(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, [setIsRecording]);
 
   const pauseRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -131,7 +161,8 @@ export function UserAudioRecorder({
   }, [isRecording, isPaused]);
 
   const cancelRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
+    console.log('[AudioRecorder] Canceling recording...');
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
     if (streamRef.current) {
@@ -144,13 +175,14 @@ export function UserAudioRecorder({
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
     }
+    audioChunksRef.current = [];
     setIsRecording(false);
     setIsPaused(false);
     setRecordingTime(0);
     setAudioBlob(null);
     setAudioUrl(null);
     onCancel();
-  }, [isRecording, audioUrl, setIsRecording, onCancel]);
+  }, [audioUrl, setIsRecording, onCancel]);
 
   const playPreview = useCallback(() => {
     if (audioUrl && audioRef.current) {
@@ -166,14 +198,16 @@ export function UserAudioRecorder({
 
   const sendAudio = useCallback(() => {
     if (audioBlob) {
-      onSend(audioBlob, recordingTime);
+      console.log('[AudioRecorder] Sending audio:', audioBlob.size, 'bytes, mimeType:', actualMimeType);
+      onSend(audioBlob, recordingTime, actualMimeType);
       // Reset
       if (audioUrl) URL.revokeObjectURL(audioUrl);
+      audioChunksRef.current = [];
       setAudioBlob(null);
       setAudioUrl(null);
       setRecordingTime(0);
     }
-  }, [audioBlob, recordingTime, audioUrl, onSend]);
+  }, [audioBlob, recordingTime, audioUrl, actualMimeType, onSend]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
