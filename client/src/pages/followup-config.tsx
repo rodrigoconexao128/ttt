@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -127,6 +128,7 @@ const TONE_OPTIONS = [
 
 export default function FollowupConfigPage() {
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
   const [newInfo, setNewInfo] = useState({ titulo: "", conteudo: "" });
   
   // Calendar state
@@ -135,7 +137,29 @@ export default function FollowupConfigPage() {
   const [selectedEvent, setSelectedEvent] = useState<FollowupEvent | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [mainTab, setMainTab] = useState('agenda');
+  
+  // Tab sincronizada com URL query param
+  const getTabFromUrl = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('tab') || 'agenda';
+  };
+  
+  const [mainTab, setMainTabState] = useState(getTabFromUrl);
+  
+  const setMainTab = (tab: string) => {
+    setMainTabState(tab);
+    // Atualizar URL sem recarregar
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    window.history.pushState({}, '', url.toString());
+  };
+  
+  // Sincronizar com back/forward do browser
+  useEffect(() => {
+    const handlePopState = () => setMainTabState(getTabFromUrl());
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Buscar configuração
   const { data: config, isLoading: configLoading } = useQuery<FollowupConfig>({
@@ -874,17 +898,82 @@ export default function FollowupConfigPage() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label>Sequência de Intervalos</Label>
-                <div className="flex flex-wrap gap-2">
+              <div className="space-y-3">
+                <Label>Sequência de Intervalos (tempo entre cada follow-up)</Label>
+                <div className="space-y-2">
                   {(formData.intervalsMinutes || [10, 30, 180, 1440, 2880, 4320, 10080, 21600]).map((interval, i) => (
-                    <Badge key={i} variant="secondary" className="text-sm">
-                      #{i + 1}: {formatInterval(interval)}
-                    </Badge>
+                    <div key={i} className="flex items-center gap-2">
+                      <Badge variant="outline" className="w-8 justify-center">#{i + 1}</Badge>
+                      <Select
+                        value={interval.toString()}
+                        onValueChange={(value) => {
+                          const newIntervals = [...(formData.intervalsMinutes || [10, 30, 180, 1440, 2880, 4320, 10080, 21600])];
+                          newIntervals[i] = parseInt(value);
+                          setFormData({ ...formData, intervalsMinutes: newIntervals });
+                        }}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5 min</SelectItem>
+                          <SelectItem value="10">10 min</SelectItem>
+                          <SelectItem value="15">15 min</SelectItem>
+                          <SelectItem value="30">30 min</SelectItem>
+                          <SelectItem value="60">1 hora</SelectItem>
+                          <SelectItem value="120">2 horas</SelectItem>
+                          <SelectItem value="180">3 horas</SelectItem>
+                          <SelectItem value="360">6 horas</SelectItem>
+                          <SelectItem value="720">12 horas</SelectItem>
+                          <SelectItem value="1440">1 dia</SelectItem>
+                          <SelectItem value="2880">2 dias</SelectItem>
+                          <SelectItem value="4320">3 dias</SelectItem>
+                          <SelectItem value="7200">5 dias</SelectItem>
+                          <SelectItem value="10080">7 dias</SelectItem>
+                          <SelectItem value="14400">10 dias</SelectItem>
+                          <SelectItem value="21600">15 dias</SelectItem>
+                          <SelectItem value="43200">30 dias</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-sm text-muted-foreground flex-1">
+                        após {i === 0 ? 'última msg do cliente' : `follow-up #${i}`}
+                      </span>
+                      {(formData.intervalsMinutes || []).length > 3 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => {
+                            const newIntervals = [...(formData.intervalsMinutes || [])];
+                            newIntervals.splice(i, 1);
+                            setFormData({ ...formData, intervalsMinutes: newIntervals });
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      )}
+                    </div>
                   ))}
                 </div>
+                {(formData.intervalsMinutes || []).length < 12 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const currentIntervals = formData.intervalsMinutes || [10, 30, 180, 1440, 2880, 4320, 10080, 21600];
+                      const lastInterval = currentIntervals[currentIntervals.length - 1] || 1440;
+                      setFormData({ 
+                        ...formData, 
+                        intervalsMinutes: [...currentIntervals, Math.min(lastInterval * 2, 43200)] 
+                      });
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar Etapa
+                  </Button>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  Tempo entre cada tentativa de follow-up
+                  Configure o tempo de espera entre cada tentativa de follow-up
                 </p>
               </div>
 

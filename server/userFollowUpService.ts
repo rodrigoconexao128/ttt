@@ -344,15 +344,26 @@ export class UserFollowUpService {
       limit: 15
     });
 
+    // Formatar histórico de forma limpa (sem marcadores técnicos)
     const historyFormatted = recentMessages
       .reverse()
-      .map(m => ({
-        role: m.fromMe ? "assistant" : "user",
-        content: m.text || (m.mediaType ? `[Mídia: ${m.mediaType}]` : ""),
-        timestamp: m.timestamp
-      }));
+      .map(m => {
+        let content = m.text || '';
+        // Se é mídia sem texto, indicar de forma natural
+        if (!content && m.mediaType) {
+          if (m.mediaType === 'audio') content = '(enviou um áudio)';
+          else if (m.mediaType === 'image') content = '(enviou uma imagem)';
+          else if (m.mediaType === 'video') content = '(enviou um vídeo)';
+          else if (m.mediaType === 'document') content = '(enviou um documento)';
+          else content = '(enviou uma mídia)';
+        }
+        return {
+          de: m.fromMe ? "AGENTE" : "CLIENTE",
+          mensagem: content
+        };
+      });
 
-    // Calcular tempo desde última mensagem do cliente
+    // Calcular tempo desde última mensagem
     const lastClientMessage = recentMessages.find(m => !m.fromMe);
     const lastOurMessage = recentMessages.find(m => m.fromMe);
     const lastClientTime = lastClientMessage?.timestamp ? new Date(lastClientMessage.timestamp) : null;
@@ -369,8 +380,20 @@ export class UserFollowUpService {
     // Determinar quem falou por último
     const lastMessageWasOurs = lastOurTime && lastClientTime ? lastOurTime > lastClientTime : !!lastOurTime;
     
-    // Extrair contexto da conversa
-    const clientMessages = recentMessages.filter(m => !m.fromMe).map(m => m.text).join(' ');
+    // Nome do cliente (do WhatsApp)
+    const clientName = conversation.contactName || '';
+    
+    // Pegar últimas 3 mensagens que enviamos para evitar repetição
+    const ourLastMessages = recentMessages
+      .filter(m => m.fromMe && m.text)
+      .slice(0, 3)
+      .map(m => m.text);
+
+    // Extrair contexto da conversa (só mensagens do cliente)
+    const clientMessages = recentMessages
+      .filter(m => !m.fromMe && m.text)
+      .map(m => m.text)
+      .join(' ');
 
     // Preparar informações importantes não usadas
     const importantInfo = (config.importantInfo || [])
@@ -379,93 +402,48 @@ export class UserFollowUpService {
       .join("\n");
 
     const toneMap: Record<string, string> = {
-      'consultivo': 'consultivo e prestativo, focando em ajudar o cliente a tomar a melhor decisão',
-      'vendedor': 'vendedor persuasivo mas não agressivo, destacando benefícios e urgência sutil',
-      'humano': 'extremamente humanizado e casual, como um amigo que está ajudando',
-      'técnico': 'técnico e profissional, focando em detalhes e especificações'
+      'consultivo': 'consultivo e prestativo',
+      'vendedor': 'vendedor persuasivo mas sutil',
+      'humano': 'casual e amigável',
+      'técnico': 'profissional e direto'
     };
 
-    const prompt = `
-Você é um ESPECIALISTA em follow-up de vendas e conversão de leads via WhatsApp.
-Sua missão é criar follow-ups que parecem 100% HUMANOS e CONTEXTUALIZADOS.
+    const prompt = `Você é um vendedor HUMANO fazendo follow-up via WhatsApp.
 
-## ANÁLISE TEMPORAL CRÍTICA
-- Tempo desde última msg do CLIENTE: ${minutesSinceClient} minutos (${Math.floor(minutesSinceClient/60)}h ${minutesSinceClient%60}m)
-- Tempo desde NOSSA última msg: ${minutesSinceOur} minutos (${Math.floor(minutesSinceOur/60)}h ${minutesSinceOur%60}m)
-- Quem falou por último: ${lastMessageWasOurs ? 'NÓS (cliente não respondeu)' : 'CLIENTE (devemos resposta?)'}
-- Estágio atual do follow-up: ${conversation.followupStage || 0}
+## DADOS DO CLIENTE
+- Nome do cliente: ${clientName || 'NÃO INFORMADO (não use nome)'}
+- Tempo sem resposta do cliente: ${minutesSinceClient} min (${Math.floor(minutesSinceClient/60)}h)
+- Nossa última msg há: ${minutesSinceOur} min
+- Quem falou por último: ${lastMessageWasOurs ? 'NÓS' : 'CLIENTE'}
+- Estágio: ${conversation.followupStage || 0}
 
-## REGRAS DE CUMPRIMENTO (CRÍTICO!)
-⚠️ NUNCA use "Oi", "Olá", "Bom dia", "Boa tarde" se:
-- A última mensagem foi há MENOS de 4 horas
-- Você já cumprimentou na conversa recentemente
-- Seria estranho cumprimentar de novo no contexto
+## CONFIGURAÇÕES
+- Tom: ${toneMap[config.tone] || 'consultivo'}
+- Emojis: ${config.useEmojis ? 'máximo 1' : 'não usar'}
 
-✅ PODE cumprimentar SE:
-- Passou mais de 24 horas desde a última interação
-- É um novo dia (manhã seguinte)
-- Faz sentido no contexto
+## NOSSAS ÚLTIMAS MENSAGENS (NÃO REPETIR!)
+${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).join('\n') : 'Nenhuma ainda'}
 
-## CONFIGURAÇÕES DO AGENTE
-- Tom: ${toneMap[config.tone] || toneMap.consultivo}
-- Formalidade: ${config.formalityLevel}/10 (1=muito informal, 10=muito formal)
-- Emojis: ${config.useEmojis ? 'Sim, 1-2 no máximo' : 'Não usar'}
+## HISTÓRICO DA CONVERSA
+${historyFormatted.map(h => `${h.de}: ${h.mensagem}`).join('\n')}
 
-## O QUE O CLIENTE DISSE (resumo)
-${clientMessages || 'Cliente não falou muito ainda'}
+## REGRAS ABSOLUTAS
+1. ❌ NUNCA repita mensagem similar às que já enviamos
+2. ❌ NUNCA use colchetes [] ou opções como "X/Y/Z" na mensagem
+3. ❌ NUNCA inclua marcadores técnicos como [Áudio], [Mídia], etc
+4. ❌ NUNCA use o nome "Rodrigo" - ${clientName ? `use "${clientName}"` : 'não use nome'}
+5. ❌ NUNCA cumprimente se já cumprimentou (menos de 4h)
+6. ✅ SEMPRE escreva mensagem PRONTA para enviar (texto final)
+7. ✅ SEMPRE seja específico ao contexto da conversa
+8. ✅ SEMPRE pareça natural e humano
 
-## HISTÓRICO COMPLETO
-${JSON.stringify(historyFormatted, null, 2)}
+## DECISÃO
+- ABORT: cliente comprou, recusou claramente, ou 30+ dias sem resposta
+- WAIT: cliente disse "depois falo", "vou ver", ou nossa última msg foi há menos de 2h
+- SEND: cliente parou de responder há mais de 2-3h e podemos agregar valor
 
-## INFORMAÇÕES PARA USAR (se fizer sentido)
-${importantInfo || 'Nenhuma info extra disponível'}
-
-## QUANDO ABORTAR (action: "abort")
-- Cliente comprou: "fechado", "paguei", "contratei"
-- Recusa clara: "não quero", "para de enviar", "não tenho interesse"
-- Sem resposta há 30+ dias
-
-## QUANDO ESPERAR (action: "wait")
-- Cliente disse "vou ver", "depois te falo" recentemente
-- Última msg do cliente foi há menos de 2 horas
-- NÓS devemos uma resposta ao cliente (última msg foi do cliente)
-
-## QUANDO ENVIAR (action: "send")
-- Cliente parou de responder (nós falamos por último)
-- Faz mais de 2-3 horas que o cliente não responde
-- Podemos agregar valor ou retomar naturalmente
-
-## TÉCNICAS DE FOLLOW-UP PARA CONVERSÃO
-1. **Continuidade**: Continuar exatamente de onde parou ("Sobre o que você mencionou sobre [X]...")
-2. **Valor**: Compartilhar algo útil relacionado ao interesse do cliente
-3. **Pergunta**: Fazer pergunta específica sobre o que o cliente disse
-4. **Prova social**: Mencionar caso similar ("Inclusive, uma loja de beleza como a sua...")
-5. **Urgência sutil**: Criar senso de oportunidade sem pressão
-
-## RESPOSTA OBRIGATÓRIA (JSON)
-{
-  "action": "send" | "wait" | "abort",
-  "reason": "explicação clara e breve",
-  "message": "mensagem de follow-up CONTEXTUALIZADA e NATURAL (só se action=send, máx 280 chars)",
-  "strategy": "qual técnica usou"
-}
-
-## ⚠️ ANTES DE RESPONDER - PENSE E REVISE!
-1. PENSE: Qual é o objetivo do cliente? O que ele precisa agora?
-2. PENSE: Qual a melhor forma de continuar ESSA conversa específica?
-3. ESCREVA a mensagem mentalmente
-4. REVISE: A mensagem faz sentido? Está duplicada? Tem algo repetido?
-5. REVISE: Parece natural? Um humano escreveria assim?
-6. SÓ ENTÃO retorne o JSON
-
-REGRAS ABSOLUTAS:
-❌ NUNCA escreva texto duplicado ou repetido na mesma mensagem
-❌ NUNCA seja genérico - SEMPRE conecte com o que o cliente disse
-❌ NUNCA cumprimente de novo se já cumprimentou recentemente
-✅ SEMPRE continue o fluxo natural da conversa
-✅ SEMPRE seja específico ao contexto do cliente
-✅ SEMPRE revise a mensagem antes de finalizar
-`;
+## RESPOSTA (JSON válido, sem explicações extras)
+{"action":"send|wait|abort","reason":"motivo curto","message":"mensagem PRONTA máx 200 chars","strategy":"técnica usada"}`;
 
     try {
       const mistral = await getMistralClient();
@@ -475,16 +453,39 @@ REGRAS ABSOLUTAS:
       });
       
       const rawContent = response.choices?.[0]?.message?.content || "";
-      // Garantir que content é string
       const content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
       const jsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
       
       // Tentar parsear JSON
       const parsed = JSON.parse(jsonStr);
+      
+      // Validar mensagem gerada
+      let message = parsed.message;
+      if (message) {
+        // Remover colchetes e conteúdo problemático
+        message = message.replace(/\[.*?\]/g, '').trim();
+        // Remover opções com barra
+        message = message.replace(/\b\w+\/\w+(\/\w+)*/g, '').trim();
+        // Limpar espaços duplos
+        message = message.replace(/\s+/g, ' ').trim();
+        
+        // Verificar se é muito similar a mensagens anteriores
+        const isSimilar = ourLastMessages.some(prev => {
+          if (!prev) return false;
+          const similarity = this.calculateTextSimilarity(message, prev);
+          return similarity > 0.6; // 60% similar = muito parecido
+        });
+        
+        if (isSimilar) {
+          console.warn(`⚠️ [FOLLOW-UP] Mensagem similar a anterior detectada, aguardando`);
+          return { action: 'wait', reason: 'Mensagem muito similar à anterior' };
+        }
+      }
+      
       return {
         action: parsed.action || 'wait',
         reason: parsed.reason || 'Decisão da IA',
-        message: parsed.message,
+        message: message,
         context: parsed.strategy
       };
     } catch (e) {
@@ -492,10 +493,24 @@ REGRAS ABSOLUTAS:
       return { action: 'wait', reason: "Erro na análise de IA" };
     }
   }
-
+  
   /**
-   * Verifica se está em horário comercial
+   * Calcula similaridade entre dois textos (0 a 1)
    */
+  private calculateTextSimilarity(text1: string, text2: string): number {
+    const words1 = text1.toLowerCase().split(/\s+/);
+    const words2 = text2.toLowerCase().split(/\s+/);
+    
+    if (words1.length === 0 || words2.length === 0) return 0;
+    
+    let matches = 0;
+    for (const word of words1) {
+      if (word.length > 3 && words2.includes(word)) matches++;
+    }
+    
+    return matches / Math.max(words1.length, words2.length);
+  }
+
   /**
    * Verifica se está em horário comercial (timezone Brasil)
    */
