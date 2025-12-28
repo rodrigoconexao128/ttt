@@ -498,13 +498,19 @@ const toolsNavigation: ToolNavItem[] = [
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="h-screen overflow-hidden">
+        {/* Sticky CTA de upgrade no topo (mobile only, exceto /conversas que tem header próprio) */}
+        {!subscription?.plan && !isConversasRoute && !(isDashboardMode && selectedView === "conversations") && (
+          <div className="md:hidden sticky top-0 z-40">
+            <UpgradeBanner />
+          </div>
+        )}
         <div
           className={cn(
-            "flex h-[100dvh] overflow-hidden md:pb-0",
+            "flex overflow-hidden md:pb-0",
             // No /conversas o próprio chat controla header/input. Evita faixa branca no fim.
             (isConversasRoute || (isDashboardMode && selectedView === "conversations"))
-              ? "pb-0"
-              : "pb-[calc(5rem+env(safe-area-inset-bottom))]"
+              ? "h-[100dvh] pb-0"
+              : "h-[calc(100dvh-3rem)] pb-[calc(5rem+env(safe-area-inset-bottom))]"
           )}
         >
           {isPlansRoute && (

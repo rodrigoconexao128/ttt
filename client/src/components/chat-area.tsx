@@ -22,7 +22,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient, getAuthToken } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Message, Conversation, AiAgentConfig } from "@shared/schema";
@@ -63,9 +63,6 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     window.innerWidth < 768
   );
-
-  // Altura do menu inferior no mobile (Dashboard). Usado para posicionar o composer como no WhatsApp.
-  const mobileBottomNavOffset = "calc(4rem + env(safe-area-inset-bottom))";
 
   const { data: conversation } = useQuery<Conversation>({
     queryKey: ["/api/conversation", conversationId],
@@ -646,9 +643,12 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Chat Header */}
-      <div className="p-3 md:p-4 border-b flex items-center gap-2 md:gap-3 bg-background/95 backdrop-blur sticky top-0 z-10">
+    <div className="flex flex-col h-full relative overflow-hidden">
+      {/* Chat Header - Fixed no mobile */}
+      <div className={cn(
+        "p-3 md:p-4 border-b flex items-center gap-2 md:gap-3 bg-background z-10",
+        isMobile && "fixed top-0 left-0 right-0"
+      )}>
         {/* Botão voltar - apenas mobile */}
         {onBack && (
           <Button
@@ -802,12 +802,13 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
         </div>
       </div>
 
-      {/* Messages Area */}
+      {/* Messages Area - Scrollable entre header fixo e input fixo no mobile */}
       <div
         className={cn(
-          "flex-1 overflow-auto p-3 md:p-4 space-y-3 md:space-y-4",
-          // Garante que o fim da conversa nunca fique escondido atrás do composer sticky.
-          isMobile && "pb-[calc(4rem+env(safe-area-inset-bottom)+5rem)]"
+          "overflow-auto p-3 md:p-4 space-y-3 md:space-y-4",
+          isMobile
+            ? "absolute top-[64px] bottom-[calc(4rem+env(safe-area-inset-bottom)+3.5rem)] left-0 right-0"
+            : "flex-1"
         )}
         data-testid="container-messages"
       >
@@ -919,14 +920,12 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
+      {/* Message Input - Fixed acima do menu no mobile */}
       <div
         className={cn(
-          "p-3 md:p-4 border-t bg-background",
-          // Sticky acima do menu inferior (WhatsApp-like) no mobile
-          isMobile && "sticky z-20 bottom-[calc(4rem+env(safe-area-inset-bottom))]"
+          "p-3 md:p-4 border-t bg-background z-20",
+          isMobile && "fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0"
         )}
-        style={isMobile ? ({ bottom: mobileBottomNavOffset } as React.CSSProperties) : undefined}
       >
         {/* Se está gravando áudio ou enviando mídia, mostra o componente correspondente */}
         {isRecordingAudio ? (
