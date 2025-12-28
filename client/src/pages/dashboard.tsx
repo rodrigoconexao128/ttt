@@ -47,6 +47,7 @@ import MediaLibraryPage from "@/pages/media-library";
 import ContactListsPage from "@/pages/contact-lists";
 import SmartNotifierPage from "@/pages/smart-notifier";
 import FollowupConfigPage from "@/pages/followup-config";
+import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan } from "@shared/schema";
 import { supabase } from "@/lib/supabase";
@@ -497,7 +498,7 @@ const toolsNavigation: ToolNavItem[] = [
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="h-screen overflow-hidden">
-        <div className="flex h-full overflow-hidden pb-20 md:pb-0">
+        <div className="flex h-[100dvh] overflow-hidden pb-20 md:pb-0">
           {isPlansRoute && (
             <div className="flex-1 overflow-auto">
               <PlansPage />
@@ -732,6 +733,11 @@ const toolsNavigation: ToolNavItem[] = [
                 </button>
               ))}
             </div>
+            {(!subscription || subscription.status !== 'active') && (
+              <div className="p-4 pt-0">
+                <UpgradeBanner />
+              </div>
+            )}
           </DrawerContent>
         </Drawer>
       </SidebarInset>
