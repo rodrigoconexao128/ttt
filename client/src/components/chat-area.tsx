@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft } from "lucide-react";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft, Mic } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -928,13 +928,11 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
           isMobile && "fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0"
         )}
       >
-        {/* Se está gravando áudio ou enviando mídia, mostra o componente correspondente */}
+        {/* Se está gravando áudio, mostra a barra de gravação */}
         {isRecordingAudio ? (
           <UserAudioRecorder
             onSend={handleSendAudio}
             onCancel={() => setIsRecordingAudio(false)}
-            isRecording={isRecordingAudio}
-            setIsRecording={setIsRecordingAudio}
             disabled={sendAudioMutation.isPending}
           />
         ) : isSendingMedia ? (
@@ -985,13 +983,20 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
             <div className="flex items-center gap-1">
               {/* Botão de gravar áudio (aparece quando não tem texto) */}
               {!messageText.trim() && (
-                <UserAudioRecorder
-                  onSend={handleSendAudio}
-                  onCancel={() => setIsRecordingAudio(false)}
-                  isRecording={isRecordingAudio}
-                  setIsRecording={setIsRecordingAudio}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsRecordingAudio(true)}
                   disabled={sendAudioMutation.isPending}
-                />
+                  className={cn(
+                    "text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors",
+                    isMobile && "h-11 w-11"
+                  )}
+                  title="Gravar áudio"
+                  type="button"
+                >
+                  <Mic className={cn("w-5 h-5", isMobile && "w-6 h-6")} />
+                </Button>
               )}
               
               {/* Botão de enviar (aparece quando tem texto) */}

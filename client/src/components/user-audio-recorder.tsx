@@ -1,355 +1,330 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, Square, Play, Pause, Trash2, Send, X } from "lucide-react";
+import { Mic, Square, Send, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface UserAudioRecorderProps {
   onSend: (audioBlob: Blob, duration: number, mimeType: string) => void;
-  onCancel: () => void;
-  isRecording: boolean;
-  setIsRecording: (value: boolean) => void;
+  onCancel?: () => void;
   disabled?: boolean;
+  className?: string;
 }
 
-type RecorderState = 'idle' | 'recording' | 'paused' | 'preview';
+type RecorderState = 'starting' | 'recording' | 'sending' | 'error';
 
 export function UserAudioRecorder({ 
   onSend, 
-  onCancel, 
-  isRecording, 
-  setIsRecording,
-  disabled 
+  onCancel,
+  disabled,
+  className
 }: UserAudioRecorderProps) {
-  const [recorderState, setRecorderState] = useState<RecorderState>('idle');
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [actualMimeType, setActualMimeType] = useState<string>('audio/webm');
+  const [state, setState] = useState<RecorderState>('starting');
+  const [duration, setDuration] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const mimeTypeRef = useRef<string>('audio/webm');
+  const durationRef = useRef<number>(0);
+  const hasStartedRef = useRef<boolean>(false);
 
   const isMobile = typeof window !== 'undefined' && (
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     window.innerWidth < 768
   );
 
-  // Sync external state
+  // Sync duration to ref for use in onstop
   useEffect(() => {
-    setIsRecording(recorderState === 'recording' || recorderState === 'paused');
-  }, [recorderState, setIsRecording]);
+    durationRef.current = duration;
+  }, [duration]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
-
-  const startRecording = useCallback(async () => {
-    try {
-      console.log('[AudioRecorder] 🎤 Starting...');
-      
-      // Reset state
-      audioChunksRef.current = [];
-      setAudioBlob(null);
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
-      setRecordingTime(0);
-      
-      // Request microphone
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: true
-      });
-      
-      console.log('[AudioRecorder] ✅ Got stream, tracks:', stream.getAudioTracks().length);
-      
-      // Verify we have audio tracks
-      const audioTracks = stream.getAudioTracks();
-      if (audioTracks.length === 0) {
-        throw new Error('No audio tracks in stream');
-      }
-      
-      console.log('[AudioRecorder] 🎙️ Audio track:', audioTracks[0].label, 'enabled:', audioTracks[0].enabled);
-      
-      streamRef.current = stream;
-      
-      // Find supported format
-      let mimeType = '';
-      const formats = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/ogg;codecs=opus',
-        'audio/mp4',
-        'audio/mpeg',
-        ''  // Let browser choose default
-      ];
-      
-      for (const format of formats) {
-        if (format === '' || MediaRecorder.isTypeSupported(format)) {
-          mimeType = format;
-          console.log('[AudioRecorder] ✅ Format supported:', format || '(default)');
-          break;
-        }
-      }
-      
-      mimeTypeRef.current = mimeType || 'audio/webm';
-      setActualMimeType(mimeTypeRef.current);
-      
-      // Create MediaRecorder
-      const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
-      const mediaRecorder = new MediaRecorder(stream, options);
-      mediaRecorderRef.current = mediaRecorder;
-      
-      console.log('[AudioRecorder] 📼 MediaRecorder created, mimeType:', mediaRecorder.mimeType);
-
-      // Handle data - collect chunks
-      mediaRecorder.ondataavailable = (event) => {
-        console.log('[AudioRecorder] 📦 Chunk received:', event.data.size, 'bytes, type:', event.data.type);
-        if (event.data && event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-          console.log('[AudioRecorder] 📊 Total chunks:', audioChunksRef.current.length);
-        }
-      };
-
-      // Handle stop
-      mediaRecorder.onstop = () => {
-        console.log('[AudioRecorder] ⏹️ Stopped, total chunks:', audioChunksRef.current.length);
-        
-        // Stop stream tracks
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => {
-            track.stop();
-            console.log('[AudioRecorder] 🔇 Track stopped:', track.label);
-          });
-          streamRef.current = null;
-        }
-        
-        if (audioChunksRef.current.length > 0) {
-          const finalMimeType = mimeTypeRef.current || 'audio/webm';
-          const blob = new Blob(audioChunksRef.current, { type: finalMimeType });
-          console.log('[AudioRecorder] 🎵 Blob created:', blob.size, 'bytes, type:', blob.type);
-          
-          setAudioBlob(blob);
-          setAudioUrl(URL.createObjectURL(blob));
-          setRecorderState('preview');
-        } else {
-          console.error('[AudioRecorder] ❌ No chunks recorded!');
-          alert('Não foi possível gravar o áudio. Tente novamente.');
-          setRecorderState('idle');
-        }
-      };
-
-      mediaRecorder.onerror = (event: any) => {
-        console.error('[AudioRecorder] ❌ Error:', event.error);
-        setRecorderState('idle');
-      };
-
-      // Start recording WITHOUT timeslice - data available on stop
-      mediaRecorder.start();
-      console.log('[AudioRecorder] 🔴 Recording started (state:', mediaRecorder.state, ')');
-      
-      setRecorderState('recording');
-      
-      // Start timer
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
-      }, 1000);
-
-    } catch (error: any) {
-      console.error("[AudioRecorder] ❌ Error:", error);
-      alert("Não foi possível acessar o microfone: " + error.message);
-      setRecorderState('idle');
-    }
-  }, [audioUrl]);
-
-  const stopRecording = useCallback(() => {
-    console.log('[AudioRecorder] ⏹️ Stop clicked');
-    
-    // Stop timer
+  const cleanup = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    
-    // Stop MediaRecorder
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      console.log('[AudioRecorder] Stopping MediaRecorder (state:', mediaRecorderRef.current.state, ')');
-      mediaRecorderRef.current.stop();
-    }
-  }, []);
-
-  const pauseRecording = useCallback(() => {
-    if (!mediaRecorderRef.current) return;
-    
-    if (recorderState === 'paused') {
-      mediaRecorderRef.current.resume();
-      setRecorderState('recording');
-      timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
-    } else if (recorderState === 'recording') {
-      mediaRecorderRef.current.pause();
-      setRecorderState('paused');
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-  }, [recorderState]);
-
-  const cancelRecording = useCallback(() => {
-    console.log('[AudioRecorder] 🗑️ Cancel');
-    
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    
-    audioChunksRef.current = [];
+    chunksRef.current = [];
     mediaRecorderRef.current = null;
-    setAudioBlob(null);
-    setAudioUrl(null);
-    setRecordingTime(0);
-    setRecorderState('idle');
-    setIsPlaying(false);
-    
-    onCancel();
-  }, [audioUrl, onCancel]);
+  }, []);
 
-  const playPreview = useCallback(() => {
-    if (!audioRef.current || !audioUrl) return;
-    
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play().catch(console.error);
-      setIsPlaying(true);
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
+
+  const startRecording = useCallback(async () => {
+    try {
+      setError(null);
+      console.log('[AudioRecorder] 🎤 Starting...');
+      
+      // Reset
+      chunksRef.current = [];
+      setDuration(0);
+      durationRef.current = 0;
+      
+      // Request microphone
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      if (stream.getAudioTracks().length === 0) {
+        throw new Error('Nenhum microfone encontrado');
+      }
+      
+      console.log('[AudioRecorder] ✅ Got stream');
+      streamRef.current = stream;
+      
+      // Find supported format
+      const formats = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4', ''];
+      let mimeType = formats.find(f => f === '' || MediaRecorder.isTypeSupported(f)) || '';
+      mimeTypeRef.current = mimeType || 'audio/webm';
+      
+      // Create MediaRecorder
+      const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
+      const recorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = recorder;
+      
+      console.log('[AudioRecorder] 📼 Created, mimeType:', recorder.mimeType);
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunksRef.current.push(e.data);
+          console.log('[AudioRecorder] 📦 Chunk:', e.data.size, 'bytes');
+        }
+      };
+
+      recorder.onstop = () => {
+        console.log('[AudioRecorder] ⏹️ Stopped, chunks:', chunksRef.current.length);
+        
+        // Stop stream
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current = null;
+        }
+        
+        if (chunksRef.current.length > 0) {
+          const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current });
+          console.log('[AudioRecorder] 🎵 Blob:', blob.size, 'bytes, duration:', durationRef.current);
+          
+          // Send immediately
+          setState('sending');
+          onSend(blob, durationRef.current, mimeTypeRef.current);
+          
+          // Reset after send
+          setTimeout(() => {
+            setState('idle');
+            setDuration(0);
+          }, 1000);
+        } else {
+          setError('Nenhum áudio gravado');
+          setState('idle');
+        }
+        
+        chunksRef.current = [];
+        mediaRecorderRef.current = null;
+      };
+
+      recorder.onerror = (e: any) => {
+        console.error('[AudioRecorder] ❌ Error:', e.error);
+        setError('Erro na gravação');
+        setState('error');
+        cleanup();
+      };
+
+      // Start recording
+      recorder.start();
+      setState('recording');
+      console.log('[AudioRecorder] 🔴 Recording started');
+      
+      // Start timer
+      timerRef.current = setInterval(() => {
+        setDuration(prev => {
+          const newVal = prev + 1;
+          durationRef.current = newVal;
+          return newVal;
+        });
+      }, 1000);
+
+    } catch (err: any) {
+      console.error('[AudioRecorder] ❌ Start error:', err);
+      setError(err.message || 'Erro ao acessar microfone');
+      setState('error');
+      cleanup();
     }
-  }, [audioUrl, isPlaying]);
+  }, [onSend, cleanup]);
 
-  const sendAudio = useCallback(() => {
-    if (!audioBlob) {
-      console.error('[AudioRecorder] ❌ No blob to send');
-      return;
+  // Auto-start recording when component mounts
+  useEffect(() => {
+    if (!hasStartedRef.current) {
+      hasStartedRef.current = true;
+      startRecording();
     }
-    
-    console.log('[AudioRecorder] 📤 Sending:', audioBlob.size, 'bytes, duration:', recordingTime);
-    onSend(audioBlob, recordingTime, actualMimeType);
-    
-    // Reset
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    audioChunksRef.current = [];
-    setAudioBlob(null);
-    setAudioUrl(null);
-    setRecordingTime(0);
-    setRecorderState('idle');
-    setIsPlaying(false);
-  }, [audioBlob, recordingTime, audioUrl, actualMimeType, onSend]);
+  }, [startRecording]);
 
-  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+  const stopAndSend = useCallback(() => {
+    console.log('[AudioRecorder] ⏹️ Stop and send, duration:', durationRef.current);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+  }, []);
 
-  // === RENDER ===
+  const cancelRecording = useCallback(() => {
+    console.log('[AudioRecorder] 🗑️ Cancel');
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      // Remove the onstop handler to prevent sending
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+    }
+    cleanup();
+    setState('idle');
+    setDuration(0);
+    onCancel?.();
+  }, [cleanup, onCancel]);
 
-  if (recorderState === 'idle') {
-    return (
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={startRecording}
-        disabled={disabled}
-        className={cn("text-muted-foreground hover:text-primary", isMobile && "h-11 w-11")}
-        title="Gravar áudio"
-        type="button"
-      >
-        <Mic className={cn("w-5 h-5", isMobile && "w-6 h-6")} />
-      </Button>
-    );
-  }
+  const formatTime = (s: number) => {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
-  if (recorderState === 'recording' || recorderState === 'paused') {
+  // === STARTING STATE - Show loading ===
+  if (state === 'starting') {
     return (
       <div className={cn(
-        "flex items-center gap-2 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2 border border-red-200 dark:border-red-900",
-        isMobile && "gap-3 px-2"
+        "flex items-center justify-center gap-3 w-full py-2",
+        className
       )}>
-        <div className="flex items-center gap-2">
-          <div className={cn("w-3 h-3 rounded-full bg-red-500", recorderState === 'recording' && "animate-pulse")} />
-          <span className="text-sm font-mono text-red-600 dark:text-red-400 min-w-[45px]">
-            {formatTime(recordingTime)}
-          </span>
-        </div>
-
-        {recorderState === 'recording' && (
-          <div className="flex items-center gap-0.5 h-6">
-            {[1,2,3,4,5].map(i => (
-              <div key={i} className="w-1 bg-red-400 rounded-full animate-pulse" style={{ height: `${8 + i * 3}px`, animationDelay: `${i * 0.1}s` }} />
-            ))}
-          </div>
-        )}
-        
-        {recorderState === 'paused' && <span className="text-xs text-red-500 font-medium">PAUSADO</span>}
-
-        <div className="flex items-center gap-1 ml-auto">
-          <Button variant="ghost" size="icon" onClick={pauseRecording} className={cn("h-8 w-8", isMobile && "h-10 w-10")} type="button">
-            {recorderState === 'paused' ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={cancelRecording} className={cn("h-8 w-8 text-red-500", isMobile && "h-10 w-10")} type="button">
-            <Trash2 className="w-4 h-4" />
-          </Button>
-          <Button variant="default" size="icon" onClick={stopRecording} className={cn("h-8 w-8 bg-red-500 hover:bg-red-600", isMobile && "h-10 w-10")} type="button">
-            <Square className="w-4 h-4" />
-          </Button>
-        </div>
+        <Loader2 className="w-5 h-5 animate-spin text-red-500" />
+        <span className="text-sm text-muted-foreground">Acessando microfone...</span>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => {
+            cleanup();
+            onCancel?.();
+          }}
+          className="h-8 w-8 text-muted-foreground"
+          type="button"
+        >
+          <X className="w-4 h-4" />
+        </Button>
       </div>
     );
   }
 
-  if (recorderState === 'preview' && audioBlob && audioUrl) {
+  // === ERROR STATE ===
+  if (state === 'error') {
     return (
-      <div className={cn("flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 border", isMobile && "gap-3 px-2")}>
-        <audio ref={audioRef} src={audioUrl} onEnded={() => setIsPlaying(false)} className="hidden" preload="auto" />
-        
-        <Button variant="ghost" size="icon" onClick={playPreview} className={cn("h-8 w-8", isMobile && "h-10 w-10")} type="button">
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+      <div className={cn(
+        "flex items-center justify-center gap-3 w-full py-2",
+        className
+      )}>
+        <span className="text-sm text-destructive">{error || 'Erro ao gravar'}</span>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => {
+            cleanup();
+            onCancel?.();
+          }}
+          type="button"
+        >
+          Fechar
         </Button>
+      </div>
+    );
+  }
 
-        <span className="text-sm font-mono text-muted-foreground min-w-[45px]">{formatTime(recordingTime)}</span>
-
-        <div className="flex items-center gap-0.5 h-6 flex-1 max-w-[80px]">
-          {[1,2,3,4,5,6,7,8].map(i => (
-            <div key={i} className="w-1 bg-primary/40 rounded-full" style={{ height: `${4 + (i % 4) * 4}px` }} />
+  // === RECORDING STATE - Full width recording bar ===
+  if (state === 'recording') {
+    return (
+      <div className={cn(
+        "flex items-center gap-3 w-full bg-gradient-to-r from-red-500/10 to-red-600/10 dark:from-red-500/20 dark:to-red-600/20",
+        "rounded-full px-4 py-2 border border-red-500/30",
+        "animate-in fade-in slide-in-from-bottom-2 duration-200",
+        className
+      )}>
+        {/* Recording indicator */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/50" />
+          <span className="text-sm font-medium text-red-600 dark:text-red-400 hidden sm:inline">
+            Gravando
+          </span>
+        </div>
+        
+        {/* Waveform animation */}
+        <div className="flex items-center gap-0.5 flex-1 justify-center">
+          {[...Array(isMobile ? 8 : 16)].map((_, i) => (
+            <div 
+              key={i}
+              className="w-1 bg-red-500/60 rounded-full animate-pulse"
+              style={{ 
+                height: `${8 + Math.sin(i * 0.8) * 8}px`,
+                animationDelay: `${i * 0.05}s`,
+                animationDuration: '0.5s'
+              }} 
+            />
           ))}
         </div>
+        
+        {/* Timer */}
+        <span className="text-sm font-mono font-medium text-red-600 dark:text-red-400 tabular-nums min-w-[40px]">
+          {formatTime(duration)}
+        </span>
+        
+        {/* Cancel button */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={cancelRecording}
+          className={cn(
+            "text-red-500 hover:text-red-600 hover:bg-red-500/10 flex-shrink-0",
+            isMobile ? "h-10 w-10" : "h-9 w-9"
+          )}
+          type="button"
+        >
+          <X className="w-5 h-5" />
+        </Button>
+        
+        {/* Send button */}
+        <Button 
+          size="icon" 
+          onClick={stopAndSend}
+          className={cn(
+            "bg-red-500 hover:bg-red-600 text-white flex-shrink-0 shadow-lg",
+            isMobile ? "h-10 w-10" : "h-9 w-9"
+          )}
+          type="button"
+        >
+          <Send className="w-4 h-4" />
+        </Button>
+      </div>
+    );
+  }
 
-        <div className="flex items-center gap-1 ml-auto">
-          <Button variant="ghost" size="icon" onClick={cancelRecording} className={cn("h-8 w-8 text-muted-foreground", isMobile && "h-10 w-10")} type="button">
-            <X className="w-4 h-4" />
-          </Button>
-          <Button variant="default" size="icon" onClick={sendAudio} className={cn("h-8 w-8", isMobile && "h-10 w-10")} type="button">
-            <Send className="w-4 h-4" />
-          </Button>
-        </div>
+  // === SENDING STATE ===
+  if (state === 'sending') {
+    return (
+      <div className={cn(
+        "flex items-center justify-center gap-2 w-full py-2",
+        className
+      )}>
+        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+        <span className="text-sm text-muted-foreground">Enviando áudio...</span>
       </div>
     );
   }
