@@ -5,7 +5,8 @@ import {
   followupConfigs,
   messages,
   whatsappConnections,
-  users
+  users,
+  businessAgentConfigs
 } from "@shared/schema";
 import { eq, and, lte, isNotNull } from "drizzle-orm";
 import { getMistralClient } from "./mistralClient";
@@ -343,6 +344,7 @@ export class UserFollowUpService {
 
   /**
    * Usa IA para analisar se deve enviar follow-up e qual mensagem
+   * VERSÃO MELHORADA: Lê contexto completo, entende o negócio, evita repetições
    */
   private async analyzeWithAI(conversation: any, config: any): Promise<{
     action: 'send' | 'wait' | 'abort' | 'schedule';
@@ -351,29 +353,68 @@ export class UserFollowUpService {
     context?: string;
     scheduleDate?: string;
   }> {
-    // Buscar mensagens recentes
+    // Buscar mensagens recentes (mais mensagens para contexto completo)
     const recentMessages = await db.query.messages.findMany({
       where: eq(messages.conversationId, conversation.id),
       orderBy: (messages, { desc }) => [desc(messages.timestamp)],
-      limit: 15
+      limit: 25 // Aumentado para ter mais contexto
     });
 
-    // Formatar histórico de forma limpa (sem marcadores técnicos)
+    // Buscar configuração do agente para entender o negócio
+    const userId = conversation.connection?.userId;
+    let businessContext = "";
+    let agentName = "";
+    let companyName = "";
+    
+    if (userId) {
+      try {
+        const businessConfig = await db.query.businessAgentConfigs.findFirst({
+          where: eq(businessAgentConfigs.userId, userId)
+        });
+        
+        if (businessConfig) {
+          agentName = businessConfig.agentName || "";
+          companyName = businessConfig.companyName || "";
+          const products = businessConfig.productsServices || [];
+          const productsList = Array.isArray(products) && products.length > 0
+            ? products.map((p: any) => `- ${p.name}: ${p.description || ''} ${p.price ? `(${p.price})` : ''}`).join('\n')
+            : '';
+          
+          businessContext = `
+SOBRE O NEGÓCIO:
+- Empresa: ${companyName || 'Não informado'}
+- Agente: ${agentName || 'Assistente'}
+- Cargo: ${businessConfig.agentRole || 'Assistente Virtual'}
+- Descrição: ${businessConfig.companyDescription || 'Não informada'}
+${productsList ? `\nPRODUTOS/SERVIÇOS:\n${productsList}` : ''}
+`;
+        }
+      } catch (e) {
+        console.warn("Erro ao buscar business config:", e);
+      }
+    }
+
+    // Formatar histórico de forma limpa e completa
     const historyFormatted = recentMessages
       .reverse()
       .map(m => {
         let content = m.text || '';
         // Se é mídia sem texto, indicar de forma natural
         if (!content && m.mediaType) {
-          if (m.mediaType === 'audio') content = '(enviou um áudio)';
-          else if (m.mediaType === 'image') content = '(enviou uma imagem)';
-          else if (m.mediaType === 'video') content = '(enviou um vídeo)';
-          else if (m.mediaType === 'document') content = '(enviou um documento)';
-          else content = '(enviou uma mídia)';
+          if (m.mediaType === 'audio') content = '(cliente enviou um áudio)';
+          else if (m.mediaType === 'image') content = '(cliente enviou uma imagem)';
+          else if (m.mediaType === 'video') content = '(cliente enviou um vídeo)';
+          else if (m.mediaType === 'document') content = '(cliente enviou um documento)';
+          else content = '(cliente enviou uma mídia)';
         }
+        // Limpar a palavra "Áudio" que pode ter ficado
+        content = content.replace(/\s*Áudio\s*$/gi, '').trim();
+        content = content.replace(/\s*Audio\s*$/gi, '').trim();
+        
         return {
-          de: m.fromMe ? "AGENTE" : "CLIENTE",
-          mensagem: content
+          de: m.fromMe ? "NÓS" : "CLIENTE",
+          mensagem: content,
+          hora: m.timestamp ? new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
         };
       });
 
@@ -387,7 +428,7 @@ export class UserFollowUpService {
     // Data atual em formato brasileiro
     const brazilNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
     const todayStr = brazilNow.toLocaleDateString('pt-BR');
-    const dayOfWeek = brazilNow.getDay(); // 0=domingo, 1=segunda...
+    const dayOfWeek = brazilNow.getDay();
     const dayNames = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
     const todayName = dayNames[dayOfWeek];
     
@@ -404,23 +445,30 @@ export class UserFollowUpService {
     // Nome do cliente (do WhatsApp)
     const clientName = conversation.contactName || '';
     
-    // Pegar últimas 3 mensagens que enviamos para evitar repetição
+    // Pegar últimas 5 mensagens que enviamos para evitar repetição
     const ourLastMessages = recentMessages
       .filter(m => m.fromMe && m.text)
-      .slice(0, 3)
-      .map(m => m.text);
+      .slice(0, 5)
+      .map(m => m.text?.replace(/\s*Áudio\s*$/gi, '').trim());
 
-    // Extrair contexto da conversa (só mensagens do cliente)
-    const clientMessages = recentMessages
+    // Identificar se o cliente reclamou ou deu feedback negativo
+    const clientFeedback = recentMessages
       .filter(m => !m.fromMe && m.text)
-      .map(m => m.text)
+      .map(m => m.text?.toLowerCase() || '')
       .join(' ');
+    
+    const hasNegativeFeedback = 
+      clientFeedback.includes('repetiu') ||
+      clientFeedback.includes('repetindo') ||
+      clientFeedback.includes('sem ler') ||
+      clientFeedback.includes('não leu') ||
+      clientFeedback.includes('lendo') ||
+      clientFeedback.includes('mesmo texto') ||
+      clientFeedback.includes('já disse') ||
+      clientFeedback.includes('já falei');
 
-    // Preparar informações importantes não usadas
-    const importantInfo = (config.importantInfo || [])
-      .filter((info: any) => !info.usado)
-      .map((info: any) => `- ${info.titulo}: ${info.conteudo}`)
-      .join("\n");
+    // Extrair última mensagem do cliente para contexto
+    const lastClientText = lastClientMessage?.text?.replace(/\s*Áudio\s*$/gi, '').trim() || '';
 
     const toneMap: Record<string, string> = {
       'consultivo': 'consultivo e prestativo',
@@ -429,66 +477,71 @@ export class UserFollowUpService {
       'técnico': 'profissional e direto'
     };
 
-    const prompt = `Você é um vendedor HUMANO fazendo follow-up via WhatsApp.
+    const prompt = `Você é um vendedor HUMANO experiente fazendo follow-up via WhatsApp.
+Sua tarefa é ANALISAR a conversa e decidir a MELHOR ação.
 
 ## DATA E HORA ATUAL
 - Hoje: ${todayStr} (${todayName})
-- Dia da semana: ${dayOfWeek} (0=domingo, 1=segunda, ..., 6=sábado)
+- Hora atual: ${brazilNow.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+
+${businessContext}
 
 ## DADOS DO CLIENTE
-- Nome do cliente: ${clientName || 'NÃO INFORMADO (não use nome)'}
-- Tempo sem resposta do cliente: ${minutesSinceClient} min (${Math.floor(minutesSinceClient/60)}h)
+- Nome: ${clientName || 'NÃO INFORMADO'}
+- Última msg do cliente há: ${minutesSinceClient} min (${Math.floor(minutesSinceClient/60)}h)
 - Nossa última msg há: ${minutesSinceOur} min
 - Quem falou por último: ${lastMessageWasOurs ? 'NÓS' : 'CLIENTE'}
-- Estágio: ${conversation.followupStage || 0}
+- Estágio follow-up: ${conversation.followupStage || 0}
+${hasNegativeFeedback ? '\n⚠️ ATENÇÃO: Cliente reclamou de repetição ou falta de leitura!' : ''}
 
 ## CONFIGURAÇÕES
 - Tom: ${toneMap[config.tone] || 'consultivo'}
-- Emojis: ${config.useEmojis ? 'máximo 1' : 'não usar'}
+- Emojis: ${config.useEmojis ? 'máximo 1 por mensagem' : 'não usar'}
 
-## NOSSAS ÚLTIMAS MENSAGENS (NÃO REPETIR!)
+## HISTÓRICO COMPLETO DA CONVERSA (LEIA COM ATENÇÃO!)
+${historyFormatted.map(h => `[${h.hora}] ${h.de}: ${h.mensagem}`).join('\n')}
+
+## ÚLTIMAS MENSAGENS QUE JÁ ENVIAMOS (NÃO REPETIR NADA SIMILAR!)
 ${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).join('\n') : 'Nenhuma ainda'}
 
-## HISTÓRICO DA CONVERSA
-${historyFormatted.map(h => `${h.de}: ${h.mensagem}`).join('\n')}
+## ÚLTIMA MENSAGEM DO CLIENTE (RESPONDER A ISSO!)
+"${lastClientText}"
 
-## REGRAS ABSOLUTAS
-1. ❌ NUNCA repita mensagem similar às que já enviamos
-2. ❌ NUNCA use colchetes [] ou opções como "X/Y/Z" na mensagem
-3. ❌ NUNCA inclua marcadores técnicos como [Áudio], [Mídia], etc
-4. ❌ NUNCA use o nome "Rodrigo" - ${clientName ? `use "${clientName}"` : 'não use nome'}
-5. ❌ NUNCA cumprimente se já cumprimentou (menos de 4h)
-6. ✅ SEMPRE escreva mensagem PRONTA para enviar (texto final)
-7. ✅ SEMPRE seja específico ao contexto da conversa
-8. ✅ SEMPRE pareça natural e humano
+## REGRAS CRÍTICAS - LEIA ANTES DE RESPONDER!
+1. ❌ NUNCA repita a mesma pergunta ou frase que já enviamos
+2. ❌ NUNCA ignore o que o cliente disse - sua mensagem DEVE ser uma continuação natural
+3. ❌ NUNCA use colchetes [], barras / ou marcadores técnicos
+4. ❌ NUNCA termine mensagem com a palavra "Áudio"
+5. ❌ NUNCA use o nome "${agentName || 'Rodrigo'}" - ${clientName ? `use "${clientName}"` : 'não use nome'}
+6. ✅ SEMPRE leia e responda ao último comentário do cliente
+7. ✅ SEMPRE agregue NOVO valor (info nova, benefício novo, pergunta diferente)
+8. ✅ SEMPRE escreva mensagem PRONTA para enviar (texto final completo)
+9. ✅ Se o cliente reclamou de repetição, peça DESCULPAS e mude totalmente a abordagem
 
 ## DETECÇÃO DE DATA COMBINADA (PRIORIDADE MÁXIMA!)
-SEMPRE que o cliente mencionar um dia específico para retornar contato, use action="schedule".
-Exemplos que DEVEM ser SCHEDULE:
-- "segunda", "na segunda", "segunda-feira", "na segunda falamos", "segunda a gente conversa" → próxima segunda às 09:00
-- "terça", "na terça", "terça-feira" → próxima terça às 09:00
-- "amanhã", "amanhã falamos", "amanhã a gente fala" → amanhã às 09:00
-- "semana que vem", "próxima semana" → segunda que vem às 09:00
-- "daqui X dias" → X dias depois às 09:00
-- "depois do ano novo", "depois do feriado", "em janeiro" → dia 02/01 às 09:00
-- "dia 5", "dia 15" → dia específico às 09:00
-IMPORTANTE: Se detectar QUALQUER menção a dia/data de retorno, SEMPRE use action="schedule"!
-Use scheduleDate no formato ISO (YYYY-MM-DDTHH:MM:SS)
+Se o cliente mencionou um dia para retornar:
+- "segunda", "na segunda", "segunda-feira" → SCHEDULE para próxima segunda 09:00
+- "terça", "quarta", "quinta", "sexta" → SCHEDULE para o dia correspondente
+- "amanhã" → SCHEDULE para amanhã 09:00
+- "semana que vem", "próxima semana" → SCHEDULE para segunda que vem 09:00
+- "daqui X dias" → SCHEDULE para X dias depois 09:00
+- "dia 5", "dia 15" → SCHEDULE para o dia específico
 
 ## DECISÃO
-- SCHEDULE: cliente combinou uma data específica para retornar (segunda, amanhã, dia X, etc)
-- ABORT: cliente comprou, recusou claramente, ou 30+ dias sem resposta
-- WAIT: cliente disse "depois falo", "vou ver", ou nossa última msg foi há menos de 2h
-- SEND: cliente parou de responder há mais de 2-3h e podemos agregar valor
+- SCHEDULE: cliente combinou uma data específica (use scheduleDate no formato ISO)
+- ABORT: cliente recusou claramente, disse não ter interesse, ou comprou
+- WAIT: nossa última msg foi há menos de 2h OU cliente pediu pra esperar
+- SEND: cliente parou de responder há mais de 2h e podemos agregar NOVO valor
 
-## RESPOSTA (JSON válido, sem explicações extras)
-{"action":"send|wait|abort|schedule","reason":"motivo curto","message":"mensagem PRONTA máx 200 chars (só se action=send)","strategy":"técnica usada","scheduleDate":"YYYY-MM-DDTHH:MM:SS (só se action=schedule)"}`;
+## FORMATO DA RESPOSTA (JSON válido, sem texto extra)
+{"action":"send|wait|abort|schedule","reason":"motivo curto","message":"mensagem PRONTA (só se action=send)","scheduleDate":"YYYY-MM-DDTHH:MM:SS (só se action=schedule)"}`;
 
     try {
       const mistral = await getMistralClient();
       const response = await mistral.chat.complete({
         model: "mistral-small-latest",
-        messages: [{ role: "user", content: prompt }]
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7 // Um pouco mais criativo para evitar repetições
       });
       
       const rawContent = response.choices?.[0]?.message?.content || "";
@@ -507,7 +560,7 @@ Use scheduleDate no formato ISO (YYYY-MM-DDTHH:MM:SS)
         }
         // Se a data é no passado, ajustar para o futuro
         if (scheduleDate < now) {
-          scheduleDate.setDate(scheduleDate.getDate() + 7); // Adicionar 7 dias
+          scheduleDate.setDate(scheduleDate.getDate() + 7);
         }
         return {
           action: 'schedule',
@@ -517,26 +570,45 @@ Use scheduleDate no formato ISO (YYYY-MM-DDTHH:MM:SS)
         };
       }
       
-      // Validar mensagem gerada
+      // Validar e limpar mensagem gerada
       let message = parsed.message;
       if (message) {
         // Remover colchetes e conteúdo problemático
         message = message.replace(/\[.*?\]/g, '').trim();
         // Remover opções com barra
         message = message.replace(/\b\w+\/\w+(\/\w+)*/g, '').trim();
+        // Remover "Áudio" do final
+        message = message.replace(/\s*Áudio\s*$/gi, '').trim();
+        message = message.replace(/\s*Audio\s*$/gi, '').trim();
         // Limpar espaços duplos
         message = message.replace(/\s+/g, ' ').trim();
         
-        // Verificar se é muito similar a mensagens anteriores
+        // Verificar se é muito similar a mensagens anteriores (threshold mais alto)
         const isSimilar = ourLastMessages.some(prev => {
           if (!prev) return false;
           const similarity = this.calculateTextSimilarity(message, prev);
-          return similarity > 0.6; // 60% similar = muito parecido
+          return similarity > 0.5; // 50% similar = muito parecido (mais restritivo)
         });
         
         if (isSimilar) {
           console.warn(`⚠️ [FOLLOW-UP] Mensagem similar a anterior detectada, aguardando`);
           return { action: 'wait', reason: 'Mensagem muito similar à anterior' };
+        }
+        
+        // Verificar se a mensagem parece repetitiva (mesma estrutura)
+        const sameStructure = ourLastMessages.some(prev => {
+          if (!prev) return false;
+          // Se começa igual (primeiras 30 chars) ou termina igual (últimas 30 chars)
+          const msgStart = message.substring(0, 30).toLowerCase();
+          const msgEnd = message.substring(Math.max(0, message.length - 30)).toLowerCase();
+          const prevStart = prev.substring(0, 30).toLowerCase();
+          const prevEnd = prev.substring(Math.max(0, prev.length - 30)).toLowerCase();
+          return msgStart === prevStart || msgEnd === prevEnd;
+        });
+        
+        if (sameStructure) {
+          console.warn(`⚠️ [FOLLOW-UP] Estrutura repetitiva detectada, aguardando`);
+          return { action: 'wait', reason: 'Estrutura de mensagem repetitiva' };
         }
       }
       

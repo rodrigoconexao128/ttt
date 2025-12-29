@@ -276,7 +276,7 @@ export async function editPromptWithGPT(
 }
 
 /**
- * Versão local (fallback) - sem API, usa heurísticas simples
+ * Versão local (fallback) - sem API, usa heurísticas avançadas
  */
 export function editPromptLocally(
   currentPrompt: string,
@@ -288,10 +288,43 @@ export function editPromptLocally(
 } {
   const instruction = userInstruction.toLowerCase();
   const changes: PromptChange[] = [];
+  let workingPrompt = currentPrompt;
 
-  // Detecta intenção e aplica mudanças
+  // ============ 1. DETECÇÃO DE MUDANÇA DE NOME ============
+  // Padrões: "mude o nome para X", "renomear para X", "nome: X", "nome correto é X", etc.
+  const namePatterns = [
+    /(?:mude?|troque?|altere?|renome(?:ar|ie)?|substituir?)\s+(?:o\s+)?nome\s+(?:para|por|:)\s*["""']?([^"""'\n.!?]+)/i,
+    /(?:o\s+)?nome\s+(?:correto|certo|novo|agora)\s+(?:é|sera?)\s*["""']?([^"""'\n.!?]+)/i,
+    /(?:nome|empresa|estabelecimento|negócio)\s*(?::|é|sera?)\s*["""']?([^"""'\n.!?]+)/i,
+    /(?:a\s+empresa|o\s+estabelecimento|a\s+loja|o\s+restaurante)\s+(?:se\s+)?chama\s*["""']?([^"""'\n.!?]+)/i,
+    /(?:substituir?|trocar?)\s+(?:por|para)\s*["""']?([^"""'\n.!?]+)/i,
+  ];
+
+  for (const pattern of namePatterns) {
+    const match = userInstruction.match(pattern);
+    if (match && match[1]) {
+      const newName = match[1].trim();
+      // Encontra o nome atual no prompt (primeira linha geralmente)
+      const firstLine = currentPrompt.split('\n')[0];
+      const currentNameMatch = firstLine.match(/^([^-–—]+)/);
+      if (currentNameMatch) {
+        const currentName = currentNameMatch[1].trim();
+        if (currentName && currentName !== newName) {
+          changes.push({
+            action: "replace",
+            target: currentName,
+            newContent: newName,
+            explanation: `Alterando nome de "${currentName}" para "${newName}"`
+          });
+          workingPrompt = workingPrompt.replace(currentName, newName);
+          break; // Só muda nome uma vez
+        }
+      }
+    }
+  }
+
+  // ============ 2. DETECÇÃO DE TOM FORMAL/INFORMAL ============
   if (instruction.includes("formal") || instruction.includes("profissional")) {
-    // Torna mais formal
     const informalPatterns = [
       { from: "você", to: "o(a) senhor(a)" },
       { from: "Você", to: "O(a) senhor(a)" },
@@ -307,7 +340,7 @@ export function editPromptLocally(
     ];
 
     for (const pattern of informalPatterns) {
-      if (currentPrompt.includes(pattern.from)) {
+      if (workingPrompt.includes(pattern.from)) {
         changes.push({
           action: "replace",
           target: pattern.from,
@@ -319,7 +352,6 @@ export function editPromptLocally(
   }
 
   if (instruction.includes("informal") || instruction.includes("descontraído") || instruction.includes("amigável")) {
-    // Torna mais informal
     const formalPatterns = [
       { from: "o(a) senhor(a)", to: "você" },
       { from: "O(a) senhor(a)", to: "Você" },
@@ -330,7 +362,7 @@ export function editPromptLocally(
     ];
 
     for (const pattern of formalPatterns) {
-      if (currentPrompt.includes(pattern.from)) {
+      if (workingPrompt.includes(pattern.from)) {
         changes.push({
           action: "replace",
           target: pattern.from,
@@ -341,104 +373,170 @@ export function editPromptLocally(
     }
   }
 
-  if (instruction.includes("venda") || instruction.includes("vendedor") || instruction.includes("converter")) {
-    // Adiciona foco em vendas
+  // ============ 3. DETECÇÃO DE REMOÇÃO ============
+  const removePatterns = [
+    /(?:remov(?:er|a)|tir(?:ar|e)|delet(?:ar|e)|exclu(?:ir|a)|apag(?:ar|ue))\s+(?:a?\s*)?(?:parte|seção|regra|info(?:rmação)?|menção|texto)?\s*(?:de|sobre|do|da)?\s*["""']?([^"""'\n]+)/i,
+    /(?:não|nao)\s+(?:mais\s+)?(?:mencione?|fale?|diga|coloque?|precisa|tem|temos?)\s+(?:de|sobre|a|o)?\s*["""']?([^"""'\n]+)/i,
+  ];
+  
+  // Padrão especial: "Não fechamos na segunda" -> remove linha com "fecha" + dia da semana
+  const naoFechamosMatch = userInstruction.match(/(?:não|nao)\s+fechamos?\s+(?:na|no|aos?|em)?\s*(segunda|terça|quarta|quinta|sexta|s[aá]bado|domingo|feriado)/i);
+  if (naoFechamosMatch && naoFechamosMatch[1]) {
+    const dia = naoFechamosMatch[1].toLowerCase();
+    const lines = workingPrompt.split('\n');
+    for (const line of lines) {
+      const lineLower = line.toLowerCase();
+      // Procura linhas com "fecha" + dia da semana
+      if (lineLower.includes("fecha") && lineLower.includes(dia.substring(0, 5))) {
+        changes.push({
+          action: "delete",
+          target: line,
+          newContent: "",
+          explanation: `Removendo informação de fechamento na ${dia}`
+        });
+        break;
+      }
+    }
+  }
+
+  for (const pattern of removePatterns) {
+    const match = userInstruction.match(pattern);
+    if (match && match[1]) {
+      const toRemove = match[1].trim().toLowerCase();
+      // Procura linha que contenha o texto
+      const lines = workingPrompt.split('\n');
+      for (const line of lines) {
+        if (line.toLowerCase().includes(toRemove) && line.trim().length > 3) {
+          changes.push({
+            action: "delete",
+            target: line,
+            newContent: "",
+            explanation: `Removendo linha que menciona "${toRemove}"`
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  // ============ 4. DETECÇÃO DE VENDAS/CONVERSÃO ============
+  if (instruction.includes("venda") || instruction.includes("vendedor") || instruction.includes("converter") || instruction.includes("persuasivo")) {
     changes.push({
       action: "append",
       target: "",
-      newContent: `
-
-## Foco em Vendas
-- Sempre destaque os benefícios do produto/serviço
-- Use gatilhos mentais: escassez, urgência, prova social
-- Faça perguntas que levem à conversão
-- Ofereça opções de pagamento facilitado
-- Identifique objeções e responda proativamente`,
+      newContent: `\n## Foco em Vendas
+• Destaque benefícios do produto/serviço
+• Use gatilhos: escassez, urgência, prova social
+• Faça perguntas que levem à conversão
+• Ofereça opções de pagamento facilitado`,
       explanation: "Adicionando instruções de vendas"
     });
   }
 
-  if (instruction.includes("suporte") || instruction.includes("atendimento") || instruction.includes("ajuda")) {
-    // Adiciona foco em suporte
+  // ============ 5. DETECÇÃO DE SUPORTE/ATENDIMENTO ============
+  if (instruction.includes("suporte") || instruction.includes("atendimento") || instruction.includes("ajuda") || instruction.includes("resolver problema")) {
     changes.push({
       action: "append",
       target: "",
-      newContent: `
-
-## Foco em Suporte
-- Sempre demonstre empatia com o problema do cliente
-- Peça detalhes para entender melhor a situação
-- Ofereça soluções passo a passo
-- Confirme se o problema foi resolvido
-- Encaminhe para humano quando necessário`,
+      newContent: `\n## Foco em Suporte
+• Demonstre empatia com o problema
+• Peça detalhes para entender melhor
+• Ofereça soluções passo a passo
+• Confirme se o problema foi resolvido`,
       explanation: "Adicionando instruções de suporte"
     });
   }
 
-  if (instruction.includes("emoji") || instruction.includes("emoticon")) {
-    if (instruction.includes("mais") || instruction.includes("adicionar")) {
-      changes.push({
-        action: "append",
-        target: "",
-        newContent: `
-
-## Uso de Emojis
-- Use emojis para tornar as mensagens mais amigáveis 😊
-- Limite a 1-2 emojis por mensagem
-- Emojis sugeridos: ✅ 👋 🎉 💡 🙌 ❤️`,
-        explanation: "Adicionando instruções sobre emojis"
-      });
-    }
-  }
-
-  if (instruction.includes("curto") || instruction.includes("curta") || instruction.includes("curtas") || 
-      instruction.includes("breve") || instruction.includes("conciso") || instruction.includes("direto") ||
-      instruction.includes("direta") || instruction.includes("diretas") || instruction.includes("resumido")) {
+  // ============ 6. DETECÇÃO DE EMOJIS ============
+  if (instruction.includes("emoji") || instruction.includes("emoticon") || instruction.match(/mais\s*😊|usar\s*🍕/)) {
     changes.push({
       action: "append",
       target: "",
-      newContent: `
+      newContent: `\n## Uso de Emojis
+• Use emojis para mensagens mais amigáveis 😊
+• Limite a 1-2 emojis por mensagem
+• Sugeridos: ✅ 👋 🎉 💡 ❤️`,
+      explanation: "Adicionando instruções sobre emojis"
+    });
+  }
 
-## Mensagens Concisas
-- Mantenha respostas curtas e diretas
-- Máximo de 2-3 frases por mensagem
-- Vá direto ao ponto
-- Evite explicações longas`,
+  // ============ 7. DETECÇÃO DE RESPOSTAS CURTAS/CONCISAS ============
+  if (instruction.includes("curto") || instruction.includes("curta") || instruction.includes("curtas") || 
+      instruction.includes("breve") || instruction.includes("conciso") || instruction.includes("direto") ||
+      instruction.includes("direta") || instruction.includes("diretas") || instruction.includes("resumido") ||
+      instruction.includes("resumida") || instruction.includes("resumidas")) {
+    changes.push({
+      action: "append",
+      target: "",
+      newContent: `\n## Mensagens Concisas
+• Respostas curtas e diretas
+• Máximo 2-3 frases por mensagem
+• Vá direto ao ponto`,
       explanation: "Adicionando instruções para respostas concisas"
     });
   }
 
+  // ============ 8. DETECÇÃO DE RESPOSTAS DETALHADAS ============
   if (instruction.includes("detalhado") || instruction.includes("detalhada") || instruction.includes("detalhadas") ||
       instruction.includes("completo") || instruction.includes("completa") || instruction.includes("completas") ||
       instruction.includes("explicativo") || instruction.includes("explicativa")) {
     changes.push({
       action: "append",
       target: "",
-      newContent: `
-
-## Respostas Detalhadas
-- Forneça explicações completas
-- Inclua exemplos quando apropriado
-- Antecipe dúvidas relacionadas
-- Use listas para organizar informações`,
+      newContent: `\n## Respostas Detalhadas
+• Forneça explicações completas
+• Inclua exemplos quando apropriado
+• Antecipe dúvidas relacionadas`,
       explanation: "Adicionando instruções para respostas detalhadas"
     });
   }
 
-  // FALLBACK: Se nenhuma heurística foi aplicada, adiciona a instrução como regra adicional
+  // ============ 9. DETECÇÃO DE SUBSTITUIÇÃO DE VALORES (preço, horário, etc.) ============
+  // Padrões: "mude o preço para R$50", "horário: 17h às 23h", "R$35 -> R$40"
+  const valuePatterns = [
+    { regex: /(?:preço|valor)\s+(?:mínimo\s+)?(?:para|:)\s*(R?\$?\s*\d+(?:[.,]\d+)?)/i, type: "preço" },
+    { regex: /(?:a\s+partir\s+de|mínimo\s+de?)\s*(R?\$?\s*\d+(?:[.,]\d+)?)/i, type: "preço mínimo" },
+    { regex: /(?:entrega\s+)?(?:grátis|free)\s+(?:acima\s+de|para\s+pedidos?\s+acima\s+de)\s*(R?\$?\s*\d+)/i, type: "frete grátis" },
+    { regex: /(?:horário|abre|fecha|funcionamento)\s*(?::|de)?\s*(\d{1,2}h?\s*(?:às|a|-)\s*\d{1,2}h?)/i, type: "horário" },
+  ];
+
+  for (const { regex, type } of valuePatterns) {
+    const match = userInstruction.match(regex);
+    if (match && match[1]) {
+      const newValue = match[1].trim();
+      // Procura valor similar no prompt para substituir
+      const oldValueRegex = type.includes("preço") 
+        ? /R?\$\s*\d+(?:[.,]\d+)?/
+        : type === "horário"
+        ? /\d{1,2}h?\s*(?:às|a|-)\s*\d{1,2}h?/
+        : null;
+      
+      if (oldValueRegex) {
+        const oldMatch = workingPrompt.match(oldValueRegex);
+        if (oldMatch && oldMatch[0] !== newValue) {
+          changes.push({
+            action: "replace",
+            target: oldMatch[0],
+            newContent: newValue,
+            explanation: `Atualizando ${type}: "${oldMatch[0]}" → "${newValue}"`
+          });
+        }
+      }
+    }
+  }
+
+  // ============ 10. FALLBACK: Adiciona instrução como regra ============
   if (changes.length === 0 && userInstruction.trim().length > 5) {
     changes.push({
       action: "append",
       target: "",
-      newContent: `
-
-## 📝 INSTRUÇÃO ADICIONAL
+      newContent: `\n## 📝 INSTRUÇÃO ADICIONAL
 ${userInstruction}`,
       explanation: "Adicionando instrução personalizada"
     });
   }
 
-  // Aplica as mudanças
+  // ============ APLICA AS MUDANÇAS ============
   let newPrompt = currentPrompt;
   for (const change of changes) {
     newPrompt = applyChange(newPrompt, change);
