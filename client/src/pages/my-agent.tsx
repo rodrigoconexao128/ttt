@@ -417,10 +417,25 @@ export default function MyAgent() {
   // Handler quando o prompt é gerado pelo assistente
   const handlePromptGenerated = (generatedPrompt: string) => {
     setPrompt(generatedPrompt);
+    setIsActive(true); // Auto-ativa o agente
     setShowPromptGenerator(false);
-    // Salvar automaticamente
+    // Salvar automaticamente com agente ativo
     setTimeout(() => {
-      saveConfigMutation.mutate();
+      apiRequest("POST", "/api/agent/config", {
+        prompt: generatedPrompt,
+        isActive: true,
+        triggerPhrases,
+        messageSplitChars,
+        responseDelaySeconds,
+        fetchHistoryOnFirstResponse,
+        pauseOnManualReply,
+      }).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
+        toast({
+          title: "✅ Agente Ativado!",
+          description: "Seu agente está pronto para atender",
+        });
+      });
     }, 100);
   };
 
@@ -492,40 +507,30 @@ export default function MyAgent() {
               </Badge>
               <Switch
                 checked={isActive}
-                onCheckedChange={setIsActive}
+                onCheckedChange={(checked) => {
+                  setIsActive(checked);
+                  // Salvar automaticamente ao alternar
+                  apiRequest("POST", "/api/agent/config", {
+                    prompt,
+                    isActive: checked,
+                    triggerPhrases,
+                    messageSplitChars,
+                    responseDelaySeconds,
+                    fetchHistoryOnFirstResponse,
+                    pauseOnManualReply,
+                  }).then(() => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
+                    toast({
+                      title: checked ? "✅ Agente Ativado" : "⏸️ Agente Pausado",
+                      description: checked ? "Seu agente está atendendo" : "O agente foi desativado",
+                    });
+                  });
+                }}
                 className="scale-100 md:scale-125"
               />
             </div>
           </div>
 
-          {/* Barra de Progresso */}
-          <Card className="p-3">
-            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
-              <div className="flex-1 space-y-1.5">
-                <div className="flex justify-between text-xs md:text-sm">
-                  <span className="text-muted-foreground">Progresso da configuração</span>
-                  <span className="font-medium">{configProgress}/3 etapas</span>
-                </div>
-                <Progress value={progressPercent} className="h-1.5 md:h-2" />
-              </div>
-              <div className="flex flex-wrap gap-1.5 md:gap-2">
-                {[
-                  { done: prompt.length > 50, label: "Prompt" },
-                  { done: isActive, label: "Ativado" },
-                  { done: mediaList.length > 0, label: "Mídias" },
-                ].map((step, i) => (
-                  <Badge
-                    key={i}
-                    variant={step.done ? "default" : "outline"}
-                    className={`text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 ${step.done ? 'bg-green-500' : ''}`}
-                  >
-                    {step.done && <Check className="w-2.5 h-2.5 mr-0.5" />}
-                    {step.label}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </Card>
         </div>
 
         {/* ============== TABS PRINCIPAIS ============== */}
@@ -1040,53 +1045,114 @@ O QUE NÃO FAZER:
             </div>
           </TabsContent>
 
-          {/* ============== ABA: TESTAR ============== */}
-          <TabsContent value="test" className="space-y-4">
-            <Card className="p-6">
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <TestTube className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <Label className="text-lg font-semibold">Testar Agente</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Simule uma conversa para ver como o agente responde
-                    </p>
-                  </div>
+          {/* ============== ABA: TESTAR - WHATSAPP PLAYGROUND ============== */}
+          <TabsContent value="test" className="space-y-0">
+            {/* WhatsApp-style Chat Container */}
+            <div className="flex flex-col h-[60vh] md:h-[70vh] bg-[#e5ddd5] dark:bg-zinc-900 rounded-xl overflow-hidden border shadow-lg">
+              
+              {/* Chat Header - WhatsApp Style */}
+              <div className="bg-[#075E54] dark:bg-zinc-800 text-white px-4 py-3 flex items-center gap-3 flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <Bot className="w-5 h-5" />
                 </div>
-
-                <div className="space-y-4">
-                  <Textarea
-                    placeholder="Digite uma mensagem de teste..."
-                    value={testMessage}
-                    onChange={(e) => setTestMessage(e.target.value)}
-                    rows={4}
-                  />
-
-                  <Button
-                    onClick={() => testAgentMutation.mutate()}
-                    disabled={testAgentMutation.isPending || !testMessage.trim()}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {testAgentMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-4 h-4 mr-2" />
-                    )}
-                    Enviar Teste
-                  </Button>
-
-                  {testResponse && (
-                    <div className="p-4 bg-muted rounded-lg space-y-2">
-                      <Label className="text-sm font-semibold">Resposta do Agente:</Label>
-                      <p className="text-sm whitespace-pre-wrap">{testResponse}</p>
-                    </div>
-                  )}
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">Seu Agente IA</p>
+                  <p className="text-xs text-white/70">
+                    {isActive ? "🟢 Online - Respondendo" : "⚪ Offline - Inativo"}
+                  </p>
                 </div>
+                <Badge variant="outline" className="bg-white/10 border-white/20 text-white text-[10px]">
+                  TESTE
+                </Badge>
               </div>
-            </Card>
+
+              {/* Chat Messages Area */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23000000\' fill-opacity=\'0.03\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
+                
+                {/* Mensagem inicial do sistema */}
+                <div className="flex justify-center">
+                  <div className="bg-[#FCF4CB] dark:bg-yellow-900/30 text-[#54656F] dark:text-yellow-200 text-xs px-3 py-1.5 rounded-lg shadow-sm">
+                    🧪 Playground de Teste - Converse com seu agente
+                  </div>
+                </div>
+
+                {/* Mensagem do usuário (se houver) */}
+                {testMessage && (
+                  <div className="flex justify-end">
+                    <div className="bg-[#DCF8C6] dark:bg-green-800 text-[#303030] dark:text-white px-3 py-2 rounded-lg rounded-tr-none max-w-[80%] shadow-sm">
+                      <p className="text-sm whitespace-pre-wrap">{testMessage}</p>
+                      <p className="text-[10px] text-right text-[#667781] dark:text-green-300 mt-1">
+                        {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} ✓✓
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Loading do agente */}
+                {testAgentMutation.isPending && (
+                  <div className="flex justify-start">
+                    <div className="bg-white dark:bg-zinc-700 text-[#303030] dark:text-white px-4 py-3 rounded-lg rounded-tl-none shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">digitando...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Resposta do agente */}
+                {testResponse && !testAgentMutation.isPending && (
+                  <div className="flex justify-start">
+                    <div className="bg-white dark:bg-zinc-700 text-[#303030] dark:text-white px-3 py-2 rounded-lg rounded-tl-none max-w-[85%] shadow-sm">
+                      <p className="text-sm whitespace-pre-wrap">{testResponse}</p>
+                      <p className="text-[10px] text-right text-[#667781] dark:text-zinc-400 mt-1">
+                        {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Input - WhatsApp Style */}
+              <div className="bg-[#F0F0F0] dark:bg-zinc-800 px-3 py-2 flex items-end gap-2 flex-shrink-0">
+                <Textarea
+                  placeholder="Digite sua mensagem..."
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && testMessage.trim()) {
+                      e.preventDefault();
+                      testAgentMutation.mutate();
+                    }
+                  }}
+                  className="flex-1 resize-none rounded-2xl border-0 bg-white dark:bg-zinc-700 min-h-[44px] max-h-[120px] py-3 px-4 text-sm"
+                  rows={1}
+                />
+                <Button
+                  onClick={() => testAgentMutation.mutate()}
+                  disabled={testAgentMutation.isPending || !testMessage.trim()}
+                  size="icon"
+                  className="h-11 w-11 rounded-full bg-[#00A884] hover:bg-[#008f6f] flex-shrink-0"
+                >
+                  {testAgentMutation.isPending ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-5 h-5" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Dica abaixo do chat */}
+            <div className="mt-4 text-center">
+              <p className="text-xs text-muted-foreground">
+                💡 Pressione <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Enter</kbd> para enviar ou <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Shift+Enter</kbd> para nova linha
+              </p>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
