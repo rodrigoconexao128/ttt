@@ -518,8 +518,8 @@ const toolsNavigation: ToolNavItem[] = [
                 </Button>
               </div>
             </div>
-            {/* Sticky CTA de upgrade */}
-            {!subscription?.plan && (
+            {/* Sticky CTA de upgrade - Ocultar na tela de criação de agente para priorizar o input */}
+            {!subscription?.plan && !isMeuAgenteRoute && selectedView !== "agent" && (
               <UpgradeBanner />
             )}
           </div>

@@ -100,17 +100,17 @@ ${input}
   // =================== STEP: INPUT (LOVABLE STYLE) ===================
   if (step === "input") {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] py-8 px-4 animate-in fade-in duration-500">
+      <div className="flex flex-col items-center justify-start md:justify-center min-h-[50vh] py-4 md:py-8 px-4 animate-in fade-in duration-500">
         
         {/* Hero Section */}
-        <div className="text-center space-y-4 mb-8 max-w-2xl">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 mb-2 shadow-sm">
+        <div className="text-center space-y-2 md:space-y-4 mb-4 md:mb-8 max-w-2xl">
+          <div className="hidden md:inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 mb-2 shadow-sm">
             <Sparkles className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
+          <h1 className="text-2xl md:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
             Crie seu Agente IA
           </h1>
-          <p className="text-muted-foreground text-lg md:text-xl max-w-lg mx-auto leading-relaxed">
+          <p className="text-muted-foreground text-sm md:text-xl max-w-lg mx-auto leading-relaxed">
             Descreva sua empresa e como você quer que o agente atenda. A IA cuida do resto.
           </p>
         </div>
@@ -123,7 +123,7 @@ ${input}
               placeholder="Ex: Minha empresa é a Drielle Calçados. Vendemos tênis e saltos. Quero um agente simpático que ajude as clientes a escolherem o tamanho certo e tire dúvidas sobre entrega..."
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              className="min-h-[120px] md:min-h-[160px] w-full resize-none border-0 focus-visible:ring-0 bg-transparent text-base md:text-lg p-4 placeholder:text-muted-foreground/50"
+              className="min-h-[100px] md:min-h-[160px] w-full resize-none border-0 focus-visible:ring-0 bg-transparent text-base md:text-lg p-4 placeholder:text-muted-foreground/50"
               autoFocus
             />
             
