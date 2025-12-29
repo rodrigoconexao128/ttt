@@ -1337,7 +1337,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           const result = await editPromptWithGPT(currentPrompt, instruction, openaiApiKey);
           
           return res.json({
-            prompt: result.newPrompt,
+            newPrompt: result.newPrompt,
             changes: result.changes,
             summary: result.summary,
             tokensUsed: result.tokensUsed,
@@ -1352,8 +1352,11 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       // Fallback: edição local com heurísticas
       const localResult = editPromptLocally(currentPrompt, instruction);
       
+      console.log(`📝 [Edit Prompt] Edição local aplicada: ${localResult.changes.length} mudança(s)`);
+      console.log(`📝 [Edit Prompt] Resumo: ${localResult.summary}`);
+      
       res.json({
-        prompt: localResult.newPrompt,
+        newPrompt: localResult.newPrompt,
         changes: localResult.changes,
         summary: localResult.summary,
         tokensUsed: { input: 0, output: 0, saved: 0 },
