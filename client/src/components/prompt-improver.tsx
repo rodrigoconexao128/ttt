@@ -332,7 +332,7 @@ ${instruction}`;
               </Button>
               <Button onClick={handleImprove} disabled={!improvement.trim()} className="gap-2">
                 <Sparkles className="w-4 h-4" />
-                Melhorar Prompt
+                Melhorar instruções
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </>
