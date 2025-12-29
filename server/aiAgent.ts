@@ -691,6 +691,18 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
         const jaDisseOQueTrabalha = /trabalho|faço|vendo|sou|tenho|minha|empresa|loja|negócio|vendas|atendimento|clientes/i.test(msgLower);
         const jaPediuAjuda = /preciso|quero|gostaria|ajuda|ajudar|responder|automatizar|atender/i.test(msgLower);
         
+        // Detectar se o agente já se apresentou ou fez a pergunta inicial
+        const jaSeApresentou = agentMessages.some(m => 
+          (m.text || '').includes("Rodrigo da AgenteZap") || 
+          (m.text || '').includes("Sou o Rodrigo") ||
+          (m.text || '').includes("AgenteZap aqui")
+        );
+        
+        const jaPerguntouOQueFaz = agentMessages.some(m => 
+          (m.text || '').includes("o que você faz hoje") || 
+          (m.text || '').includes("Vendas, atendimento ou qualificação")
+        );
+
         // Gerar resumo do contexto para a IA
         const contextSummary = hasAgentReplies 
           ? `O cliente já disse: ${clientMessages.map(m => `"${(m.text || '').substring(0, 50)}"`).join(', ')}`
@@ -707,6 +719,8 @@ ${contextSummary}
 🚫 PROIBIDO (vai fazer você parecer um robô burro):
    ❌ Perguntar "o que você faz?" de novo se cliente JÁ RESPONDEU (inclusive na msg atual!)
    ❌ Se apresentar novamente ("Sou o X da empresa Y") - cliente JÁ TE CONHECE
+   ${jaSeApresentou ? '❌ DIZER "Rodrigo da AgenteZap aqui" ou se apresentar de novo - VOCÊ JÁ FEZ ISSO!' : ''}
+   ${jaPerguntouOQueFaz ? '❌ PERGUNTAR "o que você faz hoje?" ou "Vendas, atendimento ou qualificação" - VOCÊ JÁ PERGUNTOU!' : ''}
    ❌ Ignorar o contexto e recomeçar a conversa do zero
    ❌ Repetir as mesmas perguntas já feitas
    ❌ Dar a mesma saudação inicial para um novo "oi" no meio da conversa
@@ -869,7 +883,24 @@ ${jaDisseOQueTrabalha || jaPediuAjuda ? `
     console.log(`   ${uniqueMessages.length + 1}. [user] ${newMessageText.substring(0, 50)}... (NOVA MENSAGEM)`);
     
     // 🛡️ FIX: Ensure newMessageText is not empty
-    const finalUserMessage = newMessageText.trim() || "[Mensagem vazia]";
+    let finalUserMessage = newMessageText.trim() || "[Mensagem vazia]";
+    
+    // 🛡️ ANTI-AMNÉSIA FORÇADO: Se é saudação repetida com histórico, FORÇAR instrução na mensagem
+    const isSaudacaoSimples = /^(oi|olá|ola|bom dia|boa tarde|boa noite|ei|e ai|eai|fala|tudo bem|blz|beleza|hey|hello|hi)[\s\?!\.]*$/i.test(finalUserMessage);
+    const hasAgentRepliesInHistory = uniqueMessages.some(m => m.fromMe);
+    
+    if (isSaudacaoSimples && hasAgentRepliesInHistory && uniqueMessages.length >= 2) {
+      console.log(`🛡️ [AI Agent] SAUDAÇÃO REPETIDA DETECTADA! Forçando instrução anti-repetição na mensagem.`);
+      
+      // Pegar a última resposta do agente para contexto
+      const lastAgentMsg = [...uniqueMessages].reverse().find(m => m.fromMe);
+      const lastAgentText = lastAgentMsg?.text?.substring(0, 80) || '';
+      
+      // Adicionar instrução JUNTO com a mensagem do usuário
+      finalUserMessage = `[INSTRUÇÃO CRÍTICA PARA O ASSISTENTE: O cliente mandou "${finalUserMessage}" de novo. Esta é uma SAUDAÇÃO REPETIDA em uma conversa já iniciada. Sua última resposta foi: "${lastAgentText}...". NÃO se apresente novamente. NÃO pergunte o que ele faz de novo. Responda apenas: "Oi! Em que posso te ajudar?" ou "Oi! Posso te ajudar com algo mais?" - RESPOSTA MÁXIMA DE 1 FRASE CURTA.]
+
+Mensagem do cliente: ${newMessageText.trim()}`;
+    }
     
     messages.push({
       role: "user",

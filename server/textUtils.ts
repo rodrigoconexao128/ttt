@@ -13,6 +13,11 @@ export function processResponsePlaceholders(text: string, contactName?: string):
   
   let processed = text;
   
+  // 🛡️ LIMPAR INSTRUÇÕES INTERNAS que a IA pode ter copiado
+  processed = processed.replace(/\[INSTRUÇÃO CRÍTICA[^\]]*\]/gi, '');
+  processed = processed.replace(/Mensagem do cliente:\s*/gi, '');
+  processed = processed.replace(/\[INSTRUÇÃO[^\]]*\]/gi, '');
+  
   // 🛡️ FIX CRÍTICO: Remover prefixos de mídia que a IA pode ter "aprendido" incorretamente
   // Isso acontece quando a IA vê "🎤 Áudio" no histórico e imita como prefixo
   if (processed.startsWith('🎤 Áudio ') || processed.startsWith('🎤 Audio ')) {
