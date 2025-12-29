@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -84,6 +85,7 @@ const mediaTypeIcons = {
 // ============== COMPONENTE PRINCIPAL ==============
 export default function MyAgent() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("prompt");
   
   // Estado do formulário principal
@@ -96,9 +98,10 @@ export default function MyAgent() {
   const [fetchHistoryOnFirstResponse, setFetchHistoryOnFirstResponse] = useState(false);
   const [pauseOnManualReply, setPauseOnManualReply] = useState(true);
   
-  // Estado do teste
+  // Estado do teste - Playground com histórico de mensagens
   const [testMessage, setTestMessage] = useState("");
   const [testResponse, setTestResponse] = useState("");
+  const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'agent', message: string, time: string}>>([]);
   
   // Estado do gerador de prompt e editor expandido
   const [showPromptGenerator, setShowPromptGenerator] = useState(false);
@@ -198,15 +201,25 @@ export default function MyAgent() {
   });
 
   const testAgentMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (userMsg: string) => {
       const response = await apiRequest("POST", "/api/agent/test", {
-        message: testMessage,
+        message: userMsg,
       });
       const data = await response.json();
       return data;
     },
+    onMutate: (userMsg: string) => {
+      // Adiciona mensagem do usuário ao histórico imediatamente
+      const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      setChatHistory(prev => [...prev, { role: 'user', message: userMsg, time }]);
+      setTestMessage(""); // Limpa o input
+    },
     onSuccess: (data: any) => {
-      setTestResponse(data?.response || "Sem resposta");
+      const agentResponse = data?.response || "Sem resposta";
+      setTestResponse(agentResponse);
+      // Adiciona resposta do agente ao histórico
+      const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      setChatHistory(prev => [...prev, { role: 'agent', message: agentResponse, time }]);
     },
     onError: (error: Error) => {
       toast({
@@ -433,8 +446,12 @@ export default function MyAgent() {
         queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
         toast({
           title: "✅ Agente Ativado!",
-          description: "Seu agente está pronto para atender",
+          description: "Redirecionando para conectar seu WhatsApp...",
         });
+        // Redirecionar para página de conexão
+        setTimeout(() => {
+          navigate("/conexao");
+        }, 1500);
       });
     }, 100);
   };
@@ -465,6 +482,10 @@ export default function MyAgent() {
         isSaving={saveConfigMutation.isPending}
         title="Instruções do Agente"
         placeholder="Digite as instruções de atendimento do seu agente..."
+        onImproveClick={() => {
+          setIsExpandedEditorOpen(false);
+          setIsPromptImproverOpen(true);
+        }}
       />
       
       {/* Melhorador de Prompt com técnica de patch */}
@@ -1061,32 +1082,45 @@ O QUE NÃO FAZER:
                     {isActive ? "🟢 Online - Respondendo" : "⚪ Offline - Inativo"}
                   </p>
                 </div>
-                <Badge variant="outline" className="bg-white/10 border-white/20 text-white text-[10px]">
-                  TESTE
-                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setChatHistory([])}
+                  className="text-white/70 hover:text-white hover:bg-white/10 text-xs"
+                >
+                  Limpar
+                </Button>
               </div>
 
               {/* Chat Messages Area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23000000\' fill-opacity=\'0.03\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
                 
                 {/* Mensagem inicial do sistema */}
-                <div className="flex justify-center">
-                  <div className="bg-[#FCF4CB] dark:bg-yellow-900/30 text-[#54656F] dark:text-yellow-200 text-xs px-3 py-1.5 rounded-lg shadow-sm">
-                    🧪 Playground de Teste - Converse com seu agente
-                  </div>
-                </div>
-
-                {/* Mensagem do usuário (se houver) */}
-                {testMessage && (
-                  <div className="flex justify-end">
-                    <div className="bg-[#DCF8C6] dark:bg-green-800 text-[#303030] dark:text-white px-3 py-2 rounded-lg rounded-tr-none max-w-[80%] shadow-sm">
-                      <p className="text-sm whitespace-pre-wrap">{testMessage}</p>
-                      <p className="text-[10px] text-right text-[#667781] dark:text-green-300 mt-1">
-                        {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} ✓✓
-                      </p>
+                {chatHistory.length === 0 && (
+                  <div className="flex justify-center">
+                    <div className="bg-[#FCF4CB] dark:bg-yellow-900/30 text-[#54656F] dark:text-yellow-200 text-xs px-3 py-1.5 rounded-lg shadow-sm">
+                      🧪 Playground de Teste - Converse com seu agente
                     </div>
                   </div>
                 )}
+
+                {/* Histórico de mensagens */}
+                {chatHistory.map((msg, index) => (
+                  <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`px-3 py-2 rounded-lg max-w-[80%] shadow-sm ${
+                      msg.role === 'user' 
+                        ? 'bg-[#DCF8C6] dark:bg-green-800 text-[#303030] dark:text-white rounded-tr-none' 
+                        : 'bg-white dark:bg-zinc-700 text-[#303030] dark:text-white rounded-tl-none'
+                    }`}>
+                      <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                      <p className={`text-[10px] text-right mt-1 ${
+                        msg.role === 'user' ? 'text-[#667781] dark:text-green-300' : 'text-[#667781] dark:text-zinc-400'
+                      }`}>
+                        {msg.time} {msg.role === 'user' && '✓✓'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
 
                 {/* Loading do agente */}
                 {testAgentMutation.isPending && (
@@ -1103,18 +1137,6 @@ O QUE NÃO FAZER:
                     </div>
                   </div>
                 )}
-
-                {/* Resposta do agente */}
-                {testResponse && !testAgentMutation.isPending && (
-                  <div className="flex justify-start">
-                    <div className="bg-white dark:bg-zinc-700 text-[#303030] dark:text-white px-3 py-2 rounded-lg rounded-tl-none max-w-[85%] shadow-sm">
-                      <p className="text-sm whitespace-pre-wrap">{testResponse}</p>
-                      <p className="text-[10px] text-right text-[#667781] dark:text-zinc-400 mt-1">
-                        {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Chat Input - WhatsApp Style */}
@@ -1126,14 +1148,14 @@ O QUE NÃO FAZER:
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey && testMessage.trim()) {
                       e.preventDefault();
-                      testAgentMutation.mutate();
+                      testAgentMutation.mutate(testMessage);
                     }
                   }}
                   className="flex-1 resize-none rounded-2xl border-0 bg-white dark:bg-zinc-700 min-h-[44px] max-h-[120px] py-3 px-4 text-sm"
                   rows={1}
                 />
                 <Button
-                  onClick={() => testAgentMutation.mutate()}
+                  onClick={() => testAgentMutation.mutate(testMessage)}
                   disabled={testAgentMutation.isPending || !testMessage.trim()}
                   size="icon"
                   className="h-11 w-11 rounded-full bg-[#00A884] hover:bg-[#008f6f] flex-shrink-0"

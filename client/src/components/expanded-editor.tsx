@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Save, Maximize2, Minimize2, Loader2, Sparkles } from "lucide-react";
+import { X, Save, Maximize2, Minimize2, Loader2, Sparkles, Wand2 } from "lucide-react";
 
 interface ExpandedEditorProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ interface ExpandedEditorProps {
   isSaving?: boolean;
   title?: string;
   placeholder?: string;
+  onImproveClick?: () => void;
 }
 
 export function ExpandedEditor({
@@ -23,7 +24,8 @@ export function ExpandedEditor({
   onSave,
   isSaving = false,
   title = "Editor de Prompt",
-  placeholder = "Digite seu prompt aqui..."
+  placeholder = "Digite seu prompt aqui...",
+  onImproveClick
 }: ExpandedEditorProps) {
   const [localValue, setLocalValue] = useState(value);
 
@@ -57,6 +59,20 @@ export function ExpandedEditor({
               <span className="text-xs text-muted-foreground hidden md:inline">
                 {localValue.length} caracteres
               </span>
+              {onImproveClick && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    onChange(localValue);
+                    onImproveClick();
+                  }}
+                  className="gap-1.5"
+                >
+                  <Wand2 className="w-4 h-4" />
+                  <span className="hidden md:inline">Melhorar com IA</span>
+                </Button>
+              )}
               <Button
                 variant="default"
                 size="sm"
