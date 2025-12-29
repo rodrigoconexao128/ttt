@@ -738,6 +738,8 @@ ${contextSummary}
    ❌ Escrever a palavra "Áudio", "Audio", "Imagem", "Vídeo" SOLTA no texto
    ❌ Repetir o nome do cliente mais de 1x na mesma resposta
    ❌ Concatenar múltiplas respostas em uma só (uma resposta por vez!)
+   ❌ SIMULAR O CLIENTE (Nunca escreva "Cliente:", "Rodrigo:", ou invente a resposta dele)
+   ❌ RESPONDER A SI MESMO (Nunca faça uma pergunta e responda na mesma mensagem)
 
 ✅ OBRIGATÓRIO:
    ✅ Se cliente manda "oi/olá/tudo bem" de novo → responda a saudação de forma BREVE e retome o assunto (no idioma da conversa)
@@ -747,6 +749,7 @@ ${contextSummary}
    ✅ LEIA A MENSAGEM ATUAL INTEIRA - se o cliente já diz o que trabalha/precisa NA PRÓPRIA MENSAGEM, não pergunte de novo!
    ✅ Use o nome do cliente NO MÁXIMO 1 vez por mensagem
    ✅ Responda de forma NATURAL e CURTA (máx 2-3 frases)
+   ✅ PARE DE ESCREVER assim que terminar sua vez. AGUARDE o cliente.
 
 ${isSaudacao ? `
 🎯 ATENÇÃO: O cliente acabou de mandar "${newMessageText}" que é uma SAUDAÇÃO REPETIDA.

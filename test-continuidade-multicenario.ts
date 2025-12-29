@@ -193,11 +193,25 @@ const CENARIOS: CenarioTeste[] = [
       { tipo: "NAO_CONTEM", valor: "What is your English level", descricao: "Don't ask level again" },
       { tipo: "CONTEM_UM_DE", valor: ["help", "question", "class", "try", "assist"], descricao: "Offer help" }
     ]
+  },
+  // 11. AGENTEZAP (CASO REAL DO USUÁRIO)
+  {
+    nome: "11. AgentZap - Resposta Dupla/Concatenada",
+    tipoNegocio: "SaaS de IA",
+    promptSistema: "Você é o Atendente da AgenteZap. Venda automação de WhatsApp com IA. O plano custa R$ 99/mês. Explique como funciona e depois ofereça exemplo.",
+    historico: [
+      { fromMe: false, text: "Oi", timestamp: new Date() },
+      { fromMe: true, text: "Olá! Sou da AgenteZap. Quer saber como a IA pode vender por você?", timestamp: new Date(), isFromAgent: true },
+      { fromMe: false, text: "Quero entender", timestamp: new Date() },
+    ],
+    novaMensagem: "Como funciona?",
+    verificacoes: [
+      { tipo: "CONTEM", valor: "99", descricao: "Deve mencionar o preço ou explicação" },
+      { tipo: "NAO_CONTEM", valor: "Ótimo, Rodrigo! Vou te mostrar", descricao: "Não deve emendar a próxima etapa (alucinação de auto-conversa)" },
+      { tipo: "NAO_CONTEM", valor: "Perfeito, Rodrigo", descricao: "Não deve repetir o nome do cliente de forma estranha se não for o nome dele" }
+    ]
   }
 ];
-
-// ═══════════════════════════════════════════════════════════════════════════
-// EXECUTOR DE TESTES
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function runTests() {
