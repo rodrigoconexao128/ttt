@@ -723,11 +723,70 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
 
     // 🛡️ ANTI-AMNESIA PROMPT INJECTION
     // Adicionar instrução explícita para não se repetir se já houver histórico
-    if (conversationHistory.length > 2) {
+    // ATIVADO SEMPRE QUE HÁ HISTÓRICO (independente de fetchHistoryOnFirstResponse)
+    if (conversationHistory.length > 1) {
+        // Detectar se cliente está mandando saudação repetida no meio da conversa
+        const lastMessages = conversationHistory.slice(-4);
+        const clientMessages = lastMessages.filter(m => !m.fromMe);
+        const agentMessages = lastMessages.filter(m => m.fromMe);
+        
+        // Verificar se já temos respostas do agente (conversa em andamento)
+        const hasAgentReplies = agentMessages.length > 0;
+        
+        // Verificar se nova mensagem é uma saudação simples
+        const isSaudacao = /^(oi|olá|ola|bom dia|boa tarde|boa noite|ei|e ai|eai|fala|tudo bem|blz|beleza)[\s\?!\.]*$/i.test(newMessageText.trim());
+        
+        // Detectar se a mensagem atual já contém informações do negócio do cliente
+        const msgLower = newMessageText.toLowerCase();
+        const jaDisseOQueTrabalha = /trabalho|faço|vendo|sou|tenho|minha|empresa|loja|negócio|vendas|atendimento|clientes/i.test(msgLower);
+        const jaPediuAjuda = /preciso|quero|gostaria|ajuda|ajudar|responder|automatizar|atender/i.test(msgLower);
+        
+        // Gerar resumo do contexto para a IA
+        const contextSummary = hasAgentReplies 
+          ? `O cliente já disse: ${clientMessages.map(m => `"${(m.text || '').substring(0, 50)}"`).join(', ')}`
+          : '';
+        
+        const antiAmnesiaPrompt = `
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ REGRAS CRÍTICAS DE CONTINUIDADE (OBRIGATÓRIO - SEMPRE SIGA)
+═══════════════════════════════════════════════════════════════════════════════
+
+Esta é uma CONVERSA EM ANDAMENTO com ${conversationHistory.length} mensagens.
+${contextSummary}
+
+🚫 PROIBIDO (vai fazer você parecer um robô burro):
+   ❌ Perguntar "o que você faz?" de novo se cliente JÁ RESPONDEU (inclusive na msg atual!)
+   ❌ Se apresentar novamente ("Sou o X da empresa Y") - cliente JÁ TE CONHECE
+   ❌ Ignorar o contexto e recomeçar a conversa do zero
+   ❌ Repetir as mesmas perguntas já feitas
+   ❌ Dar a mesma saudação inicial para um novo "oi" no meio da conversa
+
+✅ OBRIGATÓRIO:
+   ✅ Se cliente manda "oi/olá/tudo bem" de novo → apenas pergunte "posso ajudar com algo?" ou continue o assunto anterior
+   ✅ Se cliente repete uma pergunta → responda brevemente ("como eu disse, ...")
+   ✅ Se cliente responde "sim/não" → entenda o contexto da pergunta anterior
+   ✅ Continue de onde parou naturalmente
+   ✅ LEIA A MENSAGEM ATUAL INTEIRA - se o cliente já diz o que trabalha/precisa NA PRÓPRIA MENSAGEM, não pergunte de novo!
+
+${isSaudacao && hasAgentReplies ? `
+🎯 ATENÇÃO: O cliente acabou de mandar "${newMessageText}" que é uma SAUDAÇÃO REPETIDA.
+   NÃO reinicie a conversa! Apenas diga algo como "Posso ajudar com algo?" ou continue o assunto.
+` : ''}
+${jaDisseOQueTrabalha || jaPediuAjuda ? `
+🎯 ATENÇÃO: A mensagem ATUAL do cliente JÁ CONTÉM informações importantes!
+   O cliente disse: "${newMessageText.substring(0, 100)}"
+   ${jaDisseOQueTrabalha ? '→ ELE JÁ DISSE O QUE FAZ/TRABALHA - NÃO PERGUNTE DE NOVO!' : ''}
+   ${jaPediuAjuda ? '→ ELE JÁ DISSE O QUE PRECISA - responda a necessidade dele!' : ''}
+` : ''}
+═══════════════════════════════════════════════════════════════════════════════
+`;
+        
         messages.push({
             role: "system",
-            content: `[SISTEMA: Esta é uma conversa em andamento. O cliente JÁ TE CONHECE. NÃO se apresente novamente. NÃO diga "Sou o X da empresa Y" de novo. Apenas continue a conversa de onde parou.]`
+            content: antiAmnesiaPrompt
         });
+        
+        console.log(`🛡️ [AI Agent] Anti-amnesia prompt injetado (${conversationHistory.length} msgs, saudação=${isSaudacao}, hasReplies=${hasAgentReplies}, jaDisseNegocio=${jaDisseOQueTrabalha})`);
     }
     
     // 🧹 REMOVER DUPLICATAS: Mensagens idênticas confundem a IA
