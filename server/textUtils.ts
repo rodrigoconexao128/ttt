@@ -35,33 +35,102 @@ export function processResponsePlaceholders(text: string, contactName?: string):
   processed = processed.replace(/\[DOCUMENTO ENVIADO:[^\]]*\]/gi, '');
   
   // 🛡️ FIX CRÍTICO: Limpar padrão [Áudio enviado: ...] que a IA está copiando do contexto
-  // Este texto NÃO deve aparecer na resposta final - apenas a tag [MEDIA:NOME] é válida
   processed = processed.replace(/\[Áudio enviado:[^\]]*\]/gi, '');
   processed = processed.replace(/\[Imagem enviada:[^\]]*\]/gi, '');
   processed = processed.replace(/\[Vídeo enviado:[^\]]*\]/gi, '');
   processed = processed.replace(/\[Documento enviado:[^\]]*\]/gi, '');
-
-  // 🛡️ FIX CRÍTICO: Remover a palavra "Áudio" solta que vaza do prompt
-  // Ex: "Olá tudo bem? Áudio" -> "Olá tudo bem?"
-  processed = processed.replace(/\s+Áudio\s*$/i, '');
-  processed = processed.replace(/^Áudio\s+/i, '');
-  processed = processed.replace(/\s+Audio\s*$/i, '');
-  processed = processed.replace(/^Audio\s+/i, '');
+  
+  // 🛡️ LIMPEZA AGRESSIVA: Remover padrões de mídia em QUALQUER posição
+  // Formatos: *Áudio*, [Áudio], (Áudio), Áudio, Audio
+  processed = processed.replace(/\*[ÁáAa]udio\*/gi, '');
+  processed = processed.replace(/\[[ÁáAa]udio[^\]]*\]/gi, '');
+  processed = processed.replace(/\([ÁáAa]udio[^)]*\)/gi, '');
+  
+  // 🛡️ FIX CRÍTICO: Remover a palavra "Áudio"/"Audio" ISOLADA em qualquer posição
+  // Padrões: "? Áudio " no meio, "Áudio " no início, " Áudio" no final
+  // Regex: palavra Áudio/Audio cercada por espaços, pontuação ou bordas
+  processed = processed.replace(/[\?\!\.]\s*[ÁáAa]udio\s+/gi, '. ');  // "? Áudio " -> ". "
+  processed = processed.replace(/\s+[ÁáAa]udio\s*$/gi, '');           // " Áudio" no final
+  processed = processed.replace(/^[ÁáAa]udio\s+/gi, '');              // "Áudio " no início
+  processed = processed.replace(/\s+[ÁáAa]udio\s+/gi, ' ');           // " Áudio " no meio (CUIDADO: pode remover palavras legítimas como "audiovisual")
+  
+  // 🛡️ Limpar espaços duplos e pontuação estranha resultante
+  processed = processed.replace(/\s+/g, ' ');
+  processed = processed.replace(/\.\s*\./g, '.');
+  processed = processed.replace(/\?\s*\./g, '?');
+  processed = processed.replace(/!\s*\./g, '!');
   
   processed = processed.trim();
   
   // Regex genérico para capturar QUALQUER variável de nome comum
-  // Captura: {{nome}}, {nome}, [nome], {{name}}, {cliente}, {{usuario}}, etc.
   const genericNamePattern = /\{\{?(nome|name|cliente|customer|user|usuario|contato)\}?\}|\[(nome|name|cliente|customer|contato)\]/gi;
   
   if (formattedName) {
-    // Substituir qualquer variável de nome pelo nome real
     processed = processed.replace(genericNamePattern, formattedName);
   } else {
-    // Remover placeholders não substituídos (incluindo vírgula/espaço antes)
     processed = processed.replace(/,?\s*\{\{?(nome|name|cliente|customer|user|usuario|contato)\}?\}/gi, "");
     processed = processed.replace(/,?\s*\[(nome|name|cliente|customer|contato)\]/gi, "");
   }
   
-  return processed;
+  // 🛡️ FIX: Detectar e limitar respostas concatenadas
+  // Padrão: quando a IA repete o mesmo nome mais de 2x, provavelmente concatenou
+  if (formattedName && formattedName.length > 2) {
+    const escapedName = formattedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const nameRegex = new RegExp(escapedName, 'gi');
+    const nameCount = (processed.match(nameRegex) || []).length;
+    
+    if (nameCount > 2) {
+      console.log(`🛡️ [TextUtils] Nome "${formattedName}" repetido ${nameCount}x - truncando resposta`);
+      
+      // Encontrar a posição da SEGUNDA ocorrência do nome
+      let count = 0;
+      let secondNameStart = -1;
+      let match;
+      const searchRegex = new RegExp(escapedName, 'gi');
+      
+      while ((match = searchRegex.exec(processed)) !== null) {
+        count++;
+        if (count === 2) {
+          secondNameStart = match.index;
+          break;
+        }
+      }
+      
+      if (secondNameStart > 10) {
+        // Cortar ANTES da segunda ocorrência do nome
+        const beforeSecond = processed.substring(0, secondNameStart);
+        
+        // Procurar último ponto de corte natural
+        const lastPunctuation = Math.max(
+          beforeSecond.lastIndexOf('. '),
+          beforeSecond.lastIndexOf('? '),
+          beforeSecond.lastIndexOf('! '),
+          beforeSecond.lastIndexOf('.')
+        );
+        
+        if (lastPunctuation > 10) {
+          processed = processed.substring(0, lastPunctuation + 1).trim();
+        } else {
+          // Se não encontrou pontuação, corta direto antes do segundo nome
+          processed = beforeSecond.trim();
+          // Remove vírgula final se houver
+          processed = processed.replace(/,\s*$/, '.');
+        }
+        console.log(`🛡️ [TextUtils] Resposta truncada para evitar concatenação`);
+      }
+    }
+  }
+  
+  // 🛡️ FIX: Se resposta ficar muito longa (mais de 500 chars), limitar
+  // Respostas muito longas geralmente são concatenações
+  if (processed.length > 600) {
+    // Encontrar um ponto de corte natural (. ou ? ou !)
+    const cutPoint = processed.substring(0, 500).lastIndexOf('. ');
+    if (cutPoint > 100) {
+      processed = processed.substring(0, cutPoint + 1);
+      console.log(`🛡️ [TextUtils] Resposta truncada de ${processed.length} para ${cutPoint + 1} chars`);
+    }
+  }
+  
+  return processed.trim();
 }

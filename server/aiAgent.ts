@@ -710,19 +710,23 @@ ${contextSummary}
    ❌ Ignorar o contexto e recomeçar a conversa do zero
    ❌ Repetir as mesmas perguntas já feitas
    ❌ Dar a mesma saudação inicial para um novo "oi" no meio da conversa
-   ❌ Escrever a palavra "Áudio" ou "Audio" no texto da resposta (apenas envie o conteúdo)
+   ❌ Escrever a palavra "Áudio", "Audio", "Imagem", "Vídeo" SOLTA no texto
+   ❌ Repetir o nome do cliente mais de 1x na mesma resposta
+   ❌ Concatenar múltiplas respostas em uma só (uma resposta por vez!)
 
 ✅ OBRIGATÓRIO:
-   ✅ Se cliente manda "oi/olá/tudo bem" de novo → apenas pergunte "posso ajudar com algo?" ou continue o assunto anterior
+   ✅ Se cliente manda "oi/olá/tudo bem" de novo → apenas "Oi! Posso ajudar?" (CURTO!)
    ✅ Se cliente repete uma pergunta → responda brevemente ("como eu disse, ...")
    ✅ Se cliente responde "sim/não" → entenda o contexto da pergunta anterior
    ✅ Continue de onde parou naturalmente
    ✅ LEIA A MENSAGEM ATUAL INTEIRA - se o cliente já diz o que trabalha/precisa NA PRÓPRIA MENSAGEM, não pergunte de novo!
+   ✅ Use o nome do cliente NO MÁXIMO 1 vez por mensagem
+   ✅ Responda de forma NATURAL e CURTA (máx 2-3 frases)
 
 ${isSaudacao ? `
 🎯 ATENÇÃO: O cliente acabou de mandar "${newMessageText}" que é uma SAUDAÇÃO REPETIDA.
-   NÃO reinicie a conversa! Apenas diga algo como "Posso ajudar com algo?" ou continue o assunto.
-   NÃO SE APRESENTE NOVAMENTE.
+   RESPOSTA IDEAL: "Oi! Em que posso te ajudar?" (CURTO, SIMPLES)
+   NÃO SE APRESENTE NOVAMENTE. NÃO REPITA TUDO.
 ` : ''}
 ${jaDisseOQueTrabalha || jaPediuAjuda ? `
 🎯 ATENÇÃO: A mensagem ATUAL do cliente JÁ CONTÉM informações importantes!
@@ -791,41 +795,41 @@ ${jaDisseOQueTrabalha || jaPediuAjuda ? `
       // 1. Limpar padrões de mídia sincronizada do WhatsApp (🎤 Áudio, 📷 Imagem, etc.)
       // CRÍTICO: Esses textos são salvos quando mídias são sincronizadas do WhatsApp
       if (content === '🎤 Áudio' || content === '🎤 Audio') {
-        // Se a mensagem é APENAS o marcador de áudio, pular completamente
-        content = '[Áudio recebido/enviado]';
+        // Se a mensagem é APENAS o marcador de áudio, indicar que foi mensagem de voz
+        content = '(mensagem de voz do cliente)';
       } else if (content.startsWith('🎤 Áudio ') || content.startsWith('🎤 Audio ')) {
         // PROBLEMA CRÍTICO: A IA está gerando texto que começa com "🎤 Áudio"
         // Remover esse prefixo para evitar que a IA aprenda este padrão
         content = content.replace(/^🎤 [ÁáAa]udio\s*/i, '');
       }
       if (content === '📷 Imagem' || content === '🖼️ Imagem') {
-        content = '[Imagem recebida/enviada]';
+        content = '(imagem enviada)';
       }
       if (content === '🎥 Vídeo' || content === '🎬 Vídeo') {
-        content = '[Vídeo recebido/enviado]';
+        content = '(vídeo enviado)';
       }
       if (content === '📄 Documento' || content === '📎 Documento') {
-        content = '[Documento recebido/enviado]';
+        content = '(documento enviado)';
       }
       
       // 2. Limpar padrões internos de mídia enviada pelo agente
       // CRÍTICO: Remover completamente este texto para não confundir a IA
       if (content.includes('[ÁUDIO ENVIADO PELO AGENTE]')) {
-        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:[^]*/gi, '*Áudio*');
-        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]/gi, '*Áudio*');
+        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:[^]*/gi, '');
+        content = content.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]/gi, '');
       }
       // Limpar formato antigo [Áudio enviado: ...] - IA estava copiando isso na resposta
       if (content.includes('[Áudio enviado:')) {
-        content = content.replace(/\[Áudio enviado:[^\]]*\]/gi, '*Áudio*');
+        content = content.replace(/\[Áudio enviado:[^\]]*\]/gi, '');
       }
       if (content.includes('[Imagem enviada:')) {
-        content = content.replace(/\[Imagem enviada:[^\]]*\]/gi, '*Imagem*');
+        content = content.replace(/\[Imagem enviada:[^\]]*\]/gi, '');
       }
       if (content.includes('[Vídeo enviado:')) {
-        content = content.replace(/\[Vídeo enviado:[^\]]*\]/gi, '*Vídeo*');
+        content = content.replace(/\[Vídeo enviado:[^\]]*\]/gi, '');
       }
       if (content.includes('[Documento enviado:')) {
-        content = content.replace(/\[Documento enviado:[^\]]*\]/gi, '*Documento*');
+        content = content.replace(/\[Documento enviado:[^\]]*\]/gi, '');
       }
       if (content.includes('[IMAGEM ENVIADA:')) {
         content = content.replace(/\[IMAGEM ENVIADA:[^\]]*\]/gi, '');
@@ -837,14 +841,21 @@ ${jaDisseOQueTrabalha || jaPediuAjuda ? `
         content = content.replace(/\[DOCUMENTO ENVIADO:[^\]]*\]/gi, '');
       }
       
+      // 🛡️ LIMPEZA EXTRA: Remover qualquer menção a "Áudio" ou "Audio" isolada
+      content = content.replace(/\*[ÁáAa]udio\*/gi, '');
+      content = content.replace(/\[[ÁáAa]udio[^\]]*\]/gi, '');
+      content = content.replace(/\s+[ÁáAa]udio\s+/gi, ' ');
+      
       // 3. Limpar qualquer texto vazio resultante
       content = content.trim();
       if (!content) {
-        // Se após limpar ficou vazio, marcar que foi mídia
+        // Se após limpar ficou vazio, marcar que foi mídia (sem usar a palavra Áudio/Audio)
         if (msg.mediaType) {
-          content = `[${msg.mediaType === 'audio' ? 'Áudio' : msg.mediaType === 'image' ? 'Imagem' : msg.mediaType === 'video' ? 'Vídeo' : 'Arquivo'} enviado]`;
+          content = msg.mediaType === 'audio' ? '(mensagem de voz)' : 
+                    msg.mediaType === 'image' ? '(imagem)' : 
+                    msg.mediaType === 'video' ? '(vídeo)' : '(arquivo)';
         } else {
-          content = '[Mensagem de mídia]';
+          content = '(mensagem de mídia)';
         }
       }
       
