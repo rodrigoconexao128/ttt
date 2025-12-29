@@ -1326,26 +1326,43 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         return res.status(400).json({ message: "currentPrompt e instruction são obrigatórios" });
       }
 
-      // Usar novo engine de edição
-      const { editPrompt } = await import("./promptEditEngine");
+      // Buscar chave Mistral do banco de dados
+      const mistralConfig = await storage.getSystemConfig('mistral_api_key');
+      const mistralApiKey = mistralConfig?.valor || process.env.MISTRAL_API_KEY || '';
       
-      const openaiApiKey = process.env.OPENAI_API_KEY;
-      const result = await editPrompt(currentPrompt, instruction, openaiApiKey);
+      console.log(`🔑 [Edit Prompt] Key from DB: ${mistralConfig?.valor ? `EXISTS (${mistralConfig.valor.substring(0, 10)}...)` : 'NOT FOUND'}`);
+      console.log(`🔑 [Edit Prompt] Key from ENV: ${process.env.MISTRAL_API_KEY ? `EXISTS` : 'NOT FOUND'}`);
       
-      console.log(`📝 [Edit Prompt] Sucesso: ${result.success}, Operações: ${result.operations.length}`);
-      console.log(`📝 [Edit Prompt] Feedback: ${result.feedbackMessage}`);
+      if (!mistralApiKey) {
+        return res.status(500).json({ 
+          success: false, 
+          message: "Chave de API Mistral não configurada" 
+        });
+      }
+
+      // Usar novo serviço de edição via IA (Search/Replace com JSON)
+      const { editarPromptViaIA } = await import("./promptEditService");
+      
+      const result = await editarPromptViaIA(currentPrompt, instruction, mistralApiKey, "mistral");
+      
+      console.log(`📝 [Edit Prompt] Sucesso: ${result.success}, Edições: ${result.edicoesAplicadas}`);
+      console.log(`📝 [Edit Prompt] Resposta IA: ${result.mensagemChat}`);
       
       res.json({
         success: result.success,
-        newPrompt: result.newPrompt,
-        changes: result.operations,
-        summary: result.summary,
-        feedbackMessage: result.feedbackMessage,
-        method: openaiApiKey ? "gpt-search-replace" : "local-advanced"
+        newPrompt: result.novoPrompt,
+        changes: result.detalhes,
+        summary: result.mensagemChat,
+        feedbackMessage: result.mensagemChat,
+        method: "mistral-search-replace",
+        stats: {
+          aplicadas: result.edicoesAplicadas,
+          falharam: result.edicoesFalharam
+        }
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error editing prompt:", error);
-      res.status(500).json({ message: "Failed to edit prompt" });
+      res.status(500).json({ message: error.message || "Failed to edit prompt" });
     }
   });
 

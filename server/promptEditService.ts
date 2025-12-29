@@ -88,9 +88,17 @@ export async function editarPromptViaIA(
   modelo: "mistral" | "openai" = "mistral"
 ): Promise<ResultadoEdicao> {
   
+  // Garantir que apiKey é string
+  const apiKeyStr = String(apiKey || '');
+  
+  console.log(`[EditService] Iniciando edição via IA`);
+  console.log(`[EditService] Modelo: ${modelo}`);
+  console.log(`[EditService] API Key type: ${typeof apiKey}`);
+  console.log(`[EditService] API Key length: ${apiKeyStr.length}`);
+  
   // Configura cliente baseado no modelo
   const client = new OpenAI({
-    apiKey: apiKey,
+    apiKey: apiKeyStr,
     baseURL: modelo === "mistral" ? "https://api.mistral.ai/v1" : undefined
   });
   
@@ -193,7 +201,13 @@ Analise o prompt e retorne as edições necessárias em JSON.`;
     };
     
   } catch (error: any) {
-    console.error("[EditService] Erro na chamada à IA:", error.message);
+    console.error("[EditService] ❌ ERRO na chamada à IA");
+    console.error("[EditService] Error type:", error.constructor.name);
+    console.error("[EditService] Error message:", error.message);
+    console.error("[EditService] Error status:", error.status);
+    console.error("[EditService] Error code:", error.code);
+    console.error("[EditService] Full error:", JSON.stringify(error, null, 2));
+    
     return {
       success: false,
       novoPrompt: promptAtual,

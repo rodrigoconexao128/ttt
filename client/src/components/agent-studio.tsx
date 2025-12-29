@@ -229,7 +229,7 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
         addToHistory(data.newPrompt, currentInstruction, data.summary || "Edição aplicada");
         
         setCurrentPrompt(data.newPrompt);
-        setHasChanges(true);
+        setHasChanges(false); // Reset porque vamos salvar automaticamente
         
         // Mensagem de confirmação com feedback detalhado
         const feedbackContent = data.feedbackMessage || data.summary || "Mudanças aplicadas!";
@@ -245,9 +245,12 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
         };
         setChatMessages(prev => [...prev, assistantMessage]);
         
+        // AUTO-SAVE: Salvar automaticamente após edição bem-sucedida
+        onSave(data.newPrompt);
+        
         toast({
-          title: "✅ Prompt atualizado",
-          description: data.summary || "Mudanças aplicadas com sucesso!"
+          title: "✅ Prompt atualizado e salvo",
+          description: data.summary || "Mudanças aplicadas e salvas automaticamente!"
         });
       } else {
         // Nenhuma mudança feita
@@ -351,27 +354,32 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
   return (
     <div className="flex flex-col h-full">
       
-      {/* Mobile Tab Switcher */}
-      <div className="md:hidden flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-        <Tabs value={mobileView} onValueChange={(v) => setMobileView(v as any)}>
-          <TabsList className="grid grid-cols-2 w-full max-w-xs">
-            <TabsTrigger value="editor" className="text-xs">
-              <Edit3 className="w-3 h-3 mr-1" />
-              Editor
-            </TabsTrigger>
-            <TabsTrigger value="simulator" className="text-xs">
-              <Smartphone className="w-3 h-3 mr-1" />
-              Simulador
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-        
-        {hasChanges && (
-          <Button size="sm" onClick={handleSave} className="ml-2">
-            <Zap className="w-3 h-3 mr-1" />
-            Salvar
-          </Button>
-        )}
+      {/* Mobile Tab Switcher - Design melhorado */}
+      <div className="md:hidden flex items-center justify-center gap-2 px-3 py-2 border-b bg-background">
+        <button
+          onClick={() => setMobileView("editor")}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all",
+            mobileView === "editor" 
+              ? "bg-primary text-primary-foreground shadow-md" 
+              : "bg-muted/50 text-muted-foreground hover:bg-muted"
+          )}
+        >
+          <Edit3 className="w-4 h-4" />
+          Editor
+        </button>
+        <button
+          onClick={() => setMobileView("simulator")}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all",
+            mobileView === "simulator" 
+              ? "bg-[#075E54] text-white shadow-md" 
+              : "bg-muted/50 text-muted-foreground hover:bg-muted"
+          )}
+        >
+          <Smartphone className="w-4 h-4" />
+          Preview
+        </button>
       </div>
 
       {/* Main Split View */}
@@ -379,7 +387,7 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
         
         {/* ============ LEFT PANEL: EDITOR ============ */}
         <div className={cn(
-          "flex-1 flex flex-col border-r bg-background",
+          "flex-1 flex flex-col border-r bg-background relative overflow-hidden",
           mobileView !== "editor" && "hidden md:flex"
         )}>
           
@@ -463,14 +471,22 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
             </div>
           </div>
 
-          {/* History Panel (collapsible) */}
+          {/* History Panel (collapsible) - Posicionado como overlay para não quebrar layout */}
           {showHistory && promptHistory.length > 1 && (
-            <div className="border-b bg-muted/30 px-4 py-2 max-h-40 overflow-y-auto">
-              <p className="text-xs font-medium text-muted-foreground mb-2">
-                📜 Histórico de versões ({promptHistory.length})
-              </p>
+            <div className="absolute top-12 left-0 right-0 z-50 border-b bg-background/95 backdrop-blur-sm shadow-lg px-4 py-3 max-h-48 overflow-y-auto mx-4 rounded-lg border">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  📜 Histórico ({promptHistory.length})
+                </p>
+                <button 
+                  onClick={() => setShowHistory(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </button>
+              </div>
               <div className="space-y-1">
-                {[...promptHistory].reverse().map((entry, idx) => {
+                {[...promptHistory].reverse().slice(0, 10).map((entry, idx) => {
                   const actualIndex = promptHistory.length - 1 - idx;
                   const isActive = actualIndex === historyIndex;
                   return (
@@ -478,25 +494,20 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
                       key={entry.id}
                       onClick={() => restoreFromHistory(actualIndex)}
                       className={cn(
-                        "w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors",
+                        "w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors overflow-hidden",
                         isActive 
                           ? "bg-primary/10 border border-primary/30" 
                           : "hover:bg-muted"
                       )}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className={cn("truncate", isActive && "font-medium")}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={cn("truncate flex-1 min-w-0", isActive && "font-medium")}>
                           {entry.instruction}
                         </span>
-                        <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
-                          {entry.timestamp.toLocaleTimeString()}
+                        <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                          {entry.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      {entry.summary && entry.summary !== entry.instruction && (
-                        <p className="text-[10px] text-muted-foreground truncate mt-0.5">
-                          {entry.summary}
-                        </p>
-                      )}
                     </button>
                   );
                 })}
@@ -651,7 +662,7 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
 
         {/* ============ RIGHT PANEL: SIMULATOR ============ */}
         <div className={cn(
-          "w-full md:w-[400px] lg:w-[450px] flex flex-col bg-[#e5ddd5] dark:bg-zinc-900",
+          "w-full md:w-[380px] lg:w-[420px] flex-shrink-0 flex flex-col bg-[#e5ddd5] dark:bg-zinc-900",
           mobileView !== "simulator" && "hidden md:flex"
         )}>
           
