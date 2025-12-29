@@ -72,26 +72,26 @@ export function PromptGenerator({ onPromptGenerated, onSkip }: PromptGeneratorPr
   };
 
   const generateLocalFallback = (input: string) => {
-    return `Você é o assistente virtual de atendimento.
+    // Tenta extrair nome do negócio do input
+    const nomeMatch = input.match(/(?:chama|chamada?|sou|somos|é a|tenho a?|minha?)\s+([^.!?,]+)/i);
+    const nome = nomeMatch ? nomeMatch[1].trim().split(' ').slice(0, 3).join(' ') : "Meu Negócio";
+    
+    // Versão CONCISA do fallback
+    return `${nome} - Atendente virtual. Tom: simpático e objetivo.
 
-📋 **CONTEXTO DO NEGÓCIO:**
-${input}
+CONTEXTO:
+${input.length > 300 ? input.substring(0, 300) + '...' : input}
 
-📋 **PERSONALIDADE:**
-- Seja simpático, profissional e objetivo
-- Use emojis com moderação 
-- Responda de forma rápida e eficiente
+REGRAS:
+• Cumprimente na primeira mensagem
+• Responda dúvidas sobre o negócio
+• Ajude com agendamentos e pedidos
+• Seja direto e resolva problemas
 
-## ✅ O QUE FAZER
-- Sempre cumprimente o cliente
-- Responda dúvidas com base no contexto acima
-- Ajude com agendamentos e pedidos
-- Seja prestativo e resolva problemas
-
-## ❌ O QUE NÃO FAZER
-- Não invente informações que não estão no contexto
-- Não seja rude
-- Encaminhe para humano se não souber responder`;
+NÃO FAZER:
+• Inventar informações
+• Ser rude ou impaciente
+• Encaminhe para humano se não souber`;
   };
 
   const handleFinish = () => {

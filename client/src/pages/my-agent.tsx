@@ -25,6 +25,7 @@ import type { AiAgentConfig } from "@shared/schema";
 import { PromptGenerator } from "@/components/prompt-generator";
 import { ExpandedEditor, ExpandButton } from "@/components/expanded-editor";
 import { PromptImprover } from "@/components/prompt-improver";
+import { AgentStudio } from "@/components/agent-studio";
 
 // ============== TIPOS ==============
 interface AgentMedia {
@@ -105,6 +106,8 @@ export default function MyAgent() {
   
   // Estado do gerador de prompt e editor expandido
   const [showPromptGenerator, setShowPromptGenerator] = useState(false);
+  const [showAgentStudio, setShowAgentStudio] = useState(false);
+  const [isNewAgent, setIsNewAgent] = useState(false);
   const [isExpandedEditorOpen, setIsExpandedEditorOpen] = useState(false);
   const [isPromptImproverOpen, setIsPromptImproverOpen] = useState(false);
   
@@ -432,28 +435,41 @@ export default function MyAgent() {
     setPrompt(generatedPrompt);
     setIsActive(true); // Auto-ativa o agente
     setShowPromptGenerator(false);
+    setIsNewAgent(true);
+    setShowAgentStudio(true); // Mostra o AgentStudio para testar/editar
+    
     // Salvar automaticamente com agente ativo
-    setTimeout(() => {
-      apiRequest("POST", "/api/agent/config", {
-        prompt: generatedPrompt,
-        isActive: true,
-        triggerPhrases,
-        messageSplitChars,
-        responseDelaySeconds,
-        fetchHistoryOnFirstResponse,
-        pauseOnManualReply,
-      }).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
-        toast({
-          title: "✅ Agente Ativado!",
-          description: "Redirecionando para conectar seu WhatsApp...",
-        });
-        // Redirecionar para página de conexão
-        setTimeout(() => {
-          navigate("/conexao");
-        }, 1500);
+    apiRequest("POST", "/api/agent/config", {
+      prompt: generatedPrompt,
+      isActive: true,
+      triggerPhrases,
+      messageSplitChars,
+      responseDelaySeconds,
+      fetchHistoryOnFirstResponse,
+      pauseOnManualReply,
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
+      toast({
+        title: "✅ Agente Criado!",
+        description: "Teste no simulador e ajuste como quiser.",
       });
-    }, 100);
+    });
+  };
+  
+  // Handler para salvar do AgentStudio
+  const handleAgentStudioSave = (newPrompt: string) => {
+    setPrompt(newPrompt);
+    apiRequest("POST", "/api/agent/config", {
+      prompt: newPrompt,
+      isActive: true,
+      triggerPhrases,
+      messageSplitChars,
+      responseDelaySeconds,
+      fetchHistoryOnFirstResponse,
+      pauseOnManualReply,
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
+    });
   };
 
   // Mostrar o gerador de prompt se necessário
@@ -464,6 +480,51 @@ export default function MyAgent() {
           <PromptGenerator 
             onPromptGenerated={handlePromptGenerated}
             onSkip={() => setShowPromptGenerator(false)}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar AgentStudio (após criar agente ou quando clica em "Editar com IA")
+  if (showAgentStudio && prompt) {
+    return (
+      <div className="h-screen flex flex-col bg-background">
+        {/* Header compacto */}
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/20 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => {
+                setShowAgentStudio(false);
+                setIsNewAgent(false);
+              }}
+              className="text-xs"
+            >
+              ← Voltar
+            </Button>
+            <span className="text-sm font-medium">Studio do Agente</span>
+          </div>
+          {isNewAgent && (
+            <Button 
+              size="sm" 
+              onClick={() => navigate("/conexao")}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Zap className="w-3 h-3 mr-1" />
+              Conectar WhatsApp
+            </Button>
+          )}
+        </div>
+        
+        {/* AgentStudio */}
+        <div className="flex-1 overflow-hidden">
+          <AgentStudio
+            initialPrompt={prompt}
+            onSave={handleAgentStudioSave}
+            onNavigateToConnect={() => navigate("/conexao")}
+            isNew={isNewAgent}
           />
         </div>
       </div>
@@ -609,15 +670,26 @@ export default function MyAgent() {
                     )}
                     {/* Se JÁ tem prompt, mostra botão de Melhorar */}
                     {prompt.trim() && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsPromptImproverOpen(true)}
-                        className="gap-1.5 text-xs"
-                      >
-                        <Wand2 className="w-3.5 h-3.5" />
-                        <span className="hidden md:inline">Melhorar</span>
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowAgentStudio(true)}
+                          className="gap-1.5 text-xs"
+                        >
+                          <Bot className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">Studio</span>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsPromptImproverOpen(true)}
+                          className="gap-1.5 text-xs"
+                        >
+                          <Wand2 className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">Melhorar</span>
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="outline"

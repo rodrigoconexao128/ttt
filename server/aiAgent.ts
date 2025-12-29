@@ -1121,7 +1121,8 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
 
 export async function testAgentResponse(
   userId: string,
-  testMessage: string
+  testMessage: string,
+  customPrompt?: string
 ): Promise<{ text: string | null; mediaActions: MistralResponse['actions'] }> {
   try {
     const agentConfig = await storage.getAgentConfig(userId);
@@ -1135,8 +1136,8 @@ export async function testAgentResponse(
     const hasMedia = mediaLibrary && mediaLibrary.length > 0;
     const mediaPromptBlock = hasMedia ? generateMediaPromptBlock(mediaLibrary) : '';
     
-    // Construir prompt com mídia
-    let systemPrompt = agentConfig.prompt;
+    // Construir prompt com mídia (usa customPrompt se fornecido)
+    let systemPrompt = customPrompt || agentConfig.prompt;
     if (mediaPromptBlock) {
       systemPrompt += mediaPromptBlock;
     }
