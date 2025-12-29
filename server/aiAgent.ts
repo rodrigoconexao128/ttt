@@ -281,7 +281,12 @@ export async function generateAIResponse(
   userId: string,
   conversationHistory: Message[],
   newMessageText: string,
-  options?: AIResponseOptions
+  options?: AIResponseOptions,
+  testDependencies?: {
+    getBusinessAgentConfig?: (id: string) => Promise<any>,
+    getAgentConfig?: (id: string) => Promise<any>,
+    getAgentMediaLibrary?: (id: string) => Promise<any>
+  }
 ): Promise<AIResponseResult | null> {
   try {
     // 🌅 EXTRAIR CONTEXTO DINÂMICO
@@ -292,10 +297,21 @@ export async function generateAIResponse(
     console.log(`📁 [AI Agent] Mídias já enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
     
     // 🆕 TENTAR BUSCAR BUSINESS CONFIG PRIMEIRO (novo sistema)
-    let businessConfig = await storage.getBusinessAgentConfig?.(userId);
+    // Usar dependência injetada se existir (para testes)
+    let businessConfig;
+    if (testDependencies?.getBusinessAgentConfig) {
+      businessConfig = await testDependencies.getBusinessAgentConfig(userId);
+    } else {
+      businessConfig = await storage.getBusinessAgentConfig?.(userId);
+    }
     
     // 🔄 FALLBACK: Buscar config legado se novo não existir
-    const agentConfig = await storage.getAgentConfig(userId);
+    let agentConfig;
+    if (testDependencies?.getAgentConfig) {
+      agentConfig = await testDependencies.getAgentConfig(userId);
+    } else {
+      agentConfig = await storage.getAgentConfig(userId);
+    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // 🎯 DEBUG: Mostrar status das configurações
@@ -331,7 +347,12 @@ export async function generateAIResponse(
     console.log(`   ✅ [AI Agent] Agent ENABLED (legacy isActive=true), processing response...`);
     
     // 📁 BUSCAR BIBLIOTECA DE MÍDIAS DO AGENTE
-    const mediaLibrary = await getAgentMediaLibrary(userId);
+    let mediaLibrary;
+    if (testDependencies?.getAgentMediaLibrary) {
+      mediaLibrary = await testDependencies.getAgentMediaLibrary(userId);
+    } else {
+      mediaLibrary = await getAgentMediaLibrary(userId);
+    }
     const hasMedia = mediaLibrary.length > 0;
     
     if (hasMedia) {
@@ -511,6 +532,7 @@ export async function generateAIResponse(
     - Evite formato de manual técnico (##, ###, listas longas).
     - Responda de forma natural, objetiva e curta (2–5 linhas), com uma ideia por vez.
     - Se não souber, diga que não tem a informação e ofereça alternativa no escopo.
+    - Se receber o texto "(mensagem de voz)" ou "(audio)", explique educadamente que não consegue ouvir áudios e peça para o cliente escrever ou enviar texto.
   `;
        // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT LEGADO TAMBÉM
        if (mediaPromptBlock) {
@@ -691,17 +713,8 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
         const jaDisseOQueTrabalha = /trabalho|faço|vendo|sou|tenho|minha|empresa|loja|negócio|vendas|atendimento|clientes/i.test(msgLower);
         const jaPediuAjuda = /preciso|quero|gostaria|ajuda|ajudar|responder|automatizar|atender/i.test(msgLower);
         
-        // Detectar se o agente já se apresentou ou fez a pergunta inicial
-        const jaSeApresentou = agentMessages.some(m => 
-          (m.text || '').includes("Rodrigo da AgenteZap") || 
-          (m.text || '').includes("Sou o Rodrigo") ||
-          (m.text || '').includes("AgenteZap aqui")
-        );
-        
-        const jaPerguntouOQueFaz = agentMessages.some(m => 
-          (m.text || '').includes("o que você faz hoje") || 
-          (m.text || '').includes("Vendas, atendimento ou qualificação")
-        );
+        // Detectar se o agente já interagiu anteriormente
+        const jaInteragiu = agentMessages.length > 0;
 
         // Gerar resumo do contexto para a IA
         const contextSummary = hasAgentReplies 
@@ -718,18 +731,16 @@ ${contextSummary}
 
 🚫 PROIBIDO (vai fazer você parecer um robô burro):
    ❌ Perguntar "o que você faz?" de novo se cliente JÁ RESPONDEU (inclusive na msg atual!)
-   ❌ Se apresentar novamente ("Sou o X da empresa Y") - cliente JÁ TE CONHECE
-   ${jaSeApresentou ? '❌ DIZER "Rodrigo da AgenteZap aqui" ou se apresentar de novo - VOCÊ JÁ FEZ ISSO!' : ''}
-   ${jaPerguntouOQueFaz ? '❌ PERGUNTAR "o que você faz hoje?" ou "Vendas, atendimento ou qualificação" - VOCÊ JÁ PERGUNTOU!' : ''}
+   ${jaInteragiu ? '❌ Se apresentar novamente (dizer Nome, Cargo ou Empresa) - O CLIENTE JÁ TE CONHECE!' : ''}
+   ${jaInteragiu ? '❌ Repetir a mesma pergunta feita anteriormente - verifique o histórico!' : ''}
    ❌ Ignorar o contexto e recomeçar a conversa do zero
-   ❌ Repetir as mesmas perguntas já feitas
    ❌ Dar a mesma saudação inicial para um novo "oi" no meio da conversa
    ❌ Escrever a palavra "Áudio", "Audio", "Imagem", "Vídeo" SOLTA no texto
    ❌ Repetir o nome do cliente mais de 1x na mesma resposta
    ❌ Concatenar múltiplas respostas em uma só (uma resposta por vez!)
 
 ✅ OBRIGATÓRIO:
-   ✅ Se cliente manda "oi/olá/tudo bem" de novo → apenas "Oi! Posso ajudar?" (CURTO!)
+   ✅ Se cliente manda "oi/olá/tudo bem" de novo → responda a saudação de forma BREVE e retome o assunto (no idioma da conversa)
    ✅ Se cliente repete uma pergunta → responda brevemente ("como eu disse, ...")
    ✅ Se cliente responde "sim/não" → entenda o contexto da pergunta anterior
    ✅ Continue de onde parou naturalmente
@@ -739,8 +750,11 @@ ${contextSummary}
 
 ${isSaudacao ? `
 🎯 ATENÇÃO: O cliente acabou de mandar "${newMessageText}" que é uma SAUDAÇÃO REPETIDA.
-   RESPOSTA IDEAL: "Oi! Em que posso te ajudar?" (CURTO, SIMPLES)
-   NÃO SE APRESENTE NOVAMENTE. NÃO REPITA TUDO.
+   INSTRUÇÃO: Responda a saudação de forma BREVE e pergunte como ajudar, mantendo o idioma e o tom da conversa.
+   EXEMPLO (PT): "Oi! Em que posso ajudar?"
+   EXEMPLO (EN): "Hi! How can I help?"
+   🚫 NÃO se apresente novamente.
+   🚫 NÃO repita a pergunta de qualificação ("o que você faz?") se já foi feita.
 ` : ''}
 ${jaDisseOQueTrabalha || jaPediuAjuda ? `
 🎯 ATENÇÃO: A mensagem ATUAL do cliente JÁ CONTÉM informações importantes!
@@ -897,7 +911,7 @@ ${jaDisseOQueTrabalha || jaPediuAjuda ? `
       const lastAgentText = lastAgentMsg?.text?.substring(0, 80) || '';
       
       // Adicionar instrução JUNTO com a mensagem do usuário
-      finalUserMessage = `[INSTRUÇÃO CRÍTICA PARA O ASSISTENTE: O cliente mandou "${finalUserMessage}" de novo. Esta é uma SAUDAÇÃO REPETIDA em uma conversa já iniciada. Sua última resposta foi: "${lastAgentText}...". NÃO se apresente novamente. NÃO pergunte o que ele faz de novo. Responda apenas: "Oi! Em que posso te ajudar?" ou "Oi! Posso te ajudar com algo mais?" - RESPOSTA MÁXIMA DE 1 FRASE CURTA.]
+      finalUserMessage = `[INSTRUÇÃO CRÍTICA PARA O ASSISTENTE: O cliente mandou "${finalUserMessage}" de novo. Esta é uma SAUDAÇÃO REPETIDA em uma conversa já iniciada. Sua última resposta foi: "${lastAgentText}...". NÃO se apresente novamente. NÃO pergunte o que ele faz de novo. Responda apenas uma saudação curta e pergunte como ajudar (no idioma da conversa).]
 
 Mensagem do cliente: ${newMessageText.trim()}`;
     }
