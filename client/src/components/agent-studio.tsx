@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -7,7 +7,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Bot, ArrowRight, Sparkles, MessageSquare, Edit3, 
   Loader2, Send, Eye, Code, Smartphone, Monitor, 
-  CheckCircle2, Wand2, RefreshCw, Settings, Zap
+  CheckCircle2, Wand2, RefreshCw, Settings, Zap,
+  Undo2, Redo2, History, ChevronUp, ChevronDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -35,19 +36,39 @@ interface SimulatorMessage {
   time: string;
 }
 
+// Interface para histórico de versões do prompt
+interface PromptHistoryEntry {
+  id: string;
+  prompt: string;
+  instruction: string;
+  timestamp: Date;
+  summary: string;
+}
+
+// Constantes para controle de histórico
+const MAX_CHAT_MESSAGES_VISIBLE = 50; // Mensagens visíveis por padrão
+const CHAT_LOAD_INCREMENT = 20; // Mensagens carregadas por vez
+
 export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew = false }: AgentStudioProps) {
   const { toast } = useToast();
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const simulatorEndRef = useRef<HTMLDivElement>(null);
   
   // Estado do prompt
   const [currentPrompt, setCurrentPrompt] = useState(initialPrompt);
   const [hasChanges, setHasChanges] = useState(false);
   
-  // Estado do chat de edição
+  // Estado do chat de edição com lazy loading
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [visibleMessages, setVisibleMessages] = useState(MAX_CHAT_MESSAGES_VISIBLE);
   const [editInput, setEditInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Sistema de Undo/Redo (histórico de versões)
+  const [promptHistory, setPromptHistory] = useState<PromptHistoryEntry[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showHistory, setShowHistory] = useState(false);
   
   // Estado do simulador
   const [simulatorMessages, setSimulatorMessages] = useState<SimulatorMessage[]>([]);
@@ -83,7 +104,100 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
   // Atualiza quando prompt inicial mudar
   useEffect(() => {
     setCurrentPrompt(initialPrompt);
+    // Inicializa histórico com prompt inicial
+    if (promptHistory.length === 0) {
+      setPromptHistory([{
+        id: "initial",
+        prompt: initialPrompt,
+        instruction: "Prompt inicial",
+        timestamp: new Date(),
+        summary: "Versão original"
+      }]);
+      setHistoryIndex(0);
+    }
   }, [initialPrompt]);
+
+  // ============ FUNÇÕES DE HISTÓRICO (UNDO/REDO) ============
+  
+  const addToHistory = useCallback((newPrompt: string, instruction: string, summary: string) => {
+    const newEntry: PromptHistoryEntry = {
+      id: `history-${Date.now()}`,
+      prompt: newPrompt,
+      instruction,
+      timestamp: new Date(),
+      summary
+    };
+    
+    // Remove entradas futuras se estamos no meio do histórico
+    const newHistory = [...promptHistory.slice(0, historyIndex + 1), newEntry];
+    setPromptHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  }, [promptHistory, historyIndex]);
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < promptHistory.length - 1;
+
+  const handleUndo = useCallback(() => {
+    if (canUndo) {
+      const newIndex = historyIndex - 1;
+      const previousEntry = promptHistory[newIndex];
+      setCurrentPrompt(previousEntry.prompt);
+      setHistoryIndex(newIndex);
+      setHasChanges(true);
+      
+      // Adiciona mensagem no chat
+      setChatMessages(prev => [...prev, {
+        id: `system-undo-${Date.now()}`,
+        role: "system",
+        content: `⏪ Desfez: "${previousEntry.instruction}"`,
+        timestamp: new Date()
+      }]);
+    }
+  }, [canUndo, historyIndex, promptHistory]);
+
+  const handleRedo = useCallback(() => {
+    if (canRedo) {
+      const newIndex = historyIndex + 1;
+      const nextEntry = promptHistory[newIndex];
+      setCurrentPrompt(nextEntry.prompt);
+      setHistoryIndex(newIndex);
+      setHasChanges(true);
+      
+      // Adiciona mensagem no chat
+      setChatMessages(prev => [...prev, {
+        id: `system-redo-${Date.now()}`,
+        role: "system",
+        content: `⏩ Refez: "${nextEntry.instruction}"`,
+        timestamp: new Date()
+      }]);
+    }
+  }, [canRedo, historyIndex, promptHistory]);
+
+  const restoreFromHistory = useCallback((index: number) => {
+    const entry = promptHistory[index];
+    if (entry) {
+      setCurrentPrompt(entry.prompt);
+      setHistoryIndex(index);
+      setHasChanges(true);
+      setShowHistory(false);
+      
+      setChatMessages(prev => [...prev, {
+        id: `system-restore-${Date.now()}`,
+        role: "system",
+        content: `🔄 Restaurado: "${entry.instruction}" (${entry.timestamp.toLocaleTimeString()})`,
+        timestamp: new Date()
+      }]);
+    }
+  }, [promptHistory]);
+
+  // ============ LAZY LOADING DO CHAT ============
+  
+  const loadMoreMessages = useCallback(() => {
+    setVisibleMessages(prev => Math.min(prev + CHAT_LOAD_INCREMENT, chatMessages.length));
+  }, [chatMessages.length]);
+
+  const hasMoreMessages = chatMessages.length > visibleMessages;
+  const displayedMessages = chatMessages.slice(-visibleMessages);
 
   // ============ EDIÇÃO VIA CHAT ============
   const handleEditPrompt = async () => {
@@ -96,36 +210,54 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
       timestamp: new Date()
     };
     
+    const currentInstruction = editInput;
     setChatMessages(prev => [...prev, userMessage]);
     setEditInput("");
     setIsProcessing(true);
 
     try {
-      // Chama API de edição com JSON Schema
+      // Chama API de edição com novo engine
       const response = await apiRequest("POST", "/api/agent/edit-prompt", {
         currentPrompt,
-        instruction: editInput
+        instruction: currentInstruction
       });
       
       const data = await response.json();
       
-      if (data.newPrompt) {
+      if (data.success && data.newPrompt && data.newPrompt !== currentPrompt) {
+        // Adiciona ao histórico antes de atualizar
+        addToHistory(data.newPrompt, currentInstruction, data.summary || "Edição aplicada");
+        
         setCurrentPrompt(data.newPrompt);
         setHasChanges(true);
         
-        // Mensagem de confirmação
+        // Mensagem de confirmação com feedback detalhado
+        const feedbackContent = data.feedbackMessage || data.summary || "Mudanças aplicadas!";
+        const changesInfo = data.changes?.length > 0 
+          ? `\n\n📋 ${data.changes.length} operação(ões)` 
+          : "";
+        
         const assistantMessage: ChatMessage = {
           id: `assistant-${Date.now()}`,
           role: "assistant",
-          content: `✅ ${data.summary || "Mudanças aplicadas!"}\n\n${data.changes?.length > 0 ? `📝 ${data.changes.length} alteração(ões) feita(s)` : ""}`,
+          content: feedbackContent + changesInfo,
           timestamp: new Date()
         };
         setChatMessages(prev => [...prev, assistantMessage]);
         
         toast({
-          title: "Prompt atualizado",
+          title: "✅ Prompt atualizado",
           description: data.summary || "Mudanças aplicadas com sucesso!"
         });
+      } else {
+        // Nenhuma mudança feita
+        const warningMessage: ChatMessage = {
+          id: `warning-${Date.now()}`,
+          role: "assistant",
+          content: data.feedbackMessage || `⚠️ Não consegui aplicar essa mudança. Tente ser mais específico.\n\n💡 Dicas:\n• Para mudar nome: "mude o nome para X"\n• Para mudar preço: "preço: R$50"\n• Para remover: "remova a parte sobre X"\n• Para adicionar: "adicione que fechamos às 22h"`,
+          timestamp: new Date()
+        };
+        setChatMessages(prev => [...prev, warningMessage]);
       }
     } catch (error: any) {
       console.error("Erro ao editar prompt:", error);
@@ -134,7 +266,7 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         role: "assistant",
-        content: `❌ Não consegui aplicar essa mudança. Tente ser mais específico ou edite manualmente clicando em "Ver código".`,
+        content: `❌ Erro ao processar. Tente novamente ou edite manualmente clicando em "Código".`,
         timestamp: new Date()
       };
       setChatMessages(prev => [...prev, errorMessage]);
@@ -266,6 +398,39 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
             </div>
             
             <div className="flex items-center gap-2">
+              {/* Undo/Redo Buttons */}
+              <div className="flex items-center gap-0.5 mr-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleUndo}
+                  disabled={!canUndo}
+                  className="h-8 w-8 p-0"
+                  title="Desfazer (Ctrl+Z)"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRedo}
+                  disabled={!canRedo}
+                  className="h-8 w-8 p-0"
+                  title="Refazer (Ctrl+Y)"
+                >
+                  <Redo2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowHistory(!showHistory)}
+                  className={cn("h-8 w-8 p-0", showHistory && "bg-muted")}
+                  title="Histórico de versões"
+                >
+                  <History className="w-4 h-4" />
+                </Button>
+              </div>
+
               {/* View Toggle */}
               <div className="hidden md:flex bg-muted rounded-lg p-0.5">
                 <Button
@@ -298,11 +463,66 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
             </div>
           </div>
 
+          {/* History Panel (collapsible) */}
+          {showHistory && promptHistory.length > 1 && (
+            <div className="border-b bg-muted/30 px-4 py-2 max-h-40 overflow-y-auto">
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                📜 Histórico de versões ({promptHistory.length})
+              </p>
+              <div className="space-y-1">
+                {[...promptHistory].reverse().map((entry, idx) => {
+                  const actualIndex = promptHistory.length - 1 - idx;
+                  const isActive = actualIndex === historyIndex;
+                  return (
+                    <button
+                      key={entry.id}
+                      onClick={() => restoreFromHistory(actualIndex)}
+                      className={cn(
+                        "w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors",
+                        isActive 
+                          ? "bg-primary/10 border border-primary/30" 
+                          : "hover:bg-muted"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={cn("truncate", isActive && "font-medium")}>
+                          {entry.instruction}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground ml-2 flex-shrink-0">
+                          {entry.timestamp.toLocaleTimeString()}
+                        </span>
+                      </div>
+                      {entry.summary && entry.summary !== entry.instruction && (
+                        <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                          {entry.summary}
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Editor Content */}
           {activeView === "chat" ? (
             <>
-              {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {/* Chat Messages with Lazy Loading */}
+              <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+                
+                {/* Load More Button */}
+                {hasMoreMessages && (
+                  <div className="flex justify-center pb-2">
+                    <button
+                      onClick={loadMoreMessages}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted transition-colors"
+                    >
+                      <ChevronUp className="w-3 h-3" />
+                      Carregar mais ({chatMessages.length - visibleMessages} anteriores)
+                    </button>
+                  </div>
+                )}
+                
                 {/* Mensagem inicial */}
                 {chatMessages.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full text-center p-6 space-y-4">
@@ -333,8 +553,8 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
                   </div>
                 )}
                 
-                {/* Histórico de chat */}
-                {chatMessages.map((msg) => (
+                {/* Histórico de chat com lazy loading */}
+                {displayedMessages.map((msg) => (
                   <div key={msg.id} className={cn(
                     "flex",
                     msg.role === "user" ? "justify-end" : "justify-start"

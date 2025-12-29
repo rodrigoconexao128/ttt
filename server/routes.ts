@@ -1317,7 +1317,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
-  // ============ EDITOR DE PROMPTS COM JSON SCHEMA (Structured Editing) ============
+  // ============ EDITOR DE PROMPTS COM SEARCH/REPLACE ENGINE ============
   app.post("/api/agent/edit-prompt", isAuthenticated, async (req: any, res) => {
     try {
       const { currentPrompt, instruction } = req.body;
@@ -1326,41 +1326,22 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         return res.status(400).json({ message: "currentPrompt e instruction são obrigatórios" });
       }
 
-      // Importar funções de edição
-      const { editPromptWithGPT, editPromptLocally } = await import("./promptEditFullDocument");
+      // Usar novo engine de edição
+      const { editPrompt } = await import("./promptEditEngine");
       
-      // Tentar usar OpenAI com JSON Schema
       const openaiApiKey = process.env.OPENAI_API_KEY;
+      const result = await editPrompt(currentPrompt, instruction, openaiApiKey);
       
-      if (openaiApiKey && openaiApiKey !== 'your-openai-key') {
-        try {
-          const result = await editPromptWithGPT(currentPrompt, instruction, openaiApiKey);
-          
-          return res.json({
-            newPrompt: result.newPrompt,
-            changes: result.changes,
-            summary: result.summary,
-            tokensUsed: result.tokensUsed,
-            method: "gpt-json-schema"
-          });
-        } catch (gptError) {
-          console.error("Erro ao usar GPT para editar prompt:", gptError);
-          // Fallback para edição local
-        }
-      }
-
-      // Fallback: edição local com heurísticas
-      const localResult = editPromptLocally(currentPrompt, instruction);
-      
-      console.log(`📝 [Edit Prompt] Edição local aplicada: ${localResult.changes.length} mudança(s)`);
-      console.log(`📝 [Edit Prompt] Resumo: ${localResult.summary}`);
+      console.log(`📝 [Edit Prompt] Sucesso: ${result.success}, Operações: ${result.operations.length}`);
+      console.log(`📝 [Edit Prompt] Feedback: ${result.feedbackMessage}`);
       
       res.json({
-        newPrompt: localResult.newPrompt,
-        changes: localResult.changes,
-        summary: localResult.summary,
-        tokensUsed: { input: 0, output: 0, saved: 0 },
-        method: "local-fallback"
+        success: result.success,
+        newPrompt: result.newPrompt,
+        changes: result.operations,
+        summary: result.summary,
+        feedbackMessage: result.feedbackMessage,
+        method: openaiApiKey ? "gpt-search-replace" : "local-advanced"
       });
     } catch (error) {
       console.error("Error editing prompt:", error);
