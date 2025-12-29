@@ -236,8 +236,8 @@ ${instruction}`;
               <p className="text-xs text-muted-foreground flex items-start gap-2">
                 <Zap className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
                 <span>
-                  <strong>Edição Inteligente:</strong> Usamos JSON Schema Structured Editing 
-                  para modificar apenas o necessário, economizando tokens e preservando formatação.
+                  <strong>Edição Inteligente:</strong> A IA faz apenas os ajustes que você pediu,
+                  mantendo o restante das instruções como está.
                 </span>
               </p>
             </Card>
@@ -256,7 +256,7 @@ ${instruction}`;
             </div>
             <div className="text-center space-y-1">
               <p className="font-medium">Analisando e editando...</p>
-              <p className="text-sm text-muted-foreground">Aplicando mudanças com edição estruturada</p>
+              <p className="text-sm text-muted-foreground">Aplicando suas mudanças</p>
             </div>
           </div>
         )}
@@ -274,7 +274,7 @@ ${instruction}`;
                     </span>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    via {editResult.method === "gpt-json-schema" ? "GPT + JSON Schema" : "Edição Local"}
+                    via {editResult.method === "gpt-json-schema" ? "IA" : "Ajuste automático"}
                   </span>
                 </div>
                 {editResult.tokensUsed.saved > 0 && (
@@ -313,7 +313,7 @@ ${instruction}`;
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-green-500" />
-                Prompt Melhorado
+                Instruções melhoradas
               </Label>
               <Card className="p-3 bg-muted/30 max-h-[200px] overflow-y-auto">
                 <pre className="text-xs whitespace-pre-wrap font-mono">

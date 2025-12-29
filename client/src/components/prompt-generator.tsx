@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import {
   Sparkles, Loader2, ArrowRight, ArrowLeft, Bot, Store, 
   Building2, Utensils, ShoppingBag, Briefcase, Heart, Car,
   GraduationCap, Home, Plane, Dumbbell, Scissors, Stethoscope,
-  Wand2, CheckCircle2, Pizza, Coffee, Search,
+  Wand2, CheckCircle2, Pizza, Coffee,
   Shirt, Gem, Wrench, Hammer, Palette, Camera, Music, Gamepad2,
   Baby, Dog, Flower2, Cake, Wine, Beer, IceCream, Truck, Package,
   Smartphone, Laptop, Headphones, Watch, Glasses, Pill, Syringe,
@@ -153,39 +153,19 @@ export function PromptGenerator({ onPromptGenerated, onSkip }: PromptGeneratorPr
   const [businessInfo, setBusinessInfo] = useState("");
   const [generatedPrompt, setGeneratedPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [customType, setCustomType] = useState("");
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [typeInput, setTypeInput] = useState("");
 
-  // Filtra tipos de negócio baseado na busca
-  const filteredTypes = useMemo(() => {
-    if (!searchQuery.trim()) return allBusinessTypes;
-    
-    const query = searchQuery.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    return allBusinessTypes.filter(type => {
-      const label = type.label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const id = type.id.toLowerCase();
-      return label.includes(query) || id.includes(query);
-    });
-  }, [searchQuery]);
-
-  // Foca na busca quando abre
-  useEffect(() => {
-    if (step === "type" && searchInputRef.current) {
-      setTimeout(() => searchInputRef.current?.focus(), 100);
+  const handleTypeContinue = () => {
+    if (!typeInput.trim()) {
+      toast({
+        title: "Informe o tipo do negócio",
+        description: "Digite algo como: Academia, Advogado, Pizzaria...",
+        variant: "destructive",
+      });
+      return;
     }
-  }, [step]);
-
-  const handleSelectType = (typeId: string) => {
-    setSelectedType(typeId);
+    setSelectedType(typeInput.trim());
     setStep("info");
-  };
-
-  const handleCustomType = () => {
-    if (customType.trim()) {
-      setSelectedType(customType);
-      setStep("info");
-    }
   };
 
   const generatePrompt = async () => {
@@ -228,7 +208,10 @@ export function PromptGenerator({ onPromptGenerated, onSkip }: PromptGeneratorPr
   };
 
   const generateLocalPrompt = () => {
-    const typeName = allBusinessTypes.find(t => t.id === selectedType)?.label || selectedType || "seu negócio";
+    const typeName =
+      allBusinessTypes.find(
+        (t) => t.id === selectedType || t.label.toLowerCase() === (selectedType || "").toLowerCase()
+      )?.label || selectedType || "seu negócio";
     
     return `Você é o assistente virtual de atendimento do **${businessName}**.
 
@@ -269,7 +252,9 @@ Lembre-se: você representa o ${businessName}!`;
   };
 
   const getPlaceholder = () => {
-    const type = allBusinessTypes.find(t => t.id === selectedType);
+    const type = allBusinessTypes.find(
+      (t) => t.id === selectedType || t.label.toLowerCase() === (selectedType || "").toLowerCase()
+    );
     const placeholders: Record<string, string> = {
       pizzaria: "Ex: Temos pizzas tradicionais e gourmet, com borda recheada. Horário: 18h às 00h. Delivery disponível.",
       restaurante: "Ex: Especializado em comida italiana, almoço executivo R$35. Reservas pelo WhatsApp.",
@@ -277,7 +262,7 @@ Lembre-se: você representa o ${businessName}!`;
       advogado: "Ex: Especialista em direito trabalhista e previdenciário. OAB/SP 123456. Primeira consulta grátis.",
       clinica_medica: "Ex: Clínica geral, pediatria e dermatologia. Convênios: Unimed, SulAmérica. Horário: 8h às 18h.",
     };
-    return placeholders[selectedType || ""] || "Descreva produtos, serviços, preços, horários, diferenciais...";
+    return placeholders[type?.id || selectedType || ""] || "Descreva produtos, serviços, preços, horários, diferenciais...";
   };
 
   // =================== STEP: ESCOLHER TIPO ===================
@@ -295,73 +280,44 @@ Lembre-se: você representa o ${businessName}!`;
           </p>
         </div>
 
-        {/* Busca */}
-        <div className="relative max-w-md mx-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            ref={searchInputRef}
-            placeholder="Buscar tipo de negócio..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-12 text-base"
-          />
-        </div>
-
-        {/* Grid de tipos */}
-        <div className="max-h-[45vh] overflow-y-auto px-1">
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-            {filteredTypes.map((type) => {
-              const IconComponent = type.icon;
-              const isOther = type.id === "outro";
-              return (
-                <button
-                  key={type.id}
-                  onClick={() => handleSelectType(type.id)}
-                  className={`
-                    flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl
-                    border-2 transition-all duration-200 min-h-[80px]
-                    hover:border-primary hover:bg-primary/5 hover:scale-[1.02]
-                    ${isOther ? 'border-dashed border-muted-foreground/50 bg-muted/30' : 'border-border bg-card'}
-                  `}
-                >
-                  <IconComponent className={`w-6 h-6 ${isOther ? 'text-muted-foreground' : 'text-primary'}`} />
-                  <span className={`text-xs text-center font-medium leading-tight ${isOther ? 'text-muted-foreground' : ''}`}>
-                    {type.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {filteredTypes.length === 0 && (
-            <div className="text-center py-8 space-y-3">
-              <p className="text-muted-foreground">Nenhum tipo encontrado para "{searchQuery}"</p>
-              <p className="text-sm text-muted-foreground">Mas não se preocupe! Digite abaixo:</p>
-            </div>
-          )}
-        </div>
-
-        {/* Campo para tipo personalizado */}
+        {/* Campo único (estilo GPT) */}
         <Card className="p-4 bg-muted/30 max-w-md mx-auto">
           <Label className="text-sm text-muted-foreground mb-2 block">
-            Não encontrou? Digite seu tipo de negócio:
+            Digite o tipo do seu negócio
           </Label>
           <div className="flex gap-2">
             <Input
-              placeholder="Ex: Pet Sitter, Food Truck, Coworking..."
-              value={customType}
-              onChange={(e) => setCustomType(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCustomType()}
-              className="flex-1"
+              list="business-type-options"
+              placeholder="Ex: Academia, Advogado, Pizzaria, Imobiliária..."
+              value={typeInput}
+              onChange={(e) => setTypeInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleTypeContinue()}
+              className="flex-1 h-12 text-base"
+              autoFocus
+              inputMode="search"
+              enterKeyHint="done"
             />
-            <Button 
-              onClick={handleCustomType}
-              disabled={!customType.trim()}
-              size="sm"
+            <Button
+              onClick={handleTypeContinue}
+              disabled={!typeInput.trim()}
+              className="h-12 gap-2"
             >
+              Continuar
               <ArrowRight className="w-4 h-4" />
             </Button>
           </div>
+
+          <datalist id="business-type-options">
+            {allBusinessTypes
+              .filter((t) => t.id !== "outro")
+              .map((t) => (
+                <option key={t.id} value={t.label} />
+              ))}
+          </datalist>
+
+          <p className="text-xs text-muted-foreground mt-2">
+            Pode digitar qualquer tipo — a IA adapta as instruções.
+          </p>
         </Card>
 
         {/* Botão Pular - agora vai direto para edição manual */}
@@ -381,7 +337,9 @@ Lembre-se: você representa o ${businessName}!`;
 
   // =================== STEP: INFORMAÇÕES ===================
   if (step === "info") {
-    const selectedTypeInfo = allBusinessTypes.find(t => t.id === selectedType);
+    const selectedTypeInfo = allBusinessTypes.find(
+      (t) => t.id === selectedType || t.label.toLowerCase() === (selectedType || "").toLowerCase()
+    );
     const IconComponent = selectedTypeInfo?.icon || Store;
     
     return (
