@@ -1,10 +1,10 @@
 
-import { editPromptAdvanced } from './server/promptEditEngine';
+import { editPrompt } from './server/promptEditEngine';
 
 // Estado inicial
 let currentPrompt = `Pizza Express - Assistente Virtual
 
-Oi! Bem-vindo à Pizza Express! 🍕
+Oi! Você é muito bem-vindo à Pizza Express! 🍕
 
 ## Cardápio
 • Pizza Margherita - R$45
@@ -69,7 +69,7 @@ async function runSimulation() {
     console.log(`\n💬 [PASSO ${goal.step}] CLIENTE DIZ: "${goal.instruction}"`);
     
     // Executa a edição
-    const result = editPromptAdvanced(currentPrompt, goal.instruction);
+    const result = await editPrompt(currentPrompt, goal.instruction);
     
     // Atualiza o prompt atual
     const previousPrompt = currentPrompt;

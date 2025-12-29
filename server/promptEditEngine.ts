@@ -136,13 +136,27 @@ function stringSimilarity(str1: string, str2: string): number {
     return shorter.length / longer.length;
   }
   
-  // Contagem de palavras em comum
-  const words1 = new Set(s1.split(/\s+/));
-  const words2 = new Set(s2.split(/\s+/));
-  let common = 0;
-  words1.forEach(w => { if (words2.has(w)) common++; });
+  // Contagem de palavras em comum (Tokenização melhorada para código)
+  // Divide por qualquer caractere que não seja letra/número para pegar tokens reais
+  const tokens1 = s1.split(/[^a-z0-9]+/g).filter(t => t.length > 0);
+  const tokens2 = s2.split(/[^a-z0-9]+/g).filter(t => t.length > 0);
   
-  return common / Math.max(words1.size, words2.size);
+  const set1 = new Set(tokens1);
+  const set2 = new Set(tokens2);
+  
+  let common = 0;
+  set1.forEach(w => { if (set2.has(w)) common++; });
+  
+  // Se não tem tokens (só símbolos), volta para split por espaço
+  if (set1.size === 0 && set2.size === 0) {
+     const w1 = new Set(s1.split(/\s+/));
+     const w2 = new Set(s2.split(/\s+/));
+     let c = 0;
+     w1.forEach(w => { if (w2.has(w)) c++; });
+     return c / Math.max(w1.size, w2.size);
+  }
+  
+  return common / Math.max(set1.size, set2.size);
 }
 
 /**
@@ -495,11 +509,12 @@ function processChange(doc: string, intent: ParsedIntent, rawInstruction: string
   
   // ============ 1. MUDANÇA DE NOME ============
   const namePatterns = [
-    /(?:nome|empresa|estabelecimento|loja|restaurante)\s*(?:para|:|\s+é)\s*["""']?([^"""'\n.!?]+)/i,
-    /(?:mude?|troque?|altere?)\s+(?:o\s+)?nome\s+(?:para|por|:)\s*["""']?([^"""'\n.!?]+)/i,
-    /(?:chama(?:r)?|renomea?r?)\s+(?:para|:)\s*["""']?([^"""'\n.!?]+)/i,
-    /(?:a?\s*empresa|o?\s*estabelecimento)\s+(?:se\s+)?chama\s*["""']?([^"""'\n.!?]+)/i,
-    /(?:o?\s*nome\s+)?agora\s+(?:é|sera?)\s*["""']?([^"""'\n.!?]+)/i,
+    // Padrão mais flexível para "nome da X para Y" - permite apóstrofos
+    /(?:mude?|troque?|altere?)\s+(?:o\s+)?nome\s+(?:d[aoe]s?\s+\w+\s+)?(?:para|por|:)\s*["""']?([^"""\n.!?]+)/i,
+    /(?:nome|empresa|estabelecimento|loja|restaurante)\s*(?:para|:|\s+é)\s*["""']?([^"""\n.!?]+)/i,
+    /(?:chama(?:r)?|renomea?r?)\s+(?:para|:)\s*["""']?([^"""\n.!?]+)/i,
+    /(?:a?\s*empresa|o?\s*estabelecimento)\s+(?:se\s+)?chama\s*["""']?([^"""\n.!?]+)/i,
+    /(?:o?\s*nome\s+)?agora\s+(?:é|sera?)\s*["""']?([^"""\n.!?]+)/i,
   ];
   
   for (const pattern of namePatterns) {
@@ -602,23 +617,34 @@ function processChange(doc: string, intent: ParsedIntent, rawInstruction: string
   
   // 2.1 Mudança Contextual (Item + Valor)
   // Ex: "Pizza Margherita aumentou para R$ 55"
-  const contextualValuePattern = /(.+?)\s+(?:aumentou|diminuiu|mudou|passou|agora\s+é)\s+(?:para|por)?\s*(R?\$?\s*[\d.,]+|\d{1,2}h?)/i;
+  const contextualValuePattern = /(.+?)\s+(?:aumentou|diminuiu|mudou|passou|agora\s+é)\s+(?:para|por)?\s*(R?\$?\s*[\d.,]+|\d{1,2}h?|final\s+\d+)/i;
   const contextMatch = rawInstruction.match(contextualValuePattern);
   
   if (contextMatch && contextMatch[1] && contextMatch[2]) {
-    const item = contextMatch[1].trim();
+    let item = contextMatch[1].trim();
     const newValue = contextMatch[2].trim();
     
+    // Remove artigos e preposições comuns do início do item para melhorar busca
+    item = item.replace(/^(?:a|o|as|os|um|uma|uns|umas)\s+/i, "");
+    
     // Tenta encontrar o item no documento
-    const itemFuzzy = fuzzyFind(doc, item, 0.6);
+    let itemFuzzy = fuzzyFind(doc, item, 0.6);
+    
+    // Fallback para sinônimos comuns
+    if (!itemFuzzy) {
+      if (item.toLowerCase().includes("telefone") || item.toLowerCase().includes("celular")) {
+        itemFuzzy = fuzzyFind(doc, "whatsapp", 0.6) || fuzzyFind(doc, "contato", 0.6);
+      }
+    }
+    
     if (itemFuzzy) {
       // Encontrou o item. Agora procura um valor numérico/preço NA MESMA LINHA ou próximo
       const lineStart = doc.lastIndexOf('\n', itemFuzzy.index);
       const lineEnd = doc.indexOf('\n', itemFuzzy.index);
       const line = doc.substring(lineStart + 1, lineEnd !== -1 ? lineEnd : undefined);
       
-      // Regex para encontrar preços ou números na linha
-      const valueRegex = /R?\$\s*[\d.,]+|\d{1,2}h/g;
+      // Regex para encontrar preços, horários ou telefones na linha
+      const valueRegex = /R?\$\s*[\d.,]+|\d{1,2}h|\(?\d{2}\)?[\s\-]?\d{4,5}[\s\-]?\d{4}/g;
       const valuesInLine = line.match(valueRegex);
       
       if (valuesInLine && valuesInLine.length > 0) {
@@ -651,7 +677,8 @@ function processChange(doc: string, intent: ParsedIntent, rawInstruction: string
   const valuePatterns = [
     { regex: /preço\s*(?:mínimo\s*)?(?:para|de|:)\s*(R?\$?\s*[\d.,]+)/i, type: "preço", searchRegex: /R?\$\s*[\d.,]+/g },
     { regex: /(?:horário|funciona(?:mento)?)\s*(?:de|:)?\s*(\d{1,2}h?\s*(?:às|a|-)\s*\d{1,2}h?)/i, type: "horário", searchRegex: /\d{1,2}h?\s*(?:às|a|-)\s*\d{1,2}h?/g },
-    { regex: /(?:telefone|whatsapp|contato)\s*(?::|para)?\s*([\d\s\(\)\-\+]+)/i, type: "telefone", searchRegex: /\(?\d{2}\)?[\s\-]?\d{4,5}[\s\-]?\d{4}/g },
+    // Telefone: exige pelo menos um dígito para não pegar string vazia
+    { regex: /(?:telefone|whatsapp|contato)\s*(?::|para)?\s*([\d\s\(\)\-\+]*\d[\d\s\(\)\-\+]*)/i, type: "telefone", searchRegex: /\(?\d{2}\)?[\s\-]?\d{4,5}[\s\-]?\d{4}/g },
   ];
   
   for (const { regex, type, searchRegex } of valuePatterns) {
@@ -856,7 +883,9 @@ function processRemove(doc: string, intent: ParsedIntent): { success: boolean; n
       const matchCount = intent.keywords.filter(k => line.includes(k)).length;
       
       // Se tem pelo menos 2 keywords ou 1 keyword forte (se só tiver 1)
-      if ((intent.keywords.length > 1 && matchCount >= intent.keywords.length * 0.6) || 
+      // Relaxado para 50% de match se tiver mais de 2 keywords
+      if ((intent.keywords.length > 2 && matchCount >= intent.keywords.length * 0.5) || 
+          (intent.keywords.length === 2 && matchCount === 2) ||
           (intent.keywords.length === 1 && matchCount === 1 && line.includes(intent.keywords[0]))) {
         
         const originalLine = lines[i];
@@ -1016,7 +1045,136 @@ function processDescribe(doc: string, intent: ParsedIntent, rawInstruction: stri
 }
 
 // ============================================================================
-// EDIÇÃO COM GPT (JSON SCHEMA)
+// EDIÇÃO COM LLM (SEARCH/REPLACE BLOCK) - TÉCNICA AIDER
+// ============================================================================
+
+/**
+ * Edita o prompt usando a técnica de Search/Replace Block (padrão Aider)
+ * Esta é a técnica mais robusta para edição de texto via LLM.
+ */
+export async function editPromptWithLLM(
+  currentPrompt: string,
+  userInstruction: string,
+  apiKey: string
+): Promise<EditResult> {
+  try {
+    const OpenAI = await import("openai").then(m => m.default);
+    
+    // Configura cliente (suporta OpenAI ou Mistral/Outros compatíveis)
+    const client = new OpenAI({
+      apiKey: apiKey,
+      baseURL: apiKey.startsWith("sk-") ? undefined : "https://api.mistral.ai/v1" // Fallback para Mistral se não for sk- (OpenAI)
+    });
+
+    const systemPrompt = `Você é um especialista em edição de texto e prompts.
+Sua tarefa é editar o texto fornecido seguindo EXATAMENTE a instrução do usuário.
+
+IMPORTANTE:
+Você deve retornar as edições no formato de BLOCOS DE BUSCA E SUBSTITUIÇÃO.
+Não use JSON. Use exatamente este formato para cada alteração:
+
+<<<<<<< SEARCH
+(texto exato original que será substituído)
+=======
+(novo texto que entrará no lugar)
+>>>>>>> REPLACE
+
+REGRAS CRÍTICAS:
+1. O bloco SEARCH deve conter texto EXATO do original, incluindo espaços e quebras de linha.
+2. Inclua linhas de contexto suficientes no SEARCH para garantir que seja único.
+3. Se for adicionar algo novo no final, use o final do texto atual como âncora no SEARCH.
+4. Se for remover, o bloco REPLACE deve estar vazio (ou conter apenas o contexto mantido).
+5. Retorne APENAS os blocos de edição. Sem explicações extras.`;
+
+    const userMessage = `TEXTO ORIGINAL:
+"""
+${currentPrompt}
+"""
+
+INSTRUÇÃO DO USUÁRIO:
+"${userInstruction}"
+
+Gere os blocos de edição SEARCH/REPLACE para aplicar esta instrução.`;
+
+    const response = await client.chat.completions.create({
+      model: apiKey.startsWith("sk-") ? "gpt-4-turbo" : "mistral-large-latest",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage }
+      ],
+      temperature: 0, // Determinístico para melhor precisão
+    });
+
+    const llmOutput = response.choices[0]?.message?.content || "";
+    
+    // Processa os blocos retornados
+    return applyLLMBlocks(currentPrompt, llmOutput);
+
+  } catch (error) {
+    console.error("[EditEngine] Erro na edição via LLM:", error);
+    // Fallback para edição local se falhar
+    return editPromptAdvanced(currentPrompt, userInstruction);
+  }
+}
+
+/**
+ * Aplica os blocos SEARCH/REPLACE retornados pelo LLM
+ */
+export function applyLLMBlocks(doc: string, blocks: string): EditResult {
+  const operations: EditOperation[] = [];
+  let newDoc = doc;
+  
+  // Regex para capturar os blocos (ajustado para permitir replace vazio)
+  const blockRegex = /<<<<<<< SEARCH\n([\s\S]*?)\n=======\n([\s\S]*?)>>>>>>> REPLACE/g;
+  
+  let match;
+  while ((match = blockRegex.exec(blocks)) !== null) {
+    const searchBlock = match[1]; // Texto original
+    const replaceBlock = match[2].replace(/^\n/, '').replace(/\n$/, ''); // Remove newlines extras das bordas do replace
+    
+    // Tenta encontrar o bloco exato
+    if (newDoc.includes(searchBlock)) {
+      newDoc = newDoc.replace(searchBlock, replaceBlock);
+      operations.push({
+        type: "replace",
+        search: searchBlock,
+        replace: replaceBlock,
+        explanation: "Edição aplicada via LLM (Match Exato)"
+      });
+    } else {
+      // Tenta fuzzy match se o exato falhar
+      // Reduzido threshold para 0.65 para tolerar erros de espaçamento comuns em LLMs
+      const fuzzy = fuzzyFind(newDoc, searchBlock, 0.65); 
+      if (fuzzy) {
+        const result = applySearchReplace(newDoc, fuzzy.found, replaceBlock);
+        if (result.success) {
+          newDoc = result.result;
+          operations.push({
+            type: "replace",
+            search: fuzzy.found,
+            replace: replaceBlock,
+            explanation: "Edição aplicada via LLM (Fuzzy Match)"
+          });
+        }
+      } else {
+        console.warn("[EditEngine] Bloco não encontrado:", searchBlock.substring(0, 50) + "...");
+      }
+    }
+  }
+  
+  const success = operations.length > 0;
+  
+  return {
+    success,
+    newPrompt: newDoc,
+    operations,
+    summary: success ? "Edições aplicadas via IA" : "Nenhuma edição aplicada",
+    feedbackMessage: success ? "✅ Alterações aplicadas com inteligência artificial" : "⚠️ Não consegui aplicar as alterações sugeridas pela IA"
+  };
+}
+
+// ============================================================================
+// EDIÇÃO COM GPT (JSON SCHEMA) - LEGADO/FALLBACK
 // ============================================================================
 
 const EDIT_SCHEMA_V2 = {
@@ -1213,15 +1371,16 @@ export async function editPrompt(
   userInstruction: string,
   openaiApiKey?: string
 ): Promise<EditResult> {
-  // Tenta GPT se disponível
+  // Tenta LLM se disponível (Prioridade Máxima conforme pedido do usuário)
   if (openaiApiKey && openaiApiKey !== 'your-openai-key') {
     try {
-      return await editPromptWithGPTv2(currentPrompt, userInstruction, openaiApiKey);
+      // Usa a nova técnica de Search/Replace Block
+      return await editPromptWithLLM(currentPrompt, userInstruction, openaiApiKey);
     } catch (error) {
-      console.error("[EditEngine] Fallback para edição local");
+      console.error("[EditEngine] Fallback para edição local após erro no LLM");
     }
   }
   
-  // Edição local
+  // Edição local (Fallback)
   return editPromptAdvanced(currentPrompt, userInstruction);
 }
