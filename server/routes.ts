@@ -1313,7 +1313,18 @@ REGRAS IMPORTANTES:
 7. O tom deve ser profissional mas acessível
 8. Máximo de 2000 caracteres`;
 
-      const userPrompt = `Crie um prompt de atendimento para o seguinte negócio:
+      let userPrompt = "";
+
+      if (businessType === 'custom') {
+        userPrompt = `Analise a descrição abaixo e crie um prompt de atendimento perfeito para este negócio.
+Identifique o tipo de negócio, o nome (se houver) e o tom de voz desejado a partir do texto.
+
+DESCRIÇÃO DO USUÁRIO:
+"${description}"
+
+Crie um prompt completo, estruturado e profissional que o agente de IA usará para atender clientes no WhatsApp.`;
+      } else {
+        userPrompt = `Crie um prompt de atendimento para o seguinte negócio:
 
 TIPO: ${businessTypeLabel}
 NOME: ${businessName}
@@ -1321,6 +1332,7 @@ DESCRIÇÃO: ${description || "Não informada"}
 INFORMAÇÕES ADICIONAIS: ${additionalInfo || "Nenhuma"}
 
 Crie um prompt completo e profissional que o agente de IA usará para atender clientes no WhatsApp.`;
+      }
 
       let generatedPrompt = "";
 
