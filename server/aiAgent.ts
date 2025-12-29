@@ -20,6 +20,7 @@ import {
   parseMistralResponse,
   executeMediaActions,
 } from "./mediaService";
+import { processResponsePlaceholders } from "./textUtils";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🌅 FUNÇÃO DE SAUDAÇÃO BASEADA NO HORÁRIO DO BRASIL
@@ -87,58 +88,7 @@ INSTRUÇÕES IMPORTANTES:
 // uma rede de segurança para limpar qualquer {{nome}} ou {nome} que
 // escapou. NÃO força saudações - respeita 100% o estilo do prompt.
 // ═══════════════════════════════════════════════════════════════════════
-function processResponsePlaceholders(text: string, contactName?: string): string {
-  if (!text) return text;
-  
-  const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
-    ? contactName.trim() 
-    : "";
-  
-  let processed = text;
-  
-  // 🛡️ FIX CRÍTICO: Remover prefixos de mídia que a IA pode ter "aprendido" incorretamente
-  // Isso acontece quando a IA vê "🎤 Áudio" no histórico e imita como prefixo
-  if (processed.startsWith('🎤 Áudio ') || processed.startsWith('🎤 Audio ')) {
-    processed = processed.replace(/^🎤 [ÁáAa]udio\s+/i, '');
-    console.log(`🛡️ [AI Agent] Removido prefixo "🎤 Áudio" incorreto da resposta da IA`);
-  }
-  if (processed.startsWith('🖼️ Imagem ') || processed.startsWith('📷 Imagem ')) {
-    processed = processed.replace(/^[🖼️📷]\s*Imagem\s+/i, '');
-    console.log(`🛡️ [AI Agent] Removido prefixo de imagem incorreto da resposta da IA`);
-  }
-  if (processed.startsWith('🎥 Vídeo ') || processed.startsWith('🎬 Vídeo ')) {
-    processed = processed.replace(/^[🎥🎬]\s*Vídeo\s+/i, '');
-    console.log(`🛡️ [AI Agent] Removido prefixo de vídeo incorreto da resposta da IA`);
-  }
-  
-  // Limpar marcadores internos que não devem aparecer na resposta
-  processed = processed.replace(/\[ÁUDIO ENVIADO PELO AGENTE\]:\s*/gi, '');
-  processed = processed.replace(/\[IMAGEM ENVIADA:[^\]]*\]/gi, '');
-  processed = processed.replace(/\[VÍDEO ENVIADO:[^\]]*\]/gi, '');
-  processed = processed.replace(/\[DOCUMENTO ENVIADO:[^\]]*\]/gi, '');
-  
-  // 🛡️ FIX CRÍTICO: Limpar padrão [Áudio enviado: ...] que a IA está copiando do contexto
-  // Este texto NÃO deve aparecer na resposta final - apenas a tag [MEDIA:NOME] é válida
-  processed = processed.replace(/\[Áudio enviado:[^\]]*\]/gi, '');
-  processed = processed.replace(/\[Imagem enviada:[^\]]*\]/gi, '');
-  processed = processed.replace(/\[Vídeo enviado:[^\]]*\]/gi, '');
-  processed = processed.replace(/\[Documento enviado:[^\]]*\]/gi, '');
-  
-  // Regex genérico para capturar QUALQUER variável de nome comum
-  // Captura: {{nome}}, {nome}, [nome], {{name}}, {cliente}, {{usuario}}, etc.
-  const genericNamePattern = /\{\{?(nome|name|cliente|customer|user|usuario|contato)\}?\}|\[(nome|name|cliente|customer|contato)\]/gi;
-  
-  if (formattedName) {
-    // Substituir qualquer variável de nome pelo nome real
-    processed = processed.replace(genericNamePattern, formattedName);
-  } else {
-    // Remover placeholders não substituídos (incluindo vírgula/espaço antes)
-    processed = processed.replace(/,?\s*\{\{?(nome|name|cliente|customer|user|usuario|contato)\}?\}/gi, "");
-    processed = processed.replace(/,?\s*\[(nome|name|cliente|customer|contato)\]/gi, "");
-  }
-  
-  return processed.trim();
-}
+
 
 // � FUNÇÃO DE RETRY AUTOMÁTICO PARA CHAMADAS DE API
 // Implementa exponential backoff para lidar com rate limits e erros temporários
@@ -760,6 +710,7 @@ ${contextSummary}
    ❌ Ignorar o contexto e recomeçar a conversa do zero
    ❌ Repetir as mesmas perguntas já feitas
    ❌ Dar a mesma saudação inicial para um novo "oi" no meio da conversa
+   ❌ Escrever a palavra "Áudio" ou "Audio" no texto da resposta (apenas envie o conteúdo)
 
 ✅ OBRIGATÓRIO:
    ✅ Se cliente manda "oi/olá/tudo bem" de novo → apenas pergunte "posso ajudar com algo?" ou continue o assunto anterior
@@ -768,9 +719,10 @@ ${contextSummary}
    ✅ Continue de onde parou naturalmente
    ✅ LEIA A MENSAGEM ATUAL INTEIRA - se o cliente já diz o que trabalha/precisa NA PRÓPRIA MENSAGEM, não pergunte de novo!
 
-${isSaudacao && hasAgentReplies ? `
+${isSaudacao ? `
 🎯 ATENÇÃO: O cliente acabou de mandar "${newMessageText}" que é uma SAUDAÇÃO REPETIDA.
    NÃO reinicie a conversa! Apenas diga algo como "Posso ajudar com algo?" ou continue o assunto.
+   NÃO SE APRESENTE NOVAMENTE.
 ` : ''}
 ${jaDisseOQueTrabalha || jaPediuAjuda ? `
 🎯 ATENÇÃO: A mensagem ATUAL do cliente JÁ CONTÉM informações importantes!
