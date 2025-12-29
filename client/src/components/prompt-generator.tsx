@@ -229,49 +229,57 @@ ${input}
   // =================== STEP: DONE ===================
   if (step === "done") {
     return (
-      <div className="flex flex-col items-center justify-start md:justify-center min-h-[60vh] py-4 md:py-8 px-4 animate-in slide-in-from-bottom-4 duration-500">
-        <div className="text-center space-y-2 md:space-y-4 mb-4 md:mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 rounded-full bg-green-500/10 mb-1 md:mb-2">
-            <CheckCircle2 className="w-6 h-6 md:w-8 md:h-8 text-green-500" />
-          </div>
-          <h2 className="text-xl md:text-2xl font-bold">Seu agente está pronto!</h2>
-          <p className="text-muted-foreground text-sm md:text-base max-w-md mx-auto">
-            Revise as instruções abaixo. Você pode editar qualquer parte antes de começar.
-          </p>
+      <div className="flex flex-col w-full max-w-3xl mx-auto animate-in slide-in-from-bottom-4 duration-500 pt-2 pb-6 px-1">
+        
+        {/* Header Compacto com Botão Voltar Discreto */}
+        <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                    <h2 className="text-base font-bold leading-tight">Agente Criado!</h2>
+                    <p className="text-[10px] text-muted-foreground">Revise e edite se precisar</p>
+                </div>
+            </div>
+            <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setStep("input")} 
+                className="text-muted-foreground hover:text-destructive h-8 text-xs px-2"
+            >
+                <ArrowLeft className="w-3 h-3 mr-1" />
+                Refazer
+            </Button>
         </div>
 
-        <Card className="w-full max-w-2xl p-1 bg-muted/30 border-primary/20 shadow-lg group">
-          <div className="relative bg-card rounded-xl overflow-hidden border border-border/50">
-            <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Badge variant="outline" className="bg-background/80 backdrop-blur-sm text-[10px] uppercase tracking-wider">
-                <Edit3 className="w-3 h-3 mr-1" /> Editável
-              </Badge>
+        {/* Editor "Lousa" - Foco Total */}
+        <Card className="flex-1 flex flex-col w-full bg-background border-primary/20 shadow-lg overflow-hidden mb-4 ring-1 ring-border/50">
+            <div className="bg-muted/30 px-3 py-1.5 border-b border-border/50 flex justify-between items-center">
+                <span className="text-[10px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                    <Edit3 className="w-3 h-3" /> 
+                    Editor de Instruções
+                </span>
+                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-background/50">
+                    IA GENERATED
+                </Badge>
             </div>
             <Textarea
               value={generatedPrompt}
               onChange={(e) => setGeneratedPrompt(e.target.value)}
-              className="min-h-[250px] md:min-h-[350px] w-full resize-none border-0 focus-visible:ring-0 bg-transparent text-sm md:text-base p-4 md:p-6 font-mono leading-relaxed text-foreground/90"
+              className="flex-1 w-full resize-none border-0 focus-visible:ring-0 bg-transparent text-sm md:text-base p-3 md:p-4 font-mono leading-relaxed text-foreground/90 min-h-[50vh] md:min-h-[40vh]"
+              spellCheck={false}
             />
-          </div>
         </Card>
 
-        <div className="flex flex-col sm:flex-row gap-3 mt-6 md:mt-8 w-full max-w-md">
-          <Button 
-            variant="ghost" 
-            onClick={() => setStep("input")}
-            className="flex-1 h-12 text-base text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Refazer do zero
-          </Button>
-          <Button 
+        {/* Botão de Ação Gigante */}
+        <Button 
             onClick={handleFinish}
-            className="flex-1 h-12 text-base bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all active:scale-95"
-          >
-            <Zap className="w-4 h-4 mr-2" />
-            Ativar Agente Agora
-          </Button>
-        </div>
+            className="w-full h-14 text-base md:text-lg font-bold bg-green-600 hover:bg-green-700 text-white shadow-xl shadow-green-600/20 rounded-xl transition-all active:scale-95 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-100"
+        >
+            <Zap className="w-5 h-5 mr-2 fill-current" />
+            ATIVAR AGENTE AGORA
+        </Button>
       </div>
     );
   }
