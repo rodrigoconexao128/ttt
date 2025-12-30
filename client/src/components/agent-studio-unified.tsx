@@ -522,22 +522,8 @@ export function AgentStudioUnified() {
       });
     }
   }, [promptHistory, queryClient, toast]);
-          content: `🔄 Restaurado da v${data.restoredFrom} → Nova v${data.versionNumber} criada`,
-          timestamp: new Date()
-        }]);
-        
-        toast({
-          title: "✅ Versão restaurada",
-          description: `Restaurado da v${data.restoredFrom}. Nova versão v${data.versionNumber} criada.`
-        });
-      } else {
-        throw new Error(data.message || "Falha ao restaurar");
-      }
-    } catch (error: any) {
-      console.error("[RESTORE] ❌ Erro:", error);
-      toast({
-        title: "Erro ao restaurar versão",
-        description: error.message || "Tente novamente",
+
+  // ============ EDIÇÃO VIA CHAT ============
         variant: "destructive"
       });
     }
