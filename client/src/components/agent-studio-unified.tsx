@@ -1622,7 +1622,18 @@ export function AgentStudioUnified() {
                         <video src={msg.mediaUrl} controls className="rounded max-w-full max-h-60" />
                       )}
                       {msg.mediaType === 'audio' && (
-                        <audio src={msg.mediaUrl} controls className="w-full max-w-[250px]" />
+                        <div className="flex items-center gap-2 bg-[#F0F2F5] dark:bg-zinc-800 rounded-lg p-2 min-w-[200px]">
+                          <audio 
+                            src={msg.mediaUrl} 
+                            controls 
+                            controlsList="nodownload"
+                            className="w-full"
+                            style={{
+                              height: '32px',
+                              accentColor: '#00A884'
+                            }}
+                          />
+                        </div>
                       )}
                       {msg.mediaType === 'document' && (
                         <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline flex items-center gap-1">
