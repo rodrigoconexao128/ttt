@@ -524,12 +524,6 @@ export function AgentStudioUnified() {
   }, [promptHistory, queryClient, toast]);
 
   // ============ EDIÇÃO VIA CHAT ============
-        variant: "destructive"
-      });
-    }
-  }, [promptHistory, queryClient, toast]);
-
-  // ============ EDIÇÃO VIA CHAT ============
   const handleEditPrompt = async () => {
     if (!editInput.trim() || isProcessing) return;
 
