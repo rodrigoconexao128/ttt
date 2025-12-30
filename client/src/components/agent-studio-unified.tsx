@@ -68,6 +68,8 @@ interface SimulatorMessage {
   role: "user" | "agent";
   message: string;
   time: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'audio' | 'document';
 }
 
 interface PromptHistoryEntry {
@@ -636,21 +638,45 @@ export function AgentStudioUnified() {
       
       const data = await response.json();
       const agentTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      const agentMsg: SimulatorMessage = {
-        id: `sim-agent-${Date.now()}`,
-        role: "agent",
-        message: data?.response || "Sem resposta",
-        time: agentTime
-      };
-      setSimulatorMessages(prev => [...prev, agentMsg]);
       
-      // 🆕 RASTREAR MÍDIAS ENVIADAS NESTA SESSÃO
+      // 🆕 CRIAR LISTA DE NOVAS MENSAGENS (mídias + texto)
+      const newMessages: SimulatorMessage[] = [];
+      
+      // 🆕 ADICIONAR MÍDIAS COMO MENSAGENS SEPARADAS PRIMEIRO
       if (data?.mediaActions && data.mediaActions.length > 0) {
+        console.log(`📁 [Simulador] Recebeu ${data.mediaActions.length} mídia(s)`, data.mediaActions);
+        
+        for (const action of data.mediaActions) {
+          if (action.type === 'send_media' && action.media_url) {
+            newMessages.push({
+              id: `sim-media-${Date.now()}-${Math.random()}`,
+              role: "agent",
+              message: '', // Sem texto - apenas mídia
+              time: agentTime,
+              mediaUrl: action.media_url,
+              mediaType: action.media_type || 'audio'
+            });
+          }
+        }
+        
+        // Rastrear mídias enviadas
         const newMediaNames = data.mediaActions
           .filter((a: any) => a.type === 'send_media' && a.media_name)
           .map((a: any) => a.media_name.toUpperCase());
         setSimulatorSentMedias(prev => [...new Set([...prev, ...newMediaNames])]);
       }
+      
+      // Adicionar resposta de texto
+      if (data?.response && data.response.trim()) {
+        newMessages.push({
+          id: `sim-agent-${Date.now()}`,
+          role: "agent",
+          message: data.response,
+          time: agentTime
+        });
+      }
+      
+      setSimulatorMessages(prev => [...prev, ...newMessages]);
     } catch (error: any) {
       toast({
         title: "Erro no simulador",
@@ -1586,7 +1612,31 @@ export function AgentStudioUnified() {
                     ? "bg-[#DCF8C6] dark:bg-green-800 text-[#303030] dark:text-white rounded-tr-none" 
                     : "bg-white dark:bg-zinc-700 text-[#303030] dark:text-white rounded-tl-none"
                 )}>
-                  <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                  {/* 🆕 RENDERIZAR MÍDIA SE HOUVER */}
+                  {msg.mediaUrl && (
+                    <div className="mb-2">
+                      {msg.mediaType === 'image' && (
+                        <img src={msg.mediaUrl} alt="Mídia" className="rounded max-w-full max-h-60 object-cover" />
+                      )}
+                      {msg.mediaType === 'video' && (
+                        <video src={msg.mediaUrl} controls className="rounded max-w-full max-h-60" />
+                      )}
+                      {msg.mediaType === 'audio' && (
+                        <audio src={msg.mediaUrl} controls className="w-full max-w-[250px]" />
+                      )}
+                      {msg.mediaType === 'document' && (
+                        <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline flex items-center gap-1">
+                          📄 Abrir documento
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* TEXTO DA MENSAGEM (se houver) */}
+                  {msg.message && (
+                    <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                  )}
+                  
                   <p className={cn(
                     "text-[10px] text-right mt-1",
                     msg.role === "user" ? "text-[#667781] dark:text-green-300" : "text-[#667781] dark:text-zinc-400"
