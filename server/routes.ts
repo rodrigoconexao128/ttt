@@ -1710,9 +1710,34 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         result.data.sentMedias
       );
       
+      // 📁 RESOLVER URLs DAS MÍDIAS PARA O FRONTEND
+      let mediaActions: any[] = [];
+      if (testResult.mediaActions && testResult.mediaActions.length > 0) {
+        const mediaLibrary = await getAgentMediaLibrary(userId);
+        
+        for (const action of testResult.mediaActions) {
+          if (action.type === 'send_media' && action.media_name) {
+            const mediaItem = mediaLibrary.find(
+              m => m.name.toUpperCase() === action.media_name.toUpperCase()
+            );
+            
+            if (mediaItem) {
+              console.log(`📁 [/api/agent/test] Mídia encontrada: ${action.media_name} -> ${mediaItem.storageUrl}`);
+              mediaActions.push({
+                type: 'send_media',
+                media_name: action.media_name,
+                media_url: mediaItem.storageUrl,
+                media_type: mediaItem.mediaType,
+                caption: mediaItem.caption || mediaItem.description,
+              });
+            }
+          }
+        }
+      }
+      
       res.json({ 
         response: testResult.text,
-        mediaActions: testResult.mediaActions || []
+        mediaActions
       });
     } catch (error: any) {
       console.error("Error testing agent:", error);
