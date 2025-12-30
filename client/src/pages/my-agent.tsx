@@ -102,7 +102,25 @@ export default function MyAgent() {
   // Estado do teste - Playground com histórico de mensagens
   const [testMessage, setTestMessage] = useState("");
   const [testResponse, setTestResponse] = useState("");
-  const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'agent', message: string, time: string}>>([]);
+  
+  // 🆕 Tipo de mensagem com suporte a mídia
+  type ChatMessage = {
+    role: 'user' | 'agent';
+    message: string;
+    time: string;
+    mediaUrl?: string;
+    mediaType?: 'image' | 'video' | 'audio' | 'document';
+  };
+  // 🆕 Tipo de mensagem com suporte a mídia
+  type ChatMessage = {
+    role: 'user' | 'agent';
+    message: string;
+    time: string;
+    mediaUrl?: string;
+    mediaType?: 'image' | 'video' | 'audio' | 'document';
+  };
+  
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [sentMedias, setSentMedias] = useState<string[]>([]); // 🆕 Mídias já enviadas
   
   // Estado do gerador de prompt e editor expandido
@@ -230,17 +248,39 @@ export default function MyAgent() {
     onSuccess: (data: any) => {
       const agentResponse = data?.response || "Sem resposta";
       setTestResponse(agentResponse);
-      // Adiciona resposta do agente ao histórico
       const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      setChatHistory(prev => [...prev, { role: 'agent', message: agentResponse, time }]);
       
-      // 🆕 RASTREAR MÍDIAS ENVIADAS NESTA SESSÃO
+      const newMessages: ChatMessage[] = [];
+      
+      // 🆕 ADICIONAR MÍDIAS COMO MENSAGENS SEPARADAS
       if (data?.mediaActions && data.mediaActions.length > 0) {
+        console.log(`📁 Frontend recebeu ${data.mediaActions.length} mídia(s)`, data.mediaActions);
+        
+        for (const action of data.mediaActions) {
+          if (action.type === 'send_media' && action.media_url) {
+            newMessages.push({
+              role: 'agent',
+              message: '', // Sem texto - apenas mídia
+              time,
+              mediaUrl: action.media_url,
+              mediaType: action.media_type || 'image'
+            });
+          }
+        }
+        
+        // Rastrear mídias enviadas
         const newMediaNames = data.mediaActions
           .filter((a: any) => a.type === 'send_media' && a.media_name)
           .map((a: any) => a.media_name.toUpperCase());
         setSentMedias(prev => [...new Set([...prev, ...newMediaNames])]);
       }
+      
+      // Adicionar resposta de texto
+      if (agentResponse && agentResponse.trim()) {
+        newMessages.push({ role: 'agent', message: agentResponse, time });
+      }
+      
+      setChatHistory(prev => [...prev, ...newMessages]);
     },
     onError: (error: Error) => {
       toast({
@@ -1163,7 +1203,31 @@ O QUE NÃO FAZER:
                         ? 'bg-[#DCF8C6] dark:bg-green-800 text-[#303030] dark:text-white rounded-tr-none' 
                         : 'bg-white dark:bg-zinc-700 text-[#303030] dark:text-white rounded-tl-none'
                     }`}>
-                      <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                      {/* 🆕 RENDERIZAR MÍDIA SE HOUVER */}
+                      {msg.mediaUrl && (
+                        <div className="mb-2">
+                          {msg.mediaType === 'image' && (
+                            <img src={msg.mediaUrl} alt="Mídia" className="rounded max-w-full max-h-60 object-cover" />
+                          )}
+                          {msg.mediaType === 'video' && (
+                            <video src={msg.mediaUrl} controls className="rounded max-w-full max-h-60" />
+                          )}
+                          {msg.mediaType === 'audio' && (
+                            <audio src={msg.mediaUrl} controls className="w-full max-w-sm" />
+                          )}
+                          {msg.mediaType === 'document' && (
+                            <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                              📄 Abrir documento
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* TEXTO DA MENSAGEM (se houver) */}
+                      {msg.message && (
+                        <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                      )}
+                      
                       <p className={`text-[10px] text-right mt-1 ${
                         msg.role === 'user' ? 'text-[#667781] dark:text-green-300' : 'text-[#667781] dark:text-zinc-400'
                       }`}>
