@@ -44,7 +44,8 @@ import {
   Timer,
   Calendar,
   ChevronLeft,
-  ArrowLeft
+  ArrowLeft,
+  UsersRound
 } from "lucide-react";
 import {
   Dialog,
@@ -90,6 +91,16 @@ interface Contact {
   hasReplied?: boolean;
   lastMessage?: string;
   tags?: string[];
+}
+
+interface WhatsAppGroup {
+  id: string;
+  name: string;
+  participantsCount: number;
+  description?: string;
+  owner?: string;
+  createdAt?: number;
+  isAdmin?: boolean;
 }
 
 interface ContactList {
@@ -181,7 +192,7 @@ export default function MassSendPage() {
   const steps = ["Destinatários", "Mensagem", "Configurações", "Revisar"];
   
   // Estado para modo de entrada de destinatários
-  const [recipientMode, setRecipientMode] = useState<'manual' | 'list' | 'synced'>('manual');
+  const [recipientMode, setRecipientMode] = useState<'manual' | 'list' | 'synced' | 'groups'>('manual');
   
   // Estado para envio manual com nome
   const [manualContacts, setManualContacts] = useState<string>("");
@@ -200,6 +211,10 @@ export default function MassSendPage() {
   const [selectedListId, setSelectedListId] = useState<string>("");
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Estado para grupos selecionados
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [groupSearchTerm, setGroupSearchTerm] = useState("");
   
   // Progresso de envio
   const [sendProgress, setSendProgress] = useState<SendProgress>({
@@ -231,6 +246,9 @@ export default function MassSendPage() {
   // Sincronização
   const [syncProgress, setSyncProgress] = useState<{ syncing: boolean; count: number }>({ syncing: false, count: 0 });
   
+  // Estado para carregamento de grupos
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  
   // Buscar conexão WhatsApp
   const { data: connection } = useQuery<{ isConnected: boolean } | null>({
     queryKey: ["/api/whatsapp/connection"],
@@ -246,6 +264,13 @@ export default function MassSendPage() {
   const { data: syncedContacts = [], refetch: refetchContacts } = useQuery<Contact[]>({
     queryKey: ["/api/contacts/synced"],
     retry: false,
+  });
+
+  // Buscar grupos do WhatsApp
+  const { data: whatsappGroups = [], isLoading: groupsQueryLoading, refetch: refetchGroups } = useQuery<WhatsAppGroup[]>({
+    queryKey: ["/api/whatsapp/groups"],
+    retry: false,
+    enabled: !!connection?.isConnected,
   });
 
   // Buscar histórico de campanhas
@@ -301,6 +326,62 @@ export default function MassSendPage() {
       setIsSending(false); // Liberar botão mesmo em erro
       toast({
         title: "Erro no envio",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para envio em grupos
+  const sendToGroupsMutation = useMutation({
+    mutationFn: async (data: { 
+      groupIds: string[]; 
+      message: string;
+      useAI: boolean;
+      delayMin: number;
+      delayMax: number;
+      scheduledAt?: string;
+    }) => {
+      const response = await apiRequest("POST", "/api/whatsapp/groups/bulk-send", { 
+        groupIds: data.groupIds, 
+        message: data.message,
+        settings: {
+          useAI: data.useAI,
+          delayMin: data.delayMin,
+          delayMax: data.delayMax,
+        },
+        scheduledAt: data.scheduledAt,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.scheduled) {
+        setSendProgress({ total: data.total || 0, sent: 0, failed: 0, status: 'idle' });
+        setIsSending(false);
+        toast({
+          title: "Envio agendado!",
+          description: data.message,
+        });
+      } else {
+        setSendProgress({ 
+          total: data.total || 0, 
+          sent: data.sent || 0, 
+          failed: data.failed || 0, 
+          status: 'completed' 
+        });
+        setIsSending(false);
+        toast({
+          title: "Envio para grupos iniciado!",
+          description: `Enviando para ${data.total || 0} grupos em background.`,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+    },
+    onError: (error: Error) => {
+      setSendProgress(prev => ({ ...prev, status: 'error' }));
+      setIsSending(false);
+      toast({
+        title: "Erro no envio para grupos",
         description: error.message,
         variant: "destructive",
       });
@@ -387,9 +468,13 @@ export default function MassSendPage() {
     } else if (recipientMode === 'synced') {
       const selected = syncedContacts.filter(c => selectedContactIds.size === 0 || selectedContactIds.has(c.id));
       return selected.map(c => ({ phone: c.phone, name: c.name || '' }));
+    } else if (recipientMode === 'groups') {
+      // Para grupos, retornamos os grupos selecionados como "contatos" para contagem
+      const selectedGroups = whatsappGroups?.filter(g => selectedGroupIds.has(g.id)) || [];
+      return selectedGroups.map(g => ({ phone: g.id, name: g.name }));
     }
     return [];
-  }, [recipientMode, manualContacts, selectedListId, selectedContactIds, contactLists, syncedContacts]);
+  }, [recipientMode, manualContacts, selectedListId, selectedContactIds, contactLists, syncedContacts, selectedGroupIds, whatsappGroups]);
 
   // Aplicar variáveis na mensagem
   const applyMessageTemplate = (template: string, name: string): string => {
@@ -462,7 +547,7 @@ export default function MassSendPage() {
     const contacts = getSelectedContacts;
     
     if (contacts.length === 0) {
-      toast({ title: "Nenhum destinatário", description: "Selecione pelo menos um contato.", variant: "destructive" });
+      toast({ title: "Nenhum destinatário", description: recipientMode === 'groups' ? "Selecione pelo menos um grupo." : "Selecione pelo menos um contato.", variant: "destructive" });
       return;
     }
 
@@ -475,15 +560,35 @@ export default function MassSendPage() {
     setIsSending(true);
     setSendProgress({ total: contacts.length, sent: 0, failed: 0, status: 'running' });
     
-    sendBulkMutation.mutate({
-      contacts,
-      message: messageTemplate,
-      useAI,
-      delayMin,
-      delayMax,
-      batchSize,
-      batchInterval
-    });
+    // Se for modo grupos, usar mutation específica
+    if (recipientMode === 'groups') {
+      const groupIds = Array.from(selectedGroupIds);
+      // Criar data de agendamento se habilitado
+      let scheduledAtStr: string | undefined;
+      if (scheduleEnabled && scheduledDate && scheduledTime) {
+        const dateTimeStr = `${scheduledDate}T${scheduledTime}`;
+        scheduledAtStr = new Date(dateTimeStr).toISOString();
+      }
+      sendToGroupsMutation.mutate({
+        groupIds,
+        message: messageTemplate,
+        useAI,
+        delayMin,
+        delayMax,
+        scheduledAt: scheduledAtStr,
+      });
+    } else {
+      // Modo normal de contatos
+      sendBulkMutation.mutate({
+        contacts,
+        message: messageTemplate,
+        useAI,
+        delayMin,
+        delayMax,
+        batchSize,
+        batchInterval
+      });
+    }
   };
   const isConnected = connection?.isConnected;
 
@@ -550,7 +655,7 @@ export default function MassSendPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   {/* Opção Manual */}
                   <button
                     onClick={() => setRecipientMode('manual')}
@@ -593,6 +698,21 @@ export default function MassSendPage() {
                     <h3 className="font-semibold">Contatos Seguros</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       <span className="text-green-600">✓</span> Quem já conversou ({syncedContacts.length})
+                    </p>
+                  </button>
+
+                  {/* Opção Grupos */}
+                  <button
+                    onClick={() => setRecipientMode('groups')}
+                    className={`
+                      p-4 rounded-lg border-2 text-left transition-all hover:border-primary/50
+                      ${recipientMode === 'groups' ? 'border-primary bg-primary/5' : 'border-border'}
+                    `}
+                  >
+                    <UsersRound className="w-8 h-8 mb-2 text-blue-600" />
+                    <h3 className="font-semibold">Grupos do WhatsApp</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <span className="text-blue-600">✓</span> Enviar para grupos ({whatsappGroups?.length || 0})
                     </p>
                   </button>
                 </div>
@@ -953,6 +1073,153 @@ Pedro Oliveira, 31988776655`}
                           </TableBody>
                         </Table>
                       </ScrollArea>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Seção de Grupos */}
+            {recipientMode === 'groups' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UsersRound className="w-5 h-5 text-blue-600" />
+                    Grupos do WhatsApp
+                    <Badge variant="outline" className="text-blue-600 border-blue-600 ml-2">Envio em Massa</Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Selecione os grupos que você participa para enviar mensagens
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
+                    <UsersRound className="h-4 w-4 text-blue-600" />
+                    <AlertTitle className="text-blue-800 dark:text-blue-200">Envio para Grupos</AlertTitle>
+                    <AlertDescription className="text-blue-700 dark:text-blue-300">
+                      A mensagem será enviada diretamente nos grupos selecionados. Todos os participantes receberão a mensagem.
+                    </AlertDescription>
+                  </Alert>
+
+                  {groupsQueryLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                      <span>Carregando grupos...</span>
+                    </div>
+                  ) : !whatsappGroups || whatsappGroups.length === 0 ? (
+                    <div className="text-center py-8">
+                      <UsersRound className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground mb-4">Nenhum grupo encontrado</p>
+                      <p className="text-sm text-muted-foreground">
+                        {isConnected ? 'Você não participa de nenhum grupo no WhatsApp' : 'Conecte seu WhatsApp para ver os grupos'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Busca nos grupos */}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                        <div className="relative flex-1 max-w-xs">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Buscar grupo..."
+                            value={groupSearchTerm}
+                            onChange={(e) => setGroupSearchTerm(e.target.value)}
+                            className="pl-9"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                              if (selectedGroupIds.size === whatsappGroups.length) {
+                                setSelectedGroupIds(new Set());
+                              } else {
+                                setSelectedGroupIds(new Set(whatsappGroups.map(g => g.id)));
+                              }
+                            }}
+                          >
+                            {selectedGroupIds.size === whatsappGroups.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            {selectedGroupIds.size} grupos selecionados
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Lista de grupos */}
+                      <ScrollArea className="h-[350px] border rounded-md">
+                        <div className="p-2 space-y-2">
+                          {whatsappGroups
+                            .filter(group => 
+                              group.name.toLowerCase().includes(groupSearchTerm.toLowerCase())
+                            )
+                            .map((group) => (
+                              <div 
+                                key={group.id}
+                                className={`
+                                  p-3 rounded-lg border cursor-pointer transition-all hover:bg-muted/50
+                                  ${selectedGroupIds.has(group.id) ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-border'}
+                                `}
+                                onClick={() => {
+                                  const newSet = new Set(selectedGroupIds);
+                                  if (newSet.has(group.id)) {
+                                    newSet.delete(group.id);
+                                  } else {
+                                    newSet.add(group.id);
+                                  }
+                                  setSelectedGroupIds(newSet);
+                                }}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Checkbox
+                                    checked={selectedGroupIds.has(group.id)}
+                                    onCheckedChange={(checked) => {
+                                      const newSet = new Set(selectedGroupIds);
+                                      if (checked) {
+                                        newSet.add(group.id);
+                                      } else {
+                                        newSet.delete(group.id);
+                                      }
+                                      setSelectedGroupIds(newSet);
+                                    }}
+                                  />
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">{group.name}</span>
+                                      {group.isAdmin && (
+                                        <Badge variant="secondary" className="text-xs">Admin</Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      {group.participantCount} participantes
+                                    </p>
+                                  </div>
+                                  <Badge variant="outline" className="text-blue-600">
+                                    {group.participantCount}
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </ScrollArea>
+
+                      {/* Resumo da seleção */}
+                      {selectedGroupIds.size > 0 && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                            <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                              {selectedGroupIds.size} grupos selecionados
+                            </span>
+                            <span className="text-xs text-blue-600">
+                              (~{whatsappGroups
+                                .filter(g => selectedGroupIds.has(g.id))
+                                .reduce((acc, g) => acc + g.participantCount, 0)} pessoas alcançadas)
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>

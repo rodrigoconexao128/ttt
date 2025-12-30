@@ -3367,6 +3367,154 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // ==================== GROUPS / ENVIO PARA GRUPOS ROUTES ====================
+  
+  // Buscar grupos que o usuário participa
+  app.get("/api/whatsapp/groups", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Verificar conexão WhatsApp
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || !connection.isConnected) {
+        return res.status(400).json({ message: "WhatsApp não está conectado" });
+      }
+
+      // Importar função de busca de grupos
+      const { fetchUserGroups } = await import("./whatsapp");
+      
+      const groups = await fetchUserGroups(userId);
+      
+      res.json(groups);
+    } catch (error: any) {
+      console.error("Error fetching groups:", error);
+      res.status(500).json({ message: error.message || "Falha ao buscar grupos" });
+    }
+  });
+
+  // Envio em massa para grupos
+  app.post("/api/whatsapp/groups/bulk-send", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { groupIds, message, settings, scheduledAt } = req.body;
+
+      if (!groupIds || !Array.isArray(groupIds) || groupIds.length === 0) {
+        return res.status(400).json({ message: "Lista de grupos é obrigatória" });
+      }
+
+      if (!message || typeof message !== "string" || !message.trim()) {
+        return res.status(400).json({ message: "Mensagem é obrigatória" });
+      }
+
+      // Verificar conexão WhatsApp
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || !connection.isConnected) {
+        return res.status(400).json({ message: "WhatsApp não está conectado" });
+      }
+
+      // Importar funções necessárias
+      const { sendMessageToGroups, fetchUserGroups } = await import("./whatsapp");
+      
+      // Configurações de delay
+      const delayMin = settings?.delayMin || 5;
+      const delayMax = settings?.delayMax || 15;
+      const useAI = settings?.useAI || false;
+      
+      // Buscar metadados dos grupos para nomes
+      let groupsMetadata: Record<string, string> = {};
+      try {
+        const groups = await fetchUserGroups(userId);
+        groupsMetadata = groups.reduce((acc, g) => ({ ...acc, [g.id]: g.name }), {});
+      } catch (e) {
+        console.warn('[GROUP BULK] Não foi possível buscar nomes dos grupos');
+      }
+      
+      // Criar campanha com status "running" para rastreamento
+      const campaignName = `Grupos ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+      const campaignId = `group_campaign_${Date.now()}`;
+      
+      await storage.createCampaign?.({
+        id: campaignId,
+        userId,
+        name: campaignName,
+        message,
+        recipients: groupIds,
+        recipientNames: groupsMetadata,
+        status: scheduledAt ? 'scheduled' : 'running',
+        totalSent: 0,
+        totalFailed: 0,
+        executedAt: scheduledAt ? undefined : new Date(),
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+        createdAt: new Date(),
+        delayProfile: delayMin <= 7 ? 'normal' : delayMin <= 12 ? 'humano' : 'conservador',
+        useAiVariation: useAI,
+        isGroupCampaign: true,
+      });
+
+      // Se agendado, apenas salvar e retornar
+      if (scheduledAt) {
+        res.json({
+          success: true,
+          scheduled: true,
+          scheduledAt,
+          campaignId,
+          total: groupIds.length,
+          message: `Envio agendado para ${new Date(scheduledAt).toLocaleString('pt-BR')}`
+        });
+        return;
+      }
+      
+      // RESPONDER IMEDIATAMENTE - envio continua em background
+      res.json({
+        success: true,
+        total: groupIds.length,
+        sent: 0,
+        failed: 0,
+        campaignId,
+        progress: {
+          total: groupIds.length,
+          sent: 0,
+          failed: 0,
+          status: 'running'
+        },
+        message: 'Envio para grupos iniciado em background.'
+      });
+      
+      // EXECUTAR ENVIO EM BACKGROUND (não bloqueia a resposta)
+      setImmediate(async () => {
+        try {
+          console.log(`[GROUP BULK BACKGROUND] Executando campanha ${campaignId} em background`);
+          
+          const result = await sendMessageToGroups(userId, groupIds, message, {
+            delayMin: delayMin * 1000,
+            delayMax: delayMax * 1000,
+            useAI,
+          });
+          
+          // Atualizar campanha com resultado final
+          await storage.updateCampaign?.(userId, campaignId, {
+            status: 'completed',
+            totalSent: result.sent,
+            totalFailed: result.failed,
+            results: result.details,
+            completedAt: new Date(),
+          });
+          
+          console.log(`[GROUP BULK BACKGROUND] Campanha ${campaignId} concluída: ${result.sent} enviados, ${result.failed} falharam`);
+        } catch (error: any) {
+          console.error(`[GROUP BULK BACKGROUND] Erro na campanha ${campaignId}:`, error);
+          await storage.updateCampaign?.(userId, campaignId, {
+            status: 'error',
+            errorMessage: error.message,
+          });
+        }
+      });
+    } catch (error: any) {
+      console.error("Error in group bulk send:", error);
+      res.status(500).json({ message: error.message || "Falha no envio para grupos" });
+    }
+  });
+
   // ==================== CONTACTS / LISTAS DE CONTATOS ROUTES ====================
   
   // Buscar listas de contatos

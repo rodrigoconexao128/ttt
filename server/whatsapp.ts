@@ -3301,6 +3301,210 @@ export async function sendBulkMessagesAdvanced(
   return { sent, failed, errors, details };
 }
 
+// ==================== GRUPOS / GROUPS ====================
+
+interface WhatsAppGroup {
+  id: string;
+  name: string;
+  participantsCount: number;
+  description?: string;
+  owner?: string;
+  createdAt?: number;
+  isAdmin?: boolean;
+}
+
+/**
+ * Busca todos os grupos que o usuário participa
+ * Usa groupFetchAllParticipating do Baileys
+ */
+export async function fetchUserGroups(userId: string): Promise<WhatsAppGroup[]> {
+  const session = sessions.get(userId);
+  if (!session?.socket) {
+    throw new Error("WhatsApp não conectado");
+  }
+
+  try {
+    console.log(`[GROUPS] Buscando grupos para usuário ${userId}...`);
+    
+    // Buscar todos os grupos participantes via Baileys
+    const groups = await session.socket.groupFetchAllParticipating();
+    
+    const groupList: WhatsAppGroup[] = [];
+    
+    for (const [jid, metadata] of Object.entries(groups)) {
+      // Verificar se o usuário é admin do grupo
+      const meJid = session.socket.user?.id;
+      const meParticipant = metadata.participants?.find(p => 
+        p.id === meJid || p.id?.includes(session.phoneNumber || '')
+      );
+      const isAdmin = meParticipant?.admin === 'admin' || meParticipant?.admin === 'superadmin';
+      
+      groupList.push({
+        id: jid,
+        name: metadata.subject || 'Grupo sem nome',
+        participantsCount: metadata.participants?.length || metadata.size || 0,
+        description: metadata.desc || undefined,
+        owner: metadata.owner || undefined,
+        createdAt: metadata.creation,
+        isAdmin,
+      });
+    }
+    
+    console.log(`[GROUPS] Encontrados ${groupList.length} grupos`);
+    return groupList;
+    
+  } catch (error: any) {
+    console.error(`[GROUPS] Erro ao buscar grupos:`, error);
+    throw new Error(`Falha ao buscar grupos: ${error.message}`);
+  }
+}
+
+/**
+ * Envia mensagem para um ou mais grupos
+ */
+export async function sendMessageToGroups(
+  userId: string,
+  groupIds: string[],
+  message: string,
+  options: {
+    delayMin?: number;
+    delayMax?: number;
+    useAI?: boolean;
+  } = {}
+): Promise<{
+  sent: number;
+  failed: number;
+  errors: string[];
+  details: {
+    sent: { groupId: string; groupName?: string; timestamp: string; message: string }[];
+    failed: { groupId: string; groupName?: string; error: string; timestamp: string }[];
+  };
+}> {
+  const session = sessions.get(userId);
+  if (!session?.socket) {
+    throw new Error("WhatsApp não conectado");
+  }
+
+  const delayMin = options.delayMin || 5000;
+  const delayMax = options.delayMax || 15000;
+  const useAI = options.useAI || false;
+
+  let sent = 0;
+  let failed = 0;
+  const errors: string[] = [];
+  const details = {
+    sent: [] as { groupId: string; groupName?: string; timestamp: string; message: string }[],
+    failed: [] as { groupId: string; groupName?: string; error: string; timestamp: string }[],
+  };
+
+  console.log(`[GROUP SEND] Iniciando envio para ${groupIds.length} grupos`);
+  console.log(`[GROUP SEND] Delay: ${delayMin/1000}-${delayMax/1000}s, IA: ${useAI}`);
+
+  // Buscar metadados dos grupos para obter nomes
+  let groupsMetadata: Record<string, any> = {};
+  try {
+    groupsMetadata = await session.socket.groupFetchAllParticipating();
+  } catch (e) {
+    console.warn('[GROUP SEND] Não foi possível buscar metadados dos grupos');
+  }
+
+  // Função para gerar variação básica com IA
+  const generateGroupVariation = (baseMessage: string, groupIndex: number): string => {
+    if (!useAI) return baseMessage;
+    
+    // Variações simples de prefixo/sufixo
+    const prefixes = ['', '', '📢 ', '💬 ', '📣 ', '👋 '];
+    const suffixes = ['', '', '', ' 🙏', ' ✨', '!'];
+    
+    const prefixIndex = groupIndex % prefixes.length;
+    const suffixIndex = groupIndex % suffixes.length;
+    
+    let varied = baseMessage;
+    
+    // Adicionar variação se não começar/terminar com emoji
+    const emojiPattern = /[\uD83C-\uDBFF][\uDC00-\uDFFF]/;
+    const startsWithEmoji = emojiPattern.test(varied.slice(0, 2));
+    const endsWithEmoji = emojiPattern.test(varied.slice(-2));
+    
+    if (!startsWithEmoji && prefixes[prefixIndex]) {
+      varied = prefixes[prefixIndex] + varied;
+    }
+    if (!endsWithEmoji && suffixes[suffixIndex]) {
+      varied = varied.replace(/[.!?]+$/, '') + suffixes[suffixIndex];
+    }
+    
+    return varied;
+  };
+
+  let groupIndex = 0;
+  for (const groupId of groupIds) {
+    try {
+      // Verificar se é um JID de grupo válido
+      const jid = groupId.includes('@g.us') ? groupId : `${groupId}@g.us`;
+      const groupName = groupsMetadata[jid]?.subject || groupId;
+      
+      // Aplicar variação se IA estiver ativada
+      const finalMessage = useAI ? generateGroupVariation(message, groupIndex) : message;
+      
+      console.log(`[GROUP SEND] Enviando para grupo: ${groupName} (${jid})`);
+      console.log(`[GROUP SEND] Mensagem: ${finalMessage.substring(0, 50)}...`);
+      
+      // Enviar mensagem para o grupo
+      const sentMessage = await session.socket.sendMessage(jid, { text: finalMessage });
+      
+      if (sentMessage?.key.id) {
+        // Registrar messageId para evitar duplicatas
+        agentMessageIds.add(sentMessage.key.id);
+        sent++;
+        details.sent.push({
+          groupId: jid,
+          groupName,
+          timestamp: new Date().toISOString(),
+          message: finalMessage,
+        });
+        console.log(`[GROUP SEND] ✅ Enviado para ${groupName}`);
+      } else {
+        failed++;
+        const errorMsg = 'Sem ID de mensagem retornado';
+        errors.push(`${groupName}: ${errorMsg}`);
+        details.failed.push({
+          groupId: jid,
+          groupName,
+          error: errorMsg,
+          timestamp: new Date().toISOString(),
+        });
+        console.log(`[GROUP SEND] ❌ Falha: ${groupName}`);
+      }
+
+      // Delay humanizado entre grupos
+      const delay = delayMin + Math.random() * (delayMax - delayMin);
+      console.log(`[GROUP SEND] Aguardando ${(delay/1000).toFixed(1)}s...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+    } catch (error: any) {
+      const groupName = groupsMetadata[groupId]?.subject || groupId;
+      failed++;
+      const errorMsg = error.message || 'Erro desconhecido';
+      errors.push(`${groupName}: ${errorMsg}`);
+      details.failed.push({
+        groupId,
+        groupName,
+        error: errorMsg,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`[GROUP SEND] ❌ Erro: ${groupName} - ${errorMsg}`);
+      
+      // Delay extra em caso de erro
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    groupIndex++;
+  }
+
+  console.log(`[GROUP SEND] Concluído: ${sent} enviados, ${failed} falharam`);
+  
+  return { sent, failed, errors, details };
+}
+
 // Função auxiliar para obter sessões (usado em rotas de debug)
 export function getSessions(): Map<string, WhatsAppSession> {
   return sessions;
