@@ -79,6 +79,37 @@ export async function salvarVersaoPrompt(params: SaveVersionParams): Promise<Pro
   try {
     console.log(`[HistoryService] 📝 Salvando nova versão para user ${userId}, tipo: ${editType}`);
     
+    // 🔥 VERIFICAÇÃO ANTI-DUPLICATA: Buscar versão atual e comparar conteúdo
+    const currentVersionResult = await pool.query(
+      `SELECT id, version_number, prompt_content 
+       FROM prompt_versions 
+       WHERE user_id = $1 AND config_type = $2 AND is_current = true
+       LIMIT 1`,
+      [userId, configType]
+    ) as QueryResult<{ id: string; version_number: number; prompt_content: string }>;
+    
+    if (currentVersionResult.rows.length > 0) {
+      const currentVersion = currentVersionResult.rows[0];
+      
+      // Se o conteúdo é IDÊNTICO, NÃO criar nova versão (evitar duplicata)
+      if (currentVersion.prompt_content === promptContent) {
+        console.log(`[HistoryService] ⚠️ DUPLICATA EVITADA! Conteúdo idêntico à versão atual v${currentVersion.version_number}`);
+        console.log(`[HistoryService] ℹ️ Retornando versão existente (id: ${currentVersion.id})`);
+        
+        // Retornar a versão existente em vez de criar duplicata
+        const existingVersionResult = await pool.query(
+          `SELECT * FROM prompt_versions WHERE id = $1`,
+          [currentVersion.id]
+        ) as QueryResult<PromptVersion>;
+        
+        return existingVersionResult.rows[0];
+      }
+      
+      console.log(`[HistoryService] ✓ Conteúdo diferente da v${currentVersion.version_number}, criando nova versão`);
+    } else {
+      console.log(`[HistoryService] ℹ️ Nenhuma versão atual encontrada, criando primeira versão`);
+    }
+    
     // Busca o próximo número de versão
     const maxVersionResult = await pool.query(
       `SELECT COALESCE(MAX(version_number), 0) as max_version 
