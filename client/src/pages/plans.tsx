@@ -59,6 +59,7 @@ export default function PlansPage() {
   const isCurrentMensal = hasActiveSubscription && (activePlanTipo === "padrao" || activePlanTipo === "mensal");
   const isCurrentAnual = hasActiveSubscription && activePlanTipo === "anual";
   const isCurrentImplementacao = hasActiveSubscription && activePlanTipo === "implementacao";
+  const isCurrentImplementacaoMensal = hasActiveSubscription && activePlanTipo === "implementacao_mensal";
 
   // Função para verificar se este card é o plano ativo
   const isPlanActive = (tipo: string) => {
@@ -66,6 +67,7 @@ export default function PlansPage() {
     if (tipo === "mensal" && isCurrentMensal) return true;
     if (tipo === "anual" && isCurrentAnual) return true;
     if (tipo === "implementacao" && isCurrentImplementacao) return true;
+    if (tipo === "implementacao_mensal" && isCurrentImplementacaoMensal) return true;
     return false;
   };
 
@@ -74,6 +76,7 @@ export default function PlansPage() {
       if (tipo === "mensal") return p.tipo === "padrao" || (!p.tipo && p.periodicidade === "mensal");
       if (tipo === "anual") return p.tipo === "anual";
       if (tipo === "implementacao") return p.tipo === "implementacao";
+      if (tipo === "implementacao_mensal") return p.tipo === "implementacao_mensal";
       return false;
     });
 
@@ -119,7 +122,7 @@ export default function PlansPage() {
           className: "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed hover:bg-gray-100" 
         };
       }
-      if (tipo === "implementacao") {
+      if (tipo === "implementacao" || tipo === "implementacao_mensal") {
         return { 
           text: "Contratar Implementação", 
           disabled: false, 
@@ -135,7 +138,7 @@ export default function PlansPage() {
     if (tipo === "anual") {
       return { text: "Assinar Anual", disabled: false, className: "bg-green-600 hover:bg-green-700 text-white" };
     }
-    if (tipo === "implementacao") {
+    if (tipo === "implementacao" || tipo === "implementacao_mensal") {
       return { text: "Contratar Implementação", disabled: false, className: "bg-purple-600 hover:bg-purple-700 text-white" };
     }
     return { text: "Assinar", disabled: false, className: "bg-blue-600 hover:bg-blue-700 text-white" };
@@ -160,7 +163,7 @@ export default function PlansPage() {
     },
     {
       question: "O que é a Implementação Completa?",
-      answer: "É um serviço onde nossa equipe configura toda a IA para você: personaliza o agente, treina com suas informações e acompanha por 30 dias com reuniões semanais. Após o primeiro mês, continua apenas R$ 99/mês."
+      answer: "É um serviço onde nossa equipe configura toda a IA para você: personaliza o agente, treina com suas informações e acompanha por 30 dias com reuniões semanais. Após o primeiro mês, continua apenas R$ 99,99/mês."
     },
     {
       question: "Preciso ter conhecimento técnico?",
@@ -217,7 +220,7 @@ export default function PlansPage() {
               <div className="text-right">
                 <div className="flex items-baseline gap-0.5">
                   <span className="text-xs text-gray-500 line-through">R$ 149</span>
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white ml-1">R$ 99</span>
+                  <span className="text-2xl font-bold text-gray-900 dark:text-white ml-1">R$ 99,99</span>
                 </div>
                 <span className="text-xs text-gray-500">/mês</span>
               </div>
@@ -272,7 +275,7 @@ export default function PlansPage() {
               </div>
               <div className="text-right">
                 <div className="flex items-baseline gap-0.5">
-                  <span className="text-xs text-gray-400 line-through">R$ 1.188</span>
+                  <span className="text-xs text-gray-400 line-through">R$ 1.199</span>
                   <span className="text-2xl font-bold text-green-600 ml-1">R$ 1.128</span>
                 </div>
                 <span className="text-xs text-gray-500">/ano</span>
@@ -333,7 +336,7 @@ export default function PlansPage() {
             </ul>
             <div className="mt-3 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-center">
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                Após configuração: <span className="font-bold text-gray-900 dark:text-white">R$ 99/mês</span>
+                Após configuração: <span className="font-bold text-gray-900 dark:text-white">R$ 99,99/mês</span>
               </p>
             </div>
             {!isPlanActive("implementacao") && (
@@ -350,10 +353,55 @@ export default function PlansPage() {
               </Button>
             )}
           </div>
+
+          {/* PLANO IMPLEMENTAÇÃO MENSAL - Mobile Card */}
+          <div 
+            className={cn(
+              "relative border rounded-2xl p-4 transition-all mt-3",
+              isPlanActive("implementacao_mensal") 
+                ? "border-purple-400 bg-purple-50/50 dark:bg-purple-950/20" 
+                : "border-purple-200 dark:border-purple-800"
+            )}
+          >
+            <Badge className="absolute -top-2.5 left-4 bg-purple-600 text-white text-[10px] font-semibold px-2.5 py-0.5">
+              NOVO
+            </Badge>
+            <div className="flex items-start justify-between mt-1">
+              <div className="flex-1">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Implementação Mensal</h3>
+                <p className="text-xs text-purple-700 dark:text-purple-400 font-medium">Diluído na mensalidade</p>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-bold text-purple-600">R$ 199,99</span>
+                <p className="text-[10px] text-gray-500">/mês</p>
+              </div>
+            </div>
+            <ul className="mt-3 space-y-1.5">
+              {["Configuração completa da IA", "Personalização do agente", "Suporte prioritário"].map((feature, i) => (
+                <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                  <Check className="w-3.5 h-3.5 text-purple-600" />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+            {!isPlanActive("implementacao_mensal") && (
+              <Button
+                className="w-full mt-3 h-11 rounded-xl font-semibold bg-purple-600 hover:bg-purple-700 text-white"
+                onClick={() => handleSelectPlan("implementacao_mensal")}
+                disabled={createSubscriptionMutation.isPending && selectedPlan === "implementacao_mensal"}
+              >
+                {createSubscriptionMutation.isPending && selectedPlan === "implementacao_mensal" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Contratar Implementação"
+                )}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Desktop: Grid original */}
-        <div className="hidden md:grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3 mb-12">
+        <div className="hidden md:grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-12">
           
           {/* PLANO MENSAL */}
           <Card className={cn(
@@ -379,6 +427,7 @@ export default function PlansPage() {
               <div className="flex items-baseline gap-1">
                 <span className="text-sm text-gray-500 font-medium">R$</span>
                 <span className="text-5xl font-bold text-gray-900 dark:text-white tracking-tight">99</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">,99</span>
                 <span className="text-gray-500 text-sm font-medium">/mês</span>
               </div>
               
@@ -448,13 +497,13 @@ export default function PlansPage() {
               </div>
               
               <div className="space-y-1">
-                <div className="text-sm text-gray-400 line-through font-medium">R$ 1.188/ano</div>
+                <div className="text-sm text-gray-400 line-through font-medium">R$ 1.199/ano</div>
                 <div className="flex items-baseline gap-1">
                   <span className="text-sm text-gray-500 font-medium">R$</span>
                   <span className="text-5xl font-bold text-green-600 dark:text-green-500 tracking-tight">1.128</span>
                   <span className="text-gray-500 text-sm font-medium">/ano</span>
                 </div>
-                <p className="text-xs text-gray-500 font-medium">(equivale a R$ 94,05/mês)</p>
+                <p className="text-xs text-gray-500 font-medium">(equivale a R$ 94,00/mês)</p>
               </div>
               
               <p className="text-sm text-green-700 dark:text-green-400 font-semibold mt-3 flex items-center gap-1.5">
@@ -562,7 +611,7 @@ export default function PlansPage() {
               
               <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                 <p className="text-sm text-center text-gray-600 dark:text-gray-400">
-                  Após configuração: <span className="font-bold text-gray-900 dark:text-white">R$ 99/mês</span>
+                  Após configuração: <span className="font-bold text-gray-900 dark:text-white">R$ 99,99/mês</span>
                 </p>
               </div>
             </CardContent>
@@ -577,6 +626,81 @@ export default function PlansPage() {
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   getButtonConfig("implementacao").text
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+
+          {/* PLANO IMPLEMENTAÇÃO MENSAL */}
+          <Card className={cn(
+            "relative flex flex-col border rounded-2xl transition-all duration-200",
+            isPlanActive("implementacao_mensal") 
+              ? "border-purple-400 dark:border-purple-500 bg-purple-50/30 dark:bg-purple-950/20" 
+              : "border-purple-200 dark:border-purple-800 hover:border-purple-400 dark:hover:border-purple-600 hover:shadow-md"
+          )}>
+            <div className="absolute -top-3 left-6">
+              <Badge className={cn(
+                "px-3 py-1 text-xs font-semibold rounded-full shadow-sm",
+                isPlanActive("implementacao_mensal") 
+                  ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 border border-purple-300" 
+                  : "bg-purple-600 text-white"
+              )}>
+                {isPlanActive("implementacao_mensal") ? "Seu plano atual" : "NOVO"}
+              </Badge>
+            </div>
+            
+            <CardHeader className="pb-4 pt-8 px-6">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Implementação Mensal</h3>
+              </div>
+              
+              <div className="flex items-baseline gap-1">
+                <span className="text-sm text-gray-500 font-medium">R$</span>
+                <span className="text-5xl font-bold text-purple-600 dark:text-purple-500 tracking-tight">199</span>
+                <span className="text-2xl font-bold text-purple-600 dark:text-purple-500 tracking-tight">,99</span>
+                <span className="text-gray-500 text-sm font-medium">/mês</span>
+              </div>
+              
+              <p className="text-sm text-purple-700 dark:text-purple-400 font-medium mt-3">
+                Diluído na mensalidade
+              </p>
+            </CardHeader>
+
+            <CardContent className="flex-1 px-6 pb-4">
+              <ul className="space-y-4">
+                {[
+                  "Configuração completa da IA",
+                  "Personalização para seu negócio",
+                  "Treinamento inicial",
+                  "Suporte prioritário",
+                  "Mensalidade fixa"
+                ].map((feature, i) => (
+                  <li key={i} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
+                    <div className="mt-0.5 p-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                      <Check className="w-3 h-3 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                    </div>
+                    <span className="font-medium">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              
+              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-center text-gray-600 dark:text-gray-400">
+                  Sem taxa de adesão alta
+                </p>
+              </div>
+            </CardContent>
+
+            <CardFooter className="px-6 pb-8 pt-2">
+              <Button
+                className={cn("w-full h-12 rounded-xl font-semibold text-base shadow-sm transition-all hover:scale-[1.02]", getButtonConfig("implementacao_mensal").className)}
+                onClick={() => handleSelectPlan("implementacao_mensal")}
+                disabled={getButtonConfig("implementacao_mensal").disabled || createSubscriptionMutation.isPending}
+              >
+                {createSubscriptionMutation.isPending && selectedPlan === "implementacao_mensal" ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  getButtonConfig("implementacao_mensal").text
                 )}
               </Button>
             </CardFooter>

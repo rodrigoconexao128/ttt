@@ -7,10 +7,11 @@
  * 1. Histórico de versões do prompt (para restaurar)
  * 2. Histórico de chat (conversa natural sobre as edições)
  * 
- * Usa Supabase como backend via API REST.
+ * Usa Supabase/PostgreSQL via pool direto (não Drizzle).
  */
 
-import { db } from './db';
+import { pool } from './db';
+import type { QueryResult } from 'pg';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TIPOS
@@ -77,32 +78,33 @@ export async function salvarVersaoPrompt(params: SaveVersionParams): Promise<Pro
   
   try {
     // Busca o próximo número de versão
-    const [maxVersion] = await db.execute<{ max_version: number }>(
+    const maxVersionResult = await pool.query(
       `SELECT COALESCE(MAX(version_number), 0) as max_version 
        FROM prompt_versions 
        WHERE user_id = $1 AND config_type = $2`,
       [userId, configType]
-    );
+    ) as QueryResult<{ max_version: number }>;
     
-    const nextVersion = (maxVersion?.max_version || 0) + 1;
+    const nextVersion = (maxVersionResult.rows[0]?.max_version || 0) + 1;
     
     // Remove flag is_current das versões anteriores
-    await db.execute(
+    await pool.query(
       `UPDATE prompt_versions SET is_current = false 
        WHERE user_id = $1 AND config_type = $2`,
       [userId, configType]
     );
     
     // Insere nova versão
-    const [newVersion] = await db.execute<PromptVersion>(
+    const insertResult = await pool.query(
       `INSERT INTO prompt_versions (
         user_id, config_type, version_number, prompt_content, 
         edit_summary, edit_type, edit_details, is_current
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, true)
       RETURNING *`,
       [userId, configType, nextVersion, promptContent, editSummary, editType, JSON.stringify(editDetails)]
-    );
+    ) as QueryResult<PromptVersion>;
     
+    const newVersion = insertResult.rows[0];
     console.log(`[HistoryService] Nova versão ${nextVersion} salva para user ${userId}`);
     return newVersion;
     
@@ -121,15 +123,15 @@ export async function listarVersoes(
   limite: number = 50
 ): Promise<PromptVersion[]> {
   try {
-    const versoes = await db.execute<PromptVersion>(
+    const result = await pool.query(
       `SELECT * FROM prompt_versions 
        WHERE user_id = $1 AND config_type = $2 
        ORDER BY version_number DESC 
        LIMIT $3`,
       [userId, configType, limite]
-    );
+    ) as QueryResult<PromptVersion>;
     
-    return versoes || [];
+    return result.rows || [];
   } catch (error) {
     console.error('[HistoryService] Erro ao listar versões:', error);
     return [];
@@ -141,12 +143,12 @@ export async function listarVersoes(
  */
 export async function obterVersao(versionId: string): Promise<PromptVersion | null> {
   try {
-    const [versao] = await db.execute<PromptVersion>(
+    const result = await pool.query(
       `SELECT * FROM prompt_versions WHERE id = $1`,
       [versionId]
-    );
+    ) as QueryResult<PromptVersion>;
     
-    return versao || null;
+    return result.rows[0] || null;
   } catch (error) {
     console.error('[HistoryService] Erro ao obter versão:', error);
     return null;
@@ -161,13 +163,13 @@ export async function obterVersaoAtual(
   configType: string = 'ai_agent_config'
 ): Promise<PromptVersion | null> {
   try {
-    const [versao] = await db.execute<PromptVersion>(
+    const result = await pool.query(
       `SELECT * FROM prompt_versions 
        WHERE user_id = $1 AND config_type = $2 AND is_current = true`,
       [userId, configType]
-    );
+    ) as QueryResult<PromptVersion>;
     
-    return versao || null;
+    return result.rows[0] || null;
   } catch (error) {
     console.error('[HistoryService] Erro ao obter versão atual:', error);
     return null;
@@ -225,15 +227,15 @@ export async function salvarMensagemChat(params: SaveChatMessageParams): Promise
   } = params;
   
   try {
-    const [mensagem] = await db.execute<PromptEditChatMessage>(
+    const result = await pool.query(
       `INSERT INTO prompt_edit_chat (
         user_id, config_type, role, content, version_id, metadata
       ) VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *`,
       [userId, configType, role, content, versionId, JSON.stringify(metadata)]
-    );
+    ) as QueryResult<PromptEditChatMessage>;
     
-    return mensagem;
+    return result.rows[0] || null;
   } catch (error) {
     console.error('[HistoryService] Erro ao salvar mensagem de chat:', error);
     return null;
@@ -249,15 +251,15 @@ export async function listarChatHistory(
   limite: number = 100
 ): Promise<PromptEditChatMessage[]> {
   try {
-    const mensagens = await db.execute<PromptEditChatMessage>(
+    const result = await pool.query(
       `SELECT * FROM prompt_edit_chat 
        WHERE user_id = $1 AND config_type = $2 
        ORDER BY created_at ASC 
        LIMIT $3`,
       [userId, configType, limite]
-    );
+    ) as QueryResult<PromptEditChatMessage>;
     
-    return mensagens || [];
+    return result.rows || [];
   } catch (error) {
     console.error('[HistoryService] Erro ao listar chat:', error);
     return [];
@@ -272,7 +274,7 @@ export async function limparChatHistory(
   configType: string = 'ai_agent_config'
 ): Promise<boolean> {
   try {
-    await db.execute(
+    await pool.query(
       `DELETE FROM prompt_edit_chat WHERE user_id = $1 AND config_type = $2`,
       [userId, configType]
     );

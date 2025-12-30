@@ -25,7 +25,7 @@ import type { AiAgentConfig } from "@shared/schema";
 import { PromptGenerator } from "@/components/prompt-generator";
 import { ExpandedEditor, ExpandButton } from "@/components/expanded-editor";
 import { PromptImprover } from "@/components/prompt-improver";
-import { AgentStudio } from "@/components/agent-studio";
+import { AgentStudioUnified } from "@/components/agent-studio-unified";
 
 // ============== TIPOS ==============
 interface AgentMedia {
@@ -472,7 +472,7 @@ export default function MyAgent() {
     });
   };
 
-  // Mostrar o gerador de prompt se necessário
+  // Mostrar o gerador de prompt se necessário (usuário novo sem prompt)
   if (showPromptGenerator && !prompt) {
     return (
       <div className="h-full overflow-auto bg-gradient-to-b from-background to-muted/20">
@@ -486,49 +486,10 @@ export default function MyAgent() {
     );
   }
 
-  // Mostrar AgentStudio (após criar agente ou quando clica em "Editar com IA")
-  if (showAgentStudio && prompt) {
-    return (
-      <div className="h-screen flex flex-col bg-background">
-        {/* Header compacto */}
-        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/20 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => {
-                setShowAgentStudio(false);
-                setIsNewAgent(false);
-              }}
-              className="text-xs"
-            >
-              ← Voltar
-            </Button>
-            <span className="text-sm font-medium">Studio do Agente</span>
-          </div>
-          {isNewAgent && (
-            <Button 
-              size="sm" 
-              onClick={() => navigate("/conexao")}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Zap className="w-3 h-3 mr-1" />
-              Conectar WhatsApp
-            </Button>
-          )}
-        </div>
-        
-        {/* AgentStudio */}
-        <div className="flex-1 overflow-hidden">
-          <AgentStudio
-            initialPrompt={prompt}
-            onSave={handleAgentStudioSave}
-            onNavigateToConnect={() => navigate("/conexao")}
-            isNew={isNewAgent}
-          />
-        </div>
-      </div>
-    );
+  // SEMPRE ir direto para o Studio quando tem prompt configurado
+  // Sem telas intermediárias - experiência unificada
+  if (prompt) {
+    return <AgentStudioUnified />;
   }
 
   return (

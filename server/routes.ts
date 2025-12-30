@@ -1196,7 +1196,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid request", errors: result.error });
       }
 
-      const config = await storage.upsertAgentConfig(userId, result.data);
+      // Check if config already exists - if so, use update instead of upsert
+      // This avoids the "prompt cannot be null" error when only updating settings
+      const existingConfig = await storage.getAgentConfig(userId);
+      
+      let config;
+      if (existingConfig) {
+        // Config exists, just update the provided fields
+        config = await storage.updateAgentConfig(userId, result.data);
+      } else {
+        // No config exists, need to create with default prompt if not provided
+        const dataWithDefaults = {
+          prompt: result.data.prompt || "Você é um assistente virtual prestativo.",
+          ...result.data
+        };
+        config = await storage.upsertAgentConfig(userId, dataWithDefaults);
+      }
+      
       res.json(config);
     } catch (error) {
       console.error("Error updating agent config:", error);
@@ -1320,6 +1336,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   // ============ EDITOR DE PROMPTS COM SEARCH/REPLACE ENGINE ============
   app.post("/api/agent/edit-prompt", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = getUserId(req);
       const { currentPrompt, instruction } = req.body;
 
       if (!currentPrompt || !instruction) {
@@ -1342,11 +1359,45 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       // Usar novo serviço de edição via IA (Search/Replace com JSON)
       const { editarPromptViaIA } = await import("./promptEditService");
+      const { salvarVersaoPrompt, salvarMensagemChat } = await import("./promptHistoryService");
       
       const result = await editarPromptViaIA(currentPrompt, instruction, mistralApiKey, "mistral");
       
       console.log(`📝 [Edit Prompt] Sucesso: ${result.success}, Edições: ${result.edicoesAplicadas}`);
       console.log(`📝 [Edit Prompt] Resposta IA: ${result.mensagemChat}`);
+      
+      // Salvar no histórico se teve edição bem-sucedida
+      if (result.success && result.novoPrompt !== currentPrompt) {
+        // Salvar mensagem do usuário
+        await salvarMensagemChat({
+          userId,
+          configType: 'ai_agent_config',
+          role: 'user',
+          content: instruction
+        });
+        
+        // Salvar resposta da IA
+        await salvarMensagemChat({
+          userId,
+          configType: 'ai_agent_config',
+          role: 'assistant',
+          content: result.mensagemChat,
+          metadata: {
+            edicoes_aplicadas: result.edicoesAplicadas,
+            edicoes_falharam: result.edicoesFalharam
+          }
+        });
+        
+        // Salvar nova versão do prompt
+        await salvarVersaoPrompt({
+          userId,
+          configType: 'ai_agent_config',
+          promptContent: result.novoPrompt,
+          editSummary: instruction,
+          editType: 'ia',
+          editDetails: result.detalhes
+        });
+      }
       
       res.json({
         success: result.success,
@@ -1363,6 +1414,88 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     } catch (error: any) {
       console.error("Error editing prompt:", error);
       res.status(500).json({ message: error.message || "Failed to edit prompt" });
+    }
+  });
+
+  // ============ ROTAS DE HISTÓRICO DO PROMPT ============
+  
+  // Listar versões do prompt
+  app.get("/api/agent/prompt-versions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { listarVersoes } = await import("./promptHistoryService");
+      
+      const versoes = await listarVersoes(userId, 'ai_agent_config', 50);
+      
+      res.json({ 
+        success: true,
+        versions: versoes.map(v => ({
+          id: v.id,
+          versionNumber: v.version_number,
+          editSummary: v.edit_summary,
+          editType: v.edit_type,
+          createdAt: v.created_at,
+          isCurrent: v.is_current
+        }))
+      });
+    } catch (error: any) {
+      console.error("Error fetching prompt versions:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch versions" });
+    }
+  });
+  
+  // Restaurar uma versão específica
+  app.post("/api/agent/prompt-versions/:id/restore", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { restaurarVersao, obterVersao } = await import("./promptHistoryService");
+      
+      const versaoRestaurada = await restaurarVersao(id, userId);
+      
+      if (!versaoRestaurada) {
+        return res.status(404).json({ message: "Versão não encontrada" });
+      }
+      
+      // Atualizar o prompt no config
+      const agentConfig = await storage.getAgentConfig(userId);
+      if (agentConfig) {
+        await storage.saveAgentConfig(userId, {
+          ...agentConfig,
+          prompt: versaoRestaurada.prompt_content
+        });
+      }
+      
+      res.json({ 
+        success: true,
+        newPrompt: versaoRestaurada.prompt_content
+      });
+    } catch (error: any) {
+      console.error("Error restoring prompt version:", error);
+      res.status(500).json({ message: error.message || "Failed to restore version" });
+    }
+  });
+  
+  // Listar chat do histórico
+  app.get("/api/agent/prompt-chat", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { listarChatHistory } = await import("./promptHistoryService");
+      
+      const mensagens = await listarChatHistory(userId, 'ai_agent_config', 100);
+      
+      res.json({ 
+        success: true,
+        messages: mensagens.map(m => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          createdAt: m.created_at
+        }))
+      });
+    } catch (error: any) {
+      console.error("Error fetching prompt chat:", error);
+      res.status(500).json({ message: error.message || "Failed to fetch chat" });
     }
   });
 
