@@ -1270,17 +1270,57 @@ export default function AdminAgentConfig() {
 
             {/* Preview de Imagem */}
             {mediaForm.mediaType === "image" && mediaForm.storageUrl && (
-              <img src={mediaForm.storageUrl} alt="Preview" className="w-full max-h-48 object-contain rounded border" />
+              <div className="space-y-2">
+                <img src={mediaForm.storageUrl} alt="Preview" className="w-full max-h-48 object-contain rounded border" />
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Alterar imagem
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={() => setMediaForm(prev => ({ ...prev, storageUrl: '', fileName: '', fileSize: 0, mimeType: '' }))}
+                    className="flex-1"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Excluir imagem
+                  </Button>
+                </div>
+              </div>
             )}
 
             {/* Preview de Áudio */}
             {mediaForm.mediaType === "audio" && mediaForm.storageUrl && (
               <div className="space-y-2">
                 <audio controls className="w-full" src={mediaForm.storageUrl} />
-                <Button variant="outline" onClick={handleTranscribe} disabled={transcribing}>
-                  {transcribing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                  Transcrever
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleTranscribe} disabled={transcribing}>
+                    {transcribing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                    Transcrever
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Alterar áudio
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={() => setMediaForm(prev => ({ ...prev, storageUrl: '', fileName: '', fileSize: 0, mimeType: '', transcription: '' }))}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Excluir
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -1294,6 +1334,70 @@ export default function AdminAgentConfig() {
                   onChange={(e) => setMediaForm(prev => ({ ...prev, transcription: e.target.value }))}
                   rows={2}
                 />
+              </div>
+            )}
+
+            {/* Preview de Vídeo */}
+            {mediaForm.mediaType === "video" && mediaForm.storageUrl && (
+              <div className="space-y-2">
+                <video controls className="w-full max-h-64 rounded border" src={mediaForm.storageUrl} />
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Alterar vídeo
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={() => setMediaForm(prev => ({ ...prev, storageUrl: '', fileName: '', fileSize: 0, mimeType: '' }))}
+                    className="flex-1"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Excluir vídeo
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Preview de Documento */}
+            {mediaForm.mediaType === "document" && mediaForm.storageUrl && (
+              <div className="space-y-2">
+                <div className="border rounded p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-8 h-8 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">{mediaForm.fileName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {mediaForm.fileSize ? (mediaForm.fileSize / 1024 / 1024).toFixed(2) + ' MB' : ''}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Alterar documento
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={() => setMediaForm(prev => ({ ...prev, storageUrl: '', fileName: '', fileSize: 0, mimeType: '' }))}
+                    className="flex-1"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Excluir documento
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -1365,11 +1469,27 @@ export default function AdminAgentConfig() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsMediaDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveMedia} disabled={savingMedia || uploadingFile}>
-              {(savingMedia || uploadingFile) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {editingMedia ? "Salvar" : "Adicionar"}
-            </Button>
+            <div className="flex w-full justify-between items-center">
+              {editingMedia && (
+                <Button 
+                  variant="destructive" 
+                  onClick={() => {
+                    setIsMediaDialogOpen(false);
+                    handleDeleteMedia(editingMedia);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Excluir Mídia
+                </Button>
+              )}
+              <div className={`flex gap-2 ${!editingMedia ? 'ml-auto' : ''}`}>
+                <Button variant="outline" onClick={() => setIsMediaDialogOpen(false)}>Cancelar</Button>
+                <Button onClick={handleSaveMedia} disabled={savingMedia || uploadingFile}>
+                  {(savingMedia || uploadingFile) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {editingMedia ? "Salvar" : "Adicionar"}
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
