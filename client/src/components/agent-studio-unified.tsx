@@ -159,6 +159,9 @@ export function AgentStudioUnified() {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [versionsLoaded, setVersionsLoaded] = useState(false);
   
+  // Estado de restauração (loading)
+  const [isRestoring, setIsRestoring] = useState(false);
+  
   // Reset versionsLoaded quando config muda (navegação)
   useEffect(() => {
     return () => {
@@ -472,8 +475,20 @@ export function AgentStudioUnified() {
       return;
     }
     
+    // Prevenir cliques múltiplos
+    if (isRestoring) {
+      console.log("[RESTORE] ⏳ Já está restaurando, ignorando clique duplicado");
+      return;
+    }
+    
     try {
+      setIsRestoring(true);
       setShowHistory(false);
+      
+      toast({
+        title: "⏳ Restaurando versão...",
+        description: "Aguarde, processando restauração"
+      });
       
       // 🔥 CRÍTICO: Usar rota de restore que cria NOVA versão com ID ÚNICO
       console.log("[RESTORE] 📡 POST /api/agent/prompt-versions/" + entry.id + "/restore");
@@ -520,8 +535,10 @@ export function AgentStudioUnified() {
         description: error.message || "Tente novamente",
         variant: "destructive"
       });
+    } finally {
+      setIsRestoring(false);
     }
-  }, [promptHistory, queryClient, toast]);
+  }, [promptHistory, queryClient, toast, isRestoring]);
 
   // ============ EDIÇÃO VIA CHAT ============
   const handleEditPrompt = async () => {
@@ -1018,13 +1035,20 @@ export function AgentStudioUnified() {
                     <button
                       key={entry.id}
                       onClick={() => restoreFromHistory(actualIndex)}
+                      disabled={isRestoring}
                       className={cn(
                         "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors overflow-hidden relative",
                         isActive 
                           ? "bg-primary/10 border border-primary/30" 
-                          : "hover:bg-muted border border-transparent"
+                          : "hover:bg-muted border border-transparent",
+                        isRestoring && "opacity-50 cursor-not-allowed"
                       )}
                     >
+                      {isRestoring && (
+                        <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        </div>
+                      )}
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
