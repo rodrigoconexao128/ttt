@@ -1422,23 +1422,31 @@ O QUE NÃO FAZER:
             {mediaForm.mediaType === "image" && mediaForm.storageUrl && (
               <div className="space-y-2">
                 <Label>Preview</Label>
-                <div className="relative group">
-                  <img src={mediaForm.storageUrl} alt="Preview" className="w-full max-h-48 object-contain rounded border" />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center gap-2">
+                <div className="border rounded-lg overflow-hidden">
+                  <img src={mediaForm.storageUrl} alt="Preview" className="w-full max-h-48 object-contain" />
+                  <div className="flex gap-2 p-2 bg-muted/30 border-t">
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="outline"
                       size="sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                     >
                       <RefreshCw className="w-4 h-4 mr-1" />
-                      Trocar
+                      Trocar Imagem
                     </Button>
                     <Button
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => {
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
                         setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
                       }}
@@ -1458,7 +1466,7 @@ O QUE NÃO FAZER:
                 <div className="p-3 border rounded-lg bg-muted/30">
                   <audio controls className="w-full mb-2" src={mediaForm.storageUrl} />
                   <div className="flex gap-2 flex-wrap">
-                    <Button variant="outline" size="sm" onClick={handleTranscribe} disabled={transcribing}>
+                    <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleTranscribe(); }} disabled={transcribing}>
                       {transcribing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
                       Transcrever
                     </Button>
@@ -1466,7 +1474,11 @@ O QUE NÃO FAZER:
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                     >
                       <RefreshCw className="w-4 h-4 mr-1" />
                       Trocar Áudio
@@ -1475,7 +1487,9 @@ O QUE NÃO FAZER:
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
                         setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "", transcription: "" }));
                         setSelectedFile(null);
                       }}
@@ -1505,27 +1519,35 @@ O QUE NÃO FAZER:
             {mediaForm.mediaType === "video" && mediaForm.storageUrl && (
               <div className="space-y-2">
                 <Label>Preview</Label>
-                <div className="relative group">
+                <div className="border rounded-lg overflow-hidden">
                   <video 
                     controls 
-                    className="w-full max-h-48 object-contain rounded border"
+                    className="w-full max-h-48 object-contain"
                     src={mediaForm.storageUrl}
                   />
-                  <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-2 p-2 bg-muted/30 border-t">
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="outline"
                       size="sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                     >
                       <RefreshCw className="w-4 h-4 mr-1" />
-                      Trocar
+                      Trocar Vídeo
                     </Button>
                     <Button
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => {
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
                         setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
                       }}
@@ -1552,7 +1574,11 @@ O QUE NÃO FAZER:
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                     >
                       <RefreshCw className="w-4 h-4 mr-1" />
                       Trocar
@@ -1561,7 +1587,9 @@ O QUE NÃO FAZER:
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
                         setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
                       }}

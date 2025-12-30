@@ -715,7 +715,11 @@ export default function MediaLibrary() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                     >
                       <RefreshCw className="h-4 w-4 mr-1" />
                       Trocar Áudio
@@ -724,7 +728,9 @@ export default function MediaLibrary() {
                       type="button"
                       size="sm"
                       variant="destructive"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
                         setFormData(prev => ({ ...prev, storageUrl: "", fileName: "", transcription: "" }));
                         setSelectedFile(null);
                       }}
@@ -741,27 +747,35 @@ export default function MediaLibrary() {
             {formData.mediaType === "image" && formData.storageUrl && (
               <div className="space-y-2">
                 <Label>Preview</Label>
-                <div className="relative group">
+                <div className="border rounded-lg overflow-hidden">
                   <img 
                     src={formData.storageUrl} 
                     alt="Preview"
-                    className="w-full max-h-48 object-contain rounded-md border"
+                    className="w-full max-h-48 object-contain"
                   />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-md flex items-center justify-center gap-2">
+                  <div className="flex gap-2 p-2 bg-muted/30 border-t">
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="outline"
                       size="sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                     >
                       <RefreshCw className="h-4 w-4 mr-1" />
-                      Trocar
+                      Trocar Imagem
                     </Button>
                     <Button
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => {
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
                         setFormData(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
                       }}
@@ -778,27 +792,35 @@ export default function MediaLibrary() {
             {formData.mediaType === "video" && formData.storageUrl && (
               <div className="space-y-2">
                 <Label>Preview</Label>
-                <div className="relative group">
+                <div className="border rounded-lg overflow-hidden">
                   <video 
                     controls 
-                    className="w-full max-h-48 object-contain rounded-md border"
+                    className="w-full max-h-48 object-contain"
                     src={formData.storageUrl}
                   />
-                  <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-2 p-2 bg-muted/30 border-t">
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="outline"
                       size="sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                     >
                       <RefreshCw className="h-4 w-4 mr-1" />
-                      Trocar
+                      Trocar Vídeo
                     </Button>
                     <Button
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => {
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
                         setFormData(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
                       }}
@@ -825,7 +847,11 @@ export default function MediaLibrary() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                     >
                       <RefreshCw className="h-4 w-4 mr-1" />
                       Trocar
@@ -834,7 +860,9 @@ export default function MediaLibrary() {
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
                         setFormData(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
                       }}
