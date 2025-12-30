@@ -224,14 +224,22 @@ export function AgentStudioUnified() {
   // ============ MUTATIONS ============
   const updateConfigMutation = useMutation({
     mutationFn: async (data: Partial<AgentConfig>) => {
+      console.log("[MUTATION] 💾 Enviando para /api/agent/config:", JSON.stringify(data).substring(0, 200));
       const res = await apiRequest("POST", "/api/agent/config", data);
-      return res.json();
+      const result = await res.json();
+      console.log("[MUTATION] ✅ Resposta:", JSON.stringify(result).substring(0, 200));
+      return result;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
+    onSuccess: async () => {
+      // 🔄 Invalidar todas as queries relacionadas para forçar refetch
+      await queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/agent/prompt-versions"] });
+      
+      console.log("[MUTATION] 🔄 Queries invalidadas - UI será atualizada");
       toast({ title: "✅ Salvo!", description: "Configurações atualizadas." });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("[MUTATION] ❌ Erro:", error);
       toast({ title: "Erro", description: "Falha ao salvar.", variant: "destructive" });
     }
   });
@@ -421,24 +429,65 @@ export function AgentStudioUnified() {
     }
   }, [canRedo, historyIndex, promptHistory]);
 
-  const restoreFromHistory = useCallback((index: number) => {
+  const restoreFromHistory = useCallback(async (index: number) => {
     const entry = promptHistory[index];
-    if (entry) {
-      setCurrentPrompt(entry.prompt);
-      setHistoryIndex(index);
+    console.log("[RESTORE] 🔄 Index:", index, "Entry:", entry?.instruction, "Version ID:", entry?.id);
+    
+    if (!entry || !entry.id) {
+      console.error("[RESTORE] ❌ Entrada inválida ou sem ID");
+      toast({
+        title: "Erro ao restaurar",
+        description: "Versão inválida",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
       setShowHistory(false);
       
-      // Salvar automaticamente no banco ao restaurar
-      updateConfigMutation.mutate({ prompt: entry.prompt });
+      // 🔥 CORREÇÃO CRÍTICA: Usar rota de restore que cria nova versão
+      console.log("[RESTORE] 📡 Chamando rota de restore para versão:", entry.id);
+      const response = await apiRequest("POST", `/api/agent/prompt-versions/${entry.id}/restore`, {});
+      const data = await response.json();
       
-      setChatMessages(prev => [...prev, {
-        id: `system-restore-${Date.now()}`,
-        role: "system",
-        content: `🔄 Restaurado: "${entry.instruction}"`,
-        timestamp: new Date()
-      }]);
+      if (data.success && data.newPrompt) {
+        console.log("[RESTORE] ✅ Restauração bem-sucedida!");
+        console.log("[RESTORE] Nova versão criada: v" + data.versionNumber);
+        console.log("[RESTORE] Restaurada de: v" + data.restoredFrom);
+        
+        // Atualizar UI
+        setCurrentPrompt(data.newPrompt);
+        setHistoryIndex(index);
+        setHasChanges(false);
+        
+        // 🔄 Forçar refetch das versões para mostrar a nova versão restaurada
+        await queryClient.invalidateQueries(["/api/agent/prompt-versions"]);
+        await queryClient.invalidateQueries(["/api/agent/config"]);
+        
+        setChatMessages(prev => [...prev, {
+          id: `system-restore-${Date.now()}`,
+          role: "system",
+          content: `🔄 Restaurado da v${data.restoredFrom} → Nova v${data.versionNumber} criada`,
+          timestamp: new Date()
+        }]);
+        
+        toast({
+          title: "✅ Versão restaurada",
+          description: `Restaurado da v${data.restoredFrom}. Nova versão v${data.versionNumber} criada.`
+        });
+      } else {
+        throw new Error(data.message || "Falha ao restaurar");
+      }
+    } catch (error: any) {
+      console.error("[RESTORE] ❌ Erro:", error);
+      toast({
+        title: "Erro ao restaurar versão",
+        description: error.message || "Tente novamente",
+        variant: "destructive"
+      });
     }
-  }, [promptHistory, updateConfigMutation]);
+  }, [promptHistory, queryClient, toast]);
 
   // ============ EDIÇÃO VIA CHAT ============
   const handleEditPrompt = async () => {
@@ -902,10 +951,10 @@ export function AgentStudioUnified() {
 
           {/* History Panel */}
           {showHistory && promptHistory.length > 1 && (
-            <div className="absolute top-12 left-0 right-0 z-50 border-b bg-background/95 backdrop-blur-sm shadow-lg px-4 py-3 max-h-48 overflow-y-auto mx-4 rounded-lg border">
+            <div className="absolute top-12 left-0 right-0 z-50 border-b bg-background/95 backdrop-blur-sm shadow-lg px-4 py-3 max-h-64 overflow-y-auto mx-4 rounded-lg border">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground">
-                  📜 Histórico ({promptHistory.length})
+                  📜 Histórico ({promptHistory.length} versões)
                 </p>
                 <button 
                   onClick={() => setShowHistory(false)}
@@ -915,27 +964,55 @@ export function AgentStudioUnified() {
                 </button>
               </div>
               <div className="space-y-1">
-                {[...promptHistory].reverse().slice(0, 10).map((entry, idx) => {
+                {[...promptHistory].reverse().slice(0, 15).map((entry, idx) => {
                   const actualIndex = promptHistory.length - 1 - idx;
                   const isActive = actualIndex === historyIndex;
+                  
+                  // 🔥 Verificar se é a versão que está realmente no banco (is_current)
+                  const isCurrentInDB = promptVersionsData?.versions?.find(v => v.id === entry.id)?.isCurrent;
+                  
+                  // 🔥 Verificar se o prompt desta versão é igual ao prompt atual no config
+                  const isReallyInUse = config?.prompt === entry.prompt;
+                  
                   return (
                     <button
                       key={entry.id}
                       onClick={() => restoreFromHistory(actualIndex)}
                       className={cn(
-                        "w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors overflow-hidden",
+                        "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors overflow-hidden relative",
                         isActive 
                           ? "bg-primary/10 border border-primary/30" 
-                          : "hover:bg-muted"
+                          : "hover:bg-muted border border-transparent"
                       )}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className={cn("truncate flex-1 min-w-0", isActive && "font-medium")}>
-                          {entry.instruction}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                          {entry.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className={cn("truncate", isActive && "font-medium")}>
+                              {entry.instruction}
+                            </span>
+                            {isReallyInUse && (
+                              <Badge variant="default" className="text-[9px] px-1.5 py-0 h-4 bg-green-500">
+                                EM USO
+                              </Badge>
+                            )}
+                            {isCurrentInDB && !isReallyInUse && (
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                                Atual
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span>{entry.timestamp.toLocaleString('pt-BR', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}</span>
+                            <span>•</span>
+                            <span>{entry.prompt.length} chars</span>
+                          </div>
+                        </div>
                       </div>
                     </button>
                   );

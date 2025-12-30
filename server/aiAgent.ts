@@ -313,13 +313,6 @@ export async function generateAIResponse(
       agentConfig = await storage.getAgentConfig(userId);
     }
 
-    if (agentConfig) {
-      console.log(`[AI AGENT] Loaded config for user ${userId}. Prompt length: ${agentConfig.prompt?.length}`);
-      console.log(`[AI AGENT] Prompt preview: ${agentConfig.prompt?.substring(0, 50)}...`);
-    } else {
-      console.log(`[AI AGENT] No config found for user ${userId}`);
-    }
-
     // ═══════════════════════════════════════════════════════════════════════
     // 🎯 DEBUG: Mostrar status das configurações
     // ═══════════════════════════════════════════════════════════════════════
@@ -376,11 +369,15 @@ export async function generateAIResponse(
     }
 
     // 📝 DEBUG: Log do config do agente para verificar se prompt está correto
-    console.log(`🤖 [AI Agent] Config encontrado para user ${userId}:`);
+    console.log(`\n🤖 [AI Agent] ═══════════════════════════════════════════════════`);
+    console.log(`🤖 [AI Agent] Config para user ${userId} respondendo cliente:`);
     console.log(`   Model: ${agentConfig.model}`);
     console.log(`   Active: ${agentConfig.isActive}`);
     console.log(`   Trigger phrases: ${agentConfig.triggerPhrases?.length || 0}`);
-    console.log(`   Prompt (primeiros 100 chars): ${agentConfig.prompt?.substring(0, 100) || 'N/A'}...`);
+    console.log(`   Prompt length: ${agentConfig.prompt?.length || 0} chars`);
+    console.log(`   Prompt (primeiros 150 chars): ${agentConfig.prompt?.substring(0, 150) || 'N/A'}...`);
+    console.log(`   Prompt (MD5 para debug): ${require('crypto').createHash('md5').update(agentConfig.prompt || '').digest('hex').substring(0, 8)}`);
+    console.log(`🤖 [AI Agent] ═══════════════════════════════════════════════════\n`);
 
     // 🛡️ DETECÇÃO DE JAILBREAK (apenas no sistema avançado)
     if (useAdvancedSystem && businessConfig) {

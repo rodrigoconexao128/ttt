@@ -77,6 +77,8 @@ export async function salvarVersaoPrompt(params: SaveVersionParams): Promise<Pro
   } = params;
   
   try {
+    console.log(`[HistoryService] 📝 Salvando nova versão para user ${userId}, tipo: ${editType}`);
+    
     // Busca o próximo número de versão
     const maxVersionResult = await pool.query(
       `SELECT COALESCE(MAX(version_number), 0) as max_version 
@@ -86,13 +88,19 @@ export async function salvarVersaoPrompt(params: SaveVersionParams): Promise<Pro
     ) as QueryResult<{ max_version: number }>;
     
     const nextVersion = (maxVersionResult.rows[0]?.max_version || 0) + 1;
+    console.log(`[HistoryService] Próximo número de versão: ${nextVersion}`);
     
     // Remove flag is_current das versões anteriores
-    await pool.query(
+    const updateResult = await pool.query(
       `UPDATE prompt_versions SET is_current = false 
-       WHERE user_id = $1 AND config_type = $2`,
+       WHERE user_id = $1 AND config_type = $2 AND is_current = true
+       RETURNING version_number`,
       [userId, configType]
-    );
+    ) as QueryResult<{ version_number: number }>;
+    
+    if (updateResult.rows.length > 0) {
+      console.log(`[HistoryService] 🔄 Versões anteriores desmarcadas: ${updateResult.rows.map(r => `v${r.version_number}`).join(', ')}`);
+    }
     
     // Insere nova versão
     const insertResult = await pool.query(
@@ -105,11 +113,11 @@ export async function salvarVersaoPrompt(params: SaveVersionParams): Promise<Pro
     ) as QueryResult<PromptVersion>;
     
     const newVersion = insertResult.rows[0];
-    console.log(`[HistoryService] Nova versão ${nextVersion} salva para user ${userId}`);
+    console.log(`[HistoryService] ✅ Nova versão v${nextVersion} salva (id: ${newVersion.id}, is_current: true, prompt length: ${promptContent.length})`);
     return newVersion;
     
   } catch (error) {
-    console.error('[HistoryService] Erro ao salvar versão:', error);
+    console.error('[HistoryService] ❌ Erro ao salvar versão:', error);
     return null;
   }
 }

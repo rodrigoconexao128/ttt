@@ -1190,13 +1190,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/agent/config", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      console.log(`[API] POST /api/agent/config called for user ${userId}`);
-      console.log(`[API] Payload:`, JSON.stringify(req.body).substring(0, 200));
-      
       const result = insertAiAgentConfigSchema.partial().safeParse(req.body);
 
       if (!result.success) {
-        console.error(`[API] Validation error:`, result.error);
         return res.status(400).json({ message: "Invalid request", errors: result.error });
       }
 
@@ -1204,14 +1200,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This avoids the "prompt cannot be null" error when only updating settings
       const existingConfig = await storage.getAgentConfig(userId);
       
+      // 🔍 LOG: Verificar se prompt está mudando
+      const promptChanged = result.data.prompt && existingConfig && result.data.prompt !== existingConfig.prompt;
+      console.log(`[AGENT CONFIG] User ${userId} - Prompt changed: ${promptChanged}`);
+      if (promptChanged) {
+        console.log(`[AGENT CONFIG] Old prompt length: ${existingConfig.prompt?.length || 0}`);
+        console.log(`[AGENT CONFIG] New prompt length: ${result.data.prompt?.length || 0}`);
+      }
+      
       let config;
       if (existingConfig) {
         // Config exists, just update the provided fields
-        console.log(`[API] Updating existing config for user ${userId}`);
         config = await storage.updateAgentConfig(userId, result.data);
       } else {
         // No config exists, need to create with default prompt if not provided
-        console.log(`[API] Creating new config for user ${userId}`);
         const dataWithDefaults = {
           prompt: result.data.prompt || "Você é um assistente virtual prestativo.",
           ...result.data
@@ -1219,7 +1221,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         config = await storage.upsertAgentConfig(userId, dataWithDefaults);
       }
       
-      console.log(`[API] Config updated successfully. New prompt length: ${config?.prompt?.length}`);
+      // 📝 CRÍTICO: Se prompt mudou, criar nova versão no histórico
+      if (promptChanged && result.data.prompt) {
+        const { salvarVersaoPrompt } = await import("./promptHistoryService");
+        
+        console.log(`[AGENT CONFIG] 💾 Criando nova versão do prompt para user ${userId}`);
+        const novaVersao = await salvarVersaoPrompt({
+          userId,
+          configType: 'ai_agent_config',
+          promptContent: result.data.prompt,
+          editSummary: 'Salvo manualmente via editor',
+          editType: 'manual',
+          editDetails: [{
+            source: 'manual_save',
+            timestamp: new Date().toISOString()
+          }]
+        });
+        
+        if (novaVersao) {
+          console.log(`[AGENT CONFIG] ✅ Nova versão criada: v${novaVersao.version_number} (id: ${novaVersao.id})`);
+        } else {
+          console.error(`[AGENT CONFIG] ❌ Falha ao criar versão do prompt`);
+        }
+      }
+      
       res.json(config);
     } catch (error) {
       console.error("Error updating agent config:", error);
@@ -1432,18 +1457,25 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       const userId = getUserId(req);
       const { listarVersoes } = await import("./promptHistoryService");
       
+      console.log(`[PROMPT VERSIONS] 📜 Listando versões para user ${userId}`);
       const versoes = await listarVersoes(userId, 'ai_agent_config', 50);
+      
+      console.log(`[PROMPT VERSIONS] Encontradas ${versoes.length} versões`);
+      if (versoes.length > 0) {
+        const currentVersion = versoes.find(v => v.is_current);
+        console.log(`[PROMPT VERSIONS] Versão atual: ${currentVersion ? `v${currentVersion.version_number}` : 'NENHUMA MARCADA'}`);
+      }
       
       res.json({ 
         success: true,
         versions: versoes.map(v => ({
           id: v.id,
           versionNumber: v.version_number,
+          promptContent: v.prompt_content,
           editSummary: v.edit_summary,
           editType: v.edit_type,
           createdAt: v.created_at,
-          isCurrent: v.is_current,
-          promptContent: v.prompt_content // Added promptContent
+          isCurrent: v.is_current
         }))
       });
     } catch (error: any) {
@@ -1459,27 +1491,48 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       const { id } = req.params;
       const { restaurarVersao, obterVersao } = await import("./promptHistoryService");
       
+      console.log(`[RESTORE VERSION] 🔄 User ${userId} restaurando versão ${id}`);
+      
+      // Buscar versão original
+      const versaoOriginal = await obterVersao(id);
+      if (!versaoOriginal) {
+        console.error(`[RESTORE VERSION] ❌ Versão ${id} não encontrada`);
+        return res.status(404).json({ message: "Versão não encontrada" });
+      }
+      
+      console.log(`[RESTORE VERSION] 📄 Versão original: v${versaoOriginal.version_number} (${versaoOriginal.edit_type})`);
+      
+      // Criar nova versão restaurada
       const versaoRestaurada = await restaurarVersao(id, userId);
       
       if (!versaoRestaurada) {
-        return res.status(404).json({ message: "Versão não encontrada" });
+        console.error(`[RESTORE VERSION] ❌ Falha ao criar versão restaurada`);
+        return res.status(500).json({ message: "Falha ao restaurar versão" });
       }
+      
+      console.log(`[RESTORE VERSION] ✅ Nova versão criada: v${versaoRestaurada.version_number} (tipo: restore)`);
       
       // Atualizar o prompt no config
       const agentConfig = await storage.getAgentConfig(userId);
       if (agentConfig) {
+        console.log(`[RESTORE VERSION] 💾 Atualizando ai_agent_config.prompt`);
         await storage.saveAgentConfig(userId, {
           ...agentConfig,
           prompt: versaoRestaurada.prompt_content
         });
-      }
+        console.log(`[RESTORE VERSION] ✅ Config atualizado - Prompt length: ${versaoRestaurada.prompt_content.length}`);
+      } else {
+        console.warn(`[RESTORE VERSION] ⚠️ Nenhum config encontrado para user ${userId}`);\n      }
       
       res.json({ 
         success: true,
-        newPrompt: versaoRestaurada.prompt_content
+        newPrompt: versaoRestaurada.prompt_content,
+        versionId: versaoRestaurada.id,
+        versionNumber: versaoRestaurada.version_number,
+        restoredFrom: versaoOriginal.version_number
       });
     } catch (error: any) {
-      console.error("Error restoring prompt version:", error);
+      console.error("[RESTORE VERSION] ❌ Error restoring prompt version:", error);
       res.status(500).json({ message: error.message || "Failed to restore version" });
     }
   });
@@ -1504,6 +1557,82 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     } catch (error: any) {
       console.error("Error fetching prompt chat:", error);
       res.status(500).json({ message: error.message || "Failed to fetch chat" });
+    }
+  });
+
+  // 🔍 ROTA DE DEBUG: Validar consistência do sistema de versões
+  app.get("/api/agent/prompt-versions/validate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { listarVersoes, obterVersaoAtual } = await import("./promptHistoryService");
+      
+      console.log(`[VALIDATE] 🔍 Validando consistência para user ${userId}`);
+      
+      // 1. Buscar config atual
+      const agentConfig = await storage.getAgentConfig(userId);
+      
+      // 2. Buscar versão marcada como current
+      const versaoAtual = await obterVersaoAtual(userId, 'ai_agent_config');
+      
+      // 3. Listar todas versões
+      const todasVersoes = await listarVersoes(userId, 'ai_agent_config', 100);
+      
+      // 4. Verificar se há múltiplas versões com is_current = true
+      const versoesMarkadasCurrent = todasVersoes.filter(v => v.is_current);
+      
+      // 5. Verificar sincronização
+      const promptNoConfig = agentConfig?.prompt || '';
+      const promptNaVersao = versaoAtual?.prompt_content || '';
+      const isSynced = promptNoConfig === promptNaVersao;
+      
+      const report = {
+        userId,
+        timestamp: new Date().toISOString(),
+        agentConfig: {
+          exists: !!agentConfig,
+          isActive: agentConfig?.isActive,
+          promptLength: promptNoConfig.length,
+          promptHash: require('crypto').createHash('md5').update(promptNoConfig).digest('hex').substring(0, 8)
+        },
+        currentVersion: versaoAtual ? {
+          id: versaoAtual.id,
+          versionNumber: versaoAtual.version_number,
+          promptLength: promptNaVersao.length,
+          promptHash: require('crypto').createHash('md5').update(promptNaVersao).digest('hex').substring(0, 8),
+          editType: versaoAtual.edit_type,
+          createdAt: versaoAtual.created_at
+        } : null,
+        validation: {
+          isSynced,
+          multipleCurrentVersions: versoesMarkadasCurrent.length > 1,
+          currentVersionsCount: versoesMarkadasCurrent.length,
+          totalVersions: todasVersoes.length,
+          hasNoCurrentVersion: versoesMarkadasCurrent.length === 0
+        },
+        issues: [] as string[]
+      };
+      
+      // Identificar problemas
+      if (!isSynced) {
+        report.issues.push('❌ DESSINCRONIZADO: ai_agent_config.prompt diferente de prompt_versions.is_current');
+      }
+      if (versoesMarkadasCurrent.length > 1) {
+        report.issues.push(`❌ MÚLTIPLAS VERSÕES CURRENT: ${versoesMarkadasCurrent.length} versões marcadas como is_current`);
+      }
+      if (versoesMarkadasCurrent.length === 0 && todasVersoes.length > 0) {
+        report.issues.push('⚠️ NENHUMA VERSÃO CURRENT: Existem versões mas nenhuma marcada como current');
+      }
+      
+      if (report.issues.length === 0) {
+        report.issues.push('✅ Sistema consistente - Nenhum problema encontrado');
+      }
+      
+      console.log(`[VALIDATE] Resultado:`, JSON.stringify(report, null, 2));
+      
+      res.json(report);
+    } catch (error: any) {
+      console.error("[VALIDATE] Error:", error);
+      res.status(500).json({ message: error.message || "Failed to validate" });
     }
   });
 
