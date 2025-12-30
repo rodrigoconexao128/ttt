@@ -1225,7 +1225,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (promptChanged && result.data.prompt) {
         const { salvarVersaoPrompt } = await import("./promptHistoryService");
         
-        console.log(`[AGENT CONFIG] 💾 Criando nova versão do prompt para user ${userId}`);
+        console.log(`\n[AGENT CONFIG] ═══════════════════════════════════════════════════`);
+        console.log(`[AGENT CONFIG] 💾 SALVAMENTO MANUAL DETECTADO`);
+        console.log(`[AGENT CONFIG] User: ${userId}`);
+        console.log(`[AGENT CONFIG] Prompt antigo: ${existingConfig.prompt?.length || 0} chars`);
+        console.log(`[AGENT CONFIG] Prompt novo: ${result.data.prompt.length} chars`);
+        console.log(`[AGENT CONFIG] Criando nova versão no histórico...`);
+        
         const novaVersao = await salvarVersaoPrompt({
           userId,
           configType: 'ai_agent_config',
@@ -1234,15 +1240,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           editType: 'manual',
           editDetails: [{
             source: 'manual_save',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            prompt_length: result.data.prompt.length
           }]
         });
         
         if (novaVersao) {
-          console.log(`[AGENT CONFIG] ✅ Nova versão criada: v${novaVersao.version_number} (id: ${novaVersao.id})`);
+          console.log(`[AGENT CONFIG] ✅ Nova versão criada: v${novaVersao.version_number}`);
+          console.log(`[AGENT CONFIG] ID da versão: ${novaVersao.id}`);
+          console.log(`[AGENT CONFIG] Marcada como current: ${novaVersao.is_current}`);
         } else {
-          console.error(`[AGENT CONFIG] ❌ Falha ao criar versão do prompt`);
+          console.error(`[AGENT CONFIG] ❌ ERRO: Falha ao criar versão do prompt`);
         }
+        console.log(`[AGENT CONFIG] ═══════════════════════════════════════════════════\n`);
       }
       
       res.json(config);
@@ -1512,15 +1522,18 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       
       console.log(`[RESTORE VERSION] ✅ Nova versão criada: v${versaoRestaurada.version_number} (tipo: restore)`);
       
-      // Atualizar o prompt no config
+      // 💾 CRÍTICO: Atualizar o prompt no config para o agente usar
       const agentConfig = await storage.getAgentConfig(userId);
       if (agentConfig) {
         console.log(`[RESTORE VERSION] 💾 Atualizando ai_agent_config.prompt`);
-        await storage.saveAgentConfig(userId, {
-          ...agentConfig,
+        console.log(`[RESTORE VERSION] 📊 Prompt antigo: ${agentConfig.prompt?.length || 0} chars`);
+        console.log(`[RESTORE VERSION] 📊 Prompt novo: ${versaoRestaurada.prompt_content.length} chars`);
+        
+        await storage.updateAgentConfig(userId, {
           prompt: versaoRestaurada.prompt_content
         });
-        console.log(`[RESTORE VERSION] ✅ Config atualizado - Prompt length: ${versaoRestaurada.prompt_content.length}`);
+        
+        console.log(`[RESTORE VERSION] ✅ Config atualizado com sucesso!`);
       } else {
         console.warn(`[RESTORE VERSION] ⚠️ Nenhum config encontrado para user ${userId}`);
       }

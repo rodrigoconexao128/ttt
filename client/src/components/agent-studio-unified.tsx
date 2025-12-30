@@ -189,23 +189,33 @@ export function AgentStudioUnified() {
 
   // Carregar versões do prompt para o histórico
   useEffect(() => {
-    if (promptVersionsData?.versions && promptVersionsData.versions.length > 0 && !versionsLoaded) {
-      setVersionsLoaded(true);
+    if (promptVersionsData?.versions && promptVersionsData.versions.length > 0) {
+      console.log("[VERSIONS] 📚 Carregando", promptVersionsData.versions.length, "versões do banco");
+      
       const versions: PromptHistoryEntry[] = promptVersionsData.versions
         .sort((a, b) => a.versionNumber - b.versionNumber)
-        .map(v => ({
-          id: v.id,
-          prompt: v.promptContent,
-          instruction: v.editSummary || `Versão ${v.versionNumber}`,
-          timestamp: new Date(v.createdAt),
-          summary: v.editSummary || `Versão ${v.versionNumber}`
-        }));
+        .map(v => {
+          console.log(`[VERSIONS] v${v.versionNumber}: ID=${v.id}, isCurrent=${v.isCurrent}, summary="${v.editSummary}"`);
+          return {
+            id: v.id, // 🔥 ID ÚNICO de cada versão
+            prompt: v.promptContent,
+            instruction: v.editSummary || `Versão ${v.versionNumber}`,
+            timestamp: new Date(v.createdAt),
+            summary: v.editSummary || `Versão ${v.versionNumber}`
+          };
+        });
+      
       setPromptHistory(versions);
+      
       // Set index to current version
-      const currentIndex = promptVersionsData.versions.findIndex(v => v.isCurrent);
-      setHistoryIndex(currentIndex >= 0 ? currentIndex : versions.length - 1);
+      const currentIndex = versions.findIndex(v => v.id === promptVersionsData.versions.find(pv => pv.isCurrent)?.id);
+      const finalIndex = currentIndex >= 0 ? currentIndex : versions.length - 1;
+      
+      console.log(`[VERSIONS] ✅ ${versions.length} versões carregadas, índice atual: ${finalIndex}`);
+      setHistoryIndex(finalIndex);
+      setVersionsLoaded(true);
     }
-  }, [promptVersionsData, versionsLoaded]);
+  }, [promptVersionsData]);
 
   // Carregar histórico do chat de edição quando disponível (apenas uma vez)
   useEffect(() => {
@@ -230,13 +240,26 @@ export function AgentStudioUnified() {
       console.log("[MUTATION] ✅ Resposta:", JSON.stringify(result).substring(0, 200));
       return result;
     },
-    onSuccess: async () => {
+    onSuccess: async (data, variables) => {
       // 🔄 Invalidar todas as queries relacionadas para forçar refetch
+      console.log("[MUTATION] 🔄 Invalidando queries...");
       await queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/agent/prompt-versions"] });
       
       console.log("[MUTATION] 🔄 Queries invalidadas - UI será atualizada");
-      toast({ title: "✅ Salvo!", description: "Configurações atualizadas." });
+      
+      // Feedback diferente se foi salvamento de prompt
+      if (variables.prompt) {
+        toast({ 
+          title: "✅ Prompt salvo!", 
+          description: "Nova versão criada no histórico automaticamente." 
+        });
+      } else {
+        toast({ 
+          title: "✅ Salvo!", 
+          description: "Configurações atualizadas." 
+        });
+      }
     },
     onError: (error) => {
       console.error("[MUTATION] ❌ Erro:", error);
@@ -431,10 +454,16 @@ export function AgentStudioUnified() {
 
   const restoreFromHistory = useCallback(async (index: number) => {
     const entry = promptHistory[index];
-    console.log("[RESTORE] 🔄 Index:", index, "Entry:", entry?.instruction, "Version ID:", entry?.id);
+    console.log("\n[RESTORE] ═══════════════════════════════════════════════════════");
+    console.log("[RESTORE] 🔄 Restaurando versão");
+    console.log("[RESTORE] Index no array:", index);
+    console.log("[RESTORE] Instruction:", entry?.instruction);
+    console.log("[RESTORE] Version ID (ÚNICO):", entry?.id);
+    console.log("[RESTORE] Prompt length:", entry?.prompt?.length);
     
     if (!entry || !entry.id) {
       console.error("[RESTORE] ❌ Entrada inválida ou sem ID");
+      console.log("[RESTORE] ═══════════════════════════════════════════════════════\n");
       toast({
         title: "Erro ao restaurar",
         description: "Versão inválida",
@@ -446,28 +475,53 @@ export function AgentStudioUnified() {
     try {
       setShowHistory(false);
       
-      // 🔥 CORREÇÃO CRÍTICA: Usar rota de restore que cria nova versão
-      console.log("[RESTORE] 📡 Chamando rota de restore para versão:", entry.id);
+      // 🔥 CRÍTICO: Usar rota de restore que cria NOVA versão com ID ÚNICO
+      console.log("[RESTORE] 📡 POST /api/agent/prompt-versions/" + entry.id + "/restore");
       const response = await apiRequest("POST", `/api/agent/prompt-versions/${entry.id}/restore`, {});
       const data = await response.json();
       
       if (data.success && data.newPrompt) {
-        console.log("[RESTORE] ✅ Restauração bem-sucedida!");
-        console.log("[RESTORE] Nova versão criada: v" + data.versionNumber);
-        console.log("[RESTORE] Restaurada de: v" + data.restoredFrom);
+        console.log("[RESTORE] ✅ SUCESSO!");
+        console.log("[RESTORE] 🆕 Nova versão criada: v" + data.versionNumber + " (ID: " + data.versionId + ")");
+        console.log("[RESTORE] 📋 Restaurada da versão: v" + data.restoredFrom);
+        console.log("[RESTORE] 📏 Novo prompt length:", data.newPrompt.length);
         
-        // Atualizar UI
+        // Atualizar UI local
         setCurrentPrompt(data.newPrompt);
-        setHistoryIndex(index);
         setHasChanges(false);
         
-        // 🔄 Forçar refetch das versões para mostrar a nova versão restaurada
+        // 🔄 CRÍTICO: Forçar refetch para carregar NOVA versão criada
+        console.log("[RESTORE] 🔄 Invalidando queries para recarregar histórico...");
         await queryClient.invalidateQueries(["/api/agent/prompt-versions"]);
         await queryClient.invalidateQueries(["/api/agent/config"]);
+        console.log("[RESTORE] ✅ Queries invalidadas - UI será atualizada");
         
         setChatMessages(prev => [...prev, {
           id: `system-restore-${Date.now()}`,
           role: "system",
+          content: `🔄 Restaurado da v${data.restoredFrom} → Nova v${data.versionNumber} criada (ID único: ${data.versionId.substring(0, 8)}...)`,
+          timestamp: new Date()
+        }]);
+        
+        toast({
+          title: "✅ Versão restaurada",
+          description: `Restaurado da v${data.restoredFrom}. Nova versão v${data.versionNumber} criada.`
+        });
+        
+        console.log("[RESTORE] ═══════════════════════════════════════════════════════\n");
+      } else {
+        throw new Error(data.message || "Falha ao restaurar");
+      }
+    } catch (error: any) {
+      console.error("[RESTORE] ❌ ERRO:", error);
+      console.log("[RESTORE] ═══════════════════════════════════════════════════════\n");
+      toast({
+        title: "Erro ao restaurar versão",
+        description: error.message || "Tente novamente",
+        variant: "destructive"
+      });
+    }
+  }, [promptHistory, queryClient, toast]);
           content: `🔄 Restaurado da v${data.restoredFrom} → Nova v${data.versionNumber} criada`,
           timestamp: new Date()
         }]);
@@ -595,6 +649,12 @@ export function AgentStudioUnified() {
 
   // ============ SALVAR PROMPT ============
   const handleSavePrompt = () => {
+    console.log("\n[SAVE] ═══════════════════════════════════════════════════════");
+    console.log("[SAVE] 💾 Salvando prompt manualmente");
+    console.log("[SAVE] Prompt length:", currentPrompt.length, "chars");
+    console.log("[SAVE] Backend vai criar versão automaticamente");
+    console.log("[SAVE] ═══════════════════════════════════════════════════════\n");
+    
     updateConfigMutation.mutate({ prompt: currentPrompt });
     setHasChanges(false);
   };
