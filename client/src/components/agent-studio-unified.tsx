@@ -82,6 +82,27 @@ interface PromptHistoryEntry {
 
 type Section = 'chat' | 'code' | 'media' | 'config';
 
+// ============ HELPER: FORMATAÇÃO WHATSAPP ============
+function formatWhatsAppText(text: string): string {
+  if (!text) return text;
+  
+  let formatted = text;
+  
+  // *texto* = negrito
+  formatted = formatted.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+  
+  // _texto_ = itálico
+  formatted = formatted.replace(/\b_([^_]+)_\b/g, '<em>$1</em>');
+  
+  // ~texto~ = tachado
+  formatted = formatted.replace(/~([^~]+)~/g, '<del>$1</del>');
+  
+  // `texto` = monoespaçado
+  formatted = formatted.replace(/`([^`]+)`/g, '<code class="bg-gray-200 dark:bg-zinc-700 px-1 rounded text-sm">$1</code>');
+  
+  return formatted;
+}
+
 // ============ COMPONENTE PRINCIPAL ============
 export function AgentStudioUnified() {
   const { toast } = useToast();
@@ -1645,7 +1666,10 @@ export function AgentStudioUnified() {
                   
                   {/* TEXTO DA MENSAGEM (se houver) */}
                   {msg.message && (
-                    <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                    <p 
+                      className="text-sm whitespace-pre-wrap"
+                      dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.message) }}
+                    />
                   )}
                   
                   <p className={cn(
