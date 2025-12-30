@@ -1674,15 +1674,41 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   app.post("/api/agent/test", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const schema = z.object({ message: z.string(), customPrompt: z.string().optional() });
+      const schema = z.object({ 
+        message: z.string(), 
+        customPrompt: z.string().optional(),
+        // 🆕 Suporte para histórico de conversação (simulador unificado)
+        history: z.array(z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string()
+        })).optional(),
+        // 🆕 Mídias já enviadas nesta sessão do simulador
+        sentMedias: z.array(z.string()).optional()
+      });
       const result = schema.safeParse(req.body);
 
       if (!result.success) {
         return res.status(400).json({ message: "Invalid request" });
       }
 
+      // Converter histórico do frontend para formato Message[]
+      const conversationHistory = result.data.history?.map((msg, idx) => ({
+        id: `sim-${idx}`,
+        chatId: "simulator",
+        text: msg.content,
+        fromMe: msg.role === "assistant",
+        timestamp: new Date(Date.now() - (result.data.history!.length - idx) * 60000),
+        isFromAgent: msg.role === "assistant",
+      })) || [];
+
       // Aceita prompt customizado para testar mudanças não salvas
-      const testResult = await testAgentResponse(userId, result.data.message, result.data.customPrompt);
+      const testResult = await testAgentResponse(
+        userId, 
+        result.data.message, 
+        result.data.customPrompt,
+        conversationHistory,
+        result.data.sentMedias
+      );
       
       res.json({ 
         response: testResult.text,
@@ -5400,10 +5426,10 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       const { getTestToken, processAdminMessage } = await import("./adminAgentService");
       const { getMistralClient } = await import("./mistralClient");
 
-      const { message, token, history, userId } = req.body;
+      const { message, token, history, userId, sentMedias } = req.body;
 
       const result = await handleTestAgentMessage(
-        { message, token, history, userId },
+        { message, token, history, userId, sentMedias }, // 🆕 Passando sentMedias
         {
           getTestToken,
           getAgentConfig: (id) => storage.getAgentConfig(id),

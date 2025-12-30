@@ -110,6 +110,7 @@ export function AgentStudioUnified() {
   const [simulatorMessages, setSimulatorMessages] = useState<SimulatorMessage[]>([]);
   const [simulatorInput, setSimulatorInput] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
+  const [simulatorSentMedias, setSimulatorSentMedias] = useState<string[]>([]); // 🆕 Mídias já enviadas
   
   // Estado de configurações
   const [isActive, setIsActive] = useState(true);
@@ -619,9 +620,18 @@ export function AgentStudioUnified() {
     setIsSimulating(true);
 
     try {
+      // 🆕 CONVERTER HISTÓRICO DO SIMULADOR PARA FORMATO DO BACKEND
+      const historyForBackend = simulatorMessages.map(msg => ({
+        role: msg.role === "agent" ? "assistant" : "user" as "user" | "assistant",
+        content: msg.message
+      }));
+      
       const response = await apiRequest("POST", "/api/agent/test", {
         message: simulatorInput,
-        customPrompt: currentPrompt
+        customPrompt: currentPrompt,
+        // 🆕 ENVIAR HISTÓRICO E MÍDIAS PARA SIMULADOR UNIFICADO
+        history: historyForBackend,
+        sentMedias: simulatorSentMedias
       });
       
       const data = await response.json();
@@ -633,6 +643,14 @@ export function AgentStudioUnified() {
         time: agentTime
       };
       setSimulatorMessages(prev => [...prev, agentMsg]);
+      
+      // 🆕 RASTREAR MÍDIAS ENVIADAS NESTA SESSÃO
+      if (data?.mediaActions && data.mediaActions.length > 0) {
+        const newMediaNames = data.mediaActions
+          .filter((a: any) => a.type === 'send_media' && a.media_name)
+          .map((a: any) => a.media_name.toUpperCase());
+        setSimulatorSentMedias(prev => [...new Set([...prev, ...newMediaNames])]);
+      }
     } catch (error: any) {
       toast({
         title: "Erro no simulador",
@@ -642,6 +660,12 @@ export function AgentStudioUnified() {
     } finally {
       setIsSimulating(false);
     }
+  };
+  
+  // 🆕 LIMPAR SIMULADOR (resetar histórico e mídias)
+  const handleClearSimulator = () => {
+    setSimulatorMessages([]);
+    setSimulatorSentMedias([]);
   };
 
   // ============ SALVAR PROMPT ============
@@ -1527,7 +1551,7 @@ export function AgentStudioUnified() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSimulatorMessages([])}
+              onClick={handleClearSimulator}
               className="text-white/70 hover:text-white hover:bg-white/10 text-xs"
             >
               <RefreshCw className="w-3 h-3 mr-1" />

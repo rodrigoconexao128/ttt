@@ -74,6 +74,7 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
   const [simulatorMessages, setSimulatorMessages] = useState<SimulatorMessage[]>([]);
   const [simulatorInput, setSimulatorInput] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
+  const [simulatorSentMedias, setSimulatorSentMedias] = useState<string[]>([]); // 🆕 Mídias já enviadas
   
   // View mode
   const [activeView, setActiveView] = useState<"chat" | "code">("chat");
@@ -296,10 +297,19 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
     setIsSimulating(true);
 
     try {
+      // 🆕 CONVERTER HISTÓRICO DO SIMULADOR PARA FORMATO DO BACKEND
+      const historyForBackend = simulatorMessages.map(msg => ({
+        role: msg.role === "agent" ? "assistant" : "user" as "user" | "assistant",
+        content: msg.message
+      }));
+      
       // Usa o prompt atual para teste
       const response = await apiRequest("POST", "/api/agent/test", {
         message: simulatorInput,
-        customPrompt: hasChanges ? currentPrompt : undefined // Se tem mudanças não salvas, usa o atual
+        customPrompt: hasChanges ? currentPrompt : undefined, // Se tem mudanças não salvas, usa o atual
+        // 🆕 ENVIAR HISTÓRICO E MÍDIAS PARA SIMULADOR UNIFICADO
+        history: historyForBackend,
+        sentMedias: simulatorSentMedias
       });
       
       const data = await response.json();
@@ -313,6 +323,14 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
         time: agentTime
       };
       setSimulatorMessages(prev => [...prev, agentMsg]);
+      
+      // 🆕 RASTREAR MÍDIAS ENVIADAS NESTA SESSÃO
+      if (data?.mediaActions && data.mediaActions.length > 0) {
+        const newMediaNames = data.mediaActions
+          .filter((a: any) => a.type === 'send_media' && a.media_name)
+          .map((a: any) => a.media_name.toUpperCase());
+        setSimulatorSentMedias(prev => [...new Set([...prev, ...newMediaNames])]);
+      }
       
     } catch (error: any) {
       toast({

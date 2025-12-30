@@ -103,6 +103,7 @@ export default function MyAgent() {
   const [testMessage, setTestMessage] = useState("");
   const [testResponse, setTestResponse] = useState("");
   const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'agent', message: string, time: string}>>([]);
+  const [sentMedias, setSentMedias] = useState<string[]>([]); // 🆕 Mídias já enviadas
   
   // Estado do gerador de prompt e editor expandido
   const [showPromptGenerator, setShowPromptGenerator] = useState(false);
@@ -205,8 +206,17 @@ export default function MyAgent() {
 
   const testAgentMutation = useMutation({
     mutationFn: async (userMsg: string) => {
+      // 🆕 CONVERTER HISTÓRICO PARA FORMATO DO BACKEND
+      const historyForBackend = chatHistory.map(msg => ({
+        role: msg.role === "agent" ? "assistant" : "user" as "user" | "assistant",
+        content: msg.message
+      }));
+      
       const response = await apiRequest("POST", "/api/agent/test", {
         message: userMsg,
+        // 🆕 ENVIAR HISTÓRICO E MÍDIAS PARA SIMULADOR UNIFICADO
+        history: historyForBackend,
+        sentMedias: sentMedias
       });
       const data = await response.json();
       return data;
@@ -223,6 +233,14 @@ export default function MyAgent() {
       // Adiciona resposta do agente ao histórico
       const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       setChatHistory(prev => [...prev, { role: 'agent', message: agentResponse, time }]);
+      
+      // 🆕 RASTREAR MÍDIAS ENVIADAS NESTA SESSÃO
+      if (data?.mediaActions && data.mediaActions.length > 0) {
+        const newMediaNames = data.mediaActions
+          .filter((a: any) => a.type === 'send_media' && a.media_name)
+          .map((a: any) => a.media_name.toUpperCase());
+        setSentMedias(prev => [...new Set([...prev, ...newMediaNames])]);
+      }
     },
     onError: (error: Error) => {
       toast({

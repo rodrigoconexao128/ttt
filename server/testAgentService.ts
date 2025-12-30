@@ -4,7 +4,13 @@
  * Centraliza a lógica do simulador (/api/test-agent/*) para garantir que,
  * quando houver token válido, o atendimento use o agente do CLIENTE (aiAgentConfig)
  * e não o agente de vendas (Rodrigo).
+ * 
+ * 🆕 SIMULADOR UNIFICADO: Agora usa EXATAMENTE o mesmo fluxo do WhatsApp
+ * através da função testAgentResponse que internamente chama generateAIResponse.
  */
+
+import { testAgentResponse } from "./aiAgent";
+import { getAgentMediaLibrary } from "./mediaService";
 
 export type ChatRole = "system" | "user" | "assistant";
 
@@ -18,6 +24,7 @@ export type TestAgentMessageParams = {
   token?: string;
   history?: TestAgentHistoryItem[];
   userId?: string;
+  sentMedias?: string[]; // 🆕 Mídias já enviadas nesta sessão
 };
 
 export type TestTokenInfo = {
@@ -75,7 +82,7 @@ export async function handleTestAgentMessage(
   params: TestAgentMessageParams,
   deps: TestAgentDeps
 ): Promise<TestAgentResult> {
-  const { message, token, history, userId } = params;
+  const { message, token, history, userId, sentMedias } = params;
 
   if (!message || !message.trim()) {
     throw new Error("Mensagem obrigatória");
@@ -105,93 +112,73 @@ export async function handleTestAgentMessage(
       };
     }
 
-    const mistral = await deps.getMistralClient();
+    console.log('\n🧪 ═══════════════════════════════════════════════════════════════');
+    console.log('🧪 [TestAgentService] SIMULADOR UNIFICADO - Usando mesmo fluxo do WhatsApp');
+    console.log('🧪 ═══════════════════════════════════════════════════════════════');
 
-    // 📁 CARREGAR BIBLIOTECA DE MÍDIA
-    const mediaLibrary = await deps.getAgentMediaLibrary(resolvedUserId);
-    const hasMedia = mediaLibrary && mediaLibrary.length > 0;
-    const mediaPromptBlock = hasMedia ? deps.generateMediaPromptBlock(mediaLibrary) : '';
+    // 🆕 CONVERTER HISTÓRICO DO FRONTEND PARA FORMATO Message[]
+    const conversationHistory = history?.map((msg, idx) => ({
+      id: `sim-${idx}`,
+      chatId: "simulator",
+      text: msg.content,
+      fromMe: msg.role === "assistant",
+      timestamp: new Date(Date.now() - (history!.length - idx) * 60000),
+      isFromAgent: msg.role === "assistant",
+    })) || [];
 
-    console.log('\n🔍 === DEBUG MÍDIA ===');
-    console.log('📚 Media Library:', JSON.stringify(mediaLibrary, null, 2));
-    console.log('📝 Media Prompt Block:', mediaPromptBlock);
+    console.log(`🧪 [TestAgentService] Histórico: ${conversationHistory.length} msgs, Mídias enviadas: ${sentMedias?.length || 0}`);
 
-    let systemPrompt = agentConfig.prompt || "";
-    if (mediaPromptBlock) {
-      systemPrompt += mediaPromptBlock;
-    }
+    // 🎯 USAR FUNÇÃO UNIFICADA - MESMO CÓDIGO DO WHATSAPP!
+    try {
+      const result = await testAgentResponse(
+        resolvedUserId,
+        message,
+        undefined, // Não passar customPrompt aqui - usar o do banco
+        conversationHistory,
+        sentMedias || []
+      );
 
-    console.log('📋 System Prompt completo:', systemPrompt);
-
-    const messages: Array<{ role: ChatRole; content: string }> = [
-      { role: "system", content: systemPrompt },
-    ];
-
-    if (history && Array.isArray(history)) {
-      for (const msg of history.slice(-10)) {
-        messages.push({
-          role: msg.role === "user" ? "user" : "assistant",
-          content: msg.content,
-        });
-      }
-    }
-
-    messages.push({ role: "user", content: message });
-
-    console.log('📤 Mensagens enviadas para Mistral:', JSON.stringify(messages, null, 2));
-
-    const aiResponse = await mistral.chat.complete({
-      model: agentConfig.model || "mistral-small-latest",
-      messages,
-      maxTokens: 600,
-      temperature: 0.85,
-    });
-
-    const responseText = normalizeAiContent(aiResponse.choices?.[0]?.message?.content);
-    console.log('📥 Resposta da Mistral:', responseText);
-    console.log('🔍 === FIM DEBUG ===\n');
-
-    // 📁 DETECTAR AÇÕES DE MÍDIA NA RESPOSTA
-    let mediaActions: any[] = [];
-    let cleanedText = responseText;
-    
-    if (responseText && hasMedia) {
-      const parseResult = deps.parseMistralResponse(responseText);
-      cleanedText = parseResult?.messages?.[0]?.content || responseText;
-      const rawActions = parseResult?.actions || [];
-      
-      // Resolver as URLs das mídias para o frontend poder exibir
-      if (rawActions.length > 0) {
-        console.log(`📁 [TestAgent] ${rawActions.length} mídias detectadas, resolvendo URLs...`);
-        for (const action of rawActions) {
+      // 📁 RESOLVER URLs DAS MÍDIAS PARA O FRONTEND
+      let mediaActions: any[] = [];
+      if (result.mediaActions && result.mediaActions.length > 0) {
+        const mediaLibrary = await getAgentMediaLibrary(resolvedUserId);
+        
+        for (const action of result.mediaActions) {
           if (action.type === 'send_media' && action.media_name) {
-            // Buscar a mídia no banco para pegar a URL
-            const mediaName = action.media_name;
-            const mediaItem = mediaLibrary.find(m => m.name.toUpperCase() === mediaName.toUpperCase());
+            const mediaItem = mediaLibrary.find(
+              m => m.name.toUpperCase() === action.media_name.toUpperCase()
+            );
             
             if (mediaItem) {
-              console.log(`📁 [TestAgent] Mídia encontrada: ${mediaName} -> ${mediaItem.storageUrl}`);
+              console.log(`📁 [TestAgentService] Mídia encontrada: ${action.media_name}`);
               mediaActions.push({
                 type: 'send_media',
-                media_name: mediaName,
+                media_name: action.media_name,
                 media_url: mediaItem.storageUrl,
                 media_type: mediaItem.mediaType,
                 caption: mediaItem.caption || mediaItem.description,
               });
-            } else {
-              console.warn(`⚠️ [TestAgent] Mídia não encontrada: ${mediaName}`);
             }
           }
         }
       }
-    }
 
-    return {
-      response: cleanedText || "Desculpe, não consegui processar.",
-      mediaActions,
-      mode: "client_agent",
-      resolvedUserId,
-    };
+      console.log('🧪 ═══════════════════════════════════════════════════════════════\n');
+
+      return {
+        response: result.text || "Desculpe, não consegui processar.",
+        mediaActions,
+        mode: "client_agent",
+        resolvedUserId,
+      };
+    } catch (error) {
+      console.error('🧪 [TestAgentService] Erro:', error);
+      return {
+        response: "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.",
+        mode: "client_agent",
+        resolvedUserId,
+      };
+    }
   }
 
   // Fallback demo: Rodrigo (somente quando NÃO há token/userId de cliente).

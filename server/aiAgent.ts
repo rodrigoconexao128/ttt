@@ -1193,68 +1193,82 @@ Mensagem do cliente: ${newMessageText.trim()}`;
   }
 }
 
+/**
+ * 🧪 SIMULADOR UNIFICADO - USA EXATAMENTE O MESMO FLUXO DO WHATSAPP
+ * 
+ * Esta função agora chama generateAIResponse internamente para garantir
+ * que o simulador se comporta IDENTICAMENTE ao agente real.
+ * 
+ * Diferenças controladas:
+ * - conversationHistory: vem do parâmetro (simulador mantém em memória)
+ * - contactName: "Visitante" (simulador não tem WhatsApp)
+ * - sentMedias: rastreado pelo simulador
+ */
 export async function testAgentResponse(
   userId: string,
   testMessage: string,
-  customPrompt?: string
+  customPrompt?: string,
+  conversationHistory?: Message[],
+  sentMedias?: string[]
 ): Promise<{ text: string | null; mediaActions: MistralResponse['actions'] }> {
   try {
+    console.log(`\n🧪 ═══════════════════════════════════════════════════════════════`);
+    console.log(`🧪 [SIMULADOR UNIFICADO] Usando MESMO fluxo do WhatsApp`);
+    console.log(`🧪 ═══════════════════════════════════════════════════════════════`);
+    
     const agentConfig = await storage.getAgentConfig(userId);
 
     if (!agentConfig) {
       throw new Error("Agent not configured");
     }
     
-    // 📁 CARREGAR BIBLIOTECA DE MÍDIA
-    const mediaLibrary = await getAgentMediaLibrary(userId);
-    const hasMedia = mediaLibrary && mediaLibrary.length > 0;
-    const mediaPromptBlock = hasMedia ? generateMediaPromptBlock(mediaLibrary) : '';
+    // Preparar histórico de conversação (converter formato simples para Message[])
+    const history: Message[] = conversationHistory || [];
     
-    // Construir prompt com mídia (usa customPrompt se fornecido)
-    let systemPrompt = customPrompt || agentConfig.prompt;
-    if (mediaPromptBlock) {
-      systemPrompt += mediaPromptBlock;
-    }
-
-    const messages = [
+    console.log(`🧪 [SIMULADOR] Histórico: ${history.length} mensagens`);
+    console.log(`🧪 [SIMULADOR] Mídias já enviadas: ${sentMedias?.length || 0}`);
+    
+    // 🎯 CHAMAR generateAIResponse - MESMO CÓDIGO DO WHATSAPP!
+    // Isso garante que:
+    // - Contexto dinâmico (nome, hora) é aplicado
+    // - Anti-amnésia funciona
+    // - Validação de resposta funciona
+    // - Humanização funciona
+    // - Placeholders são processados
+    // - Mídias são detectadas e não repetidas
+    
+    const result = await generateAIResponse(
+      userId,
+      history,
+      testMessage,
       {
-        role: "system",
-        content: systemPrompt,
+        contactName: "Visitante", // Simulador não tem nome real
+        sentMedias: sentMedias || [],
       },
-      {
-        role: "user",
-        content: testMessage,
-      },
-    ];
-
-    console.log(`🧪 [TEST] System prompt length: ${systemPrompt.length} chars${hasMedia ? ` + ${mediaLibrary.length} mídias` : ''}`);
+      // Se customPrompt foi fornecido, injetar via testDependencies
+      customPrompt ? {
+        getAgentConfig: async () => ({
+          ...agentConfig,
+          prompt: customPrompt,
+        }),
+      } : undefined
+    );
     
-    const mistral = await getMistralClient();
-    const chatResponse = await mistral.chat.complete({
-      model: agentConfig.model,
-      messages: messages as any,
-    });
-
-    const content = chatResponse.choices?.[0]?.message?.content;
-    const responseText = typeof content === 'string' ? content : null;
-    
-    // 📁 DETECTAR AÇÕES DE MÍDIA NA RESPOSTA
-    let mediaActions: MistralResponse['actions'] = [];
-    let cleanedText = responseText;
-    
-    if (responseText && hasMedia) {
-      const parseResult = parseMistralResponse(responseText);
-      cleanedText = parseResult?.messages?.[0]?.content || responseText;
-      mediaActions = parseResult?.actions || [];
-      
-      if (mediaActions.length > 0) {
-        console.log(`🧪 [TEST] ${mediaActions.length} ações de mídia detectadas: ${mediaActions.map(a => a.media_name).join(', ')}`);
-      }
+    if (!result) {
+      console.log(`🧪 [SIMULADOR] ⚠️ Sem resposta do generateAIResponse`);
+      return { text: null, mediaActions: [] };
     }
     
-    return { text: cleanedText, mediaActions };
+    console.log(`🧪 [SIMULADOR] ✅ Resposta gerada: ${result.text?.substring(0, 80)}...`);
+    console.log(`🧪 [SIMULADOR] 📁 Mídias na resposta: ${result.mediaActions?.length || 0}`);
+    console.log(`🧪 ═══════════════════════════════════════════════════════════════\n`);
+    
+    return { 
+      text: result.text, 
+      mediaActions: result.mediaActions || [] 
+    };
   } catch (error) {
-    console.error("Error testing agent:", error);
+    console.error("🧪 [SIMULADOR] Error:", error);
     throw error;
   }
 }
