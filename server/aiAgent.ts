@@ -1203,6 +1203,7 @@ Mensagem do cliente: ${newMessageText.trim()}`;
  * - conversationHistory: vem do parâmetro (simulador mantém em memória)
  * - contactName: "Visitante" (simulador não tem WhatsApp)
  * - sentMedias: rastreado pelo simulador
+ * - isActive: SEMPRE true no simulador (para testar mesmo com agente desativado)
  */
 export async function testAgentResponse(
   userId: string,
@@ -1227,6 +1228,7 @@ export async function testAgentResponse(
     
     console.log(`🧪 [SIMULADOR] Histórico: ${history.length} mensagens`);
     console.log(`🧪 [SIMULADOR] Mídias já enviadas: ${sentMedias?.length || 0}`);
+    console.log(`🧪 [SIMULADOR] Prompt length: ${(customPrompt || agentConfig.prompt || '').length} chars`);
     
     // 🎯 CHAMAR generateAIResponse - MESMO CÓDIGO DO WHATSAPP!
     // Isso garante que:
@@ -1237,6 +1239,8 @@ export async function testAgentResponse(
     // - Placeholders são processados
     // - Mídias são detectadas e não repetidas
     
+    // 🔑 CRÍTICO: No simulador, SEMPRE forçar isActive=true para permitir testes
+    // mesmo quando o agente está desativado no WhatsApp
     const result = await generateAIResponse(
       userId,
       history,
@@ -1245,13 +1249,14 @@ export async function testAgentResponse(
         contactName: "Visitante", // Simulador não tem nome real
         sentMedias: sentMedias || [],
       },
-      // Se customPrompt foi fornecido, injetar via testDependencies
-      customPrompt ? {
+      // SEMPRE injetar config para forçar isActive=true no simulador
+      {
         getAgentConfig: async () => ({
           ...agentConfig,
-          prompt: customPrompt,
+          prompt: customPrompt || agentConfig.prompt, // Usar customPrompt se fornecido
+          isActive: true, // 🔑 FORÇAR ATIVO NO SIMULADOR
         }),
-      } : undefined
+      }
     );
     
     if (!result) {
