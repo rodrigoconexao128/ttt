@@ -1856,9 +1856,11 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       const userId = getUserId(req);
       const { id } = req.params;
 
+      console.log("[Routes] PUT /api/agent/media/:id - body:", JSON.stringify(req.body, null, 2));
       const result = agentMediaSchema.partial().safeParse(req.body);
 
       if (!result.success) {
+        console.error("[Routes] PUT /api/agent/media/:id - validation errors:", result.error.errors);
         return res.status(400).json({ 
           message: "Invalid request", 
           errors: result.error.errors 

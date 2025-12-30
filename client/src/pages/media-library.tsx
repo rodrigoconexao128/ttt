@@ -129,6 +129,7 @@ export default function MediaLibrary() {
   // Selecionar arquivo (upload ocorrerá no salvar)
   const handleFileUpload = (fileParam?: File) => {
     const file = fileParam || selectedFile;
+    console.log('[MediaLibrary] handleFileUpload called with:', file?.name);
     if (!file) {
       toast({
         title: "Nenhum arquivo selecionado",
@@ -138,6 +139,7 @@ export default function MediaLibrary() {
       return;
     }
 
+    console.log('[MediaLibrary] Setting selectedFile and clearing storageUrl');
     setSelectedFile(file);
     setFormData(prev => ({
       ...prev,
@@ -213,9 +215,14 @@ export default function MediaLibrary() {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('[MediaLibrary] handleFileSelect called', e.target.files);
     if (e.target.files && e.target.files[0]) {
-      handleFileUpload(e.target.files[0]);
+      const file = e.target.files[0];
+      console.log('[MediaLibrary] File selected:', file.name, file.size, file.type);
+      handleFileUpload(file);
     }
+    // Reset input para permitir selecionar o mesmo arquivo novamente
+    e.target.value = '';
   };
 
   // Handle form changes
@@ -242,6 +249,7 @@ export default function MediaLibrary() {
   // Open dialog for editing
   const handleEditMedia = (media: AgentMedia) => {
     setEditingMedia(media);
+    setSelectedFile(null); // Reset arquivo selecionado ao abrir edição
     setFormData({
       name: media.name,
       mediaType: media.mediaType,
@@ -331,6 +339,13 @@ export default function MediaLibrary() {
         name: normalizeName(formData.name),
       };
 
+      // Remove campos que o backend não aceita ou que podem causar problemas de validação
+      const cleanedData = Object.fromEntries(
+        Object.entries(dataToSave).filter(([_, v]) => v !== undefined && v !== null && v !== "")
+      );
+
+      console.log("[MediaLibrary] handleSave - dataToSave:", JSON.stringify(cleanedData, null, 2));
+
       const url = editingMedia 
         ? `/api/agent/media/${editingMedia.id}`
         : "/api/agent/media";
@@ -345,7 +360,7 @@ export default function MediaLibrary() {
           ...(token ? { "Authorization": `Bearer ${token}` } : {}),
         },
         credentials: "include",
-        body: JSON.stringify(dataToSave),
+        body: JSON.stringify(cleanedData),
       });
 
       if (response.ok) {
@@ -666,7 +681,11 @@ export default function MediaLibrary() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                     >
                       Trocar arquivo
                     </Button>
@@ -682,7 +701,11 @@ export default function MediaLibrary() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }}
                     >
                       Trocar arquivo
                     </Button>

@@ -132,14 +132,6 @@ export default function MyAgent() {
     mediaUrl?: string;
     mediaType?: 'image' | 'video' | 'audio' | 'document';
   };
-  // 🆕 Tipo de mensagem com suporte a mídia
-  type ChatMessage = {
-    role: 'user' | 'agent';
-    message: string;
-    time: string;
-    mediaUrl?: string;
-    mediaType?: 'image' | 'video' | 'audio' | 'document';
-  };
   
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [sentMedias, setSentMedias] = useState<string[]>([]); // 🆕 Mídias já enviadas
@@ -325,6 +317,8 @@ export default function MyAgent() {
         storageUrl: "",
       }));
     }
+    // Limpa o valor do input para permitir selecionar o mesmo arquivo novamente
+    e.target.value = "";
   };
 
   const uploadSelectedFile = async () => {
@@ -413,6 +407,11 @@ export default function MyAgent() {
         name: mediaForm.name.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, ''),
       };
 
+      // Remove campos vazios para evitar problemas de validação
+      const cleanedData = Object.fromEntries(
+        Object.entries(dataToSave).filter(([_, v]) => v !== undefined && v !== null && v !== "")
+      );
+
       const url = editingMedia ? `/api/agent/media/${editingMedia.id}` : "/api/agent/media";
       const method = editingMedia ? "PUT" : "POST";
       const token = await getAuthToken();
@@ -424,7 +423,7 @@ export default function MyAgent() {
           ...(token ? { "Authorization": `Bearer ${token}` } : {}),
         },
         credentials: "include",
-        body: JSON.stringify(dataToSave),
+        body: JSON.stringify(cleanedData),
       });
 
       if (response.ok) {

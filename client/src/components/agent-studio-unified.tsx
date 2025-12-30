@@ -772,20 +772,76 @@ export function AgentStudioUnified() {
 
   const handleMediaSubmit = async () => {
     if (editingMedia) {
-      updateMediaMutation.mutate({
-        id: editingMedia.id,
-        data: {
-          name: mediaForm.name,
-          mediaType: mediaForm.mediaType,
-          description: mediaForm.description,
-          whenToUse: mediaForm.whenToUse,
-          caption: mediaForm.caption,
-          transcription: mediaForm.transcription,
-          isPtt: mediaForm.isPtt,
-          sendAlone: mediaForm.sendAlone,
-          isActive: mediaForm.isActive
+      // Se há um novo arquivo selecionado, fazer upload primeiro
+      if (selectedFile) {
+        try {
+          // Upload do novo arquivo
+          const formData = new FormData();
+          formData.append("file", selectedFile);
+          
+          const token = await getAuthToken();
+          const headers: Record<string, string> = {};
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+          
+          const uploadRes = await fetch("/api/agent/media/upload", {
+            method: "POST",
+            body: formData,
+            headers,
+            credentials: "include"
+          });
+          
+          if (!uploadRes.ok) {
+            throw new Error("Falha no upload do arquivo");
+          }
+          
+          const uploadData = await uploadRes.json();
+          
+          if (!uploadData.success || !uploadData.storageUrl) {
+            throw new Error("Falha ao obter URL do arquivo");
+          }
+          
+          // Atualizar mídia com novo arquivo
+          updateMediaMutation.mutate({
+            id: editingMedia.id,
+            data: {
+              name: mediaForm.name,
+              mediaType: mediaForm.mediaType,
+              description: mediaForm.description,
+              whenToUse: mediaForm.whenToUse,
+              caption: mediaForm.caption,
+              transcription: uploadData.transcription || mediaForm.transcription,
+              isPtt: mediaForm.isPtt,
+              sendAlone: mediaForm.sendAlone,
+              isActive: mediaForm.isActive,
+              storageUrl: uploadData.storageUrl,
+              fileName: uploadData.fileName,
+              fileSize: uploadData.fileSize,
+              mimeType: uploadData.mimeType
+            }
+          });
+        } catch (error: any) {
+          toast({ title: "Erro", description: error.message || "Falha ao fazer upload.", variant: "destructive" });
+          return;
         }
-      });
+      } else {
+        // Apenas atualizar metadados sem novo arquivo
+        updateMediaMutation.mutate({
+          id: editingMedia.id,
+          data: {
+            name: mediaForm.name,
+            mediaType: mediaForm.mediaType,
+            description: mediaForm.description,
+            whenToUse: mediaForm.whenToUse,
+            caption: mediaForm.caption,
+            transcription: mediaForm.transcription,
+            isPtt: mediaForm.isPtt,
+            sendAlone: mediaForm.sendAlone,
+            isActive: mediaForm.isActive
+          }
+        });
+      }
     } else {
       if (!selectedFile) {
         toast({ title: "Selecione um arquivo", variant: "destructive" });
@@ -1829,21 +1885,27 @@ export function AgentStudioUnified() {
                       </p>
                     </div>
                   )}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    accept={
-                      mediaForm.mediaType === "audio" ? "audio/*,.ogg,.opus,.mp3,.m4a,.wav" :
-                      mediaForm.mediaType === "image" ? "image/*,.jpg,.jpeg,.png,.gif,.webp" :
-                      mediaForm.mediaType === "video" ? "video/*,.mp4,.webm,.mov" :
-                      "*/*"
-                    }
-                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                  />
                 </div>
               </div>
             )}
+
+            {/* Input de arquivo oculto - sempre presente para permitir trocar arquivo na edição */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept={
+                mediaForm.mediaType === "audio" ? "audio/*,.ogg,.opus,.mp3,.m4a,.wav" :
+                mediaForm.mediaType === "image" ? "image/*,.jpg,.jpeg,.png,.gif,.webp" :
+                mediaForm.mediaType === "video" ? "video/*,.mp4,.webm,.mov" :
+                "*/*"
+              }
+              onChange={(e) => {
+                setSelectedFile(e.target.files?.[0] || null);
+                // Limpa o valor do input para permitir selecionar o mesmo arquivo novamente
+                e.target.value = "";
+              }}
+            />
 
             {/* Preview de Áudio */}
             {mediaForm.mediaType === "audio" && editingMedia?.storageUrl && (
