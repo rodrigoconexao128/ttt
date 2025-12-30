@@ -468,6 +468,11 @@ export default function AdminPanel() {
 // Users Manager Component with delete functionality
 interface UserWithStatus extends User {
   isConnected?: boolean;
+  agentMessagesCount?: number;
+  messageLimit?: number;
+  messagesRemaining?: number;
+  isLimitReached?: boolean;
+  hasActiveSubscription?: boolean;
 }
 
 function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | undefined; subscriptions: (Subscription & { plan: Plan; user: User })[] | undefined }) {
@@ -574,6 +579,14 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
       case "status":
         aValue = a.onboardingCompleted ? 1 : 0;
         bValue = b.onboardingCompleted ? 1 : 0;
+        break;
+      case "messages":
+        aValue = a.agentMessagesCount || 0;
+        bValue = b.agentMessagesCount || 0;
+        break;
+      case "createdAt":
+        aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         break;
       default:
         return 0;
@@ -992,6 +1005,24 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
                   <SortIcon column="status" />
                 </div>
               </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort("messages")}
+              >
+                <div className="flex items-center">
+                  Msgs Usadas
+                  <SortIcon column="messages" />
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 select-none"
+                onClick={() => handleSort("createdAt")}
+              >
+                <div className="flex items-center">
+                  Data Cadastro
+                  <SortIcon column="createdAt" />
+                </div>
+              </TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -1076,6 +1107,43 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
                   <Badge variant={user.onboardingCompleted ? "default" : "outline"}>
                     {user.onboardingCompleted ? "Ativo" : "Pendente"}
                   </Badge>
+                </TableCell>
+                <TableCell className="min-w-[140px]">
+                  {user.agentMessagesCount !== undefined ? (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        {user.hasActiveSubscription ? (
+                          <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-900/30">
+                            ∞ Ilimitado
+                          </Badge>
+                        ) : (
+                          <Badge 
+                            variant={user.isLimitReached ? "destructive" : "outline"}
+                            className={user.isLimitReached ? "animate-pulse" : ""}
+                          >
+                            {user.agentMessagesCount}/{user.messageLimit}
+                          </Badge>
+                        )}
+                      </div>
+                      {!user.hasActiveSubscription && user.isLimitReached && (
+                        <span className="text-xs text-red-600 font-medium">🚫 Esgotado</span>
+                      )}
+                      {!user.hasActiveSubscription && !user.isLimitReached && user.messagesRemaining !== undefined && user.messagesRemaining <= 5 && (
+                        <span className="text-xs text-amber-600">⚠️ {user.messagesRemaining} restantes</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">-</span>
+                  )}
+                </TableCell>
+                <TableCell className="min-w-[130px]">
+                  {user.createdAt ? (
+                    <span className="text-sm">
+                      {new Date(user.createdAt).toLocaleDateString('pt-BR')}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">-</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right space-x-1 min-w-[300px]">
                   <Button 

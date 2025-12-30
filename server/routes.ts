@@ -285,16 +285,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const users = await storage.getAllUsers();
       const connections = await storage.getAllConnections();
+      const subscriptions = await storage.getAllSubscriptions();
       
-      // Map connection status to users
-      const usersWithStatus = users.map(user => {
+      // FREE_TRIAL_LIMIT
+      const FREE_TRIAL_LIMIT = 25;
+      
+      // Map connection status to users with message usage
+      const usersWithStatus = await Promise.all(users.map(async user => {
         const connection = connections.find(c => c.userId === user.id);
+        const subscription = subscriptions.find(s => s.userId === user.id && s.status === 'active');
+        const hasActiveSubscription = !!subscription;
+        
+        let agentMessagesCount = 0;
+        if (connection) {
+          agentMessagesCount = await storage.getAgentMessagesCount(connection.id);
+        }
+        
+        const limit = hasActiveSubscription ? -1 : FREE_TRIAL_LIMIT;
+        const remaining = hasActiveSubscription ? -1 : Math.max(0, FREE_TRIAL_LIMIT - agentMessagesCount);
+        const isLimitReached = !hasActiveSubscription && agentMessagesCount >= FREE_TRIAL_LIMIT;
+        
         return {
           ...user,
           isConnected: connection?.isConnected || false,
-          connectionId: connection?.id
+          connectionId: connection?.id,
+          agentMessagesCount,
+          messageLimit: limit,
+          messagesRemaining: remaining,
+          isLimitReached,
+          hasActiveSubscription,
         };
-      });
+      }));
       
       res.json(usersWithStatus);
     } catch (error) {
