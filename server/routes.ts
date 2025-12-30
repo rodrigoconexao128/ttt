@@ -1522,7 +1522,8 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         });
         console.log(`[RESTORE VERSION] ✅ Config atualizado - Prompt length: ${versaoRestaurada.prompt_content.length}`);
       } else {
-        console.warn(`[RESTORE VERSION] ⚠️ Nenhum config encontrado para user ${userId}`);\n      }
+        console.warn(`[RESTORE VERSION] ⚠️ Nenhum config encontrado para user ${userId}`);
+      }
       
       res.json({ 
         success: true,
