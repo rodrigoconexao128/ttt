@@ -2,6 +2,7 @@ import { storage } from "./storage";
 import type { Message, MistralResponse } from "@shared/schema";
 import { getMistralClient } from "./mistralClient";
 import { generateSystemPrompt, type PromptContext } from "./promptTemplates";
+import crypto from "crypto";
 import {
   detectOffTopic,
   detectJailbreak,
@@ -376,7 +377,7 @@ export async function generateAIResponse(
     console.log(`   Trigger phrases: ${agentConfig.triggerPhrases?.length || 0}`);
     console.log(`   Prompt length: ${agentConfig.prompt?.length || 0} chars`);
     console.log(`   Prompt (primeiros 150 chars): ${agentConfig.prompt?.substring(0, 150) || 'N/A'}...`);
-    console.log(`   Prompt (MD5 para debug): ${require('crypto').createHash('md5').update(agentConfig.prompt || '').digest('hex').substring(0, 8)}`);
+    console.log(`   Prompt (MD5 para debug): ${crypto.createHash('md5').update(agentConfig.prompt || '').digest('hex').substring(0, 8)}`);
     console.log(`🤖 [AI Agent] ═══════════════════════════════════════════════════\n`);
 
     // 🛡️ DETECÇÃO DE JAILBREAK (apenas no sistema avançado)
@@ -1203,7 +1204,6 @@ Mensagem do cliente: ${newMessageText.trim()}`;
  * - conversationHistory: vem do parâmetro (simulador mantém em memória)
  * - contactName: "Visitante" (simulador não tem WhatsApp)
  * - sentMedias: rastreado pelo simulador
- * - isActive: SEMPRE true no simulador (para testar mesmo com agente desativado)
  */
 export async function testAgentResponse(
   userId: string,
@@ -1228,7 +1228,6 @@ export async function testAgentResponse(
     
     console.log(`🧪 [SIMULADOR] Histórico: ${history.length} mensagens`);
     console.log(`🧪 [SIMULADOR] Mídias já enviadas: ${sentMedias?.length || 0}`);
-    console.log(`🧪 [SIMULADOR] Prompt length: ${(customPrompt || agentConfig.prompt || '').length} chars`);
     
     // 🎯 CHAMAR generateAIResponse - MESMO CÓDIGO DO WHATSAPP!
     // Isso garante que:
@@ -1239,8 +1238,6 @@ export async function testAgentResponse(
     // - Placeholders são processados
     // - Mídias são detectadas e não repetidas
     
-    // 🔑 CRÍTICO: No simulador, SEMPRE forçar isActive=true para permitir testes
-    // mesmo quando o agente está desativado no WhatsApp
     const result = await generateAIResponse(
       userId,
       history,
@@ -1249,14 +1246,13 @@ export async function testAgentResponse(
         contactName: "Visitante", // Simulador não tem nome real
         sentMedias: sentMedias || [],
       },
-      // SEMPRE injetar config para forçar isActive=true no simulador
-      {
+      // Se customPrompt foi fornecido, injetar via testDependencies
+      customPrompt ? {
         getAgentConfig: async () => ({
           ...agentConfig,
-          prompt: customPrompt || agentConfig.prompt, // Usar customPrompt se fornecido
-          isActive: true, // 🔑 FORÇAR ATIVO NO SIMULADOR
+          prompt: customPrompt,
         }),
-      }
+      } : undefined
     );
     
     if (!result) {
