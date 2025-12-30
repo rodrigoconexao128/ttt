@@ -313,6 +313,13 @@ export async function generateAIResponse(
       agentConfig = await storage.getAgentConfig(userId);
     }
 
+    if (agentConfig) {
+      console.log(`[AI AGENT] Loaded config for user ${userId}. Prompt length: ${agentConfig.prompt?.length}`);
+      console.log(`[AI AGENT] Prompt preview: ${agentConfig.prompt?.substring(0, 50)}...`);
+    } else {
+      console.log(`[AI AGENT] No config found for user ${userId}`);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // 🎯 DEBUG: Mostrar status das configurações
     // ═══════════════════════════════════════════════════════════════════════

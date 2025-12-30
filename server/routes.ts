@@ -1190,9 +1190,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/agent/config", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
+      console.log(`[API] POST /api/agent/config called for user ${userId}`);
+      console.log(`[API] Payload:`, JSON.stringify(req.body).substring(0, 200));
+      
       const result = insertAiAgentConfigSchema.partial().safeParse(req.body);
 
       if (!result.success) {
+        console.error(`[API] Validation error:`, result.error);
         return res.status(400).json({ message: "Invalid request", errors: result.error });
       }
 
@@ -1203,9 +1207,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let config;
       if (existingConfig) {
         // Config exists, just update the provided fields
+        console.log(`[API] Updating existing config for user ${userId}`);
         config = await storage.updateAgentConfig(userId, result.data);
       } else {
         // No config exists, need to create with default prompt if not provided
+        console.log(`[API] Creating new config for user ${userId}`);
         const dataWithDefaults = {
           prompt: result.data.prompt || "Você é um assistente virtual prestativo.",
           ...result.data
@@ -1213,6 +1219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         config = await storage.upsertAgentConfig(userId, dataWithDefaults);
       }
       
+      console.log(`[API] Config updated successfully. New prompt length: ${config?.prompt?.length}`);
       res.json(config);
     } catch (error) {
       console.error("Error updating agent config:", error);
@@ -1435,7 +1442,8 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           editSummary: v.edit_summary,
           editType: v.edit_type,
           createdAt: v.created_at,
-          isCurrent: v.is_current
+          isCurrent: v.is_current,
+          promptContent: v.prompt_content // Added promptContent
         }))
       });
     } catch (error: any) {
