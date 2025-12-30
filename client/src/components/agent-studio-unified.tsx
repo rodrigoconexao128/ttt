@@ -1849,9 +1849,34 @@ export function AgentStudioUnified() {
             {mediaForm.mediaType === "audio" && editingMedia?.storageUrl && (
               <div className="space-y-2">
                 <Label>Preview</Label>
-                <audio controls className="w-full" src={editingMedia.storageUrl}>
-                  Seu navegador não suporta áudio.
-                </audio>
+                <div className="p-3 border rounded-lg bg-muted/30">
+                  <audio controls className="w-full mb-2" src={editingMedia.storageUrl}>
+                    Seu navegador não suporta áudio.
+                  </audio>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Trocar Áudio
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        setMediaForm(prev => ({ ...prev, transcription: "" }));
+                        setSelectedFile(null);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Remover
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1859,11 +1884,99 @@ export function AgentStudioUnified() {
             {mediaForm.mediaType === "image" && editingMedia?.storageUrl && (
               <div className="space-y-2">
                 <Label>Preview</Label>
-                <img 
-                  src={editingMedia.storageUrl} 
-                  alt="Preview"
-                  className="w-full max-h-48 object-contain rounded-md border"
-                />
+                <div className="relative group">
+                  <img 
+                    src={editingMedia.storageUrl} 
+                    alt="Preview"
+                    className="w-full max-h-48 object-contain rounded-md border"
+                  />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-md flex items-center justify-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Trocar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setSelectedFile(null)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Remover
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Preview de Vídeo */}
+            {mediaForm.mediaType === "video" && editingMedia?.storageUrl && (
+              <div className="space-y-2">
+                <Label>Preview</Label>
+                <div className="relative group">
+                  <video 
+                    controls 
+                    className="w-full max-h-48 object-contain rounded-md border"
+                    src={editingMedia.storageUrl}
+                  />
+                  <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Trocar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setSelectedFile(null)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Remover
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Preview de Documento */}
+            {mediaForm.mediaType === "document" && editingMedia?.storageUrl && (
+              <div className="space-y-2">
+                <Label>Arquivo</Label>
+                <div className="p-3 border rounded-lg bg-muted/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-muted-foreground" />
+                    <span className="text-sm truncate max-w-[200px]">{editingMedia.fileName || "Documento"}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Trocar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setSelectedFile(null)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
 
