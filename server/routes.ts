@@ -2432,24 +2432,28 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     try {
       const { code, finalPrice, maxUses, validUntil, isActive, applicablePlans } = req.body;
       
-      if (!code || !finalPrice) {
+      console.log("Creating coupon with data:", { code, finalPrice, maxUses, validUntil, isActive, applicablePlans });
+      
+      if (!code || finalPrice === undefined || finalPrice === null || finalPrice === "") {
         return res.status(400).json({ message: "Código e preço final são obrigatórios" });
       }
 
       const coupon = await storage.createCoupon({
-        code: code.toUpperCase(),
-        finalPrice,
+        code: code.toUpperCase().trim(),
+        finalPrice: String(finalPrice),
         discountType: "fixed_price",
         discountValue: "0",
-        maxUses: maxUses || null,
-        validUntil,
+        maxUses: maxUses ? parseInt(maxUses) : null,
+        validUntil: validUntil ? new Date(validUntil) : null,
         isActive: isActive !== false,
-        applicablePlans: applicablePlans || null
+        applicablePlans: applicablePlans && applicablePlans.length > 0 ? applicablePlans : null,
+        currentUses: 0
       });
+      console.log("Coupon created successfully:", coupon);
       res.json(coupon);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating coupon:", error);
-      res.status(500).json({ message: "Failed to create coupon" });
+      res.status(500).json({ message: "Failed to create coupon", error: error.message });
     }
   });
 
@@ -2457,11 +2461,24 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   app.put("/api/admin/coupons/:id", isAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const coupon = await storage.updateCoupon(id, req.body);
+      const { code, finalPrice, maxUses, validUntil, isActive, applicablePlans } = req.body;
+      
+      console.log("Updating coupon:", id, req.body);
+      
+      const updateData: any = {};
+      if (code !== undefined) updateData.code = code.toUpperCase().trim();
+      if (finalPrice !== undefined) updateData.finalPrice = String(finalPrice);
+      if (maxUses !== undefined) updateData.maxUses = maxUses ? parseInt(maxUses) : null;
+      if (validUntil !== undefined) updateData.validUntil = validUntil ? new Date(validUntil) : null;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (applicablePlans !== undefined) updateData.applicablePlans = applicablePlans && applicablePlans.length > 0 ? applicablePlans : null;
+      
+      const coupon = await storage.updateCoupon(id, updateData);
+      console.log("Coupon updated successfully:", coupon);
       res.json(coupon);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating coupon:", error);
-      res.status(500).json({ message: "Failed to update coupon" });
+      res.status(500).json({ message: "Failed to update coupon", error: error.message });
     }
   });
 

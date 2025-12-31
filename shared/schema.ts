@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, index, uniqueIndex, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, index, uniqueIndex, decimal, uuid } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -420,14 +420,14 @@ export const payments = pgTable("payments", {
 
 // Coupons table - Sistema de cupons de desconto
 export const coupons = pgTable("coupons", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   code: text("code").unique().notNull(), // Código do cupom (ex: BLACKFRIDAY, WELCOME2025)
   discountType: text("discount_type").default("fixed_price").notNull(), // Tipo de desconto
   discountValue: decimal("discount_value", { precision: 10, scale: 2 }).default("0").notNull(), // Valor do desconto
-  finalPrice: decimal("final_price", { precision: 10, scale: 2 }).notNull(), // Preço final com cupom aplicado
-  isActive: boolean("is_active").default(true).notNull(),
+  finalPrice: decimal("final_price", { precision: 10, scale: 2 }), // Preço final com cupom aplicado
+  isActive: boolean("is_active").default(true),
   maxUses: integer("max_uses"), // null = ilimitado
-  currentUses: integer("current_uses").default(0).notNull(), // Quantas vezes foi usado
+  currentUses: integer("current_uses").default(0), // Quantas vezes foi usado
   applicablePlans: jsonb("applicable_plans").$type<string[]>(), // Planos onde o cupom é válido (null = todos)
   validFrom: timestamp("valid_from").defaultNow(),
   validUntil: timestamp("valid_until"), // Data de expiração (null = sem expiração)
