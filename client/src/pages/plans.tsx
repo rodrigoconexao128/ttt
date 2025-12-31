@@ -269,21 +269,20 @@ export default function PlansPage() {
                 <span>Tem um cupom de desconto?</span>
                 <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
               </summary>
-              <div className="mt-3 animate-in slide-in-from-top-2 duration-200">
-                <div className="relative">
+              <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+                <div className="flex gap-2">
                   <Input
                     type="text"
                     placeholder="Digite o código"
                     value={couponCode}
                     onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    className="h-12 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 focus:border-green-500 focus:ring-green-500/20 uppercase font-medium text-center tracking-widest pr-24 transition-all"
+                    className="h-11 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 focus:border-green-500 focus:ring-green-500/20 uppercase font-medium text-center tracking-widest transition-all"
                     onKeyDown={(e) => e.key === 'Enter' && validateCoupon()}
                   />
                   <Button 
                     onClick={validateCoupon}
                     disabled={isValidatingCoupon || !couponCode.trim()}
-                    size="sm"
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className="h-11 px-6 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
                   >
                     {isValidatingCoupon ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

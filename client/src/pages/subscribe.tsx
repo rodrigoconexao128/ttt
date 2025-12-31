@@ -102,7 +102,12 @@ export default function SubscribePage() {
             Finalizar Assinatura
           </h1>
           <p className="text-muted-foreground">
-            Plano: {subscription.plan.nome} - R$ {subscription.plan.valor}
+            Plano: {subscription.plan.nome} - R$ {subscription.couponPrice || subscription.plan.valor}
+            {subscription.couponPrice && subscription.couponCode && (
+              <span className="ml-2 text-xs text-green-600 dark:text-green-400 font-medium">
+                (com cupom {subscription.couponCode})
+              </span>
+            )}
           </p>
         </div>
 
