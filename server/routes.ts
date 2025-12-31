@@ -2373,11 +2373,15 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     try {
       const { code, planTipo } = req.body;
       
+      console.log("Validating coupon:", { code, planTipo });
+      
       if (!code) {
         return res.status(400).json({ message: "Código do cupom é obrigatório" });
       }
 
       const coupon = await storage.getCouponByCode(code.toUpperCase());
+      
+      console.log("Coupon found:", coupon);
       
       if (!coupon) {
         return res.status(404).json({ message: "Cupom não encontrado", valid: false });
@@ -2410,9 +2414,9 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         code: coupon.code,
         applicablePlans: applicablePlans || null
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error validating coupon:", error);
-      res.status(500).json({ message: "Erro ao validar cupom" });
+      res.status(500).json({ message: "Erro ao validar cupom", error: error.message });
     }
   });
 
