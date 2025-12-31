@@ -630,39 +630,170 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllCoupons(): Promise<Coupon[]> {
-    return await db.select().from(coupons).orderBy(desc(coupons.createdAt));
+    try {
+      return await db.select().from(coupons).orderBy(desc(coupons.createdAt));
+    } catch (error) {
+      console.error("Error in getAllCoupons with Drizzle, trying raw query:", error);
+      const { pool } = await import("./db");
+      const result = await pool.query("SELECT * FROM coupons ORDER BY created_at DESC");
+      return result.rows.map((row: any) => ({
+        id: row.id,
+        code: row.code,
+        discountType: row.discount_type,
+        discountValue: row.discount_value,
+        finalPrice: row.final_price,
+        isActive: row.is_active,
+        maxUses: row.max_uses,
+        currentUses: row.current_uses,
+        applicablePlans: row.applicable_plans,
+        validFrom: row.valid_from,
+        validUntil: row.valid_until,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      } as Coupon));
+    }
   }
 
   async createCoupon(couponData: InsertCoupon): Promise<Coupon> {
-    const [coupon] = await db.insert(coupons).values({
-      ...couponData,
-      code: couponData.code.toUpperCase()
-    }).returning();
-    return coupon;
+    try {
+      const [coupon] = await db.insert(coupons).values({
+        ...couponData,
+        code: couponData.code.toUpperCase()
+      }).returning();
+      return coupon;
+    } catch (error) {
+      console.error("Error in createCoupon with Drizzle, trying raw query:", error);
+      const { pool } = await import("./db");
+      const result = await pool.query(`
+        INSERT INTO coupons (code, discount_type, discount_value, final_price, is_active, max_uses, current_uses, applicable_plans, valid_until)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING *
+      `, [
+        couponData.code.toUpperCase(),
+        couponData.discountType || 'fixed_price',
+        couponData.discountValue || '0',
+        couponData.finalPrice,
+        couponData.isActive !== false,
+        couponData.maxUses || null,
+        couponData.currentUses || 0,
+        couponData.applicablePlans ? JSON.stringify(couponData.applicablePlans) : null,
+        couponData.validUntil || null
+      ]);
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        code: row.code,
+        discountType: row.discount_type,
+        discountValue: row.discount_value,
+        finalPrice: row.final_price,
+        isActive: row.is_active,
+        maxUses: row.max_uses,
+        currentUses: row.current_uses,
+        applicablePlans: row.applicable_plans,
+        validFrom: row.valid_from,
+        validUntil: row.valid_until,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      } as Coupon;
+    }
   }
 
   async updateCoupon(id: string, data: Partial<InsertCoupon>): Promise<Coupon> {
-    const updateData: any = { ...data, updatedAt: new Date() };
-    if (data.code) {
-      updateData.code = data.code.toUpperCase();
+    try {
+      const updateData: any = { ...data, updatedAt: new Date() };
+      if (data.code) {
+        updateData.code = data.code.toUpperCase();
+      }
+      const [coupon] = await db
+        .update(coupons)
+        .set(updateData)
+        .where(eq(coupons.id, id))
+        .returning();
+      return coupon;
+    } catch (error) {
+      console.error("Error in updateCoupon with Drizzle, trying raw query:", error);
+      const { pool } = await import("./db");
+      
+      // Build dynamic SET clause
+      const setClauses: string[] = [];
+      const values: any[] = [];
+      let paramIndex = 1;
+      
+      if (data.code !== undefined) {
+        setClauses.push(`code = $${paramIndex++}`);
+        values.push(data.code.toUpperCase());
+      }
+      if (data.finalPrice !== undefined) {
+        setClauses.push(`final_price = $${paramIndex++}`);
+        values.push(data.finalPrice);
+      }
+      if (data.isActive !== undefined) {
+        setClauses.push(`is_active = $${paramIndex++}`);
+        values.push(data.isActive);
+      }
+      if (data.maxUses !== undefined) {
+        setClauses.push(`max_uses = $${paramIndex++}`);
+        values.push(data.maxUses);
+      }
+      if (data.validUntil !== undefined) {
+        setClauses.push(`valid_until = $${paramIndex++}`);
+        values.push(data.validUntil);
+      }
+      if (data.applicablePlans !== undefined) {
+        setClauses.push(`applicable_plans = $${paramIndex++}`);
+        values.push(data.applicablePlans ? JSON.stringify(data.applicablePlans) : null);
+      }
+      
+      setClauses.push(`updated_at = $${paramIndex++}`);
+      values.push(new Date());
+      values.push(id);
+      
+      const result = await pool.query(`
+        UPDATE coupons SET ${setClauses.join(', ')} WHERE id = $${paramIndex}
+        RETURNING *
+      `, values);
+      
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        code: row.code,
+        discountType: row.discount_type,
+        discountValue: row.discount_value,
+        finalPrice: row.final_price,
+        isActive: row.is_active,
+        maxUses: row.max_uses,
+        currentUses: row.current_uses,
+        applicablePlans: row.applicable_plans,
+        validFrom: row.valid_from,
+        validUntil: row.valid_until,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      } as Coupon;
     }
-    const [coupon] = await db
-      .update(coupons)
-      .set(updateData)
-      .where(eq(coupons.id, id))
-      .returning();
-    return coupon;
   }
 
   async deleteCoupon(id: string): Promise<void> {
-    await db.delete(coupons).where(eq(coupons.id, id));
+    try {
+      await db.delete(coupons).where(eq(coupons.id, id));
+    } catch (error) {
+      console.error("Error in deleteCoupon with Drizzle, trying raw query:", error);
+      const { pool } = await import("./db");
+      await pool.query("DELETE FROM coupons WHERE id = $1", [id]);
+    }
   }
 
   async incrementCouponUsage(id: string): Promise<void> {
-    await db
-      .update(coupons)
-      .set({ currentUses: sql`${coupons.currentUses} + 1`, updatedAt: new Date() })
-      .where(eq(coupons.id, id));
+    try {
+      await db
+        .update(coupons)
+        .set({ currentUses: sql`${coupons.currentUses} + 1`, updatedAt: new Date() })
+        .where(eq(coupons.id, id));
+    } catch (error) {
+      console.error("Error in incrementCouponUsage with Drizzle, trying raw query:", error);
+      const { pool } = await import("./db");
+      await pool.query("UPDATE coupons SET current_uses = current_uses + 1, updated_at = NOW() WHERE id = $1", [id]);
+    }
+  }
   }
 
   // Subscription operations
