@@ -2416,7 +2416,12 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       });
     } catch (error: any) {
       console.error("Error validating coupon:", error);
-      res.status(500).json({ message: "Erro ao validar cupom", error: error.message });
+      console.error("Error stack:", error.stack);
+      res.status(500).json({ 
+        message: "Erro ao validar cupom", 
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   });
 
