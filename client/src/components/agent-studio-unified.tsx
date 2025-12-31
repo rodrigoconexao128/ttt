@@ -1936,8 +1936,17 @@ export function AgentStudioUnified() {
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        setMediaForm(prev => ({ ...prev, transcription: "" }));
+                        console.log('[DEBUG] Remover Áudio clicked in agent-studio-unified!');
+                        // Limpa a mídia do editingMedia diretamente
+                        if (editingMedia) {
+                          setEditingMedia({ ...editingMedia, storageUrl: "", fileName: "" });
+                        }
+                        setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "", transcription: "" }));
                         setSelectedFile(null);
+                        toast({
+                          title: "Removido!",
+                          description: "Mídia removida.",
+                        });
                       }}
                     >
                       <Trash2 className="h-4 w-4 mr-1" />
@@ -1981,7 +1990,16 @@ export function AgentStudioUnified() {
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        console.log('[DEBUG] Remover Imagem clicked in agent-studio-unified!');
+                        if (editingMedia) {
+                          setEditingMedia({ ...editingMedia, storageUrl: "", fileName: "" });
+                        }
+                        setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
+                        toast({
+                          title: "Removido!",
+                          description: "Mídia removida.",
+                        });
                       }}
                     >
                       <Trash2 className="h-4 w-4 mr-1" />
@@ -2025,7 +2043,16 @@ export function AgentStudioUnified() {
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        console.log('[DEBUG] Remover Vídeo clicked in agent-studio-unified!');
+                        if (editingMedia) {
+                          setEditingMedia({ ...editingMedia, storageUrl: "", fileName: "" });
+                        }
+                        setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
+                        toast({
+                          title: "Removido!",
+                          description: "Mídia removida.",
+                        });
                       }}
                     >
                       <Trash2 className="h-4 w-4 mr-1" />
@@ -2066,7 +2093,16 @@ export function AgentStudioUnified() {
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        console.log('[DEBUG] Remover Documento clicked in agent-studio-unified!');
+                        if (editingMedia) {
+                          setEditingMedia({ ...editingMedia, storageUrl: "", fileName: "" });
+                        }
+                        setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
+                        toast({
+                          title: "Removido!",
+                          description: "Mídia removida.",
+                        });
                       }}
                     >
                       <Trash2 className="h-4 w-4" />

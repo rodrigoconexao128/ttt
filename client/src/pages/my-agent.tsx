@@ -1,3 +1,4 @@
+// Force HMR rebuild v2
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -320,6 +321,18 @@ export default function MyAgent() {
     // Limpa o valor do input para permitir selecionar o mesmo arquivo novamente
     e.target.value = "";
   };
+
+  // Função dedicada para remover mídia do preview
+  const handleRemoveMediaPreview = useCallback((includeTranscription: boolean = false) => {
+    console.log('[DEBUG] handleRemoveMediaPreview called', { includeTranscription });
+    setMediaForm(prev => ({
+      ...prev,
+      storageUrl: "",
+      fileName: "",
+      ...(includeTranscription ? { transcription: "" } : {}),
+    }));
+    setSelectedFile(null);
+  }, []);
 
   const uploadSelectedFile = async () => {
     if (!selectedFile) return null;
@@ -1420,7 +1433,7 @@ O QUE NÃO FAZER:
             {/* Preview de Imagem */}
             {mediaForm.mediaType === "image" && mediaForm.storageUrl && (
               <div className="space-y-2">
-                <Label>Preview</Label>
+                <span className="text-sm font-medium leading-none">Preview</span>
                 <div className="border rounded-lg overflow-hidden">
                   <img src={mediaForm.storageUrl} alt="Preview" className="w-full max-h-48 object-contain" />
                   <div className="flex gap-2 p-2 bg-muted/30 border-t">
@@ -1429,11 +1442,7 @@ O QUE NÃO FAZER:
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        fileInputRef.current?.click();
-                      }}
+                      onClick={() => fileInputRef.current?.click()}
                     >
                       <RefreshCw className="w-4 h-4 mr-1" />
                       Trocar Imagem
@@ -1446,6 +1455,7 @@ O QUE NÃO FAZER:
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        console.log('[DEBUG] Remover Imagem clicked inline!');
                         setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
                       }}
@@ -1461,11 +1471,17 @@ O QUE NÃO FAZER:
             {/* Preview de Áudio */}
             {mediaForm.mediaType === "audio" && mediaForm.storageUrl && (
               <div className="space-y-2">
-                <Label>Preview</Label>
+                <span className="text-sm font-medium leading-none">Preview</span>
                 <div className="p-3 border rounded-lg bg-muted/30">
                   <audio controls className="w-full mb-2" src={mediaForm.storageUrl} />
                   <div className="flex gap-2 flex-wrap">
-                    <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleTranscribe(); }} disabled={transcribing}>
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleTranscribe()} 
+                      disabled={transcribing}
+                    >
                       {transcribing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
                       Transcrever
                     </Button>
@@ -1473,11 +1489,7 @@ O QUE NÃO FAZER:
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        fileInputRef.current?.click();
-                      }}
+                      onClick={() => fileInputRef.current?.click()}
                     >
                       <RefreshCw className="w-4 h-4 mr-1" />
                       Trocar Áudio
@@ -1489,6 +1501,7 @@ O QUE NÃO FAZER:
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        console.log('[DEBUG] Remover Áudio clicked inline!');
                         setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "", transcription: "" }));
                         setSelectedFile(null);
                       }}
@@ -1517,7 +1530,7 @@ O QUE NÃO FAZER:
             {/* Preview de Vídeo */}
             {mediaForm.mediaType === "video" && mediaForm.storageUrl && (
               <div className="space-y-2">
-                <Label>Preview</Label>
+                <span className="text-sm font-medium leading-none">Preview</span>
                 <div className="border rounded-lg overflow-hidden">
                   <video 
                     controls 
@@ -1530,11 +1543,7 @@ O QUE NÃO FAZER:
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        fileInputRef.current?.click();
-                      }}
+                      onClick={() => fileInputRef.current?.click()}
                     >
                       <RefreshCw className="w-4 h-4 mr-1" />
                       Trocar Vídeo
@@ -1547,6 +1556,7 @@ O QUE NÃO FAZER:
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        console.log('[DEBUG] Remover Vídeo clicked inline!');
                         setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
                       }}
@@ -1562,7 +1572,7 @@ O QUE NÃO FAZER:
             {/* Preview de Documento */}
             {mediaForm.mediaType === "document" && mediaForm.storageUrl && (
               <div className="space-y-2">
-                <Label>Arquivo</Label>
+                <span className="text-sm font-medium leading-none">Arquivo</span>
                 <div className="p-3 border rounded-lg bg-muted/30 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FileText className="w-5 h-5 text-muted-foreground" />
@@ -1573,11 +1583,7 @@ O QUE NÃO FAZER:
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        fileInputRef.current?.click();
-                      }}
+                      onClick={() => fileInputRef.current?.click()}
                     >
                       <RefreshCw className="w-4 h-4 mr-1" />
                       Trocar
@@ -1589,6 +1595,7 @@ O QUE NÃO FAZER:
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        console.log('[DEBUG] Remover Documento clicked inline!');
                         setMediaForm(prev => ({ ...prev, storageUrl: "", fileName: "" }));
                         setSelectedFile(null);
                       }}
