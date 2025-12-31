@@ -399,6 +399,8 @@ export const subscriptions = pgTable("subscriptions", {
   dataInicio: timestamp("data_inicio"),
   dataFim: timestamp("data_fim"),
   canaisUsados: integer("canais_usados").default(0).notNull(),
+  couponCode: text("coupon_code"), // Cupom de desconto aplicado
+  couponPrice: decimal("coupon_price", { precision: 10, scale: 2 }), // Preço com cupom aplicado
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -412,6 +414,23 @@ export const payments = pgTable("payments", {
   pixQrCode: text("pix_qr_code").notNull(),
   status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, paid, expired
   dataPagamento: timestamp("data_pagamento"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Coupons table - Sistema de cupons de desconto
+export const coupons = pgTable("coupons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").unique().notNull(), // Código do cupom (ex: BLACKFRIDAY, WELCOME2025)
+  discountType: text("discount_type").default("fixed_price").notNull(), // Tipo de desconto
+  discountValue: decimal("discount_value", { precision: 10, scale: 2 }).default("0").notNull(), // Valor do desconto
+  finalPrice: decimal("final_price", { precision: 10, scale: 2 }).notNull(), // Preço final com cupom aplicado
+  isActive: boolean("is_active").default(true).notNull(),
+  maxUses: integer("max_uses"), // null = ilimitado
+  currentUses: integer("current_uses").default(0).notNull(), // Quantas vezes foi usado
+  applicablePlans: jsonb("applicable_plans").$type<string[]>(), // Planos onde o cupom é válido (null = todos)
+  validFrom: timestamp("valid_from").defaultNow(),
+  validUntil: timestamp("valid_until"), // Data de expiração (null = sem expiração)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -683,6 +702,15 @@ export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({
 });
 export type InsertSystemConfig = z.infer<typeof insertSystemConfigSchema>;
 export type SystemConfig = typeof systemConfig.$inferSelect;
+
+// Coupon schemas and types
+export const insertCouponSchema = createInsertSchema(coupons).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCoupon = z.infer<typeof insertCouponSchema>;
+export type Coupon = typeof coupons.$inferSelect;
 
 // Admin WhatsApp connection schemas and types
 export const insertAdminWhatsappConnectionSchema = createInsertSchema(adminWhatsappConnection).omit({

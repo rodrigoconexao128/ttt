@@ -2367,6 +2367,116 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // ==================== COUPONS ROUTES ====================
+  // Validate coupon code (public)
+  app.post("/api/coupons/validate", async (req, res) => {
+    try {
+      const { code, planTipo } = req.body;
+      
+      if (!code) {
+        return res.status(400).json({ message: "Código do cupom é obrigatório" });
+      }
+
+      const coupon = await storage.getCouponByCode(code.toUpperCase());
+      
+      if (!coupon) {
+        return res.status(404).json({ message: "Cupom não encontrado", valid: false });
+      }
+
+      if (!coupon.isActive) {
+        return res.status(400).json({ message: "Cupom expirado ou inativo", valid: false });
+      }
+
+      if (coupon.maxUses && coupon.maxUses > 0 && coupon.currentUses >= coupon.maxUses) {
+        return res.status(400).json({ message: "Cupom esgotado", valid: false });
+      }
+
+      if (coupon.validUntil && new Date(coupon.validUntil) < new Date()) {
+        return res.status(400).json({ message: "Cupom expirado", valid: false });
+      }
+
+      // Check if coupon is applicable to the specified plan
+      const applicablePlans = coupon.applicablePlans as string[] | null;
+      if (planTipo && applicablePlans && applicablePlans.length > 0) {
+        if (!applicablePlans.includes(planTipo)) {
+          return res.status(400).json({ message: "Cupom não válido para este plano", valid: false });
+        }
+      }
+
+      res.json({ 
+        valid: true, 
+        finalPrice: coupon.finalPrice,
+        discountType: coupon.discountType,
+        code: coupon.code,
+        applicablePlans: applicablePlans || null
+      });
+    } catch (error) {
+      console.error("Error validating coupon:", error);
+      res.status(500).json({ message: "Erro ao validar cupom" });
+    }
+  });
+
+  // Get all coupons (admin only)
+  app.get("/api/admin/coupons", isAdmin, async (_req, res) => {
+    try {
+      const coupons = await storage.getAllCoupons();
+      res.json(coupons);
+    } catch (error) {
+      console.error("Error fetching coupons:", error);
+      res.status(500).json({ message: "Failed to fetch coupons" });
+    }
+  });
+
+  // Create coupon (admin only)
+  app.post("/api/admin/coupons", isAdmin, async (req, res) => {
+    try {
+      const { code, finalPrice, maxUses, validUntil, isActive, applicablePlans } = req.body;
+      
+      if (!code || !finalPrice) {
+        return res.status(400).json({ message: "Código e preço final são obrigatórios" });
+      }
+
+      const coupon = await storage.createCoupon({
+        code: code.toUpperCase(),
+        finalPrice,
+        discountType: "fixed_price",
+        discountValue: "0",
+        maxUses: maxUses || null,
+        validUntil,
+        isActive: isActive !== false,
+        applicablePlans: applicablePlans || null
+      });
+      res.json(coupon);
+    } catch (error) {
+      console.error("Error creating coupon:", error);
+      res.status(500).json({ message: "Failed to create coupon" });
+    }
+  });
+
+  // Update coupon (admin only)
+  app.put("/api/admin/coupons/:id", isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const coupon = await storage.updateCoupon(id, req.body);
+      res.json(coupon);
+    } catch (error) {
+      console.error("Error updating coupon:", error);
+      res.status(500).json({ message: "Failed to update coupon" });
+    }
+  });
+
+  // Delete coupon (admin only)
+  app.delete("/api/admin/coupons/:id", isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteCoupon(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting coupon:", error);
+      res.status(500).json({ message: "Failed to delete coupon" });
+    }
+  });
+
   // ==================== PLANOS ROUTES ====================
   // Get all active plans (public)
   app.get("/api/plans", async (_req, res) => {
@@ -2450,7 +2560,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   app.post("/api/subscriptions/create", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const { planId } = req.body;
+      const { planId, couponCode } = req.body;
 
       if (!planId) {
         return res.status(400).json({ message: "Plan ID is required" });
@@ -2462,12 +2572,40 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         return res.status(404).json({ message: "Plan not found or inactive" });
       }
 
+      // Validate coupon if provided
+      let appliedCouponPrice = null;
+      let appliedCouponCode = null;
+      
+      if (couponCode) {
+        const coupon = await storage.getCouponByCode(couponCode.toUpperCase());
+        
+        if (coupon && coupon.isActive) {
+          // Check if coupon is valid
+          const isExpired = coupon.validUntil && new Date(coupon.validUntil) < new Date();
+          const isExhausted = coupon.maxUses && coupon.maxUses > 0 && coupon.currentUses >= coupon.maxUses;
+          
+          // Check if coupon applies to this plan
+          const applicablePlans = coupon.applicablePlans as string[] | null;
+          const planTipo = plan.tipo || (plan.periodicidade === "mensal" ? "mensal" : plan.periodicidade);
+          const isApplicable = !applicablePlans || applicablePlans.length === 0 || applicablePlans.includes(planTipo);
+          
+          if (!isExpired && !isExhausted && isApplicable) {
+            appliedCouponCode = coupon.code;
+            appliedCouponPrice = coupon.finalPrice;
+            // Increment coupon usage
+            await storage.incrementCouponUsage(coupon.id);
+          }
+        }
+      }
+
       // Create subscription with pending status
       const subscription = await storage.createSubscription({
         userId,
         planId,
         status: "pending",
         dataInicio: new Date(),
+        couponCode: appliedCouponCode,
+        couponPrice: appliedCouponPrice,
       });
 
       res.json(subscription);
@@ -2552,13 +2690,22 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         return res.status(404).json({ message: "Subscription not found" });
       }
 
+      // Determine the price - use coupon price if available, otherwise plan price
+      const finalPrice = subscription.couponPrice 
+        ? Number(subscription.couponPrice) 
+        : Number(subscription.plan.valor);
+      
+      const planName = subscription.couponCode 
+        ? `${subscription.plan.nome} (${subscription.couponCode})`
+        : subscription.plan.nome;
+
       // Check if payment already exists
       const existingPayment = await storage.getPaymentBySubscriptionId(subscriptionId);
 
-      // Always (re)gerar o PIX quando em pending, para garantir payload válido após correções
+      // Generate PIX with the correct price
       const { pixCode, pixQrCode } = await generatePixQRCode({
-        planNome: subscription.plan.nome,
-        valor: Number(subscription.plan.valor),
+        planNome: planName,
+        valor: finalPrice,
         subscriptionId,
       });
 
@@ -2566,6 +2713,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         const updated = await storage.updatePayment(existingPayment.id, {
           pixCode,
           pixQrCode,
+          valor: finalPrice.toString(),
         });
         return res.json(updated);
       }
@@ -2573,7 +2721,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       // Create payment record
       const payment = await storage.createPayment({
         subscriptionId,
-        valor: subscription.plan.valor,
+        valor: finalPrice.toString(),
         status: "pending",
         pixCode,
         pixQrCode,
@@ -5815,6 +5963,53 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // Rota de teste para configurar fluxo de mídia
   app.use((await import("./testMediaRoute")).default);
+
+  // ====================================================================
+  // 🎙️ ROTA DE TESTE - TTS MULTI-PROVIDER (PÚBLICA)
+  // ====================================================================
+  app.post("/api/test-tts", async (req, res) => {
+    try {
+      const { text, provider, voice, speed } = req.body;
+
+      if (!text) {
+        return res.status(400).json({ error: "Texto é obrigatório" });
+      }
+
+      console.log(`🎙️ [TEST-TTS] Gerando áudio: "${text.substring(0, 50)}..."`);
+      console.log(`🎙️ [TEST-TTS] Provider: ${provider || 'auto'}, Voice: ${voice || 'default'}`);
+
+      const { generateTTS } = await import("./ttsService");
+
+      // Gerar áudio usando o serviço multi-provider
+      const result = await generateTTS({
+        text,
+        provider: provider || 'auto',
+        voice,
+        speed: speed || 1.0,
+      });
+
+      // Retornar áudio como resposta
+      const contentType = result.format === 'wav' ? 'audio/wav' : 'audio/mpeg';
+      
+      res.set({
+        'Content-Type': contentType,
+        'Content-Length': result.audio.length,
+        'Content-Disposition': `inline; filename="tts-test.${result.format}"`,
+        'X-TTS-Provider': result.provider,
+        'X-TTS-Format': result.format,
+      });
+
+      res.send(result.audio);
+
+      console.log(`✅ [TEST-TTS] Áudio enviado: ${result.audio.length} bytes (${result.provider})`);
+    } catch (error: any) {
+      console.error("❌ [TEST-TTS] Erro:", error);
+      res.status(500).json({ 
+        error: "Erro ao gerar áudio",
+        details: error.message 
+      });
+    }
+  });
 
   return httpServer;
 }

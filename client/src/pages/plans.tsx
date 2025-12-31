@@ -3,18 +3,30 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { Check, Loader2, Shield, Zap, Crown, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, Loader2, Shield, Zap, Crown, ChevronDown, ChevronUp, Tag } from "lucide-react";
 import type { Plan, Subscription } from "@shared/schema";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+
+interface CouponValidation {
+  valid: boolean;
+  finalPrice?: string;
+  discountType?: string;
+  code?: string;
+  applicablePlans?: string[] | null;
+}
 
 export default function PlansPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [faqOpen, setFaqOpen] = useState<number | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponValidation | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
   const { data: plans, isLoading: plansLoading } = useQuery<Plan[]>({
     queryKey: ["/api/plans"],
@@ -24,9 +36,44 @@ export default function PlansPage() {
     queryKey: ["/api/subscriptions/current"],
   });
 
-  const createSubscriptionMutation = useMutation<Subscription, Error, string>({
-    mutationFn: async (planId: string) => {
-      const response = await apiRequest("POST", "/api/subscriptions/create", { planId });
+  const validateCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast({ title: "Digite um código de cupom", variant: "destructive" });
+      return;
+    }
+    
+    setIsValidatingCoupon(true);
+    try {
+      const response = await apiRequest("POST", "/api/coupons/validate", { code: couponCode.trim() });
+      const data = await response.json();
+      
+      if (data.valid) {
+        setAppliedCoupon(data);
+        toast({ 
+          title: "Cupom aplicado com sucesso!", 
+          description: `Preço especial: R$ ${Number(data.finalPrice).toFixed(2).replace('.', ',')}/mês` 
+        });
+      } else {
+        toast({ title: data.message || "Cupom inválido", variant: "destructive" });
+        setAppliedCoupon(null);
+      }
+    } catch (error: any) {
+      const errorData = await error?.response?.json?.() || {};
+      toast({ title: errorData.message || "Cupom inválido", variant: "destructive" });
+      setAppliedCoupon(null);
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode("");
+  };
+
+  const createSubscriptionMutation = useMutation<Subscription, Error, { planId: string; couponCode?: string }>({
+    mutationFn: async ({ planId, couponCode }) => {
+      const response = await apiRequest("POST", "/api/subscriptions/create", { planId, couponCode });
       const data = await response.json();
       return data as Subscription;
     },
@@ -57,7 +104,6 @@ export default function PlansPage() {
   // Detectar qual plano está ativo baseado no tipo
   const activePlanTipo = currentSubscription?.plan?.tipo;
   const isCurrentMensal = hasActiveSubscription && (activePlanTipo === "padrao" || activePlanTipo === "mensal");
-  const isCurrentAnual = hasActiveSubscription && activePlanTipo === "anual";
   const isCurrentImplementacao = hasActiveSubscription && activePlanTipo === "implementacao";
   const isCurrentImplementacaoMensal = hasActiveSubscription && activePlanTipo === "implementacao_mensal";
 
@@ -65,16 +111,22 @@ export default function PlansPage() {
   const isPlanActive = (tipo: string) => {
     if (!hasActiveSubscription) return false;
     if (tipo === "mensal" && isCurrentMensal) return true;
-    if (tipo === "anual" && isCurrentAnual) return true;
     if (tipo === "implementacao" && isCurrentImplementacao) return true;
     if (tipo === "implementacao_mensal" && isCurrentImplementacaoMensal) return true;
     return false;
   };
 
+  // Preço a exibir (com ou sem cupom)
+  const getDisplayPrice = () => {
+    if (appliedCoupon?.finalPrice) {
+      return Number(appliedCoupon.finalPrice).toFixed(2).replace('.', ',');
+    }
+    return "99,99";
+  };
+
   const handleSelectPlan = (tipo: string) => {
     const backendPlan = plans?.find(p => {
       if (tipo === "mensal") return p.tipo === "padrao" || (!p.tipo && p.periodicidade === "mensal");
-      if (tipo === "anual") return p.tipo === "anual";
       if (tipo === "implementacao") return p.tipo === "implementacao";
       if (tipo === "implementacao_mensal") return p.tipo === "implementacao_mensal";
       return false;
@@ -82,10 +134,15 @@ export default function PlansPage() {
 
     if (backendPlan) {
       setSelectedPlan(tipo);
-      createSubscriptionMutation.mutate(backendPlan.id);
+      // Pass coupon code if applied and applicable to this plan
+      const couponCode = appliedCoupon?.code && 
+        (!appliedCoupon.applicablePlans || appliedCoupon.applicablePlans.length === 0 || appliedCoupon.applicablePlans.includes(tipo))
+        ? appliedCoupon.code
+        : undefined;
+      createSubscriptionMutation.mutate({ planId: backendPlan.id, couponCode });
     } else if (plans && plans.length > 0) {
       setSelectedPlan(tipo);
-      createSubscriptionMutation.mutate(plans[0].id);
+      createSubscriptionMutation.mutate({ planId: plans[0].id, couponCode: appliedCoupon?.code });
     } else {
       toast({
         title: "Plano não disponível",
@@ -108,20 +165,6 @@ export default function PlansPage() {
     }
     
     if (hasActiveSubscription) {
-      if (tipo === "anual" && isCurrentMensal) {
-        return { 
-          text: "Fazer upgrade para o Anual", 
-          disabled: false, 
-          className: "bg-green-600 hover:bg-green-700 text-white" 
-        };
-      }
-      if (tipo === "mensal" && isCurrentAnual) {
-        return { 
-          text: "Você já tem plano superior", 
-          disabled: true, 
-          className: "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed hover:bg-gray-100" 
-        };
-      }
       if (tipo === "implementacao" || tipo === "implementacao_mensal") {
         return { 
           text: "Contratar Implementação", 
@@ -133,10 +176,7 @@ export default function PlansPage() {
     }
     
     if (tipo === "mensal") {
-      return { text: "Assinar Mensal", disabled: false, className: "bg-gray-900 dark:bg-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 text-white" };
-    }
-    if (tipo === "anual") {
-      return { text: "Assinar Anual", disabled: false, className: "bg-green-600 hover:bg-green-700 text-white" };
+      return { text: appliedCoupon ? `Assinar por R$ ${getDisplayPrice()}` : "Assinar Mensal", disabled: false, className: "bg-gray-900 dark:bg-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 text-white" };
     }
     if (tipo === "implementacao" || tipo === "implementacao_mensal") {
       return { text: "Contratar Implementação", disabled: false, className: "bg-purple-600 hover:bg-purple-700 text-white" };
@@ -158,8 +198,8 @@ export default function PlansPage() {
       answer: "Todos os planos incluem: IA atendendo 24/7, conversas ilimitadas, 1 agente personalizado, suporte via WhatsApp e atualizações gratuitas."
     },
     {
-      question: "Qual a diferença do plano Anual?",
-      answer: "No plano anual você garante o preço atual por 12 meses. Isso significa que se o preço subir, você NÃO pagará a diferença, pois já fechou o valor anual. Além disso, economiza 5% (R$ 59,40 no ano)."
+      question: "Como funciona o cupom de desconto?",
+      answer: "Se você tem um cupom promocional, digite no campo de cupom e clique em 'Aplicar'. O desconto será aplicado automaticamente no preço mensal."
     },
     {
       question: "O que é a Implementação Completa?",
@@ -183,13 +223,78 @@ export default function PlansPage() {
           <h1 className="text-xl md:text-3xl font-semibold text-gray-900 dark:text-white mb-1 md:mb-2">
             {hasActiveSubscription ? "Faça upgrade do seu plano" : "Escolha seu plano"}
           </h1>
-          <p className="text-xs md:text-base text-gray-500 dark:text-gray-400">
-            {hasActiveSubscription ? (
-              <>Você está no plano <span className="font-medium text-gray-900 dark:text-white">{currentSubscription?.plan?.nome}</span></>
-            ) : (
-              "Comece a usar por $ 1/mês durante 3 meses"
-            )}
-          </p>
+          {hasActiveSubscription && (
+            <p className="text-xs md:text-base text-gray-500 dark:text-gray-400">
+              Você está no plano <span className="font-medium text-gray-900 dark:text-white">{currentSubscription?.plan?.nome}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Seção de Cupom de Desconto - Design Minimalista */}
+        <div className="max-w-sm mx-auto mb-8">
+          {appliedCoupon ? (
+            /* Cupom Aplicado - Feedback Visual Claro */
+            <div className="relative bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 rounded-2xl p-4 border border-green-200/60 dark:border-green-700/40 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                    <Check className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-green-600 dark:text-green-400 font-medium">Cupom aplicado</p>
+                    <p className="font-bold text-gray-900 dark:text-white text-lg tracking-wide">{appliedCoupon.code}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={removeCoupon}
+                  className="text-xs text-gray-400 hover:text-red-500 transition-colors p-2"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-3 pt-3 border-t border-green-200/50 dark:border-green-700/30">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Novo valor mensal:</span>
+                  <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    R$ {getDisplayPrice()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Campo de Cupom - Colapsável e Discreto */
+            <details className="group">
+              <summary className="cursor-pointer flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors py-2 select-none">
+                <Tag className="w-4 h-4" />
+                <span>Tem um cupom de desconto?</span>
+                <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
+              </summary>
+              <div className="mt-3 animate-in slide-in-from-top-2 duration-200">
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="Digite o código"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    className="h-12 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 focus:border-green-500 focus:ring-green-500/20 uppercase font-medium text-center tracking-widest pr-24 transition-all"
+                    onKeyDown={(e) => e.key === 'Enter' && validateCoupon()}
+                  />
+                  <Button 
+                    onClick={validateCoupon}
+                    disabled={isValidatingCoupon || !couponCode.trim()}
+                    size="sm"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 h-9 px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    {isValidatingCoupon ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Aplicar"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </details>
+          )}
         </div>
 
         {/* Mobile: Cards empilhados estilo Shopify */}
@@ -248,62 +353,6 @@ export default function PlansPage() {
             )}
           </div>
 
-          {/* PLANO ANUAL - Mobile Card (Destacado) */}
-          <div 
-            className={cn(
-              "relative border-2 rounded-2xl p-4 transition-all",
-              isPlanActive("anual") 
-                ? "border-green-500 bg-green-50/50 dark:bg-green-950/20" 
-                : "border-green-500 bg-green-50/30 dark:bg-green-950/10 shadow-lg"
-            )}
-          >
-            <Badge className="absolute -top-2.5 left-4 bg-green-600 text-white text-[10px] font-bold px-2.5 py-0.5">
-              MELHOR CUSTO-BENEFÍCIO
-            </Badge>
-            <div className="flex items-start justify-between mt-1">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">Anual</h3>
-                  <Badge className="bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0">
-                    ECONOMIZE 5%
-                  </Badge>
-                </div>
-                <p className="text-xs text-green-700 dark:text-green-400 font-medium flex items-center gap-1">
-                  <Shield className="w-3 h-3" />
-                  Preço travado por 12 meses
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="flex items-baseline gap-0.5">
-                  <span className="text-xs text-gray-400 line-through">R$ 1.199</span>
-                  <span className="text-2xl font-bold text-green-600 ml-1">R$ 1.128</span>
-                </div>
-                <span className="text-xs text-gray-500">/ano</span>
-              </div>
-            </div>
-            <ul className="mt-3 space-y-1.5">
-              {["Tudo do plano mensal", "Preço GARANTIDO por 1 ano", "Imune a reajustes futuros"].map((feature, i) => (
-                <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                  <Check className="w-3.5 h-3.5 text-green-600" />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-            {!isPlanActive("anual") && (
-              <Button
-                className="w-full mt-4 h-11 rounded-xl font-bold bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => handleSelectPlan("anual")}
-                disabled={createSubscriptionMutation.isPending && selectedPlan === "anual"}
-              >
-                {createSubscriptionMutation.isPending && selectedPlan === "anual" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Selecionar Anual"
-                )}
-              </Button>
-            )}
-          </div>
-
           {/* PLANO IMPLEMENTAÇÃO - Mobile Card */}
           <div 
             className={cn(
@@ -314,7 +363,7 @@ export default function PlansPage() {
             )}
           >
             <Badge className="absolute -top-2.5 left-4 bg-purple-600 text-white text-[10px] font-semibold px-2.5 py-0.5">
-              ACELERE RESULTADOS
+              ✨ PERSONALIZADA
             </Badge>
             <div className="flex items-start justify-between mt-1">
               <div className="flex-1">
@@ -323,20 +372,20 @@ export default function PlansPage() {
               </div>
               <div className="text-right">
                 <span className="text-2xl font-bold text-purple-600">R$ 700</span>
-                <p className="text-[10px] text-gray-500">1º mês</p>
+                <p className="text-[10px] text-gray-500">único</p>
               </div>
             </div>
             <ul className="mt-3 space-y-1.5">
-              {["Configuração completa da IA", "30 dias de acompanhamento", "Reuniões semanais"].map((feature, i) => (
+              {["Configuração 100% personalizada", "30 dias de acompanhamento", "Reuniões semanais de ajuste"].map((feature, i) => (
                 <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
                   <Check className="w-3.5 h-3.5 text-purple-600" />
                   <span>{feature}</span>
                 </li>
               ))}
             </ul>
-            <div className="mt-3 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-center">
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                Após configuração: <span className="font-bold text-gray-900 dark:text-white">R$ 99,99/mês</span>
+            <div className="mt-3 p-2 bg-purple-50 dark:bg-purple-950/30 rounded-lg text-center border border-purple-100 dark:border-purple-800/50">
+              <p className="text-xs text-purple-700 dark:text-purple-300">
+                Você receberá a IA <span className="font-bold">pronta e funcionando</span>
               </p>
             </div>
             {!isPlanActive("implementacao") && (
@@ -401,7 +450,7 @@ export default function PlansPage() {
         </div>
 
         {/* Desktop: Grid original */}
-        <div className="hidden md:grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-12">
+        <div className="hidden md:grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3 mb-12">
           
           {/* PLANO MENSAL */}
           <Card className={cn(
@@ -468,95 +517,6 @@ export default function PlansPage() {
             </CardFooter>
           </Card>
 
-          {/* PLANO ANUAL */}
-          <Card className={cn(
-            "relative flex flex-col border-2 rounded-2xl transition-all duration-200 transform md:-translate-y-4 z-10",
-            isPlanActive("anual") 
-              ? "border-green-500 dark:border-green-500 bg-green-50/30 dark:bg-green-950/20" 
-              : "border-green-500 dark:border-green-400 shadow-xl shadow-green-500/10 hover:shadow-2xl hover:shadow-green-500/20"
-          )}>
-            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 w-full text-center">
-              <Badge className={cn(
-                "px-4 py-1.5 text-sm font-bold rounded-full shadow-sm uppercase tracking-wide",
-                isPlanActive("anual") 
-                  ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 border border-green-300" 
-                  : "bg-green-600 text-white border-2 border-white dark:border-gray-950"
-              )}>
-                {isPlanActive("anual") ? "Seu plano atual" : "Melhor Custo-Benefício"}
-              </Badge>
-            </div>
-            
-            <CardHeader className="pb-4 pt-10 px-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Anual</h3>
-                {!isPlanActive("anual") && (
-                  <Badge className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 text-xs font-bold px-2 py-1">
-                    ECONOMIZE 5%
-                  </Badge>
-                )}
-              </div>
-              
-              <div className="space-y-1">
-                <div className="text-sm text-gray-400 line-through font-medium">R$ 1.199/ano</div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-sm text-gray-500 font-medium">R$</span>
-                  <span className="text-5xl font-bold text-green-600 dark:text-green-500 tracking-tight">1.128</span>
-                  <span className="text-gray-500 text-sm font-medium">/ano</span>
-                </div>
-                <p className="text-xs text-gray-500 font-medium">(equivale a R$ 94,00/mês)</p>
-              </div>
-              
-              <p className="text-sm text-green-700 dark:text-green-400 font-semibold mt-3 flex items-center gap-1.5">
-                <Shield className="w-4 h-4" />
-                Preço travado por 12 meses
-              </p>
-            </CardHeader>
-
-            <CardContent className="flex-1 px-6 pb-4">
-              <ul className="space-y-4">
-                {[
-                  { text: "Tudo do plano mensal", highlight: false },
-                  { text: "Preço GARANTIDO por 1 ano", highlight: true },
-                  { text: "Economia de R$ 59,40", highlight: false },
-                  { text: "Imune a reajustes futuros", highlight: true },
-                  { text: "Prioridade no suporte", highlight: true }
-                ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
-                    <div className={cn(
-                      "mt-0.5 p-0.5 rounded-full",
-                      feature.highlight ? "bg-green-100 dark:bg-green-900/50" : "bg-gray-100 dark:bg-gray-800"
-                    )}>
-                      <Check className={cn(
-                        "w-3 h-3 flex-shrink-0",
-                        feature.highlight ? "text-green-600 dark:text-green-400" : "text-gray-600 dark:text-gray-400"
-                      )} />
-                    </div>
-                    <span className={cn(
-                      "font-medium",
-                      feature.highlight ? "text-green-800 dark:text-green-300 font-semibold" : ""
-                    )}>
-                      {feature.text}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-
-            <CardFooter className="px-6 pb-8 pt-2">
-              <Button
-                className={cn("w-full h-12 rounded-xl font-bold text-base shadow-md transition-all hover:scale-[1.02] hover:shadow-lg", getButtonConfig("anual").className)}
-                onClick={() => handleSelectPlan("anual")}
-                disabled={getButtonConfig("anual").disabled || createSubscriptionMutation.isPending}
-              >
-                {createSubscriptionMutation.isPending && selectedPlan === "anual" ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  getButtonConfig("anual").text
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
-
           {/* PLANO IMPLEMENTAÇÃO */}
           <Card className={cn(
             "relative flex flex-col border rounded-2xl transition-all duration-200",
@@ -571,7 +531,7 @@ export default function PlansPage() {
                   ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 border border-purple-300" 
                   : "bg-purple-600 text-white"
               )}>
-                {isPlanActive("implementacao") ? "Seu plano atual" : "Acelere seus resultados"}
+                {isPlanActive("implementacao") ? "Seu plano atual" : "✨ Personalizada para você"}
               </Badge>
             </div>
             
@@ -583,7 +543,7 @@ export default function PlansPage() {
               <div className="flex items-baseline gap-1">
                 <span className="text-sm text-gray-500 font-medium">R$</span>
                 <span className="text-5xl font-bold text-purple-600 dark:text-purple-500 tracking-tight">700</span>
-                <span className="text-gray-500 text-sm font-medium">1º mês</span>
+                <span className="text-gray-500 text-sm font-medium">único</span>
               </div>
               
               <p className="text-sm text-purple-700 dark:text-purple-400 font-medium mt-3">
@@ -594,8 +554,8 @@ export default function PlansPage() {
             <CardContent className="flex-1 px-6 pb-4">
               <ul className="space-y-4">
                 {[
-                  "Configuração completa da IA",
-                  "Personalização para seu negócio",
+                  "Configuração 100% personalizada",
+                  "Treinamento da IA com seus dados",
                   "30 dias de acompanhamento",
                   "Ajustes ilimitados",
                   "Reuniões semanais"

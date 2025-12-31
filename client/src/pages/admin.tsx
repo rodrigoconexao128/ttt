@@ -28,7 +28,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -191,6 +191,8 @@ export default function AdminPanel() {
         return null; // Renderizado fora do container
       case "calendar":
         return <FollowUpCalendar />;
+      case "cupons":
+        return <CouponsManager />;
       case "config":
         return <ConfigManager config={config} />;
       default:
@@ -301,6 +303,16 @@ export default function AdminPanel() {
                   >
                     <Calendar className="w-4 h-4" />
                     <span>Calendário</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("cupons")}
+                    isActive={activeTab === "cupons"}
+                    tooltip="Cupons de Desconto"
+                  >
+                    <Tag className="w-4 h-4" />
+                    <span>Cupons</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -433,6 +445,16 @@ export default function AdminPanel() {
                 >
                   <Calendar className="w-4 h-4" />
                   <span>Calendário</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("cupons")}
+                  isActive={activeTab === "cupons"}
+                  tooltip="Cupons de Desconto"
+                >
+                  <Tag className="w-4 h-4" />
+                  <span>Cupons</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -1857,6 +1879,383 @@ function PaymentsManager({
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+// Coupon interface
+interface Coupon {
+  id: string;
+  code: string;
+  discountType: string;
+  discountValue: string;
+  finalPrice: string;
+  isActive: boolean;
+  maxUses: number | null;
+  currentUses: number;
+  validFrom: string | null;
+  validUntil: string | null;
+  applicablePlans: string[] | null;
+  createdAt: string;
+}
+
+// CouponsManager Component
+function CouponsManager() {
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
+  const [newCode, setNewCode] = useState("");
+  const [newFinalPrice, setNewFinalPrice] = useState("");
+  const [newMaxUses, setNewMaxUses] = useState("");
+  const [newValidUntil, setNewValidUntil] = useState("");
+  const [newIsActive, setNewIsActive] = useState(true);
+  const [newApplicablePlans, setNewApplicablePlans] = useState<string[]>([]);
+
+  const { data: coupons, isLoading, refetch } = useQuery<Coupon[]>({
+    queryKey: ["/api/admin/coupons"],
+  });
+
+  const { data: plans } = useQuery<Plan[]>({
+    queryKey: ["/api/plans"],
+  });
+
+  const createCouponMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiRequest("POST", "/api/admin/coupons", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/coupons"] });
+      toast({ title: "Cupom criado com sucesso!" });
+      resetForm();
+      setIsDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao criar cupom", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateCouponMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiRequest("PUT", `/api/admin/coupons/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/coupons"] });
+      toast({ title: "Cupom atualizado com sucesso!" });
+      resetForm();
+      setIsDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao atualizar cupom", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteCouponMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("DELETE", `/api/admin/coupons/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/coupons"] });
+      toast({ title: "Cupom excluído com sucesso!" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao excluir cupom", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const toggleCouponMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const response = await apiRequest("PUT", `/api/admin/coupons/${id}`, { isActive });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/coupons"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao atualizar cupom", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetForm = () => {
+    setNewCode("");
+    setNewFinalPrice("");
+    setNewMaxUses("");
+    setNewValidUntil("");
+    setNewIsActive(true);
+    setNewApplicablePlans([]);
+    setEditingCoupon(null);
+  };
+
+  const openEditDialog = (coupon: Coupon) => {
+    setEditingCoupon(coupon);
+    setNewCode(coupon.code);
+    setNewFinalPrice(coupon.finalPrice);
+    setNewMaxUses(coupon.maxUses?.toString() || "");
+    setNewValidUntil(coupon.validUntil ? coupon.validUntil.split('T')[0] : "");
+    setNewIsActive(coupon.isActive);
+    setNewApplicablePlans(coupon.applicablePlans || []);
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    if (!newCode.trim()) {
+      toast({ title: "Código é obrigatório", variant: "destructive" });
+      return;
+    }
+    if (!newFinalPrice || Number(newFinalPrice) <= 0) {
+      toast({ title: "Preço final inválido", variant: "destructive" });
+      return;
+    }
+
+    const data = {
+      code: newCode.toUpperCase(),
+      finalPrice: newFinalPrice,
+      maxUses: newMaxUses ? parseInt(newMaxUses) : null,
+      validUntil: newValidUntil ? new Date(newValidUntil).toISOString() : null,
+      isActive: newIsActive,
+      applicablePlans: newApplicablePlans.length > 0 ? newApplicablePlans : null,
+    };
+
+    if (editingCoupon) {
+      updateCouponMutation.mutate({ id: editingCoupon.id, data });
+    } else {
+      createCouponMutation.mutate(data);
+    }
+  };
+
+  const togglePlanSelection = (planTipo: string) => {
+    setNewApplicablePlans(prev => 
+      prev.includes(planTipo) 
+        ? prev.filter(p => p !== planTipo)
+        : [...prev, planTipo]
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Cupons de Desconto</h2>
+          <p className="text-muted-foreground">Gerencie cupons promocionais para seus planos</p>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Cupom
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingCoupon ? "Editar Cupom" : "Criar Novo Cupom"}</DialogTitle>
+              <DialogDescription>
+                {editingCoupon ? "Edite os detalhes do cupom" : "Configure um novo cupom de desconto"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="code">Código do Cupom</Label>
+                <Input
+                  id="code"
+                  value={newCode}
+                  onChange={(e) => setNewCode(e.target.value.toUpperCase())}
+                  placeholder="Ex: BLACKFRIDAY, WELCOME2025"
+                  className="uppercase"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use nomes únicos e difíceis de adivinhar
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="finalPrice">Preço Final (R$)</Label>
+                <Input
+                  id="finalPrice"
+                  type="number"
+                  step="0.01"
+                  value={newFinalPrice}
+                  onChange={(e) => setNewFinalPrice(e.target.value)}
+                  placeholder="Ex: 29.00"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Preço mensal que o cliente pagará com este cupom
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="maxUses">Limite de Usos (opcional)</Label>
+                <Input
+                  id="maxUses"
+                  type="number"
+                  value={newMaxUses}
+                  onChange={(e) => setNewMaxUses(e.target.value)}
+                  placeholder="Deixe vazio para ilimitado"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="validUntil">Válido Até (opcional)</Label>
+                <Input
+                  id="validUntil"
+                  type="date"
+                  value={newValidUntil}
+                  onChange={(e) => setNewValidUntil(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Aplicável aos Planos</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {[
+                    { tipo: "mensal", label: "Mensal (R$ 99,99)" },
+                    { tipo: "padrao", label: "Padrão" },
+                    { tipo: "implementacao", label: "Implementação (R$ 700)" },
+                    { tipo: "implementacao_mensal", label: "Impl. + Mensal (R$ 799)" },
+                  ].map((plan) => (
+                    <Badge 
+                      key={plan.tipo}
+                      variant={newApplicablePlans.includes(plan.tipo) ? "default" : "outline"}
+                      className="cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => togglePlanSelection(plan.tipo)}
+                    >
+                      {newApplicablePlans.includes(plan.tipo) && <Check className="h-3 w-3 mr-1" />}
+                      {plan.label}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Deixe vazio para aplicar a todos os planos
+                </p>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="isActive">Cupom Ativo</Label>
+                <Switch
+                  id="isActive"
+                  checked={newIsActive}
+                  onCheckedChange={setNewIsActive}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleSubmit}
+                disabled={createCouponMutation.isPending || updateCouponMutation.isPending}
+              >
+                {(createCouponMutation.isPending || updateCouponMutation.isPending) && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                {editingCoupon ? "Salvar" : "Criar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Código</TableHead>
+                <TableHead>Preço Final</TableHead>
+                <TableHead>Usos</TableHead>
+                <TableHead>Planos</TableHead>
+                <TableHead>Validade</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {coupons?.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    Nenhum cupom cadastrado
+                  </TableCell>
+                </TableRow>
+              )}
+              {coupons?.map((coupon) => (
+                <TableRow key={coupon.id}>
+                  <TableCell className="font-mono font-bold">{coupon.code}</TableCell>
+                  <TableCell className="font-semibold text-green-600">
+                    R$ {Number(coupon.finalPrice).toFixed(2).replace('.', ',')}
+                  </TableCell>
+                  <TableCell>
+                    {coupon.currentUses}/{coupon.maxUses || "∞"}
+                  </TableCell>
+                  <TableCell>
+                    {coupon.applicablePlans?.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {coupon.applicablePlans.map((p: string) => (
+                          <Badge key={p} variant="outline" className="text-xs">{p}</Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">Todos</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {coupon.validUntil 
+                      ? new Date(coupon.validUntil).toLocaleDateString('pt-BR')
+                      : <span className="text-muted-foreground">Sem limite</span>
+                    }
+                  </TableCell>
+                  <TableCell>
+                    <Switch
+                      checked={coupon.isActive}
+                      onCheckedChange={(checked) => toggleCouponMutation.mutate({ id: coupon.id, isActive: checked })}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => openEditDialog(coupon)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => {
+                          if (confirm(`Excluir cupom ${coupon.code}?`)) {
+                            deleteCouponMutation.mutate(coupon.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Dicas de uso */}
+      <Card className="bg-muted/50">
+        <CardHeader>
+          <CardTitle className="text-base">💡 Dicas para Cupons</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-2">
+          <p>• Use nomes únicos e difíceis de adivinhar (ex: BLACKFRIDAY2025, PARCEIRO10)</p>
+          <p>• Evite padrões óbvios como PROMO1, PROMO2, DESCONTO10</p>
+          <p>• Configure limite de usos para promoções limitadas</p>
+          <p>• Defina data de validade para campanhas temporárias</p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
