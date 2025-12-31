@@ -449,7 +449,8 @@ export const followupConfigs = pgTable("followup_configs", {
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
   
   // Configurações gerais
-  isEnabled: boolean("is_enabled").default(true).notNull(),
+  // IMPORTANTE: Follow-up DESATIVADO por padrão - usuário precisa ativar manualmente
+  isEnabled: boolean("is_enabled").default(false).notNull(),
   maxAttempts: integer("max_attempts").default(8).notNull(),
   
   // Intervalos customizados (em minutos) - padrão: 10m, 30m, 3h, 24h, 48h, 3d, 7d, 15d
@@ -722,7 +723,8 @@ export const insertFollowupConfigSchema = createInsertSchema(followupConfigs).om
 
 export const followupConfigSchema = z.object({
   userId: z.string(),
-  isEnabled: z.boolean().default(true),
+  // IMPORTANTE: Follow-up DESATIVADO por padrão - usuário precisa ativar manualmente
+  isEnabled: z.boolean().default(false),
   maxAttempts: z.number().min(1).max(20).default(8),
   intervalsMinutes: z.array(z.number()).default([10, 30, 180, 1440, 2880, 4320, 10080, 21600]),
   businessHoursStart: z.string().default("09:00"),

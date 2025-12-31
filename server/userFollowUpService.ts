@@ -293,10 +293,10 @@ export class UserFollowUpService {
     });
 
     if (!config) {
-      // Criar configuração padrão
+      // Criar configuração padrão - DESATIVADO por padrão, usuário precisa ativar
       const [newConfig] = await db.insert(followupConfigs).values({
         userId,
-        isEnabled: true,
+        isEnabled: false,
         maxAttempts: 8,
         intervalsMinutes: DEFAULT_INTERVALS,
         businessHoursStart: "09:00",
@@ -353,11 +353,12 @@ export class UserFollowUpService {
     context?: string;
     scheduleDate?: string;
   }> {
-    // Buscar mensagens recentes (mais mensagens para contexto completo)
+    // Buscar mensagens recentes - AUMENTADO para ter contexto COMPLETO da conversa
+    // Isso é essencial para o follow-up entender onde a conversa parou
     const recentMessages = await db.query.messages.findMany({
       where: eq(messages.conversationId, conversation.id),
       orderBy: (messages, { desc }) => [desc(messages.timestamp)],
-      limit: 25 // Aumentado para ter mais contexto
+      limit: 40 // Aumentado para 40 mensagens para contexto completo
     });
 
     // Buscar configuração do agente para entender o negócio
@@ -477,64 +478,80 @@ ${productsList ? `\nPRODUTOS/SERVIÇOS:\n${productsList}` : ''}
       'técnico': 'profissional e direto'
     };
 
-    const prompt = `Você é um vendedor HUMANO experiente fazendo follow-up via WhatsApp.
-Sua tarefa é ANALISAR a conversa e decidir a MELHOR ação.
+    // Identificar o último assunto/tópico da conversa
+    const lastTopics = historyFormatted.slice(-5).map(h => h.mensagem).join(' ');
+    
+    // Verificar se já oferecemos algo específico
+    const offeredDemo = ourLastMessages.some(m => m?.toLowerCase().includes('demo') || m?.toLowerCase().includes('vídeo') || m?.toLowerCase().includes('teste'));
+    const offeredPrice = ourLastMessages.some(m => m?.toLowerCase().includes('99') || m?.toLowerCase().includes('199') || m?.toLowerCase().includes('preço') || m?.toLowerCase().includes('plano'));
+    const askedQuestion = ourLastMessages[0]?.includes('?');
 
-## DATA E HORA ATUAL
-- Hoje: ${todayStr} (${todayName})
-- Hora atual: ${brazilNow.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+    const prompt = `Você é ${agentName || 'um assistente'} da ${companyName || 'empresa'}, fazendo follow-up INTELIGENTE via WhatsApp.
 
+## 🎯 SUA IDENTIDADE (MEMORIZE!)
+- Você é: ${agentName || 'Assistente Virtual'}
+- Empresa: ${companyName || 'Não informado'}
+- Seu cargo: ${businessContext.includes('Cargo') ? businessContext.split('Cargo:')[1]?.split('\n')[0]?.trim() || 'Assistente' : 'Assistente'}
 ${businessContext}
 
-## DADOS DO CLIENTE
-- Nome: ${clientName || 'NÃO INFORMADO'}
-- Última msg do cliente há: ${minutesSinceClient} min (${Math.floor(minutesSinceClient/60)}h)
-- Nossa última msg há: ${minutesSinceOur} min
+## 📅 DATA E HORA ATUAL
+- Hoje: ${todayStr} (${todayName})
+- Hora: ${brazilNow.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+
+## 👤 DADOS DO CLIENTE
+- Nome: ${clientName || '(não informado)'}
+- Última msg do CLIENTE há: ${minutesSinceClient} minutos (${Math.floor(minutesSinceClient/60)}h${minutesSinceClient % 60}min)
+- Nossa última msg há: ${minutesSinceOur} minutos
 - Quem falou por último: ${lastMessageWasOurs ? 'NÓS' : 'CLIENTE'}
-- Estágio follow-up: ${conversation.followupStage || 0}
-${hasNegativeFeedback ? '\n⚠️ ATENÇÃO: Cliente reclamou de repetição ou falta de leitura!' : ''}
+- Estágio: ${conversation.followupStage || 0}
+${hasNegativeFeedback ? '\n🚨 ALERTA: Cliente JÁ RECLAMOU de repetição!' : ''}
 
-## CONFIGURAÇÕES
-- Tom: ${toneMap[config.tone] || 'consultivo'}
-- Emojis: ${config.useEmojis ? 'máximo 1 por mensagem' : 'não usar'}
-
-## HISTÓRICO COMPLETO DA CONVERSA (LEIA COM ATENÇÃO!)
+## 💬 HISTÓRICO COMPLETO DA CONVERSA (LEIA TUDO ANTES DE RESPONDER!)
 ${historyFormatted.map(h => `[${h.hora}] ${h.de}: ${h.mensagem}`).join('\n')}
 
-## ÚLTIMAS MENSAGENS QUE JÁ ENVIAMOS (NÃO REPETIR NADA SIMILAR!)
-${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).join('\n') : 'Nenhuma ainda'}
+## ⚠️ MENSAGENS QUE JÁ ENVIAMOS (NÃO REPITA!)
+${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).join('\n') : '(nenhuma ainda)'}
 
-## ÚLTIMA MENSAGEM DO CLIENTE (RESPONDER A ISSO!)
-"${lastClientText}"
+## 🔍 ANÁLISE DO CONTEXTO
+- Última msg do cliente: "${lastClientText}"
+- Já oferecemos demo/vídeo: ${offeredDemo ? 'SIM' : 'NÃO'}
+- Já falamos de preço: ${offeredPrice ? 'SIM' : 'NÃO'}
+- Última msg foi pergunta: ${askedQuestion ? 'SIM' : 'NÃO'}
 
-## REGRAS CRÍTICAS - LEIA ANTES DE RESPONDER!
-1. ❌ NUNCA repita a mesma pergunta ou frase que já enviamos
-2. ❌ NUNCA ignore o que o cliente disse - sua mensagem DEVE ser uma continuação natural
-3. ❌ NUNCA use colchetes [], barras / ou marcadores técnicos
-4. ❌ NUNCA termine mensagem com a palavra "Áudio"
-5. ❌ NUNCA use o nome "${agentName || 'Rodrigo'}" - ${clientName ? `use "${clientName}"` : 'não use nome'}
-6. ✅ SEMPRE leia e responda ao último comentário do cliente
-7. ✅ SEMPRE agregue NOVO valor (info nova, benefício novo, pergunta diferente)
-8. ✅ SEMPRE escreva mensagem PRONTA para enviar (texto final completo)
-9. ✅ Se o cliente reclamou de repetição, peça DESCULPAS e mude totalmente a abordagem
+## 📚 TÉCNICAS DE FOLLOW-UP PROFISSIONAL
+1. **CONTINUAR A CONVERSA**: Sua msg deve ser continuação NATURAL do último assunto
+2. **AGREGAR VALOR NOVO**: Trazer informação/benefício que ainda não mencionamos
+3. **NÃO INSISTIR**: Se cliente está ocupado ou pediu tempo, ESPERAR
+4. **PERSONALIZAR**: Usar o nome do cliente e referências da conversa
+5. **SER ÚTIL**: Oferecer ajuda genuína, não só empurrar venda
 
-## DETECÇÃO DE DATA COMBINADA (PRIORIDADE MÁXIMA!)
-Se o cliente mencionou um dia para retornar:
-- "segunda", "na segunda", "segunda-feira" → SCHEDULE para próxima segunda 09:00
-- "terça", "quarta", "quinta", "sexta" → SCHEDULE para o dia correspondente
-- "amanhã" → SCHEDULE para amanhã 09:00
-- "semana que vem", "próxima semana" → SCHEDULE para segunda que vem 09:00
-- "daqui X dias" → SCHEDULE para X dias depois 09:00
-- "dia 5", "dia 15" → SCHEDULE para o dia específico
+## ❌ PROIBIDO (CAUSAM IRRITAÇÃO)
+- Repetir a mesma frase, pergunta ou informação
+- Ignorar o que o cliente disse por último
+- Usar colchetes [], barras /, ou formatação técnica
+- Enviar msg se respondemos há menos de 2h
+- Usar o nome ${agentName || 'do agente'} em vez do nome do cliente
+- Mensagens genéricas tipo "Oi, tudo bem?"
+- Terminar com "Áudio" ou "Audio"
 
-## DECISÃO
-- SCHEDULE: cliente combinou uma data específica (use scheduleDate no formato ISO)
-- ABORT: cliente recusou claramente, disse não ter interesse, ou comprou
-- WAIT: nossa última msg foi há menos de 2h OU cliente pediu pra esperar
-- SEND: cliente parou de responder há mais de 2h e podemos agregar NOVO valor
+## ✅ OBRIGATÓRIO
+- LEIA o histórico e CONTINUE o assunto de onde parou
+- Se o cliente fez pergunta, RESPONDA ela
+- Se oferecemos algo e ele aceitou, CONCRETIZE
+- Se ele mostrou interesse, avance para PRÓXIMO PASSO
+- Mensagem CURTA (máximo 2-3 frases)
+- Tom: ${toneMap[config.tone] || 'consultivo'}
+${config.useEmojis ? '- Use no máximo 1 emoji' : '- NÃO use emojis'}
 
-## FORMATO DA RESPOSTA (JSON válido, sem texto extra)
-{"action":"send|wait|abort|schedule","reason":"motivo curto","message":"mensagem PRONTA (só se action=send)","scheduleDate":"YYYY-MM-DDTHH:MM:SS (só se action=schedule)"}`;
+## 🎯 DECISÃO
+Analise e decida:
+- **WAIT**: Nossa última msg foi há menos de 2h OU estamos aguardando resposta OU cliente pediu tempo
+- **SEND**: Cliente parou há mais de 2h E podemos agregar valor NOVO
+- **SCHEDULE**: Cliente mencionou data específica (segunda, amanhã, dia X, etc)
+- **ABORT**: Cliente disse NÃO claramente, comprou, ou cancelou
+
+## 📋 FORMATO (JSON válido, sem texto extra)
+{"action":"wait|send|abort|schedule","reason":"motivo curto","message":"texto PRONTO para enviar (só se action=send)","scheduleDate":"YYYY-MM-DDTHH:MM (só se action=schedule)"}`;
 
     try {
       const mistral = await getMistralClient();
@@ -583,32 +600,60 @@ Se o cliente mencionou um dia para retornar:
         // Limpar espaços duplos
         message = message.replace(/\s+/g, ' ').trim();
         
-        // Verificar se é muito similar a mensagens anteriores (threshold mais alto)
+        // 🔧 VERIFICAÇÃO MELHORADA DE REPETIÇÃO
+        // Verificar se é muito similar a mensagens anteriores
         const isSimilar = ourLastMessages.some(prev => {
           if (!prev) return false;
           const similarity = this.calculateTextSimilarity(message, prev);
-          return similarity > 0.5; // 50% similar = muito parecido (mais restritivo)
+          console.log(`📊 Similaridade com msg anterior: ${(similarity * 100).toFixed(1)}%`);
+          return similarity > 0.4; // 40% similar = muito parecido (mais restritivo)
         });
         
         if (isSimilar) {
-          console.warn(`⚠️ [FOLLOW-UP] Mensagem similar a anterior detectada, aguardando`);
-          return { action: 'wait', reason: 'Mensagem muito similar à anterior' };
+          console.warn(`⚠️ [FOLLOW-UP] Mensagem SIMILAR detectada - NÃO ENVIANDO`);
+          return { action: 'wait', reason: 'Mensagem muito similar à anterior - evitando repetição' };
         }
         
         // Verificar se a mensagem parece repetitiva (mesma estrutura)
         const sameStructure = ourLastMessages.some(prev => {
           if (!prev) return false;
-          // Se começa igual (primeiras 30 chars) ou termina igual (últimas 30 chars)
-          const msgStart = message.substring(0, 30).toLowerCase();
-          const msgEnd = message.substring(Math.max(0, message.length - 30)).toLowerCase();
-          const prevStart = prev.substring(0, 30).toLowerCase();
-          const prevEnd = prev.substring(Math.max(0, prev.length - 30)).toLowerCase();
-          return msgStart === prevStart || msgEnd === prevEnd;
+          // Se começa igual (primeiras 40 chars) ou termina igual (últimas 40 chars)
+          const msgStart = message.substring(0, 40).toLowerCase();
+          const msgEnd = message.substring(Math.max(0, message.length - 40)).toLowerCase();
+          const prevStart = prev.substring(0, 40).toLowerCase();
+          const prevEnd = prev.substring(Math.max(0, prev.length - 40)).toLowerCase();
+          
+          const startSame = msgStart === prevStart && msgStart.length > 15;
+          const endSame = msgEnd === prevEnd && msgEnd.length > 15;
+          
+          if (startSame || endSame) {
+            console.log(`📊 Estrutura similar: início=${startSame}, fim=${endSame}`);
+          }
+          return startSame || endSame;
         });
         
         if (sameStructure) {
-          console.warn(`⚠️ [FOLLOW-UP] Estrutura repetitiva detectada, aguardando`);
-          return { action: 'wait', reason: 'Estrutura de mensagem repetitiva' };
+          console.warn(`⚠️ [FOLLOW-UP] Estrutura REPETITIVA - NÃO ENVIANDO`);
+          return { action: 'wait', reason: 'Estrutura de mensagem repetitiva - evitando irritar cliente' };
+        }
+        
+        // Verificar se contém frases exatamente iguais de msgs anteriores
+        const hasExactPhrase = ourLastMessages.some(prev => {
+          if (!prev || prev.length < 20) return false;
+          // Dividir em frases e verificar se alguma é igual
+          const prevPhrases = prev.split(/[.!?]/).filter(p => p.trim().length > 15);
+          const newPhrases = message.split(/[.!?]/).filter(p => p.trim().length > 15);
+          
+          return newPhrases.some(np => 
+            prevPhrases.some(pp => 
+              np.trim().toLowerCase() === pp.trim().toLowerCase()
+            )
+          );
+        });
+        
+        if (hasExactPhrase) {
+          console.warn(`⚠️ [FOLLOW-UP] Frase EXATA repetida - NÃO ENVIANDO`);
+          return { action: 'wait', reason: 'Contém frase exatamente igual a anterior' };
         }
       }
       
@@ -802,6 +847,9 @@ Se o cliente mencionou um dia para retornar:
 
   /**
    * Reseta o ciclo quando o cliente responde
+   * TÉCNICA DE FOLLOW-UP: Quando cliente responde, NÃO incomodar imediatamente.
+   * Esperar um tempo maior (2h) para dar espaço à conversa fluir naturalmente.
+   * Se o cliente está ATIVO conversando, não faz sentido mandar follow-up.
    */
   async resetFollowUpCycle(conversationId: string, reason?: string) {
     // Buscar conversa para obter userId via connection
@@ -831,20 +879,23 @@ Se o cliente mencionou um dia para retornar:
       return;
     }
     
-    const intervals = config?.intervalsMinutes || DEFAULT_INTERVALS;
-    const delayMinutes = intervals[0] || 10;
+    // 🔧 FIX CRÍTICO: Quando cliente responde, dar MUITO mais tempo antes do próximo follow-up
+    // Isso evita que o sistema pareça "perdido" ou "incomodando"
+    // TÉCNICA: Esperar 2 HORAS após cliente responder, não 10 minutos
+    // Se a conversa está ativa, o sistema não deve interferir
+    const delayMinutes = 120; // 2 horas de "respiro" após cliente responder
     const nextDate = addRandomSeconds(new Date(Date.now() + delayMinutes * 60 * 1000));
 
     await db.update(conversations)
       .set({ 
         followupActive: true,
-        followupStage: 0,
+        followupStage: 0, // Resetar estágio para não ficar muito insistente
         nextFollowupAt: nextDate,
         followupDisabledReason: null
       })
       .where(eq(conversations.id, conversationId));
       
-    console.log(`🔄 [USER-FOLLOW-UP] ${reason || 'Cliente respondeu'}. Ciclo resetado para ${conversationId}, próximo em ${delayMinutes} min`);
+    console.log(`🔄 [USER-FOLLOW-UP] ${reason || 'Cliente respondeu'}. Ciclo pausado por 2h para ${conversationId} (dar espaço à conversa)`);
   }
 
   /**

@@ -1119,7 +1119,15 @@ export async function forceResetWhatsApp(userId: string): Promise<void> {
 }
 
 export async function connectWhatsApp(userId: string): Promise<void> {
-  // 🔒 Verificar se já existe uma conexão em andamento
+  // �️ MODO DESENVOLVIMENTO: Bloquear conexões para evitar conflito com produção
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log(`\n⚠️ [DEV MODE] Conexão WhatsApp bloqueada para user ${userId}`);
+    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   💡 Sessões do WhatsApp em produção não serão afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+  }
+  
+  // �🔒 Verificar se já existe uma conexão em andamento
   const existingPendingConnection = pendingConnections.get(userId);
   if (existingPendingConnection) {
     console.log(`[CONNECT] Connection already in progress for user ${userId}, waiting for it to complete...`);
@@ -3541,8 +3549,16 @@ export function getAdminSession(adminId: string): AdminWhatsAppSession | undefin
 }
 
 export async function connectAdminWhatsApp(adminId: string): Promise<void> {
+  // 🛡️ MODO DESENVOLVIMENTO: Bloquear conexões para evitar conflito com produção
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log(`\n⚠️ [DEV MODE] Conexão Admin WhatsApp bloqueada para admin ${adminId}`);
+    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   💡 Sessões do WhatsApp em produção não serão afetadas\n`);
+    throw new Error('WhatsApp Admin desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+  }
+  
   try {
-    // Verificar se jÃ¡ existe uma sessÃ£o ativa
+    // Verificar se já existe uma sessão ativa
     const existingSession = adminSessions.get(adminId);
     if (existingSession?.socket) {
       console.log(`Admin ${adminId} already has an active session, using existing one`);
@@ -4347,6 +4363,14 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
 }
 
 export async function restoreExistingSessions(): Promise<void> {
+  // 🛡️ MODO DESENVOLVIMENTO: Não restaurar sessões para evitar conflito com produção
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log("\n⚠️ [DEV MODE] SKIP_WHATSAPP_RESTORE=true - Pulando restauração de sessões WhatsApp");
+    console.log("   💡 Isso evita conflitos com sessões ativas no Railway/produção");
+    console.log("   💡 Para conectar WhatsApp em dev, remova SKIP_WHATSAPP_RESTORE do .env\n");
+    return;
+  }
+  
   try {
     console.log("Checking for existing WhatsApp connections...");
     const connections = await storage.getAllConnections();
@@ -4387,6 +4411,12 @@ export async function restoreExistingSessions(): Promise<void> {
 }
 
 export async function restoreAdminSessions(): Promise<void> {
+  // 🛡️ MODO DESENVOLVIMENTO: Não restaurar sessões para evitar conflito com produção
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log("⚠️ [DEV MODE] SKIP_WHATSAPP_RESTORE=true - Pulando restauração de sessões Admin WhatsApp");
+    return;
+  }
+  
   try {
     console.log("Checking for existing admin WhatsApp connections...");
     const allAdmins = await storage.getAllAdmins();
