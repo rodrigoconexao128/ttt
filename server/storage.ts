@@ -16,6 +16,7 @@ import {
   adminConversations,
   adminMessages,
   adminAgentMedia,
+  coupons,
   type User,
   type UpsertUser,
   type WhatsappConnection,
@@ -42,6 +43,8 @@ import {
   type InsertWhatsappContact,
   type AdminAgentMedia,
   type InsertAdminAgentMedia,
+  type Coupon,
+  type InsertCoupon,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray } from "drizzle-orm";
@@ -99,6 +102,14 @@ export interface IStorage {
   createPlan(plan: InsertPlan): Promise<Plan>;
   updatePlan(id: string, data: Partial<InsertPlan>): Promise<Plan>;
   deletePlan(id: string): Promise<void>;
+
+  // Coupon operations
+  getCouponByCode(code: string): Promise<Coupon | undefined>;
+  getAllCoupons(): Promise<Coupon[]>;
+  createCoupon(coupon: InsertCoupon): Promise<Coupon>;
+  updateCoupon(id: string, data: Partial<InsertCoupon>): Promise<Coupon>;
+  deleteCoupon(id: string): Promise<void>;
+  incrementCouponUsage(id: string): Promise<void>;
 
   // Subscription operations
   getUserSubscription(userId: string): Promise<(Subscription & { plan: Plan }) | undefined>;
@@ -583,6 +594,75 @@ export class DatabaseStorage implements IStorage {
 
   async deletePlan(id: string): Promise<void> {
     await db.delete(plans).where(eq(plans.id, id));
+  }
+
+  // Coupon operations
+  async getCouponByCode(code: string): Promise<Coupon | undefined> {
+    try {
+      const [coupon] = await db.select().from(coupons).where(eq(coupons.code, code.toUpperCase()));
+      return coupon;
+    } catch (error) {
+      console.error("Error in getCouponByCode with Drizzle, trying raw query:", error);
+      // Fallback to raw query if Drizzle fails (PgBouncer compatibility)
+      const { pool } = await import("./db");
+      const result = await pool.query(
+        "SELECT * FROM coupons WHERE UPPER(code) = $1",
+        [code.toUpperCase()]
+      );
+      if (result.rows.length === 0) return undefined;
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        code: row.code,
+        discountType: row.discount_type,
+        discountValue: row.discount_value,
+        finalPrice: row.final_price,
+        isActive: row.is_active,
+        maxUses: row.max_uses,
+        currentUses: row.current_uses,
+        applicablePlans: row.applicable_plans,
+        validFrom: row.valid_from,
+        validUntil: row.valid_until,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      } as Coupon;
+    }
+  }
+
+  async getAllCoupons(): Promise<Coupon[]> {
+    return await db.select().from(coupons).orderBy(desc(coupons.createdAt));
+  }
+
+  async createCoupon(couponData: InsertCoupon): Promise<Coupon> {
+    const [coupon] = await db.insert(coupons).values({
+      ...couponData,
+      code: couponData.code.toUpperCase()
+    }).returning();
+    return coupon;
+  }
+
+  async updateCoupon(id: string, data: Partial<InsertCoupon>): Promise<Coupon> {
+    const updateData: any = { ...data, updatedAt: new Date() };
+    if (data.code) {
+      updateData.code = data.code.toUpperCase();
+    }
+    const [coupon] = await db
+      .update(coupons)
+      .set(updateData)
+      .where(eq(coupons.id, id))
+      .returning();
+    return coupon;
+  }
+
+  async deleteCoupon(id: string): Promise<void> {
+    await db.delete(coupons).where(eq(coupons.id, id));
+  }
+
+  async incrementCouponUsage(id: string): Promise<void> {
+    await db
+      .update(coupons)
+      .set({ currentUses: sql`${coupons.currentUses} + 1`, updatedAt: new Date() })
+      .where(eq(coupons.id, id));
   }
 
   // Subscription operations
