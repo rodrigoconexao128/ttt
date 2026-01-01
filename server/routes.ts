@@ -859,7 +859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import Supabase client to update password
       const { createClient } = await import("@supabase/supabase-js");
       const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
       
       if (!supabaseUrl || !supabaseServiceKey) {
         return res.status(500).json({ 
