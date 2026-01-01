@@ -16,6 +16,8 @@ import TestAgent from "@/pages/test-agent";
 import AdminChatSimulator from "@/pages/admin-chat-simulator";
 import AdminSimulator from "@/pages/AdminSimulator";
 import LoadingScreen from "@/components/LoadingScreen";
+import TestTTS from "@/pages/TestTTS";
+import SharedConversation from "@/pages/shared-conversation";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
 
@@ -24,7 +26,7 @@ function Router() {
   const [location] = useLocation();
 
   // Lista de rotas que não precisam esperar o carregamento da autenticação
-  const publicRoutes = ["/admin-simulator", "/model-tester", "/test", "/testar"];
+  const publicRoutes = ["/admin-simulator", "/model-tester", "/test", "/testar", "/conversas/compartilhada"];
   const isPublicRoute = publicRoutes.some(route => location.startsWith(route));
 
   // Se está carregando e não é rota pública, mostrar loading
@@ -39,6 +41,10 @@ function Router() {
       <Route path="/testar" component={TestAgent} />
       <Route path="/admin-simulator" component={AdminChatSimulator} />
       <Route path="/model-tester" component={AdminSimulator} />
+      <Route path="/test-tts" component={TestTTS} />
+      
+      {/* Conversa compartilhada - pública */}
+      <Route path="/conversas/compartilhada/:token" component={SharedConversation} />
       
       <Route path="/admin-login" component={AdminLogin} />
       <Route path="/admin" component={AdminPanel} />

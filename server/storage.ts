@@ -176,6 +176,10 @@ export interface IStorage {
   getSyncedContacts?(userId: string): Promise<any[]>;
   saveSyncedContacts?(userId: string, contacts: any[]): Promise<void>;
   getUserActiveConnection?(userId: string): Promise<any | undefined>;
+  
+  // Share token and message update operations
+  getConversationByShareToken(shareToken: string): Promise<Conversation | undefined>;
+  updateMessage(id: string, data: Partial<InsertMessage>): Promise<Message>;
 }
 
 // In-memory storage for campaigns and contact lists
@@ -366,6 +370,14 @@ export class DatabaseStorage implements IStorage {
     return conversation;
   }
 
+  async getConversationByShareToken(shareToken: string): Promise<Conversation | undefined> {
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.shareToken, shareToken));
+    return conversation;
+  }
+
   // Message operations
   async getMessagesByConversationId(conversationId: string): Promise<Message[]> {
     return await db
@@ -373,6 +385,15 @@ export class DatabaseStorage implements IStorage {
       .from(messages)
       .where(eq(messages.conversationId, conversationId))
       .orderBy(messages.timestamp);
+  }
+
+  async updateMessage(id: string, data: Partial<InsertMessage>): Promise<Message> {
+    const [message] = await db
+      .update(messages)
+      .set(data)
+      .where(eq(messages.id, id))
+      .returning();
+    return message;
   }
 
   async getMessageByMessageId(messageId: string): Promise<Message | undefined> {

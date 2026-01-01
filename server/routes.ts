@@ -1025,6 +1025,194 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== CONVERSATION SHARE TOKEN ====================
+  
+  // POST - Generate or get share token for a conversation
+  app.post("/api/conversations/:conversationId/share-token", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // If token already exists, return it
+      if (conversation.shareToken) {
+        return res.json({ 
+          token: conversation.shareToken,
+          url: `${req.protocol}://${req.get('host')}/conversas/compartilhada/${conversation.shareToken}`
+        });
+      }
+
+      // Generate new token
+      const crypto = await import("crypto");
+      const token = crypto.randomBytes(32).toString("hex");
+      
+      await storage.updateConversation(conversationId, { shareToken: token });
+      
+      res.json({ 
+        token,
+        url: `${req.protocol}://${req.get('host')}/conversas/compartilhada/${token}`
+      });
+    } catch (error) {
+      console.error("Error generating share token:", error);
+      res.status(500).json({ message: "Failed to generate share token" });
+    }
+  });
+
+  // GET - Access conversation by share token (public route - no auth required)
+  app.get("/api/conversations/shared/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      if (!token || token.length !== 64) {
+        return res.status(400).json({ message: "Invalid token" });
+      }
+
+      const conversation = await storage.getConversationByShareToken(token);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const messages = await storage.getMessagesByConversationId(conversation.id);
+      
+      res.json({
+        conversation: {
+          id: conversation.id,
+          contactName: conversation.contactName,
+          contactNumber: conversation.contactNumber,
+          contactAvatar: conversation.contactAvatar,
+        },
+        messages: messages.map(msg => ({
+          id: msg.id,
+          fromMe: msg.fromMe,
+          text: msg.text,
+          timestamp: msg.timestamp,
+          mediaType: msg.mediaType,
+          mediaUrl: msg.mediaUrl,
+          mediaDuration: msg.mediaDuration,
+          mediaCaption: msg.mediaCaption,
+          isFromAgent: msg.isFromAgent,
+        })),
+        contactName: conversation.contactName,
+        contactNumber: conversation.contactNumber,
+      });
+    } catch (error) {
+      console.error("Error fetching shared conversation:", error);
+      res.status(500).json({ message: "Failed to fetch conversation" });
+    }
+  });
+
+  // DELETE - Remove share token from conversation
+  app.delete("/api/conversations/:conversationId/share-token", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      await storage.updateConversation(conversationId, { shareToken: null });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing share token:", error);
+      res.status(500).json({ message: "Failed to remove share token" });
+    }
+  });
+
+  // ==================== AUTO-TRANSCRIPTION ====================
+  
+  // POST - Auto-transcribe all untranscribed audios in a conversation
+  app.post("/api/conversations/:conversationId/auto-transcribe", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Get all messages in conversation
+      const messages = await storage.getMessagesByConversationId(conversationId);
+      
+      // Filter audio messages without transcription
+      const untranscribedAudios = messages.filter(msg => 
+        msg.mediaType === "audio" && 
+        msg.mediaUrl && 
+        (!msg.text || msg.text === "🎵 Áudio" || msg.text === "🎤 Áudio" || msg.text.startsWith("[Áudio"))
+      );
+
+      if (untranscribedAudios.length === 0) {
+        return res.json({ transcribed: 0, message: "No untranscribed audios found" });
+      }
+
+      const { transcribeAudioWithMistral } = await import("./mistralClient");
+      let transcribedCount = 0;
+      const errors: string[] = [];
+
+      // Process audios (limit to 10 at a time to avoid overload)
+      const toProcess = untranscribedAudios.slice(0, 10);
+      
+      for (const msg of toProcess) {
+        try {
+          if (!msg.mediaUrl) continue;
+          
+          const base64Part = msg.mediaUrl.split(",")[1];
+          if (!base64Part) continue;
+          
+          const audioBuffer = Buffer.from(base64Part, "base64");
+          console.log(`[Auto-Transcribe] Processing audio ${msg.id} (${audioBuffer.length} bytes)...`);
+          
+          const transcription = await transcribeAudioWithMistral(audioBuffer, {
+            fileName: "whatsapp-audio.ogg",
+          });
+
+          if (transcription && transcription.length > 0) {
+            await storage.updateMessage(msg.id, { text: transcription });
+            transcribedCount++;
+            console.log(`[Auto-Transcribe] Transcribed ${msg.id}: ${transcription.substring(0, 50)}...`);
+          }
+        } catch (err) {
+          console.error(`[Auto-Transcribe] Error transcribing ${msg.id}:`, err);
+          errors.push(msg.id);
+        }
+      }
+
+      res.json({ 
+        transcribed: transcribedCount, 
+        total: untranscribedAudios.length,
+        remaining: untranscribedAudios.length - transcribedCount,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      console.error("Error auto-transcribing:", error);
+      res.status(500).json({ message: "Failed to auto-transcribe" });
+    }
+  });
+
   // Message routes
   app.get("/api/messages/:conversationId", isAuthenticated, async (req: any, res) => {
     try {

@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft, Mic } from "lucide-react";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft, Mic, Share2, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -57,6 +57,12 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
 
   // Estados para novas funcionalidades
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  
+  // Estados para compartilhamento e auto-transcrição
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  const [isAutoTranscribing, setIsAutoTranscribing] = useState(false);
   
   // Detectar se é mobile
   const isMobile = typeof window !== 'undefined' && (
@@ -191,6 +197,71 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  // Mutation para gerar token de compartilhamento
+  const generateShareTokenMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/conversations/${conversationId}/share-token`);
+      return response.json();
+    },
+    onSuccess: (data: { shareToken: string; shareUrl: string }) => {
+      setShareToken(data.shareToken);
+      toast({
+        title: "Link gerado!",
+        description: "O link de compartilhamento foi criado com sucesso.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao gerar link",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para remover token de compartilhamento
+  const removeShareTokenMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", `/api/conversations/${conversationId}/share-token`);
+    },
+    onSuccess: () => {
+      setShareToken(null);
+      toast({
+        title: "Link removido",
+        description: "O link de compartilhamento foi desativado.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao remover link",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para auto-transcrição
+  const autoTranscribeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/conversations/${conversationId}/auto-transcribe`);
+      return response.json();
+    },
+    onSuccess: (data: { transcribed: number; total: number; remaining: number }) => {
+      if (data.transcribed > 0) {
+        queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+        toast({
+          title: "Áudios transcritos!",
+          description: `${data.transcribed} de ${data.total} áudios foram transcritos.`,
+        });
+      }
+      setIsAutoTranscribing(false);
+    },
+    onError: (error: Error) => {
+      setIsAutoTranscribing(false);
+      console.error("Auto-transcribe error:", error);
     },
   });
 
@@ -450,6 +521,33 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
       }, 100);
     }
   }, [conversationId]);
+
+  // Auto-transcrição ao abrir conversa
+  useEffect(() => {
+    if (conversationId && messages.length > 0 && !isAutoTranscribing) {
+      // Verifica se há áudios sem transcrição
+      const hasUntranscribedAudios = messages.some(msg => 
+        msg.mediaType === "audio" && 
+        msg.mediaUrl && 
+        (!msg.text || msg.text === "🎵 Áudio" || msg.text === "🎤 Áudio" || msg.text.startsWith("[Áudio"))
+      );
+      
+      if (hasUntranscribedAudios) {
+        setIsAutoTranscribing(true);
+        autoTranscribeMutation.mutate();
+      }
+    }
+  }, [conversationId, messages.length]);
+
+  // Carregar shareToken existente da conversa
+  useEffect(() => {
+    if (conversation?.shareToken) {
+      setShareToken(conversation.shareToken);
+    } else {
+      setShareToken(null);
+    }
+    setShareLinkCopied(false);
+  }, [conversation?.shareToken, conversationId]);
 
   // WebSocket para atualizações em tempo real
   useEffect(() => {
@@ -775,6 +873,26 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
             disabled={toggleAgentMutation.isPending}
             data-testid="switch-agent-chat"
           />
+          
+          {/* Botão Compartilhar */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setShareDialogOpen(true)}
+                  data-testid="button-share-conversation"
+                >
+                  <Share2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Compartilhar conversa
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -1167,6 +1285,88 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
                   Agendar
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Compartilhamento */}
+      <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="w-5 h-5" />
+              Compartilhar Conversa
+            </DialogTitle>
+            <DialogDescription>
+              Gere um link único para compartilhar esta conversa. Qualquer pessoa com o link poderá visualizar o histórico de mensagens.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {shareToken ? (
+              <div className="space-y-3">
+                <div className="p-3 bg-muted rounded-lg">
+                  <Label className="text-xs text-muted-foreground">Link de compartilhamento:</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input
+                      readOnly
+                      value={`${window.location.origin}/conversas/compartilhada/${shareToken}`}
+                      className="text-sm font-mono"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/conversas/compartilhada/${shareToken}`);
+                        setShareLinkCopied(true);
+                        setTimeout(() => setShareLinkCopied(false), 2000);
+                        toast({
+                          title: "Link copiado!",
+                          description: "O link foi copiado para a área de transferência.",
+                        });
+                      }}
+                    >
+                      {shareLinkCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => removeShareTokenMutation.mutate()}
+                  disabled={removeShareTokenMutation.isPending}
+                >
+                  {removeShareTokenMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4 mr-2" />
+                  )}
+                  Desativar Link
+                </Button>
+              </div>
+            ) : (
+              <div className="text-center space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Nenhum link de compartilhamento ativo para esta conversa.
+                </p>
+                <Button
+                  className="w-full"
+                  onClick={() => generateShareTokenMutation.mutate()}
+                  disabled={generateShareTokenMutation.isPending}
+                >
+                  {generateShareTokenMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Share2 className="w-4 h-4 mr-2" />
+                  )}
+                  Gerar Link de Compartilhamento
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>

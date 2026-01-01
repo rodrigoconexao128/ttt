@@ -103,6 +103,8 @@ export const conversations = pgTable("conversations", {
   followupStage: integer("followup_stage").default(0).notNull(),
   nextFollowupAt: timestamp("next_followup_at"),
   followupDisabledReason: text("followup_disabled_reason"),
+  // Token único para compartilhar conversa via URL
+  shareToken: varchar("share_token", { length: 64 }).unique(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
