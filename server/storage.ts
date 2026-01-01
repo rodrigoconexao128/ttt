@@ -815,7 +815,6 @@ export class DatabaseStorage implements IStorage {
       await pool.query("UPDATE coupons SET current_uses = current_uses + 1, updated_at = NOW() WHERE id = $1", [id]);
     }
   }
-  }
 
   // Subscription operations
   async getUserSubscription(userId: string): Promise<(Subscription & { plan: Plan }) | undefined> {
