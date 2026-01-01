@@ -479,6 +479,17 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
   // Auto-transcrição ao abrir conversa
   useEffect(() => {
     if (conversationId && messages.length > 0 && !isAutoTranscribing) {
+      // Debug: log todas as mensagens de áudio
+      const audioMessages = messages.filter(msg => 
+        msg.mediaType === "audio" || msg.text?.includes("Áudio") || msg.text?.includes("[Áudio")
+      );
+      console.log('[AUTO-TRANSCRIBE] Mensagens de áudio encontradas:', audioMessages.map(m => ({
+        id: m.id,
+        mediaType: m.mediaType,
+        mediaUrl: m.mediaUrl ? 'SIM' : 'NÃO',
+        text: m.text
+      })));
+      
       // Verifica se há áudios sem transcrição
       const hasUntranscribedAudios = messages.some(msg => 
         msg.mediaType === "audio" && 
@@ -486,22 +497,15 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
         (!msg.text || msg.text === "🎵 Áudio" || msg.text === "🎤 Áudio" || msg.text.startsWith("[Áudio"))
       );
       
+      console.log('[AUTO-TRANSCRIBE] hasUntranscribedAudios:', hasUntranscribedAudios);
+      
       if (hasUntranscribedAudios) {
+        console.log('[AUTO-TRANSCRIBE] Iniciando transcrição automática...');
         setIsAutoTranscribing(true);
         autoTranscribeMutation.mutate();
       }
     }
   }, [conversationId, messages.length]);
-
-  // Carregar shareToken existente da conversa
-  useEffect(() => {
-    if (conversation?.shareToken) {
-      setShareToken(conversation.shareToken);
-    } else {
-      setShareToken(null);
-    }
-    setShareLinkCopied(false);
-  }, [conversation?.shareToken, conversationId]);
 
   // WebSocket para atualizações em tempo real
   useEffect(() => {
@@ -1223,6 +1227,5 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-}
-
+    </div>
+  );}
