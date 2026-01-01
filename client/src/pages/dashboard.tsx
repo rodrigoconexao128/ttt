@@ -48,7 +48,7 @@ import ContactListsPage from "@/pages/contact-lists";
 import SmartNotifierPage from "@/pages/smart-notifier";
 import FollowupConfigPage from "@/pages/followup-config";
 import { UpgradeBanner } from "@/components/upgrade-cta";
-import { useLocation } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan } from "@shared/schema";
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
@@ -64,6 +64,18 @@ export default function Dashboard() {
   const [selectedView, setSelectedView] = useState<"conversations" | "connection" | "stats" | "agent">("conversations");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [location, setLocation] = useLocation();
+  
+  // 🔗 Extrair conversationId da URL se estiver na rota /conversas/:conversationId
+  const [, conversationParams] = useRoute("/conversas/:conversationId");
+  const urlConversationId = conversationParams?.conversationId;
+  
+  // 📌 Sincronizar selectedConversationId com a URL
+  useEffect(() => {
+    if (urlConversationId && urlConversationId !== selectedConversationId) {
+      setSelectedConversationId(urlConversationId);
+    }
+  }, [urlConversationId]);
+  
   const isConversasRoute = location.startsWith("/conversas");
   const isConexaoRoute = location.startsWith("/conexao");
   const isMeuAgenteRoute = location.startsWith("/meu-agente-ia");
@@ -129,11 +141,22 @@ export default function Dashboard() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toolsPickerOpen, setToolsPickerOpen] = useState(false);
 
+  // 🔗 Handler para selecionar conversa e atualizar URL
+  const handleSelectConversation = (conversationId: string | null) => {
+    setSelectedConversationId(conversationId);
+    if (conversationId) {
+      setLocation(`/conversas/${conversationId}`);
+    } else {
+      setLocation("/conversas");
+    }
+  };
+
   const goToSection = (view: "conversations" | "connection" | "stats" | "agent") => {
     setSelectedView(view);
     // Atualizar URL conforme a view
     if (view === "conversations") {
       setLocation("/conversas");
+      setSelectedConversationId(null); // Limpar conversa selecionada ao voltar para lista
     } else if (view === "connection") {
       setLocation("/conexao");
     } else if (view === "agent") {
@@ -653,7 +676,7 @@ const toolsNavigation: ToolNavItem[] = [
                 <ConversationsList
                   connectionId={connection?.id}
                   selectedConversationId={selectedConversationId}
-                  onSelectConversation={setSelectedConversationId}
+                  onSelectConversation={handleSelectConversation}
                 />
               </div>
               {/* Área do chat - esconde no mobile quando nenhuma conversa está selecionada */}
@@ -694,7 +717,7 @@ const toolsNavigation: ToolNavItem[] = [
                 <ChatArea 
                   conversationId={selectedConversationId} 
                   connectionId={connection?.id}
-                  onBack={() => setSelectedConversationId(null)}
+                  onBack={() => handleSelectConversation(null)}
                 />
               </div>
             </>

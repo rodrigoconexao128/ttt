@@ -1451,25 +1451,26 @@ export class DatabaseStorage implements IStorage {
     // Criar cópia para permitir modificação
     const messageData = { ...data };
 
-    // 🎤 Transcrição automática para áudios do admin (igual ao createMessage)
-    if (messageData.mediaType === "audio" && messageData.mediaUrl && !messageData.fromMe) {
+    // 🎤 Transcrição automática para TODOS os áudios (do dono/fromMe=true E do cliente/fromMe=false)
+    if (messageData.mediaType === "audio" && messageData.mediaUrl) {
       try {
         const base64Part = messageData.mediaUrl.split(",")[1];
         if (base64Part) {
           const audioBuffer = Buffer.from(base64Part, "base64");
-          console.log(`[Storage] Transcrevendo áudio do admin (${audioBuffer.length} bytes)...`);
+          const origem = messageData.fromMe ? "dono" : "cliente";
+          console.log(`[Storage] Transcrevendo áudio do ${origem} (${audioBuffer.length} bytes)...`);
           
           const transcription = await transcribeAudioWithMistral(audioBuffer, {
-            fileName: "admin-whatsapp-audio.ogg",
+            fileName: `whatsapp-audio-${origem}.ogg`,
           });
 
           if (transcription && transcription.length > 0) {
-            console.log(`[Storage] Transcrição do admin: ${transcription.substring(0, 100)}...`);
+            console.log(`[Storage] Transcrição do ${origem}: ${transcription.substring(0, 100)}...`);
             messageData.text = transcription;
           }
         }
       } catch (error) {
-        console.error("[Storage] Erro ao transcrever áudio do admin:", error);
+        console.error("[Storage] Erro ao transcrever áudio:", error);
       }
     }
 
