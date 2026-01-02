@@ -3798,24 +3798,41 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           paymentId: result.id,
         });
       } else {
-        // Payment rejected
+        // Payment rejected - Mensagens em português brasileiro
+        // Documentação: https://www.mercadopago.com.br/developers/pt/docs/checkout-api-payments/error-messages
         const errorMessages: Record<string, string> = {
-          "cc_rejected_bad_filled_card_number": "Número do cartão inválido",
-          "cc_rejected_bad_filled_date": "Data de validade inválida",
-          "cc_rejected_bad_filled_other": "Dados do cartão incorretos",
-          "cc_rejected_bad_filled_security_code": "Código de segurança inválido",
-          "cc_rejected_blacklist": "Cartão não permitido",
-          "cc_rejected_call_for_authorize": "Ligue para sua operadora para autorizar",
-          "cc_rejected_card_disabled": "Cartão desativado",
-          "cc_rejected_duplicated_payment": "Pagamento duplicado",
-          "cc_rejected_high_risk": "Pagamento recusado por segurança",
-          "cc_rejected_insufficient_amount": "Saldo insuficiente",
-          "cc_rejected_invalid_installments": "Parcelas inválidas",
-          "cc_rejected_max_attempts": "Limite de tentativas excedido",
-          "cc_rejected_other_reason": "Pagamento não aprovado",
+          // Erros de validação do cartão
+          "cc_rejected_bad_filled_card_number": "Número do cartão inválido. Verifique e tente novamente.",
+          "cc_rejected_bad_filled_date": "Data de validade inválida. Verifique mês/ano.",
+          "cc_rejected_bad_filled_other": "Dados do cartão incorretos. Verifique as informações.",
+          "cc_rejected_bad_filled_security_code": "Código de segurança (CVV) inválido.",
+          "CC_VAL_433": "⚠️ Validação do cartão falhou. Use um cartão real em modo produção.",
+          
+          // Erros de cartão bloqueado/desativado
+          "cc_rejected_blacklist": "Este cartão não pode ser utilizado. Use outro cartão.",
+          "cc_rejected_card_disabled": "Cartão desativado. Ative-o com sua operadora ou use outro.",
+          "cc_rejected_card_error": "Erro no cartão. Use outro cartão.",
+          
+          // Erros que requerem ação do usuário
+          "cc_rejected_call_for_authorize": "Ligue para sua operadora de cartão para autorizar.",
+          "cc_rejected_insufficient_amount": "Saldo insuficiente no cartão.",
+          "cc_rejected_max_attempts": "Limite de tentativas excedido. Aguarde e tente novamente.",
+          
+          // Erros de segurança/fraude
+          "cc_rejected_high_risk": "Pagamento recusado por segurança. Tente outro cartão.",
+          "cc_rejected_duplicated_payment": "Pagamento duplicado. Verifique sua fatura.",
+          
+          // Erros de configuração
+          "cc_rejected_invalid_installments": "Parcelas inválidas para este cartão.",
+          "cc_rejected_other_reason": "Pagamento não aprovado. Tente outro cartão.",
+          
+          // Erros genéricos
+          "rejected": "Pagamento recusado. Verifique os dados ou use outro cartão.",
+          "pending_contingency": "Processando pagamento. Aguarde a confirmação.",
+          "pending_review_manual": "Pagamento em análise. Aguarde a confirmação.",
         };
         
-        const message = errorMessages[result.status_detail] || result.message || "Pagamento não aprovado";
+        const message = errorMessages[result.status_detail] || errorMessages[result.status] || result.message || "Pagamento não aprovado. Verifique os dados do cartão.";
         
         return res.json({
           status: result.status || "rejected",
@@ -3971,21 +3988,35 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         });
         
         if (setupResult.status !== "approved") {
+          // Mensagens de erro em português brasileiro
           const errorMessages: Record<string, string> = {
-            "cc_rejected_bad_filled_card_number": "Número do cartão inválido",
-            "cc_rejected_bad_filled_date": "Data de validade inválida",
-            "cc_rejected_bad_filled_other": "Dados do cartão incorretos",
-            "cc_rejected_bad_filled_security_code": "Código de segurança inválido",
-            "cc_rejected_blacklist": "Este cartão não pode ser utilizado",
-            "cc_rejected_call_for_authorize": "Autorize o pagamento com sua operadora",
-            "cc_rejected_card_disabled": "Cartão desativado",
-            "cc_rejected_duplicated_payment": "Pagamento duplicado",
-            "cc_rejected_high_risk": "Pagamento recusado por segurança",
-            "cc_rejected_insufficient_amount": "Saldo insuficiente",
-            "cc_rejected_invalid_installments": "Parcelas inválidas",
-            "cc_rejected_max_attempts": "Limite de tentativas excedido",
-            "cc_rejected_other_reason": "Pagamento não aprovado",
-            "rejected": "Pagamento recusado",
+            // Erros de validação do cartão
+            "cc_rejected_bad_filled_card_number": "Número do cartão inválido. Verifique e tente novamente.",
+            "cc_rejected_bad_filled_date": "Data de validade inválida. Verifique mês/ano.",
+            "cc_rejected_bad_filled_other": "Dados do cartão incorretos. Verifique as informações.",
+            "cc_rejected_bad_filled_security_code": "Código de segurança (CVV) inválido.",
+            "CC_VAL_433": "⚠️ Validação do cartão falhou. Use um cartão real em modo produção.",
+            
+            // Erros de cartão bloqueado/desativado
+            "cc_rejected_blacklist": "Este cartão não pode ser utilizado. Use outro cartão.",
+            "cc_rejected_card_disabled": "Cartão desativado. Ative-o com sua operadora.",
+            "cc_rejected_card_error": "Erro no cartão. Use outro cartão.",
+            
+            // Erros que requerem ação do usuário
+            "cc_rejected_call_for_authorize": "Ligue para sua operadora de cartão para autorizar.",
+            "cc_rejected_insufficient_amount": "Saldo insuficiente no cartão.",
+            "cc_rejected_max_attempts": "Limite de tentativas excedido. Aguarde e tente novamente.",
+            
+            // Erros de segurança/fraude
+            "cc_rejected_high_risk": "Pagamento recusado por segurança. Tente outro cartão.",
+            "cc_rejected_duplicated_payment": "Pagamento duplicado. Verifique sua fatura.",
+            
+            // Erros de configuração
+            "cc_rejected_invalid_installments": "Parcelas inválidas para este cartão.",
+            "cc_rejected_other_reason": "Pagamento não aprovado. Tente outro cartão.",
+            
+            // Erros genéricos
+            "rejected": "Pagamento recusado. Verifique os dados ou use outro cartão.",
           };
           
           const message = errorMessages[setupResult.status_detail] || 
@@ -4165,16 +4196,32 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           }
         }
         
-        // Translate error messages
+        // Mensagens de erro em português brasileiro para assinaturas
         const errorMessages: Record<string, string> = {
-          "invalid_card_token": "Token do cartão inválido ou expirado. Tente novamente.",
-          "invalid_payer_email": "E-mail do pagador inválido.",
-          "invalid_transaction_amount": "Valor da transação inválido.",
-          "invalid_users": "Credenciais de teste requerem contas de teste do Mercado Pago.",
-          "2034": "Em modo teste, use contas de teste do Mercado Pago.",
-          "Invalid users involved": "Use contas de teste do Mercado Pago no modo sandbox.",
-          "Card token service not found": "⚠️ Não foi possível processar o cartão. Use o link de pagamento.",
-          "card_token_creation_failed": "Erro ao processar cartão. Tente novamente.",
+          // Erros de token/cartão
+          "invalid_card_token": "Token do cartão inválido ou expirado. Preencha novamente os dados do cartão.",
+          "card_token_creation_failed": "Erro ao processar cartão. Verifique os dados e tente novamente.",
+          "Card token service not found": "⚠️ Não foi possível processar o cartão automaticamente.",
+          "CC_VAL_433": "⚠️ Validação do cartão falhou. Use um cartão real em modo produção.",
+          
+          // Erros de dados
+          "invalid_payer_email": "E-mail inválido. Use um e-mail válido.",
+          "invalid_transaction_amount": "Valor da assinatura inválido.",
+          
+          // Erros de ambiente (teste vs produção)
+          "invalid_users": "⚠️ Erro: Usando cartão de teste em modo produção. Use um cartão real.",
+          "2034": "⚠️ Credenciais de produção requerem cartão real, não cartão de teste.",
+          "Invalid users involved": "⚠️ Use cartão real em modo produção ou mude para modo teste.",
+          
+          // Erros de cartão rejeitado
+          "cc_rejected_bad_filled_card_number": "Número do cartão inválido.",
+          "cc_rejected_bad_filled_date": "Data de validade inválida.",
+          "cc_rejected_bad_filled_security_code": "Código de segurança (CVV) inválido.",
+          "cc_rejected_insufficient_amount": "Saldo insuficiente no cartão.",
+          "cc_rejected_high_risk": "Pagamento recusado por segurança.",
+          "cc_rejected_call_for_authorize": "Ligue para sua operadora para autorizar.",
+          "cc_rejected_card_disabled": "Cartão desativado. Use outro cartão.",
+          "cc_rejected_other_reason": "Pagamento não aprovado. Tente outro cartão.",
         };
         
         const errorCode = mpResult.cause?.[0]?.code || mpResult.error || mpResult.message;
