@@ -4038,13 +4038,17 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       
       console.log("[MP Subscription] Creating preapproval:", JSON.stringify(subscriptionData, null, 2));
       
+      // Headers para API do Mercado Pago
+      // Nota: Removido X-scope pois não é mais necessário para assinaturas sem plano associado
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+        "X-Idempotency-Key": `preapproval_${subscriptionId}_${Date.now()}`,
+      };
+      
       const mpResponse = await fetch("https://api.mercadopago.com/preapproval", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-          "X-Idempotency-Key": `preapproval_${subscriptionId}_${Date.now()}`,
-        },
+        headers,
         body: JSON.stringify(subscriptionData),
       });
       
@@ -4112,9 +4116,10 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         
         // Se falhou com "Card token service not found" e tínhamos token,
         // tentar novamente SEM o token (fallback para init_point)
-        // Isso acontece em localhost porque o card_token requer HTTPS
+        // NOTA: Este erro pode ocorrer por várias razões, não apenas HTTPS
         if (token && errorMsg.toLowerCase().includes("card token service not found")) {
           console.log("[MP Subscription] Fallback: retrying without card_token (init_point mode)");
+          console.log("[MP Subscription] NOTA: Este erro pode indicar problemas com o token ou configuração da conta MP");
           
           // Remover token e mudar status para pending
           delete subscriptionData.card_token_id;
@@ -4148,13 +4153,14 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
               paymentMethod: paymentMethodId,
             });
             
+            // Mensagem mais informativa - não dizer que é problema de HTTPS
             return res.json({
               status: "pending",
-              message: "⚠️ Em localhost use o link para completar. Em produção será automático.",
+              message: "⚠️ Não foi possível processar o cartão automaticamente. Use o link para completar o pagamento.",
               subscriptionId: fallbackResult.id,
               initPoint: fallbackResult.init_point,
               mpStatus: fallbackResult.status,
-              isLocalhost: true,
+              isLocalhost: false, // Não é mais relacionado a localhost
             });
           }
         }
@@ -4167,7 +4173,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           "invalid_users": "Credenciais de teste requerem contas de teste do Mercado Pago.",
           "2034": "Em modo teste, use contas de teste do Mercado Pago.",
           "Invalid users involved": "Use contas de teste do Mercado Pago no modo sandbox.",
-          "Card token service not found": "⚠️ Checkout transparente requer HTTPS. Em produção funcionará normalmente.",
+          "Card token service not found": "⚠️ Não foi possível processar o cartão. Use o link de pagamento.",
           "card_token_creation_failed": "Erro ao processar cartão. Tente novamente.",
         };
         

@@ -206,26 +206,15 @@ export default function Subscribe() {
         });
         setTimeout(() => setLocation("/dashboard"), 2000);
       } else if (data.initPoint) {
-        // Localhost mode: show link to complete payment
-        if (data.isLocalhost) {
-          toast({ 
-            title: "⚠️ Modo desenvolvimento", 
-            description: "Em produção será 100% transparente. Clique para completar." 
-          });
-          // Open in new tab for localhost testing
-          window.open(data.initPoint, "_blank");
-          setError("Em localhost, complete o pagamento na nova aba. Em produção (HTTPS), será automático.");
-          setIsProcessing(false);
-        } else {
-          // Production fallback: redirect
-          toast({ 
-            title: "Finalize seu pagamento", 
-            description: "Você será redirecionado para completar a assinatura." 
-          });
-          setTimeout(() => {
-            window.location.href = data.initPoint;
-          }, 1500);
-        }
+        // Fallback mode: user needs to complete payment via init_point
+        toast({ 
+          title: "Finalize seu pagamento", 
+          description: "Clique no botão para completar a assinatura." 
+        });
+        // Open init_point to complete payment
+        setTimeout(() => {
+          window.location.href = data.initPoint;
+        }, 1500);
       } else {
         setError(data.message || "Pagamento não aprovado");
         setIsProcessing(false);
