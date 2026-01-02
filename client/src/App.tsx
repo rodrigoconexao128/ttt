@@ -17,6 +17,7 @@ import AdminChatSimulator from "@/pages/admin-chat-simulator";
 import AdminSimulator from "@/pages/AdminSimulator";
 import LoadingScreen from "@/components/LoadingScreen";
 import TestTTS from "@/pages/TestTTS";
+import Subscribe from "@/pages/subscribe";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
 
@@ -71,7 +72,7 @@ function Router() {
       <Route path="/qualificacao" component={Dashboard} />
       <Route path="/listas-contatos" component={Dashboard} />
       <Route path="/followup" component={Dashboard} />
-      <Route path="/subscribe/:id" component={Dashboard} />
+      <Route path="/subscribe/:id" component={Subscribe} />
       <Route path="/settings" component={Dashboard} />
       <Route path="/agent-config" component={AgentConfig} />
       <Route path="/notificador" component={Dashboard} />

@@ -28,7 +28,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -1620,7 +1620,7 @@ function PlansManager({ plans }: { plans: Plan[] | undefined }) {
               <TableHead>Nome</TableHead>
               <TableHead>Valor</TableHead>
               <TableHead>Periodicidade</TableHead>
-              <TableHead>Limite Conversas</TableHead>
+              <TableHead>Código Personalizado</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Ações</TableHead>
             </TableRow>
@@ -1628,24 +1628,85 @@ function PlansManager({ plans }: { plans: Plan[] | undefined }) {
           <TableBody>
             {plans?.map((plan) => (
               <TableRow key={plan.id} data-testid={`row-plan-${plan.id}`}>
-                <TableCell data-testid={`text-plan-name-${plan.id}`}>{plan.nome}</TableCell>
-                <TableCell>R$ {plan.valor}</TableCell>
+                <TableCell data-testid={`text-plan-name-${plan.id}`}>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{plan.nome}</span>
+                    {(plan as any).isPersonalizado && (
+                      <Badge variant="outline" className="mt-1 w-fit text-xs">
+                        <Crown className="h-3 w-3 mr-1" />
+                        Personalizado
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span>R$ {plan.valor}</span>
+                    {(plan as any).valorPrimeiraCobranca && (
+                      <span className="text-xs text-muted-foreground">
+                        1ª: R$ {(plan as any).valorPrimeiraCobranca}
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell>{plan.periodicidade}</TableCell>
-                <TableCell>{plan.limiteConversas === -1 ? "Ilimitado" : plan.limiteConversas}</TableCell>
+                <TableCell>
+                  {(plan as any).codigoPersonalizado ? (
+                    <div className="flex items-center gap-2">
+                      <code className="bg-muted px-2 py-1 rounded text-sm font-mono">
+                        {(plan as any).codigoPersonalizado}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText((plan as any).codigoPersonalizado);
+                          toast({ title: "Código copiado!" });
+                        }}
+                        data-testid={`button-copy-code-${plan.id}`}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">-</span>
+                  )}
+                </TableCell>
                 <TableCell>
                   <Badge variant={plan.ativo ? "default" : "secondary"}>
                     {plan.ativo ? "Ativo" : "Inativo"}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deletePlanMutation.mutate(plan.id)}
-                    data-testid={`button-delete-plan-${plan.id}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid={`button-edit-plan-${plan.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <PlanForm
+                          onSubmit={(data) => updatePlanMutation.mutate({ id: plan.id, data })}
+                          isPending={updatePlanMutation.isPending}
+                          initialData={plan}
+                        />
+                      </DialogContent>
+                    </Dialog>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deletePlanMutation.mutate(plan.id)}
+                      data-testid={`button-delete-plan-${plan.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -1672,6 +1733,12 @@ function PlanForm({
     limiteConversas: initialData?.limiteConversas || 100,
     limiteAgentes: initialData?.limiteAgentes || 1,
     ativo: initialData?.ativo ?? true,
+    // Campos do Mercado Pago
+    isPersonalizado: (initialData as any)?.isPersonalizado ?? false,
+    codigoPersonalizado: (initialData as any)?.codigoPersonalizado || "",
+    valorPrimeiraCobranca: (initialData as any)?.valorPrimeiraCobranca || "",
+    frequenciaDias: (initialData as any)?.frequenciaDias || 30,
+    trialDias: (initialData as any)?.trialDias || 0,
   });
   
   const [conversasIlimitadas, setConversasIlimitadas] = useState(initialData?.limiteConversas === -1);
@@ -1681,8 +1748,14 @@ function PlanForm({
     e.preventDefault();
     const submitData = {
       ...formData,
+      // Garantir que valor seja string (decimal no banco)
+      valor: String(formData.valor),
       limiteConversas: conversasIlimitadas ? -1 : formData.limiteConversas,
       limiteAgentes: agentesIlimitados ? -1 : formData.limiteAgentes,
+      // valorPrimeiraCobranca deve ser string ou null (decimal no banco)
+      valorPrimeiraCobranca: formData.valorPrimeiraCobranca ? String(formData.valorPrimeiraCobranca) : null,
+      frequenciaDias: parseInt(formData.frequenciaDias as any) || 30,
+      trialDias: parseInt(formData.trialDias as any) || 0,
     };
     onSubmit(submitData);
   };
@@ -1791,6 +1864,84 @@ function PlanForm({
             data-testid="switch-plan-active"
           />
           <Label htmlFor="ativo">Plano Ativo</Label>
+        </div>
+        
+        {/* Seção Mercado Pago - Plano Personalizado */}
+        <div className="border-t pt-4 mt-4">
+          <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Configurações Mercado Pago
+          </h4>
+          
+          <div className="grid gap-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="isPersonalizado"
+                checked={formData.isPersonalizado}
+                onCheckedChange={(checked) => setFormData({ ...formData, isPersonalizado: checked })}
+                data-testid="switch-plan-personalizado"
+              />
+              <Label htmlFor="isPersonalizado">Plano Personalizado (com código exclusivo)</Label>
+            </div>
+            
+            {formData.isPersonalizado && (
+              <div className="grid gap-2">
+                <Label htmlFor="codigoPersonalizado">Código do Plano Personalizado</Label>
+                <Input
+                  id="codigoPersonalizado"
+                  value={formData.codigoPersonalizado}
+                  onChange={(e) => setFormData({ ...formData, codigoPersonalizado: e.target.value.toUpperCase() })}
+                  placeholder="Ex: CLIENTE123, PARCEIRO_PREMIUM"
+                  data-testid="input-codigo-personalizado"
+                />
+                <p className="text-xs text-muted-foreground">
+                  O cliente usará este código para acessar este plano exclusivo
+                </p>
+              </div>
+            )}
+            
+            <div className="grid gap-2">
+              <Label htmlFor="valorPrimeiraCobranca">Valor da 1ª Cobrança - Implementação (R$)</Label>
+              <Input
+                id="valorPrimeiraCobranca"
+                type="number"
+                step="0.01"
+                value={formData.valorPrimeiraCobranca}
+                onChange={(e) => setFormData({ ...formData, valorPrimeiraCobranca: e.target.value })}
+                placeholder="Ex: 499.90 (deixe vazio se igual ao valor mensal)"
+                data-testid="input-valor-primeira-cobranca"
+              />
+              <p className="text-xs text-muted-foreground">
+                Taxa de implementação na primeira cobrança. Deixe vazio para usar o valor padrão do plano.
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="frequenciaDias">Frequência de Cobrança (dias)</Label>
+                <Input
+                  id="frequenciaDias"
+                  type="number"
+                  value={formData.frequenciaDias}
+                  onChange={(e) => setFormData({ ...formData, frequenciaDias: e.target.value })}
+                  placeholder="30"
+                  data-testid="input-frequencia-dias"
+                />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="trialDias">Período de Teste (dias)</Label>
+                <Input
+                  id="trialDias"
+                  type="number"
+                  value={formData.trialDias}
+                  onChange={(e) => setFormData({ ...formData, trialDias: e.target.value })}
+                  placeholder="0"
+                  data-testid="input-trial-dias"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <DialogFooter>
@@ -2313,6 +2464,7 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
   };
 
   return (
+    <>
     <Card data-testid="card-system-config">
       <CardHeader>
         <CardTitle>Configurações do Sistema</CardTitle>
@@ -2406,6 +2558,283 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
             Salvar Configurações
           </Button>
         </form>
+      </CardContent>
+    </Card>
+
+    {/* Mercado Pago Configuration */}
+    <MercadoPagoConfig />
+    </>
+  );
+}
+
+// Mercado Pago Configuration Component
+function MercadoPagoConfig() {
+  const { toast } = useToast();
+  const [publicKey, setPublicKey] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [isTestMode, setIsTestMode] = useState(true);
+  const [showAccessToken, setShowAccessToken] = useState(false);
+  const [showClientSecret, setShowClientSecret] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  // Fetch current credentials
+  const { data: mpCredentials, isLoading, refetch } = useQuery<{
+    configured: boolean;
+    isTestMode: boolean;
+    publicKey: string;
+    accessToken: string;
+    clientId: string;
+    clientSecret: string;
+  }>({
+    queryKey: ["/api/admin/mercadopago/credentials"],
+  });
+
+  // Update state when credentials are loaded
+  useEffect(() => {
+    if (mpCredentials) {
+      setPublicKey(mpCredentials.publicKey || "");
+      setAccessToken(mpCredentials.accessToken || "");
+      setClientId(mpCredentials.clientId || "");
+      setClientSecret(mpCredentials.clientSecret || "");
+      setIsTestMode(mpCredentials.isTestMode ?? true);
+    }
+  }, [mpCredentials]);
+
+  const saveCredentialsMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiRequest("PUT", "/api/admin/mercadopago/credentials", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/mercadopago/credentials"] });
+      toast({ title: "Credenciais do Mercado Pago salvas com sucesso!" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao salvar credenciais", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const testConnection = async () => {
+    setTesting(true);
+    try {
+      const response = await apiRequest("POST", "/api/admin/mercadopago/test");
+      const data = await response.json();
+      if (data.success) {
+        toast({ 
+          title: "✅ Conexão com Mercado Pago OK!", 
+          description: data.message 
+        });
+      } else {
+        toast({ 
+          title: "❌ Erro na conexão", 
+          description: data.message,
+          variant: "destructive" 
+        });
+      }
+    } catch (error: any) {
+      toast({ 
+        title: "❌ Erro ao testar conexão", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSave = () => {
+    saveCredentialsMutation.mutate({
+      publicKey,
+      accessToken,
+      clientId,
+      clientSecret,
+      isTestMode,
+    });
+  };
+
+  // Fill with test credentials
+  const fillTestCredentials = () => {
+    setPublicKey("TEST-224d6148-83a6-43fc-bded-659e7be60eb6");
+    setAccessToken("TEST-7853790746726235-122922-014a7c91c63452a78e2732d7f5bf24a0-1105684259");
+    setIsTestMode(true);
+    toast({ title: "Credenciais de teste preenchidas" });
+  };
+
+  // Fill with production credentials
+  const fillProdCredentials = () => {
+    setPublicKey("APP_USR-c6880571-f1e5-4c5b-adba-d78ec125d570");
+    setAccessToken("APP_USR-7853790746726235-122922-c063f3f0183988a1216419552a24f097-1105684259");
+    setClientId("7853790746726235");
+    setClientSecret("NDT5vcvhWXvFj8eBcJkjbwmddeDNOhNh");
+    setIsTestMode(false);
+    toast({ title: "Credenciais de produção preenchidas" });
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card data-testid="card-mercadopago-config">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CreditCard className="h-5 w-5" />
+          Mercado Pago - Assinaturas
+        </CardTitle>
+        <CardDescription>
+          Configure suas credenciais do Mercado Pago para cobranças recorrentes
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Quick fill buttons */}
+        <div className="flex gap-2 flex-wrap">
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm"
+            onClick={fillTestCredentials}
+          >
+            <TestTube className="h-4 w-4 mr-2" />
+            Usar Credenciais de Teste
+          </Button>
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm"
+            onClick={fillProdCredentials}
+          >
+            <Key className="h-4 w-4 mr-2" />
+            Usar Credenciais de Produção
+          </Button>
+        </div>
+
+        {/* Mode toggle */}
+        <div className="flex items-center justify-between border rounded-lg p-3">
+          <div className="space-y-0.5">
+            <Label className="font-medium">Modo de Operação</Label>
+            <p className="text-sm text-muted-foreground">
+              {isTestMode ? "Modo de Teste (sandbox)" : "Modo de Produção (real)"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={isTestMode ? "text-muted-foreground" : "text-green-600 font-medium"}>Produção</span>
+            <Switch
+              checked={isTestMode}
+              onCheckedChange={setIsTestMode}
+            />
+            <span className={isTestMode ? "text-yellow-600 font-medium" : "text-muted-foreground"}>Teste</span>
+          </div>
+        </div>
+
+        {/* Public Key */}
+        <div className="space-y-2">
+          <Label htmlFor="mpPublicKey">Public Key</Label>
+          <Input
+            id="mpPublicKey"
+            value={publicKey}
+            onChange={(e) => setPublicKey(e.target.value)}
+            placeholder={isTestMode ? "TEST-..." : "APP_USR-..."}
+          />
+        </div>
+
+        {/* Access Token */}
+        <div className="space-y-2">
+          <Label htmlFor="mpAccessToken">Access Token</Label>
+          <div className="relative">
+            <Input
+              id="mpAccessToken"
+              type={showAccessToken ? "text" : "password"}
+              value={accessToken}
+              onChange={(e) => setAccessToken(e.target.value)}
+              placeholder={isTestMode ? "TEST-..." : "APP_USR-..."}
+              className="pr-10"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+              onClick={() => setShowAccessToken(!showAccessToken)}
+            >
+              {showAccessToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+
+        {/* Client ID and Secret (only for production) */}
+        {!isTestMode && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="mpClientId">Client ID</Label>
+              <Input
+                id="mpClientId"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                placeholder="Seu Client ID"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mpClientSecret">Client Secret</Label>
+              <div className="relative">
+                <Input
+                  id="mpClientSecret"
+                  type={showClientSecret ? "text" : "password"}
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  placeholder="Seu Client Secret"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowClientSecret(!showClientSecret)}
+                >
+                  {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex gap-2 pt-2">
+          <Button 
+            onClick={handleSave}
+            disabled={saveCredentialsMutation.isPending || !publicKey || !accessToken}
+          >
+            {saveCredentialsMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Salvar Credenciais
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={testConnection}
+            disabled={testing || !accessToken}
+          >
+            {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+            Testar Conexão
+          </Button>
+        </div>
+
+        {/* Status indicator */}
+        {mpCredentials?.configured && (
+          <div className="flex items-center gap-2 text-sm text-green-600 mt-2">
+            <CheckCircle className="h-4 w-4" />
+            Mercado Pago configurado ({mpCredentials.isTestMode ? "teste" : "produção"})
+          </div>
+        )}
       </CardContent>
     </Card>
   );

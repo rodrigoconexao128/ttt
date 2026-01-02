@@ -8,6 +8,23 @@ import { seedDatabase } from "./seed";
 import path from "path";
 import fs from "fs";
 
+// 🛡️ MODO DESENVOLVIMENTO: Aviso de proteção de produção
+if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+  console.log('\n');
+  console.log('╔══════════════════════════════════════════════════════════════════════╗');
+  console.log('║  🛡️  MODO DESENVOLVIMENTO ATIVO - PROTEÇÃO DE PRODUÇÃO              ║');
+  console.log('║                                                                      ║');
+  console.log('║  SKIP_WHATSAPP_RESTORE=true                                          ║');
+  console.log('║                                                                      ║');
+  console.log('║  ✅ Sessões WhatsApp do Railway NÃO serão afetadas                   ║');
+  console.log('║  ✅ Conexões/desconexões de WhatsApp bloqueadas localmente           ║');
+  console.log('║  ✅ Banco de dados compartilhado, mas estado WA preservado           ║');
+  console.log('║                                                                      ║');
+  console.log('║  Para conectar WhatsApp em dev, remova SKIP_WHATSAPP_RESTORE do .env ║');
+  console.log('╚══════════════════════════════════════════════════════════════════════╝');
+  console.log('\n');
+}
+
 const app = express();
 
 process.on('uncaughtException', (err) => {

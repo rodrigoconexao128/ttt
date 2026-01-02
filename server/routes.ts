@@ -326,6 +326,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reconnect single user (force reconnection)
   app.post("/api/admin/connections/reconnect/:userId", isAdmin, async (req, res) => {
     try {
+      // 🛡️ MODO DESENVOLVIMENTO: Bloquear reconexões para proteger produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Bloqueando reconexão forçada de usuário (proteção de produção)`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          devMode: true 
+        });
+      }
+      
       const { userId } = req.params;
       console.log(`[ADMIN] Force reconnecting user ${userId}...`);
       
@@ -379,6 +389,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reset user session (clear auth files, force new QR code)
   app.post("/api/admin/connections/reset/:userId", isAdmin, async (req, res) => {
     try {
+      // 🛡️ MODO DESENVOLVIMENTO: Bloquear reset para proteger produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Bloqueando reset de sessão WhatsApp (proteção de produção)`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          devMode: true 
+        });
+      }
+      
       const { userId } = req.params;
       console.log(`[ADMIN] Resetting session for user ${userId}...`);
       
@@ -402,6 +422,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reconnect all WhatsApp sessions (force)
   app.post("/api/admin/connections/reconnect-all", isAdmin, async (req, res) => {
     try {
+      // 🛡️ MODO DESENVOLVIMENTO: Bloquear reconexões em massa para proteger produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Bloqueando reconexão em massa (proteção de produção)`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          devMode: true 
+        });
+      }
+      
       console.log("[ADMIN] Starting bulk force reconnection...");
       const connections = await storage.getAllConnections();
       let reconnectedCount = 0;
@@ -962,6 +992,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/whatsapp/connect", isAuthenticated, async (req: any, res) => {
     try {
+      // 🛡️ MODO DESENVOLVIMENTO: Bloquear conexões para proteger produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Bloqueando conexão WhatsApp de usuário (proteção de produção)`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          devMode: true 
+        });
+      }
+      
       const userId = getUserId(req);
       await connectWhatsApp(userId);
       res.json({ success: true });
@@ -973,6 +1013,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/whatsapp/disconnect", isAuthenticated, async (req: any, res) => {
     try {
+      // 🛡️ MODO DESENVOLVIMENTO: Bloquear desconexões para proteger produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Bloqueando desconexão WhatsApp de usuário (proteção de produção)`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          devMode: true 
+        });
+      }
+      
       const userId = getUserId(req);
       await disconnectWhatsApp(userId);
       res.json({ success: true });
@@ -2703,6 +2753,24 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // Get plan by ID (public)
+  app.get("/api/plans/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const plans = await storage.getActivePlans();
+      const plan = plans.find((p: any) => p.id === id);
+      
+      if (!plan) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      
+      res.json(plan);
+    } catch (error) {
+      console.error("Error fetching plan:", error);
+      res.status(500).json({ message: "Erro ao buscar plano" });
+    }
+  });
+
   // Get all plans (admin only)
   app.get("/api/admin/plans", isAdmin, async (_req, res) => {
     try {
@@ -2757,6 +2825,44 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // Validate custom plan code (public)
+  app.post("/api/plans/validate-code", async (req, res) => {
+    try {
+      const { code } = req.body;
+      if (!code) {
+        return res.status(400).json({ valid: false, message: "Código não informado" });
+      }
+      
+      // Search for plan with the custom code
+      const allPlans = await storage.getAllPlans();
+      const plan = allPlans.find(p => 
+        (p as any).codigoPersonalizado?.toUpperCase() === code.toUpperCase() && 
+        p.ativo && 
+        (p as any).isPersonalizado
+      );
+      
+      if (!plan) {
+        return res.json({ valid: false, message: "Código de plano não encontrado" });
+      }
+      
+      res.json({ 
+        valid: true, 
+        plan: {
+          id: plan.id,
+          nome: plan.nome,
+          descricao: plan.descricao,
+          valor: plan.valor,
+          valorPrimeiraCobranca: (plan as any).valorPrimeiraCobranca,
+          periodicidade: plan.periodicidade,
+          caracteristicas: plan.caracteristicas,
+        }
+      });
+    } catch (error) {
+      console.error("Error validating plan code:", error);
+      res.status(500).json({ valid: false, message: "Erro ao validar código" });
+    }
+  });
+
   // ==================== SUBSCRIPTIONS ROUTES ====================
   // Get current user subscription
   app.get("/api/subscriptions/current", isAuthenticated, async (req: any, res) => {
@@ -2766,6 +2872,33 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       res.json(subscription || null);
     } catch (error) {
       console.error("Error fetching subscription:", error);
+      res.status(500).json({ message: "Failed to fetch subscription" });
+    }
+  });
+
+  // Get subscription by ID
+  app.get("/api/subscriptions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const subscription = await storage.getSubscription(id) as any;
+      
+      if (!subscription) {
+        return res.status(404).json({ message: "Subscription not found" });
+      }
+      
+      // Check if user owns this subscription or is admin
+      const user = await storage.getUser(userId) as any;
+      if (subscription.userId !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Include plan data
+      const plan = await storage.getPlan(subscription.planId);
+      res.json({ ...subscription, plan });
+    } catch (error) {
+      console.error("Error fetching subscription by ID:", error);
       res.status(500).json({ message: "Failed to fetch subscription" });
     }
   });
@@ -2884,6 +3017,159 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     } catch (error) {
       console.error("Error cancelling subscription:", error);
       res.status(500).json({ message: "Failed to cancel subscription" });
+    }
+  });
+
+  // ==========================================
+  // MIGRAÇÃO DE PLANOS (UPGRADE/DOWNGRADE)
+  // Permite que o cliente mude de plano mantendo assinatura ativa
+  // ==========================================
+  app.post("/api/subscriptions/migrate-plan", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { newPlanId, subscriptionId } = req.body;
+
+      if (!newPlanId || !subscriptionId) {
+        return res.status(400).json({ 
+          status: "error",
+          message: "ID do novo plano e da assinatura são obrigatórios" 
+        });
+      }
+
+      // Get current subscription
+      const currentSubscription = await storage.getSubscription(subscriptionId) as any;
+      if (!currentSubscription || currentSubscription.userId !== userId) {
+        return res.status(404).json({ 
+          status: "error",
+          message: "Assinatura não encontrada" 
+        });
+      }
+
+      if (currentSubscription.status !== "active") {
+        return res.status(400).json({ 
+          status: "error",
+          message: "Só é possível migrar assinaturas ativas" 
+        });
+      }
+
+      // Get new plan
+      const newPlan = await storage.getPlan(newPlanId) as any;
+      if (!newPlan || !newPlan.ativo) {
+        return res.status(404).json({ 
+          status: "error",
+          message: "Novo plano não encontrado ou inativo" 
+        });
+      }
+
+      // Get current plan for comparison
+      const currentPlan = await storage.getPlan(currentSubscription.planId) as any;
+      const isUpgrade = parseFloat(newPlan.valor) > parseFloat(currentPlan.valor);
+
+      // Get MP credentials to update subscription if exists
+      const configMap = await storage.getSystemConfigs([
+        "mercadopago_access_token",
+        "mercadopago_test_mode"
+      ]);
+      const accessToken = configMap.get("mercadopago_access_token");
+
+      // If subscription has MP subscription, update the recurring amount
+      if (currentSubscription.mpSubscriptionId && accessToken) {
+        try {
+          console.log("[Plan Migration] Updating MP subscription:", currentSubscription.mpSubscriptionId);
+          
+          const mpResponse = await fetch(
+            `https://api.mercadopago.com/preapproval/${currentSubscription.mpSubscriptionId}`,
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                reason: `${newPlan.nome} - AgenteZap`,
+                auto_recurring: {
+                  transaction_amount: parseFloat(newPlan.valor),
+                },
+              }),
+            }
+          );
+
+          const mpResult = await mpResponse.json();
+          console.log("[Plan Migration] MP update result:", mpResult.status || mpResult);
+        } catch (mpError) {
+          console.error("[Plan Migration] MP update error:", mpError);
+          // Continue with local update even if MP fails
+        }
+      }
+
+      // Update local subscription with new plan
+      const dataFimAtual = new Date(currentSubscription.dataFim);
+      
+      // For upgrades, keep current end date
+      // For downgrades, you could apply at end of current period
+      await storage.updateSubscription(subscriptionId, {
+        planId: newPlanId,
+      });
+
+      console.log("[Plan Migration] Subscription migrated:", {
+        subscriptionId,
+        oldPlan: currentPlan.nome,
+        newPlan: newPlan.nome,
+        isUpgrade,
+      });
+
+      res.json({
+        status: "success",
+        message: `${isUpgrade ? "Upgrade" : "Downgrade"} realizado com sucesso! Seu novo plano é ${newPlan.nome}.`,
+        newPlan: {
+          id: newPlan.id,
+          nome: newPlan.nome,
+          valor: newPlan.valor,
+        },
+      });
+    } catch (error: any) {
+      console.error("[Plan Migration] Error:", error);
+      res.status(500).json({ 
+        status: "error",
+        message: error.message || "Erro ao migrar plano" 
+      });
+    }
+  });
+
+  // Admin: Force plan migration for any user
+  app.post("/api/admin/subscriptions/:id/migrate-plan", isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { newPlanId } = req.body;
+
+      if (!newPlanId) {
+        return res.status(400).json({ message: "ID do novo plano é obrigatório" });
+      }
+
+      // Get subscription
+      const subscription = await storage.getSubscription(id) as any;
+      if (!subscription) {
+        return res.status(404).json({ message: "Assinatura não encontrada" });
+      }
+
+      // Get new plan
+      const newPlan = await storage.getPlan(newPlanId);
+      if (!newPlan) {
+        return res.status(404).json({ message: "Novo plano não encontrado" });
+      }
+
+      // Update subscription
+      await storage.updateSubscription(id, {
+        planId: newPlanId,
+      });
+
+      res.json({ 
+        success: true,
+        message: `Plano alterado para ${newPlan.nome}`,
+      });
+    } catch (error) {
+      console.error("Error migrating plan:", error);
+      res.status(500).json({ message: "Falha ao migrar plano" });
     }
   });
 
@@ -3187,6 +3473,761 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // ==================== MERCADO PAGO ROUTES ====================
+
+  // Get Mercado Pago public key (public - for checkout)
+  app.get("/api/mercadopago/public-key", async (_req, res) => {
+    try {
+      const configMap = await storage.getSystemConfigs([
+        "mercadopago_public_key",
+        "mercadopago_test_mode"
+      ]);
+      
+      const publicKey = configMap.get("mercadopago_public_key") || "";
+      const testMode = configMap.get("mercadopago_test_mode") === "true";
+      
+      if (!publicKey) {
+        return res.status(404).json({ message: "Mercado Pago não configurado" });
+      }
+      
+      res.json({ publicKey, testMode });
+    } catch (error: any) {
+      console.error("Error fetching MP public key:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Get Mercado Pago credentials info (admin only)
+  app.get("/api/admin/mercadopago/credentials", isAdmin, async (_req, res) => {
+    try {
+      const { mercadoPagoService } = await import("./mercadoPagoService");
+      const info = await mercadoPagoService.getCredentialsInfo();
+      
+      // Also get full credentials for admin to view
+      const keys = [
+        "mercadopago_public_key",
+        "mercadopago_access_token", 
+        "mercadopago_client_id",
+        "mercadopago_client_secret",
+        "mercadopago_test_mode"
+      ];
+      const configMap = await storage.getSystemConfigs(keys);
+      
+      res.json({
+        configured: info.configured,
+        isTestMode: info.isTestMode,
+        publicKey: configMap.get("mercadopago_public_key") || "",
+        accessToken: configMap.get("mercadopago_access_token") || "",
+        clientId: configMap.get("mercadopago_client_id") || "",
+        clientSecret: configMap.get("mercadopago_client_secret") || "",
+      });
+    } catch (error) {
+      console.error("Error fetching MercadoPago credentials:", error);
+      res.status(500).json({ message: "Failed to fetch credentials" });
+    }
+  });
+
+  // Save Mercado Pago credentials (admin only)
+  app.put("/api/admin/mercadopago/credentials", isAdmin, async (req, res) => {
+    try {
+      const { publicKey, accessToken, clientId, clientSecret, isTestMode } = req.body;
+      const { mercadoPagoService } = await import("./mercadoPagoService");
+      
+      await mercadoPagoService.saveCredentials({
+        publicKey,
+        accessToken,
+        clientId,
+        clientSecret,
+        isTestMode,
+      });
+      
+      res.json({ success: true, message: "Credenciais salvas com sucesso" });
+    } catch (error) {
+      console.error("Error saving MercadoPago credentials:", error);
+      res.status(500).json({ message: "Failed to save credentials" });
+    }
+  });
+
+  // Test Mercado Pago connection (admin only)
+  app.post("/api/admin/mercadopago/test", isAdmin, async (_req, res) => {
+    try {
+      const { mercadoPagoService } = await import("./mercadoPagoService");
+      const result = await mercadoPagoService.testConnection();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error testing MercadoPago:", error);
+      res.json({ success: false, message: error.message });
+    }
+  });
+
+  // List Mercado Pago plans (admin only)
+  app.get("/api/admin/mercadopago/plans", isAdmin, async (_req, res) => {
+    try {
+      const { mercadoPagoService } = await import("./mercadoPagoService");
+      const result = await mercadoPagoService.listPlans();
+      res.json(result.results || []);
+    } catch (error: any) {
+      console.error("Error listing MP plans:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create Mercado Pago plan (admin only)
+  app.post("/api/admin/mercadopago/plans", isAdmin, async (req, res) => {
+    try {
+      const { reason, transactionAmount, frequency, frequencyType, backUrl, trialDays } = req.body;
+      const { mercadoPagoService } = await import("./mercadoPagoService");
+      
+      const plan = await mercadoPagoService.createPlan({
+        reason,
+        autoRecurring: {
+          frequency: frequency || 1,
+          frequencyType: frequencyType || "months",
+          transactionAmount: parseFloat(transactionAmount),
+          currencyId: "BRL",
+          freeTrial: trialDays ? {
+            frequency: trialDays,
+            frequencyType: "days"
+          } : undefined,
+        },
+        backUrl: backUrl || `${req.protocol}://${req.get('host')}/subscribe/success`,
+      });
+      
+      res.json(plan);
+    } catch (error: any) {
+      console.error("Error creating MP plan:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create subscription for user (creates checkout link)
+  app.post("/api/subscriptions/create-mp", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { planId, couponCode } = req.body;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+      
+      const plan = await storage.getPlan(planId);
+      if (!plan) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      
+      // Calculate final price (with coupon if applicable)
+      let finalPrice = parseFloat(plan.valor as string);
+      let appliedCoupon = null;
+      
+      if (couponCode) {
+        const coupon = await storage.getCouponByCode(couponCode);
+        if (coupon && coupon.isActive) {
+          if (coupon.finalPrice) {
+            finalPrice = parseFloat(coupon.finalPrice as string);
+            appliedCoupon = coupon;
+          }
+        }
+      }
+      
+      // Create local subscription first
+      const localSubscription = await storage.createSubscription({
+        userId,
+        planId,
+        status: "pending",
+        couponCode: appliedCoupon?.code,
+        couponPrice: appliedCoupon?.finalPrice,
+      });
+      
+      // Create Mercado Pago subscription
+      const { mercadoPagoService } = await import("./mercadoPagoService");
+      
+      const mpSubscription = await mercadoPagoService.createSubscription({
+        reason: `${plan.nome} - AgenteZap`,
+        externalReference: `sub_${localSubscription.id}`,
+        payerEmail: user.email || `user_${userId}@agentezap.com`,
+        autoRecurring: {
+          frequency: 1,
+          frequencyType: "months",
+          transactionAmount: finalPrice,
+          currencyId: "BRL",
+        },
+        backUrl: `${req.protocol}://${req.get('host')}/subscribe/success?subscriptionId=${localSubscription.id}`,
+        status: "pending",
+      });
+      
+      // Update local subscription with MP data
+      await storage.updateSubscription(localSubscription.id, {
+        // mpSubscriptionId: mpSubscription.id,
+        // mpInitPoint: mpSubscription.init_point,
+      });
+      
+      res.json({
+        subscriptionId: localSubscription.id,
+        checkoutUrl: mpSubscription.init_point,
+        mpSubscriptionId: mpSubscription.id,
+      });
+    } catch (error: any) {
+      console.error("Error creating MP subscription:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Process payment with card token (transparent checkout)
+  app.post("/api/subscriptions/process-mp-payment", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { subscriptionId, token, payerEmail, paymentMethodId, issuerId } = req.body;
+      
+      if (!subscriptionId || !token || !payerEmail) {
+        return res.status(400).json({ message: "Dados de pagamento incompletos" });
+      }
+      
+      // Get subscription
+      const subscription = await storage.getSubscription(subscriptionId) as any;
+      if (!subscription || subscription.userId !== userId) {
+        return res.status(404).json({ message: "Assinatura não encontrada" });
+      }
+      
+      // Get plan
+      const plan = await storage.getPlan(subscription.planId) as any;
+      if (!plan) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      
+      // Calculate amount
+      const valorPrimeiraCobranca = plan.valorPrimeiraCobranca ? parseFloat(plan.valorPrimeiraCobranca) : 0;
+      const valorMensal = subscription.couponPrice ? parseFloat(subscription.couponPrice) : parseFloat(plan.valor);
+      const amount = valorPrimeiraCobranca > 0 ? valorPrimeiraCobranca : valorMensal;
+      
+      // Get MP credentials
+      const configMap = await storage.getSystemConfigs([
+        "mercadopago_access_token",
+        "mercadopago_test_mode"
+      ]);
+      const accessToken = configMap.get("mercadopago_access_token");
+      
+      if (!accessToken) {
+        return res.status(500).json({ message: "Mercado Pago não configurado" });
+      }
+      
+      // Create payment with MP API
+      const paymentData: any = {
+        transaction_amount: amount,
+        token: token,
+        description: `${plan.nome} - AgenteZap`,
+        installments: 1,
+        payment_method_id: paymentMethodId || 'visa',
+        payer: {
+          email: payerEmail,
+        },
+        external_reference: `sub_${subscriptionId}`,
+        statement_descriptor: "AGENTEZAP",
+        metadata: {
+          subscription_id: subscriptionId,
+          plan_id: plan.id,
+          user_id: userId,
+        },
+      };
+      
+      if (issuerId) {
+        paymentData.issuer_id = parseInt(issuerId);
+      }
+      
+      console.log("[MP Payment] Creating payment:", {
+        amount,
+        subscriptionId,
+        planName: plan.nome,
+        paymentMethodId,
+      });
+      
+      const response = await fetch("https://api.mercadopago.com/v1/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "X-Idempotency-Key": `payment_${subscriptionId}_${Date.now()}`,
+        },
+        body: JSON.stringify(paymentData),
+      });
+      
+      const result = await response.json();
+      
+      console.log("[MP Payment] Full Result:", JSON.stringify(result, null, 2));
+      console.log("[MP Payment] Summary:", {
+        status: result.status,
+        statusDetail: result.status_detail,
+        id: result.id,
+        message: result.message,
+        cause: result.cause,
+      });
+      
+      if (result.status === "approved") {
+        // Update subscription to active
+        const dataFim = new Date();
+        dataFim.setMonth(dataFim.getMonth() + 1);
+        
+        await storage.updateSubscription(subscriptionId, {
+          status: "active",
+          dataInicio: new Date(),
+          dataFim,
+          mpSubscriptionId: result.id?.toString(),
+          mpStatus: result.status,
+          payerEmail,
+          paymentMethod: paymentMethodId,
+        });
+        
+        console.log("[MP Payment] Subscription activated:", subscriptionId);
+        
+        return res.json({
+          status: "approved",
+          message: "Pagamento aprovado! Sua assinatura está ativa.",
+          paymentId: result.id,
+        });
+      } else if (result.status === "pending" || result.status === "in_process") {
+        await storage.updateSubscription(subscriptionId, {
+          mpSubscriptionId: result.id?.toString(),
+          mpStatus: result.status,
+          payerEmail,
+          paymentMethod: paymentMethodId,
+        });
+        
+        return res.json({
+          status: "pending",
+          message: "Pagamento em processamento. Aguarde a confirmação.",
+          paymentId: result.id,
+        });
+      } else {
+        // Payment rejected
+        const errorMessages: Record<string, string> = {
+          "cc_rejected_bad_filled_card_number": "Número do cartão inválido",
+          "cc_rejected_bad_filled_date": "Data de validade inválida",
+          "cc_rejected_bad_filled_other": "Dados do cartão incorretos",
+          "cc_rejected_bad_filled_security_code": "Código de segurança inválido",
+          "cc_rejected_blacklist": "Cartão não permitido",
+          "cc_rejected_call_for_authorize": "Ligue para sua operadora para autorizar",
+          "cc_rejected_card_disabled": "Cartão desativado",
+          "cc_rejected_duplicated_payment": "Pagamento duplicado",
+          "cc_rejected_high_risk": "Pagamento recusado por segurança",
+          "cc_rejected_insufficient_amount": "Saldo insuficiente",
+          "cc_rejected_invalid_installments": "Parcelas inválidas",
+          "cc_rejected_max_attempts": "Limite de tentativas excedido",
+          "cc_rejected_other_reason": "Pagamento não aprovado",
+        };
+        
+        const message = errorMessages[result.status_detail] || result.message || "Pagamento não aprovado";
+        
+        return res.json({
+          status: result.status || "rejected",
+          message,
+          statusDetail: result.status_detail,
+        });
+      }
+    } catch (error: any) {
+      console.error("[MP Payment] Error:", error);
+      res.status(500).json({ 
+        status: "error",
+        message: error.message || "Erro ao processar pagamento" 
+      });
+    }
+  });
+
+  // ==========================================
+  // CRIAR ASSINATURA RECORRENTE VIA MERCADO PAGO (preapproval API)
+  // Suporta tanto checkout transparente quanto link de pagamento
+  // ==========================================
+  app.post("/api/subscriptions/create-mp-subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { subscriptionId, token, payerEmail, paymentMethodId, issuerId, cardholderName, identificationNumber } = req.body;
+      
+      if (!subscriptionId || !payerEmail) {
+        return res.status(400).json({ 
+          status: "error",
+          message: "Dados de pagamento incompletos" 
+        });
+      }
+      
+      // Get subscription
+      const subscription = await storage.getSubscription(subscriptionId) as any;
+      if (!subscription || subscription.userId !== userId) {
+        return res.status(404).json({ 
+          status: "error",
+          message: "Assinatura não encontrada" 
+        });
+      }
+      
+      // Get plan
+      const plan = await storage.getPlan(subscription.planId) as any;
+      if (!plan) {
+        return res.status(404).json({ 
+          status: "error",
+          message: "Plano não encontrado" 
+        });
+      }
+      
+      // Calculate amounts
+      const valorPrimeiraCobranca = plan.valorPrimeiraCobranca ? parseFloat(plan.valorPrimeiraCobranca) : 0;
+      const valorMensal = subscription.couponPrice ? parseFloat(subscription.couponPrice) : parseFloat(plan.valor);
+      const frequenciaDias = plan.frequenciaDias || 30;
+      const hasSetupFee = valorPrimeiraCobranca > 0 && valorPrimeiraCobranca !== valorMensal;
+      
+      // Get MP credentials
+      const configMap = await storage.getSystemConfigs([
+        "mercadopago_access_token",
+        "mercadopago_test_mode"
+      ]);
+      const accessToken = configMap.get("mercadopago_access_token");
+      const isTestMode = configMap.get("mercadopago_test_mode") === "true";
+      
+      if (!accessToken) {
+        return res.status(500).json({ 
+          status: "error",
+          message: "Mercado Pago não configurado" 
+        });
+      }
+      
+      // Calculate frequency_type based on frequenciaDias
+      let frequency = 1;
+      let frequency_type = "months";
+      if (frequenciaDias === 365 || frequenciaDias === 360) {
+        frequency_type = "years";
+        frequency = 1;
+      } else if (frequenciaDias === 7) {
+        frequency_type = "days";
+        frequency = 7;
+      } else if (frequenciaDias > 0) {
+        frequency_type = "months";
+        frequency = Math.round(frequenciaDias / 30);
+      }
+      
+      // Get base URL for callbacks
+      const baseUrl = process.env.BASE_URL || 
+                     (isTestMode ? "http://localhost:5000" : "https://agentezap.com");
+      
+      console.log("[MP Subscription] Creating recurring subscription:", {
+        subscriptionId,
+        planName: plan.nome,
+        valorMensal,
+        valorPrimeiraCobranca,
+        hasSetupFee,
+        frequency,
+        frequency_type,
+        hasToken: !!token,
+      });
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // ASSINATURA RECORRENTE REAL VIA API /preapproval
+      // O Mercado Pago gerencia as cobranças automáticas mensais
+      // ═══════════════════════════════════════════════════════════════════
+      
+      // Calculate start and end dates
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setFullYear(endDate.getFullYear() + 5); // 5 years subscription max
+      
+      // If there's a setup fee, we need to process it first as a single payment
+      // then start the recurring subscription
+      if (hasSetupFee && valorPrimeiraCobranca > 0 && token) {
+        console.log("[MP Subscription] Processing setup fee payment:", valorPrimeiraCobranca);
+        
+        const setupPaymentData: any = {
+          transaction_amount: valorPrimeiraCobranca,
+          token: token,
+          description: `Taxa de implementação - ${plan.nome} - AgenteZap`,
+          installments: 1,
+          payment_method_id: paymentMethodId || 'visa',
+          payer: {
+            email: payerEmail,
+            identification: {
+              type: "CPF",
+              number: identificationNumber,
+            },
+          },
+          external_reference: `setup_${subscriptionId}`,
+          statement_descriptor: "AGENTEZAP",
+        };
+        
+        if (issuerId) {
+          setupPaymentData.issuer_id = parseInt(issuerId);
+        }
+        
+        const setupResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+            "X-Idempotency-Key": `setup_${subscriptionId}_${Date.now()}`,
+          },
+          body: JSON.stringify(setupPaymentData),
+        });
+        
+        const setupResult = await setupResponse.json();
+        
+        console.log("[MP Subscription] Setup fee result:", {
+          status: setupResult.status,
+          statusDetail: setupResult.status_detail,
+          id: setupResult.id,
+        });
+        
+        if (setupResult.status !== "approved") {
+          const errorMessages: Record<string, string> = {
+            "cc_rejected_bad_filled_card_number": "Número do cartão inválido",
+            "cc_rejected_bad_filled_date": "Data de validade inválida",
+            "cc_rejected_bad_filled_other": "Dados do cartão incorretos",
+            "cc_rejected_bad_filled_security_code": "Código de segurança inválido",
+            "cc_rejected_blacklist": "Este cartão não pode ser utilizado",
+            "cc_rejected_call_for_authorize": "Autorize o pagamento com sua operadora",
+            "cc_rejected_card_disabled": "Cartão desativado",
+            "cc_rejected_duplicated_payment": "Pagamento duplicado",
+            "cc_rejected_high_risk": "Pagamento recusado por segurança",
+            "cc_rejected_insufficient_amount": "Saldo insuficiente",
+            "cc_rejected_invalid_installments": "Parcelas inválidas",
+            "cc_rejected_max_attempts": "Limite de tentativas excedido",
+            "cc_rejected_other_reason": "Pagamento não aprovado",
+            "rejected": "Pagamento recusado",
+          };
+          
+          const message = errorMessages[setupResult.status_detail] || 
+                         errorMessages[setupResult.status] || 
+                         setupResult.message || 
+                         "Pagamento da taxa inicial não aprovado";
+          
+          return res.json({
+            status: setupResult.status || "rejected",
+            message,
+            statusDetail: setupResult.status_detail,
+          });
+        }
+        
+        // Setup fee paid, adjust start date for recurring
+        startDate.setDate(startDate.getDate() + frequenciaDias);
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // CRIAR ASSINATURA RECORRENTE NO MERCADO PAGO - CHECKOUT TRANSPARENTE
+      // Usa a API /preapproval com card_token_id para pagamento autorizado
+      // Documentação: https://www.mercadopago.com.br/developers/pt/docs/subscriptions/integration-configuration/subscription-no-associated-plan/authorized-payments
+      // ═══════════════════════════════════════════════════════════════════
+      
+      const subscriptionData: any = {
+        reason: `${plan.nome} - AgenteZap`,
+        external_reference: `sub_${subscriptionId}`,
+        payer_email: payerEmail,
+        auto_recurring: {
+          frequency: frequency,
+          frequency_type: frequency_type,
+          transaction_amount: valorMensal,
+          currency_id: "BRL",
+          start_date: startDate.toISOString(),
+          end_date: endDate.toISOString(),
+        },
+        back_url: `${baseUrl}/dashboard`,
+      };
+      
+      // Se temos card_token, usar checkout transparente (status: authorized)
+      // Sem card_token, criar assinatura pendente (init_point)
+      if (token) {
+        subscriptionData.card_token_id = token;
+        subscriptionData.status = "authorized"; // Checkout transparente - pagamento direto
+        console.log("[MP Subscription] Using transparent checkout with card_token");
+      } else {
+        subscriptionData.status = "pending"; // Usuário completa via init_point
+        console.log("[MP Subscription] No token - will use init_point");
+      }
+      
+      console.log("[MP Subscription] Creating preapproval:", JSON.stringify(subscriptionData, null, 2));
+      
+      const mpResponse = await fetch("https://api.mercadopago.com/preapproval", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "X-Idempotency-Key": `preapproval_${subscriptionId}_${Date.now()}`,
+        },
+        body: JSON.stringify(subscriptionData),
+      });
+      
+      const mpResult = await mpResponse.json();
+      
+      console.log("[MP Subscription] Preapproval result:", JSON.stringify(mpResult, null, 2));
+      
+      // Handle preapproval response
+      if (mpResult.id) {
+        // Subscription created successfully - status will be "pending" until user pays via init_point
+        
+        // Calculate dates
+        const dataFim = new Date();
+        if (frequency_type === "months") {
+          dataFim.setMonth(dataFim.getMonth() + frequency);
+        } else if (frequency_type === "years") {
+          dataFim.setFullYear(dataFim.getFullYear() + frequency);
+        } else {
+          dataFim.setDate(dataFim.getDate() + frequenciaDias);
+        }
+        
+        const nextPaymentDate = new Date(mpResult.next_payment_date || startDate);
+        const isAuthorized = mpResult.status === "authorized";
+        
+        // Update local subscription
+        await storage.updateSubscription(subscriptionId, {
+          status: isAuthorized ? "active" : "pending",
+          dataInicio: new Date(),
+          dataFim,
+          mpSubscriptionId: mpResult.id,
+          mpStatus: mpResult.status,
+          payerEmail,
+          paymentMethod: paymentMethodId,
+          nextPaymentDate,
+        });
+        
+        console.log("[MP Subscription] Subscription created:", {
+          id: mpResult.id,
+          status: mpResult.status,
+          isAuthorized,
+          initPoint: mpResult.init_point,
+        });
+        
+        // Checkout transparente - assinatura autorizada diretamente
+        if (isAuthorized) {
+          return res.json({
+            status: "approved",
+            message: "🎉 Assinatura recorrente ativada com sucesso! Cobranças automáticas configuradas.",
+            subscriptionId: mpResult.id,
+            mpStatus: mpResult.status,
+          });
+        }
+        
+        // Fallback: redirect to init_point if needed
+        return res.json({
+          status: "pending",
+          message: "Assinatura criada. Complete o pagamento para ativar.",
+          subscriptionId: mpResult.id,
+          initPoint: mpResult.init_point,
+          mpStatus: mpResult.status,
+        });
+      } else {
+        // Error creating subscription
+        const errorMsg = mpResult.message || "";
+        
+        // Se falhou com "Card token service not found" e tínhamos token,
+        // tentar novamente SEM o token (fallback para init_point)
+        // Isso acontece em localhost porque o card_token requer HTTPS
+        if (token && errorMsg.toLowerCase().includes("card token service not found")) {
+          console.log("[MP Subscription] Fallback: retrying without card_token (init_point mode)");
+          
+          // Remover token e mudar status para pending
+          delete subscriptionData.card_token_id;
+          subscriptionData.status = "pending";
+          
+          const fallbackResponse = await fetch("https://api.mercadopago.com/preapproval", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${accessToken}`,
+              "X-Idempotency-Key": `preapproval_${subscriptionId}_fallback_${Date.now()}`,
+            },
+            body: JSON.stringify(subscriptionData),
+          });
+          
+          const fallbackResult = await fallbackResponse.json();
+          console.log("[MP Subscription] Fallback result:", JSON.stringify(fallbackResult, null, 2));
+          
+          if (fallbackResult.id && fallbackResult.init_point) {
+            // Fallback succeeded - update subscription and redirect to init_point
+            const dataFim = new Date();
+            dataFim.setMonth(dataFim.getMonth() + frequency);
+            
+            await storage.updateSubscription(subscriptionId, {
+              status: "pending",
+              dataInicio: new Date(),
+              dataFim,
+              mpSubscriptionId: fallbackResult.id,
+              mpStatus: fallbackResult.status,
+              payerEmail,
+              paymentMethod: paymentMethodId,
+            });
+            
+            return res.json({
+              status: "pending",
+              message: "⚠️ Em localhost use o link para completar. Em produção será automático.",
+              subscriptionId: fallbackResult.id,
+              initPoint: fallbackResult.init_point,
+              mpStatus: fallbackResult.status,
+              isLocalhost: true,
+            });
+          }
+        }
+        
+        // Translate error messages
+        const errorMessages: Record<string, string> = {
+          "invalid_card_token": "Token do cartão inválido ou expirado. Tente novamente.",
+          "invalid_payer_email": "E-mail do pagador inválido.",
+          "invalid_transaction_amount": "Valor da transação inválido.",
+          "invalid_users": "Credenciais de teste requerem contas de teste do Mercado Pago.",
+          "2034": "Em modo teste, use contas de teste do Mercado Pago.",
+          "Invalid users involved": "Use contas de teste do Mercado Pago no modo sandbox.",
+          "Card token service not found": "⚠️ Checkout transparente requer HTTPS. Em produção funcionará normalmente.",
+          "card_token_creation_failed": "Erro ao processar cartão. Tente novamente.",
+        };
+        
+        const errorCode = mpResult.cause?.[0]?.code || mpResult.error || mpResult.message;
+        // Check if message contains known error patterns
+        let errorMessage = errorMessages[errorCode];
+        if (!errorMessage && mpResult.message) {
+          for (const [key, msg] of Object.entries(errorMessages)) {
+            if (mpResult.message.toLowerCase().includes(key.toLowerCase())) {
+              errorMessage = msg;
+              break;
+            }
+          }
+        }
+        errorMessage = errorMessage || mpResult.message || "Erro ao criar assinatura recorrente";
+        
+        console.log("[MP Subscription] Error:", errorCode, mpResult);
+        
+        return res.json({
+          status: "error",
+          message: errorMessage,
+          errorCode,
+        });
+      }
+    } catch (error: any) {
+      console.error("[MP Subscription] Error:", error);
+      res.status(500).json({ 
+        status: "error",
+        message: error.message || "Erro ao criar assinatura" 
+      });
+    }
+  });
+
+  // Webhook do Mercado Pago (public - não requer auth)
+  app.post("/api/webhooks/mercadopago", async (req, res) => {
+    try {
+      const { type, data, action } = req.body;
+      console.log("[MP Webhook] Received:", { type, action, data });
+      
+      const { mercadoPagoService } = await import("./mercadoPagoService");
+      
+      // Process based on type
+      if (type === "subscription_preapproval") {
+        await mercadoPagoService.processWebhook("subscription_preapproval", data);
+      } else if (type === "subscription_authorized_payment") {
+        await mercadoPagoService.processWebhook("subscription_authorized_payment", data);
+      } else if (type === "payment") {
+        // Handle payment notifications
+        console.log("[MP Webhook] Payment notification:", data);
+      }
+      
+      res.status(200).send("OK");
+    } catch (error) {
+      console.error("Error processing MP webhook:", error);
+      res.status(500).send("Error");
+    }
+  });
+
+  // ==================== END MERCADO PAGO ROUTES ====================
+
   // Test Mistral API key
   app.post("/api/admin/test-mistral", isAdmin, async (_req, res) => {
     try {
@@ -3272,6 +4313,18 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       const adminId = (req.session as any)?.adminId;
       const connection = await storage.getAdminWhatsappConnection(adminId);
       
+      // 🛡️ MODO DESENVOLVIMENTO: Não sincronizar estado para não afetar produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Retornando estado do banco sem sincronizar (proteção de produção)`);
+        return res.json({
+          ...(connection || {}),
+          isConnected: connection?.isConnected || false,
+          phoneNumber: connection?.phoneNumber,
+          _devMode: true,
+          _message: 'Modo desenvolvimento - estado do banco preservado',
+        });
+      }
+      
       // Verificar estado REAL da sessão na memória
       const { getAdminSession } = await import("./whatsapp");
       const activeSession = getAdminSession(adminId);
@@ -3305,6 +4358,16 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   // Connect admin WhatsApp
   app.post("/api/admin/whatsapp/connect", isAdmin, async (req, res) => {
     try {
+      // 🛡️ MODO DESENVOLVIMENTO: Bloquear conexões para proteger produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Bloqueando conexão admin WhatsApp (proteção de produção)`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          devMode: true 
+        });
+      }
+      
       const adminId = (req.session as any)?.adminId;
       const { connectAdminWhatsApp } = await import("./whatsapp");
       await connectAdminWhatsApp(adminId);
@@ -3318,6 +4381,16 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   // Disconnect admin WhatsApp
   app.post("/api/admin/whatsapp/disconnect", isAdmin, async (req, res) => {
     try {
+      // 🛡️ MODO DESENVOLVIMENTO: Bloquear desconexões para proteger produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Bloqueando desconexão admin WhatsApp (proteção de produção)`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          devMode: true 
+        });
+      }
+      
       const adminId = (req.session as any)?.adminId;
       const { disconnectAdminWhatsApp } = await import("./whatsapp");
       await disconnectAdminWhatsApp(adminId);
@@ -5053,6 +6126,16 @@ Foco: fazer o cliente TESTAR a ferramenta.`
   // POST - Gerar código de pareamento para um cliente
   app.post("/api/admin/pairing-code/request", isAdmin, async (req: any, res) => {
     try {
+      // 🛡️ MODO DESENVOLVIMENTO: Bloquear pairing code para proteger produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Bloqueando geração de pairing code (proteção de produção)`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          devMode: true 
+        });
+      }
+      
       const { userId, phoneNumber } = req.body;
 
       if (!userId || !phoneNumber) {
@@ -5816,6 +6899,16 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   // POST - Cliente solicita pairing code (página /conexao)
   app.post("/api/whatsapp/pairing-code", isAuthenticated, async (req: any, res) => {
     try {
+      // 🛡️ MODO DESENVOLVIMENTO: Bloquear pairing code para proteger produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Bloqueando geração de pairing code (proteção de produção)`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          devMode: true 
+        });
+      }
+      
       const userId = getUserId(req);
       const { phoneNumber } = req.body;
 

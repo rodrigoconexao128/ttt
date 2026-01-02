@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { Check, Loader2, Shield, Zap, Crown, ChevronDown, ChevronUp, Tag } from "lucide-react";
+import { Check, Loader2, Shield, Zap, Crown, ChevronDown, ChevronUp, Tag, Key } from "lucide-react";
 import type { Plan, Subscription } from "@shared/schema";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,12 @@ interface CouponValidation {
   applicablePlans?: string[] | null;
 }
 
+interface CustomPlanValidation {
+  valid: boolean;
+  plan?: Plan & { valorPrimeiraCobranca?: string };
+  message?: string;
+}
+
 export default function PlansPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -27,6 +33,11 @@ export default function PlansPage() {
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<CouponValidation | null>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  
+  // Estado para plano personalizado
+  const [customPlanCode, setCustomPlanCode] = useState("");
+  const [customPlan, setCustomPlan] = useState<CustomPlanValidation | null>(null);
+  const [isValidatingCustomPlan, setIsValidatingCustomPlan] = useState(false);
 
   const { data: plans, isLoading: plansLoading } = useQuery<Plan[]>({
     queryKey: ["/api/plans"],
@@ -69,6 +80,49 @@ export default function PlansPage() {
   const removeCoupon = () => {
     setAppliedCoupon(null);
     setCouponCode("");
+  };
+
+  // Validação de código de plano personalizado
+  const validateCustomPlanCode = async () => {
+    if (!customPlanCode.trim()) {
+      toast({ title: "Digite o código do seu plano personalizado", variant: "destructive" });
+      return;
+    }
+    
+    setIsValidatingCustomPlan(true);
+    try {
+      const response = await apiRequest("POST", "/api/plans/validate-code", { code: customPlanCode.trim() });
+      const data = await response.json();
+      
+      if (data.valid) {
+        setCustomPlan(data);
+        toast({ 
+          title: "Plano personalizado encontrado!", 
+          description: `${data.plan.nome} - R$ ${Number(data.plan.valor).toFixed(2).replace('.', ',')}/mês` 
+        });
+      } else {
+        toast({ title: data.message || "Código não encontrado", variant: "destructive" });
+        setCustomPlan(null);
+      }
+    } catch (error: any) {
+      const errorData = await error?.response?.json?.() || {};
+      toast({ title: errorData.message || "Código inválido", variant: "destructive" });
+      setCustomPlan(null);
+    } finally {
+      setIsValidatingCustomPlan(false);
+    }
+  };
+
+  const removeCustomPlan = () => {
+    setCustomPlan(null);
+    setCustomPlanCode("");
+  };
+
+  const handleSelectCustomPlan = () => {
+    if (customPlan?.plan) {
+      setSelectedPlan("personalizado");
+      createSubscriptionMutation.mutate({ planId: customPlan.plan.id });
+    }
   };
 
   const createSubscriptionMutation = useMutation<Subscription, Error, { planId: string; couponCode?: string }>({
@@ -126,7 +180,8 @@ export default function PlansPage() {
 
   const handleSelectPlan = (tipo: string) => {
     const backendPlan = plans?.find(p => {
-      if (tipo === "mensal") return p.tipo === "padrao" || (!p.tipo && p.periodicidade === "mensal");
+      // Para o plano mensal, buscar especificamente "Plano Mensal" por nome para evitar conflito com outros planos do tipo "padrao"
+      if (tipo === "mensal") return p.nome === "Plano Mensal" || (p.tipo === "padrao" && p.valor === "99.99");
       if (tipo === "implementacao") return p.tipo === "implementacao";
       if (tipo === "implementacao_mensal") return p.tipo === "implementacao_mensal";
       return false;
@@ -288,6 +343,90 @@ export default function PlansPage() {
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       "Aplicar"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </details>
+          )}
+        </div>
+
+        {/* Seção de Plano Personalizado */}
+        <div className="max-w-sm mx-auto mb-8">
+          {customPlan?.valid && customPlan.plan ? (
+            /* Plano Personalizado Encontrado */
+            <div className="relative bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/40 dark:to-indigo-950/40 rounded-2xl p-4 border border-purple-200/60 dark:border-purple-700/40 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
+                    <Crown className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">Plano Exclusivo</p>
+                    <p className="font-bold text-gray-900 dark:text-white text-lg">{customPlan.plan.nome}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={removeCustomPlan}
+                  className="text-xs text-gray-400 hover:text-red-500 transition-colors p-2"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-3 pt-3 border-t border-purple-200/50 dark:border-purple-700/30">
+                {customPlan.plan.valorPrimeiraCobranca && (
+                  <div className="flex items-baseline justify-between mb-2">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">1ª cobrança (implementação):</span>
+                    <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                      R$ {Number(customPlan.plan.valorPrimeiraCobranca).toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Mensalidade:</span>
+                  <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                    R$ {Number(customPlan.plan.valor).toFixed(2).replace('.', ',')}/mês
+                  </span>
+                </div>
+              </div>
+              <Button 
+                onClick={handleSelectCustomPlan}
+                disabled={createSubscriptionMutation.isPending}
+                className="w-full mt-4 h-12 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-medium shadow-sm"
+              >
+                {createSubscriptionMutation.isPending && selectedPlan === "personalizado" ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Assinar Plano Exclusivo
+              </Button>
+            </div>
+          ) : (
+            /* Campo de Código Personalizado - Colapsável */
+            <details className="group">
+              <summary className="cursor-pointer flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors py-2 select-none">
+                <Key className="w-4 h-4" />
+                <span>Tem um código de plano exclusivo?</span>
+                <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
+              </summary>
+              <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Digite o código do plano"
+                    value={customPlanCode}
+                    onChange={(e) => setCustomPlanCode(e.target.value.toUpperCase())}
+                    className="h-11 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 focus:border-purple-500 focus:ring-purple-500/20 uppercase font-medium text-center tracking-widest transition-all"
+                    onKeyDown={(e) => e.key === 'Enter' && validateCustomPlanCode()}
+                  />
+                  <Button 
+                    onClick={validateCustomPlanCode}
+                    disabled={isValidatingCustomPlan || !customPlanCode.trim()}
+                    className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+                  >
+                    {isValidatingCustomPlan ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Buscar"
                     )}
                   </Button>
                 </div>

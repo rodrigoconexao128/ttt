@@ -112,6 +112,7 @@ export interface IStorage {
   incrementCouponUsage(id: string): Promise<void>;
 
   // Subscription operations
+  getSubscription(id: string): Promise<(Subscription & { plan: Plan }) | undefined>;
   getUserSubscription(userId: string): Promise<(Subscription & { plan: Plan }) | undefined>;
   getAllSubscriptions(): Promise<(Subscription & { plan: Plan; user: User })[]>;
   createSubscription(subscription: InsertSubscription): Promise<Subscription>;
@@ -817,6 +818,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Subscription operations
+  async getSubscription(id: string): Promise<(Subscription & { plan: Plan }) | undefined> {
+    const result = await db
+      .select()
+      .from(subscriptions)
+      .innerJoin(plans, eq(subscriptions.planId, plans.id))
+      .where(eq(subscriptions.id, id))
+      .limit(1);
+
+    if (result.length === 0) return undefined;
+    
+    return {
+      ...result[0].subscriptions,
+      plan: result[0].plans,
+    };
+  }
+
   async getUserSubscription(userId: string): Promise<(Subscription & { plan: Plan }) | undefined> {
     // Primeiro, tenta encontrar uma subscription ativa
     const activeResult = await db

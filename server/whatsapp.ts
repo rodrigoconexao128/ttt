@@ -84,6 +84,19 @@ const reconnectAttempts = new Map<string, ReconnectAttempt>();
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconexão
 
+// 🚫 MODO DESENVOLVIMENTO: Desabilita processamento de mensagens em localhost
+// Útil quando Railway está rodando em produção e você quer desenvolver sem conflitos
+// Defina DISABLE_WHATSAPP_PROCESSING=true no .env para ativar
+const DISABLE_MESSAGE_PROCESSING = process.env.DISABLE_WHATSAPP_PROCESSING === 'true';
+
+if (DISABLE_MESSAGE_PROCESSING) {
+  console.log(`\n🚫 [DEV MODE] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  console.log(`🚫 [DEV MODE] PROCESSAMENTO DE MENSAGENS WHATSAPP DESABILITADO`);
+  console.log(`🚫 [DEV MODE] Isso evita conflitos com servidor de produção (Railway)`);
+  console.log(`🚫 [DEV MODE] Para reativar, remova DISABLE_WHATSAPP_PROCESSING do .env`);
+  console.log(`🚫 [DEV MODE] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+}
+
 // 🎯 SISTEMA DE ACUMULAÇÃO DE MENSAGENS
 // Rastreia timeouts pendentes e mensagens acumuladas por conversa
 interface PendingResponse {
@@ -1513,6 +1526,12 @@ export async function connectWhatsApp(userId: string): Promise<void> {
 // na conversa quando a IA voltar a responder.
 // ═══════════════════════════════════════════════════════════════════════
 async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMessage) {
+  // 🚫 MODO DEV: Pular processamento se DISABLE_WHATSAPP_PROCESSING=true
+  if (DISABLE_MESSAGE_PROCESSING) {
+    console.log(`🚫 [DEV MODE] Ignorando mensagem enviada (processamento desabilitado)`);
+    return;
+  }
+
   const remoteJid = waMessage.key.remoteJid;
   if (!remoteJid) return;
 
@@ -1761,6 +1780,12 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
 }
 
 async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMessage) {
+  // 🚫 MODO DEV: Pular processamento se DISABLE_WHATSAPP_PROCESSING=true
+  if (DISABLE_MESSAGE_PROCESSING) {
+    console.log(`🚫 [DEV MODE] Ignorando mensagem recebida (processamento desabilitado)`);
+    return;
+  }
+
   const remoteJid = waMessage.key.remoteJid;
   if (!remoteJid) return;
 

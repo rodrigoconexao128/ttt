@@ -379,7 +379,7 @@ export const plans = pgTable("plans", {
   valor: decimal("valor", { precision: 10, scale: 2 }).notNull(),
   valorOriginal: decimal("valor_original", { precision: 10, scale: 2 }), // Valor antes do desconto (se houver)
   periodicidade: varchar("periodicidade", { length: 20 }).default("mensal").notNull(), // mensal, anual
-  tipo: varchar("tipo", { length: 50 }).default("padrao").notNull(), // padrao, anual, implementacao
+  tipo: varchar("tipo", { length: 50 }).default("padrao").notNull(), // padrao, anual, implementacao, personalizado
   descontoPercent: integer("desconto_percent").default(0), // Percentual de desconto
   badge: varchar("badge", { length: 50 }), // Ex: "Mais Popular", "5% OFF", etc
   destaque: boolean("destaque").default(false).notNull(), // Plano em destaque
@@ -388,6 +388,13 @@ export const plans = pgTable("plans", {
   limiteAgentes: integer("limite_agentes").default(1).notNull(),
   caracteristicas: jsonb("caracteristicas").$type<string[]>(), // Lista de features do plano
   ativo: boolean("ativo").default(true).notNull(),
+  // Mercado Pago fields
+  mpPlanId: varchar("mp_plan_id", { length: 255 }), // ID do plano no Mercado Pago
+  valorPrimeiraCobranca: decimal("valor_primeira_cobranca", { precision: 10, scale: 2 }), // Valor diferente na primeira cobrança
+  codigoPersonalizado: varchar("codigo_personalizado", { length: 50 }).unique(), // Código para planos personalizados
+  isPersonalizado: boolean("is_personalizado").default(false), // Se é um plano personalizado
+  frequenciaDias: integer("frequencia_dias").default(30), // Frequência de cobrança em dias
+  trialDias: integer("trial_dias").default(0), // Dias de trial gratuito
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -397,12 +404,20 @@ export const subscriptions = pgTable("subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   planId: varchar("plan_id").notNull().references(() => plans.id, { onDelete: 'cascade' }),
-  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, active, expired, cancelled
+  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, active, expired, cancelled, paused
   dataInicio: timestamp("data_inicio"),
   dataFim: timestamp("data_fim"),
   canaisUsados: integer("canais_usados").default(0).notNull(),
   couponCode: text("coupon_code"), // Cupom de desconto aplicado
   couponPrice: decimal("coupon_price", { precision: 10, scale: 2 }), // Preço com cupom aplicado
+  // Mercado Pago fields
+  mpSubscriptionId: varchar("mp_subscription_id", { length: 255 }), // ID da assinatura no Mercado Pago
+  mpStatus: varchar("mp_status", { length: 50 }), // Status no Mercado Pago
+  mpInitPoint: text("mp_init_point"), // Link de pagamento
+  externalReference: varchar("external_reference", { length: 255 }).unique(), // Referência externa
+  nextPaymentDate: timestamp("next_payment_date"), // Data da próxima cobrança
+  payerEmail: varchar("payer_email", { length: 255 }), // Email do pagador
+  paymentMethod: varchar("payment_method", { length: 50 }).default("mercadopago"), // Método de pagamento
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
