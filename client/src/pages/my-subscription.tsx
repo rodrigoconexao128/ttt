@@ -16,13 +16,19 @@ import {
   RefreshCw,
   Receipt,
   TrendingUp,
-  Ban
+  Ban,
+  ArrowRight,
+  Percent,
+  CalendarClock,
+  AlertTriangle
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
+import { format, isPast, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { apiRequest } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 
 // Formatação de moeda BR
 function formatCurrency(value: string | number | null | undefined): string {
@@ -90,14 +96,33 @@ interface PixData {
 export default function MySubscription() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [showPixDialog, setShowPixDialog] = useState(false);
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [timeLeft, setTimeLeft] = useState("");
+  
+  // Novos estados para funcionalidades adicionais
+  const [showChangePlanDialog, setShowChangePlanDialog] = useState(false);
+  const [showPaymentMethodDialog, setShowPaymentMethodDialog] = useState(false);
+  const [showAnnualDialog, setShowAnnualDialog] = useState(false);
+  const [showAdvancePaymentDialog, setShowAdvancePaymentDialog] = useState(false);
 
   const { data, isLoading, refetch } = useQuery<SubscriptionData>({
     queryKey: ["/api/my-subscription"],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
+
+  // Buscar desconto anual do sistema
+  const { data: annualConfig } = useQuery({
+    queryKey: ["annual-discount-config"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/system-config/annual-discount");
+      return res.json();
+    },
+  });
+
+  const annualDiscountPercent = annualConfig?.percent || 5;
+  const annualDiscountEnabled = annualConfig?.enabled !== false;
 
   const generatePixMutation = useMutation({
     mutationFn: async (subscriptionId: number) => {
@@ -322,6 +347,75 @@ export default function MySubscription() {
 
       {/* Main Content */}
       <div className="grid gap-6 md:grid-cols-2">
+        {/* Próxima Fatura - Novo Card Destacado */}
+        <Card className="md:col-span-2 border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Receipt className="w-5 h-5 text-primary" />
+              Próxima Fatura
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const nextPayment = subscription.nextPaymentDate ? new Date(subscription.nextPaymentDate) : null;
+              const isOverdue = nextPayment && isPast(nextPayment);
+              const monthlyValue = subscription.couponPrice 
+                ? parseFloat(subscription.couponPrice) 
+                : parseFloat(plan?.valor || "0");
+              
+              return (
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-full ${isOverdue ? 'bg-red-100' : 'bg-primary/10'}`}>
+                      <CalendarDays className={`w-6 h-6 ${isOverdue ? 'text-red-600' : 'text-primary'}`} />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Vencimento</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xl font-bold">
+                          {nextPayment 
+                            ? format(nextPayment, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                            : "Não definido"}
+                        </p>
+                        {isOverdue && (
+                          <Badge variant="destructive" className="flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            VENCIDA
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Valor</p>
+                      <p className="text-2xl font-bold text-primary">
+                        {formatCurrency(monthlyValue)}
+                      </p>
+                    </div>
+                    
+                    <Button 
+                      onClick={() => generatePixMutation.mutate(subscription.id)}
+                      disabled={generatePixMutation.isPending}
+                      className={isOverdue ? "bg-red-600 hover:bg-red-700" : ""}
+                    >
+                      {generatePixMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <QrCode className="w-4 h-4 mr-2" />
+                          {isOverdue ? "Pagar Agora" : "Pagar Antecipado"}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
         {/* Subscription Details */}
         <Card>
           <CardHeader>
@@ -387,7 +481,7 @@ export default function MySubscription() {
               </span>
             </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col gap-2">
             {(subscription.status === "pending_pix" || subscription.needsPayment) && (
               <Button 
                 className="w-full" 
@@ -407,6 +501,44 @@ export default function MySubscription() {
                 )}
               </Button>
             )}
+            
+            {/* Botões de Ação */}
+            <div className="w-full grid grid-cols-1 gap-2 mt-2 pt-2 border-t">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setLocation("/plans")}
+                className="w-full"
+              >
+                <ArrowRight className="w-4 h-4 mr-2" />
+                Alterar Plano
+              </Button>
+              
+              {annualDiscountEnabled && subscription.status === "active" && plan?.tipo !== "anual" && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowAnnualDialog(true)}
+                  className="w-full border-green-200 text-green-700 hover:bg-green-50"
+                >
+                  <Percent className="w-4 h-4 mr-2" />
+                  Pagar Anual ({annualDiscountPercent}% desconto)
+                </Button>
+              )}
+              
+              {subscription.status === "active" && subscription.daysRemaining <= 30 && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => generatePixMutation.mutate(subscription.id)}
+                  className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                  disabled={generatePixMutation.isPending}
+                >
+                  <CalendarClock className="w-4 h-4 mr-2" />
+                  Antecipar Pagamento
+                </Button>
+              )}
+            </div>
           </CardFooter>
         </Card>
 
@@ -567,6 +699,92 @@ export default function MySubscription() {
               <p className="text-xs text-center text-muted-foreground">
                 O pagamento será confirmado automaticamente em alguns segundos após a conclusão.
               </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Plano Anual */}
+      <Dialog open={showAnnualDialog} onOpenChange={setShowAnnualDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Percent className="w-5 h-5 text-green-600" />
+              Pagar Plano Anual
+            </DialogTitle>
+            <DialogDescription>
+              Economize {annualDiscountPercent}% pagando 12 meses de uma vez!
+            </DialogDescription>
+          </DialogHeader>
+          
+          {plan && (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-muted-foreground">Plano Atual</span>
+                  <span className="font-medium">{plan.nome}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-muted-foreground">Valor Mensal</span>
+                  <span className="font-medium">
+                    {subscription?.couponPrice 
+                      ? formatCurrency(parseFloat(subscription.couponPrice))
+                      : formatCurrency(parseFloat(plan.valor))}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-muted-foreground">12 meses (sem desconto)</span>
+                  <span className="font-medium line-through text-gray-400">
+                    {formatCurrency(
+                      (subscription?.couponPrice 
+                        ? parseFloat(subscription.couponPrice) 
+                        : parseFloat(plan.valor)) * 12
+                    )}
+                  </span>
+                </div>
+                <div className="border-t border-green-200 pt-2 mt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-green-700">Total com {annualDiscountPercent}% OFF</span>
+                    <span className="text-xl font-bold text-green-600">
+                      {formatCurrency(
+                        (subscription?.couponPrice 
+                          ? parseFloat(subscription.couponPrice) 
+                          : parseFloat(plan.valor)) * 12 * (1 - annualDiscountPercent / 100)
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-xs text-green-600 mt-1">
+                    Você economiza {formatCurrency(
+                      (subscription?.couponPrice 
+                        ? parseFloat(subscription.couponPrice) 
+                        : parseFloat(plan.valor)) * 12 * (annualDiscountPercent / 100)
+                    )}!
+                  </p>
+                </div>
+              </div>
+              
+              <DialogFooter className="flex-col gap-2 sm:flex-col">
+                <Button 
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  onClick={() => {
+                    toast({
+                      title: "Em breve!",
+                      description: "O pagamento anual estará disponível em breve.",
+                    });
+                    setShowAnnualDialog(false);
+                  }}
+                >
+                  <QrCode className="w-4 h-4 mr-2" />
+                  Pagar Anual com PIX
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => setShowAnnualDialog(false)}
+                >
+                  Cancelar
+                </Button>
+              </DialogFooter>
             </div>
           )}
         </DialogContent>

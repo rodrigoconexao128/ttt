@@ -4871,6 +4871,48 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
   // ==================== END PAYMENT HISTORY ROUTES ====================
 
+  // ==================== ANNUAL DISCOUNT CONFIG ====================
+  
+  // GET - Obter configuração de desconto anual (público para assinantes)
+  app.get("/api/system-config/annual-discount", isAuthenticated, async (req: any, res) => {
+    try {
+      const configs = await storage.getSystemConfigs([
+        "annual_discount_percent",
+        "annual_discount_enabled"
+      ]);
+      
+      const percent = configs.has("annual_discount_percent") 
+        ? parseFloat(configs.get("annual_discount_percent")!) 
+        : 5;
+      const enabled = configs.get("annual_discount_enabled") !== "false";
+      
+      res.json({ percent, enabled });
+    } catch (error) {
+      console.error("Error fetching annual discount config:", error);
+      res.json({ percent: 5, enabled: true }); // Default values
+    }
+  });
+
+  // POST - Atualizar configuração de desconto anual (admin only)
+  app.post("/api/admin/annual-discount", isAdmin, async (req: any, res) => {
+    try {
+      const { percent, enabled } = req.body;
+      
+      if (typeof percent === "number" && percent >= 0 && percent <= 100) {
+        await storage.updateSystemConfig("annual_discount_percent", percent.toString());
+      }
+      
+      if (typeof enabled === "boolean") {
+        await storage.updateSystemConfig("annual_discount_enabled", enabled.toString());
+      }
+      
+      res.json({ success: true, message: "Desconto anual atualizado" });
+    } catch (error) {
+      console.error("Error updating annual discount:", error);
+      res.status(500).json({ message: "Erro ao atualizar desconto anual" });
+    }
+  });
+
   // ==================== MY SUBSCRIPTION ROUTES (CLIENTE) ====================
   
   // Get current user's active subscription with full details

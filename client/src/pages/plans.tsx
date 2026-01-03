@@ -10,6 +10,7 @@ import { Check, Loader2, Shield, Zap, Crown, ChevronDown, ChevronUp, Tag, Key } 
 import type { Plan, Subscription } from "@shared/schema";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { SubscribeModal } from "@/components/subscribe-modal";
 
 interface CouponValidation {
   valid: boolean;
@@ -38,6 +39,10 @@ export default function PlansPage() {
   const [customPlanCode, setCustomPlanCode] = useState("");
   const [customPlan, setCustomPlan] = useState<CustomPlanValidation | null>(null);
   const [isValidatingCustomPlan, setIsValidatingCustomPlan] = useState(false);
+
+  // Estado para modal de subscribe
+  const [subscribeModalOpen, setSubscribeModalOpen] = useState(false);
+  const [pendingSubscriptionId, setPendingSubscriptionId] = useState<string | null>(null);
 
   const { data: plans, isLoading: plansLoading } = useQuery<Plan[]>({
     queryKey: ["/api/plans"],
@@ -134,7 +139,9 @@ export default function PlansPage() {
     onSuccess: (data: Subscription) => {
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions/current"] });
       toast({ title: "Assinatura criada! Agora realize o pagamento." });
-      setLocation(`/subscribe/${data.id}`);
+      // Abrir modal ao invés de redirecionar
+      setPendingSubscriptionId(data.id);
+      setSubscribeModalOpen(true);
     },
     onError: (error: any) => {
       toast({
@@ -863,6 +870,17 @@ export default function PlansPage() {
           </div>
         )}
       </div>
+
+      {/* Modal de Subscribe - Estilo Shopify */}
+      <SubscribeModal
+        open={subscribeModalOpen}
+        onOpenChange={setSubscribeModalOpen}
+        subscriptionId={pendingSubscriptionId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/subscriptions/current"] });
+          setLocation("/my-subscription");
+        }}
+      />
     </div>
   );
 }

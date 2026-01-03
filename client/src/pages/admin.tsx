@@ -2575,6 +2575,9 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
 
     {/* Mercado Pago Configuration */}
     <MercadoPagoConfig />
+    
+    {/* Annual Discount Configuration */}
+    <AnnualDiscountConfig />
     </>
   );
 }
@@ -2847,6 +2850,118 @@ function MercadoPagoConfig() {
             Mercado Pago configurado ({mpCredentials.isTestMode ? "teste" : "produção"})
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Annual Discount Configuration Component
+function AnnualDiscountConfig() {
+  const { toast } = useToast();
+  const [discountPercent, setDiscountPercent] = useState<number>(5);
+  const [isEnabled, setIsEnabled] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Fetch current config
+  const { data: config, isLoading, refetch } = useQuery<{ percent: number; enabled: boolean }>({
+    queryKey: ["/api/system-config/annual-discount"],
+  });
+
+  // Update state when config loads
+  useEffect(() => {
+    if (config) {
+      setDiscountPercent(config.percent || 5);
+      setIsEnabled(config.enabled !== false);
+    }
+  }, [config]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await apiRequest("POST", "/api/admin/annual-discount", {
+        percent: discountPercent,
+        enabled: isEnabled,
+      });
+      toast({ title: "✅ Desconto anual atualizado!" });
+      refetch();
+    } catch (error: any) {
+      toast({ title: "❌ Erro ao salvar", description: error.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card data-testid="card-annual-discount-config">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Tag className="h-5 w-5" />
+          Desconto Plano Anual
+        </CardTitle>
+        <CardDescription>
+          Configure o desconto oferecido para clientes que pagam o plano anual (12 meses)
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Enable/Disable toggle */}
+        <div className="flex items-center justify-between border rounded-lg p-3">
+          <div className="space-y-0.5">
+            <Label className="font-medium">Desconto Anual</Label>
+            <p className="text-sm text-muted-foreground">
+              {isEnabled ? "Desconto ativo para pagamentos anuais" : "Desconto desativado"}
+            </p>
+          </div>
+          <Switch
+            checked={isEnabled}
+            onCheckedChange={setIsEnabled}
+          />
+        </div>
+
+        {/* Discount percentage */}
+        <div className="space-y-2">
+          <Label htmlFor="discountPercent">Porcentagem de Desconto (%)</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="discountPercent"
+              type="number"
+              min="0"
+              max="50"
+              value={discountPercent}
+              onChange={(e) => setDiscountPercent(Math.min(50, Math.max(0, Number(e.target.value))))}
+              className="w-24"
+              disabled={!isEnabled}
+            />
+            <span className="text-lg font-bold text-green-600">%</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Ex: Com {discountPercent}% de desconto, um plano de R$ 99,99/mês custará{" "}
+            <span className="font-bold text-green-600">
+              R$ {(99.99 * 12 * (1 - discountPercent / 100)).toFixed(2).replace(".", ",")}
+            </span>{" "}
+            por ano (economia de R$ {(99.99 * 12 * (discountPercent / 100)).toFixed(2).replace(".", ",")})
+          </p>
+        </div>
+
+        {/* Save button */}
+        <Button 
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Salvar Configuração
+        </Button>
       </CardContent>
     </Card>
   );
