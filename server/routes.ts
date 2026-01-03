@@ -1396,6 +1396,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== ACCESS CONTROL ROUTES ====================
+  
+  // Check user access status (subscription + trial messages)
+  app.get("/api/access-status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const connection = await storage.getConnectionByUserId(userId);
+      const subscription = await storage.getUserSubscription(userId);
+      
+      const FREE_TRIAL_LIMIT = 25;
+      
+      // Count agent messages
+      let agentMessagesCount = 0;
+      if (connection) {
+        agentMessagesCount = await storage.getAgentMessagesCount(connection.id);
+      }
+      
+      // Check subscription status
+      const hasActiveSubscription = subscription?.status === 'active';
+      const isSubscriptionExpired = subscription?.dataFim 
+        ? new Date(subscription.dataFim) < new Date() 
+        : false;
+      
+      // Calculate days remaining
+      const daysRemaining = subscription?.dataFim 
+        ? Math.ceil((new Date(subscription.dataFim).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        : 0;
+      
+      // Trial messages
+      const trialMessagesUsed = agentMessagesCount;
+      const trialMessagesRemaining = Math.max(0, FREE_TRIAL_LIMIT - agentMessagesCount);
+      const trialLimitReached = agentMessagesCount >= FREE_TRIAL_LIMIT;
+      
+      // Determine access status
+      let accessStatus: 'active' | 'trial' | 'blocked' | 'expired' = 'trial';
+      let blockReason: string | null = null;
+      
+      if (hasActiveSubscription && !isSubscriptionExpired) {
+        accessStatus = 'active';
+      } else if (subscription && isSubscriptionExpired) {
+        accessStatus = 'expired';
+        blockReason = 'subscription_expired';
+      } else if (trialLimitReached) {
+        accessStatus = 'blocked';
+        blockReason = 'trial_limit_reached';
+      } else {
+        accessStatus = 'trial';
+      }
+      
+      // Should block the system?
+      const shouldBlock = accessStatus === 'blocked' || accessStatus === 'expired';
+      
+      res.json({
+        accessStatus,
+        shouldBlock,
+        blockReason,
+        
+        // Subscription info
+        hasSubscription: !!subscription,
+        subscriptionStatus: subscription?.status || null,
+        isSubscriptionExpired,
+        daysRemaining: Math.max(0, daysRemaining),
+        subscriptionEndDate: subscription?.dataFim || null,
+        planName: subscription?.plan?.nome || null,
+        
+        // Trial info
+        trialMessagesUsed,
+        trialMessagesRemaining,
+        trialMessagesLimit: FREE_TRIAL_LIMIT,
+        trialLimitReached,
+        
+        // For UI
+        message: shouldBlock 
+          ? (blockReason === 'subscription_expired' 
+              ? 'Sua assinatura expirou. Renove para continuar usando o sistema.'
+              : 'Você atingiu o limite de 25 mensagens de teste. Assine um plano para continuar.')
+          : null,
+      });
+    } catch (error) {
+      console.error("Error checking access status:", error);
+      res.status(500).json({ message: "Failed to check access status" });
+    }
+  });
+
   // Message usage and limits route (for free trial limit)
   app.get("/api/usage", isAuthenticated, async (req: any, res) => {
     try {
@@ -4794,23 +4878,18 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     try {
       const userId = getUserId(req);
       
-      // Get user's subscription (most recent active one, or any if none active)
-      const subscriptions = await storage.getUserSubscriptions(userId) as any[];
+      // Get user's subscription (uses getUserSubscription which prefers active)
+      const subscriptionWithPlan = await storage.getUserSubscription(userId) as any;
       
-      if (!subscriptions || subscriptions.length === 0) {
-        return res.json({ subscription: null, plan: null, payments: [] });
+      if (!subscriptionWithPlan) {
+        return res.json({ subscription: null, plan: null, payments: [], stats: { totalPaid: 0, totalPayments: 0, approvedPayments: 0, failedPayments: 0 } });
       }
       
-      // Prefer active subscription, otherwise get most recent
-      const subscription = subscriptions.find((s: any) => s.status === "active") 
-        || subscriptions.find((s: any) => s.status === "pending_pix")
-        || subscriptions[0];
-      
-      // Get plan details
-      const plan = subscription ? await storage.getPlan(subscription.planId) : null;
+      const subscription = subscriptionWithPlan;
+      const plan = subscriptionWithPlan.plan;
       
       // Get payment history
-      const payments = subscription ? await storage.getPaymentHistoryBySubscription(subscription.id) : [];
+      const payments = await storage.getPaymentHistoryBySubscription(subscription.id) || [];
       
       // Calculate stats
       const totalPaid = payments

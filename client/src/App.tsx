@@ -18,6 +18,7 @@ import AdminSimulator from "@/pages/AdminSimulator";
 import LoadingScreen from "@/components/LoadingScreen";
 import TestTTS from "@/pages/TestTTS";
 import Subscribe from "@/pages/subscribe";
+import { AccessBlocker, SubscriptionExpiringBanner } from "@/components/access-blocker";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
 
@@ -91,7 +92,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Router />
+        <SubscriptionExpiringBanner />
+        <AccessBlocker>
+          <Router />
+        </AccessBlocker>
       </TooltipProvider>
     </QueryClientProvider>
   );
