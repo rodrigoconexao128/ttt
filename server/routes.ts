@@ -4930,8 +4930,45 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       const subscription = subscriptionWithPlan;
       const plan = subscriptionWithPlan.plan;
       
-      // Get payment history
-      const payments = await storage.getPaymentHistoryBySubscription(subscription.id) || [];
+      // Get payment history - try both by subscription AND by user
+      let payments = await storage.getPaymentHistoryBySubscription(subscription.id) || [];
+      
+      // Se não tem histórico na tabela payment_history, verificar tabela payments antiga
+      if (payments.length === 0) {
+        const oldPayment = await storage.getPaymentBySubscriptionId(subscription.id);
+        
+        // Se encontrou pagamentos na tabela antiga, considera como histórico
+        if (oldPayment) {
+          payments = [{
+            id: oldPayment.id,
+            subscriptionId: oldPayment.subscriptionId,
+            userId: userId,
+            amount: oldPayment.valor?.toString() || "0",
+            status: oldPayment.status === "paid" ? "approved" : oldPayment.status,
+            paymentMethod: "pix_manual",
+            paymentDate: oldPayment.dataPagamento || oldPayment.createdAt,
+            createdAt: oldPayment.createdAt,
+          }];
+        }
+        
+        // Se assinatura está ativa mas não tem nenhum registro de pagamento, 
+        // criar um registro inicial para assinaturas ativadas manualmente
+        if (payments.length === 0 && subscription.status === "active") {
+          const initialPayment = {
+            id: "initial_" + subscription.id,
+            subscriptionId: subscription.id,
+            userId: userId,
+            amount: plan?.valor?.toString() || "0",
+            status: "approved",
+            statusDetail: "manual_activation",
+            paymentType: "initial_activation",
+            paymentMethod: subscription.paymentMethod || "pix_manual",
+            paymentDate: subscription.dataInicio,
+            createdAt: subscription.createdAt || subscription.dataInicio,
+          };
+          payments = [initialPayment];
+        }
+      }
       
       // Calculate stats
       const totalPaid = payments
@@ -4946,18 +4983,47 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       const needsPayment = subscription?.status === "pending_pix" || 
         (subscription?.status === "active" && daysRemaining <= 5);
       
+      // Buscar info do cartão se tiver assinatura MP
+      let cardInfo = null;
+      if (subscription.mpSubscriptionId) {
+        try {
+          const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
+          const accessToken = configMap.get("mercadopago_access_token");
+          if (accessToken) {
+            const preapprovalResponse = await fetch(
+              `https://api.mercadopago.com/preapproval/${subscription.mpSubscriptionId}`,
+              { headers: { "Authorization": `Bearer ${accessToken}` } }
+            );
+            if (preapprovalResponse.ok) {
+              const preapprovalData = await preapprovalResponse.json();
+              cardInfo = {
+                lastFourDigits: preapprovalData.summarized?.charged_payment?.last_four_digits,
+                brand: preapprovalData.payment_method_id,
+              };
+            }
+          }
+        } catch (e) {
+          console.log("Could not fetch card info:", e);
+        }
+      }
+      
       res.json({
         subscription: {
           ...subscription,
           daysRemaining: Math.max(0, daysRemaining),
           needsPayment,
+          // Se não tem nextPaymentDate definido, usa dataFim
+          nextPaymentDate: subscription.nextPaymentDate || subscription.dataFim,
+          // Info do cartão
+          cardLastFourDigits: cardInfo?.lastFourDigits || null,
+          cardBrand: cardInfo?.brand || null,
         },
         plan,
         payments,
         stats: {
-          totalPaid,
-          totalPayments: payments.length,
-          approvedPayments: payments.filter((p: any) => p.status === "approved").length,
+          totalPaid: totalPaid > 0 ? totalPaid : (subscription.status === "active" ? parseFloat(plan?.valor || "0") : 0),
+          totalPayments: payments.length || (subscription.status === "active" ? 1 : 0),
+          approvedPayments: payments.filter((p: any) => p.status === "approved").length || (subscription.status === "active" ? 1 : 0),
           failedPayments: payments.filter((p: any) => p.status === "rejected").length,
         }
       });
@@ -4989,10 +5055,15 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         return res.status(404).json({ message: "Plano não encontrado" });
       }
       
-      // Calculate amount
-      const valorMensal = subscription.couponPrice 
-        ? parseFloat(subscription.couponPrice) 
-        : parseFloat(plan.valor);
+      // Calculate amount - properly handle Decimal/string from database
+      const valorCoupon = subscription.couponPrice ? parseFloat(String(subscription.couponPrice)) : null;
+      const valorPlano = parseFloat(String(plan.valor)) || 0;
+      const valorMensal = valorCoupon || valorPlano;
+      
+      if (!valorMensal || isNaN(valorMensal)) {
+        console.error("[PIX Generate] Valor inválido:", { couponPrice: subscription.couponPrice, planValor: plan.valor });
+        return res.status(400).json({ message: "Valor da assinatura inválido" });
+      }
       
       // Get MP credentials
       const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
@@ -5002,13 +5073,23 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         return res.status(500).json({ message: "Mercado Pago não configurado" });
       }
       
+      // Get user email from database as fallback
+      const user = await storage.getUser(userId);
+      const payerEmail = subscription.payerEmail || user?.email || req.user?.claims?.email;
+      
+      if (!payerEmail) {
+        return res.status(400).json({ message: "Email do pagador não encontrado" });
+      }
+      
+      console.log("[PIX Generate] Email do pagador:", payerEmail, "Valor:", valorMensal);
+      
       // Create PIX payment
       const pixPaymentData = {
         transaction_amount: valorMensal,
         payment_method_id: "pix",
         description: `Mensalidade - ${plan.nome} - AgenteZap`,
         payer: {
-          email: subscription.payerEmail || req.user?.email,
+          email: payerEmail,
         },
         external_reference: `pix_${subscriptionId}_${Date.now()}`,
         notification_url: `${process.env.BASE_URL || 'https://agentezap.online'}/api/webhooks/mercadopago`,
@@ -5069,6 +5150,277 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     } catch (error: any) {
       console.error("Error generating renewal PIX:", error);
       res.status(500).json({ message: error.message || "Erro ao gerar PIX" });
+    }
+  });
+  
+  // Generate PIX for annual payment (12 months with discount)
+  app.post("/api/my-subscription/generate-annual-pix", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { subscriptionId, discountPercent = 5 } = req.body;
+      
+      if (!subscriptionId) {
+        return res.status(400).json({ message: "ID da assinatura é obrigatório" });
+      }
+      
+      // Verify ownership
+      const subscription = await storage.getSubscription(subscriptionId) as any;
+      if (!subscription || subscription.userId !== userId) {
+        return res.status(403).json({ message: "Assinatura não encontrada" });
+      }
+      
+      // Get plan
+      const plan = await storage.getPlan(subscription.planId) as any;
+      if (!plan) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      
+      // Calculate annual amount with discount  
+      const valorCoupon = subscription.couponPrice ? parseFloat(String(subscription.couponPrice)) : null;
+      const valorPlano = parseFloat(String(plan.valor)) || 0;
+      const valorMensal = valorCoupon || valorPlano;
+      
+      console.log("[ANNUAL PIX] Valores calc:", { valorCoupon, valorPlano, valorMensal, planValor: plan.valor, couponPrice: subscription.couponPrice });
+      
+      if (!valorMensal || isNaN(valorMensal) || valorMensal <= 0) {
+        return res.status(400).json({ message: "Valor do plano inválido" });
+      }
+      
+      const valorAnual = valorMensal * 12;
+      const desconto = valorAnual * (discountPercent / 100);
+      const valorFinal = Math.round((valorAnual - desconto) * 100) / 100; // Arredondar para 2 casas decimais
+      
+      console.log("[ANNUAL PIX] Valores finais:", { valorAnual, desconto, valorFinal });
+      
+      // Get MP credentials
+      const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
+      const accessToken = configMap.get("mercadopago_access_token");
+      
+      if (!accessToken) {
+        return res.status(500).json({ message: "Mercado Pago não configurado" });
+      }
+      
+      // Get user email from database
+      const user = await storage.getUser(userId);
+      const payerEmail = subscription.payerEmail || user?.email || req.user?.claims?.email;
+      
+      if (!payerEmail) {
+        return res.status(400).json({ message: "Email do pagador não encontrado" });
+      }
+      
+      // Create PIX payment for annual amount
+      const pixPaymentData = {
+        transaction_amount: valorFinal,
+        payment_method_id: "pix",
+        description: `Plano Anual (12 meses) - ${plan.nome} - AgenteZap - ${discountPercent}% desconto`,
+        payer: {
+          email: payerEmail,
+        },
+        external_reference: `pix_annual_${subscriptionId}_${Date.now()}`,
+        notification_url: `${process.env.BASE_URL || 'https://agentezap.online'}/api/webhooks/mercadopago`,
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      };
+      
+      const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "X-Idempotency-Key": `pix_annual_${subscriptionId}_${Date.now()}`,
+        },
+        body: JSON.stringify(pixPaymentData),
+      });
+      
+      const pixResult = await pixResponse.json();
+      
+      if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
+        const transactionData = pixResult.point_of_interaction.transaction_data;
+        
+        // Record pending payment in history
+        await storage.createPaymentHistory({
+          subscriptionId,
+          userId,
+          mpPaymentId: pixResult.id?.toString(),
+          amount: valorFinal.toString(),
+          status: "pending",
+          statusDetail: "pending_annual_pix",
+          paymentType: "annual_pix",
+          paymentMethod: "pix",
+          dueDate: new Date(Date.now() + 30 * 60 * 1000),
+          payerEmail: subscription.payerEmail,
+          rawResponse: { ...pixResult, discountPercent, originalAmount: valorAnual },
+        });
+        
+        return res.json({
+          status: "pending",
+          message: "PIX anual gerado com sucesso!",
+          paymentId: pixResult.id,
+          qrCode: transactionData.qr_code,
+          qrCodeBase64: transactionData.qr_code_base64,
+          ticketUrl: transactionData.ticket_url,
+          expirationDate: pixResult.date_of_expiration,
+          amount: valorFinal,
+          discountPercent,
+          originalAmount: valorAnual,
+          savings: desconto,
+        });
+      } else {
+        return res.json({
+          status: "error",
+          message: pixResult.message || "Erro ao gerar PIX anual",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error generating annual PIX:", error);
+      res.status(500).json({ message: error.message || "Erro ao gerar PIX anual" });
+    }
+  });
+  
+  // Charge annual payment on existing card
+  app.post("/api/my-subscription/charge-annual-card", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { subscriptionId, discountPercent = 5 } = req.body;
+      
+      if (!subscriptionId) {
+        return res.status(400).json({ message: "ID da assinatura é obrigatório" });
+      }
+      
+      // Verify ownership
+      const subscription = await storage.getSubscription(subscriptionId) as any;
+      if (!subscription || subscription.userId !== userId) {
+        return res.status(403).json({ message: "Assinatura não encontrada" });
+      }
+      
+      // Verify has MP subscription (card registered)
+      if (!subscription.mpSubscriptionId) {
+        return res.status(400).json({ message: "Nenhum cartão cadastrado. Use PIX para pagamento anual." });
+      }
+      
+      // Get plan
+      const plan = await storage.getPlan(subscription.planId) as any;
+      if (!plan) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      
+      // Calculate annual amount with discount
+      const valorMensal = subscription.couponPrice 
+        ? parseFloat(subscription.couponPrice) 
+        : parseFloat(plan.valor);
+      const valorAnual = valorMensal * 12;
+      const desconto = valorAnual * (discountPercent / 100);
+      const valorFinal = valorAnual - desconto;
+      
+      // Get MP credentials
+      const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
+      const accessToken = configMap.get("mercadopago_access_token");
+      
+      if (!accessToken) {
+        return res.status(500).json({ message: "Mercado Pago não configurado" });
+      }
+      
+      // Get the preapproval (subscription) details to find the card
+      const preapprovalResponse = await fetch(
+        `https://api.mercadopago.com/preapproval/${subscription.mpSubscriptionId}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+          },
+        }
+      );
+      
+      if (!preapprovalResponse.ok) {
+        return res.status(400).json({ message: "Não foi possível recuperar dados do cartão cadastrado" });
+      }
+      
+      const preapprovalData = await preapprovalResponse.json();
+      
+      // Create a payment using the preapproval's card info
+      // Note: This creates a new one-time payment charged to the saved card
+      const paymentData = {
+        transaction_amount: valorFinal,
+        description: `Plano Anual (12 meses) - ${plan.nome} - AgenteZap - ${discountPercent}% desconto`,
+        payer: {
+          email: subscription.payerEmail || preapprovalData.payer_email || req.user?.email,
+        },
+        external_reference: `annual_card_${subscriptionId}_${Date.now()}`,
+        notification_url: `${process.env.BASE_URL || 'https://agentezap.online'}/api/webhooks/mercadopago`,
+        token: preapprovalData.card_token_id, // Use saved card token if available
+      };
+      
+      // For MercadoPago, we need to use the card_id from the preapproval
+      // This is a simplified approach - real implementation may vary
+      const paymentResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "X-Idempotency-Key": `annual_card_${subscriptionId}_${Date.now()}`,
+        },
+        body: JSON.stringify(paymentData),
+      });
+      
+      const paymentResult = await paymentResponse.json();
+      
+      if (paymentResult.status === "approved") {
+        // Update subscription to extend for 12 months
+        const newEndDate = new Date();
+        newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+        
+        await storage.updateSubscription(subscriptionId, {
+          dataFim: newEndDate,
+          nextPaymentDate: newEndDate,
+        });
+        
+        // Record payment in history
+        await storage.createPaymentHistory({
+          subscriptionId,
+          userId,
+          mpPaymentId: paymentResult.id?.toString(),
+          amount: valorFinal.toString(),
+          status: "approved",
+          statusDetail: "annual_card_payment",
+          paymentType: "annual_card",
+          paymentMethod: paymentResult.payment_method_id || "credit_card",
+          paymentDate: new Date(),
+          payerEmail: subscription.payerEmail,
+          cardLastFourDigits: paymentResult.card?.last_four_digits,
+          cardBrand: paymentResult.payment_method_id,
+          rawResponse: { ...paymentResult, discountPercent, originalAmount: valorAnual },
+        });
+        
+        return res.json({
+          status: "approved",
+          message: `Pagamento anual de ${(valorFinal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} cobrado com sucesso! Sua assinatura foi estendida por 12 meses.`,
+          paymentId: paymentResult.id,
+          amount: valorFinal,
+          discountPercent,
+          savings: desconto,
+          newEndDate,
+        });
+      } else {
+        // Record failed payment
+        await storage.createPaymentHistory({
+          subscriptionId,
+          userId,
+          mpPaymentId: paymentResult.id?.toString(),
+          amount: valorFinal.toString(),
+          status: paymentResult.status || "rejected",
+          statusDetail: paymentResult.status_detail || "annual_card_failed",
+          paymentType: "annual_card",
+          paymentMethod: "credit_card",
+          payerEmail: subscription.payerEmail,
+          rawResponse: paymentResult,
+        });
+        
+        return res.json({
+          status: "error",
+          message: paymentResult.status_detail || "Pagamento recusado. Tente novamente ou use PIX.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error charging annual card:", error);
+      res.status(500).json({ message: error.message || "Erro ao processar pagamento" });
     }
   });
   

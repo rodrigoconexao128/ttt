@@ -23,11 +23,11 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { format, isPast, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 
 // Formatação de moeda BR
@@ -56,7 +56,7 @@ interface PaymentRecord {
 
 interface SubscriptionData {
   subscription: {
-    id: number;
+    id: string;
     status: string;
     dataInicio: string;
     dataFim: string;
@@ -66,9 +66,13 @@ interface SubscriptionData {
     daysRemaining: number;
     needsPayment: boolean;
     payerEmail: string;
+    paymentMethod: string | null; // mercadopago, pix_manual, card
+    mpSubscriptionId: string | null; // Se tem assinatura de cartão
+    cardLastFourDigits?: string | null;
+    cardBrand?: string | null;
   } | null;
   plan: {
-    id: number;
+    id: string;
     nome: string;
     valor: string;
     tipo: string;
@@ -83,7 +87,6 @@ interface SubscriptionData {
     failedPayments: number;
   };
 }
-
 interface PixData {
   qrCode: string;
   qrCodeBase64: string;
@@ -125,14 +128,8 @@ export default function MySubscription() {
   const annualDiscountEnabled = annualConfig?.enabled !== false;
 
   const generatePixMutation = useMutation({
-    mutationFn: async (subscriptionId: number) => {
-      const response = await fetch("/api/my-subscription/generate-pix", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subscriptionId }),
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Erro ao gerar PIX");
+    mutationFn: async (subscriptionId: string) => {
+      const response = await apiRequest("POST", "/api/my-subscription/generate-pix", { subscriptionId });
       return response.json();
     },
     onSuccess: (data) => {
@@ -153,6 +150,68 @@ export default function MySubscription() {
           variant: "destructive",
         });
       }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para gerar PIX de pagamento anual
+  const generateAnnualPixMutation = useMutation({
+    mutationFn: async ({ subscriptionId, discountPercent }: { subscriptionId: string, discountPercent: number }) => {
+      const response = await apiRequest("POST", "/api/my-subscription/generate-annual-pix", { subscriptionId, discountPercent });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.status === "pending") {
+        setPixData({
+          qrCode: data.qrCode,
+          qrCodeBase64: data.qrCodeBase64,
+          ticketUrl: data.ticketUrl,
+          paymentId: data.paymentId,
+          amount: data.amount,
+          expirationDate: data.expirationDate,
+        });
+        setShowAnnualDialog(false);
+        setShowPixDialog(true);
+        toast({
+          title: "PIX Anual Gerado!",
+          description: `Valor total com ${data.discountPercent}% de desconto: ${formatCurrency(data.amount)}`,
+        });
+      } else {
+        toast({
+          title: "Erro",
+          description: data.message || "Erro ao gerar PIX anual",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para cobrar no cartão (pagamento anual)
+  const chargeAnnualCardMutation = useMutation({
+    mutationFn: async ({ subscriptionId, discountPercent }: { subscriptionId: string, discountPercent: number }) => {
+      const response = await apiRequest("POST", "/api/my-subscription/charge-annual-card", { subscriptionId, discountPercent });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setShowAnnualDialog(false);
+      toast({
+        title: "Pagamento Processado!",
+        description: data.message || "Pagamento anual cobrado com sucesso no cartão.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-subscription"] });
     },
     onError: (error: Error) => {
       toast({
@@ -357,11 +416,16 @@ export default function MySubscription() {
           </CardHeader>
           <CardContent>
             {(() => {
-              const nextPayment = subscription.nextPaymentDate ? new Date(subscription.nextPaymentDate) : null;
+              // Usar nextPaymentDate se existir, senão usar dataFim (data de vencimento da assinatura)
+              const nextPaymentDateStr = subscription.nextPaymentDate || subscription.dataFim;
+              const nextPayment = nextPaymentDateStr ? new Date(nextPaymentDateStr) : null;
               const isOverdue = nextPayment && isPast(nextPayment);
               const monthlyValue = subscription.couponPrice 
                 ? parseFloat(subscription.couponPrice) 
                 : parseFloat(plan?.valor || "0");
+              
+              // Verificar se é assinatura com cartão (tem mpSubscriptionId)
+              const hasCardSubscription = !!subscription.mpSubscriptionId;
               
               return (
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -384,6 +448,14 @@ export default function MySubscription() {
                           </Badge>
                         )}
                       </div>
+                      {/* Mostrar forma de pagamento se tiver cartão */}
+                      {hasCardSubscription && subscription.cardLastFourDigits && (
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                          <CreditCard className="w-3 h-3" />
+                          Cartão •••• {subscription.cardLastFourDigits}
+                          {subscription.cardBrand && ` (${subscription.cardBrand})`}
+                        </p>
+                      )}
                     </div>
                   </div>
                   
@@ -395,20 +467,31 @@ export default function MySubscription() {
                       </p>
                     </div>
                     
-                    <Button 
-                      onClick={() => generatePixMutation.mutate(subscription.id)}
-                      disabled={generatePixMutation.isPending}
-                      className={isOverdue ? "bg-red-600 hover:bg-red-700" : ""}
-                    >
-                      {generatePixMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <QrCode className="w-4 h-4 mr-2" />
-                          {isOverdue ? "Pagar Agora" : "Pagar Antecipado"}
-                        </>
-                      )}
-                    </Button>
+                    {/* Se tem assinatura com cartão, cobrança é automática */}
+                    {hasCardSubscription ? (
+                      <div className="text-center">
+                        <Badge variant="secondary" className="flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Cobrança Automática
+                        </Badge>
+                      </div>
+                    ) : (
+                      /* Só mostrar botão de pagar antecipado para PIX */
+                      <Button 
+                        onClick={() => generatePixMutation.mutate(subscription.id)}
+                        disabled={generatePixMutation.isPending}
+                        className={isOverdue ? "bg-red-600 hover:bg-red-700" : ""}
+                      >
+                        {generatePixMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <QrCode className="w-4 h-4 mr-2" />
+                            {isOverdue ? "Pagar Agora" : "Pagar Antecipado"}
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
               );
@@ -526,7 +609,10 @@ export default function MySubscription() {
                 </Button>
               )}
               
-              {subscription.status === "active" && subscription.daysRemaining <= 30 && (
+              {/* Antecipar Pagamento - SÓ PARA PIX (sem assinatura de cartão) */}
+              {subscription.status === "active" && 
+               subscription.daysRemaining <= 30 && 
+               !subscription.mpSubscriptionId && (
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -536,6 +622,19 @@ export default function MySubscription() {
                 >
                   <CalendarClock className="w-4 h-4 mr-2" />
                   Antecipar Pagamento
+                </Button>
+              )}
+              
+              {/* Para clientes sem cartão cadastrado - opção de cadastrar */}
+              {subscription.status === "active" && !subscription.mpSubscriptionId && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowPaymentMethodDialog(true)}
+                  className="w-full border-purple-200 text-purple-700 hover:bg-purple-50"
+                >
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Cadastrar Cartão (cobrança automática)
                 </Button>
               )}
             </div>
@@ -764,19 +863,42 @@ export default function MySubscription() {
               </div>
               
               <DialogFooter className="flex-col gap-2 sm:flex-col">
+                {/* Se tem cartão cadastrado, mostrar opção de cobrar no cartão */}
+                {subscription?.mpSubscriptionId && subscription?.cardLastFourDigits && (
+                  <Button 
+                    className="w-full bg-purple-600 hover:bg-purple-700"
+                    onClick={() => chargeAnnualCardMutation.mutate({ 
+                      subscriptionId: subscription.id, 
+                      discountPercent: annualDiscountPercent 
+                    })}
+                    disabled={chargeAnnualCardMutation.isPending}
+                  >
+                    {chargeAnnualCardMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <CreditCard className="w-4 h-4 mr-2" />
+                    )}
+                    Cobrar no Cartão •••• {subscription.cardLastFourDigits}
+                  </Button>
+                )}
+                
+                {/* Opção de PIX sempre disponível */}
                 <Button 
-                  className="w-full bg-green-600 hover:bg-green-700"
-                  onClick={() => {
-                    toast({
-                      title: "Em breve!",
-                      description: "O pagamento anual estará disponível em breve.",
-                    });
-                    setShowAnnualDialog(false);
-                  }}
+                  className={`w-full ${subscription?.mpSubscriptionId ? 'bg-green-500 hover:bg-green-600' : 'bg-green-600 hover:bg-green-700'}`}
+                  onClick={() => generateAnnualPixMutation.mutate({ 
+                    subscriptionId: subscription!.id, 
+                    discountPercent: annualDiscountPercent 
+                  })}
+                  disabled={generateAnnualPixMutation.isPending}
                 >
-                  <QrCode className="w-4 h-4 mr-2" />
+                  {generateAnnualPixMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <QrCode className="w-4 h-4 mr-2" />
+                  )}
                   Pagar Anual com PIX
                 </Button>
+                
                 <Button 
                   variant="outline" 
                   className="w-full"
@@ -787,6 +909,58 @@ export default function MySubscription() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Dialog para cadastrar cartão (clientes PIX manual) */}
+      <Dialog open={showPaymentMethodDialog} onOpenChange={setShowPaymentMethodDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-purple-600" />
+              Cadastrar Cartão para Cobrança Automática
+            </DialogTitle>
+            <DialogDescription>
+              Com o cartão cadastrado, suas mensalidades serão cobradas automaticamente no dia do vencimento.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="p-4 bg-purple-50 dark:bg-purple-950/20 rounded-lg border border-purple-200">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-purple-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-purple-800 dark:text-purple-200">Vantagens</p>
+                  <ul className="text-sm text-purple-700 dark:text-purple-300 mt-1 space-y-1">
+                    <li>• Cobrança automática no vencimento</li>
+                    <li>• Sem risco de esquecer de pagar</li>
+                    <li>• Sua assinatura nunca será interrompida</li>
+                    <li>• Você pode cancelar a qualquer momento</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            
+            <DialogFooter className="flex-col gap-2 sm:flex-col">
+              <Button 
+                className="w-full bg-purple-600 hover:bg-purple-700"
+                onClick={() => {
+                  setShowPaymentMethodDialog(false);
+                  setLocation("/plans?action=upgrade-card");
+                }}
+              >
+                <CreditCard className="w-4 h-4 mr-2" />
+                Cadastrar Cartão Agora
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setShowPaymentMethodDialog(false)}
+              >
+                Continuar com PIX
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
