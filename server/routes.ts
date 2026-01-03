@@ -4311,6 +4311,263 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // ASSINATURA COM PIX - Endpoint para criar pagamento PIX + assinatura
+  // Lógica PRÉ-PAGO: Cobra o primeiro PIX imediatamente, 
+  // depois cria assinatura com boleto/cartão para cobranças futuras
+  // ═══════════════════════════════════════════════════════════════════════════════
+  app.post("/api/subscriptions/create-pix-subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { subscriptionId, payerEmail } = req.body;
+      
+      if (!subscriptionId || !payerEmail) {
+        return res.status(400).json({ 
+          status: "error",
+          message: "Dados de pagamento incompletos" 
+        });
+      }
+      
+      // Get subscription
+      const subscription = await storage.getSubscription(subscriptionId) as any;
+      if (!subscription || subscription.userId !== userId) {
+        return res.status(404).json({ 
+          status: "error",
+          message: "Assinatura não encontrada" 
+        });
+      }
+      
+      // Get plan
+      const plan = await storage.getPlan(subscription.planId) as any;
+      if (!plan) {
+        return res.status(404).json({ 
+          status: "error",
+          message: "Plano não encontrado" 
+        });
+      }
+      
+      // Calculate amounts
+      const valorPrimeiraCobranca = plan.valorPrimeiraCobranca ? parseFloat(plan.valorPrimeiraCobranca) : 0;
+      const valorMensal = subscription.couponPrice ? parseFloat(subscription.couponPrice) : parseFloat(plan.valor);
+      const hasSetupFee = valorPrimeiraCobranca > 0 && valorPrimeiraCobranca !== valorMensal;
+      const pixAmount = hasSetupFee ? valorPrimeiraCobranca : valorMensal;
+      
+      // Get MP credentials
+      const configMap = await storage.getSystemConfigs([
+        "mercadopago_access_token"
+      ]);
+      const accessToken = configMap.get("mercadopago_access_token");
+      
+      if (!accessToken) {
+        return res.status(500).json({ 
+          status: "error",
+          message: "Mercado Pago não configurado" 
+        });
+      }
+      
+      console.log("[MP PIX] Creating PIX payment:", {
+        subscriptionId,
+        planName: plan.nome,
+        pixAmount,
+        hasSetupFee,
+      });
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // CRIAR PAGAMENTO PIX VIA API /v1/payments
+      // Retorna QR Code e código Pix Copia e Cola
+      // ═══════════════════════════════════════════════════════════════════
+      
+      const pixPaymentData = {
+        transaction_amount: pixAmount,
+        payment_method_id: "pix",
+        description: hasSetupFee 
+          ? `Taxa de implementação - ${plan.nome} - AgenteZap`
+          : `Primeira mensalidade - ${plan.nome} - AgenteZap`,
+        payer: {
+          email: payerEmail,
+        },
+        external_reference: `pix_${subscriptionId}_${Date.now()}`,
+        notification_url: `${process.env.BASE_URL || 'https://agentezap.online'}/api/webhooks/mercadopago`,
+        // PIX expira em 30 minutos
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      };
+      
+      const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "X-Idempotency-Key": `pix_${subscriptionId}_${Date.now()}`,
+        },
+        body: JSON.stringify(pixPaymentData),
+      });
+      
+      const pixResult = await pixResponse.json();
+      
+      console.log("[MP PIX] Payment result:", {
+        status: pixResult.status,
+        statusDetail: pixResult.status_detail,
+        id: pixResult.id,
+        hasQrCode: !!pixResult.point_of_interaction?.transaction_data?.qr_code,
+      });
+      
+      if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
+        const transactionData = pixResult.point_of_interaction.transaction_data;
+        
+        // Atualizar assinatura com o pagamento PIX pendente
+        await storage.updateSubscription(subscriptionId, {
+          status: "pending_pix",
+          mpPixPaymentId: pixResult.id?.toString(),
+          payerEmail,
+        });
+        
+        return res.json({
+          status: "pending",
+          message: "PIX gerado com sucesso! Escaneie o QR Code ou copie o código.",
+          paymentId: pixResult.id,
+          qrCode: transactionData.qr_code, // Código Pix Copia e Cola
+          qrCodeBase64: transactionData.qr_code_base64, // Imagem QR Code
+          ticketUrl: transactionData.ticket_url, // URL alternativa
+          expirationDate: pixResult.date_of_expiration,
+          amount: pixAmount,
+        });
+      } else {
+        // Erro ao criar PIX
+        const errorMessage = pixResult.message || "Erro ao gerar PIX. Tente novamente.";
+        console.error("[MP PIX] Error:", pixResult);
+        
+        return res.json({
+          status: "error",
+          message: errorMessage,
+        });
+      }
+      
+    } catch (error: any) {
+      console.error("[MP PIX] Error:", error);
+      res.status(500).json({ 
+        status: "error",
+        message: error.message || "Erro ao criar pagamento PIX" 
+      });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // VERIFICAR STATUS DO PAGAMENTO PIX
+  // Usado pelo frontend para fazer polling e verificar se o PIX foi pago
+  // ═══════════════════════════════════════════════════════════════════════════════
+  app.get("/api/subscriptions/check-pix-status/:paymentId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { paymentId } = req.params;
+      
+      // Get MP credentials
+      const configMap = await storage.getSystemConfigs([
+        "mercadopago_access_token"
+      ]);
+      const accessToken = configMap.get("mercadopago_access_token");
+      
+      if (!accessToken) {
+        return res.status(500).json({ 
+          status: "error",
+          message: "Mercado Pago não configurado" 
+        });
+      }
+      
+      // Consultar status do pagamento
+      const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+        },
+      });
+      
+      const payment = await response.json();
+      
+      console.log("[MP PIX Check] Payment status:", {
+        id: paymentId,
+        status: payment.status,
+        statusDetail: payment.status_detail,
+      });
+      
+      if (payment.status === "approved") {
+        // PIX foi pago! Ativar a assinatura
+        const externalRef = payment.external_reference || "";
+        const subscriptionIdMatch = externalRef.match(/pix_([^_]+)/);
+        const subscriptionId = subscriptionIdMatch ? subscriptionIdMatch[1] : null;
+        
+        if (subscriptionId) {
+          const subscription = await storage.getSubscription(subscriptionId) as any;
+          
+          if (subscription && subscription.userId === userId) {
+            // Get plan para calcular próxima cobrança
+            const plan = await storage.getPlan(subscription.planId) as any;
+            const frequenciaDias = plan?.frequenciaDias || 30;
+            
+            // Calcular data fim do período
+            const dataFim = new Date();
+            dataFim.setDate(dataFim.getDate() + frequenciaDias);
+            
+            // Próximo pagamento
+            const nextPaymentDate = new Date();
+            nextPaymentDate.setDate(nextPaymentDate.getDate() + frequenciaDias);
+            
+            // Atualizar assinatura para ativa
+            await storage.updateSubscription(subscriptionId, {
+              status: "active",
+              dataInicio: new Date(),
+              dataFim,
+              mpStatus: "authorized",
+              nextPaymentDate,
+            });
+            
+            // Registrar pagamento no histórico
+            try {
+              await storage.createPaymentHistory({
+                subscriptionId,
+                userId,
+                mpPaymentId: paymentId,
+                amount: payment.transaction_amount?.toString(),
+                netAmount: payment.transaction_details?.net_received_amount?.toString(),
+                feeAmount: payment.fee_details?.[0]?.amount?.toString(),
+                status: "approved",
+                statusDetail: payment.status_detail || "accredited",
+                paymentType: "pix_first_payment",
+                paymentMethod: "pix",
+                paymentDate: new Date(),
+                payerEmail: payment.payer?.email,
+                rawResponse: payment,
+              });
+            } catch (historyError) {
+              console.error("[MP PIX] Error recording history:", historyError);
+            }
+          }
+        }
+        
+        return res.json({
+          status: "approved",
+          message: "🎉 Pagamento PIX confirmado! Assinatura ativada com sucesso!",
+        });
+      } else if (payment.status === "rejected" || payment.status === "cancelled") {
+        return res.json({
+          status: payment.status,
+          message: "Pagamento não aprovado ou cancelado.",
+        });
+      } else {
+        // Ainda pendente
+        return res.json({
+          status: "pending",
+          message: "Aguardando pagamento PIX...",
+        });
+      }
+      
+    } catch (error: any) {
+      console.error("[MP PIX Check] Error:", error);
+      res.status(500).json({ 
+        status: "error",
+        message: error.message || "Erro ao verificar pagamento" 
+      });
+    }
+  });
+
   // Webhook do Mercado Pago (public - não requer auth)
   app.post("/api/webhooks/mercadopago", async (req, res) => {
     try {

@@ -10,11 +10,16 @@ import {
   Lock, 
   CreditCard, 
   ArrowLeft,
-  AlertCircle
+  AlertCircle,
+  QrCode,
+  Copy,
+  CheckCircle2,
+  Clock
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CHECKOUT PREMIUM - DESIGN SHOPIFY STYLE - v2.1
@@ -80,8 +85,10 @@ export default function Subscribe() {
   const [, params] = useRoute("/subscribe/:id");
   const subscriptionId = params?.id || null;
   const { toast } = useToast();
+  const { user } = useAuth(); // Pegar usuário logado para auto-preencher email
 
   // Estados do formulário
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "pix">("card"); // Método de pagamento
   const [cardNumber, setCardNumber] = useState("");
   const [cardHolder, setCardHolder] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
@@ -94,7 +101,26 @@ export default function Subscribe() {
   const [error, setError] = useState<string | null>(null);
   const [cardBrand, setCardBrand] = useState<string | null>(null);
   
+  // Estados para PIX
+  const [pixData, setPixData] = useState<{
+    qrCode: string;
+    qrCodeBase64: string;
+    paymentId: string;
+    expirationDate: string;
+    amount: number;
+  } | null>(null);
+  const [pixCopied, setPixCopied] = useState(false);
+  const [checkingPixStatus, setCheckingPixStatus] = useState(false);
+  
   const mpInstanceRef = useRef<any>(null);
+  const pixPollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-preencher email do usuário logado
+  useEffect(() => {
+    if (user?.email && !email) {
+      setEmail(user.email);
+    }
+  }, [user, email]);
 
   // Buscar assinatura e plano
   const { data: subscription, isLoading: subscriptionLoading } = useQuery({
@@ -226,6 +252,121 @@ export default function Subscribe() {
     }
   });
 
+  // Mutation para criar pagamento PIX
+  const createPixSubscription = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/subscriptions/create-pix-subscription", {
+        subscriptionId,
+        payerEmail: email,
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Erro ao gerar PIX");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.status === "pending" && data.qrCode) {
+        // PIX gerado com sucesso - mostrar QR Code
+        setPixData({
+          qrCode: data.qrCode,
+          qrCodeBase64: data.qrCodeBase64,
+          paymentId: data.paymentId,
+          expirationDate: data.expirationDate,
+          amount: data.amount,
+        });
+        setIsProcessing(false);
+        
+        // Iniciar polling para verificar pagamento
+        startPixPolling(data.paymentId);
+        
+        toast({ 
+          title: "PIX gerado!", 
+          description: "Escaneie o QR Code ou copie o código para pagar." 
+        });
+      } else {
+        setError(data.message || "Erro ao gerar PIX");
+        setIsProcessing(false);
+      }
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+      setIsProcessing(false);
+    }
+  });
+
+  // Função para verificar status do PIX
+  const checkPixStatus = async (paymentId: string) => {
+    try {
+      const res = await apiRequest("GET", `/api/subscriptions/check-pix-status/${paymentId}`);
+      const data = await res.json();
+      
+      if (data.status === "approved") {
+        // Parar polling
+        if (pixPollingRef.current) {
+          clearInterval(pixPollingRef.current);
+          pixPollingRef.current = null;
+        }
+        
+        toast({ 
+          title: "🎉 Pagamento PIX confirmado!", 
+          description: "Sua assinatura foi ativada com sucesso!" 
+        });
+        
+        setTimeout(() => setLocation("/dashboard"), 2000);
+      } else if (data.status === "rejected" || data.status === "cancelled") {
+        // Parar polling
+        if (pixPollingRef.current) {
+          clearInterval(pixPollingRef.current);
+          pixPollingRef.current = null;
+        }
+        
+        setError("Pagamento PIX não aprovado. Tente novamente.");
+        setPixData(null);
+      }
+      // Se ainda pendente, continua polling
+    } catch (error) {
+      console.error("Erro ao verificar PIX:", error);
+    }
+  };
+
+  // Iniciar polling do status do PIX
+  const startPixPolling = (paymentId: string) => {
+    // Verificar a cada 3 segundos
+    pixPollingRef.current = setInterval(() => {
+      checkPixStatus(paymentId);
+    }, 3000);
+    
+    // Parar após 30 minutos (expiração do PIX)
+    setTimeout(() => {
+      if (pixPollingRef.current) {
+        clearInterval(pixPollingRef.current);
+        pixPollingRef.current = null;
+      }
+    }, 30 * 60 * 1000);
+  };
+
+  // Limpar polling ao desmontar
+  useEffect(() => {
+    return () => {
+      if (pixPollingRef.current) {
+        clearInterval(pixPollingRef.current);
+      }
+    };
+  }, []);
+
+  // Copiar código PIX
+  const copyPixCode = () => {
+    if (pixData?.qrCode) {
+      navigator.clipboard.writeText(pixData.qrCode);
+      setPixCopied(true);
+      setTimeout(() => setPixCopied(false), 3000);
+      toast({ title: "Código PIX copiado!", description: "Cole no app do seu banco." });
+    }
+  };
+
+  // Handler para submit (cartão)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mpInstanceRef.current) {
@@ -426,129 +567,337 @@ export default function Subscribe() {
       <div className="w-full lg:w-[55%] bg-white p-6 lg:p-12 flex flex-col justify-center">
         <div className="max-w-md mx-auto w-full">
           
-          <div className="mb-8 border rounded-lg p-4 bg-gray-50 flex items-center justify-between cursor-pointer border-primary ring-1 ring-primary/20">
-            <div className="flex items-center gap-3">
-              <div className="w-5 h-5 rounded-full border-[5px] border-primary bg-white" />
-              <span className="font-medium text-gray-900">Cartão de crédito</span>
+          {/* Seleção de método de pagamento */}
+          <div className="mb-6 space-y-3">
+            {/* Opção Cartão */}
+            <div 
+              className={cn(
+                "border rounded-lg p-4 flex items-center justify-between cursor-pointer transition-all",
+                paymentMethod === "card" 
+                  ? "border-primary ring-1 ring-primary/20 bg-gray-50" 
+                  : "border-gray-200 hover:border-gray-300"
+              )}
+              onClick={() => { setPaymentMethod("card"); setPixData(null); setError(null); }}
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-5 h-5 rounded-full border-2",
+                  paymentMethod === "card" ? "border-[5px] border-primary" : "border-gray-300"
+                )} />
+                <CreditCard className="w-5 h-5 text-gray-600" />
+                <span className="font-medium text-gray-900">Cartão de crédito</span>
+              </div>
+              <div className="flex gap-1">
+                <img src="https://img.icons8.com/color/48/visa.png" alt="Visa" className="h-5" />
+                <img src="https://img.icons8.com/color/48/mastercard.png" alt="Master" className="h-5" />
+                <img src="https://img.icons8.com/color/48/amex.png" alt="Amex" className="h-5" />
+              </div>
             </div>
-            <div className="flex gap-1">
-              <img src="https://img.icons8.com/color/48/visa.png" alt="Visa" className="h-6" />
-              <img src="https://img.icons8.com/color/48/mastercard.png" alt="Master" className="h-6" />
-              <img src="https://img.icons8.com/color/48/amex.png" alt="Amex" className="h-6" />
+
+            {/* Opção PIX */}
+            <div 
+              className={cn(
+                "border rounded-lg p-4 flex items-center justify-between cursor-pointer transition-all",
+                paymentMethod === "pix" 
+                  ? "border-green-500 ring-1 ring-green-500/20 bg-green-50" 
+                  : "border-gray-200 hover:border-gray-300"
+              )}
+              onClick={() => { setPaymentMethod("pix"); setError(null); }}
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-5 h-5 rounded-full border-2",
+                  paymentMethod === "pix" ? "border-[5px] border-green-500" : "border-gray-300"
+                )} />
+                <QrCode className="w-5 h-5 text-green-600" />
+                <span className="font-medium text-gray-900">PIX</span>
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                  Aprovação imediata
+                </span>
+              </div>
+              <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/a/a2/Logo%E2%80%94pix_powered_by_Banco_Central_%28Brazil%2C_2020%29.svg" 
+                alt="PIX" 
+                className="h-6" 
+              />
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            
-            <div className="relative">
-              <Input
-                placeholder="Número do cartão"
-                value={cardNumber}
-                onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                maxLength={19}
-                className="h-12 pl-10 bg-white border-gray-300 focus:border-primary focus:ring-primary"
-                required
-              />
-              <CreditCard className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
-              <div className="absolute right-3 top-3.5">
-                {cardBrand && <span className="text-xs font-bold uppercase text-gray-500">{cardBrand}</span>}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                placeholder="Validade (MM/AA)"
-                value={expiryDate}
-                onChange={(e) => setExpiryDate(formatExpiryDate(e.target.value))}
-                maxLength={5}
-                className="h-12 bg-white border-gray-300 focus:border-primary focus:ring-primary"
-                required
-              />
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* FORMULÁRIO DE PAGAMENTO - CARTÃO */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {paymentMethod === "card" && (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              
               <div className="relative">
                 <Input
-                  placeholder="CVV"
-                  value={cvv}
-                  onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  maxLength={4}
+                  placeholder="Número do cartão"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                  maxLength={19}
+                  className="h-12 pl-10 bg-white border-gray-300 focus:border-primary focus:ring-primary"
+                  required
+                />
+                <CreditCard className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+                <div className="absolute right-3 top-3.5">
+                  {cardBrand && <span className="text-xs font-bold uppercase text-gray-500">{cardBrand}</span>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  placeholder="Validade (MM/AA)"
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(formatExpiryDate(e.target.value))}
+                  maxLength={5}
                   className="h-12 bg-white border-gray-300 focus:border-primary focus:ring-primary"
                   required
                 />
-                <Lock className="absolute right-3 top-3.5 h-4 w-4 text-gray-400" />
+                <div className="relative">
+                  <Input
+                    placeholder="CVV"
+                    value={cvv}
+                    onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    maxLength={4}
+                    className="h-12 bg-white border-gray-300 focus:border-primary focus:ring-primary"
+                    required
+                  />
+                  <Lock className="absolute right-3 top-3.5 h-4 w-4 text-gray-400" />
+                </div>
               </div>
-            </div>
 
-            <Input
-              placeholder="Nome impresso no cartão"
-              value={cardHolder}
-              onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
-              className="h-12 bg-white border-gray-300 focus:border-primary focus:ring-primary"
-              required
-            />
-
-            <div className="grid grid-cols-3 gap-4">
-              <select
-                value={docType}
-                onChange={(e) => setDocType(e.target.value)}
-                className="col-span-1 h-12 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-primary focus:ring-primary"
-              >
-                <option value="CPF">CPF</option>
-                <option value="CNPJ">CNPJ</option>
-              </select>
               <Input
-                placeholder="Número do documento"
-                value={docNumber}
-                onChange={(e) => setDocNumber(formatDoc(e.target.value))}
-                className="col-span-2 h-12 bg-white border-gray-300 focus:border-primary focus:ring-primary"
+                placeholder="Nome impresso no cartão"
+                value={cardHolder}
+                onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                className="h-12 bg-white border-gray-300 focus:border-primary focus:ring-primary"
                 required
               />
-            </div>
 
-            <Input
-              type="email"
-              placeholder="Seu melhor e-mail"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="h-12 bg-white border-gray-300 focus:border-primary focus:ring-primary"
-              required
-            />
-
-            {error && (
-              <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" />
-                {error}
+              <div className="grid grid-cols-3 gap-4">
+                <select
+                  value={docType}
+                  onChange={(e) => setDocType(e.target.value)}
+                  className="col-span-1 h-12 rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-primary focus:ring-primary"
+                >
+                  <option value="CPF">CPF</option>
+                  <option value="CNPJ">CNPJ</option>
+                </select>
+                <Input
+                  placeholder="Número do documento"
+                  value={docNumber}
+                  onChange={(e) => setDocNumber(formatDoc(e.target.value))}
+                  className="col-span-2 h-12 bg-white border-gray-300 focus:border-primary focus:ring-primary"
+                  required
+                />
               </div>
-            )}
 
-            <Button 
-              type="submit" 
-              className="w-full h-14 text-lg font-bold bg-black hover:bg-gray-800 text-white shadow-lg transition-all mt-4"
-              disabled={isProcessing || !mpReady}
-            >
-              {isProcessing ? (
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              ) : hasSetupFee ? (
-                `Pagar R$ ${totalInitial.toFixed(2).replace(".", ",")}`
-              ) : (
-                `Assinar por R$ ${monthlyPrice.toFixed(2).replace(".", ",")}/${periodLabel}`
+              <Input
+                type="email"
+                placeholder="Seu melhor e-mail"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-12 bg-white border-gray-300 focus:border-primary focus:ring-primary"
+                required
+              />
+
+              {error && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
               )}
-            </Button>
 
-            <p className="text-xs text-center text-gray-500 mt-4">
-              {hasSetupFee ? (
-                <>
-                  Hoje você paga R$ {setupFee.toFixed(2).replace(".", ",")} (implementação). 
-                  A partir de {new Date(new Date().setDate(new Date().getDate() + frequencyDays)).toLocaleDateString('pt-BR')}, 
-                  será cobrado R$ {monthlyPrice.toFixed(2).replace(".", ",")}/{periodLabel} automaticamente. Cancele a qualquer momento.
-                </>
-              ) : (
-                <>
-                  Renova automaticamente em {new Date(new Date().setDate(new Date().getDate() + frequencyDays)).toLocaleDateString('pt-BR')} 
-                  {" "}no plano {planName} por R$ {monthlyPrice.toFixed(2).replace(".", ",")}/{periodLabel}. Cancele a qualquer momento.
-                </>
+              <Button 
+                type="submit" 
+                className="w-full h-14 text-lg font-bold bg-black hover:bg-gray-800 text-white shadow-lg transition-all mt-4"
+                disabled={isProcessing || !mpReady}
+              >
+                {isProcessing ? (
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                ) : hasSetupFee ? (
+                  `Pagar R$ ${totalInitial.toFixed(2).replace(".", ",")}`
+                ) : (
+                  `Assinar por R$ ${monthlyPrice.toFixed(2).replace(".", ",")}/${periodLabel}`
+                )}
+              </Button>
+
+              <p className="text-xs text-center text-gray-500 mt-4">
+                {hasSetupFee ? (
+                  <>
+                    Hoje você paga R$ {setupFee.toFixed(2).replace(".", ",")} (implementação). 
+                    A partir de {new Date(new Date().setDate(new Date().getDate() + frequencyDays)).toLocaleDateString('pt-BR')}, 
+                    será cobrado R$ {monthlyPrice.toFixed(2).replace(".", ",")}/{periodLabel} automaticamente. Cancele a qualquer momento.
+                  </>
+                ) : (
+                  <>
+                    Renova automaticamente em {new Date(new Date().setDate(new Date().getDate() + frequencyDays)).toLocaleDateString('pt-BR')} 
+                    {" "}no plano {planName} por R$ {monthlyPrice.toFixed(2).replace(".", ",")}/{periodLabel}. Cancele a qualquer momento.
+                  </>
+                )}
+              </p>
+
+            </form>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* FORMULÁRIO DE PAGAMENTO - PIX */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {paymentMethod === "pix" && !pixData && (
+            <div className="space-y-5">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <QrCode className="w-6 h-6 text-green-600 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-green-800">Pagamento via PIX</h3>
+                    <p className="text-sm text-green-700 mt-1">
+                      Pague instantaneamente com PIX e sua assinatura será ativada imediatamente!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <Input
+                type="email"
+                placeholder="Seu e-mail para confirmação"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-12 bg-white border-gray-300 focus:border-green-500 focus:ring-green-500"
+                required
+              />
+
+              {error && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
               )}
-            </p>
 
-          </form>
+              <Button 
+                type="button"
+                onClick={() => {
+                  if (!email) {
+                    setError("Por favor, informe seu e-mail");
+                    return;
+                  }
+                  setIsProcessing(true);
+                  setError(null);
+                  createPixSubscription.mutate();
+                }}
+                className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg transition-all"
+                disabled={isProcessing || !email}
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Gerando PIX...
+                  </>
+                ) : (
+                  <>
+                    <QrCode className="mr-2 h-5 w-5" />
+                    Gerar PIX de R$ {totalInitial.toFixed(2).replace(".", ",")}
+                  </>
+                )}
+              </Button>
+
+              <p className="text-xs text-center text-gray-500 mt-4">
+                O PIX será gerado e você terá 30 minutos para efetuar o pagamento. 
+                Após a confirmação, sua assinatura será ativada automaticamente.
+              </p>
+            </div>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* QR CODE PIX GERADO */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {paymentMethod === "pix" && pixData && (
+            <div className="space-y-5">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  <h3 className="font-semibold text-green-800">PIX gerado com sucesso!</h3>
+                </div>
+                <p className="text-sm text-green-700">
+                  Escaneie o QR Code ou copie o código Pix Copia e Cola.
+                </p>
+              </div>
+
+              {/* QR Code */}
+              <div className="flex flex-col items-center py-4">
+                <div className="bg-white p-4 rounded-lg shadow-md border">
+                  {pixData.qrCodeBase64 ? (
+                    <img 
+                      src={`data:image/png;base64,${pixData.qrCodeBase64}`} 
+                      alt="QR Code PIX" 
+                      className="w-48 h-48"
+                    />
+                  ) : (
+                    <div className="w-48 h-48 bg-gray-100 flex items-center justify-center">
+                      <QrCode className="w-16 h-16 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-4 text-center">
+                  <p className="text-2xl font-bold text-green-600">
+                    R$ {pixData.amount.toFixed(2).replace(".", ",")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Código Pix Copia e Cola */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Pix Copia e Cola:</label>
+                <div className="relative">
+                  <textarea
+                    readOnly
+                    value={pixData.qrCode}
+                    className="w-full h-20 p-3 pr-12 text-xs bg-gray-50 border border-gray-300 rounded-lg resize-none font-mono"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-2 top-2"
+                    onClick={copyPixCode}
+                  >
+                    {pixCopied ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <Copy className="w-5 h-5 text-gray-500" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Status de verificação */}
+              <div className="flex items-center justify-center gap-2 py-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <Clock className="w-4 h-4 text-yellow-600 animate-pulse" />
+                <span className="text-sm text-yellow-700">Aguardando pagamento...</span>
+              </div>
+
+              {/* Expiração */}
+              <p className="text-xs text-center text-gray-500">
+                Este PIX expira em 30 minutos. Após o pagamento, sua assinatura será ativada automaticamente.
+              </p>
+
+              {/* Botão para gerar novo PIX */}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  setPixData(null);
+                  if (pixPollingRef.current) {
+                    clearInterval(pixPollingRef.current);
+                    pixPollingRef.current = null;
+                  }
+                }}
+              >
+                Gerar novo PIX
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
