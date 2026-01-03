@@ -632,15 +632,6 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                     />
                   </div>
 
-                  <Input
-                    type="email"
-                    placeholder="Seu e-mail"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-10 text-sm"
-                    required
-                  />
-
                   {error && (
                     <div className="p-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs">
                       {error}
@@ -667,15 +658,6 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
               {/* FORM PIX */}
               {paymentMethod === "pix" && !pixData && (
                 <div className="space-y-3">
-                  <Input
-                    type="email"
-                    placeholder="Seu e-mail"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-10 text-sm"
-                    required
-                  />
-
                   {error && (
                     <div className="p-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs">
                       {error}
@@ -684,7 +666,7 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
 
                   <Button 
                     onClick={handlePixSubmit}
-                    disabled={isProcessing || !email}
+                    disabled={isProcessing}
                     className="w-full h-10 bg-green-600 hover:bg-green-700"
                   >
                     {isProcessing ? (

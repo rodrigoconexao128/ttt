@@ -32,6 +32,7 @@ import { useState, useEffect, useRef } from "react";
 import { format, isPast, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 
 // Declaração global para MercadoPago SDK
 declare global {
@@ -150,6 +151,7 @@ export default function MySubscription() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
   const [showPixDialog, setShowPixDialog] = useState(false);
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [timeLeft, setTimeLeft] = useState("");
@@ -167,7 +169,6 @@ export default function MySubscription() {
   const [cvv, setCvv] = useState("");
   const [docType, setDocType] = useState("CPF");
   const [docNumber, setDocNumber] = useState("");
-  const [cardEmail, setCardEmail] = useState("");
   const [isCardProcessing, setIsCardProcessing] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
   const [cardBrand, setCardBrand] = useState<string | null>(null);
@@ -245,7 +246,6 @@ export default function MySubscription() {
       setExpiryDate("");
       setCvv("");
       setDocNumber("");
-      setCardEmail("");
       setCardError(null);
       setIsCardProcessing(false);
       setCardBrand(null);
@@ -284,7 +284,7 @@ export default function MySubscription() {
       const res = await apiRequest("POST", "/api/subscriptions/create-mp-subscription", {
         subscriptionId: data?.subscription?.id,
         token: cardToken,
-        payerEmail: cardEmail || data?.subscription?.payerEmail,
+        payerEmail: user?.email || data?.subscription?.payerEmail,
         paymentMethodId,
         cardholderName: cardHolder,
         identificationNumber: docNumber.replace(/\D/g, ""),
@@ -1269,18 +1269,6 @@ export default function MySubscription() {
                   disabled={isCardProcessing}
                 />
               </div>
-            </div>
-
-            {/* Email */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">E-mail</label>
-              <Input
-                type="email"
-                placeholder="seu@email.com"
-                value={cardEmail || subscription?.payerEmail || ""}
-                onChange={(e) => setCardEmail(e.target.value)}
-                disabled={isCardProcessing}
-              />
             </div>
 
             {/* Segurança */}
