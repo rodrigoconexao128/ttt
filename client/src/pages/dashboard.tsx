@@ -2,7 +2,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ import ContactListsPage from "@/pages/contact-lists";
 import SmartNotifierPage from "@/pages/smart-notifier";
 import FollowupConfigPage from "@/pages/followup-config";
 import PaymentHistoryPage from "@/pages/payment-history";
+import MySubscriptionPage from "@/pages/my-subscription";
 import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation, useRoute } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan } from "@shared/schema";
@@ -99,6 +100,7 @@ export default function Dashboard() {
   const isNotifierRoute = location.startsWith("/notificador");
   const isFollowupRoute = location.startsWith("/followup");
   const isPaymentHistoryRoute = location.startsWith("/payment-history") || location.startsWith("/historico-pagamentos");
+  const isMySubscriptionRoute = location.startsWith("/minha-assinatura");
   const isDashboardMode =
     !isConversasRoute &&
     !isConexaoRoute &&
@@ -121,7 +123,8 @@ export default function Dashboard() {
     !isContactListsRoute &&
     !isNotifierRoute &&
     !isFollowupRoute &&
-    !isPaymentHistoryRoute;
+    !isPaymentHistoryRoute &&
+    !isMySubscriptionRoute;
   const isToolsRoute =
     isPlansRoute ||
     isSettingsRoute ||
@@ -140,7 +143,8 @@ export default function Dashboard() {
     isContactListsRoute ||
     isNotifierRoute ||
     isFollowupRoute ||
-    isPaymentHistoryRoute;
+    isPaymentHistoryRoute ||
+    isMySubscriptionRoute;
   // Start tools collapsed by default; open only when user clicks or route requires it
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toolsPickerOpen, setToolsPickerOpen] = useState(false);
@@ -280,6 +284,7 @@ const toolsNavigation: ToolNavItem[] = [
     { label: "Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Agendamentos", isActive: isSchedulingRoute, testId: "button-nav-scheduling" },
     { label: "Reservas", href: "/reservas", icon: BedDouble, tooltip: "Reservas", isActive: isReservationsRoute, testId: "button-nav-reservations" },
     { label: "Planos", href: "/plans", icon: CreditCard, tooltip: "Planos e assinatura", isActive: isPlansRoute || isSubscribeRoute, testId: "button-nav-plans" },
+    { label: "Minha Assinatura", href: "/minha-assinatura", icon: Receipt, tooltip: "Ver minha assinatura e pagamentos", isActive: isMySubscriptionRoute, testId: "button-nav-my-subscription" },
     { label: "Configurações", href: "/settings", icon: Settings, tooltip: "Configurações", isActive: isSettingsRoute, testId: "button-settings" },
   ];
 
@@ -653,6 +658,11 @@ const toolsNavigation: ToolNavItem[] = [
           {isPaymentHistoryRoute && (
             <div className="flex-1 overflow-auto">
               <PaymentHistoryPage />
+            </div>
+          )}
+          {isMySubscriptionRoute && (
+            <div className="flex-1 overflow-auto">
+              <MySubscriptionPage />
             </div>
           )}
           

@@ -4582,8 +4582,94 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       } else if (type === "subscription_authorized_payment") {
         await mercadoPagoService.processWebhook("subscription_authorized_payment", data);
       } else if (type === "payment") {
-        // Handle payment notifications
-        console.log("[MP Webhook] Payment notification:", data);
+        // ═══════════════════════════════════════════════════════════════════
+        // PROCESSAR PAGAMENTO PIX - Atualizar assinatura automaticamente
+        // ═══════════════════════════════════════════════════════════════════
+        console.log("[MP Webhook] Payment notification - processing PIX:", data);
+        
+        if (data?.id) {
+          try {
+            // Get MP credentials
+            const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
+            const accessToken = configMap.get("mercadopago_access_token");
+            
+            if (accessToken) {
+              // Consultar detalhes do pagamento
+              const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${data.id}`, {
+                headers: { "Authorization": `Bearer ${accessToken}` },
+              });
+              
+              const payment = await paymentResponse.json();
+              console.log("[MP Webhook] Payment details:", {
+                id: payment.id,
+                status: payment.status,
+                statusDetail: payment.status_detail,
+                paymentMethodId: payment.payment_method_id,
+                externalRef: payment.external_reference,
+              });
+              
+              // Verificar se é um pagamento PIX aprovado
+              if (payment.status === "approved" && payment.payment_method_id === "pix") {
+                const externalRef = payment.external_reference || "";
+                const subscriptionIdMatch = externalRef.match(/pix_([^_]+)/);
+                const subscriptionId = subscriptionIdMatch ? subscriptionIdMatch[1] : null;
+                
+                if (subscriptionId) {
+                  const subscription = await storage.getSubscription(subscriptionId) as any;
+                  
+                  if (subscription) {
+                    // Get plan para calcular próxima cobrança
+                    const plan = await storage.getPlan(subscription.planId) as any;
+                    const frequenciaDias = plan?.frequenciaDias || 30;
+                    
+                    // Calcular data fim do período
+                    const dataFim = new Date();
+                    dataFim.setDate(dataFim.getDate() + frequenciaDias);
+                    
+                    // Próximo pagamento
+                    const nextPaymentDate = new Date();
+                    nextPaymentDate.setDate(nextPaymentDate.getDate() + frequenciaDias);
+                    
+                    // Atualizar assinatura para ativa
+                    await storage.updateSubscription(subscriptionId, {
+                      status: "active",
+                      dataInicio: subscription.dataInicio || new Date(),
+                      dataFim,
+                      mpStatus: "authorized",
+                      nextPaymentDate,
+                    });
+                    
+                    // Registrar pagamento no histórico
+                    try {
+                      await storage.createPaymentHistory({
+                        subscriptionId,
+                        userId: subscription.userId,
+                        mpPaymentId: payment.id?.toString(),
+                        amount: payment.transaction_amount?.toString(),
+                        netAmount: payment.transaction_details?.net_received_amount?.toString(),
+                        feeAmount: payment.fee_details?.[0]?.amount?.toString(),
+                        status: "approved",
+                        statusDetail: payment.status_detail || "accredited",
+                        paymentType: subscription.status === "pending_pix" ? "pix_first_payment" : "pix_recurring",
+                        paymentMethod: "pix",
+                        paymentDate: new Date(),
+                        payerEmail: payment.payer?.email || subscription.payerEmail,
+                        rawResponse: payment,
+                      });
+                      console.log("[MP Webhook] Payment history recorded for PIX:", payment.id);
+                    } catch (historyError) {
+                      console.error("[MP Webhook] Error recording history:", historyError);
+                    }
+                    
+                    console.log("[MP Webhook] Subscription activated via PIX webhook:", subscriptionId);
+                  }
+                }
+              }
+            }
+          } catch (paymentError) {
+            console.error("[MP Webhook] Error processing PIX payment:", paymentError);
+          }
+        }
       }
       
       res.status(200).send("OK");
@@ -4700,6 +4786,172 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   });
 
   // ==================== END PAYMENT HISTORY ROUTES ====================
+
+  // ==================== MY SUBSCRIPTION ROUTES (CLIENTE) ====================
+  
+  // Get current user's active subscription with full details
+  app.get("/api/my-subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Get user's subscription (most recent active one, or any if none active)
+      const subscriptions = await storage.getUserSubscriptions(userId) as any[];
+      
+      if (!subscriptions || subscriptions.length === 0) {
+        return res.json({ subscription: null, plan: null, payments: [] });
+      }
+      
+      // Prefer active subscription, otherwise get most recent
+      const subscription = subscriptions.find((s: any) => s.status === "active") 
+        || subscriptions.find((s: any) => s.status === "pending_pix")
+        || subscriptions[0];
+      
+      // Get plan details
+      const plan = subscription ? await storage.getPlan(subscription.planId) : null;
+      
+      // Get payment history
+      const payments = subscription ? await storage.getPaymentHistoryBySubscription(subscription.id) : [];
+      
+      // Calculate stats
+      const totalPaid = payments
+        .filter((p: any) => p.status === "approved")
+        .reduce((sum: number, p: any) => sum + parseFloat(p.amount || "0"), 0);
+        
+      const daysRemaining = subscription?.dataFim 
+        ? Math.ceil((new Date(subscription.dataFim).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        : 0;
+      
+      // Check if needs to pay (PIX pending or renewal due)
+      const needsPayment = subscription?.status === "pending_pix" || 
+        (subscription?.status === "active" && daysRemaining <= 5);
+      
+      res.json({
+        subscription: {
+          ...subscription,
+          daysRemaining: Math.max(0, daysRemaining),
+          needsPayment,
+        },
+        plan,
+        payments,
+        stats: {
+          totalPaid,
+          totalPayments: payments.length,
+          approvedPayments: payments.filter((p: any) => p.status === "approved").length,
+          failedPayments: payments.filter((p: any) => p.status === "rejected").length,
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching my subscription:", error);
+      res.status(500).json({ message: "Erro ao buscar assinatura" });
+    }
+  });
+  
+  // Generate new PIX for renewal or pending payment
+  app.post("/api/my-subscription/generate-pix", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { subscriptionId } = req.body;
+      
+      if (!subscriptionId) {
+        return res.status(400).json({ message: "ID da assinatura é obrigatório" });
+      }
+      
+      // Verify ownership
+      const subscription = await storage.getSubscription(subscriptionId) as any;
+      if (!subscription || subscription.userId !== userId) {
+        return res.status(403).json({ message: "Assinatura não encontrada" });
+      }
+      
+      // Get plan
+      const plan = await storage.getPlan(subscription.planId) as any;
+      if (!plan) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      
+      // Calculate amount
+      const valorMensal = subscription.couponPrice 
+        ? parseFloat(subscription.couponPrice) 
+        : parseFloat(plan.valor);
+      
+      // Get MP credentials
+      const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
+      const accessToken = configMap.get("mercadopago_access_token");
+      
+      if (!accessToken) {
+        return res.status(500).json({ message: "Mercado Pago não configurado" });
+      }
+      
+      // Create PIX payment
+      const pixPaymentData = {
+        transaction_amount: valorMensal,
+        payment_method_id: "pix",
+        description: `Mensalidade - ${plan.nome} - AgenteZap`,
+        payer: {
+          email: subscription.payerEmail || req.user?.email,
+        },
+        external_reference: `pix_${subscriptionId}_${Date.now()}`,
+        notification_url: `${process.env.BASE_URL || 'https://agentezap.online'}/api/webhooks/mercadopago`,
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      };
+      
+      const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "X-Idempotency-Key": `pix_renewal_${subscriptionId}_${Date.now()}`,
+        },
+        body: JSON.stringify(pixPaymentData),
+      });
+      
+      const pixResult = await pixResponse.json();
+      
+      if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
+        const transactionData = pixResult.point_of_interaction.transaction_data;
+        
+        // Update subscription with pending PIX
+        await storage.updateSubscription(subscriptionId, {
+          mpPixPaymentId: pixResult.id?.toString(),
+        });
+        
+        // Record pending payment in history
+        await storage.createPaymentHistory({
+          subscriptionId,
+          userId,
+          mpPaymentId: pixResult.id?.toString(),
+          amount: valorMensal.toString(),
+          status: "pending",
+          statusDetail: "pending_pix",
+          paymentType: subscription.status === "active" ? "pix_recurring" : "pix_first_payment",
+          paymentMethod: "pix",
+          dueDate: new Date(Date.now() + 30 * 60 * 1000),
+          payerEmail: subscription.payerEmail,
+          rawResponse: pixResult,
+        });
+        
+        return res.json({
+          status: "pending",
+          message: "PIX gerado com sucesso!",
+          paymentId: pixResult.id,
+          qrCode: transactionData.qr_code,
+          qrCodeBase64: transactionData.qr_code_base64,
+          ticketUrl: transactionData.ticket_url,
+          expirationDate: pixResult.date_of_expiration,
+          amount: valorMensal,
+        });
+      } else {
+        return res.json({
+          status: "error",
+          message: pixResult.message || "Erro ao gerar PIX",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error generating renewal PIX:", error);
+      res.status(500).json({ message: error.message || "Erro ao gerar PIX" });
+    }
+  });
+  
+  // ==================== END MY SUBSCRIPTION ROUTES ====================
 
   // ==================== END MERCADO PAGO ROUTES ====================
 
