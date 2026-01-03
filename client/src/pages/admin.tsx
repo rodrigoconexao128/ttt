@@ -178,6 +178,8 @@ export default function AdminPanel() {
         return <PlansManager plans={plans} />;
       case "payments":
         return <PaymentsManager pendingPayments={pendingPayments} />;
+      case "subscriptions-history":
+        return <SubscriptionsHistoryManager />;
       case "whatsapp":
         return (
           <div className="grid gap-4">
@@ -263,6 +265,16 @@ export default function AdminPanel() {
                   >
                     <DollarSign className="w-4 h-4" />
                     <span>Pagamentos</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("subscriptions-history")}
+                    isActive={activeTab === "subscriptions-history"}
+                    tooltip="Assinaturas e Histórico de Cobranças"
+                  >
+                    <Crown className="w-4 h-4" />
+                    <span>Assinaturas</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -3220,6 +3232,397 @@ function ClientManager({
           </Table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// Subscriptions History Manager - Complete view of all subscriptions and payment history
+function SubscriptionsHistoryManager() {
+  const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedSubscription, setSelectedSubscription] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  // Fetch all subscriptions with payment info
+  const { data: subscriptions, isLoading: loadingSubscriptions } = useQuery({
+    queryKey: ["/api/admin/subscriptions"],
+  });
+
+  // Fetch payment history for selected subscription
+  const { data: paymentHistory, isLoading: loadingHistory } = useQuery({
+    queryKey: ["/api/admin/payment-history", selectedSubscription],
+    queryFn: async () => {
+      const url = selectedSubscription 
+        ? `/api/admin/payment-history?subscriptionId=${selectedSubscription}`
+        : "/api/admin/payment-history";
+      const response = await fetch(url, { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch");
+      return response.json();
+    },
+  });
+
+  // Fetch subscription statistics
+  const { data: stats } = useQuery({
+    queryKey: ["/api/admin/subscription-stats"],
+  });
+
+  const formatCurrency = (value: string | number | null | undefined) => {
+    if (!value) return "R$ 0,00";
+    const num = typeof value === "string" ? parseFloat(value) : value;
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(num);
+  };
+
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "-";
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(dateString));
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "approved":
+        return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Aprovado</Badge>;
+      case "rejected":
+        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Recusado</Badge>;
+      case "pending":
+        return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Pendente</Badge>;
+      case "active":
+        return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Ativo</Badge>;
+      case "cancelled":
+        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Cancelado</Badge>;
+      case "expired":
+        return <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30">Expirado</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  const filteredSubscriptions = (subscriptions as any[])?.filter((sub: any) => {
+    const matchesSearch = !searchTerm || 
+      sub.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sub.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sub.mpSubscriptionId?.includes(searchTerm);
+    
+    const matchesStatus = statusFilter === "all" || sub.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  }) || [];
+
+  return (
+    <div className="space-y-6">
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total de Assinaturas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{(stats as any)?.totalSubscriptions || 0}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Assinaturas Ativas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">{(stats as any)?.activeSubscriptions || 0}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Recebido
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">
+              {formatCurrency((stats as any)?.totalRevenue)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Pagamentos Rejeitados
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-500">{(stats as any)?.rejectedPayments || 0}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Crown className="w-5 h-5" />
+            Assinaturas e Histórico de Cobranças
+          </CardTitle>
+          <CardDescription>
+            Visualize todas as assinaturas e histórico completo de pagamentos
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 mb-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por email, nome ou ID da assinatura..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="active">Ativos</SelectItem>
+                <SelectItem value="cancelled">Cancelados</SelectItem>
+                <SelectItem value="expired">Expirados</SelectItem>
+                <SelectItem value="pending">Pendentes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Subscriptions Table */}
+          {loadingSubscriptions ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Início</TableHead>
+                  <TableHead>Próx. Cobrança</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>ID MercadoPago</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredSubscriptions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      Nenhuma assinatura encontrada
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredSubscriptions.map((sub: any) => (
+                    <TableRow 
+                      key={sub.id}
+                      className={selectedSubscription === sub.id ? "bg-muted/50" : ""}
+                    >
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{sub.user?.name || "Sem nome"}</p>
+                          <p className="text-xs text-muted-foreground">{sub.user?.email}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{sub.plan?.nome || "N/A"}</Badge>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(sub.status)}</TableCell>
+                      <TableCell className="text-sm">
+                        {sub.dataInicio ? new Date(sub.dataInicio).toLocaleDateString("pt-BR") : "-"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {sub.nextPaymentDate ? new Date(sub.nextPaymentDate).toLocaleDateString("pt-BR") : "-"}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatCurrency(sub.plan?.preco)}
+                      </TableCell>
+                      <TableCell className="text-xs font-mono text-muted-foreground">
+                        {sub.mpSubscriptionId ? sub.mpSubscriptionId.substring(0, 12) + "..." : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant={selectedSubscription === sub.id ? "default" : "outline"}
+                          onClick={() => setSelectedSubscription(
+                            selectedSubscription === sub.id ? null : sub.id
+                          )}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          Histórico
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Payment History for Selected Subscription */}
+      {selectedSubscription && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Histórico de Pagamentos
+            </CardTitle>
+            <CardDescription>
+              Cobranças da assinatura selecionada
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingHistory ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : (paymentHistory as any[])?.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum pagamento registrado para esta assinatura
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Líquido</TableHead>
+                    <TableHead>Taxa MP</TableHead>
+                    <TableHead>Método</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Detalhe</TableHead>
+                    <TableHead>ID MP</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(paymentHistory as any[])?.map((payment: any) => (
+                    <TableRow key={payment.id}>
+                      <TableCell className="text-sm">
+                        {formatDate(payment.paymentDate || payment.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {payment.paymentType === "first_payment" ? "1ª Parcela" : 
+                           payment.paymentType === "setup_fee" ? "Taxa Impl." :
+                           payment.paymentType === "recurring" ? "Recorrente" : payment.paymentType}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatCurrency(payment.amount)}
+                      </TableCell>
+                      <TableCell className="text-green-600">
+                        {formatCurrency(payment.netAmount)}
+                      </TableCell>
+                      <TableCell className="text-red-500 text-sm">
+                        {formatCurrency(payment.feeAmount)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <CreditCard className="w-3 h-3" />
+                          <span className="capitalize text-sm">
+                            {payment.cardBrand || payment.paymentMethod || "-"}
+                          </span>
+                          {payment.cardLastFourDigits && (
+                            <span className="text-muted-foreground">
+                              •••• {payment.cardLastFourDigits}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">
+                        {payment.statusDetail || "-"}
+                      </TableCell>
+                      <TableCell className="text-xs font-mono text-muted-foreground">
+                        {payment.mpPaymentId || "-"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Full Payment History */}
+      {!selectedSubscription && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Últimos Pagamentos (Todos os Clientes)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingHistory ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : (paymentHistory as any[])?.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum pagamento registrado
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Método</TableHead>
+                    <TableHead>ID MP</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(paymentHistory as any[])?.slice(0, 50).map((payment: any) => (
+                    <TableRow key={payment.id}>
+                      <TableCell className="text-sm">
+                        {formatDate(payment.paymentDate || payment.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">{payment.payerEmail || "-"}</span>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatCurrency(payment.amount)}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                      <TableCell>
+                        <span className="capitalize text-sm">
+                          {payment.cardBrand || payment.paymentMethod || "-"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs font-mono text-muted-foreground">
+                        {payment.mpPaymentId || "-"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

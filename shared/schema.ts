@@ -422,7 +422,7 @@ export const subscriptions = pgTable("subscriptions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Payments table
+// Payments table (legacy - Pix payments)
 export const payments = pgTable("payments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id, { onDelete: 'cascade' }),
@@ -434,6 +434,54 @@ export const payments = pgTable("payments", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// ============================================================================
+// PAYMENT HISTORY - Histórico de todos os pagamentos (MercadoPago, Pix, etc)
+// Usado para exibir histórico de cobranças para clientes e admin
+// ============================================================================
+export const paymentHistory = pgTable("payment_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Informações do pagamento MercadoPago
+  mpPaymentId: varchar("mp_payment_id", { length: 255 }), // ID do pagamento no MercadoPago
+  mpSubscriptionId: varchar("mp_subscription_id", { length: 255 }), // ID da assinatura no MP
+  
+  // Valores
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(), // Valor cobrado
+  netAmount: decimal("net_amount", { precision: 10, scale: 2 }), // Valor líquido recebido
+  feeAmount: decimal("fee_amount", { precision: 10, scale: 2 }), // Taxa MP
+  
+  // Status
+  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, approved, rejected, refunded
+  statusDetail: varchar("status_detail", { length: 100 }), // Detalhe do status (accredited, cc_rejected_*, etc)
+  
+  // Tipo de pagamento
+  paymentType: varchar("payment_type", { length: 50 }).default("recurring").notNull(), // first_payment, setup_fee, recurring, refund
+  paymentMethod: varchar("payment_method", { length: 50 }), // credit_card, debit_card, pix, boleto
+  
+  // Datas
+  paymentDate: timestamp("payment_date"), // Data do pagamento
+  dueDate: timestamp("due_date"), // Data de vencimento
+  
+  // Informações adicionais
+  payerEmail: varchar("payer_email", { length: 255 }),
+  cardLastFourDigits: varchar("card_last_four_digits", { length: 4 }),
+  cardBrand: varchar("card_brand", { length: 50 }), // visa, mastercard, etc
+  
+  // Metadata
+  rawResponse: jsonb("raw_response"), // Resposta completa do MercadoPago
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_payment_history_subscription").on(table.subscriptionId),
+  index("idx_payment_history_user").on(table.userId),
+  index("idx_payment_history_mp_payment").on(table.mpPaymentId),
+  index("idx_payment_history_status").on(table.status),
+  index("idx_payment_history_date").on(table.paymentDate),
+]);
 
 // Coupons table - Sistema de cupons de desconto
 export const coupons = pgTable("coupons", {
@@ -702,7 +750,7 @@ export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 export type Subscription = typeof subscriptions.$inferSelect;
 
-// Payment schemas and types
+// Payment schemas and types (legacy - Pix)
 export const insertPaymentSchema = createInsertSchema(payments).omit({
   id: true,
   createdAt: true,
@@ -710,6 +758,15 @@ export const insertPaymentSchema = createInsertSchema(payments).omit({
 });
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 export type Payment = typeof payments.$inferSelect;
+
+// Payment History schemas and types (MercadoPago, etc)
+export const insertPaymentHistorySchema = createInsertSchema(paymentHistory).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertPaymentHistory = z.infer<typeof insertPaymentHistorySchema>;
+export type PaymentHistory = typeof paymentHistory.$inferSelect;
 
 // System config schemas and types
 export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({

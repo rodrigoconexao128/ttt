@@ -73,6 +73,8 @@ function Router() {
       <Route path="/listas-contatos" component={Dashboard} />
       <Route path="/followup" component={Dashboard} />
       <Route path="/subscribe/:id" component={Subscribe} />
+      <Route path="/payment-history" component={Dashboard} />
+      <Route path="/historico-pagamentos" component={Dashboard} />
       <Route path="/settings" component={Dashboard} />
       <Route path="/agent-config" component={AgentConfig} />
       <Route path="/notificador" component={Dashboard} />

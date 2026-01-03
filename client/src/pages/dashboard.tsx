@@ -47,6 +47,7 @@ import MediaLibraryPage from "@/pages/media-library";
 import ContactListsPage from "@/pages/contact-lists";
 import SmartNotifierPage from "@/pages/smart-notifier";
 import FollowupConfigPage from "@/pages/followup-config";
+import PaymentHistoryPage from "@/pages/payment-history";
 import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation, useRoute } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan } from "@shared/schema";
@@ -97,6 +98,7 @@ export default function Dashboard() {
   const isContactListsRoute = location.startsWith("/listas-contatos");
   const isNotifierRoute = location.startsWith("/notificador");
   const isFollowupRoute = location.startsWith("/followup");
+  const isPaymentHistoryRoute = location.startsWith("/payment-history") || location.startsWith("/historico-pagamentos");
   const isDashboardMode =
     !isConversasRoute &&
     !isConexaoRoute &&
@@ -118,7 +120,8 @@ export default function Dashboard() {
     !isLeadQualificationRoute &&
     !isContactListsRoute &&
     !isNotifierRoute &&
-    !isFollowupRoute;
+    !isFollowupRoute &&
+    !isPaymentHistoryRoute;
   const isToolsRoute =
     isPlansRoute ||
     isSettingsRoute ||
@@ -136,7 +139,8 @@ export default function Dashboard() {
     isLeadQualificationRoute ||
     isContactListsRoute ||
     isNotifierRoute ||
-    isFollowupRoute;
+    isFollowupRoute ||
+    isPaymentHistoryRoute;
   // Start tools collapsed by default; open only when user clicks or route requires it
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toolsPickerOpen, setToolsPickerOpen] = useState(false);
@@ -644,6 +648,11 @@ const toolsNavigation: ToolNavItem[] = [
           {isFollowupRoute && (
             <div className="flex-1 overflow-auto">
               <FollowupConfigPage />
+            </div>
+          )}
+          {isPaymentHistoryRoute && (
+            <div className="flex-1 overflow-auto">
+              <PaymentHistoryPage />
             </div>
           )}
           

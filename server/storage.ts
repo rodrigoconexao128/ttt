@@ -11,6 +11,7 @@ import {
   plans,
   subscriptions,
   payments,
+  paymentHistory,
   systemConfig,
   whatsappContacts,
   adminConversations,
@@ -37,6 +38,8 @@ import {
   type InsertSubscription,
   type Payment,
   type InsertPayment,
+  type PaymentHistory,
+  type InsertPaymentHistory,
   type SystemConfig,
   type InsertSystemConfig,
   type WhatsappContact,
@@ -118,12 +121,20 @@ export interface IStorage {
   createSubscription(subscription: InsertSubscription): Promise<Subscription>;
   updateSubscription(id: string, data: Partial<InsertSubscription>): Promise<Subscription>;
 
-  // Payment operations
+  // Payment operations (legacy - Pix)
   getPayment(id: string): Promise<Payment | undefined>;
   getPaymentBySubscriptionId(subscriptionId: string): Promise<Payment | undefined>;
   getPendingPayments(): Promise<(Payment & { subscription: Subscription & { user: User; plan: Plan } })[]>;
   createPayment(payment: InsertPayment): Promise<Payment>;
   updatePayment(id: string, data: Partial<InsertPayment>): Promise<Payment>;
+
+  // Payment History operations (MercadoPago, etc)
+  createPaymentHistory(payment: Partial<InsertPaymentHistory>): Promise<PaymentHistory>;
+  getPaymentHistory(id: string): Promise<PaymentHistory | undefined>;
+  getPaymentHistoryBySubscription(subscriptionId: string): Promise<PaymentHistory[]>;
+  getPaymentHistoryByUser(userId: string): Promise<PaymentHistory[]>;
+  getAllPaymentHistory(): Promise<(PaymentHistory & { subscription?: Subscription; user?: User })[]>;
+  updatePaymentHistory(id: string, data: Partial<InsertPaymentHistory>): Promise<PaymentHistory>;
 
   // System config operations
   getSystemConfig(key: string): Promise<SystemConfig | undefined>;
@@ -951,6 +962,57 @@ export class DatabaseStorage implements IStorage {
       .update(payments)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(payments.id, id))
+      .returning();
+    return payment;
+  }
+
+  // Payment History operations (MercadoPago, etc)
+  async createPaymentHistory(paymentData: Partial<InsertPaymentHistory>): Promise<PaymentHistory> {
+    const [payment] = await db.insert(paymentHistory).values(paymentData as any).returning();
+    return payment;
+  }
+
+  async getPaymentHistory(id: string): Promise<PaymentHistory | undefined> {
+    const [payment] = await db.select().from(paymentHistory).where(eq(paymentHistory.id, id));
+    return payment;
+  }
+
+  async getPaymentHistoryBySubscription(subscriptionId: string): Promise<PaymentHistory[]> {
+    return await db
+      .select()
+      .from(paymentHistory)
+      .where(eq(paymentHistory.subscriptionId, subscriptionId))
+      .orderBy(desc(paymentHistory.createdAt));
+  }
+
+  async getPaymentHistoryByUser(userId: string): Promise<PaymentHistory[]> {
+    return await db
+      .select()
+      .from(paymentHistory)
+      .where(eq(paymentHistory.userId, userId))
+      .orderBy(desc(paymentHistory.createdAt));
+  }
+
+  async getAllPaymentHistory(): Promise<(PaymentHistory & { subscription?: Subscription; user?: User })[]> {
+    const result = await db
+      .select()
+      .from(paymentHistory)
+      .leftJoin(subscriptions, eq(paymentHistory.subscriptionId, subscriptions.id))
+      .leftJoin(users, eq(paymentHistory.userId, users.id))
+      .orderBy(desc(paymentHistory.createdAt));
+
+    return result.map((row) => ({
+      ...row.payment_history,
+      subscription: row.subscriptions || undefined,
+      user: row.users || undefined,
+    }));
+  }
+
+  async updatePaymentHistory(id: string, data: Partial<InsertPaymentHistory>): Promise<PaymentHistory> {
+    const [payment] = await db
+      .update(paymentHistory)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(paymentHistory.id, id))
       .returning();
     return payment;
   }

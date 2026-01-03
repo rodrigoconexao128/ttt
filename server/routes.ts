@@ -3943,15 +3943,34 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       const endDate = new Date();
       endDate.setFullYear(endDate.getFullYear() + 5); // 5 years subscription max
       
-      // If there's a setup fee, we need to process it first as a single payment
-      // then start the recurring subscription
-      if (hasSetupFee && valorPrimeiraCobranca > 0 && token) {
-        console.log("[MP Subscription] Processing setup fee payment:", valorPrimeiraCobranca);
+      // ═══════════════════════════════════════════════════════════════════
+      // PRÉ-PAGO: SEMPRE cobrar o PRIMEIRO pagamento IMEDIATAMENTE
+      // A assinatura recorrente começa no PRÓXIMO período
+      // Isso garante cobrança no dia da assinatura (modelo pré-pago)
+      // ═══════════════════════════════════════════════════════════════════
+      
+      let firstPaymentId: string | null = null;
+      let firstPaymentAmount: number = 0;
+      
+      // Determinar o valor do primeiro pagamento
+      // Se tem taxa de implementação diferente, usar ela; senão usar valor mensal
+      if (hasSetupFee && valorPrimeiraCobranca > 0) {
+        firstPaymentAmount = valorPrimeiraCobranca;
+      } else {
+        firstPaymentAmount = valorMensal;
+      }
+      
+      // SEMPRE fazer o primeiro pagamento imediato se tiver token
+      if (token && firstPaymentAmount > 0) {
+        console.log("[MP Subscription] ═══ PRÉ-PAGO: Processando primeiro pagamento imediato ═══");
+        console.log("[MP Subscription] Valor:", firstPaymentAmount);
         
-        const setupPaymentData: any = {
-          transaction_amount: valorPrimeiraCobranca,
+        const firstPaymentData: any = {
+          transaction_amount: firstPaymentAmount,
           token: token,
-          description: `Taxa de implementação - ${plan.nome} - AgenteZap`,
+          description: hasSetupFee 
+            ? `Taxa de implementação - ${plan.nome} - AgenteZap`
+            : `Primeira mensalidade - ${plan.nome} - AgenteZap`,
           installments: 1,
           payment_method_id: paymentMethodId || 'visa',
           payer: {
@@ -3961,33 +3980,34 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
               number: identificationNumber,
             },
           },
-          external_reference: `setup_${subscriptionId}`,
+          external_reference: `first_payment_${subscriptionId}`,
           statement_descriptor: "AGENTEZAP",
         };
         
         if (issuerId) {
-          setupPaymentData.issuer_id = parseInt(issuerId);
+          firstPaymentData.issuer_id = parseInt(issuerId);
         }
         
-        const setupResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+        const firstPaymentResponse = await fetch("https://api.mercadopago.com/v1/payments", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${accessToken}`,
-            "X-Idempotency-Key": `setup_${subscriptionId}_${Date.now()}`,
+            "X-Idempotency-Key": `first_payment_${subscriptionId}_${Date.now()}`,
           },
-          body: JSON.stringify(setupPaymentData),
+          body: JSON.stringify(firstPaymentData),
         });
         
-        const setupResult = await setupResponse.json();
+        const firstPaymentResult = await firstPaymentResponse.json();
         
-        console.log("[MP Subscription] Setup fee result:", {
-          status: setupResult.status,
-          statusDetail: setupResult.status_detail,
-          id: setupResult.id,
+        console.log("[MP Subscription] Primeiro pagamento resultado:", {
+          status: firstPaymentResult.status,
+          statusDetail: firstPaymentResult.status_detail,
+          id: firstPaymentResult.id,
+          amount: firstPaymentResult.transaction_amount,
         });
         
-        if (setupResult.status !== "approved") {
+        if (firstPaymentResult.status !== "approved") {
           // Mensagens de erro em português brasileiro
           const errorMessages: Record<string, string> = {
             // Erros de validação do cartão
@@ -4019,20 +4039,57 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
             "rejected": "Pagamento recusado. Verifique os dados ou use outro cartão.",
           };
           
-          const message = errorMessages[setupResult.status_detail] || 
-                         errorMessages[setupResult.status] || 
-                         setupResult.message || 
-                         "Pagamento da taxa inicial não aprovado";
+          const message = errorMessages[firstPaymentResult.status_detail] || 
+                         errorMessages[firstPaymentResult.status] || 
+                         firstPaymentResult.message || 
+                         "Primeiro pagamento não aprovado";
           
           return res.json({
-            status: setupResult.status || "rejected",
+            status: firstPaymentResult.status || "rejected",
             message,
-            statusDetail: setupResult.status_detail,
+            statusDetail: firstPaymentResult.status_detail,
           });
         }
         
-        // Setup fee paid, adjust start date for recurring
-        startDate.setDate(startDate.getDate() + frequenciaDias);
+        // ✅ Primeiro pagamento APROVADO!
+        firstPaymentId = firstPaymentResult.id?.toString();
+        console.log("[MP Subscription] ✅ Primeiro pagamento aprovado! ID:", firstPaymentId);
+        
+        // Registrar o pagamento no histórico
+        try {
+          await storage.createPaymentHistory({
+            subscriptionId,
+            userId,
+            mpPaymentId: firstPaymentId,
+            amount: firstPaymentAmount.toString(),
+            netAmount: firstPaymentResult.transaction_details?.net_received_amount?.toString(),
+            feeAmount: firstPaymentResult.fee_details?.[0]?.amount?.toString(),
+            status: "approved",
+            statusDetail: firstPaymentResult.status_detail || "accredited",
+            paymentType: hasSetupFee ? "setup_fee" : "first_payment",
+            paymentMethod: paymentMethodId || "credit_card",
+            paymentDate: new Date(),
+            payerEmail,
+            cardLastFourDigits: firstPaymentResult.card?.last_four_digits,
+            cardBrand: firstPaymentResult.payment_method_id,
+            rawResponse: firstPaymentResult,
+          });
+          console.log("[MP Subscription] Pagamento registrado no histórico");
+        } catch (historyError) {
+          console.error("[MP Subscription] Erro ao registrar histórico:", historyError);
+          // Não falhar por causa do histórico
+        }
+        
+        // Ajustar start_date para o PRÓXIMO período (já que o primeiro foi pago)
+        if (frequency_type === "months") {
+          startDate.setMonth(startDate.getMonth() + frequency);
+        } else if (frequency_type === "years") {
+          startDate.setFullYear(startDate.getFullYear() + frequency);
+        } else {
+          startDate.setDate(startDate.getDate() + frequenciaDias);
+        }
+        
+        console.log("[MP Subscription] Próxima cobrança recorrente em:", startDate.toISOString());
       }
       
       // ═══════════════════════════════════════════════════════════════════
@@ -4278,6 +4335,114 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       res.status(500).send("Error");
     }
   });
+
+  // ==================== PAYMENT HISTORY ROUTES ====================
+  
+  // Get payment history for current user
+  app.get("/api/payment-history", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const history = await storage.getPaymentHistoryByUser(userId);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching payment history:", error);
+      res.status(500).json({ message: "Erro ao buscar histórico de pagamentos" });
+    }
+  });
+
+  // Get payment history for a specific subscription
+  app.get("/api/payment-history/subscription/:subscriptionId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { subscriptionId } = req.params;
+      
+      // Verify user owns this subscription
+      const subscription = await storage.getSubscription(subscriptionId) as any;
+      if (!subscription || subscription.userId !== userId) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+      
+      const history = await storage.getPaymentHistoryBySubscription(subscriptionId);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching subscription payment history:", error);
+      res.status(500).json({ message: "Erro ao buscar histórico de pagamentos" });
+    }
+  });
+
+  // Admin: Get all payment history
+  app.get("/api/admin/payment-history", isAdmin, async (_req, res) => {
+    try {
+      const history = await storage.getAllPaymentHistory();
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching all payment history:", error);
+      res.status(500).json({ message: "Erro ao buscar histórico de pagamentos" });
+    }
+  });
+
+  // Admin: Get all subscriptions with details
+  app.get("/api/admin/subscriptions", isAdmin, async (_req, res) => {
+    try {
+      const subscriptions = await storage.getAllSubscriptions();
+      
+      // Enrich with payment history
+      const enrichedSubscriptions = await Promise.all(
+        subscriptions.map(async (sub: any) => {
+          const payments = await storage.getPaymentHistoryBySubscription(sub.id);
+          const lastPayment = payments[0] || null;
+          const totalPaid = payments
+            .filter((p: any) => p.status === "approved")
+            .reduce((sum: number, p: any) => sum + parseFloat(p.amount || "0"), 0);
+          
+          return {
+            ...sub,
+            paymentHistory: payments,
+            lastPayment,
+            totalPaid,
+            paymentsCount: payments.length,
+            approvedPaymentsCount: payments.filter((p: any) => p.status === "approved").length,
+            failedPaymentsCount: payments.filter((p: any) => p.status === "rejected").length,
+          };
+        })
+      );
+      
+      res.json(enrichedSubscriptions);
+    } catch (error) {
+      console.error("Error fetching admin subscriptions:", error);
+      res.status(500).json({ message: "Erro ao buscar assinaturas" });
+    }
+  });
+
+  // Admin: Get subscription stats
+  app.get("/api/admin/subscription-stats", isAdmin, async (_req, res) => {
+    try {
+      const subscriptions = await storage.getAllSubscriptions();
+      const allHistory = await storage.getAllPaymentHistory();
+      
+      const stats = {
+        totalSubscriptions: subscriptions.length,
+        activeSubscriptions: subscriptions.filter((s: any) => s.status === "active").length,
+        pendingSubscriptions: subscriptions.filter((s: any) => s.status === "pending").length,
+        cancelledSubscriptions: subscriptions.filter((s: any) => s.status === "cancelled").length,
+        expiredSubscriptions: subscriptions.filter((s: any) => s.status === "expired").length,
+        totalPayments: allHistory.length,
+        approvedPayments: allHistory.filter((p: any) => p.status === "approved").length,
+        rejectedPayments: allHistory.filter((p: any) => p.status === "rejected").length,
+        pendingPayments: allHistory.filter((p: any) => p.status === "pending").length,
+        totalRevenue: allHistory
+          .filter((p: any) => p.status === "approved")
+          .reduce((sum: number, p: any) => sum + parseFloat(p.amount || "0"), 0),
+      };
+      
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching subscription stats:", error);
+      res.status(500).json({ message: "Erro ao buscar estatísticas" });
+    }
+  });
+
+  // ==================== END PAYMENT HISTORY ROUTES ====================
 
   // ==================== END MERCADO PAGO ROUTES ====================
 
