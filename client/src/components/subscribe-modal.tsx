@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { 
   Loader2, 
   Check, 
@@ -105,6 +106,7 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
     amount: number;
   } | null>(null);
   const [pixCopied, setPixCopied] = useState(false);
+  const [pixTimeLeft, setPixTimeLeft] = useState<number>(30 * 60); // 30 minutos em segundos
   
   const mpInstanceRef = useRef<any>(null);
   const pixPollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -337,6 +339,32 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
     };
   }, []);
 
+  // Cronômetro do PIX
+  useEffect(() => {
+    if (!pixData) {
+      setPixTimeLeft(30 * 60);
+      return;
+    }
+    
+    const timer = setInterval(() => {
+      setPixTimeLeft(prev => {
+        if (prev <= 0) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [pixData]);
+
+  const formatPixTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const copyPixCode = () => {
     if (pixData?.qrCode) {
       navigator.clipboard.writeText(pixData.qrCode);
@@ -418,7 +446,10 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0" aria-describedby={undefined}>
+        <VisuallyHidden>
+          <DialogTitle>Pagamento via {paymentMethod === 'pix' ? 'PIX' : 'Cartão de Crédito'}</DialogTitle>
+        </VisuallyHidden>
         {subscriptionLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -688,6 +719,15 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                       R$ {pixData.amount.toFixed(2).replace(".", ",")}
                     </p>
                   </div>
+                  
+                  {/* Cronômetro */}
+                  <div className="flex items-center justify-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-500" />
+                    <span className="text-sm text-gray-600">Expira em</span>
+                    <span className={`font-mono text-lg font-bold ${pixTimeLeft < 300 ? 'text-red-500' : 'text-green-600'}`}>
+                      {formatPixTime(pixTimeLeft)}
+                    </span>
+                  </div>
 
                   <Button 
                     variant="outline" 
@@ -708,9 +748,8 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                   </Button>
 
                   <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-                    <Clock className="w-3 h-3" />
-                    <span>Aguardando pagamento...</span>
                     <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Aguardando pagamento...</span>
                   </div>
                 </div>
               )}

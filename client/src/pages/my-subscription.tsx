@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { 
   CreditCard, 
   CalendarDays, 
@@ -20,15 +21,64 @@ import {
   ArrowRight,
   Percent,
   CalendarClock,
-  AlertTriangle
+  AlertTriangle,
+  Shield,
+  Lock
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format, isPast, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useLocation } from "wouter";
+
+// Declaração global para MercadoPago SDK
+declare global {
+  interface Window {
+    MercadoPago: any;
+  }
+}
+
+// Traduções de erros do Mercado Pago
+const MP_ERROR_TRANSLATIONS: Record<string, string> = {
+  "cc_rejected_bad_filled_card_number": "Número do cartão incorreto. Verifique e tente novamente.",
+  "cc_rejected_bad_filled_date": "Data de validade incorreta.",
+  "cc_rejected_bad_filled_other": "Dados do cartão incorretos. Verifique todas as informações.",
+  "cc_rejected_bad_filled_security_code": "Código de segurança (CVV) incorreto.",
+  "cc_rejected_blacklist": "Este cartão não pode ser utilizado. Tente outro cartão.",
+  "cc_rejected_call_for_authorize": "Autorize a compra ligando para seu banco.",
+  "cc_rejected_card_disabled": "Cartão desativado. Entre em contato com seu banco.",
+  "cc_rejected_card_error": "Erro no cartão. Tente outro cartão.",
+  "cc_rejected_duplicated_payment": "Este pagamento já foi realizado anteriormente.",
+  "cc_rejected_high_risk": "Pagamento recusado por motivos de segurança.",
+  "cc_rejected_insufficient_amount": "Saldo insuficiente no cartão.",
+  "cc_rejected_invalid_installments": "Número de parcelas inválido.",
+  "cc_rejected_max_attempts": "Limite de tentativas excedido. Tente mais tarde.",
+  "cc_rejected_other_reason": "Pagamento não autorizado pelo banco.",
+  "invalid_card_number": "Número do cartão inválido.",
+  "invalid_expiration_date": "Data de validade inválida.",
+  "invalid_security_code": "Código de segurança (CVV) inválido.",
+  "invalid_holder_name": "Nome do titular deve conter apenas letras.",
+  "invalid_identification": "CPF/CNPJ inválido. Verifique o número.",
+  "card_token_creation_failed": "Erro ao processar o cartão. Tente novamente.",
+  "pending_contingency": "Pagamento em análise. Aguarde a confirmação.",
+  "pending_review_manual": "Pagamento em revisão manual.",
+  "rejected": "Pagamento rejeitado. Tente outro cartão.",
+  "cancelled": "Pagamento cancelado.",
+  "refunded": "Pagamento estornado.",
+  "charged_back": "Pagamento contestado.",
+  "Card token service not found": "Conexão segura necessária (HTTPS).",
+  "secure context": "Use conexão segura (HTTPS) para pagamentos.",
+};
+
+function translateMPError(error: string): string {
+  if (MP_ERROR_TRANSLATIONS[error]) return MP_ERROR_TRANSLATIONS[error];
+  for (const [key, translation] of Object.entries(MP_ERROR_TRANSLATIONS)) {
+    if (error.toLowerCase().includes(key.toLowerCase())) return translation;
+  }
+  return error;
+}
 
 // Formatação de moeda BR
 function formatCurrency(value: string | number | null | undefined): string {
@@ -109,6 +159,20 @@ export default function MySubscription() {
   const [showPaymentMethodDialog, setShowPaymentMethodDialog] = useState(false);
   const [showAnnualDialog, setShowAnnualDialog] = useState(false);
   const [showAdvancePaymentDialog, setShowAdvancePaymentDialog] = useState(false);
+  
+  // Estados para formulário de cartão (Cadastrar Cartão)
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardHolder, setCardHolder] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [docType, setDocType] = useState("CPF");
+  const [docNumber, setDocNumber] = useState("");
+  const [cardEmail, setCardEmail] = useState("");
+  const [isCardProcessing, setIsCardProcessing] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [cardBrand, setCardBrand] = useState<string | null>(null);
+  const [mpReady, setMpReady] = useState(false);
+  const mpInstanceRef = useRef<any>(null);
 
   const { data, isLoading, refetch } = useQuery<SubscriptionData>({
     queryKey: ["/api/my-subscription"],
@@ -126,6 +190,191 @@ export default function MySubscription() {
 
   const annualDiscountPercent = annualConfig?.percent || 5;
   const annualDiscountEnabled = annualConfig?.enabled !== false;
+
+  // Buscar chave pública do MP
+  const { data: mpConfig } = useQuery({
+    queryKey: ["mp-public-key"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/mercadopago/public-key");
+      return res.json();
+    },
+    enabled: showPaymentMethodDialog,
+  });
+
+  // Inicializar MercadoPago SDK quando abrir dialog de cartão
+  useEffect(() => {
+    if (!mpConfig?.publicKey || !showPaymentMethodDialog) return;
+    const initMP = () => {
+      if (window.MercadoPago && mpConfig.publicKey) {
+        try {
+          mpInstanceRef.current = new window.MercadoPago(mpConfig.publicKey, { locale: 'pt-BR' });
+          setMpReady(true);
+        } catch (err) {
+          console.error("Erro MP:", err);
+        }
+      }
+    };
+    if (window.MercadoPago) initMP();
+    else {
+      const script = document.createElement("script");
+      script.src = "https://sdk.mercadopago.com/js/v2";
+      script.async = true;
+      script.onload = initMP;
+      document.body.appendChild(script);
+    }
+  }, [mpConfig, showPaymentMethodDialog]);
+
+  // Detectar bandeira do cartão
+  useEffect(() => {
+    const clean = cardNumber.replace(/\s/g, "");
+    if (clean.length >= 4) {
+      if (/^4/.test(clean)) setCardBrand("visa");
+      else if (/^5[1-5]/.test(clean) || /^2/.test(clean)) setCardBrand("mastercard");
+      else if (/^3[47]/.test(clean)) setCardBrand("amex");
+      else if (/^(636368|438935|504175|451416|636297|506|4576|4011)/.test(clean)) setCardBrand("elo");
+      else if (/^(606282|3841)/.test(clean)) setCardBrand("hipercard");
+      else setCardBrand(null);
+    } else setCardBrand(null);
+  }, [cardNumber]);
+
+  // Resetar formulário de cartão ao fechar dialog
+  useEffect(() => {
+    if (!showPaymentMethodDialog) {
+      setCardNumber("");
+      setCardHolder("");
+      setExpiryDate("");
+      setCvv("");
+      setDocNumber("");
+      setCardEmail("");
+      setCardError(null);
+      setIsCardProcessing(false);
+      setCardBrand(null);
+    }
+  }, [showPaymentMethodDialog]);
+
+  // Formatadores do cartão
+  const formatCardNumber = (v: string) => v.replace(/\D/g, "").slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+  const formatExpiryDate = (v: string) => {
+    const clean = v.replace(/\D/g, "").slice(0, 4);
+    return clean.length >= 2 ? `${clean.slice(0, 2)}/${clean.slice(2)}` : clean;
+  };
+  const formatDoc = (v: string) => {
+    const clean = v.replace(/\D/g, "");
+    if (docType === "CPF") {
+      return clean.slice(0, 11)
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d{1,2})/, "$1-$2");
+    }
+    return clean.slice(0, 14)
+      .replace(/(\d{2})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1/$2")
+      .replace(/(\d{4})(\d{1,2})/, "$1-$2");
+  };
+
+  // Mutation para cadastrar cartão e criar assinatura recorrente
+  const createCardSubscription = useMutation({
+    mutationFn: async (cardToken: string) => {
+      const paymentMethodMap: Record<string, string> = {
+        visa: "visa", mastercard: "master", amex: "amex", elo: "elo", hipercard: "hipercard"
+      };
+      const paymentMethodId = cardBrand ? paymentMethodMap[cardBrand] || "visa" : "visa";
+      
+      const res = await apiRequest("POST", "/api/subscriptions/create-mp-subscription", {
+        subscriptionId: data?.subscription?.id,
+        token: cardToken,
+        payerEmail: cardEmail || data?.subscription?.payerEmail,
+        paymentMethodId,
+        cardholderName: cardHolder,
+        identificationNumber: docNumber.replace(/\D/g, ""),
+        identificationType: docType,
+      });
+      
+      if (!res.ok) {
+        const responseData = await res.json();
+        throw new Error(responseData.message || "Erro ao criar assinatura");
+      }
+      return res.json();
+    },
+    onSuccess: (responseData) => {
+      if (responseData.status === "approved" || responseData.mpSubscriptionId) {
+        toast({ 
+          title: "🎉 Cartão cadastrado com sucesso!", 
+          description: "Cobranças automáticas configuradas." 
+        });
+        setShowPaymentMethodDialog(false);
+        queryClient.invalidateQueries({ queryKey: ["/api/my-subscription"] });
+      } else if (responseData.initPoint) {
+        toast({ 
+          title: "Finalize seu cadastro", 
+          description: "Redirecionando para completar a configuração..." 
+        });
+        setTimeout(() => {
+          window.location.href = responseData.initPoint;
+        }, 1500);
+      } else {
+        setCardError(responseData.message || "Erro ao processar cartão");
+        setIsCardProcessing(false);
+      }
+    },
+    onError: (err: Error) => {
+      setCardError(translateMPError(err.message));
+      setIsCardProcessing(false);
+    }
+  });
+
+  // Handler para submeter o cartão
+  const handleCardSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mpInstanceRef.current) {
+      setCardError("Sistema de pagamento não inicializado. Recarregue a página.");
+      return;
+    }
+    setIsCardProcessing(true);
+    setCardError(null);
+
+    try {
+      const [expirationMonth, expirationYear] = expiryDate.split("/");
+      const cardToken = await mpInstanceRef.current.createCardToken({
+        cardNumber: cardNumber.replace(/\s/g, ""),
+        cardholderName: cardHolder,
+        cardExpirationMonth: expirationMonth,
+        cardExpirationYear: "20" + expirationYear,
+        securityCode: cvv,
+        identificationType: docType,
+        identificationNumber: docNumber.replace(/\D/g, ""),
+      });
+      
+      if (cardToken?.error || cardToken?.message) {
+        throw new Error(cardToken.error || cardToken.message || "Erro ao processar cartão");
+      }
+      
+      if (!cardToken || !cardToken.id) {
+        throw new Error("Não foi possível processar os dados do cartão.");
+      }
+      
+      createCardSubscription.mutate(cardToken.id);
+    } catch (err: any) {
+      let errorMessage = "Verifique os dados do cartão.";
+      const errMsg = String(err?.message || err?.error || String(err) || "").toLowerCase();
+      
+      if (errMsg.includes("card token") || errMsg.includes("service not found") || errMsg.includes("secure") || errMsg.includes("https")) {
+        errorMessage = "⚠️ Pagamento seguro requer HTTPS.";
+      } else if (err?.cause?.[0]?.code) {
+        const code = err.cause[0].code;
+        if (code === "205" || code === "E205") errorMessage = "Número do cartão inválido.";
+        else if (code === "208" || code === "E208") errorMessage = "Mês de validade inválido.";
+        else if (code === "209" || code === "E209") errorMessage = "Ano de validade inválido.";
+        else if (code === "224" || code === "E224") errorMessage = "Código CVV inválido.";
+      } else if (errMsg) {
+        errorMessage = translateMPError(errMsg);
+      }
+      
+      setCardError(errorMessage);
+      setIsCardProcessing(false);
+    }
+  };
 
   const generatePixMutation = useMutation({
     mutationFn: async (subscriptionId: string) => {
@@ -912,9 +1161,9 @@ export default function MySubscription() {
         </DialogContent>
       </Dialog>
       
-      {/* Dialog para cadastrar cartão (clientes PIX manual) */}
+      {/* Dialog para cadastrar cartão (clientes PIX manual) - FORMULÁRIO COMPLETO */}
       <Dialog open={showPaymentMethodDialog} onOpenChange={setShowPaymentMethodDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-purple-600" />
@@ -925,42 +1174,151 @@ export default function MySubscription() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            <div className="p-4 bg-purple-50 dark:bg-purple-950/20 rounded-lg border border-purple-200">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-purple-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-purple-800 dark:text-purple-200">Vantagens</p>
-                  <ul className="text-sm text-purple-700 dark:text-purple-300 mt-1 space-y-1">
-                    <li>• Cobrança automática no vencimento</li>
-                    <li>• Sem risco de esquecer de pagar</li>
-                    <li>• Sua assinatura nunca será interrompida</li>
-                    <li>• Você pode cancelar a qualquer momento</li>
-                  </ul>
-                </div>
+          <form onSubmit={handleCardSubmit} className="space-y-4">
+            {/* Info do plano atual */}
+            <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Plano:</span>
+                <span className="font-medium">{plan?.nome || "Plano Ativo"}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm mt-1">
+                <span className="text-muted-foreground">Valor mensal:</span>
+                <span className="font-bold text-purple-600">
+                  {subscription?.couponPrice 
+                    ? formatCurrency(parseFloat(subscription.couponPrice))
+                    : formatCurrency(parseFloat(plan?.valor || "0"))}
+                </span>
               </div>
             </div>
-            
-            <DialogFooter className="flex-col gap-2 sm:flex-col">
+
+            {/* Erro */}
+            {cardError && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">{cardError}</p>
+              </div>
+            )}
+
+            {/* Número do Cartão */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Número do Cartão</label>
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="0000 0000 0000 0000"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                  className="pl-10"
+                  disabled={isCardProcessing}
+                />
+                <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                {cardBrand && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium uppercase text-purple-600">
+                    {cardBrand}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Nome e Validade */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Nome no Cartão</label>
+                <Input
+                  type="text"
+                  placeholder="NOME COMPLETO"
+                  value={cardHolder}
+                  onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                  disabled={isCardProcessing}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Validade</label>
+                <Input
+                  type="text"
+                  placeholder="MM/AA"
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(formatExpiryDate(e.target.value))}
+                  disabled={isCardProcessing}
+                />
+              </div>
+            </div>
+
+            {/* CVV e CPF */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">CVV</label>
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="000"
+                    value={cvv}
+                    onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    disabled={isCardProcessing}
+                    className="pl-10"
+                  />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">CPF do Titular</label>
+                <Input
+                  type="text"
+                  placeholder="000.000.000-00"
+                  value={docNumber}
+                  onChange={(e) => setDocNumber(formatDoc(e.target.value))}
+                  disabled={isCardProcessing}
+                />
+              </div>
+            </div>
+
+            {/* Email */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">E-mail</label>
+              <Input
+                type="email"
+                placeholder="seu@email.com"
+                value={cardEmail || subscription?.payerEmail || ""}
+                onChange={(e) => setCardEmail(e.target.value)}
+                disabled={isCardProcessing}
+              />
+            </div>
+
+            {/* Segurança */}
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <Shield className="w-4 h-4" />
+              <span>Pagamento seguro via Mercado Pago. Seus dados são protegidos.</span>
+            </div>
+
+            {/* Botões */}
+            <div className="flex flex-col gap-2 pt-2">
               <Button 
+                type="submit"
                 className="w-full bg-purple-600 hover:bg-purple-700"
-                onClick={() => {
-                  setShowPaymentMethodDialog(false);
-                  setLocation("/plans?action=upgrade-card");
-                }}
+                disabled={isCardProcessing || !mpReady || !cardNumber || !cardHolder || !expiryDate || !cvv || !docNumber}
               >
-                <CreditCard className="w-4 h-4 mr-2" />
-                Cadastrar Cartão Agora
+                {isCardProcessing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Cadastrar Cartão e Ativar Cobrança Automática
+                  </>
+                )}
               </Button>
               <Button 
+                type="button"
                 variant="outline" 
                 className="w-full"
                 onClick={() => setShowPaymentMethodDialog(false)}
+                disabled={isCardProcessing}
               >
-                Continuar com PIX
+                Cancelar
               </Button>
-            </DialogFooter>
-          </div>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
