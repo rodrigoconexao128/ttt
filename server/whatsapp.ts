@@ -1580,10 +1580,12 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     return;
   }
 
-  // Extrair texto da mensagem
+  // Extrair texto da mensagem E MÍDIA (incluindo áudio para transcrição)
   const msg = waMessage.message;
   let messageText = "";
   let mediaType: string | null = null;
+  let mediaUrl: string | null = null;
+  let mediaMimeType: string | null = null;
 
   if (msg?.conversation) {
     messageText = msg.conversation;
@@ -1616,9 +1618,20 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     messageText = "[Vídeo recebido]";
     mediaType = "video";
   } else if (msg?.audioMessage) {
-    // IMPORTANTE: Formato simples que não confunde a IA
-    messageText = "[Áudio recebido]";
+    // 🎤 ÁUDIO DO DONO: Baixar e preparar para transcrição (igual cliente)
     mediaType = "audio";
+    mediaMimeType = msg.audioMessage.mimetype || "audio/ogg; codecs=opus";
+    messageText = "[Áudio enviado]"; // Texto placeholder, será substituído pela transcrição
+    
+    try {
+      console.log(`🎤 [FROM ME] Baixando áudio do dono para transcrição...`);
+      const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      console.log(`✅ [FROM ME] Áudio do dono baixado: ${buffer.length} bytes`);
+    } catch (error) {
+      console.error("❌ [FROM ME] Erro ao baixar áudio:", error);
+      mediaUrl = null;
+    }
   } else if (msg?.documentMessage?.caption) {
     messageText = msg.documentMessage.caption;
     mediaType = "document";
@@ -1690,6 +1703,8 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
       timestamp: new Date(Number(waMessage.messageTimestamp) * 1000),
       isFromAgent: false,
       mediaType,
+      mediaUrl,        // 🎤 Incluir URL do áudio para transcrição automática
+      mediaMimeType,   // 🎤 Tipo MIME do áudio
     });
   } catch (createError: any) {
     // Se erro for de duplicata (constraint unique), verificar se é do agente
