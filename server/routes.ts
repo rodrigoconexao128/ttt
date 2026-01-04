@@ -44,6 +44,7 @@ import {
   addAdminWebSocketClient,
   triggerAgentResponseForConversation,
   triggerAdminAgentResponseForConversation,
+  splitMessageHumanLike,
 } from "./whatsapp";
 import { 
   sendMessageSchema, 
@@ -2057,8 +2058,19 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         }
       }
       
+      // 🔄 DIVIDIR RESPOSTA IGUAL AO WHATSAPP PARA CONSISTÊNCIA DO SIMULADOR
+      // Busca config do agente para obter messageSplitChars
+      const agentConfig = await storage.getAgentConfig(userId);
+      const messageSplitChars = agentConfig?.messageSplitChars ?? 400;
+      
+      // Aplica a mesma divisão que é usada no WhatsApp real
+      const splitMessages = splitMessageHumanLike(testResult.text || "", messageSplitChars);
+      
+      console.log(`📱 [SIMULADOR] Resposta dividida em ${splitMessages.length} partes (limit: ${messageSplitChars} chars)`);
+      
       res.json({ 
-        response: testResult.text,
+        response: testResult.text, // Mantém resposta completa para backward compatibility
+        splitResponses: splitMessages, // Novo: array de mensagens divididas
         mediaActions
       });
     } catch (error: any) {

@@ -985,7 +985,7 @@ export default function MySubscription() {
 
       {/* PIX Dialog */}
       <Dialog open={showPixDialog} onOpenChange={setShowPixDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] sm:w-[85vw] md:w-[70vw] lg:w-[55vw] max-w-2xl max-h-[95vh] overflow-y-auto border-0 shadow-2xl p-8">
           <DialogHeader>
             <DialogTitle className="text-center">Pagamento via PIX</DialogTitle>
             <DialogDescription className="text-center">
@@ -1054,7 +1054,7 @@ export default function MySubscription() {
 
       {/* Dialog Plano Anual */}
       <Dialog open={showAnnualDialog} onOpenChange={setShowAnnualDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] sm:w-[85vw] md:w-[70vw] lg:w-[60vw] max-w-3xl max-h-[95vh] overflow-y-auto border-0 shadow-2xl p-8">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Percent className="w-5 h-5 text-green-600" />
@@ -1163,7 +1163,7 @@ export default function MySubscription() {
       
       {/* Dialog para cadastrar cartão (clientes PIX manual) - FORMULÁRIO COMPLETO */}
       <Dialog open={showPaymentMethodDialog} onOpenChange={setShowPaymentMethodDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[95vw] sm:w-[90vw] md:w-[80vw] lg:w-[70vw] max-w-4xl max-h-[95vh] overflow-y-auto border-0 shadow-2xl p-8">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-purple-600" />
@@ -1200,19 +1200,18 @@ export default function MySubscription() {
 
             {/* Número do Cartão */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Número do Cartão</label>
+              <label className="text-sm font-medium text-gray-700">Número do Cartão</label>
               <div className="relative">
                 <Input
                   type="text"
                   placeholder="0000 0000 0000 0000"
                   value={cardNumber}
                   onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                  className="pl-10"
+                  className="h-12 text-base bg-white border-gray-200 focus:border-gray-400 focus:ring-0"
                   disabled={isCardProcessing}
                 />
-                <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 {cardBrand && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium uppercase text-purple-600">
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold uppercase text-purple-600">
                     {cardBrand}
                   </span>
                 )}
@@ -1220,53 +1219,53 @@ export default function MySubscription() {
             </div>
 
             {/* Nome e Validade */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Nome no Cartão</label>
+                <label className="text-sm font-medium text-gray-700">Nome no Cartão</label>
                 <Input
                   type="text"
                   placeholder="NOME COMPLETO"
                   value={cardHolder}
                   onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
                   disabled={isCardProcessing}
+                  className="h-12 text-base bg-white border-gray-200 focus:border-gray-400 focus:ring-0"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Validade</label>
+                <label className="text-sm font-medium text-gray-700">Validade</label>
                 <Input
                   type="text"
                   placeholder="MM/AA"
                   value={expiryDate}
                   onChange={(e) => setExpiryDate(formatExpiryDate(e.target.value))}
                   disabled={isCardProcessing}
+                  className="h-12 text-base bg-white border-gray-200 focus:border-gray-400 focus:ring-0"
                 />
               </div>
             </div>
 
             {/* CVV e CPF */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">CVV</label>
-                <div className="relative">
-                  <Input
-                    type="text"
-                    placeholder="000"
-                    value={cvv}
-                    onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                    disabled={isCardProcessing}
-                    className="pl-10"
-                  />
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                </div>
+                <label className="text-sm font-medium text-gray-700">CVV</label>
+                <Input
+                  type="text"
+                  placeholder="000"
+                  value={cvv}
+                  onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  disabled={isCardProcessing}
+                  className="h-12 text-base bg-white border-gray-200 focus:border-gray-400 focus:ring-0"
+                />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">CPF do Titular</label>
+                <label className="text-sm font-medium text-gray-700">CPF do Titular</label>
                 <Input
                   type="text"
                   placeholder="000.000.000-00"
                   value={docNumber}
                   onChange={(e) => setDocNumber(formatDoc(e.target.value))}
                   disabled={isCardProcessing}
+                  className="h-12 text-base bg-white border-gray-200 focus:border-gray-400 focus:ring-0"
                 />
               </div>
             </div>
@@ -1278,10 +1277,10 @@ export default function MySubscription() {
             </div>
 
             {/* Botões */}
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="flex flex-col gap-3 pt-4">
               <Button 
                 type="submit"
-                className="w-full bg-purple-600 hover:bg-purple-700"
+                className="w-full h-12 text-base bg-purple-600 hover:bg-purple-700 shadow-lg"
                 disabled={isCardProcessing || !mpReady || !cardNumber || !cardHolder || !expiryDate || !cvv || !docNumber}
               >
                 {isCardProcessing ? (

@@ -446,18 +446,21 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0" aria-describedby={undefined}>
+      <DialogContent
+        className="w-[95vw] sm:w-[90vw] md:w-[85vw] lg:w-[80vw] max-w-6xl max-h-[95vh] overflow-hidden p-0 border-0 shadow-2xl"
+        aria-describedby={undefined}
+      >
         <VisuallyHidden>
           <DialogTitle>Pagamento via {paymentMethod === 'pix' ? 'PIX' : 'Cartão de Crédito'}</DialogTitle>
         </VisuallyHidden>
         {subscriptionLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="flex flex-col md:flex-row">
-            {/* LADO ESQUERDO - Info (Dark) */}
-            <div className="w-full md:w-[45%] bg-[#1a1a1a] text-white p-6 rounded-l-lg">
+          <div className="flex max-h-[95vh] flex-col overflow-y-auto md:flex-row">
+            {/* LADO ESQUERDO - Info (Dark) - Shopify style */}
+            <div className="w-full md:w-[42%] bg-gradient-to-br from-[#1a1a1a] to-[#2d2d2d] text-white p-8 md:p-10">
               <div className="mb-6">
                 <h2 className="text-xl font-bold mb-1">
                   {hasSetupFee ? "Implementação + Plano" : "Volte aos negócios"}
@@ -518,8 +521,8 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
               </div>
             </div>
 
-            {/* LADO DIREITO - Formulário (Light) */}
-            <div className="w-full md:w-[55%] p-6 bg-white rounded-r-lg">
+            {/* LADO DIREITO - Formulário (Light) - Shopify style */}
+            <div className="w-full md:w-[58%] p-8 md:p-10 bg-[#fafafa]">
               {/* Seleção de método */}
               <div className="mb-4 space-y-2">
                 <div 
@@ -570,49 +573,61 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
 
               {/* FORM CARTÃO */}
               {paymentMethod === "card" && (
-                <form onSubmit={handleSubmit} className="space-y-3">
-                  <div className="relative">
-                    <Input
-                      placeholder="Número do cartão"
-                      value={cardNumber}
-                      onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                      maxLength={19}
-                      className="h-10 pl-8 text-sm"
-                      required
-                    />
-                    <CreditCard className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                    {cardBrand && <span className="absolute right-2.5 top-2.5 text-xs font-bold uppercase text-gray-500">{cardBrand}</span>}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      placeholder="MM/AA"
-                      value={expiryDate}
-                      onChange={(e) => setExpiryDate(formatExpiryDate(e.target.value))}
-                      maxLength={5}
-                      className="h-10 text-sm"
-                      required
-                    />
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1.5 block">Número do cartão</label>
                     <div className="relative">
                       <Input
-                        placeholder="CVV"
-                        value={cvv}
-                        onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                        maxLength={4}
-                        className="h-10 text-sm"
+                        placeholder="0000 0000 0000 0000"
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                        maxLength={19}
+                        className="h-12 text-base bg-white border-gray-200 focus:border-gray-400 focus:ring-0"
                         required
                       />
-                      <Lock className="absolute right-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                      {cardBrand && (
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold uppercase text-primary">
+                          {cardBrand}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  <Input
-                    placeholder="Nome no cartão"
-                    value={cardHolder}
-                    onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
-                    className="h-10 text-sm"
-                    required
-                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-1.5 block">Validade</label>
+                      <Input
+                        placeholder="MM/AA"
+                        value={expiryDate}
+                        onChange={(e) => setExpiryDate(formatExpiryDate(e.target.value))}
+                        maxLength={5}
+                        className="h-12 text-base bg-white border-gray-200 focus:border-gray-400 focus:ring-0"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-1.5 block">CVV</label>
+                      <Input
+                        placeholder="000"
+                        value={cvv}
+                        onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                        maxLength={4}
+                        className="h-12 text-base bg-white border-gray-200 focus:border-gray-400 focus:ring-0"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nome no cartão</label>
+                    <Input
+                      placeholder="NOME COMPLETO"
+                      value={cardHolder}
+                      onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                      className="h-12 text-base bg-white border-gray-200 focus:border-gray-400 focus:ring-0"
+                      required
+                    />
+                  </div>
 
                   <div className="grid grid-cols-3 gap-2">
                     <select

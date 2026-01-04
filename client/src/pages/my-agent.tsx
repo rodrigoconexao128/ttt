@@ -289,8 +289,21 @@ export default function MyAgent() {
         setSentMedias(prev => [...new Set([...prev, ...newMediaNames])]);
       }
       
-      // Adicionar resposta de texto
-      if (agentResponse && agentResponse.trim()) {
+      // 🔄 USAR splitResponses PARA CONSISTÊNCIA COM WHATSAPP
+      // Se o backend retornou mensagens divididas, adiciona cada uma como uma bolha separada
+      // Isso garante que o simulador mostre EXATAMENTE como será no WhatsApp
+      const splitResponses = data?.splitResponses || [];
+      
+      if (splitResponses.length > 0) {
+        // Usa as mensagens divididas pelo backend (mesma lógica do WhatsApp)
+        for (const splitMsg of splitResponses) {
+          if (splitMsg && splitMsg.trim()) {
+            newMessages.push({ role: 'agent', message: splitMsg, time });
+          }
+        }
+        console.log(`📱 [SIMULADOR] Exibindo ${splitResponses.length} bolhas de mensagem`);
+      } else if (agentResponse && agentResponse.trim()) {
+        // Fallback: usa resposta completa se splitResponses não existir
         newMessages.push({ role: 'agent', message: agentResponse, time });
       }
       

@@ -740,7 +740,8 @@ async function processAdminAccumulatedMessages(params: {
 // Best practices: WhatsApp, Intercom, Drift quebram a cada 2-3 parágrafos ou 300-500 chars
 // Fonte: https://www.drift.com/blog/conversational-marketing-best-practices/
 // CORREÇÃO 2025: Não corta palavras nem frases no meio - divide corretamente respeitando limites naturais
-function splitMessageHumanLike(message: string, maxChars: number = 400): string[] {
+// EXPORTADA para uso no simulador (/api/agent/test) - garante consistência entre simulador e WhatsApp real
+export function splitMessageHumanLike(message: string, maxChars: number = 400): string[] {
   // Se maxChars = 0, retorna mensagem completa sem divisão
   if (maxChars === 0) {
     return [message];

@@ -687,8 +687,25 @@ export function AgentStudioUnified() {
         setSimulatorSentMedias(prev => [...new Set([...prev, ...newMediaNames])]);
       }
       
-      // Adicionar resposta de texto
-      if (data?.response && data.response.trim()) {
+      // 🔄 USAR splitResponses PARA CONSISTÊNCIA COM WHATSAPP
+      // Se o backend retornou mensagens divididas, adiciona cada uma como uma bolha separada
+      const splitResponses = data?.splitResponses || [];
+      
+      if (splitResponses.length > 0) {
+        // Usa as mensagens divididas pelo backend (mesma lógica do WhatsApp)
+        for (const splitMsg of splitResponses) {
+          if (splitMsg && splitMsg.trim()) {
+            newMessages.push({
+              id: `sim-agent-${Date.now()}-${Math.random()}`,
+              role: "agent",
+              message: splitMsg,
+              time: agentTime
+            });
+          }
+        }
+        console.log(`📱 [Simulador] Exibindo ${splitResponses.length} bolhas de mensagem`);
+      } else if (data?.response && data.response.trim()) {
+        // Fallback: usa resposta completa se splitResponses não existir
         newMessages.push({
           id: `sim-agent-${Date.now()}`,
           role: "agent",
