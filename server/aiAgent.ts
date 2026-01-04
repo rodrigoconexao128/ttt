@@ -1210,11 +1210,13 @@ export async function testAgentResponse(
   testMessage: string,
   customPrompt?: string,
   conversationHistory?: Message[],
-  sentMedias?: string[]
+  sentMedias?: string[],
+  contactName?: string // 🆕 Nome do cliente para teste (simula nome real do WhatsApp)
 ): Promise<{ text: string | null; mediaActions: MistralResponse['actions'] }> {
   try {
     console.log(`\n🧪 ═══════════════════════════════════════════════════════════════`);
     console.log(`🧪 [SIMULADOR UNIFICADO] Usando MESMO fluxo do WhatsApp`);
+    console.log(`🧪 [SIMULADOR] Nome do cliente: ${contactName || 'Visitante'}`);
     console.log(`🧪 ═══════════════════════════════════════════════════════════════`);
     
     const agentConfig = await storage.getAgentConfig(userId);
@@ -1243,7 +1245,7 @@ export async function testAgentResponse(
       history,
       testMessage,
       {
-        contactName: "Visitante", // Simulador não tem nome real
+        contactName: contactName || "Visitante", // 🔄 Usa nome passado ou fallback
         sentMedias: sentMedias || [],
       },
       // Se customPrompt foi fornecido, injetar via testDependencies
