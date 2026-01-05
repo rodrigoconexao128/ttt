@@ -222,18 +222,42 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
       return res.json();
     },
     onSuccess: (data) => {
+      // Pagamento já aprovado anteriormente
+      if (data.status === "approved" && data.mpPaymentId) {
+        toast({ 
+          title: "✅ Pagamento já processado!", 
+          description: "Sua assinatura está sendo ativada." 
+        });
+        setIsProcessing(false);
+        onOpenChange(false);
+        onSuccess?.();
+        return;
+      }
+      
+      // Pagamento em processamento
+      if (data.status === "in_process" || data.status === "pending") {
+        toast({ 
+          title: "⏳ Pagamento em processamento", 
+          description: "Aguarde a confirmação. Não clique novamente." 
+        });
+        setIsProcessing(false);
+        return;
+      }
+      
       if (data.status === "approved") {
         toast({ 
           title: "🎉 Assinatura ativada com sucesso!", 
           description: "Cobranças automáticas configuradas." 
         });
+        setIsProcessing(false);
         onOpenChange(false);
         onSuccess?.();
       } else if (data.initPoint) {
         toast({ 
           title: "Finalize seu pagamento", 
-          description: "Clique no botão para completar a assinatura." 
+          description: "Redirecionando para completar a assinatura..." 
         });
+        // Manter isProcessing=true enquanto redireciona
         setTimeout(() => {
           window.location.href = data.initPoint;
         }, 1500);
@@ -655,18 +679,28 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
 
                   <Button 
                     type="submit" 
-                    disabled={isProcessing || !mpReady}
-                    className="w-full h-10 bg-primary hover:bg-primary/90"
+                    disabled={isProcessing || !mpReady || createSubscription.isPending}
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-base font-semibold"
                   >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Processando...
-                      </>
+                    {isProcessing || createSubscription.isPending ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Processando pagamento...</span>
+                        </div>
+                        <span className="text-xs opacity-80">Aguarde, não clique novamente</span>
+                      </div>
                     ) : (
                       `Assinar por R$ ${totalInitial.toFixed(2).replace(".", ",")}`
                     )}
                   </Button>
+                  
+                  {(isProcessing || createSubscription.isPending) && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm text-center">
+                      <p className="font-medium">⏳ Estamos processando seu pagamento</p>
+                      <p className="text-xs mt-1">Por favor, aguarde. Isso pode levar alguns segundos.</p>
+                    </div>
+                  )}
                 </form>
               )}
 

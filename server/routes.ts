@@ -7,7 +7,9 @@ import { followUpService } from "./followUpService";
 import { userFollowUpService } from "./userFollowUpService";
 import { registerFollowUpRoutes } from "./routes_user_followup";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
-import { withRetry } from "./db";
+import { withRetry, db } from "./db";
+import { eq, and, gte, desc, inArray } from "drizzle-orm";
+import { subscriptions, paymentHistory } from "@shared/schema";
 
 // Configurar multer para upload em memória (depois envia pro Supabase Storage)
 const upload = multer({
@@ -3114,6 +3116,26 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         return res.status(404).json({ message: "Plan not found or inactive" });
       }
 
+      // ══════════════════════════════════════════════════════════════════
+      // PROTEÇÃO CONTRA DUPLICADOS: Verificar se já existe assinatura 
+      // pendente criada nos últimos 5 minutos para este mesmo plano
+      // ══════════════════════════════════════════════════════════════════
+      const recentPendingSubscription = await db.query.subscriptions.findFirst({
+        where: and(
+          eq(subscriptions.userId, userId),
+          eq(subscriptions.planId, planId),
+          eq(subscriptions.status, "pending"),
+          gte(subscriptions.createdAt, new Date(Date.now() - 5 * 60 * 1000)) // Últimos 5 minutos
+        ),
+        orderBy: [desc(subscriptions.createdAt)]
+      });
+
+      if (recentPendingSubscription) {
+        console.log(`[Subscription] Reutilizando assinatura pendente existente: ${recentPendingSubscription.id}`);
+        // Retornar a assinatura existente ao invés de criar uma nova
+        return res.json(recentPendingSubscription);
+      }
+
       // Validate coupon if provided
       let appliedCouponPrice = null;
       let appliedCouponCode = null;
@@ -4069,6 +4091,48 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         });
       }
       
+      // ══════════════════════════════════════════════════════════════════
+      // PROTEÇÃO CONTRA COBRANÇAS DUPLICADAS
+      // Verifica se já existe um pagamento aprovado/em análise nos últimos 2 minutos
+      // ou se a assinatura já está ativa
+      // ══════════════════════════════════════════════════════════════════
+      if (subscription.status === "active" && subscription.mpSubscriptionId) {
+        console.log(`[MP Subscription] Assinatura ${subscriptionId} já está ativa com MP ID: ${subscription.mpSubscriptionId}`);
+        return res.json({
+          status: "approved",
+          message: "Sua assinatura já está ativa!",
+          subscriptionId: subscription.mpSubscriptionId,
+          mpStatus: subscription.mpStatus || "authorized"
+        });
+      }
+
+      // Verificar pagamento recente aprovado nos últimos 2 minutos
+      const recentPayment = await db.query.paymentHistory.findFirst({
+        where: and(
+          eq(paymentHistory.subscriptionId, subscriptionId),
+          inArray(paymentHistory.status, ["approved", "in_process", "pending"]),
+          gte(paymentHistory.createdAt, new Date(Date.now() - 2 * 60 * 1000)) // Últimos 2 minutos
+        ),
+        orderBy: [desc(paymentHistory.createdAt)]
+      });
+
+      if (recentPayment) {
+        console.log(`[MP Subscription] Pagamento recente encontrado (${recentPayment.status}): ${recentPayment.mpPaymentId}`);
+        if (recentPayment.status === "approved") {
+          return res.json({
+            status: "approved",
+            message: "Pagamento já foi aprovado! Sua assinatura está sendo ativada.",
+            mpPaymentId: recentPayment.mpPaymentId
+          });
+        } else {
+          return res.json({
+            status: recentPayment.status,
+            message: "Pagamento já está sendo processado. Aguarde a confirmação.",
+            mpPaymentId: recentPayment.mpPaymentId
+          });
+        }
+      }
+      
       // Get plan
       const plan = await storage.getPlan(subscription.planId) as any;
       if (!plan) {
@@ -4139,158 +4203,29 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       endDate.setFullYear(endDate.getFullYear() + 5); // 5 years subscription max
       
       // ═══════════════════════════════════════════════════════════════════
-      // PRÉ-PAGO: SEMPRE cobrar o PRIMEIRO pagamento IMEDIATAMENTE
-      // A assinatura recorrente começa no PRÓXIMO período
-      // Isso garante cobrança no dia da assinatura (modelo pré-pago)
+      // CORREÇÃO CRÍTICA - 2025-01-06
+      // ═══════════════════════════════════════════════════════════════════
+      // PROBLEMA ANTERIOR: O código fazia duas chamadas:
+      // 1) POST /v1/payments (consumia o token)
+      // 2) POST /preapproval com mesmo token (FALHAVA - token já usado!)
+      // 
+      // SOLUÇÃO: Usar APENAS /preapproval com card_token_id
+      // O Mercado Pago automaticamente faz a primeira cobrança quando
+      // status="authorized" e card_token_id está presente.
+      // 
+      // Documentação oficial:
+      // https://www.mercadopago.com.br/developers/pt/docs/subscriptions/integration-configuration/subscription-no-associated-plan/authorized-payments
+      // "A primeira parcela é cobrada até o período aproximado de uma hora após a assinatura"
       // ═══════════════════════════════════════════════════════════════════
       
-      let firstPaymentId: string | null = null;
-      let firstPaymentAmount: number = 0;
-      
-      // Determinar o valor do primeiro pagamento
-      // Se tem taxa de implementação diferente, usar ela; senão usar valor mensal
-      if (hasSetupFee && valorPrimeiraCobranca > 0) {
-        firstPaymentAmount = valorPrimeiraCobranca;
-      } else {
-        firstPaymentAmount = valorMensal;
-      }
-      
-      // SEMPRE fazer o primeiro pagamento imediato se tiver token
-      if (token && firstPaymentAmount > 0) {
-        console.log("[MP Subscription] ═══ PRÉ-PAGO: Processando primeiro pagamento imediato ═══");
-        console.log("[MP Subscription] Valor:", firstPaymentAmount);
-        
-        const firstPaymentData: any = {
-          transaction_amount: firstPaymentAmount,
-          token: token,
-          description: hasSetupFee 
-            ? `Taxa de implementação - ${plan.nome} - AgenteZap`
-            : `Primeira mensalidade - ${plan.nome} - AgenteZap`,
-          installments: 1,
-          payment_method_id: paymentMethodId || 'visa',
-          payer: {
-            email: payerEmail,
-            identification: {
-              type: "CPF",
-              number: identificationNumber,
-            },
-          },
-          external_reference: `first_payment_${subscriptionId}`,
-          statement_descriptor: "AGENTEZAP",
-        };
-        
-        if (issuerId) {
-          firstPaymentData.issuer_id = parseInt(issuerId);
-        }
-        
-        const firstPaymentResponse = await fetch("https://api.mercadopago.com/v1/payments", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${accessToken}`,
-            "X-Idempotency-Key": `first_payment_${subscriptionId}_${Date.now()}`,
-          },
-          body: JSON.stringify(firstPaymentData),
-        });
-        
-        const firstPaymentResult = await firstPaymentResponse.json();
-        
-        console.log("[MP Subscription] Primeiro pagamento resultado:", {
-          status: firstPaymentResult.status,
-          statusDetail: firstPaymentResult.status_detail,
-          id: firstPaymentResult.id,
-          amount: firstPaymentResult.transaction_amount,
-        });
-        
-        if (firstPaymentResult.status !== "approved") {
-          // Mensagens de erro em português brasileiro
-          const errorMessages: Record<string, string> = {
-            // Erros de validação do cartão
-            "cc_rejected_bad_filled_card_number": "Número do cartão inválido. Verifique e tente novamente.",
-            "cc_rejected_bad_filled_date": "Data de validade inválida. Verifique mês/ano.",
-            "cc_rejected_bad_filled_other": "Dados do cartão incorretos. Verifique as informações.",
-            "cc_rejected_bad_filled_security_code": "Código de segurança (CVV) inválido.",
-            "CC_VAL_433": "⚠️ Validação do cartão falhou. Use um cartão real em modo produção.",
-            
-            // Erros de cartão bloqueado/desativado
-            "cc_rejected_blacklist": "Este cartão não pode ser utilizado. Use outro cartão.",
-            "cc_rejected_card_disabled": "Cartão desativado. Ative-o com sua operadora.",
-            "cc_rejected_card_error": "Erro no cartão. Use outro cartão.",
-            
-            // Erros que requerem ação do usuário
-            "cc_rejected_call_for_authorize": "Ligue para sua operadora de cartão para autorizar.",
-            "cc_rejected_insufficient_amount": "Saldo insuficiente no cartão.",
-            "cc_rejected_max_attempts": "Limite de tentativas excedido. Aguarde e tente novamente.",
-            
-            // Erros de segurança/fraude
-            "cc_rejected_high_risk": "Pagamento recusado por segurança. Tente outro cartão.",
-            "cc_rejected_duplicated_payment": "Pagamento duplicado. Verifique sua fatura.",
-            
-            // Erros de configuração
-            "cc_rejected_invalid_installments": "Parcelas inválidas para este cartão.",
-            "cc_rejected_other_reason": "Pagamento não aprovado. Tente outro cartão.",
-            
-            // Erros genéricos
-            "rejected": "Pagamento recusado. Verifique os dados ou use outro cartão.",
-          };
-          
-          const message = errorMessages[firstPaymentResult.status_detail] || 
-                         errorMessages[firstPaymentResult.status] || 
-                         firstPaymentResult.message || 
-                         "Primeiro pagamento não aprovado";
-          
-          return res.json({
-            status: firstPaymentResult.status || "rejected",
-            message,
-            statusDetail: firstPaymentResult.status_detail,
-          });
-        }
-        
-        // ✅ Primeiro pagamento APROVADO!
-        firstPaymentId = firstPaymentResult.id?.toString();
-        console.log("[MP Subscription] ✅ Primeiro pagamento aprovado! ID:", firstPaymentId);
-        
-        // Registrar o pagamento no histórico
-        try {
-          await storage.createPaymentHistory({
-            subscriptionId,
-            userId,
-            mpPaymentId: firstPaymentId,
-            amount: firstPaymentAmount.toString(),
-            netAmount: firstPaymentResult.transaction_details?.net_received_amount?.toString(),
-            feeAmount: firstPaymentResult.fee_details?.[0]?.amount?.toString(),
-            status: "approved",
-            statusDetail: firstPaymentResult.status_detail || "accredited",
-            paymentType: hasSetupFee ? "setup_fee" : "first_payment",
-            paymentMethod: paymentMethodId || "credit_card",
-            paymentDate: new Date(),
-            payerEmail,
-            cardLastFourDigits: firstPaymentResult.card?.last_four_digits,
-            cardBrand: firstPaymentResult.payment_method_id,
-            rawResponse: firstPaymentResult,
-          });
-          console.log("[MP Subscription] Pagamento registrado no histórico");
-        } catch (historyError) {
-          console.error("[MP Subscription] Erro ao registrar histórico:", historyError);
-          // Não falhar por causa do histórico
-        }
-        
-        // Ajustar start_date para o PRÓXIMO período (já que o primeiro foi pago)
-        if (frequency_type === "months") {
-          startDate.setMonth(startDate.getMonth() + frequency);
-        } else if (frequency_type === "years") {
-          startDate.setFullYear(startDate.getFullYear() + frequency);
-        } else {
-          startDate.setDate(startDate.getDate() + frequenciaDias);
-        }
-        
-        console.log("[MP Subscription] Próxima cobrança recorrente em:", startDate.toISOString());
-      }
+      // Se houver taxa de implementação diferente do valor mensal,
+      // precisamos tratar isso de forma especial
+      const hasSetupFeeOnly = hasSetupFee && valorPrimeiraCobranca > valorMensal;
       
       // ═══════════════════════════════════════════════════════════════════
       // CRIAR ASSINATURA RECORRENTE NO MERCADO PAGO - CHECKOUT TRANSPARENTE
       // Usa a API /preapproval com card_token_id para pagamento autorizado
-      // Documentação: https://www.mercadopago.com.br/developers/pt/docs/subscriptions/integration-configuration/subscription-no-associated-plan/authorized-payments
+      // O MP cobra automaticamente a primeira parcela quando status="authorized"
       // ═══════════════════════════════════════════════════════════════════
       
       const subscriptionData: any = {
@@ -4300,7 +4235,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         auto_recurring: {
           frequency: frequency,
           frequency_type: frequency_type,
-          transaction_amount: valorMensal,
+          transaction_amount: valorMensal, // Valor recorrente mensal
           currency_id: "BRL",
           start_date: startDate.toISOString(),
           end_date: endDate.toISOString(),
@@ -4309,11 +4244,13 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       };
       
       // Se temos card_token, usar checkout transparente (status: authorized)
+      // O MP fará a primeira cobrança automaticamente com o valor de transaction_amount
       // Sem card_token, criar assinatura pendente (init_point)
       if (token) {
         subscriptionData.card_token_id = token;
         subscriptionData.status = "authorized"; // Checkout transparente - pagamento direto
         console.log("[MP Subscription] Using transparent checkout with card_token");
+        console.log("[MP Subscription] MP fará a primeira cobrança automaticamente");
       } else {
         subscriptionData.status = "pending"; // Usuário completa via init_point
         console.log("[MP Subscription] No token - will use init_point");
@@ -4341,7 +4278,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       
       // Handle preapproval response
       if (mpResult.id) {
-        // Subscription created successfully - status will be "pending" until user pays via init_point
+        // Subscription created successfully
         
         // Calculate dates
         const dataFim = new Date();
@@ -4356,32 +4293,58 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         const nextPaymentDate = new Date(mpResult.next_payment_date || startDate);
         const isAuthorized = mpResult.status === "authorized";
         
-        // Update local subscription
+        // Update local subscription with MP subscription ID
         await storage.updateSubscription(subscriptionId, {
           status: isAuthorized ? "active" : "pending",
           dataInicio: new Date(),
           dataFim,
-          mpSubscriptionId: mpResult.id,
+          mpSubscriptionId: mpResult.id, // ✅ IMPORTANTE: Salvar ID da assinatura MP
           mpStatus: mpResult.status,
           payerEmail,
-          paymentMethod: paymentMethodId,
+          paymentMethod: paymentMethodId || "credit_card",
           nextPaymentDate,
         });
         
-        console.log("[MP Subscription] Subscription created:", {
+        console.log("[MP Subscription] ✅ Assinatura criada no MP:", {
           id: mpResult.id,
           status: mpResult.status,
           isAuthorized,
           initPoint: mpResult.init_point,
+          nextPaymentDate: mpResult.next_payment_date,
         });
         
-        // Checkout transparente - assinatura autorizada diretamente
+        // Se autorizada, registrar no histórico que o primeiro pagamento será processado pelo MP
         if (isAuthorized) {
+          try {
+            await storage.createPaymentHistory({
+              subscriptionId,
+              userId,
+              mpPaymentId: `preapproval_${mpResult.id}`, // Identificador da assinatura
+              amount: valorMensal.toString(),
+              status: "pending", // Será atualizado via webhook quando MP processar
+              statusDetail: "mp_subscription_authorized",
+              paymentType: "subscription_first_payment",
+              paymentMethod: paymentMethodId || "credit_card",
+              paymentDate: new Date(),
+              payerEmail,
+              rawResponse: mpResult,
+            });
+            console.log("[MP Subscription] Primeiro pagamento registrado (aguardando confirmação do MP)");
+          } catch (historyError) {
+            console.error("[MP Subscription] Erro ao registrar histórico:", historyError);
+          }
+          
+          // ═══════════════════════════════════════════════════════════════════
+          // ASSINATURA AUTORIZADA COM SUCESSO!
+          // O Mercado Pago fará a primeira cobrança automaticamente
+          // em até 1 hora e continuará cobrando mensalmente
+          // ═══════════════════════════════════════════════════════════════════
           return res.json({
             status: "approved",
-            message: "🎉 Assinatura recorrente ativada com sucesso! Cobranças automáticas configuradas.",
+            message: "🎉 Assinatura ativada com sucesso! A primeira cobrança será processada em breve e as próximas serão automáticas.",
             subscriptionId: mpResult.id,
             mpStatus: mpResult.status,
+            nextPaymentDate: mpResult.next_payment_date,
           });
         }
         

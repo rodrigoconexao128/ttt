@@ -487,7 +487,7 @@ export default function PlansPage() {
               <Button
                 className="w-full mt-4 h-11 rounded-xl font-semibold bg-gray-900 dark:bg-white dark:text-gray-900 hover:bg-gray-800"
                 onClick={(e) => { e.stopPropagation(); handleSelectPlan("mensal"); }}
-                disabled={createSubscriptionMutation.isPending && selectedPlan === "mensal"}
+                disabled={createSubscriptionMutation.isPending}
               >
                 {createSubscriptionMutation.isPending && selectedPlan === "mensal" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -537,7 +537,7 @@ export default function PlansPage() {
               <Button
                 className="w-full mt-3 h-11 rounded-xl font-semibold bg-purple-600 hover:bg-purple-700 text-white"
                 onClick={() => handleSelectPlan("implementacao")}
-                disabled={createSubscriptionMutation.isPending && selectedPlan === "implementacao"}
+                disabled={createSubscriptionMutation.isPending}
               >
                 {createSubscriptionMutation.isPending && selectedPlan === "implementacao" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -582,7 +582,7 @@ export default function PlansPage() {
               <Button
                 className="w-full mt-3 h-11 rounded-xl font-semibold bg-purple-600 hover:bg-purple-700 text-white"
                 onClick={() => handleSelectPlan("implementacao_mensal")}
-                disabled={createSubscriptionMutation.isPending && selectedPlan === "implementacao_mensal"}
+                disabled={createSubscriptionMutation.isPending}
               >
                 {createSubscriptionMutation.isPending && selectedPlan === "implementacao_mensal" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
