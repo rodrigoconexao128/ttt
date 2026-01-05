@@ -963,13 +963,15 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       : agentConfig.model;
     
     // 🔄 CHAMADA COM RETRY AUTOMÁTICO PARA ERROS DE API (rate limit, timeout, etc)
+    // 🎯 TEMPERATURE 0.3: Respostas mais consistentes entre simulador e WhatsApp
+    // Valor baixo = menos variação = mesma pergunta gera respostas similares
     const chatResponse = await withRetry(
       async () => {
         return await mistral.chat.complete({
           model,
           messages: messages as any,
           maxTokens, // Dinâmico baseado na pergunta e config
-          temperature: 0.7, // Menos criativo = mais consistente
+          temperature: 0.3, // REDUZIDO: Mais consistente entre simulador e WhatsApp
         });
       },
       3, // 3 tentativas
@@ -1202,7 +1204,7 @@ Mensagem do cliente: ${newMessageText.trim()}`;
  * 
  * Diferenças controladas:
  * - conversationHistory: vem do parâmetro (simulador mantém em memória)
- * - contactName: "Visitante" (simulador não tem WhatsApp)
+ * - contactName: configurável (default "Visitante")
  * - sentMedias: rastreado pelo simulador
  */
 export async function testAgentResponse(
@@ -1210,11 +1212,13 @@ export async function testAgentResponse(
   testMessage: string,
   customPrompt?: string,
   conversationHistory?: Message[],
-  sentMedias?: string[]
+  sentMedias?: string[],
+  contactName: string = "Visitante"
 ): Promise<{ text: string | null; mediaActions: MistralResponse['actions'] }> {
   try {
     console.log(`\n🧪 ═══════════════════════════════════════════════════════════════`);
     console.log(`🧪 [SIMULADOR UNIFICADO] Usando MESMO fluxo do WhatsApp`);
+    console.log(`🧪 [SIMULADOR] Nome do contato: ${contactName}`);
     console.log(`🧪 ═══════════════════════════════════════════════════════════════`);
     
     const agentConfig = await storage.getAgentConfig(userId);
@@ -1243,7 +1247,7 @@ export async function testAgentResponse(
       history,
       testMessage,
       {
-        contactName: "Visitante", // Simulador não tem nome real
+        contactName, // 🆕 Usa nome passado (pode ser customizado pelo frontend)
         sentMedias: sentMedias || [],
       },
       // Se customPrompt foi fornecido, injetar via testDependencies
