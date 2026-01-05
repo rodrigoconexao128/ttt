@@ -278,6 +278,30 @@ export function AgentStudioUnified() {
     }
   });
 
+  // 🔒 Query para buscar limites diários (estilo Lovable)
+  const { data: dailyLimits, refetch: refetchDailyLimits } = useQuery<{
+    hasActiveSubscription: boolean;
+    calibration: {
+      used: number;
+      limit: number;
+      remaining: number;
+      isLimitReached: boolean;
+    };
+    simulator: {
+      used: number;
+      limit: number;
+      remaining: number;
+      isLimitReached: boolean;
+    };
+  }>({
+    queryKey: ["/api/daily-limits"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/daily-limits");
+      return res.json();
+    },
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
+  });
+
   // Estado para controlar se o histórico já foi carregado
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [versionsLoaded, setVersionsLoaded] = useState(false);
@@ -725,6 +749,9 @@ export function AgentStudioUnified() {
         
         // Auto-save
         updateConfigMutation.mutate({ prompt: data.newPrompt });
+        
+        // 🔄 Refetch limites diários após calibração bem-sucedida
+        refetchDailyLimits();
       } else {
         const warningMessage: ChatMessage = {
           id: `warning-${Date.now()}`,
@@ -884,6 +911,9 @@ export function AgentStudioUnified() {
       }
       
       setSimulatorMessages(prev => [...prev, ...newMessages]);
+      
+      // 🔄 Refetch limites diários após usar simulador
+      refetchDailyLimits();
     } catch (error: any) {
       toast({
         title: "Erro no simulador",
@@ -1462,48 +1492,88 @@ export function AgentStudioUnified() {
               </div>
               
               {/* Chat Input */}
-              <div className="border-t bg-muted/20 p-3">
-                <div className="flex gap-2">
-                  <Textarea
-                    placeholder="Ex: Torne as respostas mais curtas..."
-                    value={editInput}
-                    onChange={(e) => setEditInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleEditPrompt();
-                      }
-                    }}
-                    className="flex-1 min-h-[44px] max-h-[120px] resize-none rounded-xl bg-white dark:bg-zinc-800 border-2 border-input shadow-sm focus:border-primary focus:ring-1 focus:ring-primary"
-                    rows={1}
-                  />
-                  <Button
-                    onClick={handleEditPrompt}
-                    disabled={isProcessing || !editInput.trim()}
-                    size="icon"
-                    className="h-11 w-11 rounded-xl flex-shrink-0"
-                  >
-                    {isProcessing ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-                
-                {editInput === "" && chatMessages.length > 0 && (
-                  <div className="flex gap-1.5 mt-2 flex-wrap">
-                    {quickActions.map((action, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setEditInput(action.instruction)}
-                        className="text-[10px] px-2 py-1 rounded-full border border-border/50 bg-background hover:bg-muted transition-colors"
-                      >
-                        {action.label}
-                      </button>
-                    ))}
+              <div className="border-t bg-muted/20">
+                {/* 🔒 Banner de créditos estilo Lovable */}
+                {dailyLimits && !dailyLimits.hasActiveSubscription && (
+                  <div className={cn(
+                    "flex items-center justify-between px-3 py-2 text-xs border-b transition-all",
+                    dailyLimits.calibration.isLimitReached
+                      ? "bg-amber-500/10 border-amber-500/20"
+                      : "bg-muted/30 border-border/50"
+                  )}>
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "w-2 h-2 rounded-full",
+                        dailyLimits.calibration.isLimitReached
+                          ? "bg-amber-500"
+                          : "bg-emerald-500"
+                      )} />
+                      <span className={cn(
+                        "font-medium",
+                        dailyLimits.calibration.isLimitReached
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-muted-foreground"
+                      )}>
+                        {dailyLimits.calibration.remaining} créditos restantes hoje
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => window.location.href = "/pricing"}
+                      className={cn(
+                        "px-3 py-1 rounded-full text-[10px] font-semibold transition-all",
+                        dailyLimits.calibration.isLimitReached
+                          ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shadow-md"
+                          : "bg-primary/10 text-primary hover:bg-primary/20"
+                      )}
+                    >
+                      {dailyLimits.calibration.isLimitReached ? "Upgrade Now" : "Upgrade"}
+                    </button>
                   </div>
                 )}
+                
+                <div className="p-3">
+                  <div className="flex gap-2">
+                    <Textarea
+                      placeholder="Ex: Torne as respostas mais curtas..."
+                      value={editInput}
+                      onChange={(e) => setEditInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleEditPrompt();
+                        }
+                      }}
+                      className="flex-1 min-h-[44px] max-h-[120px] resize-none rounded-xl bg-white dark:bg-zinc-800 border-2 border-input shadow-sm focus:border-primary focus:ring-1 focus:ring-primary"
+                      rows={1}
+                    />
+                    <Button
+                      onClick={handleEditPrompt}
+                      disabled={isProcessing || !editInput.trim()}
+                      size="icon"
+                      className="h-11 w-11 rounded-xl flex-shrink-0"
+                    >
+                      {isProcessing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {editInput === "" && chatMessages.length > 0 && (
+                    <div className="flex gap-1.5 mt-2 flex-wrap">
+                      {quickActions.map((action, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setEditInput(action.instruction)}
+                          className="text-[10px] px-2 py-1 rounded-full border border-border/50 bg-background hover:bg-muted transition-colors"
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}
