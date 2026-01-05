@@ -2006,9 +2006,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           content: z.string()
         })).optional(),
         // 🆕 Mídias já enviadas nesta sessão do simulador
-        sentMedias: z.array(z.string()).optional(),
-        // 🆕 Nome do cliente para teste (simula nome real do WhatsApp)
-        contactName: z.string().optional()
+        sentMedias: z.array(z.string()).optional()
       });
       const result = schema.safeParse(req.body);
 
@@ -2027,14 +2025,12 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       })) || [];
 
       // Aceita prompt customizado para testar mudanças não salvas
-      // 🔄 Agora passa contactName para simular nome real do WhatsApp
       const testResult = await testAgentResponse(
         userId, 
         result.data.message, 
         result.data.customPrompt,
         conversationHistory,
-        result.data.sentMedias,
-        result.data.contactName // 🆕 Nome do cliente para teste
+        result.data.sentMedias
       );
       
       // 📁 RESOLVER URLs DAS MÍDIAS PARA O FRONTEND

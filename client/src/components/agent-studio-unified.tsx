@@ -134,7 +134,6 @@ export function AgentStudioUnified() {
   const [simulatorInput, setSimulatorInput] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulatorSentMedias, setSimulatorSentMedias] = useState<string[]>([]); // 🆕 Mídias já enviadas
-  const [simulatorContactName, setSimulatorContactName] = useState<string>("Visitante"); // 🆕 Nome do cliente de teste
   
   // Estado de configurações
   const [isActive, setIsActive] = useState(true);
@@ -653,10 +652,9 @@ export function AgentStudioUnified() {
       const response = await apiRequest("POST", "/api/agent/test", {
         message: simulatorInput,
         customPrompt: currentPrompt,
-        // 🆕 ENVIAR HISTÓRICO, MÍDIAS E NOME PARA SIMULADOR UNIFICADO
+        // 🆕 ENVIAR HISTÓRICO E MÍDIAS PARA SIMULADOR UNIFICADO
         history: historyForBackend,
-        sentMedias: simulatorSentMedias,
-        contactName: simulatorContactName // 🆕 Nome do cliente de teste
+        sentMedias: simulatorSentMedias
       });
       
       const data = await response.json();
@@ -1670,15 +1668,6 @@ export function AgentStudioUnified() {
                 Teste seu agente em tempo real
               </p>
             </div>
-            {/* 🆕 Input para nome do cliente de teste */}
-            <input
-              type="text"
-              value={simulatorContactName}
-              onChange={(e) => setSimulatorContactName(e.target.value)}
-              placeholder="Nome do cliente"
-              className="px-2 py-1 text-xs rounded bg-white/10 border border-white/20 text-white placeholder-white/50 w-28 focus:outline-none focus:ring-1 focus:ring-white/50"
-              title="Digite um nome para simular o cliente (ex: João Silva)"
-            />
             <Button
               variant="ghost"
               size="sm"

@@ -136,7 +136,6 @@ export default function MyAgent() {
   
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [sentMedias, setSentMedias] = useState<string[]>([]); // 🆕 Mídias já enviadas
-  const [testContactName, setTestContactName] = useState<string>("Visitante"); // 🆕 Nome do cliente de teste
   
   // Estado do gerador de prompt e editor expandido
   const [showPromptGenerator, setShowPromptGenerator] = useState(false);
@@ -247,10 +246,9 @@ export default function MyAgent() {
       
       const response = await apiRequest("POST", "/api/agent/test", {
         message: userMsg,
-        // 🆕 ENVIAR HISTÓRICO, MÍDIAS E NOME PARA SIMULADOR UNIFICADO
+        // 🆕 ENVIAR HISTÓRICO E MÍDIAS PARA SIMULADOR UNIFICADO
         history: historyForBackend,
-        sentMedias: sentMedias,
-        contactName: testContactName // 🆕 Nome do cliente de teste
+        sentMedias: sentMedias
       });
       const data = await response.json();
       return data;
@@ -1221,22 +1219,10 @@ O QUE NÃO FAZER:
                     {isActive ? "🟢 Online - Respondendo" : "⚪ Offline - Inativo"}
                   </p>
                 </div>
-                {/* 🆕 Input para nome do cliente de teste */}
-                <input
-                  type="text"
-                  value={testContactName}
-                  onChange={(e) => setTestContactName(e.target.value)}
-                  placeholder="Nome do cliente"
-                  className="px-2 py-1 text-xs rounded bg-white/10 border border-white/20 text-white placeholder-white/50 w-32 focus:outline-none focus:ring-1 focus:ring-white/50"
-                  title="Digite um nome para simular o cliente (ex: João Silva)"
-                />
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    setChatHistory([]);
-                    setSentMedias([]);
-                  }}
+                  onClick={() => setChatHistory([])}
                   className="text-white/70 hover:text-white hover:bg-white/10 text-xs"
                 >
                   Limpar
