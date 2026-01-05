@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Rocket, Zap, Lock } from "lucide-react";
+import { MessageSquare, Sparkles, ArrowRight, CheckCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
@@ -30,118 +30,128 @@ export function UsageLimitBanner() {
   return (
     <div 
       className={cn(
-        "relative overflow-hidden rounded-lg border p-4 transition-all duration-300",
+        "relative overflow-hidden rounded-xl border p-5 transition-all duration-300",
         isCritical 
-          ? "bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30 border-red-200 dark:border-red-800" 
+          ? "bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 border-slate-200 dark:border-slate-700" 
           : isWarning 
-            ? "bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/30 border-amber-200 dark:border-amber-800"
-            : "bg-gradient-to-r from-blue-50 to-violet-50 dark:from-blue-950/30 dark:to-violet-950/30 border-blue-200 dark:border-blue-800"
+            ? "bg-gradient-to-br from-amber-50/50 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/20 border-amber-100 dark:border-amber-900/30"
+            : "bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-100 dark:border-blue-900/30"
       )}
     >
-      {/* Background decoration */}
-      <div className="absolute top-0 right-0 w-32 h-32 opacity-10">
-        {isCritical ? <Lock className="w-full h-full" /> : <Zap className="w-full h-full" />}
-      </div>
-      
-      <div className="relative z-10 space-y-3">
-        {/* Header */}
+      <div className="relative z-10 space-y-4">
+        {/* Header - Clean & Professional */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {isCritical ? (
-              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 animate-pulse" />
-            ) : isWarning ? (
-              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-            ) : (
-              <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            )}
-            <span className={cn(
-              "font-semibold",
+          <div className="flex items-center gap-2.5">
+            <div className={cn(
+              "p-2 rounded-lg",
               isCritical 
-                ? "text-red-700 dark:text-red-300" 
+                ? "bg-slate-200 dark:bg-slate-700" 
                 : isWarning 
-                  ? "text-amber-700 dark:text-amber-300"
-                  : "text-blue-700 dark:text-blue-300"
+                  ? "bg-amber-100 dark:bg-amber-900/30"
+                  : "bg-blue-100 dark:bg-blue-900/30"
             )}>
+              <MessageSquare className={cn(
+                "w-4 h-4",
+                isCritical 
+                  ? "text-slate-600 dark:text-slate-300" 
+                  : isWarning 
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-blue-600 dark:text-blue-400"
+              )} />
+            </div>
+            <span className="font-medium text-gray-900 dark:text-gray-100">
               {isCritical 
-                ? "🚫 Limite de mensagens esgotado!" 
+                ? "Prepare-se para vender" 
                 : isWarning 
-                  ? "⚠️ Quase no limite" 
-                  : "Mensagens gratuitas"
+                  ? "Quase pronto para crescer" 
+                  : "Período de avaliação"
               }
             </span>
           </div>
-          <span className={cn(
-            "text-sm font-bold",
-            isCritical 
-              ? "text-red-600 dark:text-red-400" 
-              : isWarning 
-                ? "text-amber-600 dark:text-amber-400"
-                : "text-muted-foreground"
-          )}>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 px-3 py-1 rounded-full border">
             {usage.agentMessagesCount}/{usage.limit}
           </span>
         </div>
 
-        {/* Progress bar */}
-        <Progress 
-          value={percentUsed} 
-          className={cn(
-            "h-2.5",
-            isCritical 
-              ? "[&>div]:bg-red-500" 
-              : isWarning 
-                ? "[&>div]:bg-amber-500"
-                : "[&>div]:bg-blue-500"
-          )}
-        />
+        {/* Progress bar - Softer colors */}
+        <div className="space-y-1.5">
+          <Progress 
+            value={percentUsed} 
+            className={cn(
+              "h-2 rounded-full",
+              isCritical 
+                ? "[&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:to-green-500" 
+                : isWarning 
+                  ? "[&>div]:bg-gradient-to-r [&>div]:from-amber-400 [&>div]:to-orange-400"
+                  : "[&>div]:bg-gradient-to-r [&>div]:from-blue-400 [&>div]:to-indigo-400"
+            )}
+          />
+          <p className="text-xs text-muted-foreground text-right">
+            Mensagens usadas
+          </p>
+        </div>
 
-        {/* Description */}
-        <p className={cn(
-          "text-sm",
-          isCritical 
-            ? "text-red-700 dark:text-red-300 font-medium" 
-            : "text-muted-foreground"
-        )}>
+        {/* Description - Positive framing */}
+        <p className="text-sm text-gray-600 dark:text-gray-400">
           {isCritical ? (
             <>
-              <strong>Seu agente IA está bloqueado</strong> e não pode mais enviar mensagens automáticas. 
-              Assine um plano para desbloquear mensagens ilimitadas!
+              Você testou seu agente e viu o potencial. Desbloqueie mensagens ilimitadas para 
+              <strong className="text-gray-900 dark:text-gray-100"> nunca perder uma venda</strong>.
             </>
           ) : isWarning ? (
             <>
-              Você usou <strong>{usage.agentMessagesCount}</strong> de <strong>{usage.limit}</strong> mensagens gratuitas. 
-              Restam apenas <strong>{usage.remaining}</strong>!
+              Restam apenas <strong>{usage.remaining}</strong> mensagens. 
+              Garanta seu plano antes de ficar sem atendimento automático.
             </>
           ) : (
             <>
-              Você tem <strong>{usage.limit} mensagens gratuitas</strong>. 
-              Restam <strong>{usage.remaining}</strong> mensagens.
+              Você tem <strong>{usage.remaining}</strong> mensagens para testar. 
+              Aproveite para conhecer o poder do seu agente IA.
             </>
           )}
         </p>
 
-        {/* CTA Button */}
+        {/* Benefits Mini List - Only when critical */}
+        {isCritical && (
+          <div className="flex flex-wrap gap-3 text-xs text-gray-600 dark:text-gray-400">
+            <span className="flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+              Mensagens ilimitadas
+            </span>
+            <span className="flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+              Suporte prioritário
+            </span>
+            <span className="flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+              Cancele quando quiser
+            </span>
+          </div>
+        )}
+
+        {/* CTA Button - Professional green gradient */}
         <a
           href="/plans"
           className={cn(
-            "inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-lg font-bold text-white transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5",
+            "inline-flex items-center justify-center gap-2 w-full py-3.5 px-4 rounded-lg font-semibold text-white transition-all duration-200 hover:shadow-lg",
             isCritical
-              ? "bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 animate-pulse"
-              : "bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700"
+              ? "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700"
+              : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
           )}
         >
-          <Rocket className="w-4 h-4" />
+          <Sparkles className="w-4 h-4" />
           {isCritical 
-            ? "🔓 Desbloquear Agora - Plano Ilimitado R$99/mês" 
-            : "Garantir Plano Ilimitado - R$99/mês"
+            ? "Ativar Plano Ilimitado" 
+            : "Ver Planos"
           }
+          <ArrowRight className="w-4 h-4" />
         </a>
       </div>
     </div>
   );
 }
 
-// Banner fixo no topo da tela quando limite esgotado
+// Banner fixo no topo da tela quando limite esgotado - Design Profissional
 export function LimitReachedTopBanner() {
   const { data: usage } = useQuery<UsageData>({
     queryKey: ["/api/usage"],
@@ -154,20 +164,23 @@ export function LimitReachedTopBanner() {
   }
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] bg-gradient-to-r from-red-600 to-orange-600 text-white py-3 px-4 shadow-lg">
-      <div className="container max-w-6xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+    <div className="fixed top-0 left-0 right-0 z-[100] bg-gradient-to-r from-slate-800 to-slate-900 text-white py-2.5 px-4 shadow-lg border-b border-slate-700/50">
+      <div className="container max-w-6xl mx-auto flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 animate-pulse" />
-          <span className="font-medium">
-            <strong>Limite de {usage.limit} mensagens atingido!</strong> Seu agente IA está bloqueado.
+          <div className="flex items-center gap-2 bg-amber-500/20 text-amber-200 px-2.5 py-1 rounded-full text-xs font-medium">
+            <MessageSquare className="w-3.5 h-3.5" />
+            {usage.agentMessagesCount}/{usage.limit}
+          </div>
+          <span className="text-sm text-slate-200">
+            Período de teste finalizado · <span className="text-white font-medium">Ative seu plano para continuar vendendo</span>
           </span>
         </div>
         <a
           href="/plans"
-          className="inline-flex items-center gap-2 bg-white text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-gray-100 transition-colors shadow-md"
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white px-4 py-1.5 rounded-lg font-medium text-sm transition-all duration-200 shadow-sm hover:shadow-md"
         >
-          <Rocket className="w-4 h-4" />
-          Desbloquear Agora
+          <Sparkles className="w-3.5 h-3.5" />
+          Ativar Plano
         </a>
       </div>
     </div>

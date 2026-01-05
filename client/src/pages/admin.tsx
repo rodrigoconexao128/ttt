@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { 
   Table, 
   TableBody, 
@@ -1147,23 +1148,41 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
                         {user.hasActiveSubscription ? (
-                          <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-900/30">
-                            ∞ Ilimitado
+                          <Badge variant="default" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0">
+                            <MessageCircle className="w-3 h-3 mr-1" />
+                            Ilimitado
                           </Badge>
                         ) : (
-                          <Badge 
-                            variant={user.isLimitReached ? "destructive" : "outline"}
-                            className={user.isLimitReached ? "animate-pulse" : ""}
-                          >
-                            {user.agentMessagesCount}/{user.messageLimit}
-                          </Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge 
+                              variant="outline"
+                              className={cn(
+                                "font-medium",
+                                user.isLimitReached 
+                                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800" 
+                                  : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                              )}
+                            >
+                              {user.agentMessagesCount}/{user.messageLimit}
+                            </Badge>
+                            {/* Barra de progresso visual */}
+                            <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                              <div 
+                                className={cn(
+                                  "h-full rounded-full transition-all",
+                                  user.isLimitReached ? "bg-amber-500" : "bg-emerald-500"
+                                )}
+                                style={{ width: `${Math.min(100, ((user.agentMessagesCount || 0) / (user.messageLimit || 25)) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
                         )}
                       </div>
                       {!user.hasActiveSubscription && user.isLimitReached && (
-                        <span className="text-xs text-red-600 font-medium">🚫 Esgotado</span>
+                        <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Limite atingido</span>
                       )}
                       {!user.hasActiveSubscription && !user.isLimitReached && user.messagesRemaining !== undefined && user.messagesRemaining <= 5 && (
-                        <span className="text-xs text-amber-600">⚠️ {user.messagesRemaining} restantes</span>
+                        <span className="text-xs text-slate-500">{user.messagesRemaining} restantes</span>
                       )}
                     </div>
                   ) : (

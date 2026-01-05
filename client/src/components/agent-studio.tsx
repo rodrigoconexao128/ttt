@@ -8,11 +8,101 @@ import {
   Bot, ArrowRight, Sparkles, MessageSquare, Edit3, 
   Loader2, Send, Eye, Code, Smartphone, Monitor, 
   CheckCircle2, Wand2, RefreshCw, Settings, Zap,
-  Undo2, Redo2, History, ChevronUp, ChevronDown
+  Undo2, Redo2, History, ChevronUp, ChevronDown,
+  Lock, Rocket
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+
+// 🔒 Modal de upgrade estilo Lovable
+interface UpgradeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  description: string;
+  used: number;
+  limit: number;
+  type: "calibration" | "simulator";
+}
+
+function UpgradeModal({ isOpen, onClose, title, description, used, limit, type }: UpgradeModalProps) {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="relative w-full max-w-md mx-4 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-8 animate-in fade-in-50 zoom-in-95">
+        {/* Badge decorativo */}
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+          <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 px-4 py-1 text-sm font-medium">
+            Limite atingido
+          </Badge>
+        </div>
+        
+        {/* Ícone */}
+        <div className="flex justify-center mb-6 pt-4">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center">
+            <Rocket className="w-8 h-8 text-emerald-400" />
+          </div>
+        </div>
+        
+        {/* Título */}
+        <h3 className="text-xl font-semibold text-white text-center mb-2">{title}</h3>
+        
+        {/* Barra de progresso */}
+        <div className="mb-4">
+          <div className="flex justify-between text-sm text-slate-400 mb-2">
+            <span>{type === "calibration" ? "Calibrações hoje" : "Mensagens hoje"}</span>
+            <span className="text-emerald-400 font-medium">{used}/{limit}</span>
+          </div>
+          <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full" style={{width: "100%"}} />
+          </div>
+        </div>
+        
+        {/* Descrição */}
+        <p className="text-slate-300 text-center text-sm mb-6">{description}</p>
+        
+        {/* Benefícios */}
+        <div className="bg-slate-800/50 rounded-xl p-4 mb-6 border border-slate-700">
+          <p className="text-emerald-400 text-sm font-medium mb-3">✨ Com o plano PRO você terá:</p>
+          <ul className="space-y-2 text-sm text-slate-300">
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>Calibrações ilimitadas por dia</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>Simulador sem limite de mensagens</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>Mensagens reais ilimitadas no WhatsApp</span>
+            </li>
+          </ul>
+        </div>
+        
+        {/* Botões */}
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700"
+          >
+            Agora não
+          </Button>
+          <Button
+            onClick={() => window.location.href = "/pricing"}
+            className="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:from-emerald-600 hover:to-cyan-600"
+          >
+            <Zap className="w-4 h-4 mr-2" />
+            Ver planos
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface AgentStudioProps {
   initialPrompt: string;
@@ -75,6 +165,16 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
   const [simulatorInput, setSimulatorInput] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulatorSentMedias, setSimulatorSentMedias] = useState<string[]>([]); // 🆕 Mídias já enviadas
+  
+  // 🔒 Estado do modal de upgrade (estilo Lovable)
+  const [upgradeModal, setUpgradeModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    used: number;
+    limit: number;
+    type: "calibration" | "simulator";
+  }>({ isOpen: false, title: "", description: "", used: 0, limit: 0, type: "calibration" });
   
   // View mode
   const [activeView, setActiveView] = useState<"chat" | "code">("chat");
@@ -225,6 +325,28 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
       
       const data = await response.json();
       
+      // 🔒 Verificar se atingiu limite de calibrações
+      if (data.limitReached) {
+        setUpgradeModal({
+          isOpen: true,
+          title: "Você atingiu o limite de calibrações",
+          description: data.message || "Assine um plano para continuar calibrando seu agente de IA.",
+          used: data.used || 5,
+          limit: data.limit || 5,
+          type: "calibration"
+        });
+        
+        // Mensagem no chat sobre o limite
+        const limitMessage: ChatMessage = {
+          id: `limit-${Date.now()}`,
+          role: "assistant",
+          content: `🚀 Você usou todas as ${data.limit} calibrações gratuitas de hoje! Para continuar aperfeiçoando seu agente, assine um plano PRO.`,
+          timestamp: new Date()
+        };
+        setChatMessages(prev => [...prev, limitMessage]);
+        return;
+      }
+      
       if (data.success && data.newPrompt && data.newPrompt !== currentPrompt) {
         // Adiciona ao histórico antes de atualizar
         addToHistory(data.newPrompt, currentInstruction, data.summary || "Edição aplicada");
@@ -313,6 +435,28 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
       });
       
       const data = await response.json();
+      
+      // 🔒 Verificar se atingiu limite do simulador
+      if (data.limitReached) {
+        setUpgradeModal({
+          isOpen: true,
+          title: "Limite de testes atingido",
+          description: data.message || "Assine um plano para testar seu agente sem limites.",
+          used: data.used || 25,
+          limit: data.limit || 25,
+          type: "simulator"
+        });
+        
+        // Adiciona mensagem de limite no simulador
+        const limitMsg: SimulatorMessage = {
+          id: `sim-limit-${Date.now()}`,
+          role: "agent",
+          message: `🚀 Você usou todas as ${data.limit} mensagens de teste gratuitas de hoje! Assine um plano PRO para testar sem limites.`,
+          time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        };
+        setSimulatorMessages(prev => [...prev, limitMsg]);
+        return;
+      }
       
       // Adiciona resposta do agente
       const agentTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -816,6 +960,17 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
           </Button>
         </div>
       )}
+      
+      {/* 🔒 Modal de Upgrade (estilo Lovable) */}
+      <UpgradeModal
+        isOpen={upgradeModal.isOpen}
+        onClose={() => setUpgradeModal(prev => ({ ...prev, isOpen: false }))}
+        title={upgradeModal.title}
+        description={upgradeModal.description}
+        used={upgradeModal.used}
+        limit={upgradeModal.limit}
+        type={upgradeModal.type}
+      />
     </div>
   );
 }

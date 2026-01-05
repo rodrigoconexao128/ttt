@@ -1176,3 +1176,34 @@ export const exclusionConfigSchema = z.object({
   isEnabled: z.boolean().default(true),
   followupExclusionEnabled: z.boolean().default(true),
 });
+
+// =============================================================================
+// DAILY USAGE TRACKING - Rastreamento de Uso Diário (Limites para Free Users)
+// =============================================================================
+
+export const dailyUsage = pgTable("daily_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // Data do registro (sem hora - apenas YYYY-MM-DD)
+  usageDate: timestamp("usage_date").notNull(),
+  // Número de calibrações de prompt feitas hoje
+  promptEditsCount: integer("prompt_edits_count").default(0).notNull(),
+  // Número de mensagens do simulador usadas hoje
+  simulatorMessagesCount: integer("simulator_messages_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  // Índice para busca rápida por usuário e data
+  index("idx_daily_usage_user_date").on(table.userId, table.usageDate),
+  // Unique constraint: apenas um registro por usuário por dia
+  uniqueIndex("idx_daily_usage_unique").on(table.userId, table.usageDate),
+]);
+
+export const insertDailyUsageSchema = createInsertSchema(dailyUsage).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type DailyUsage = typeof dailyUsage.$inferSelect;
+export type InsertDailyUsage = z.infer<typeof insertDailyUsageSchema>;

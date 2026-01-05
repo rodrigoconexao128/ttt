@@ -1,17 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { 
-  AlertTriangle, 
   Lock, 
   CreditCard, 
   Rocket, 
   Clock, 
   MessageSquare,
-  Zap
+  Sparkles,
+  CheckCircle,
+  ArrowRight,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
 
 interface AccessStatus {
   accessStatus: 'active' | 'trial' | 'blocked' | 'expired';
@@ -30,7 +33,7 @@ interface AccessStatus {
   message: string | null;
 }
 
-// Full screen blocker when access is denied
+// Full screen blocker when access is denied - Now as elegant modal overlay
 export function AccessBlocker({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   
@@ -63,131 +66,143 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // If access should be blocked, show blocker
+  // If access should be blocked, show overlay modal while keeping background visible
   if (accessStatus?.shouldBlock) {
+    const isExpired = accessStatus.blockReason === 'subscription_expired';
+    const percentUsed = 100;
+
     return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-background/95 backdrop-blur-sm p-4">
-        <Card className="max-w-lg w-full shadow-2xl border-2 border-red-500/20">
-          <CardHeader className="text-center pb-4">
-            <div className="mx-auto w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
-              <Lock className="w-8 h-8 text-red-600 dark:text-red-400" />
+      <>
+        {/* Keep children visible (blurred) in background */}
+        <div className="blur-sm pointer-events-none">
+          {children}
+        </div>
+        
+        {/* Professional Modal Overlay */}
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
+            {/* Header Section */}
+            <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 p-6 text-center border-b border-slate-200 dark:border-slate-700">
+              <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 flex items-center justify-center mb-4 shadow-sm">
+                <Lock className="w-7 h-7 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
+                {isExpired ? 'Assinatura Expirada' : 'Limite de Teste Atingido'}
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {isExpired 
+                  ? 'Renove para continuar usando todos os recursos'
+                  : 'Assine um plano para continuar vendendo'
+                }
+              </p>
             </div>
-            <CardTitle className="text-2xl text-red-600 dark:text-red-400">
-              {accessStatus.blockReason === 'subscription_expired' 
-                ? 'Assinatura Expirada' 
-                : 'Limite de Teste Atingido'}
-            </CardTitle>
-            <CardDescription className="text-base">
-              {accessStatus.message}
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent className="space-y-6">
-            {/* Status Info */}
-            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-              {accessStatus.blockReason === 'subscription_expired' ? (
-                <>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Clock className="w-4 h-4" />
-                    <span>Plano: <strong>{accessStatus.planName || 'N/A'}</strong></span>
-                  </div>
-                  <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>Expirou em: <strong>
-                      {accessStatus.subscriptionEndDate 
-                        ? new Date(accessStatus.subscriptionEndDate).toLocaleDateString('pt-BR')
-                        : 'N/A'}
-                    </strong></span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2">
-                      <MessageSquare className="w-4 h-4" />
-                      Mensagens usadas
-                    </span>
-                    <span className="font-bold text-red-600">
-                      {accessStatus.trialMessagesUsed}/{accessStatus.trialMessagesLimit}
-                    </span>
-                  </div>
-                  <Progress value={100} className="h-2 [&>div]:bg-red-500" />
-                  <p className="text-xs text-muted-foreground text-center">
-                    Você utilizou todas as {accessStatus.trialMessagesLimit} mensagens de teste
-                  </p>
-                </>
-              )}
-            </div>
+            
+            <div className="p-6 space-y-5">
+              {/* Status Info - Clean Card */}
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3">
+                {isExpired ? (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                        <CreditCard className="w-4 h-4" />
+                        Plano
+                      </span>
+                      <span className="font-medium text-slate-900 dark:text-white">
+                        {accessStatus.planName || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        Expirou em
+                      </span>
+                      <span className="font-medium text-amber-600 dark:text-amber-400">
+                        {accessStatus.subscriptionEndDate 
+                          ? new Date(accessStatus.subscriptionEndDate).toLocaleDateString('pt-BR')
+                          : 'N/A'}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4" />
+                        Mensagens usadas
+                      </span>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {accessStatus.trialMessagesUsed}/{accessStatus.trialMessagesLimit}
+                      </span>
+                    </div>
+                    <Progress value={percentUsed} className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:to-green-500" />
+                    <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
+                      Você utilizou todas as mensagens de teste
+                    </p>
+                  </>
+                )}
+              </div>
 
-            {/* Benefits of upgrading */}
-            <div className="space-y-2">
-              <h4 className="font-semibold flex items-center gap-2">
-                <Zap className="w-4 h-4 text-yellow-500" />
-                Desbloqueie todos os recursos:
-              </h4>
-              <ul className="space-y-1 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  Mensagens ilimitadas do Agente IA
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  Envio em massa para campanhas
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  Follow-up inteligente automático
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  Qualificação de leads por IA
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  Suporte prioritário
-                </li>
-              </ul>
-            </div>
+              {/* Benefits - Professional list */}
+              <div className="space-y-2.5">
+                <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  Desbloqueie todos os recursos
+                </h4>
+                <ul className="space-y-2">
+                  {[
+                    'Mensagens ilimitadas do Agente IA',
+                    'Envio em massa para campanhas',
+                    'Follow-up inteligente automático',
+                    'Qualificação de leads por IA',
+                    'Suporte prioritário'
+                  ].map((benefit, i) => (
+                    <li key={i} className="flex items-center gap-2.5 text-sm text-slate-600 dark:text-slate-300">
+                      <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                      {benefit}
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-3">
-              <Button 
-                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold py-6 text-lg shadow-lg"
-                onClick={() => setLocation('/plans')}
-              >
-                <CreditCard className="w-5 h-5 mr-2" />
-                {accessStatus.blockReason === 'subscription_expired' 
-                  ? 'Renovar Assinatura' 
-                  : 'Assinar Agora - R$99/mês'}
-              </Button>
-              
-              {accessStatus.hasSubscription && accessStatus.blockReason === 'subscription_expired' && (
+              {/* Action Buttons */}
+              <div className="space-y-2.5 pt-2">
                 <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={() => setLocation('/minha-assinatura')}
+                  className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-semibold py-5 text-base shadow-lg hover:shadow-xl transition-all duration-200"
+                  onClick={() => setLocation('/plans')}
                 >
-                  <Rocket className="w-4 h-4 mr-2" />
-                  Ver Minha Assinatura
+                  <CreditCard className="w-5 h-5 mr-2" />
+                  {isExpired ? 'Renovar Assinatura' : 'Assinar Agora - R$99/mês'}
+                  <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
-              )}
-            </div>
+                
+                {accessStatus.hasSubscription && isExpired && (
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => setLocation('/minha-assinatura')}
+                  >
+                    <Rocket className="w-4 h-4 mr-2" />
+                    Ver Minha Assinatura
+                  </Button>
+                )}
+              </div>
 
-            {/* Contact support */}
-            <p className="text-xs text-center text-muted-foreground">
-              Precisa de ajuda? Entre em contato pelo WhatsApp:{' '}
-              <a 
-                href="https://wa.me/5517981679379" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                (17) 98167-9379
-              </a>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+              {/* Contact support */}
+              <p className="text-xs text-center text-slate-400 dark:text-slate-500 pt-2">
+                Precisa de ajuda?{' '}
+                <a 
+                  href="https://wa.me/5517981679379" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium"
+                >
+                  Fale conosco pelo WhatsApp
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -195,7 +210,7 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Warning banner for expiring subscription (5 days or less)
+// Warning banner for expiring subscription (5 days or less) - Refined Design
 export function SubscriptionExpiringBanner() {
   const [, setLocation] = useLocation();
   
@@ -213,29 +228,31 @@ export function SubscriptionExpiringBanner() {
   }
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[90] bg-gradient-to-r from-amber-500 to-orange-500 text-white py-2 px-4 shadow-lg">
-      <div className="container max-w-6xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+    <div className="fixed top-0 left-0 right-0 z-[90] bg-gradient-to-r from-amber-500 to-orange-500 text-white py-2.5 px-4 shadow-md">
+      <div className="container max-w-6xl mx-auto flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Clock className="w-5 h-5" />
-          <span className="font-medium">
-            Sua assinatura vence em <strong>{accessStatus.daysRemaining} dias</strong>. Renove agora para não perder acesso!
+          <div className="flex items-center gap-2 bg-white/20 px-2.5 py-1 rounded-full text-xs font-medium">
+            <Clock className="w-3.5 h-3.5" />
+            {accessStatus.daysRemaining} dias
+          </div>
+          <span className="text-sm">
+            Sua assinatura vence em breve · <span className="font-medium">Renove para não perder acesso</span>
           </span>
         </div>
         <Button
           size="sm"
-          variant="secondary"
           onClick={() => setLocation('/minha-assinatura')}
-          className="bg-white text-orange-600 hover:bg-gray-100"
+          className="bg-white text-amber-600 hover:bg-amber-50 font-medium shadow-sm"
         >
-          <CreditCard className="w-4 h-4 mr-2" />
-          Renovar Agora
+          <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+          Renovar
         </Button>
       </div>
     </div>
   );
 }
 
-// Trial progress banner (non-blocking, just informative)
+// Trial progress banner (non-blocking, just informative) - Professional Style
 export function TrialProgressBanner() {
   const [, setLocation] = useLocation();
   
@@ -256,33 +273,41 @@ export function TrialProgressBanner() {
 
   return (
     <div className={`
-      border rounded-lg p-3 mb-4
+      border rounded-xl p-4 mb-4 transition-all duration-200
       ${isWarning 
-        ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800' 
-        : 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
+        ? 'bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/60 dark:border-amber-800/30' 
+        : 'bg-blue-50/50 dark:bg-blue-950/10 border-blue-200/60 dark:border-blue-800/30'
       }
     `}>
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <MessageSquare className={`w-4 h-4 ${isWarning ? 'text-amber-600' : 'text-blue-600'}`} />
-          <span className="text-sm">
-            Mensagens de teste: <strong>{accessStatus.trialMessagesUsed}/{accessStatus.trialMessagesLimit}</strong>
-            {isWarning && <span className="text-amber-600 ml-2">(Restam {accessStatus.trialMessagesRemaining}!)</span>}
-          </span>
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg ${isWarning ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-blue-100 dark:bg-blue-900/30'}`}>
+            <MessageSquare className={`w-4 h-4 ${isWarning ? 'text-amber-600' : 'text-blue-600'}`} />
+          </div>
+          <div>
+            <span className="text-sm font-medium text-slate-900 dark:text-white">
+              {accessStatus.trialMessagesUsed}/{accessStatus.trialMessagesLimit} mensagens
+            </span>
+            {isWarning && (
+              <span className="text-amber-600 dark:text-amber-400 text-xs ml-2">
+                · {accessStatus.trialMessagesRemaining} restantes
+              </span>
+            )}
+          </div>
         </div>
         <Button
           size="sm"
           variant={isWarning ? "default" : "outline"}
           onClick={() => setLocation('/plans')}
-          className={isWarning ? 'bg-amber-600 hover:bg-amber-700' : ''}
+          className={isWarning ? 'bg-amber-500 hover:bg-amber-600 text-white' : ''}
         >
-          <Rocket className="w-3 h-3 mr-1" />
-          Assinar Plano
+          <Rocket className="w-3.5 h-3.5 mr-1.5" />
+          Ver Planos
         </Button>
       </div>
       <Progress 
         value={percentUsed} 
-        className={`h-1.5 mt-2 ${isWarning ? '[&>div]:bg-amber-500' : '[&>div]:bg-blue-500'}`} 
+        className={`h-1.5 mt-3 ${isWarning ? '[&>div]:bg-amber-500' : '[&>div]:bg-blue-500'}`} 
       />
     </div>
   );

@@ -2351,6 +2351,120 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return item;
   }
+
+  // =============================================================================
+  // DAILY USAGE TRACKING - Rastreamento de uso diário para limites free
+  // =============================================================================
+
+  /**
+   * Obtém ou cria o registro de uso diário para um usuário
+   */
+  async getDailyUsage(userId: string): Promise<{ promptEditsCount: number; simulatorMessagesCount: number }> {
+    const { dailyUsage } = await import("@shared/schema");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [existing] = await db
+      .select()
+      .from(dailyUsage)
+      .where(
+        and(
+          eq(dailyUsage.userId, userId),
+          eq(dailyUsage.usageDate, today)
+        )
+      );
+
+    if (existing) {
+      return {
+        promptEditsCount: existing.promptEditsCount,
+        simulatorMessagesCount: existing.simulatorMessagesCount,
+      };
+    }
+
+    return { promptEditsCount: 0, simulatorMessagesCount: 0 };
+  }
+
+  /**
+   * Incrementa o contador de edições de prompt do dia
+   */
+  async incrementPromptEdits(userId: string): Promise<number> {
+    const { dailyUsage } = await import("@shared/schema");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Tenta atualizar registro existente
+    const updated = await db
+      .update(dailyUsage)
+      .set({
+        promptEditsCount: sql`${dailyUsage.promptEditsCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(dailyUsage.userId, userId),
+          eq(dailyUsage.usageDate, today)
+        )
+      )
+      .returning();
+
+    if (updated.length > 0) {
+      return updated[0].promptEditsCount;
+    }
+
+    // Se não existe, cria novo registro
+    const [newRecord] = await db
+      .insert(dailyUsage)
+      .values({
+        userId,
+        usageDate: today,
+        promptEditsCount: 1,
+        simulatorMessagesCount: 0,
+      })
+      .returning();
+
+    return newRecord.promptEditsCount;
+  }
+
+  /**
+   * Incrementa o contador de mensagens do simulador do dia
+   */
+  async incrementSimulatorMessages(userId: string): Promise<number> {
+    const { dailyUsage } = await import("@shared/schema");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Tenta atualizar registro existente
+    const updated = await db
+      .update(dailyUsage)
+      .set({
+        simulatorMessagesCount: sql`${dailyUsage.simulatorMessagesCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(dailyUsage.userId, userId),
+          eq(dailyUsage.usageDate, today)
+        )
+      )
+      .returning();
+
+    if (updated.length > 0) {
+      return updated[0].simulatorMessagesCount;
+    }
+
+    // Se não existe, cria novo registro
+    const [newRecord] = await db
+      .insert(dailyUsage)
+      .values({
+        userId,
+        usageDate: today,
+        promptEditsCount: 0,
+        simulatorMessagesCount: 1,
+      })
+      .returning();
+
+    return newRecord.simulatorMessagesCount;
+  }
 }
 
 export const storage = new DatabaseStorage();

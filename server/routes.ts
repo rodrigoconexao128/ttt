@@ -1519,6 +1519,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Daily usage limits for calibration/simulator (free users)
+  // Constants for free user daily limits
+  const FREE_DAILY_CALIBRATION_LIMIT = 5;
+  const FREE_DAILY_SIMULATOR_LIMIT = 25;
+
+  app.get("/api/daily-limits", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const subscription = await storage.getUserSubscription(userId);
+      const hasActiveSubscription = subscription?.status === 'active';
+
+      // Plano pago = limites ilimitados
+      if (hasActiveSubscription) {
+        return res.json({
+          hasActiveSubscription: true,
+          calibration: {
+            used: 0,
+            limit: -1,
+            remaining: -1,
+            isLimitReached: false,
+          },
+          simulator: {
+            used: 0,
+            limit: -1,
+            remaining: -1,
+            isLimitReached: false,
+          },
+        });
+      }
+
+      const dailyUsage = await storage.getDailyUsage(userId);
+
+      res.json({
+        hasActiveSubscription: false,
+        calibration: {
+          used: dailyUsage.promptEditsCount,
+          limit: FREE_DAILY_CALIBRATION_LIMIT,
+          remaining: Math.max(0, FREE_DAILY_CALIBRATION_LIMIT - dailyUsage.promptEditsCount),
+          isLimitReached: dailyUsage.promptEditsCount >= FREE_DAILY_CALIBRATION_LIMIT,
+        },
+        simulator: {
+          used: dailyUsage.simulatorMessagesCount,
+          limit: FREE_DAILY_SIMULATOR_LIMIT,
+          remaining: Math.max(0, FREE_DAILY_SIMULATOR_LIMIT - dailyUsage.simulatorMessagesCount),
+          isLimitReached: dailyUsage.simulatorMessagesCount >= FREE_DAILY_SIMULATOR_LIMIT,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching daily limits:", error);
+      res.status(500).json({ message: "Failed to fetch daily limits" });
+    }
+  });
+
   // AI Agent routes
   app.get("/api/agent/config", isAuthenticated, async (req: any, res) => {
     try {
@@ -1729,6 +1782,23 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         return res.status(400).json({ message: "currentPrompt e instruction são obrigatórios" });
       }
 
+      // 🔒 CHECK DAILY CALIBRATION LIMIT FOR FREE USERS
+      const subscription = await storage.getUserSubscription(userId);
+      const hasActiveSubscription = subscription?.status === 'active';
+      
+      if (!hasActiveSubscription) {
+        const dailyUsage = await storage.getDailyUsage(userId);
+        if (dailyUsage.promptEditsCount >= FREE_DAILY_CALIBRATION_LIMIT) {
+          return res.json({
+            success: false,
+            limitReached: true,
+            message: `Você atingiu o limite de ${FREE_DAILY_CALIBRATION_LIMIT} calibrações por dia. Assine um plano para calibrações ilimitadas.`,
+            used: dailyUsage.promptEditsCount,
+            limit: FREE_DAILY_CALIBRATION_LIMIT,
+          });
+        }
+      }
+
       // Buscar chave Mistral do banco de dados
       const mistralConfig = await storage.getSystemConfig('mistral_api_key');
       const mistralApiKey = mistralConfig?.valor || process.env.MISTRAL_API_KEY || '';
@@ -1754,6 +1824,11 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       
       // Salvar no histórico se teve edição bem-sucedida
       if (result.success && result.novoPrompt !== currentPrompt) {
+        // 📈 Incrementar contador de calibrações do dia (para usuários free)
+        if (!hasActiveSubscription) {
+          await storage.incrementPromptEdits(userId);
+        }
+        
         // Salvar mensagem do usuário
         await salvarMensagemChat({
           userId,
@@ -1997,6 +2072,26 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   app.post("/api/agent/test", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
+      
+      // 🔒 CHECK DAILY SIMULATOR LIMIT FOR FREE USERS
+      const subscription = await storage.getUserSubscription(userId);
+      const hasActiveSubscription = subscription?.status === 'active';
+      
+      if (!hasActiveSubscription) {
+        const dailyUsage = await storage.getDailyUsage(userId);
+        if (dailyUsage.simulatorMessagesCount >= FREE_DAILY_SIMULATOR_LIMIT) {
+          return res.json({
+            success: false,
+            limitReached: true,
+            message: `Você atingiu o limite de ${FREE_DAILY_SIMULATOR_LIMIT} mensagens do simulador por dia. Assine um plano para uso ilimitado.`,
+            used: dailyUsage.simulatorMessagesCount,
+            limit: FREE_DAILY_SIMULATOR_LIMIT,
+          });
+        }
+        // 📈 Incrementar contador de mensagens do simulador (para usuários free)
+        await storage.incrementSimulatorMessages(userId);
+      }
+      
       const schema = z.object({ 
         message: z.string(), 
         customPrompt: z.string().optional(),
