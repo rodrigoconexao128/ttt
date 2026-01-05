@@ -11,12 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ExclusionItem {
-  id: number;
-  phone_number: string;
-  is_active: boolean;
-  exclude_from_followup: boolean;
-  created_at: string;
-  deleted_at?: string;
+  id: string;
+  phoneNumber: string;
+  isActive: boolean;
+  excludeFromFollowup: boolean;
+  createdAt: string;
 }
 
 const ITEMS_PER_PAGE_OPTIONS = [25, 50, 100, 200];
@@ -41,37 +40,42 @@ export default function ExclusionList() {
   const [inactiveSearchTerm, setInactiveSearchTerm] = useState("");
 
   // Buscar lista de exclusão
-  const { data: exclusionList = [], isLoading } = useQuery<ExclusionItem[]>({
+  const { data: exclusionListData, isLoading } = useQuery<ExclusionItem[]>({
     queryKey: ["/api/exclusion/list"],
   });
 
+  // Garantir que sempre seja um array válido
+  const exclusionList = Array.isArray(exclusionListData) ? exclusionListData : [];
+
   // Separar ativos e inativos com busca
   const { activeItems, inactiveItems } = useMemo(() => {
-    const active = exclusionList.filter(item => !item.deleted_at);
-    const inactive = exclusionList.filter(item => item.deleted_at);
+    if (!exclusionList || !Array.isArray(exclusionList)) {
+      return { activeItems: [], inactiveItems: [] };
+    }
+    
+    // Todos os itens são "ativos" (na lista), já que não há soft delete
+    // O isActive controla se a proteção está ativa ou não
+    const allItems = exclusionList.filter(item => item);
     
     // Aplicar filtro de busca
-    const filteredActive = activeSearchTerm 
-      ? active.filter(item => item.phone_number.includes(activeSearchTerm))
-      : active;
-    
-    const filteredInactive = inactiveSearchTerm
-      ? inactive.filter(item => item.phone_number.includes(inactiveSearchTerm))
-      : inactive;
+    const filteredItems = activeSearchTerm 
+      ? allItems.filter(item => item.phoneNumber?.includes(activeSearchTerm))
+      : allItems;
     
     return { 
-      activeItems: filteredActive, 
-      inactiveItems: filteredInactive 
+      activeItems: filteredItems, 
+      inactiveItems: [] // Não há itens inativos (soft delete não existe)
     };
-  }, [exclusionList, activeSearchTerm, inactiveSearchTerm]);
+  }, [exclusionList, activeSearchTerm]);
 
   // Calcular paginação - Ativos
   const activePagination = useMemo(() => {
-    const totalItems = activeItems.length;
-    const totalPages = Math.ceil(totalItems / activeItemsPerPage);
+    const items = activeItems || [];
+    const totalItems = items.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / activeItemsPerPage));
     const startIndex = (activeCurrentPage - 1) * activeItemsPerPage;
     const endIndex = startIndex + activeItemsPerPage;
-    const paginatedItems = activeItems.slice(startIndex, endIndex);
+    const paginatedItems = items.slice(startIndex, endIndex);
     
     return {
       totalItems,
@@ -86,11 +90,12 @@ export default function ExclusionList() {
 
   // Calcular paginação - Inativos
   const inactivePagination = useMemo(() => {
-    const totalItems = inactiveItems.length;
-    const totalPages = Math.ceil(totalItems / inactiveItemsPerPage);
+    const items = inactiveItems || [];
+    const totalItems = items.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / inactiveItemsPerPage));
     const startIndex = (inactiveCurrentPage - 1) * inactiveItemsPerPage;
     const endIndex = startIndex + inactiveItemsPerPage;
-    const paginatedItems = inactiveItems.slice(startIndex, endIndex);
+    const paginatedItems = items.slice(startIndex, endIndex);
     
     return {
       totalItems,
@@ -201,7 +206,8 @@ export default function ExclusionList() {
     });
   };
 
-  const formatPhone = (phone: string) => {
+  const formatPhone = (phone: string | undefined | null) => {
+    if (!phone) return '';
     if (phone.length === 13) {
       return `+${phone.slice(0,2)} (${phone.slice(2,4)}) ${phone.slice(4,9)}-${phone.slice(9)}`;
     }
@@ -441,19 +447,19 @@ export default function ExclusionList() {
                 >
                   {/* Número */}
                   <div className="flex-1 font-mono text-sm">
-                    {formatPhone(item.phone_number)}
+                    {formatPhone(item.phoneNumber)}
                   </div>
                   
                   {/* Controles */}
                   <div className="flex items-center gap-4 flex-wrap">
                     {/* Toggle IA */}
                     <div className="flex items-center gap-2">
-                      <Bot className={`h-4 w-4 ${item.is_active ? 'text-blue-500' : 'text-muted-foreground'}`} />
+                      <Bot className={`h-4 w-4 ${item.isActive ? 'text-blue-500' : 'text-muted-foreground'}`} />
                       <span className="text-xs text-muted-foreground">IA</span>
                       <Switch
-                        checked={item.is_active}
+                        checked={item.isActive}
                         onCheckedChange={(checked) => 
-                          toggleMutation.mutate({ id: item.id, field: 'is_active', value: checked })
+                          toggleMutation.mutate({ id: item.id, field: 'isActive', value: checked })
                         }
                         disabled={toggleMutation.isPending}
                       />
@@ -461,12 +467,12 @@ export default function ExclusionList() {
                     
                     {/* Toggle Follow-up */}
                     <div className="flex items-center gap-2">
-                      <MessageSquare className={`h-4 w-4 ${item.exclude_from_followup ? 'text-orange-500' : 'text-muted-foreground'}`} />
+                      <MessageSquare className={`h-4 w-4 ${item.excludeFromFollowup ? 'text-orange-500' : 'text-muted-foreground'}`} />
                       <span className="text-xs text-muted-foreground">Follow-up</span>
                       <Switch
-                        checked={item.exclude_from_followup}
+                        checked={item.excludeFromFollowup}
                         onCheckedChange={(checked) => 
-                          toggleMutation.mutate({ id: item.id, field: 'exclude_from_followup', value: checked })
+                          toggleMutation.mutate({ id: item.id, field: 'excludeFromFollowup', value: checked })
                         }
                         disabled={toggleMutation.isPending}
                       />
@@ -562,7 +568,7 @@ export default function ExclusionList() {
                     className="flex items-center gap-4 p-3 bg-muted/20 rounded-lg border border-dashed opacity-60"
                   >
                     <div className="flex-1 font-mono text-sm line-through">
-                      {formatPhone(item.phone_number)}
+                      {formatPhone(item.phoneNumber)}
                     </div>
                     <Button
                       variant="ghost"
