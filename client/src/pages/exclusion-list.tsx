@@ -14,12 +14,15 @@ import {
   Trash2,
   ChevronLeft,
   CheckCircle2,
-  XCircle,
   Loader2,
   Sparkles,
   Shield,
   Copy,
-  RotateCcw
+  RotateCcw,
+  Bot,
+  MessageSquare,
+  Power,
+  PowerOff
 } from "lucide-react";
 
 interface ExclusionListItem {
@@ -93,27 +96,43 @@ export default function ExclusionListPage() {
     },
   });
 
+  // ✅ Mutation para atualizar item individual (toggle IA, toggle Follow-up)
+  const updateItemMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<ExclusionListItem> }) => {
+      const response = await apiRequest("PUT", `/api/exclusion/list/${id}`, data);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/exclusion/list"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message || "Tente novamente",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // ✅ Mutation para deletar permanentemente
   const deleteItemMutation = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest("DELETE", `/api/exclusion/list/${id}?permanent=true`),
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/exclusion/list/${id}?permanent=true`);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/exclusion/list"] });
+      toast({ title: "🗑️ Número removido permanentemente" });
     },
   });
 
+  // ✅ Mutation para reativar (soft delete -> ativo)
   const reactivateItemMutation = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest("POST", `/api/exclusion/list/${id}/reactivate`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/exclusion/list"] });
+    mutationFn: async (id: string) => {
+      await apiRequest("POST", `/api/exclusion/list/${id}/reactivate`);
     },
-  });
-
-  const removeItemMutation = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest("DELETE", `/api/exclusion/list/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/exclusion/list"] });
+      toast({ title: "✅ Número reativado" });
     },
   });
 
@@ -168,6 +187,22 @@ export default function ExclusionListPage() {
     });
   };
 
+  // ✅ Toggle IA (isActive) para um número
+  const toggleIA = (item: ExclusionListItem) => {
+    updateItemMutation.mutate({
+      id: item.id,
+      data: { isActive: !item.isActive }
+    });
+  };
+
+  // ✅ Toggle Follow-up para um número
+  const toggleFollowup = (item: ExclusionListItem) => {
+    updateItemMutation.mutate({
+      id: item.id,
+      data: { excludeFromFollowup: !item.excludeFromFollowup }
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       {/* Header Minimalista */}
@@ -188,13 +223,13 @@ export default function ExclusionListPage() {
             <span className="font-medium">Lista de Exclusão</span>
           </div>
           
-          <div className="w-10" /> {/* Spacer for centering */}
+          <div className="w-10" />
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         
-        {/* Toggle Principal - Eye-catching */}
+        {/* Toggle Principal Global */}
         <Card className={cn(
           "border-2 transition-all duration-300",
           config?.isEnabled 
@@ -230,14 +265,34 @@ export default function ExclusionListPage() {
                 className="data-[state=checked]:bg-red-500"
               />
             </div>
+            
+            {/* Toggle global follow-up */}
+            {config?.isEnabled && (
+              <div className="mt-4 pt-4 border-t flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm">
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    Bloquear também Follow-up global
+                  </span>
+                </div>
+                <Switch
+                  checked={config?.followupExclusionEnabled ?? true}
+                  onCheckedChange={(checked) => updateConfigMutation.mutate({ followupExclusionEnabled: checked })}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Área Principal - Bulk Import ou Lista */}
-        {activeItems.length === 0 ? (
-          /* Estado Vazio - Textarea em Destaque */
-          <Card className="border-2 border-dashed border-primary/30 bg-primary/5">
-            <CardContent className="p-6">
+        {/* Área de Bulk Import */}
+        <Card className={cn(
+          "border-2 transition-all",
+          activeItems.length === 0 
+            ? "border-dashed border-primary/30 bg-primary/5" 
+            : ""
+        )}>
+          <CardContent className="p-4 md:p-6">
+            {activeItems.length === 0 && (
               <div className="text-center mb-6">
                 <div className="inline-flex p-3 bg-primary/10 rounded-2xl mb-4">
                   <Sparkles className="h-8 w-8 text-primary" />
@@ -250,104 +305,64 @@ export default function ExclusionListPage() {
                   Um por linha ou separados por vírgula.
                 </p>
               </div>
+            )}
 
-              <div className="space-y-4">
-                <Textarea
-                  placeholder={`Exemplos:\n5511987654321\n5511912345678\n11999887766`}
-                  value={bulkNumbers}
-                  onChange={(e) => setBulkNumbers(e.target.value)}
-                  className="min-h-[180px] font-mono text-sm resize-none bg-background"
-                />
-
-                {/* Preview de números detectados */}
-                {parsedNumbers.length > 0 && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <span className="text-green-600 dark:text-green-400 font-medium">
-                      {parsedNumbers.length} número{parsedNumbers.length !== 1 ? "s" : ""} detectado{parsedNumbers.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
+            <div className="space-y-4">
+              <Textarea
+                placeholder={`Cole números aqui (um por linha ou separados por vírgula)\n\nExemplos:\n5511987654321\n5511912345678\n11999887766`}
+                value={bulkNumbers}
+                onChange={(e) => setBulkNumbers(e.target.value)}
+                className={cn(
+                  "font-mono text-sm resize-none bg-background",
+                  activeItems.length === 0 ? "min-h-[180px]" : "min-h-[100px]"
                 )}
+              />
 
-                {/* Toggle Follow-up */}
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              {/* Preview de números detectados */}
+              {parsedNumbers.length > 0 && (
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <span className="text-green-600 dark:text-green-400 font-medium">
+                    {parsedNumbers.length} número{parsedNumbers.length !== 1 ? "s" : ""} detectado{parsedNumbers.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              )}
+
+              {/* Toggle Follow-up para novos números */}
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">
                     Também bloquear follow-up automático
                   </span>
-                  <Switch
-                    checked={excludeFollowup}
-                    onCheckedChange={setExcludeFollowup}
-                  />
                 </div>
-
-                {/* CTA Principal */}
-                <Button 
-                  onClick={handleAddNumbers}
-                  disabled={parsedNumbers.length === 0 || addBulkMutation.isPending}
-                  className="w-full h-12 text-base font-semibold gap-2"
-                  size="lg"
-                >
-                  {addBulkMutation.isPending ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Ban className="h-5 w-5" />
-                  )}
-                  Bloquear {parsedNumbers.length > 0 ? `${parsedNumbers.length} Número${parsedNumbers.length !== 1 ? "s" : ""}` : "Números"}
-                </Button>
+                <Switch
+                  checked={excludeFollowup}
+                  onCheckedChange={setExcludeFollowup}
+                />
               </div>
-            </CardContent>
-          </Card>
-        ) : (
-          /* Lista de Números */
-          <div className="space-y-4">
-            {/* Adicionar mais números */}
-            <Card>
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  <Textarea
-                    placeholder="Cole números aqui (um por linha ou separados por vírgula)"
-                    value={bulkNumbers}
-                    onChange={(e) => setBulkNumbers(e.target.value)}
-                    className="min-h-[80px] font-mono text-sm resize-none"
-                  />
-                  
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      {parsedNumbers.length > 0 && (
-                        <Badge variant="secondary" className="gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          {parsedNumbers.length} detectados
-                        </Badge>
-                      )}
-                      
-                      <label className="flex items-center gap-2 text-sm cursor-pointer">
-                        <Switch
-                          checked={excludeFollowup}
-                          onCheckedChange={setExcludeFollowup}
-                          className="scale-90"
-                        />
-                        <span className="text-muted-foreground">+ Follow-up</span>
-                      </label>
-                    </div>
-                    
-                    <Button 
-                      onClick={handleAddNumbers}
-                      disabled={parsedNumbers.length === 0 || addBulkMutation.isPending}
-                      size="sm"
-                      className="gap-1.5"
-                    >
-                      {addBulkMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Ban className="h-4 w-4" />
-                      )}
-                      Bloquear
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
+              {/* CTA Principal */}
+              <Button 
+                onClick={handleAddNumbers}
+                disabled={parsedNumbers.length === 0 || addBulkMutation.isPending}
+                className="w-full h-12 text-base font-semibold gap-2"
+                size="lg"
+              >
+                {addBulkMutation.isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Ban className="h-5 w-5" />
+                )}
+                Bloquear {parsedNumbers.length > 0 ? `${parsedNumbers.length} Número${parsedNumbers.length !== 1 ? "s" : ""}` : "Números"} em Massa
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Lista de Números com Controles Individuais */}
+        {activeItems.length > 0 && (
+          <div className="space-y-4">
             {/* Header da Lista */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -359,93 +374,187 @@ export default function ExclusionListPage() {
                 </Badge>
               </div>
               
-              {activeItems.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={copyAllNumbers}
-                  className="gap-1.5 text-muted-foreground"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  Copiar todos
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={copyAllNumbers}
+                className="gap-1.5 text-muted-foreground"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Copiar todos
+              </Button>
             </div>
 
-            {/* Grid de Números */}
-            <div className="grid gap-2">
+            {/* Legenda */}
+            <div className="flex items-center gap-4 text-xs text-muted-foreground px-1">
+              <div className="flex items-center gap-1">
+                <Bot className="h-3.5 w-3.5" />
+                <span>IA</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span>Follow-up</span>
+              </div>
+            </div>
+
+            {/* Grid de Números com Controles */}
+            <div className="space-y-2">
               {activeItems.map((item) => (
-                <div
+                <Card 
                   key={item.id}
-                  className="group flex items-center justify-between p-3 bg-card border rounded-lg hover:border-destructive/30 transition-colors"
+                  className={cn(
+                    "transition-all hover:shadow-md",
+                    item.isActive 
+                      ? "border-red-200 dark:border-red-900/50" 
+                      : "border-dashed opacity-60"
+                  )}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                      <Ban className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      {/* Número */}
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className={cn(
+                          "p-1.5 rounded-lg shrink-0",
+                          item.isActive 
+                            ? "bg-red-100 dark:bg-red-900/30" 
+                            : "bg-muted"
+                        )}>
+                          <Ban className={cn(
+                            "h-4 w-4",
+                            item.isActive 
+                              ? "text-red-600 dark:text-red-400" 
+                              : "text-muted-foreground"
+                          )} />
+                        </div>
+                        <span className="font-mono text-sm truncate">
+                          {formatPhone(item.phoneNumber)}
+                        </span>
+                      </div>
+
+                      {/* Controles Individuais */}
+                      <div className="flex items-center gap-3 shrink-0">
+                        {/* Toggle IA (isActive) */}
+                        <div className="flex items-center gap-1.5" title="Bloquear IA">
+                          <Bot className={cn(
+                            "h-4 w-4",
+                            item.isActive ? "text-red-500" : "text-muted-foreground"
+                          )} />
+                          <Switch
+                            checked={item.isActive}
+                            onCheckedChange={() => toggleIA(item)}
+                            className="data-[state=checked]:bg-red-500 scale-90"
+                          />
+                        </div>
+
+                        {/* Toggle Follow-up */}
+                        <div className="flex items-center gap-1.5" title="Bloquear Follow-up">
+                          <MessageSquare className={cn(
+                            "h-4 w-4",
+                            item.excludeFromFollowup ? "text-orange-500" : "text-muted-foreground"
+                          )} />
+                          <Switch
+                            checked={item.excludeFromFollowup}
+                            onCheckedChange={() => toggleFollowup(item)}
+                            className="data-[state=checked]:bg-orange-500 scale-90"
+                          />
+                        </div>
+
+                        {/* Botão Excluir Permanente */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                          onClick={() => deleteItemMutation.mutate(item.id)}
+                          title="Excluir permanentemente"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <span className="font-mono text-sm">
-                      {formatPhone(item.phoneNumber)}
-                    </span>
-                    {item.excludeFromFollowup && (
-                      <Badge variant="outline" className="text-xs">
-                        +FUP
+
+                    {/* Status visual */}
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t text-xs">
+                      <Badge 
+                        variant={item.isActive ? "destructive" : "secondary"}
+                        className="gap-1"
+                      >
+                        {item.isActive ? (
+                          <>
+                            <PowerOff className="h-3 w-3" />
+                            IA Bloqueada
+                          </>
+                        ) : (
+                          <>
+                            <Power className="h-3 w-3" />
+                            IA Liberada
+                          </>
+                        )}
                       </Badge>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-100"
-                      onClick={() => removeItemMutation.mutate(item.id)}
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                      onClick={() => deleteItemMutation.mutate(item.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+                      
+                      <Badge 
+                        variant={item.excludeFromFollowup ? "outline" : "secondary"}
+                        className={cn(
+                          "gap-1",
+                          item.excludeFromFollowup && "border-orange-500 text-orange-600"
+                        )}
+                      >
+                        {item.excludeFromFollowup ? (
+                          <>
+                            <MessageSquare className="h-3 w-3" />
+                            Follow-up Bloqueado
+                          </>
+                        ) : (
+                          <>
+                            <MessageSquare className="h-3 w-3" />
+                            Follow-up Liberado
+                          </>
+                        )}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
+          </div>
+        )}
 
-            {/* Números Desativados */}
-            {inactiveItems.length > 0 && (
-              <div className="mt-6 pt-6 border-t">
-                <div className="flex items-center gap-2 mb-3">
-                  <h4 className="text-sm font-medium text-muted-foreground">
-                    Desativados
-                  </h4>
-                  <Badge variant="secondary" className="rounded-full text-xs">
-                    {inactiveItems.length}
-                  </Badge>
-                </div>
-                
-                <div className="grid gap-2">
-                  {inactiveItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="group flex items-center justify-between p-3 bg-muted/30 border border-dashed rounded-lg opacity-60 hover:opacity-100 transition-opacity"
-                    >
+        {/* Números Desativados (soft deleted) */}
+        {inactiveItems.length > 0 && (
+          <div className="mt-6 pt-6 border-t">
+            <div className="flex items-center gap-2 mb-3">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Desativados (IA liberada)
+              </h4>
+              <Badge variant="secondary" className="rounded-full text-xs">
+                {inactiveItems.length}
+              </Badge>
+            </div>
+            
+            <div className="space-y-2">
+              {inactiveItems.map((item) => (
+                <Card
+                  key={item.id}
+                  className="border-dashed opacity-60 hover:opacity-100 transition-opacity"
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-3">
                       <span className="font-mono text-sm text-muted-foreground">
                         {formatPhone(item.phoneNumber)}
                       </span>
                       
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2">
+                        {/* Reativar */}
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                          size="sm"
+                          className="h-8 gap-1.5 text-green-600 hover:text-green-700 hover:bg-green-100"
                           onClick={() => reactivateItemMutation.mutate(item.id)}
                         >
                           <RotateCcw className="h-4 w-4" />
+                          Reativar
                         </Button>
+                        
+                        {/* Excluir permanente */}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -456,10 +565,10 @@ export default function ExclusionListPage() {
                         </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
 
@@ -469,6 +578,30 @@ export default function ExclusionListPage() {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
+
+        {/* Info Box */}
+        <Card className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/50">
+          <CardContent className="p-4">
+            <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Como funciona a Lista de Exclusão
+            </h4>
+            <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1.5">
+              <li className="flex items-start gap-2">
+                <Bot className="h-4 w-4 mt-0.5 shrink-0" />
+                <span><strong>IA Bloqueada:</strong> A IA não responde automaticamente para esse número</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
+                <span><strong>Follow-up Bloqueado:</strong> O sistema não envia mensagens de follow-up automático</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Power className="h-4 w-4 mt-0.5 shrink-0" />
+                <span><strong>Controle Individual:</strong> Ative/desative IA e Follow-up separadamente por número</span>
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
