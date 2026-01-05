@@ -2100,6 +2100,43 @@ export class DatabaseStorage implements IStorage {
   // ==================== EXCLUSION LIST / LISTA DE EXCLUSÃO ====================
 
   /**
+   * Normaliza um número de telefone brasileiro para comparação
+   * Retorna array com todas as variações possíveis do número
+   * Ex: 5517991956944 -> ['5517991956944', '17991956944', '991956944']
+   */
+  private normalizePhoneForComparison(phoneNumber: string): string[] {
+    const cleanNumber = phoneNumber.replace(/\D/g, "");
+    const variations: string[] = [cleanNumber];
+    
+    // Se começa com 55 (Brasil), adicionar versão sem 55
+    if (cleanNumber.startsWith('55') && cleanNumber.length >= 12) {
+      variations.push(cleanNumber.substring(2)); // Remove 55
+    }
+    
+    // Se não começa com 55, adicionar versão com 55
+    if (!cleanNumber.startsWith('55') && cleanNumber.length >= 10) {
+      variations.push('55' + cleanNumber);
+    }
+    
+    // Para números com DDD (2 dígitos) + número (8 ou 9 dígitos)
+    // Adicionar versão apenas com número local (sem DDD)
+    if (cleanNumber.length >= 10 && cleanNumber.length <= 11) {
+      variations.push(cleanNumber.substring(2)); // Remove DDD
+    }
+    
+    // Se já é número com código do país, adicionar sem código do país e sem DDD
+    if (cleanNumber.startsWith('55') && cleanNumber.length >= 12) {
+      const withoutCountry = cleanNumber.substring(2);
+      if (withoutCountry.length >= 10) {
+        variations.push(withoutCountry.substring(2)); // Apenas número local
+      }
+    }
+    
+    console.log(`📞 [EXCLUSION] Normalizando número ${phoneNumber} -> variações: [${variations.join(', ')}]`);
+    return [...new Set(variations)]; // Remove duplicados
+  }
+
+  /**
    * Verifica se um número está na lista de exclusão de um usuário
    * @param userId ID do usuário
    * @param phoneNumber Número de telefone (apenas dígitos)
@@ -2107,28 +2144,34 @@ export class DatabaseStorage implements IStorage {
    */
   async isNumberExcluded(userId: string, phoneNumber: string): Promise<boolean> {
     const { exclusionList, exclusionConfig } = await import("@shared/schema");
+    const { or } = await import("drizzle-orm");
     
     // Primeiro verificar se a lista de exclusão está ativa para o usuário
     const config = await this.getExclusionConfig(userId);
     if (!config?.isEnabled) {
+      console.log(`🚫 [EXCLUSION] Lista de exclusão desativada para usuário ${userId}`);
       return false;
     }
 
-    // Limpar o número (apenas dígitos)
-    const cleanNumber = phoneNumber.replace(/\D/g, "");
+    // Obter todas as variações possíveis do número para comparação
+    const numberVariations = this.normalizePhoneForComparison(phoneNumber);
     
-    const [item] = await db
+    // Buscar qualquer item que corresponda a alguma das variações do número
+    const items = await db
       .select()
       .from(exclusionList)
       .where(
         and(
           eq(exclusionList.userId, userId),
-          eq(exclusionList.phoneNumber, cleanNumber),
-          eq(exclusionList.isActive, true)
+          eq(exclusionList.isActive, true),
+          or(...numberVariations.map(num => eq(exclusionList.phoneNumber, num)))
         )
       );
     
-    return !!item;
+    const isExcluded = items.length > 0;
+    console.log(`📞 [EXCLUSION] Verificando ${phoneNumber} (variações: ${numberVariations.join(', ')}) -> ${isExcluded ? '🚫 EXCLUÍDO' : '✅ Permitido'}`);
+    
+    return isExcluded;
   }
 
   /**
@@ -2139,29 +2182,35 @@ export class DatabaseStorage implements IStorage {
    */
   async isNumberExcludedFromFollowup(userId: string, phoneNumber: string): Promise<boolean> {
     const { exclusionList } = await import("@shared/schema");
+    const { or } = await import("drizzle-orm");
     
     // Verificar configuração global de follow-up
     const config = await this.getExclusionConfig(userId);
     if (!config?.isEnabled || !config?.followupExclusionEnabled) {
+      console.log(`🚫 [EXCLUSION] Exclusão de follow-up desativada para usuário ${userId}`);
       return false;
     }
 
-    // Limpar o número (apenas dígitos)
-    const cleanNumber = phoneNumber.replace(/\D/g, "");
+    // Obter todas as variações possíveis do número para comparação
+    const numberVariations = this.normalizePhoneForComparison(phoneNumber);
     
-    const [item] = await db
+    // Buscar qualquer item que corresponda a alguma das variações do número
+    const items = await db
       .select()
       .from(exclusionList)
       .where(
         and(
           eq(exclusionList.userId, userId),
-          eq(exclusionList.phoneNumber, cleanNumber),
           eq(exclusionList.isActive, true),
-          eq(exclusionList.excludeFromFollowup, true)
+          eq(exclusionList.excludeFromFollowup, true),
+          or(...numberVariations.map(num => eq(exclusionList.phoneNumber, num)))
         )
       );
     
-    return !!item;
+    const isExcluded = items.length > 0;
+    console.log(`📞 [EXCLUSION-FOLLOWUP] Verificando ${phoneNumber} -> ${isExcluded ? '🚫 EXCLUÍDO DE FOLLOW-UP' : '✅ Follow-up permitido'}`);
+    
+    return isExcluded;
   }
 
   /**
