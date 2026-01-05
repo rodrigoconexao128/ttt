@@ -8635,6 +8635,69 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   });
 
   /**
+   * Adicionar MÚLTIPLOS números à lista de exclusão (bulk import)
+   * POST /api/exclusion/list/bulk
+   */
+  app.post("/api/exclusion/list/bulk", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { numbers, excludeFromFollowup } = req.body;
+      
+      if (!numbers || !Array.isArray(numbers) || numbers.length === 0) {
+        return res.status(400).json({ message: "Array de números é obrigatório" });
+      }
+      
+      // Limpar e validar números
+      const cleanNumbers = numbers
+        .map((n: string) => n.replace(/\D/g, "").trim())
+        .filter((n: string) => n.length >= 8 && n.length <= 15);
+      
+      if (cleanNumbers.length === 0) {
+        return res.status(400).json({ message: "Nenhum número válido encontrado" });
+      }
+      
+      // Buscar números já existentes para evitar duplicatas
+      const existingList = await storage.getExclusionList(userId);
+      const existingNumbers = new Set(existingList.map(item => item.phoneNumber));
+      
+      // Filtrar apenas números novos
+      const newNumbers = cleanNumbers.filter((n: string) => !existingNumbers.has(n));
+      
+      // Adicionar em batch
+      let added = 0;
+      let skipped = cleanNumbers.length - newNumbers.length;
+      
+      for (const phoneNumber of newNumbers) {
+        try {
+          await storage.addToExclusionList({
+            userId,
+            phoneNumber,
+            contactName: null,
+            reason: null,
+            excludeFromFollowup: excludeFromFollowup ?? true,
+            isActive: true,
+          });
+          added++;
+        } catch (err) {
+          // Ignorar erros de duplicata
+          skipped++;
+        }
+      }
+      
+      console.log(`🚫 [EXCLUSION BULK] ${added} números adicionados, ${skipped} ignorados (usuário ${userId})`);
+      res.json({ 
+        added, 
+        skipped, 
+        total: cleanNumbers.length,
+        message: `${added} números bloqueados com sucesso` 
+      });
+    } catch (error: any) {
+      console.error("Error bulk adding to exclusion list:", error);
+      res.status(500).json({ message: "Falha ao adicionar números" });
+    }
+  });
+
+  /**
    * Atualizar item da lista de exclusão
    * PUT /api/exclusion/list/:id
    */
