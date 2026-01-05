@@ -197,9 +197,11 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
       .replace(/(\d{4})(\d{1,2})/, "$1-$2");
   };
 
-  // Mutation para cartão
+  // Mutation para cartão - VERSÃO 2025: Dois tokens para cobrança imediata + assinatura recorrente
+  // Token 1 (paymentToken): Para cobrança IMEDIATA via /v1/payments
+  // Token 2 (subscriptionToken): Para assinatura recorrente via /preapproval (começa no próximo mês)
   const createSubscription = useMutation({
-    mutationFn: async (cardToken: string) => {
+    mutationFn: async (tokens: { paymentToken: string; subscriptionToken: string }) => {
       const paymentMethodMap: Record<string, string> = {
         visa: "visa", mastercard: "master", amex: "amex", elo: "elo", hipercard: "hipercard"
       };
@@ -207,7 +209,8 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
       
       const res = await apiRequest("POST", "/api/subscriptions/create-mp-subscription", {
         subscriptionId,
-        token: cardToken,
+        paymentToken: tokens.paymentToken,         // Token para pagamento imediato
+        subscriptionToken: tokens.subscriptionToken, // Token para assinatura recorrente
         payerEmail: email,
         paymentMethodId,
         cardholderName: cardHolder,
@@ -398,6 +401,13 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
     }
   };
 
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // HANDLE SUBMIT - VERSÃO 2025: Gerar DOIS tokens para cobrança imediata + assinatura
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // O MercadoPago.js permite gerar múltiplos tokens do mesmo cartão
+  // Token 1 (paymentToken): Será usado para /v1/payments (cobrança IMEDIATA)
+  // Token 2 (subscriptionToken): Será usado para /preapproval (assinatura recorrente)
+  // ═══════════════════════════════════════════════════════════════════════════════
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mpInstanceRef.current) {
@@ -409,7 +419,9 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
 
     try {
       const [expirationMonth, expirationYear] = expiryDate.split("/");
-      const cardToken = await mpInstanceRef.current.createCardToken({
+      
+      // Dados do cartão para criar os tokens
+      const cardData = {
         cardNumber: cardNumber.replace(/\s/g, ""),
         cardholderName: cardHolder,
         cardExpirationMonth: expirationMonth,
@@ -417,17 +429,39 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
         securityCode: cvv,
         identificationType: docType,
         identificationNumber: docNumber.replace(/\D/g, ""),
+      };
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // GERAR DOIS TOKENS DO MESMO CARTÃO
+      // Cada token só pode ser usado UMA vez, por isso precisamos de dois
+      // ═══════════════════════════════════════════════════════════════════
+      console.log("[Subscribe] Gerando dois tokens para pagamento imediato + assinatura...");
+      
+      // Token 1: Para pagamento imediato via /v1/payments
+      const paymentToken = await mpInstanceRef.current.createCardToken(cardData);
+      if (paymentToken?.error || paymentToken?.message) {
+        throw new Error(paymentToken.error || paymentToken.message || "Erro ao processar cartão (token 1)");
+      }
+      if (!paymentToken || !paymentToken.id) {
+        throw new Error("Não foi possível processar os dados do cartão (token 1).");
+      }
+      console.log("[Subscribe] Token 1 (pagamento) criado:", paymentToken.id.substring(0, 20) + "...");
+      
+      // Token 2: Para assinatura recorrente via /preapproval
+      const subscriptionToken = await mpInstanceRef.current.createCardToken(cardData);
+      if (subscriptionToken?.error || subscriptionToken?.message) {
+        throw new Error(subscriptionToken.error || subscriptionToken.message || "Erro ao processar cartão (token 2)");
+      }
+      if (!subscriptionToken || !subscriptionToken.id) {
+        throw new Error("Não foi possível processar os dados do cartão (token 2).");
+      }
+      console.log("[Subscribe] Token 2 (assinatura) criado:", subscriptionToken.id.substring(0, 20) + "...");
+      
+      // Enviar ambos os tokens para o backend
+      createSubscription.mutate({
+        paymentToken: paymentToken.id,
+        subscriptionToken: subscriptionToken.id,
       });
-      
-      if (cardToken?.error || cardToken?.message) {
-        throw new Error(cardToken.error || cardToken.message || "Erro ao processar cartão");
-      }
-      
-      if (!cardToken || !cardToken.id) {
-        throw new Error("Não foi possível processar os dados do cartão.");
-      }
-      
-      createSubscription.mutate(cardToken.id);
     } catch (err: any) {
       let errorMessage = "Verifique os dados do cartão.";
       const errMsg = String(err?.message || err?.error || String(err) || "").toLowerCase();
