@@ -81,6 +81,7 @@ function Router() {
       <Route path="/agent-config" component={AgentConfig} />
       <Route path="/notificador" component={Dashboard} />
       <Route path="/biblioteca-midias" component={Dashboard} />
+      <Route path="/lista-exclusao" component={Dashboard} />
       
       <Route component={NotFound} />
     </Switch>

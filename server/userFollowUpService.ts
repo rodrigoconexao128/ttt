@@ -141,6 +141,14 @@ export class UserFollowUpService {
     console.log(`👉 [USER-FOLLOW-UP] Processando ${conversation.contactNumber} (Estágio ${conversation.followupStage})`);
 
     try {
+      // 🚫 LISTA DE EXCLUSÃO: Verificar se o número está excluído de follow-up
+      const isExcludedFromFollowup = await storage.isNumberExcludedFromFollowup(userId, conversation.contactNumber);
+      if (isExcludedFromFollowup) {
+        console.log(`🚫 [USER-FOLLOW-UP] Número ${conversation.contactNumber} está na LISTA DE EXCLUSÃO - não enviar follow-up`);
+        await this.disableFollowUp(conversation.id, "Número na lista de exclusão");
+        return;
+      }
+
       // 1. Buscar configuração de follow-up do usuário
       const config = await this.getFollowupConfig(userId);
       if (!config || !config.isEnabled) {

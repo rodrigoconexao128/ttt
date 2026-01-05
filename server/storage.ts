@@ -2096,6 +2096,261 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(userQuickReplies.id, id));
   }
+
+  // ==================== EXCLUSION LIST / LISTA DE EXCLUSÃO ====================
+
+  /**
+   * Verifica se um número está na lista de exclusão de um usuário
+   * @param userId ID do usuário
+   * @param phoneNumber Número de telefone (apenas dígitos)
+   * @returns true se o número está excluído e ativo
+   */
+  async isNumberExcluded(userId: string, phoneNumber: string): Promise<boolean> {
+    const { exclusionList, exclusionConfig } = await import("@shared/schema");
+    
+    // Primeiro verificar se a lista de exclusão está ativa para o usuário
+    const config = await this.getExclusionConfig(userId);
+    if (!config?.isEnabled) {
+      return false;
+    }
+
+    // Limpar o número (apenas dígitos)
+    const cleanNumber = phoneNumber.replace(/\D/g, "");
+    
+    const [item] = await db
+      .select()
+      .from(exclusionList)
+      .where(
+        and(
+          eq(exclusionList.userId, userId),
+          eq(exclusionList.phoneNumber, cleanNumber),
+          eq(exclusionList.isActive, true)
+        )
+      );
+    
+    return !!item;
+  }
+
+  /**
+   * Verifica se um número está excluído de follow-up
+   * @param userId ID do usuário
+   * @param phoneNumber Número de telefone (apenas dígitos)
+   * @returns true se o número está excluído de follow-up
+   */
+  async isNumberExcludedFromFollowup(userId: string, phoneNumber: string): Promise<boolean> {
+    const { exclusionList } = await import("@shared/schema");
+    
+    // Verificar configuração global de follow-up
+    const config = await this.getExclusionConfig(userId);
+    if (!config?.isEnabled || !config?.followupExclusionEnabled) {
+      return false;
+    }
+
+    // Limpar o número (apenas dígitos)
+    const cleanNumber = phoneNumber.replace(/\D/g, "");
+    
+    const [item] = await db
+      .select()
+      .from(exclusionList)
+      .where(
+        and(
+          eq(exclusionList.userId, userId),
+          eq(exclusionList.phoneNumber, cleanNumber),
+          eq(exclusionList.isActive, true),
+          eq(exclusionList.excludeFromFollowup, true)
+        )
+      );
+    
+    return !!item;
+  }
+
+  /**
+   * Obtém configuração de exclusão do usuário
+   */
+  async getExclusionConfig(userId: string): Promise<any | undefined> {
+    const { exclusionConfig } = await import("@shared/schema");
+    const [config] = await db
+      .select()
+      .from(exclusionConfig)
+      .where(eq(exclusionConfig.userId, userId));
+    return config;
+  }
+
+  /**
+   * Cria ou atualiza configuração de exclusão do usuário
+   */
+  async upsertExclusionConfig(userId: string, data: {
+    isEnabled?: boolean;
+    followupExclusionEnabled?: boolean;
+  }): Promise<any> {
+    const { exclusionConfig } = await import("@shared/schema");
+    
+    const existing = await this.getExclusionConfig(userId);
+    
+    if (existing) {
+      const [config] = await db
+        .update(exclusionConfig)
+        .set({
+          ...data,
+          updatedAt: new Date(),
+        })
+        .where(eq(exclusionConfig.userId, userId))
+        .returning();
+      return config;
+    } else {
+      const [config] = await db
+        .insert(exclusionConfig)
+        .values({
+          userId,
+          isEnabled: data.isEnabled ?? true,
+          followupExclusionEnabled: data.followupExclusionEnabled ?? true,
+        })
+        .returning();
+      return config;
+    }
+  }
+
+  /**
+   * Obtém todos os números da lista de exclusão do usuário
+   */
+  async getExclusionList(userId: string): Promise<any[]> {
+    const { exclusionList } = await import("@shared/schema");
+    return db
+      .select()
+      .from(exclusionList)
+      .where(eq(exclusionList.userId, userId))
+      .orderBy(desc(exclusionList.createdAt));
+  }
+
+  /**
+   * Obtém um item da lista de exclusão por ID
+   */
+  async getExclusionListItem(id: string): Promise<any | undefined> {
+    const { exclusionList } = await import("@shared/schema");
+    const [item] = await db
+      .select()
+      .from(exclusionList)
+      .where(eq(exclusionList.id, id));
+    return item;
+  }
+
+  /**
+   * Adiciona um número à lista de exclusão
+   */
+  async addToExclusionList(data: {
+    userId: string;
+    phoneNumber: string;
+    contactName?: string | null;
+    reason?: string | null;
+    excludeFromFollowup?: boolean;
+    isActive?: boolean;
+  }): Promise<any> {
+    const { exclusionList } = await import("@shared/schema");
+    
+    // Limpar o número (apenas dígitos)
+    const cleanNumber = data.phoneNumber.replace(/\D/g, "");
+    
+    // Verificar se já existe
+    const existing = await db
+      .select()
+      .from(exclusionList)
+      .where(
+        and(
+          eq(exclusionList.userId, data.userId),
+          eq(exclusionList.phoneNumber, cleanNumber)
+        )
+      );
+    
+    if (existing.length > 0) {
+      // Atualizar o existente
+      const [item] = await db
+        .update(exclusionList)
+        .set({
+          contactName: data.contactName,
+          reason: data.reason,
+          excludeFromFollowup: data.excludeFromFollowup ?? true,
+          isActive: data.isActive ?? true,
+          updatedAt: new Date(),
+        })
+        .where(eq(exclusionList.id, existing[0].id))
+        .returning();
+      return item;
+    }
+    
+    const [item] = await db
+      .insert(exclusionList)
+      .values({
+        userId: data.userId,
+        phoneNumber: cleanNumber,
+        contactName: data.contactName,
+        reason: data.reason,
+        excludeFromFollowup: data.excludeFromFollowup ?? true,
+        isActive: data.isActive ?? true,
+      })
+      .returning();
+    return item;
+  }
+
+  /**
+   * Atualiza um item da lista de exclusão
+   */
+  async updateExclusionListItem(id: string, data: Partial<{
+    contactName: string | null;
+    reason: string | null;
+    excludeFromFollowup: boolean;
+    isActive: boolean;
+  }>): Promise<any> {
+    const { exclusionList } = await import("@shared/schema");
+    const [item] = await db
+      .update(exclusionList)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(exclusionList.id, id))
+      .returning();
+    return item;
+  }
+
+  /**
+   * Remove um número da lista de exclusão (soft delete - desativa)
+   */
+  async removeFromExclusionList(id: string): Promise<void> {
+    const { exclusionList } = await import("@shared/schema");
+    await db
+      .update(exclusionList)
+      .set({
+        isActive: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(exclusionList.id, id));
+  }
+
+  /**
+   * Remove permanentemente um número da lista de exclusão
+   */
+  async deleteFromExclusionList(id: string): Promise<void> {
+    const { exclusionList } = await import("@shared/schema");
+    await db
+      .delete(exclusionList)
+      .where(eq(exclusionList.id, id));
+  }
+
+  /**
+   * Reativa um número na lista de exclusão
+   */
+  async reactivateExclusionListItem(id: string): Promise<any> {
+    const { exclusionList } = await import("@shared/schema");
+    const [item] = await db
+      .update(exclusionList)
+      .set({
+        isActive: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(exclusionList.id, id))
+      .returning();
+    return item;
+  }
 }
 
 export const storage = new DatabaseStorage();

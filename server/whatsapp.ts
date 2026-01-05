@@ -836,18 +836,41 @@ function splitSectionIntoChunks(section: string, maxChars: number): string[] {
   return splitTextBySentences(section, maxChars);
 }
 
-// Divide texto por frases, garantindo que não corte palavras
+// Divide texto por frases, garantindo que não corte palavras ou URLs
 function splitTextBySentences(text: string, maxChars: number): string[] {
+  // PROTEÇÃO DE URLs: Substituir pontos em URLs por placeholder temporário
+  // para evitar que a regex de frases corte no meio de URLs
+  const urlPlaceholder = '‹URL_DOT›';
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const protectedUrls: string[] = [];
+  
+  // Substituir URLs por placeholders numerados
+  let protectedText = text.replace(urlRegex, (match) => {
+    const index = protectedUrls.length;
+    protectedUrls.push(match);
+    // Substituir pontos dentro da URL por placeholder
+    return `‹URL_${index}›`;
+  });
+  
   // Regex para encontrar frases (terminadas em . ! ? seguidos de espaço/fim)
   // IMPORTANTE: Removido o hífen (-) como delimitador de frase para não cortar
   // palavras compostas como "segunda-feira", "terça-feira", etc.
   const sentencePattern = /[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g;
-  const sentences = text.match(sentencePattern) || [text];
+  const sentences = protectedText.match(sentencePattern) || [protectedText];
+  
+  // Restaurar URLs nos resultados
+  const restoredSentences = sentences.map(sentence => {
+    let restored = sentence;
+    protectedUrls.forEach((url, index) => {
+      restored = restored.replace(`‹URL_${index}›`, url);
+    });
+    return restored;
+  });
   
   const chunks: string[] = [];
   let currentChunk = '';
   
-  for (const sentence of sentences) {
+  for (const sentence of restoredSentences) {
     const trimmedSentence = sentence.trim();
     if (!trimmedSentence) continue;
     
@@ -880,7 +903,7 @@ function splitTextBySentences(text: string, maxChars: number): string[] {
   return chunks.length > 0 ? chunks : [text];
 }
 
-// Última estratégia: divide por palavras (nunca corta uma palavra no meio)
+// Última estratégia: divide por palavras (nunca corta uma palavra no meio, PROTEGE URLs)
 function splitByWords(text: string, maxChars: number): string[] {
   const words = text.split(/\s+/);
   const chunks: string[] = [];
@@ -899,15 +922,22 @@ function splitByWords(text: string, maxChars: number): string[] {
         chunks.push(currentChunk.trim());
       }
       
-      // Se a palavra individual é maior que o limite (URL longa, etc), força quebra
+      // Se a palavra individual é maior que o limite
       if (word.length > maxChars) {
-        // Último recurso: quebra caractere por caractere respeitando o limite
-        let remaining = word;
-        while (remaining.length > maxChars) {
-          chunks.push(remaining.substring(0, maxChars));
-          remaining = remaining.substring(maxChars);
+        // PROTEÇÃO: Se for uma URL, NUNCA quebrar - coloca inteira mesmo que ultrapasse o limite
+        if (word.match(/^https?:\/\//i)) {
+          console.log(`🔗 [SPLIT] URL protegida (não será cortada): ${word.substring(0, 50)}...`);
+          currentChunk = word; // URL fica inteira, mesmo que ultrapasse o limite
+        } else {
+          // Último recurso para palavras não-URL: quebra caractere por caractere
+          console.log(`⚠️ [SPLIT] Palavra muito longa sendo quebrada: ${word.substring(0, 30)}...`);
+          let remaining = word;
+          while (remaining.length > maxChars) {
+            chunks.push(remaining.substring(0, maxChars));
+            remaining = remaining.substring(maxChars);
+          }
+          currentChunk = remaining;
         }
-        currentChunk = remaining;
       } else {
         currentChunk = word;
       }
@@ -2081,6 +2111,13 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   // 🎯 AI Agent Auto-Response com SISTEMA DE ACUMULAÇÃO DE MENSAGENS
   try {
     const isAgentDisabled = await storage.isAgentDisabledForConversation(conversation.id);
+    
+    // 🚫 LISTA DE EXCLUSÃO: Verificar se o número está na lista de exclusão
+    const isExcluded = await storage.isNumberExcluded(session.userId, contactNumber);
+    if (isExcluded) {
+      console.log(`🚫 [AI AGENT] Número ${contactNumber} está na LISTA DE EXCLUSÃO - não responder automaticamente`);
+      return;
+    }
     
     // ⚠️ CRÍTICO: Verificar se última mensagem foi do cliente (não do agente)
     // Se última mensagem for do agente, NÃO responder (evita loop)

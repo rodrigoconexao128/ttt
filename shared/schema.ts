@@ -1105,3 +1105,74 @@ export const mistralResponseSchema = z.object({
 });
 
 export type MistralResponse = z.infer<typeof mistralResponseSchema>;
+
+// =============================================================================
+// EXCLUSION LIST - Lista de Exclusão de Números para IA e Follow-up
+// =============================================================================
+
+export const exclusionList = pgTable("exclusion_list", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // Número de telefone formatado (apenas dígitos, ex: "5511987654321")
+  phoneNumber: varchar("phone_number", { length: 20 }).notNull(),
+  // Nome/apelido do contato para identificação
+  contactName: varchar("contact_name", { length: 255 }),
+  // Motivo da exclusão (opcional)
+  reason: text("reason"),
+  // Se a exclusão também se aplica ao follow-up
+  excludeFromFollowup: boolean("exclude_from_followup").default(true).notNull(),
+  // Se a exclusão está ativa
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  // Índice para busca rápida por usuário
+  index("idx_exclusion_list_user").on(table.userId),
+  // Índice para busca rápida por número de telefone
+  index("idx_exclusion_list_phone").on(table.phoneNumber),
+  // Unique constraint: um número só pode estar na lista de exclusão uma vez por usuário
+  uniqueIndex("idx_exclusion_list_unique_user_phone").on(table.userId, table.phoneNumber),
+]);
+
+// Configuração global de exclusão para o usuário
+export const exclusionConfig = pgTable("exclusion_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  // Se a lista de exclusão está ativa globalmente
+  isEnabled: boolean("is_enabled").default(true).notNull(),
+  // Se a exclusão de follow-up está ativada (usar excludeFromFollowup de cada número)
+  followupExclusionEnabled: boolean("followup_exclusion_enabled").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertExclusionListSchema = createInsertSchema(exclusionList).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertExclusionConfigSchema = createInsertSchema(exclusionConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type ExclusionListItem = typeof exclusionList.$inferSelect;
+export type InsertExclusionListItem = z.infer<typeof insertExclusionListSchema>;
+export type ExclusionConfig = typeof exclusionConfig.$inferSelect;
+export type InsertExclusionConfig = z.infer<typeof insertExclusionConfigSchema>;
+
+// Schema Zod para validação de entrada via API
+export const exclusionListItemSchema = z.object({
+  phoneNumber: z.string().min(8, "Número de telefone inválido").max(20),
+  contactName: z.string().max(255).optional(),
+  reason: z.string().optional(),
+  excludeFromFollowup: z.boolean().default(true),
+  isActive: z.boolean().default(true),
+});
+
+export const exclusionConfigSchema = z.object({
+  isEnabled: z.boolean().default(true),
+  followupExclusionEnabled: z.boolean().default(true),
+});

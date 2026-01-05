@@ -2,7 +2,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ import SmartNotifierPage from "@/pages/smart-notifier";
 import FollowupConfigPage from "@/pages/followup-config";
 import PaymentHistoryPage from "@/pages/payment-history";
 import MySubscriptionPage from "@/pages/my-subscription";
+import ExclusionListPage from "@/pages/exclusion-list";
 import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation, useRoute } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan } from "@shared/schema";
@@ -101,6 +102,7 @@ export default function Dashboard() {
   const isFollowupRoute = location.startsWith("/followup");
   const isPaymentHistoryRoute = location.startsWith("/payment-history") || location.startsWith("/historico-pagamentos");
   const isMySubscriptionRoute = location.startsWith("/minha-assinatura");
+  const isExclusionListRoute = location.startsWith("/lista-exclusao");
   const isDashboardMode =
     !isConversasRoute &&
     !isConexaoRoute &&
@@ -124,7 +126,8 @@ export default function Dashboard() {
     !isNotifierRoute &&
     !isFollowupRoute &&
     !isPaymentHistoryRoute &&
-    !isMySubscriptionRoute;
+    !isMySubscriptionRoute &&
+    !isExclusionListRoute;
   const isToolsRoute =
     isPlansRoute ||
     isSettingsRoute ||
@@ -144,7 +147,8 @@ export default function Dashboard() {
     isNotifierRoute ||
     isFollowupRoute ||
     isPaymentHistoryRoute ||
-    isMySubscriptionRoute;
+    isMySubscriptionRoute ||
+    isExclusionListRoute;
   // Start tools collapsed by default; open only when user clicks or route requires it
   const [toolsOpen, setToolsOpen] = useState(false);
   const [toolsPickerOpen, setToolsPickerOpen] = useState(false);
@@ -269,6 +273,7 @@ const toolsNavigation: ToolNavItem[] = [
     },
   },
   { label: "Follow-up Inteligente", href: "/followup", icon: Sparkles, tooltip: "Mensagens automáticas para recuperar conversas", isActive: isFollowupRoute, testId: "button-nav-followup" },
+  { label: "Lista de Exclusão", href: "/lista-exclusao", icon: Ban, tooltip: "Números que a IA não deve responder", isActive: isExclusionListRoute, testId: "button-nav-exclusion-list" },
   { label: "Notificador Inteligente", href: "/notificador", icon: Bell, tooltip: "Notificações automáticas", isActive: isNotifierRoute, testId: "button-nav-notifier" },
   { label: "Biblioteca de Mídias", href: "/biblioteca-midias", icon: Upload, tooltip: "Áudios, imagens e vídeos do agente", isActive: isMediaLibraryRoute, testId: "button-nav-media-library" },
   { label: "Qualificação de Lead", href: "/qualificacao", icon: Brain, tooltip: "Análise por IA das conversas", isActive: isLeadQualificationRoute, testId: "button-nav-lead-qualification" },
@@ -663,6 +668,11 @@ const toolsNavigation: ToolNavItem[] = [
           {isMySubscriptionRoute && (
             <div className="flex-1 overflow-auto">
               <MySubscriptionPage />
+            </div>
+          )}
+          {isExclusionListRoute && (
+            <div className="flex-1 overflow-auto">
+              <ExclusionListPage />
             </div>
           )}
           

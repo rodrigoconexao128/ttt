@@ -8534,5 +8534,214 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     }
   });
 
+  // ==================== EXCLUSION LIST / LISTA DE EXCLUSÃO ====================
+
+  /**
+   * Obter configuração de exclusão do usuário
+   * GET /api/exclusion/config
+   */
+  app.get("/api/exclusion/config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      let config = await storage.getExclusionConfig(userId);
+      
+      // Se não existir, criar configuração padrão
+      if (!config) {
+        config = await storage.upsertExclusionConfig(userId, {
+          isEnabled: true,
+          followupExclusionEnabled: true,
+        });
+      }
+      
+      res.json(config);
+    } catch (error: any) {
+      console.error("Error fetching exclusion config:", error);
+      res.status(500).json({ message: "Failed to fetch exclusion config" });
+    }
+  });
+
+  /**
+   * Atualizar configuração de exclusão do usuário
+   * PUT /api/exclusion/config
+   */
+  app.put("/api/exclusion/config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { isEnabled, followupExclusionEnabled } = req.body;
+      
+      const config = await storage.upsertExclusionConfig(userId, {
+        isEnabled,
+        followupExclusionEnabled,
+      });
+      
+      console.log(`⚙️ [EXCLUSION] Config atualizada para usuário ${userId}: enabled=${isEnabled}, followup=${followupExclusionEnabled}`);
+      res.json(config);
+    } catch (error: any) {
+      console.error("Error updating exclusion config:", error);
+      res.status(500).json({ message: "Failed to update exclusion config" });
+    }
+  });
+
+  /**
+   * Obter todos os números da lista de exclusão
+   * GET /api/exclusion/list
+   */
+  app.get("/api/exclusion/list", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const list = await storage.getExclusionList(userId);
+      res.json(list);
+    } catch (error: any) {
+      console.error("Error fetching exclusion list:", error);
+      res.status(500).json({ message: "Failed to fetch exclusion list" });
+    }
+  });
+
+  /**
+   * Adicionar número à lista de exclusão
+   * POST /api/exclusion/list
+   */
+  app.post("/api/exclusion/list", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { phoneNumber, contactName, reason, excludeFromFollowup } = req.body;
+      
+      if (!phoneNumber) {
+        return res.status(400).json({ message: "Phone number is required" });
+      }
+      
+      // Limpar número (apenas dígitos)
+      const cleanNumber = phoneNumber.replace(/\D/g, "");
+      
+      if (cleanNumber.length < 8) {
+        return res.status(400).json({ message: "Invalid phone number" });
+      }
+      
+      const item = await storage.addToExclusionList({
+        userId,
+        phoneNumber: cleanNumber,
+        contactName: contactName || null,
+        reason: reason || null,
+        excludeFromFollowup: excludeFromFollowup ?? true,
+        isActive: true,
+      });
+      
+      console.log(`🚫 [EXCLUSION] Número ${cleanNumber} adicionado à lista de exclusão do usuário ${userId}`);
+      res.json(item);
+    } catch (error: any) {
+      console.error("Error adding to exclusion list:", error);
+      res.status(500).json({ message: "Failed to add to exclusion list" });
+    }
+  });
+
+  /**
+   * Atualizar item da lista de exclusão
+   * PUT /api/exclusion/list/:id
+   */
+  app.put("/api/exclusion/list/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { contactName, reason, excludeFromFollowup, isActive } = req.body;
+      
+      // Verificar se o item pertence ao usuário
+      const existingItem = await storage.getExclusionListItem(id);
+      if (!existingItem || existingItem.userId !== userId) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+      
+      const item = await storage.updateExclusionListItem(id, {
+        contactName,
+        reason,
+        excludeFromFollowup,
+        isActive,
+      });
+      
+      console.log(`📝 [EXCLUSION] Item ${id} atualizado na lista de exclusão`);
+      res.json(item);
+    } catch (error: any) {
+      console.error("Error updating exclusion list item:", error);
+      res.status(500).json({ message: "Failed to update exclusion list item" });
+    }
+  });
+
+  /**
+   * Remover (soft delete) número da lista de exclusão
+   * DELETE /api/exclusion/list/:id
+   */
+  app.delete("/api/exclusion/list/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { permanent } = req.query;
+      
+      // Verificar se o item pertence ao usuário
+      const existingItem = await storage.getExclusionListItem(id);
+      if (!existingItem || existingItem.userId !== userId) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+      
+      if (permanent === 'true') {
+        await storage.deleteFromExclusionList(id);
+        console.log(`🗑️ [EXCLUSION] Número ${existingItem.phoneNumber} removido permanentemente da lista de exclusão`);
+      } else {
+        await storage.removeFromExclusionList(id);
+        console.log(`🔄 [EXCLUSION] Número ${existingItem.phoneNumber} desativado da lista de exclusão`);
+      }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error removing from exclusion list:", error);
+      res.status(500).json({ message: "Failed to remove from exclusion list" });
+    }
+  });
+
+  /**
+   * Reativar número na lista de exclusão
+   * POST /api/exclusion/list/:id/reactivate
+   */
+  app.post("/api/exclusion/list/:id/reactivate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      // Verificar se o item pertence ao usuário
+      const existingItem = await storage.getExclusionListItem(id);
+      if (!existingItem || existingItem.userId !== userId) {
+        return res.status(404).json({ message: "Item not found" });
+      }
+      
+      const item = await storage.reactivateExclusionListItem(id);
+      console.log(`✅ [EXCLUSION] Número ${existingItem.phoneNumber} reativado na lista de exclusão`);
+      res.json(item);
+    } catch (error: any) {
+      console.error("Error reactivating exclusion list item:", error);
+      res.status(500).json({ message: "Failed to reactivate exclusion list item" });
+    }
+  });
+
+  /**
+   * Verificar se um número está na lista de exclusão (utility endpoint)
+   * GET /api/exclusion/check/:phoneNumber
+   */
+  app.get("/api/exclusion/check/:phoneNumber", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { phoneNumber } = req.params;
+      
+      const isExcluded = await storage.isNumberExcluded(userId, phoneNumber);
+      const isExcludedFromFollowup = await storage.isNumberExcludedFromFollowup(userId, phoneNumber);
+      
+      res.json({
+        phoneNumber,
+        isExcluded,
+        isExcludedFromFollowup,
+      });
+    } catch (error: any) {
+      console.error("Error checking exclusion:", error);
+      res.status(500).json({ message: "Failed to check exclusion" });
+    }
+  });
+
   return httpServer;
 }
