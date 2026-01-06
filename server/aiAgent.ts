@@ -286,8 +286,9 @@ export interface AIResponseOptions {
 function extractVerbatimFirstMessage(prompt: string): string | null {
   console.log(`🎯 [AI Agent] Buscando texto verbatim no prompt (${prompt.length} chars)...`);
   
-  // PADRÃO 1: Com delimitadores explícitos (=== PRIMEIRA MENSAGEM ... === FIM)
-  const delimiterMatch = prompt.match(/===\s*PRIMEIRA MENSAGEM[^=]*===\s*([\s\S]+?)\s*===\s*FIM/i);
+  // PADRÃO 1: Com delimitadores explícitos (=== PRIMEIRA MENSAGEM ... === FIM ... ===)
+  // Aceita variações como "=== FIM ===" ou "=== FIM DA PRIMEIRA MENSAGEM ==="
+  const delimiterMatch = prompt.match(/===\s*PRIMEIRA MENSAGEM[^=]*===\s*([\s\S]+?)\s*===\s*FIM[^=]*===/i);
   if (delimiterMatch && delimiterMatch[1]) {
     const texto = delimiterMatch[1].trim();
     console.log(`🎯 [AI Agent] TEXTO VERBATIM ENCONTRADO via delimitadores!`);
