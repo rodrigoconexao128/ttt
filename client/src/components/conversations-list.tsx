@@ -67,11 +67,15 @@ export function ConversationsList({
   const { data: conversationsWithTags = [], isLoading } = useQuery<ConversationWithTags[]>({
     queryKey: ["/api/conversations-with-tags", selectedTagFilter],
     queryFn: async () => {
+      const token = await getAuthToken();
       const url = selectedTagFilter 
         ? `/api/conversations-with-tags?tagId=${selectedTagFilter}`
         : "/api/conversations-with-tags";
       const response = await fetch(url, {
         credentials: "include",
+        headers: {
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
       });
       if (!response.ok) throw new Error("Failed to fetch conversations");
       return response.json();
