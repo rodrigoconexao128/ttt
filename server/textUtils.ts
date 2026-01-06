@@ -7,19 +7,11 @@
 export function processResponsePlaceholders(text: string, contactName?: string): string {
   if (!text) return text;
   
-  let processed = text;
-  
-  // 🛡️ REMOVER NOTAS/INSTRUÇÕES do prompt que podem ter vazado (verbatim)
-  // Regex expandido para capturar single asterisks (*), double (**), underscores (__), e blockquotes (>)
-  processed = processed.replace(/^> ?(\*\*|__|\*)?(Nota|Note)(\*\*|__|\*)?:?.*$/gmi, '');
-  processed = processed.replace(/^(\*\*|__|\*)?(Nota|Note)(\*\*|__|\*)?:?.*$/gmi, '');
-  
-  // Limpar linhas vazias resultantes das remoções acima (opcional, mas bom pra limpeza)
-  processed = processed.replace(/^\s*[\r\n]/gm, '');
-  
   const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
     ? contactName.trim() 
     : "";
+  
+  let processed = text;
   
   // 🛡️ LIMPAR INSTRUÇÕES INTERNAS que a IA pode ter copiado
   processed = processed.replace(/\[INSTRUÇÃO CRÍTICA[^\]]*\]/gi, '');
@@ -89,21 +81,7 @@ export function processResponsePlaceholders(text: string, contactName?: string):
     processed = processed.replace(/,?\s*\[(nome|name|cliente|customer|contato)\]/gi, "");
   }
   
-  // � SUBSTITUIR VARIÁVEL DE SAUDAÇÃO (UTC-3)
-  const now = new Date();
-  const utcHours = now.getUTCHours();
-  // Ajuste simples para UTC-3 (Horário de Brasília)
-  const brHours = (utcHours - 3 + 24) % 24;
-  
-  let greeting = 'Olá';
-  if (brHours >= 5 && brHours < 12) greeting = 'Bom dia';
-  else if (brHours >= 12 && brHours < 18) greeting = 'Boa tarde';
-  else greeting = 'Boa noite';
-  
-  // Substituir {{saudacao}} ou {{saudação}}
-  processed = processed.replace(/\{\{?(saudacao|saudação|SAUDACAO|SAUDAÇÃO|SAUDAÇÃO_HORÁRIO_BRASIL|SAUDACAO_HORARIO_BRASIL)\}?\}/gi, greeting);
-  
-  // �🛡️ FIX: Detectar e limitar respostas concatenadas
+  // 🛡️ FIX: Detectar e limitar respostas concatenadas
   // Padrão: quando a IA repete o mesmo nome mais de 2x, provavelmente concatenou
   if (formattedName && formattedName.length > 2) {
     const escapedName = formattedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
