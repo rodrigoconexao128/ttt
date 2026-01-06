@@ -47,6 +47,9 @@ import {
   triggerAgentResponseForConversation,
   triggerAdminAgentResponseForConversation,
   splitMessageHumanLike,
+  connectionHealthCheck,
+  startConnectionHealthCheck,
+  stopConnectionHealthCheck,
 } from "./whatsapp";
 import { 
   sendMessageSchema, 
@@ -459,6 +462,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[ADMIN] Error in bulk reconnection:", error);
       res.status(500).json({ message: "Error reconnecting users" });
+    }
+  });
+
+  // 🔄 Health Check Manual - Verificar e reconectar sessões problemáticas
+  app.post("/api/admin/connections/health-check", isAdmin, async (req, res) => {
+    try {
+      // 🛡️ MODO DESENVOLVIMENTO: Bloquear health check para proteger produção
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        console.log(`⚠️ [DEV MODE] Health check bloqueado (proteção de produção)`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Health check desabilitado em modo desenvolvimento para proteger sessões em produção',
+          devMode: true 
+        });
+      }
+      
+      console.log("[ADMIN] Executando health check manual...");
+      await connectionHealthCheck();
+      
+      res.json({ 
+        success: true, 
+        message: 'Health check executado com sucesso. Veja os logs do servidor para detalhes.'
+      });
+    } catch (error: any) {
+      console.error("[ADMIN] Erro no health check:", error);
+      res.status(500).json({ message: "Erro no health check", error: error.message });
+    }
+  });
+
+  // 📊 Status detalhado de todas as conexões
+  app.get("/api/admin/connections/status", isAdmin, async (req, res) => {
+    try {
+      const connections = await storage.getAllConnections();
+      const { getSession } = await import("./whatsapp");
+      
+      const statusList = await Promise.all(connections.map(async (conn) => {
+        const session = conn.userId ? getSession(conn.userId) : null;
+        const hasActiveSocket = session?.socket?.user !== undefined;
+        
+        return {
+          connectionId: conn.id,
+          userId: conn.userId,
+          phoneNumber: conn.phoneNumber,
+          dbStatus: conn.isConnected ? 'connected' : 'disconnected',
+          socketStatus: hasActiveSocket ? 'active' : 'inactive',
+          isHealthy: conn.isConnected === hasActiveSocket,
+          isZombie: conn.isConnected && !hasActiveSocket,
+          updatedAt: conn.updatedAt,
+        };
+      }));
+      
+      const summary = {
+        total: statusList.length,
+        healthy: statusList.filter(s => s.isHealthy && s.dbStatus === 'connected').length,
+        zombies: statusList.filter(s => s.isZombie).length,
+        disconnected: statusList.filter(s => s.dbStatus === 'disconnected').length,
+      };
+      
+      res.json({ summary, connections: statusList });
+    } catch (error: any) {
+      console.error("[ADMIN] Erro ao obter status das conexões:", error);
+      res.status(500).json({ message: "Erro ao obter status", error: error.message });
     }
   });
 

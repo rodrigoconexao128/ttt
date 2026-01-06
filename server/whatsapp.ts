@@ -4796,4 +4796,188 @@ registerScheduledContactCallback(async (phoneNumber: string, reason: string) => 
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔄 HEALTH CHECK MONITOR - RECONEXÃO AUTOMÁTICA DE SESSÕES
+// ═══════════════════════════════════════════════════════════════════════════════
+// Este sistema verifica periodicamente se as conexões do WhatsApp estão saudáveis.
+// Se detectar que uma conexão está marcada como "conectada" no banco mas não tem
+// socket ativo na memória, tenta reconectar automaticamente.
+//
+// Intervalo: A cada 5 minutos (300.000ms)
+// Isso resolve problemas de:
+// - Desconexões silenciosas por timeout de rede
+// - Perda de conexão durante restarts do container
+// - Sessões "zumbis" no banco de dados
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
+let healthCheckInterval: NodeJS.Timeout | null = null;
+
+async function connectionHealthCheck(): Promise<void> {
+  // 🛡️ MODO DESENVOLVIMENTO: Não executar health check
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    return;
+  }
+  
+  console.log(`\n🔍 [HEALTH CHECK] ═══════════════════════════════════════════`);
+  console.log(`🔍 [HEALTH CHECK] Iniciando verificação de conexões...`);
+  console.log(`🔍 [HEALTH CHECK] Timestamp: ${new Date().toISOString()}`);
+  
+  try {
+    // 1. Verificar conexões de usuários
+    const connections = await storage.getAllConnections();
+    let reconnectedUsers = 0;
+    let healthyUsers = 0;
+    let disconnectedUsers = 0;
+    
+    for (const connection of connections) {
+      if (!connection.userId) continue;
+      
+      const isDbConnected = connection.isConnected;
+      const session = sessions.get(connection.userId);
+      const hasActiveSocket = session?.socket?.user !== undefined;
+      
+      if (isDbConnected && !hasActiveSocket) {
+        // 🚨 Conexão "zumbi" detectada - DB diz conectado mas não tem socket
+        console.log(`⚠️ [HEALTH CHECK] Conexão zumbi detectada: ${connection.userId}`);
+        console.log(`   📊 DB: isConnected=${isDbConnected}, Socket: ${hasActiveSocket ? 'ATIVO' : 'INATIVO'}`);
+        
+        // Verificar se há arquivos de auth para restaurar
+        const userAuthPath = path.join(SESSIONS_BASE, `auth_${connection.userId}`);
+        let hasAuthFiles = false;
+        
+        try {
+          const authFiles = await fs.readdir(userAuthPath);
+          hasAuthFiles = authFiles.length > 0;
+        } catch (e) {
+          // Diretório não existe
+        }
+        
+        if (hasAuthFiles) {
+          console.log(`🔄 [HEALTH CHECK] Tentando reconectar ${connection.userId}...`);
+          try {
+            await connectWhatsApp(connection.userId);
+            reconnectedUsers++;
+            console.log(`✅ [HEALTH CHECK] ${connection.userId} reconectado com sucesso!`);
+          } catch (error) {
+            console.error(`❌ [HEALTH CHECK] Falha ao reconectar ${connection.userId}:`, error);
+            // Marcar como desconectado no banco para evitar loops
+            await storage.updateConnection(connection.id, {
+              isConnected: false,
+              qrCode: null,
+            });
+            disconnectedUsers++;
+          }
+        } else {
+          console.log(`⏹️ [HEALTH CHECK] ${connection.userId} sem arquivos de auth - marcando como desconectado`);
+          await storage.updateConnection(connection.id, {
+            isConnected: false,
+            qrCode: null,
+          });
+          disconnectedUsers++;
+        }
+      } else if (isDbConnected && hasActiveSocket) {
+        healthyUsers++;
+      }
+    }
+    
+    // 2. Verificar conexões de admin
+    const allAdmins = await storage.getAllAdmins();
+    let reconnectedAdmins = 0;
+    let healthyAdmins = 0;
+    
+    for (const admin of allAdmins) {
+      const adminConnection = await storage.getAdminWhatsappConnection(admin.id);
+      if (!adminConnection) continue;
+      
+      const isDbConnected = adminConnection.isConnected;
+      const adminSession = adminSessions.get(admin.id);
+      const hasActiveSocket = adminSession?.socket?.user !== undefined;
+      
+      if (isDbConnected && !hasActiveSocket) {
+        console.log(`⚠️ [HEALTH CHECK] Admin conexão zumbi: ${admin.id}`);
+        
+        const adminAuthPath = path.join(SESSIONS_BASE, `auth_admin_${admin.id}`);
+        let hasAuthFiles = false;
+        
+        try {
+          const authFiles = await fs.readdir(adminAuthPath);
+          hasAuthFiles = authFiles.length > 0;
+        } catch (e) {
+          // Diretório não existe
+        }
+        
+        if (hasAuthFiles) {
+          console.log(`🔄 [HEALTH CHECK] Tentando reconectar admin ${admin.id}...`);
+          try {
+            await connectAdminWhatsApp(admin.id);
+            reconnectedAdmins++;
+            console.log(`✅ [HEALTH CHECK] Admin ${admin.id} reconectado!`);
+          } catch (error) {
+            console.error(`❌ [HEALTH CHECK] Falha ao reconectar admin ${admin.id}:`, error);
+            await storage.updateAdminWhatsappConnection(admin.id, {
+              isConnected: false,
+              qrCode: null,
+            });
+          }
+        } else {
+          await storage.updateAdminWhatsappConnection(admin.id, {
+            isConnected: false,
+            qrCode: null,
+          });
+        }
+      } else if (isDbConnected && hasActiveSocket) {
+        healthyAdmins++;
+      }
+    }
+    
+    console.log(`\n📊 [HEALTH CHECK] Resumo:`);
+    console.log(`   👥 Usuários: ${healthyUsers} saudáveis, ${reconnectedUsers} reconectados, ${disconnectedUsers} desconectados`);
+    console.log(`   👤 Admins: ${healthyAdmins} saudáveis, ${reconnectedAdmins} reconectados`);
+    console.log(`🔍 [HEALTH CHECK] ═══════════════════════════════════════════\n`);
+    
+  } catch (error) {
+    console.error(`❌ [HEALTH CHECK] Erro no health check:`, error);
+  }
+}
+
+export function startConnectionHealthCheck(): void {
+  // 🛡️ MODO DESENVOLVIMENTO: Não iniciar health check
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log("⚠️ [HEALTH CHECK] Desabilitado em modo desenvolvimento");
+    return;
+  }
+  
+  if (healthCheckInterval) {
+    console.log("⚠️ [HEALTH CHECK] Já está rodando");
+    return;
+  }
+  
+  console.log(`\n🔄 [HEALTH CHECK] Iniciando monitor de conexões...`);
+  console.log(`   ⏱️ Intervalo: ${HEALTH_CHECK_INTERVAL_MS / 1000 / 60} minutos`);
+  
+  // Executar primeiro check após 30 segundos (dar tempo para restaurações iniciais)
+  setTimeout(() => {
+    connectionHealthCheck();
+  }, 30000);
+  
+  // Agendar checks periódicos
+  healthCheckInterval = setInterval(() => {
+    connectionHealthCheck();
+  }, HEALTH_CHECK_INTERVAL_MS);
+  
+  console.log(`✅ [HEALTH CHECK] Monitor iniciado com sucesso!\n`);
+}
+
+export function stopConnectionHealthCheck(): void {
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval);
+    healthCheckInterval = null;
+    console.log("⏹️ [HEALTH CHECK] Monitor parado");
+  }
+}
+
+// Exportar função para check manual (útil para debug)
+export { connectionHealthCheck };
+
 
