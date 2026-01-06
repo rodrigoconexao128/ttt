@@ -1299,3 +1299,141 @@ export const insertDailyUsageSchema = createInsertSchema(dailyUsage).omit({
 
 export type DailyUsage = typeof dailyUsage.$inferSelect;
 export type InsertDailyUsage = z.infer<typeof insertDailyUsageSchema>;
+
+// =============================================================================
+// SALES FUNNELS - Funis de Vendas com Pipeline Visual
+// =============================================================================
+
+// Tabela principal de Funis de Vendas
+export const salesFunnels = pgTable("sales_funnels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar("name", { length: 255 }).notNull(),
+  product: varchar("product", { length: 255 }),
+  manager: varchar("manager", { length: 255 }),
+  conversionRate: decimal("conversion_rate", { precision: 5, scale: 2 }).default("0"),
+  estimatedRevenue: decimal("estimated_revenue", { precision: 12, scale: 2 }).default("0"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_sales_funnels_user").on(table.userId),
+  index("idx_sales_funnels_active").on(table.isActive),
+]);
+
+// Estágios do Funil
+export const funnelStages = pgTable("funnel_stages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  funnelId: varchar("funnel_id").notNull().references(() => salesFunnels.id, { onDelete: 'cascade' }),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  color: varchar("color", { length: 50 }).default("text-slate-700"),
+  bgColor: varchar("bg_color", { length: 50 }).default("bg-slate-100"),
+  borderColor: varchar("border_color", { length: 50 }).default("border-slate-200"),
+  iconColor: varchar("icon_color", { length: 50 }).default("text-slate-500"),
+  position: integer("position").default(1).notNull(),
+  automationsCount: integer("automations_count").default(0),
+  // Configurações de automação WhatsApp
+  autoMessageEnabled: boolean("auto_message_enabled").default(false),
+  autoMessageText: text("auto_message_text"),
+  autoMessageDelayMinutes: integer("auto_message_delay_minutes").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_funnel_stages_funnel").on(table.funnelId),
+  index("idx_funnel_stages_position").on(table.position),
+]);
+
+// Deals/Oportunidades no Funil
+export const funnelDeals = pgTable("funnel_deals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stageId: varchar("stage_id").notNull().references(() => funnelStages.id, { onDelete: 'cascade' }),
+  contactName: varchar("contact_name", { length: 255 }).notNull(),
+  companyName: varchar("company_name", { length: 255 }),
+  value: decimal("value", { precision: 12, scale: 2 }).default("0"),
+  valuePeriod: varchar("value_period", { length: 20 }).default("mensal"), // mensal, anual, único
+  priority: varchar("priority", { length: 20 }).default("Média"), // Alta, Média, Baixa
+  assignee: varchar("assignee", { length: 255 }),
+  contactPhone: varchar("contact_phone", { length: 50 }),
+  contactEmail: varchar("contact_email", { length: 255 }),
+  notes: text("notes"),
+  lastContactAt: timestamp("last_contact_at").defaultNow(),
+  expectedCloseDate: timestamp("expected_close_date"),
+  wonAt: timestamp("won_at"),
+  lostAt: timestamp("lost_at"),
+  lostReason: text("lost_reason"),
+  // Vinculação com conversa do WhatsApp
+  conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_funnel_deals_stage").on(table.stageId),
+  index("idx_funnel_deals_priority").on(table.priority),
+  index("idx_funnel_deals_contact").on(table.contactPhone),
+]);
+
+// Histórico de Movimentações de Deals
+export const dealHistory = pgTable("deal_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: varchar("deal_id").notNull().references(() => funnelDeals.id, { onDelete: 'cascade' }),
+  fromStageId: varchar("from_stage_id").references(() => funnelStages.id, { onDelete: 'set null' }),
+  toStageId: varchar("to_stage_id").references(() => funnelStages.id, { onDelete: 'set null' }),
+  action: varchar("action", { length: 50 }).notNull(), // created, moved, updated, won, lost
+  notes: text("notes"),
+  performedBy: varchar("performed_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_deal_history_deal").on(table.dealId),
+  index("idx_deal_history_date").on(table.createdAt),
+]);
+
+// Relations
+export const salesFunnelsRelations = relations(salesFunnels, ({ one, many }) => ({
+  user: one(users, { fields: [salesFunnels.userId], references: [users.id] }),
+  stages: many(funnelStages),
+}));
+
+export const funnelStagesRelations = relations(funnelStages, ({ one, many }) => ({
+  funnel: one(salesFunnels, { fields: [funnelStages.funnelId], references: [salesFunnels.id] }),
+  deals: many(funnelDeals),
+}));
+
+export const funnelDealsRelations = relations(funnelDeals, ({ one, many }) => ({
+  stage: one(funnelStages, { fields: [funnelDeals.stageId], references: [funnelStages.id] }),
+  conversation: one(conversations, { fields: [funnelDeals.conversationId], references: [conversations.id] }),
+  history: many(dealHistory),
+}));
+
+export const dealHistoryRelations = relations(dealHistory, ({ one }) => ({
+  deal: one(funnelDeals, { fields: [dealHistory.dealId], references: [funnelDeals.id] }),
+  fromStage: one(funnelStages, { fields: [dealHistory.fromStageId], references: [funnelStages.id] }),
+  toStage: one(funnelStages, { fields: [dealHistory.toStageId], references: [funnelStages.id] }),
+}));
+
+// Schemas Zod para validação
+export const insertSalesFunnelSchema = createInsertSchema(salesFunnels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertFunnelStageSchema = createInsertSchema(funnelStages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertFunnelDealSchema = createInsertSchema(funnelDeals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types
+export type SalesFunnel = typeof salesFunnels.$inferSelect;
+export type InsertSalesFunnel = z.infer<typeof insertSalesFunnelSchema>;
+export type FunnelStage = typeof funnelStages.$inferSelect;
+export type InsertFunnelStage = z.infer<typeof insertFunnelStageSchema>;
+export type FunnelDeal = typeof funnelDeals.$inferSelect;
+export type InsertFunnelDeal = z.infer<typeof insertFunnelDealSchema>;
+export type DealHistoryItem = typeof dealHistory.$inferSelect;

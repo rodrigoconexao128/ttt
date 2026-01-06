@@ -101,10 +101,10 @@ export default function LeadQualificationPage() {
 
   return (
     <PremiumBlocked
-      title="Qualificação de Leads por IA"
-      subtitle="Classificação automática de conversas"
-      description="Nossa IA avalia engajamento, intenção e histórico no WhatsApp para destacar leads Quentes, Mornos e Frios, priorizando o contato humano no momento certo."
-      ctaLabel="Desbloquear Ferramenta"
+      title="Continue Qualificando Leads"
+      subtitle="Seu período de teste acabou"
+      description="Assine um plano para continuar usando a qualificação automática de leads por IA e priorizar seus melhores contatos."
+      ctaLabel="Ativar Plano Ilimitado"
     >
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-6xl mx-auto space-y-6">

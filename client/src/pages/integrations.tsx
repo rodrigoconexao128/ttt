@@ -137,10 +137,10 @@ export default function IntegrationsPage() {
 
   return (
     <PremiumBlocked
-      title="Integrações"
-      subtitle="Conecte ERPs, e‑commerces, marketplaces e muito mais"
-      description="Sincronize pedidos, contatos e mensagens. Centralize o atendimento e torne sua operação realmente omnichannel."
-      ctaLabel="Assinar Plano Premium"
+      title="Continue Usando Integrações"
+      subtitle="Seu período de teste acabou"
+      description="Assine um plano para continuar conectando ERPs, e-commerces e marketplaces ao seu WhatsApp."
+      ctaLabel="Ativar Plano Ilimitado"
     >
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-6xl mx-auto space-y-6">

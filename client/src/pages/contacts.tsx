@@ -175,10 +175,10 @@ export default function ContactsPage() {
 
   return (
     <PremiumBlocked
-      title="Contatos"
-      subtitle="Base unificada de clientes, listas e etiquetas"
-      description="Crie listas, faça ações em massa e mantenha sua base pronta para ativação com IA e integrações."
-      ctaLabel="Desbloquear Ferramenta"
+      title="Continue Gerenciando Contatos"
+      subtitle="Seu período de teste acabou"
+      description="Assine um plano para continuar gerenciando sua base de contatos com ações em massa e segmentação."
+      ctaLabel="Ativar Plano Ilimitado"
     >
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-6xl mx-auto space-y-6">

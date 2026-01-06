@@ -32,10 +32,10 @@ export default function SchedulingPage() {
 
   return (
     <PremiumBlocked
-      title="Agendamentos"
-      subtitle="Agenda inteligente para clínicas, estúdios e escritórios"
-      description="Confirmações automáticas, lembretes e visão diária de atendimentos. Tudo integrado ao WhatsApp."
-      ctaLabel="Desbloquear Ferramenta"
+      title="Continue Gerenciando Agendamentos"
+      subtitle="Seu período de teste acabou"
+      description="Assine um plano para continuar usando os agendamentos com confirmações automáticas no WhatsApp."
+      ctaLabel="Ativar Plano Ilimitado"
     >
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-6xl mx-auto space-y-6">

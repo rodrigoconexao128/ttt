@@ -32,10 +32,10 @@ export default function ReservationsPage() {
 
   return (
     <PremiumBlocked
-      title="Reservas"
-      subtitle="Gestão de reservas para hotéis e hospedagens"
-      description="Acompanhe ocupação, revenue e upsells com mensagens automáticas no WhatsApp."
-      ctaLabel="Assinar Plano Premium"
+      title="Continue Gerenciando Reservas"
+      subtitle="Seu período de teste acabou"
+      description="Assine um plano para continuar usando o sistema de reservas com automações no WhatsApp."
+      ctaLabel="Ativar Plano Ilimitado"
     >
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-6xl mx-auto space-y-6">

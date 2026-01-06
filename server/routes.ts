@@ -9609,6 +9609,971 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     }
   });
 
+  // ==================== SALES FUNNEL ROUTES ====================
+
+  /**
+   * Get all funnels for the authenticated user
+   * GET /api/funnels
+   */
+  app.get("/api/funnels", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const { data: funnels, error } = await supabase
+        .from('sales_funnels')
+        .select(`
+          *,
+          stages:funnel_stages(
+            *,
+            deals:funnel_deals(*)
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Transform data to match frontend interface
+      const transformedFunnels = (funnels || []).map((funnel: any) => {
+        const stages = funnel.stages || [];
+        let totalDeals = 0;
+        let totalValue = 0;
+        
+        stages.forEach((stage: any) => {
+          const deals = stage.deals || [];
+          totalDeals += deals.length;
+          deals.forEach((deal: any) => {
+            totalValue += parseFloat(deal.value || 0);
+          });
+        });
+
+        return {
+          id: funnel.id,
+          name: funnel.name,
+          product: funnel.product,
+          manager: funnel.manager,
+          deals: totalDeals,
+          value: totalValue,
+          conversionRate: parseFloat(funnel.conversion_rate || 0),
+          estimatedRevenue: parseFloat(funnel.estimated_revenue || 0),
+          stages: stages.sort((a: any, b: any) => a.position - b.position).map((stage: any) => ({
+            id: stage.id,
+            name: stage.name,
+            description: stage.description,
+            color: stage.color || 'text-slate-700',
+            bgColor: stage.bg_color || 'bg-slate-100',
+            borderColor: stage.border_color || 'border-slate-200',
+            iconColor: stage.icon_color || 'text-slate-500',
+            position: stage.position,
+            automations: stage.automations_count || 0,
+            deals: (stage.deals || []).map((deal: any) => ({
+              id: deal.id,
+              name: deal.contact_name,
+              company: deal.company_name || '',
+              value: parseFloat(deal.value || 0),
+              valuePeriod: deal.value_period || 'mensal',
+              priority: deal.priority || 'Média',
+              assignee: deal.assignee,
+              phone: deal.contact_phone,
+              email: deal.contact_email,
+              notes: deal.notes,
+              lastContact: deal.last_contact_at,
+              conversationId: deal.conversation_id,
+            })),
+          })),
+        };
+      });
+
+      res.json(transformedFunnels);
+    } catch (error: any) {
+      console.error("Error fetching funnels:", error);
+      res.status(500).json({ message: "Failed to fetch funnels" });
+    }
+  });
+
+  /**
+   * Create a new funnel with default stages
+   * POST /api/funnels
+   */
+  app.post("/api/funnels", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, product, manager } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ message: "Funnel name is required" });
+      }
+
+      // Create the funnel
+      const { data: funnel, error: funnelError } = await supabase
+        .from('sales_funnels')
+        .insert({
+          user_id: userId,
+          name,
+          product: product || null,
+          manager: manager || null,
+        })
+        .select()
+        .single();
+
+      if (funnelError) throw funnelError;
+
+      // Create default stages
+      const defaultStages = [
+        { funnel_id: funnel.id, name: 'Prospecto', description: 'Lead interessado inicial', color: 'text-slate-700', bg_color: 'bg-slate-100', border_color: 'border-slate-200', icon_color: 'text-slate-500', position: 1 },
+        { funnel_id: funnel.id, name: 'Qualificação', description: 'Verificando interesse e fit', color: 'text-blue-700', bg_color: 'bg-blue-100', border_color: 'border-blue-200', icon_color: 'text-blue-500', position: 2 },
+        { funnel_id: funnel.id, name: 'Proposta', description: 'Proposta enviada', color: 'text-amber-700', bg_color: 'bg-amber-100', border_color: 'border-amber-200', icon_color: 'text-amber-500', position: 3 },
+        { funnel_id: funnel.id, name: 'Negociação', description: 'Em negociação', color: 'text-purple-700', bg_color: 'bg-purple-100', border_color: 'border-purple-200', icon_color: 'text-purple-500', position: 4 },
+        { funnel_id: funnel.id, name: 'Fechado', description: 'Venda concluída', color: 'text-emerald-700', bg_color: 'bg-emerald-100', border_color: 'border-emerald-200', icon_color: 'text-emerald-500', position: 5 },
+      ];
+
+      const { error: stagesError } = await supabase
+        .from('funnel_stages')
+        .insert(defaultStages);
+
+      if (stagesError) throw stagesError;
+
+      res.json({ 
+        ...funnel,
+        message: "Funnel created with default stages" 
+      });
+    } catch (error: any) {
+      console.error("Error creating funnel:", error);
+      res.status(500).json({ message: "Failed to create funnel" });
+    }
+  });
+
+  /**
+   * Get single funnel with all stages and deals
+   * GET /api/funnels/:id
+   */
+  app.get("/api/funnels/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      const { data: funnel, error } = await supabase
+        .from('sales_funnels')
+        .select(`
+          *,
+          stages:funnel_stages(
+            *,
+            deals:funnel_deals(*)
+          )
+        `)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+
+      if (error) throw error;
+      if (!funnel) {
+        return res.status(404).json({ message: "Funnel not found" });
+      }
+
+      res.json(funnel);
+    } catch (error: any) {
+      console.error("Error fetching funnel:", error);
+      res.status(500).json({ message: "Failed to fetch funnel" });
+    }
+  });
+
+  /**
+   * Update funnel
+   * PUT /api/funnels/:id
+   */
+  app.put("/api/funnels/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { name, product, manager, isActive } = req.body;
+
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (name !== undefined) updateData.name = name;
+      if (product !== undefined) updateData.product = product;
+      if (manager !== undefined) updateData.manager = manager;
+      if (isActive !== undefined) updateData.is_active = isActive;
+
+      const { data: funnel, error } = await supabase
+        .from('sales_funnels')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json(funnel);
+    } catch (error: any) {
+      console.error("Error updating funnel:", error);
+      res.status(500).json({ message: "Failed to update funnel" });
+    }
+  });
+
+  /**
+   * Delete funnel (soft delete - sets is_active to false)
+   * DELETE /api/funnels/:id
+   */
+  app.delete("/api/funnels/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      const { error } = await supabase
+        .from('sales_funnels')
+        .update({ is_active: false })
+        .eq('id', id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting funnel:", error);
+      res.status(500).json({ message: "Failed to delete funnel" });
+    }
+  });
+
+  // ==================== FUNNEL STAGES ROUTES ====================
+
+  /**
+   * Add stage to funnel
+   * POST /api/funnels/:funnelId/stages
+   */
+  app.post("/api/funnels/:funnelId/stages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { funnelId } = req.params;
+      const { name, description, color, bgColor, borderColor, iconColor } = req.body;
+
+      // Verify funnel ownership
+      const { data: funnel } = await supabase
+        .from('sales_funnels')
+        .select('id')
+        .eq('id', funnelId)
+        .eq('user_id', userId)
+        .single();
+
+      if (!funnel) {
+        return res.status(404).json({ message: "Funnel not found" });
+      }
+
+      // Get max position
+      const { data: maxPos } = await supabase
+        .from('funnel_stages')
+        .select('position')
+        .eq('funnel_id', funnelId)
+        .order('position', { ascending: false })
+        .limit(1)
+        .single();
+
+      const newPosition = (maxPos?.position || 0) + 1;
+
+      const { data: stage, error } = await supabase
+        .from('funnel_stages')
+        .insert({
+          funnel_id: funnelId,
+          name,
+          description: description || '',
+          color: color || 'text-slate-700',
+          bg_color: bgColor || 'bg-slate-100',
+          border_color: borderColor || 'border-slate-200',
+          icon_color: iconColor || 'text-slate-500',
+          position: newPosition,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json(stage);
+    } catch (error: any) {
+      console.error("Error creating stage:", error);
+      res.status(500).json({ message: "Failed to create stage" });
+    }
+  });
+
+  /**
+   * Update stage
+   * PUT /api/funnels/:funnelId/stages/:stageId
+   */
+  app.put("/api/funnels/:funnelId/stages/:stageId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { funnelId, stageId } = req.params;
+      const { name, description, color, bgColor, borderColor, iconColor, position, autoMessageEnabled, autoMessageText, autoMessageDelayMinutes } = req.body;
+
+      // Verify funnel ownership
+      const { data: funnel } = await supabase
+        .from('sales_funnels')
+        .select('id')
+        .eq('id', funnelId)
+        .eq('user_id', userId)
+        .single();
+
+      if (!funnel) {
+        return res.status(404).json({ message: "Funnel not found" });
+      }
+
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (color !== undefined) updateData.color = color;
+      if (bgColor !== undefined) updateData.bg_color = bgColor;
+      if (borderColor !== undefined) updateData.border_color = borderColor;
+      if (iconColor !== undefined) updateData.icon_color = iconColor;
+      if (position !== undefined) updateData.position = position;
+      if (autoMessageEnabled !== undefined) updateData.auto_message_enabled = autoMessageEnabled;
+      if (autoMessageText !== undefined) updateData.auto_message_text = autoMessageText;
+      if (autoMessageDelayMinutes !== undefined) updateData.auto_message_delay_minutes = autoMessageDelayMinutes;
+
+      const { data: stage, error } = await supabase
+        .from('funnel_stages')
+        .update(updateData)
+        .eq('id', stageId)
+        .eq('funnel_id', funnelId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json(stage);
+    } catch (error: any) {
+      console.error("Error updating stage:", error);
+      res.status(500).json({ message: "Failed to update stage" });
+    }
+  });
+
+  /**
+   * Delete stage (moves deals to previous stage)
+   * DELETE /api/funnels/:funnelId/stages/:stageId
+   */
+  app.delete("/api/funnels/:funnelId/stages/:stageId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { funnelId, stageId } = req.params;
+
+      // Verify funnel ownership
+      const { data: funnel } = await supabase
+        .from('sales_funnels')
+        .select('id')
+        .eq('id', funnelId)
+        .eq('user_id', userId)
+        .single();
+
+      if (!funnel) {
+        return res.status(404).json({ message: "Funnel not found" });
+      }
+
+      // Get previous stage to move deals
+      const { data: currentStage } = await supabase
+        .from('funnel_stages')
+        .select('position')
+        .eq('id', stageId)
+        .single();
+
+      if (currentStage) {
+        const { data: prevStage } = await supabase
+          .from('funnel_stages')
+          .select('id')
+          .eq('funnel_id', funnelId)
+          .lt('position', currentStage.position)
+          .order('position', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (prevStage) {
+          // Move deals to previous stage
+          await supabase
+            .from('funnel_deals')
+            .update({ stage_id: prevStage.id })
+            .eq('stage_id', stageId);
+        }
+      }
+
+      const { error } = await supabase
+        .from('funnel_stages')
+        .delete()
+        .eq('id', stageId)
+        .eq('funnel_id', funnelId);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting stage:", error);
+      res.status(500).json({ message: "Failed to delete stage" });
+    }
+  });
+
+  /**
+   * Reorder stages
+   * PUT /api/funnels/:funnelId/stages/reorder
+   */
+  app.put("/api/funnels/:funnelId/stages/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { funnelId } = req.params;
+      const { stageIds } = req.body;
+
+      // Verify funnel ownership
+      const { data: funnel } = await supabase
+        .from('sales_funnels')
+        .select('id')
+        .eq('id', funnelId)
+        .eq('user_id', userId)
+        .single();
+
+      if (!funnel) {
+        return res.status(404).json({ message: "Funnel not found" });
+      }
+
+      // Update positions
+      const updates = stageIds.map((id: string, index: number) =>
+        supabase
+          .from('funnel_stages')
+          .update({ position: index + 1 })
+          .eq('id', id)
+          .eq('funnel_id', funnelId)
+      );
+
+      await Promise.all(updates);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error reordering stages:", error);
+      res.status(500).json({ message: "Failed to reorder stages" });
+    }
+  });
+
+  // ==================== FUNNEL DEALS ROUTES ====================
+
+  /**
+   * Create a new deal in a stage
+   * POST /api/funnels/:funnelId/stages/:stageId/deals
+   */
+  app.post("/api/funnels/:funnelId/stages/:stageId/deals", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { funnelId, stageId } = req.params;
+      const { contactName, companyName, value, valuePeriod, priority, assignee, contactPhone, contactEmail, notes, conversationId } = req.body;
+
+      // Verify funnel ownership
+      const { data: funnel } = await supabase
+        .from('sales_funnels')
+        .select('id')
+        .eq('id', funnelId)
+        .eq('user_id', userId)
+        .single();
+
+      if (!funnel) {
+        return res.status(404).json({ message: "Funnel not found" });
+      }
+
+      const { data: deal, error } = await supabase
+        .from('funnel_deals')
+        .insert({
+          stage_id: stageId,
+          contact_name: contactName,
+          company_name: companyName || null,
+          value: value || 0,
+          value_period: valuePeriod || 'mensal',
+          priority: priority || 'Média',
+          assignee: assignee || null,
+          contact_phone: contactPhone || null,
+          contact_email: contactEmail || null,
+          notes: notes || null,
+          conversation_id: conversationId || null,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add history entry
+      await supabase
+        .from('deal_history')
+        .insert({
+          deal_id: deal.id,
+          to_stage_id: stageId,
+          action: 'created',
+          notes: `Deal criado: ${contactName}`,
+        });
+
+      // Update funnel metrics
+      await updateFunnelMetrics(funnelId);
+
+      res.json(deal);
+    } catch (error: any) {
+      console.error("Error creating deal:", error);
+      res.status(500).json({ message: "Failed to create deal" });
+    }
+  });
+
+  /**
+   * Update deal
+   * PUT /api/deals/:dealId
+   */
+  app.put("/api/deals/:dealId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { dealId } = req.params;
+      const { contactName, companyName, value, valuePeriod, priority, assignee, contactPhone, contactEmail, notes, stageId } = req.body;
+
+      // Get current deal and verify ownership
+      const { data: currentDeal } = await supabase
+        .from('funnel_deals')
+        .select(`
+          *,
+          stage:funnel_stages(
+            funnel:sales_funnels(user_id)
+          )
+        `)
+        .eq('id', dealId)
+        .single();
+
+      if (!currentDeal || currentDeal.stage?.funnel?.user_id !== userId) {
+        return res.status(404).json({ message: "Deal not found" });
+      }
+
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (contactName !== undefined) updateData.contact_name = contactName;
+      if (companyName !== undefined) updateData.company_name = companyName;
+      if (value !== undefined) updateData.value = value;
+      if (valuePeriod !== undefined) updateData.value_period = valuePeriod;
+      if (priority !== undefined) updateData.priority = priority;
+      if (assignee !== undefined) updateData.assignee = assignee;
+      if (contactPhone !== undefined) updateData.contact_phone = contactPhone;
+      if (contactEmail !== undefined) updateData.contact_email = contactEmail;
+      if (notes !== undefined) updateData.notes = notes;
+
+      // Handle stage change
+      if (stageId && stageId !== currentDeal.stage_id) {
+        updateData.stage_id = stageId;
+        updateData.last_contact_at = new Date().toISOString();
+
+        // Add history entry
+        await supabase
+          .from('deal_history')
+          .insert({
+            deal_id: dealId,
+            from_stage_id: currentDeal.stage_id,
+            to_stage_id: stageId,
+            action: 'moved',
+            notes: `Deal movido para novo estágio`,
+          });
+      }
+
+      const { data: deal, error } = await supabase
+        .from('funnel_deals')
+        .update(updateData)
+        .eq('id', dealId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update funnel metrics
+      const { data: stage } = await supabase
+        .from('funnel_stages')
+        .select('funnel_id')
+        .eq('id', deal.stage_id)
+        .single();
+      
+      if (stage) {
+        await updateFunnelMetrics(stage.funnel_id);
+      }
+
+      res.json(deal);
+    } catch (error: any) {
+      console.error("Error updating deal:", error);
+      res.status(500).json({ message: "Failed to update deal" });
+    }
+  });
+
+  /**
+   * Move deal to different stage (drag & drop)
+   * PUT /api/deals/:dealId/move
+   */
+  app.put("/api/deals/:dealId/move", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { dealId } = req.params;
+      const { toStageId } = req.body;
+
+      // Get current deal and verify ownership
+      const { data: currentDeal } = await supabase
+        .from('funnel_deals')
+        .select(`
+          *,
+          stage:funnel_stages(
+            funnel_id,
+            funnel:sales_funnels(user_id)
+          )
+        `)
+        .eq('id', dealId)
+        .single();
+
+      if (!currentDeal || currentDeal.stage?.funnel?.user_id !== userId) {
+        return res.status(404).json({ message: "Deal not found" });
+      }
+
+      // Add history entry
+      await supabase
+        .from('deal_history')
+        .insert({
+          deal_id: dealId,
+          from_stage_id: currentDeal.stage_id,
+          to_stage_id: toStageId,
+          action: 'moved',
+        });
+
+      // Update deal
+      const { data: deal, error } = await supabase
+        .from('funnel_deals')
+        .update({
+          stage_id: toStageId,
+          last_contact_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', dealId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update funnel metrics
+      await updateFunnelMetrics(currentDeal.stage.funnel_id);
+
+      res.json(deal);
+    } catch (error: any) {
+      console.error("Error moving deal:", error);
+      res.status(500).json({ message: "Failed to move deal" });
+    }
+  });
+
+  /**
+   * Mark deal as won
+   * PUT /api/deals/:dealId/won
+   */
+  app.put("/api/deals/:dealId/won", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { dealId } = req.params;
+
+      // Verify ownership
+      const { data: currentDeal } = await supabase
+        .from('funnel_deals')
+        .select(`
+          *,
+          stage:funnel_stages(
+            funnel_id,
+            funnel:sales_funnels(user_id)
+          )
+        `)
+        .eq('id', dealId)
+        .single();
+
+      if (!currentDeal || currentDeal.stage?.funnel?.user_id !== userId) {
+        return res.status(404).json({ message: "Deal not found" });
+      }
+
+      const { data: deal, error } = await supabase
+        .from('funnel_deals')
+        .update({
+          won_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', dealId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add history
+      await supabase
+        .from('deal_history')
+        .insert({
+          deal_id: dealId,
+          action: 'won',
+          notes: 'Deal marcado como ganho',
+        });
+
+      // Update funnel metrics
+      await updateFunnelMetrics(currentDeal.stage.funnel_id);
+
+      res.json(deal);
+    } catch (error: any) {
+      console.error("Error marking deal as won:", error);
+      res.status(500).json({ message: "Failed to mark deal as won" });
+    }
+  });
+
+  /**
+   * Mark deal as lost
+   * PUT /api/deals/:dealId/lost
+   */
+  app.put("/api/deals/:dealId/lost", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { dealId } = req.params;
+      const { reason } = req.body;
+
+      // Verify ownership
+      const { data: currentDeal } = await supabase
+        .from('funnel_deals')
+        .select(`
+          *,
+          stage:funnel_stages(
+            funnel_id,
+            funnel:sales_funnels(user_id)
+          )
+        `)
+        .eq('id', dealId)
+        .single();
+
+      if (!currentDeal || currentDeal.stage?.funnel?.user_id !== userId) {
+        return res.status(404).json({ message: "Deal not found" });
+      }
+
+      const { data: deal, error } = await supabase
+        .from('funnel_deals')
+        .update({
+          lost_at: new Date().toISOString(),
+          lost_reason: reason || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', dealId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add history
+      await supabase
+        .from('deal_history')
+        .insert({
+          deal_id: dealId,
+          action: 'lost',
+          notes: reason || 'Deal marcado como perdido',
+        });
+
+      // Update funnel metrics
+      await updateFunnelMetrics(currentDeal.stage.funnel_id);
+
+      res.json(deal);
+    } catch (error: any) {
+      console.error("Error marking deal as lost:", error);
+      res.status(500).json({ message: "Failed to mark deal as lost" });
+    }
+  });
+
+  /**
+   * Delete deal
+   * DELETE /api/deals/:dealId
+   */
+  app.delete("/api/deals/:dealId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { dealId } = req.params;
+
+      // Verify ownership
+      const { data: currentDeal } = await supabase
+        .from('funnel_deals')
+        .select(`
+          stage:funnel_stages(
+            funnel_id,
+            funnel:sales_funnels(user_id)
+          )
+        `)
+        .eq('id', dealId)
+        .single();
+
+      if (!currentDeal || currentDeal.stage?.funnel?.user_id !== userId) {
+        return res.status(404).json({ message: "Deal not found" });
+      }
+
+      const { error } = await supabase
+        .from('funnel_deals')
+        .delete()
+        .eq('id', dealId);
+
+      if (error) throw error;
+
+      // Update funnel metrics
+      await updateFunnelMetrics(currentDeal.stage.funnel_id);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting deal:", error);
+      res.status(500).json({ message: "Failed to delete deal" });
+    }
+  });
+
+  /**
+   * Get deal history
+   * GET /api/deals/:dealId/history
+   */
+  app.get("/api/deals/:dealId/history", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { dealId } = req.params;
+
+      // Verify ownership
+      const { data: currentDeal } = await supabase
+        .from('funnel_deals')
+        .select(`
+          stage:funnel_stages(
+            funnel:sales_funnels(user_id)
+          )
+        `)
+        .eq('id', dealId)
+        .single();
+
+      if (!currentDeal || currentDeal.stage?.funnel?.user_id !== userId) {
+        return res.status(404).json({ message: "Deal not found" });
+      }
+
+      const { data: history, error } = await supabase
+        .from('deal_history')
+        .select(`
+          *,
+          from_stage:funnel_stages!deal_history_from_stage_id_fkey(name),
+          to_stage:funnel_stages!deal_history_to_stage_id_fkey(name)
+        `)
+        .eq('deal_id', dealId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      res.json(history || []);
+    } catch (error: any) {
+      console.error("Error fetching deal history:", error);
+      res.status(500).json({ message: "Failed to fetch deal history" });
+    }
+  });
+
+  /**
+   * Get funnel KPIs/metrics
+   * GET /api/funnels/:id/metrics
+   */
+  app.get("/api/funnels/:id/metrics", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      // Verify ownership
+      const { data: funnel } = await supabase
+        .from('sales_funnels')
+        .select('id')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+
+      if (!funnel) {
+        return res.status(404).json({ message: "Funnel not found" });
+      }
+
+      // Get all stages with deals
+      const { data: stages } = await supabase
+        .from('funnel_stages')
+        .select(`
+          *,
+          deals:funnel_deals(*)
+        `)
+        .eq('funnel_id', id)
+        .order('position');
+
+      if (!stages) {
+        return res.json({
+          totalDeals: 0,
+          totalValue: 0,
+          wonDeals: 0,
+          wonValue: 0,
+          lostDeals: 0,
+          conversionRate: 0,
+          stageMetrics: [],
+        });
+      }
+
+      let totalDeals = 0;
+      let totalValue = 0;
+      let wonDeals = 0;
+      let wonValue = 0;
+      let lostDeals = 0;
+
+      const stageMetrics = stages.map((stage: any) => {
+        const deals = stage.deals || [];
+        const stageValue = deals.reduce((sum: number, d: any) => sum + parseFloat(d.value || 0), 0);
+        const stageWon = deals.filter((d: any) => d.won_at).length;
+        const stageLost = deals.filter((d: any) => d.lost_at).length;
+        const stageWonValue = deals.filter((d: any) => d.won_at).reduce((sum: number, d: any) => sum + parseFloat(d.value || 0), 0);
+
+        totalDeals += deals.length;
+        totalValue += stageValue;
+        wonDeals += stageWon;
+        wonValue += stageWonValue;
+        lostDeals += stageLost;
+
+        return {
+          id: stage.id,
+          name: stage.name,
+          deals: deals.length,
+          value: stageValue,
+          won: stageWon,
+          lost: stageLost,
+        };
+      });
+
+      const conversionRate = totalDeals > 0 ? (wonDeals / totalDeals) * 100 : 0;
+
+      res.json({
+        totalDeals,
+        totalValue,
+        wonDeals,
+        wonValue,
+        lostDeals,
+        conversionRate: Math.round(conversionRate * 100) / 100,
+        stageMetrics,
+      });
+    } catch (error: any) {
+      console.error("Error fetching funnel metrics:", error);
+      res.status(500).json({ message: "Failed to fetch funnel metrics" });
+    }
+  });
+
+  // Helper function to update funnel metrics
+  async function updateFunnelMetrics(funnelId: string) {
+    try {
+      const { data: stages } = await supabase
+        .from('funnel_stages')
+        .select(`
+          deals:funnel_deals(value, won_at)
+        `)
+        .eq('funnel_id', funnelId);
+
+      if (!stages) return;
+
+      let totalDeals = 0;
+      let wonDeals = 0;
+      let totalValue = 0;
+
+      stages.forEach((stage: any) => {
+        const deals = stage.deals || [];
+        totalDeals += deals.length;
+        wonDeals += deals.filter((d: any) => d.won_at).length;
+        totalValue += deals.reduce((sum: number, d: any) => sum + parseFloat(d.value || 0), 0);
+      });
+
+      const conversionRate = totalDeals > 0 ? (wonDeals / totalDeals) * 100 : 0;
+
+      await supabase
+        .from('sales_funnels')
+        .update({
+          conversion_rate: conversionRate,
+          estimated_revenue: totalValue,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', funnelId);
+    } catch (error) {
+      console.error("Error updating funnel metrics:", error);
+    }
+  }
+
   // ==================== KANBAN CRM ROUTES ====================
 
   /**
