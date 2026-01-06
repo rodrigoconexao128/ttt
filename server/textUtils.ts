@@ -60,10 +60,14 @@ export function processResponsePlaceholders(text: string, contactName?: string):
   processed = processed.replace(/\s+[ÁáAa]udio\s+/gi, ' ');           // " Áudio " no meio (CUIDADO: pode remover palavras legítimas como "audiovisual")
   
   // 🛡️ Limpar espaços duplos e pontuação estranha resultante
-  processed = processed.replace(/\s+/g, ' ');
+  // ⚠️ PRESERVAR QUEBRAS DE LINHA - usar [ \t]+ ao invés de \s+ para não remover \n
+  processed = processed.replace(/[ \t]+/g, ' ');
   processed = processed.replace(/\.\s*\./g, '.');
   processed = processed.replace(/\?\s*\./g, '?');
   processed = processed.replace(/!\s*\./g, '!');
+  
+  // 🛡️ Limpar quebras de linha múltiplas (mais de 2) para no máximo 2
+  processed = processed.replace(/\n{3,}/g, '\n\n');
   
   processed = processed.trim();
   

@@ -162,6 +162,11 @@ export function addGreeting(response: string, options: HumanizationOptions): str
  * Adiciona conectores naturais para tornar mais fluido
  */
 export function addConnectors(response: string, options: HumanizationOptions): string {
+  // 🎯 PRESERVAR QUEBRAS DE LINHA - Se a resposta tem quebras de linha intencionais, não processar
+  if (response.includes('\n')) {
+    return response; // Resposta já formatada com quebras de linha, preservar
+  }
+  
   // Se resposta tem múltiplas frases, adicionar conectores entre elas
   const sentences = response.split(/\. /).filter(s => s.length > 10);
   

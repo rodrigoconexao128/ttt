@@ -2164,8 +2164,19 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       const agentConfig = await storage.getAgentConfig(userId);
       const messageSplitChars = agentConfig?.messageSplitChars ?? 400;
       
-      // Aplica a mesma divisão que é usada no WhatsApp real
-      const splitMessages = splitMessageHumanLike(testResult.text || "", messageSplitChars);
+      // 🎯 PRESERVAR QUEBRAS DE LINHA NA RESPOSTA DO SIMULADOR
+      // O texto original já pode ter formatação intencional (quebras de linha)
+      // Apenas dividir em bolhas se necessário, mas preservar as quebras internas
+      const responseText = testResult.text || "";
+      
+      // Se a mensagem é pequena (cabe no limite), retorna como está
+      // Se é grande, divide mas preserva quebras de linha em cada parte
+      let splitMessages: string[];
+      if (responseText.length <= messageSplitChars || messageSplitChars === 0) {
+        splitMessages = [responseText];
+      } else {
+        splitMessages = splitMessageHumanLike(responseText, messageSplitChars);
+      }
       
       console.log(`📱 [SIMULADOR] Resposta dividida em ${splitMessages.length} partes (limit: ${messageSplitChars} chars)`);
       

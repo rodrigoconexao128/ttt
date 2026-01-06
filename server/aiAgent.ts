@@ -278,6 +278,220 @@ export interface AIResponseOptions {
   sentMedias?: string[]; // Lista de mídias já enviadas nesta conversa
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🎯 FUNÇÃO PARA EXTRAIR TEXTO VERBATIM DO PROMPT
+// Se o prompt tem "envie EXATAMENTE este texto", extrai e usa diretamente
+// Isso garante que formatação com quebras de linha seja preservada
+// ═══════════════════════════════════════════════════════════════════════
+function extractVerbatimFirstMessage(prompt: string): string | null {
+  console.log(`🎯 [AI Agent] Buscando texto verbatim no prompt (${prompt.length} chars)...`);
+  
+  // PADRÃO 1: Com delimitadores explícitos (=== PRIMEIRA MENSAGEM ... === FIM)
+  const delimiterMatch = prompt.match(/===\s*PRIMEIRA MENSAGEM[^=]*===\s*([\s\S]+?)\s*===\s*FIM/i);
+  if (delimiterMatch && delimiterMatch[1]) {
+    const texto = delimiterMatch[1].trim();
+    console.log(`🎯 [AI Agent] TEXTO VERBATIM ENCONTRADO via delimitadores!`);
+    console.log(`   Tamanho: ${texto.length} chars`);
+    console.log(`   Quebras de linha: ${(texto.match(/\n/g) || []).length}`);
+    return texto;
+  }
+  
+  // PADRÃO 2: Com instrução "envie EXATAMENTE este texto"
+  // Busca do marcador até "Após enviar" ou fim do prompt
+  const exactlyPatterns = [
+    // "Sempre na primeira mensagem... envie EXATAMENTE este texto (com formatação):"
+    /envie\s+EXATAMENTE\s+(?:este\s+)?texto\s*(?:\([^)]*\))?\s*:\s*([\s\S]+?)(?=(?:Após\s+enviar|===\s*FIM|Caso\s+ele|Respostas?\s+claras|$))/i,
+    // "primeira mensagem deve ser:"
+    /primeira\s+mensagem[^:]*:\s*([\s\S]+?)(?=(?:Após\s+enviar|===\s*FIM|Caso\s+ele|Respostas?\s+claras|$))/i,
+  ];
+  
+  for (const pattern of exactlyPatterns) {
+    const match = prompt.match(pattern);
+    if (match && match[1]) {
+      const texto = match[1].trim();
+      
+      // Verificar se tem características de texto formatado
+      const temEmojis = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]/u.test(texto);
+      const temFormatacao = texto.includes('*') || texto.includes('_');
+      
+      if (texto.length > 50 && (temEmojis || temFormatacao)) {
+        console.log(`🎯 [AI Agent] TEXTO VERBATIM DETECTADO no prompt!`);
+        console.log(`   Tamanho: ${texto.length} chars`);
+        console.log(`   Quebras de linha: ${(texto.match(/\n/g) || []).length}`);
+        console.log(`   Tem emojis: ${temEmojis}`);
+        console.log(`   Tem formatação: ${temFormatacao}`);
+        
+        // Se não tem quebras de linha, tentar reconstruir a formatação
+        // baseado nos emojis que tipicamente iniciam novas linhas
+        if (!texto.includes('\n') && temEmojis) {
+          console.log(`🎯 [AI Agent] Texto sem quebras - tentando reconstruir formatação...`);
+          const textoFormatado = reconstruirQuebrasDeLinha(texto);
+          console.log(`🎯 [AI Agent] Texto reconstruído com ${(textoFormatado.match(/\n/g) || []).length} quebras`);
+          return textoFormatado;
+        }
+        
+        return texto;
+      }
+    }
+  }
+  
+  console.log(`🎯 [AI Agent] Nenhum texto verbatim encontrado`);
+  return null;
+}
+
+// Função auxiliar para reconstruir quebras de linha em texto que perdeu a formatação
+function reconstruirQuebrasDeLinha(texto: string): string {
+  let resultado = texto;
+  
+  // Adicionar quebra de linha antes de emojis que parecem iniciar itens de lista
+  // Mas só se estiverem precedidos por um item anterior completo
+  resultado = resultado.replace(/(\*[^*]+\*|_[^_]+_)\s+(🎹|🇧🇷|📚|📁|⏰|♾️|🎁|🧩|🎧|👥|🔓|✅|👉)/g, '$1\n$2');
+  
+  // Adicionar quebra de linha antes de seções de bônus
+  resultado = resultado.replace(/(\*[^*]+\*)\s+(🎁\s*\*BÔNUS)/g, '$1\n\n$2');
+  
+  // Adicionar quebra de linha antes do CTA final
+  resultado = resultado.replace(/(_Atualizações[^_]*_)\s+(👉)/g, '$1\n\n$2');
+  
+  // Adicionar quebra de linha após o texto introdutório (antes da lista)
+  resultado = resultado.replace(/(resultado profissional:)\s+(🎹)/g, '$1\n\n$2');
+  
+  // Adicionar quebra de linha após texto introdutório do Samplemix
+  resultado = resultado.replace(/(procurando timbres\.)\s+(Com o SAMPLEMIX)/g, '$1\n\n$2');
+  
+  return resultado;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎯 FUNÇÃO PARA DETECTAR PEDIDOS DE FORMATAÇÃO LINHA POR LINHA NO CHAT
+// Detecta quando o cliente pede que a resposta seja formatada com quebras de linha
+// Exemplos: "cada frase em uma linha", "linha por linha", "separado por linha"
+// ═══════════════════════════════════════════════════════════════════════
+interface FormattingRequest {
+  detected: boolean;
+  type: 'line-by-line' | 'compact' | null;
+  matchedPhrase: string | null;
+}
+
+function detectFormattingRequest(conversationHistory: Array<{text?: string | null, fromMe?: boolean}>, newMessageText: string): FormattingRequest {
+  // Juntar todas as mensagens do cliente (não as do agente)
+  const clientMessages = conversationHistory
+    .filter(m => !m.fromMe)
+    .map(m => m.text || '')
+    .concat([newMessageText])
+    .join(' ')
+    .toLowerCase();
+  
+  // Padrões que indicam pedido de formatação LINHA POR LINHA
+  const lineByLinePatterns = [
+    // Padrões mais genéricos (colocados primeiro para máxima captura)
+    /cada\s+um\s+(?:em\s+)?(?:uma\s+)?linha/i,                        // "cada um em uma linha"
+    /um\s+(?:em\s+)?cada\s+linha/i,                                    // "um em cada linha"  
+    /em\s+(?:uma\s+)?linha\s+(?:separada|diferente|própria)/i,        // "em uma linha separada"
+    /(?:cada|um)\s+(?:em\s+)?(?:sua\s+)?(?:própria\s+)?linha/i,       // "cada em sua própria linha"
+    // Padrões específicos
+    /cada\s+(?:frase|item|bene?f[íi]cio|coisa)\s+(?:em\s+)?(?:uma\s+)?linha/i,
+    /linha\s+por\s+linha/i,
+    /separad[oa]\s+por\s+linha/i,
+    /uma\s+(?:frase|coisa|item)\s+(?:por|em\s+cada)\s+linha/i,
+    /em\s+linhas\s+separadas/i,
+    /cada\s+linha\s+(?:separada|individual)/i,
+    /formata(?:r|do|ção)?\s+(?:com\s+)?(?:quebras?\s+de\s+)?linha/i,
+    /(?:pode|quero|gostaria)\s+(?:que\s+)?(?:cada|as)\s+(?:frase|linha)/i,
+    /(?:envia|manda)\s+(?:cada|em)\s+linha/i,
+    /um\s+(?:item|bene?f[íi]cio)\s+por\s+(?:mensagem|linha)/i,
+    /quebra(?:s)?\s+de\s+linha/i,
+    /coloca(?:r)?\s+(?:cada\s+)?(?:um|uma)\s+(?:em\s+)?(?:cada\s+)?linha/i,
+    /linha\s+separada/i,
+  ];
+  
+  // Padrões que indicam pedido de formatação COMPACTA (tudo junto)
+  const compactPatterns = [
+    /tudo\s+junto/i,
+    /sem\s+quebra/i,
+    /texto\s+corrido/i,
+    /parágrafo\s+único/i,
+    /não\s+precisa\s+(?:de\s+)?linha/i,
+  ];
+  
+  // Verificar padrões de linha por linha
+  for (const pattern of lineByLinePatterns) {
+    const match = clientMessages.match(pattern);
+    if (match) {
+      console.log(`🎯 [AI Agent] PEDIDO DE FORMATAÇÃO DETECTADO: linha-por-linha`);
+      console.log(`   Frase detectada: "${match[0]}"`);
+      return { detected: true, type: 'line-by-line', matchedPhrase: match[0] };
+    }
+  }
+  
+  // Verificar padrões de compacto
+  for (const pattern of compactPatterns) {
+    const match = clientMessages.match(pattern);
+    if (match) {
+      console.log(`🎯 [AI Agent] PEDIDO DE FORMATAÇÃO DETECTADO: compacto`);
+      console.log(`   Frase detectada: "${match[0]}"`);
+      return { detected: true, type: 'compact', matchedPhrase: match[0] };
+    }
+  }
+  
+  return { detected: false, type: null, matchedPhrase: null };
+}
+
+// Gerar instrução de formatação para injetar no prompt
+function generateFormattingInstruction(formattingRequest: FormattingRequest): string {
+  if (!formattingRequest.detected) return '';
+  
+  if (formattingRequest.type === 'line-by-line') {
+    return `
+═══════════════════════════════════════════════════════════════════════════════
+🎯 INSTRUÇÃO CRÍTICA DE FORMATAÇÃO (O CLIENTE PEDIU EXPLICITAMENTE!)
+═══════════════════════════════════════════════════════════════════════════════
+
+O cliente PEDIU para você formatar com CADA FRASE EM UMA LINHA SEPARADA.
+Frase detectada: "${formattingRequest.matchedPhrase}"
+
+OBRIGATÓRIO:
+- Coloque CADA item, benefício ou informação em SUA PRÓPRIA LINHA
+- Use quebra de linha entre cada item
+- NÃO coloque múltiplos itens na mesma linha
+- Emojis devem aparecer NO INÍCIO de cada linha
+
+EXEMPLO CORRETO:
+🎹 Produza mais rápido
+🎹 +1000 livrarias de piano
+🇧🇷 Timbres brasileiros
+🔥 Acesso vitalício
+
+EXEMPLO ERRADO (NÃO FAÇA ISSO):
+🎹 Produza mais rápido 🎹 +1000 livrarias 🇧🇷 Timbres brasileiros 🔥 Acesso vitalício
+
+SIGA A PREFERÊNCIA DO CLIENTE!
+═══════════════════════════════════════════════════════════════════════════════
+`;
+  }
+  
+  if (formattingRequest.type === 'compact') {
+    return `
+═══════════════════════════════════════════════════════════════════════════════
+🎯 INSTRUÇÃO DE FORMATAÇÃO (O CLIENTE PEDIU TEXTO COMPACTO)
+═══════════════════════════════════════════════════════════════════════════════
+
+O cliente PEDIU para você enviar texto mais compacto, sem quebras de linha excessivas.
+Frase detectada: "${formattingRequest.matchedPhrase}"
+
+OBRIGATÓRIO:
+- Mantenha o texto em formato de parágrafo corrido
+- Evite quebras de linha entre itens
+- Use vírgulas ou pontos para separar itens
+
+SIGA A PREFERÊNCIA DO CLIENTE!
+═══════════════════════════════════════════════════════════════════════════════
+`;
+  }
+  
+  return '';
+}
+
 export async function generateAIResponse(
   userId: string,
   conversationHistory: Message[],
@@ -538,6 +752,15 @@ export async function generateAIResponse(
     - Responda de forma natural, objetiva e curta (2–5 linhas), com uma ideia por vez.
     - Se não souber, diga que não tem a informação e ofereça alternativa no escopo.
     - Se receber o texto "(mensagem de voz)" ou "(audio)", explique educadamente que não consegue ouvir áudios e peça para o cliente escrever ou enviar texto.
+
+  4. 📋 REGRA CRÍTICA DE FORMATAÇÃO VERBATIM:
+    - Quando o prompt acima disser "envie EXATAMENTE este texto", "primeira mensagem deve ser:" ou similar:
+      → COPIE O TEXTO LITERALMENTE, caractere por caractere
+      → PRESERVE TODAS as quebras de linha (\\n) exatamente como estão
+      → PRESERVE asteriscos (*) e underscores (_) para formatação WhatsApp
+      → PRESERVE emojis na posição exata
+      → NÃO reformule, NÃO resuma, NÃO junte linhas
+      → Cada linha no prompt original = uma linha na sua resposta
   `;
        // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT LEGADO TAMBÉM
        if (mediaPromptBlock) {
@@ -567,6 +790,19 @@ export async function generateAIResponse(
         content: systemPrompt,
       },
      ];
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🎯 DETECTAR PEDIDO DE FORMATAÇÃO DO CLIENTE (linha por linha, compacto, etc)
+    // ═══════════════════════════════════════════════════════════════════════
+    const formattingRequest = detectFormattingRequest(conversationHistory, newMessageText);
+    if (formattingRequest.detected) {
+      const formattingInstruction = generateFormattingInstruction(formattingRequest);
+      messages.push({
+        role: "system",
+        content: formattingInstruction,
+      });
+      console.log(`🎯 [AI Agent] Instrução de formatação "${formattingRequest.type}" injetada no prompt`);
+    }
 
     // 📜 INSTRUÇÃO ESPECIAL QUANDO MODO HISTÓRICO ESTÁ ATIVO
     // Ajuda a IA a entender que deve analisar o contexto completo da conversa
@@ -983,6 +1219,33 @@ Mensagem do cliente: ${newMessageText.trim()}`;
     let responseText = typeof content === 'string' ? content : null;
     let notification: { shouldNotify: boolean; reason: string; } | undefined;
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🎯 VERBATIM TEXT: Se for PRIMEIRA MENSAGEM e tiver texto verbatim no prompt,
+    // USAR O TEXTO VERBATIM DIRETAMENTE ao invés da resposta da IA
+    // Isso GARANTE que a formatação com quebras de linha seja preservada
+    // ═══════════════════════════════════════════════════════════════════════
+    const isFirstMessageInConversation = conversationHistory.length === 0;
+    
+    if (isFirstMessageInConversation) {
+      // Tentar extrair texto verbatim do prompt
+      const promptToCheck = agentConfig?.prompt || '';
+      const verbatimText = extractVerbatimFirstMessage(promptToCheck);
+      
+      if (verbatimText) {
+        console.log(`🎯 [AI Agent] PRIMEIRA MENSAGEM + VERBATIM DETECTADO!`);
+        console.log(`🎯 [AI Agent] Usando texto verbatim diretamente (${verbatimText.length} chars)`);
+        console.log(`🎯 [AI Agent] Quebras de linha preservadas: ${(verbatimText.match(/\n/g) || []).length}`);
+        
+        // USAR O TEXTO VERBATIM DIRETAMENTE - preserva formatação exata
+        responseText = verbatimText;
+        
+        // Log para debug
+        console.log(`🎯 [AI Agent] Texto verbatim:`);
+        console.log(verbatimText);
+        console.log(`🎯 [AI Agent] === FIM TEXTO VERBATIM ===`);
+      }
+    }
+    
     if (responseText) {
       // 🚫 FIX: Detectar e remover duplicação na resposta do Mistral
       // As vezes a API retorna texto 2x separado por \n\n
@@ -1139,8 +1402,8 @@ Mensagem do cliente: ${newMessageText.trim()}`;
         // Usar o texto limpo (sem as tags de mídia)
         if (parsedResponse.messages && parsedResponse.messages.length > 0) {
           responseText = parsedResponse.messages.map(m => m.content).join('\n\n');
-          // Limpar espaços extras que podem sobrar
-          responseText = responseText.replace(/\s+/g, ' ').trim();
+          // Limpar espaços HORIZONTAIS extras que podem sobrar (preservar quebras de linha!)
+          responseText = responseText.replace(/[ \t]+/g, ' ').trim();
         }
         
         if (mediaActions.length > 0) {

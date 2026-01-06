@@ -175,7 +175,16 @@ type Section = 'chat' | 'code' | 'media' | 'config';
 function formatWhatsAppText(text: string): string {
   if (!text) return text;
   
+  // DEBUG: Ver o que está chegando na função
+  console.log('[formatWhatsAppText] Input:', JSON.stringify(text));
+  console.log('[formatWhatsAppText] Contains \\n:', text.includes('\n'));
+  
   let formatted = text;
+  
+  // Preservar quebras de linha convertendo \n para <br>
+  formatted = formatted.replace(/\n/g, '<br>');
+  
+  console.log('[formatWhatsAppText] Output:', formatted.substring(0, 200));
   
   // *texto* = negrito
   formatted = formatted.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
