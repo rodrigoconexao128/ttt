@@ -580,6 +580,97 @@ export const userFollowupLogs = pgTable("user_followup_logs", {
   index("idx_user_followup_logs_user").on(table.userId),
 ]);
 
+// =============================================================================
+// TAGS / ETIQUETAS - Sistema de Etiquetas para Conversas (WhatsApp CRM)
+// =============================================================================
+
+// Tabela de Tags
+export const tags = pgTable("tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // Nome da etiqueta (ex: "Novo cliente", "Pagamento pendente")
+  name: varchar("name", { length: 100 }).notNull(),
+  // Cor da etiqueta (hex color, ex: "#22c55e")
+  color: varchar("color", { length: 20 }).default("#6b7280").notNull(),
+  // Ícone (opcional - nome do ícone lucide)
+  icon: varchar("icon", { length: 50 }),
+  // Se é uma etiqueta padrão do sistema (WhatsApp Business defaults)
+  isDefault: boolean("is_default").default(false).notNull(),
+  // Posição para ordenação
+  position: integer("position").default(0).notNull(),
+  // Descrição opcional da etiqueta
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_tags_user_id").on(table.userId),
+  index("idx_tags_position").on(table.position),
+  // Unique: nome único por usuário
+  uniqueIndex("idx_tags_unique_name").on(table.userId, table.name),
+]);
+
+// Tabela de Relação Tags <-> Conversas (many-to-many)
+export const conversationTags = pgTable("conversation_tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+  tagId: varchar("tag_id").notNull().references(() => tags.id, { onDelete: 'cascade' }),
+  // Quando a tag foi atribuída
+  assignedAt: timestamp("assigned_at").defaultNow(),
+}, (table) => [
+  index("idx_conversation_tags_conversation").on(table.conversationId),
+  index("idx_conversation_tags_tag").on(table.tagId),
+  // Unique: uma tag só pode ser atribuída uma vez por conversa
+  uniqueIndex("idx_conversation_tags_unique").on(table.conversationId, table.tagId),
+]);
+
+// Schemas e types para Tags
+export const insertTagSchema = createInsertSchema(tags).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const tagSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(100),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor inválida").default("#6b7280"),
+  icon: z.string().max(50).optional(),
+  description: z.string().max(500).optional(),
+  position: z.number().int().min(0).default(0),
+});
+
+export type Tag = typeof tags.$inferSelect;
+export type InsertTag = z.infer<typeof insertTagSchema>;
+export type TagInput = z.infer<typeof tagSchema>;
+
+// Schemas e types para ConversationTags
+export const insertConversationTagSchema = createInsertSchema(conversationTags).omit({
+  id: true,
+  assignedAt: true,
+});
+
+export type ConversationTag = typeof conversationTags.$inferSelect;
+export type InsertConversationTag = z.infer<typeof insertConversationTagSchema>;
+
+// Relations para Tags
+export const tagsRelations = relations(tags, ({ one, many }) => ({
+  user: one(users, {
+    fields: [tags.userId],
+    references: [users.id],
+  }),
+  conversationTags: many(conversationTags),
+}));
+
+export const conversationTagsRelations = relations(conversationTags, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [conversationTags.conversationId],
+    references: [conversations.id],
+  }),
+  tag: one(tags, {
+    fields: [conversationTags.tagId],
+    references: [tags.id],
+  }),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   whatsappConnections: many(whatsappConnections),
@@ -620,6 +711,7 @@ export const conversationsRelations = relations(conversations, ({ one, many }) =
     fields: [conversations.id],
     references: [agentDisabledConversations.conversationId],
   }),
+  conversationTags: many(conversationTags),
 }));
 
 export const messagesRelations = relations(messages, ({ one }) => ({

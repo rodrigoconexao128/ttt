@@ -18,6 +18,8 @@ import {
   adminMessages,
   adminAgentMedia,
   coupons,
+  tags,
+  conversationTags,
   type User,
   type UpsertUser,
   type WhatsappConnection,
@@ -48,6 +50,10 @@ import {
   type InsertAdminAgentMedia,
   type Coupon,
   type InsertCoupon,
+  type Tag,
+  type InsertTag,
+  type ConversationTag,
+  type InsertConversationTag,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray } from "drizzle-orm";
@@ -2519,6 +2525,219 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return newRecord.simulatorMessagesCount;
+  }
+
+  // ============================================================================
+  // TAGS / ETIQUETAS - CRUD Operations
+  // ============================================================================
+
+  /**
+   * Obtém todas as tags de um usuário
+   */
+  async getTagsByUserId(userId: string): Promise<Tag[]> {
+    return await db
+      .select()
+      .from(tags)
+      .where(eq(tags.userId, userId))
+      .orderBy(tags.position, tags.name);
+  }
+
+  /**
+   * Obtém uma tag por ID
+   */
+  async getTag(id: string): Promise<Tag | undefined> {
+    const [tag] = await db
+      .select()
+      .from(tags)
+      .where(eq(tags.id, id));
+    return tag;
+  }
+
+  /**
+   * Cria uma nova tag
+   */
+  async createTag(tagData: InsertTag): Promise<Tag> {
+    const [newTag] = await db
+      .insert(tags)
+      .values(tagData)
+      .returning();
+    return newTag;
+  }
+
+  /**
+   * Atualiza uma tag existente
+   */
+  async updateTag(id: string, data: Partial<InsertTag>): Promise<Tag> {
+    const [updated] = await db
+      .update(tags)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(tags.id, id))
+      .returning();
+    return updated;
+  }
+
+  /**
+   * Deleta uma tag e remove todas as associações
+   */
+  async deleteTag(id: string): Promise<void> {
+    await db.delete(tags).where(eq(tags.id, id));
+  }
+
+  /**
+   * Cria tags padrão do WhatsApp Business para um usuário
+   */
+  async createDefaultTags(userId: string): Promise<Tag[]> {
+    const defaultTags = [
+      { name: "Novo cliente", color: "#22c55e", icon: "user-plus", position: 0, isDefault: true },
+      { name: "Novo pedido", color: "#eab308", icon: "shopping-bag", position: 1, isDefault: true },
+      { name: "Pagamento pendente", color: "#f97316", icon: "clock", position: 2, isDefault: true },
+      { name: "Pago", color: "#3b82f6", icon: "check-circle", position: 3, isDefault: true },
+      { name: "Pedido finalizado", color: "#ef4444", icon: "package", position: 4, isDefault: true },
+      { name: "VIP", color: "#a855f7", icon: "star", position: 5, isDefault: true },
+    ];
+
+    const createdTags: Tag[] = [];
+    for (const tagData of defaultTags) {
+      try {
+        const [newTag] = await db
+          .insert(tags)
+          .values({ ...tagData, userId })
+          .onConflictDoNothing()
+          .returning();
+        if (newTag) createdTags.push(newTag);
+      } catch (error) {
+        // Ignora duplicatas
+        console.log(`Tag "${tagData.name}" já existe para o usuário`);
+      }
+    }
+    return createdTags;
+  }
+
+  // ============================================================================
+  // CONVERSATION TAGS - Associação de Tags a Conversas
+  // ============================================================================
+
+  /**
+   * Obtém todas as tags de uma conversa
+   */
+  async getConversationTags(conversationId: string): Promise<Tag[]> {
+    const result = await db
+      .select({
+        tag: tags,
+      })
+      .from(conversationTags)
+      .innerJoin(tags, eq(conversationTags.tagId, tags.id))
+      .where(eq(conversationTags.conversationId, conversationId));
+    
+    return result.map(r => r.tag);
+  }
+
+  /**
+   * Obtém conversas filtradas por tag
+   */
+  async getConversationsByTag(tagId: string, connectionId: string): Promise<Conversation[]> {
+    const result = await db
+      .select({
+        conversation: conversations,
+      })
+      .from(conversationTags)
+      .innerJoin(conversations, eq(conversationTags.conversationId, conversations.id))
+      .where(
+        and(
+          eq(conversationTags.tagId, tagId),
+          eq(conversations.connectionId, connectionId)
+        )
+      )
+      .orderBy(desc(conversations.lastMessageTime));
+    
+    return result.map(r => r.conversation);
+  }
+
+  /**
+   * Adiciona uma tag a uma conversa
+   */
+  async addTagToConversation(conversationId: string, tagId: string): Promise<ConversationTag> {
+    const [result] = await db
+      .insert(conversationTags)
+      .values({ conversationId, tagId })
+      .onConflictDoNothing()
+      .returning();
+    return result;
+  }
+
+  /**
+   * Remove uma tag de uma conversa
+   */
+  async removeTagFromConversation(conversationId: string, tagId: string): Promise<void> {
+    await db
+      .delete(conversationTags)
+      .where(
+        and(
+          eq(conversationTags.conversationId, conversationId),
+          eq(conversationTags.tagId, tagId)
+        )
+      );
+  }
+
+  /**
+   * Atualiza todas as tags de uma conversa (substitui as existentes)
+   */
+  async setConversationTags(conversationId: string, tagIds: string[]): Promise<void> {
+    // Remove todas as tags existentes
+    await db
+      .delete(conversationTags)
+      .where(eq(conversationTags.conversationId, conversationId));
+    
+    // Adiciona as novas tags
+    if (tagIds.length > 0) {
+      await db
+        .insert(conversationTags)
+        .values(tagIds.map(tagId => ({ conversationId, tagId })))
+        .onConflictDoNothing();
+    }
+  }
+
+  /**
+   * Obtém conversas com suas tags para um connectionId
+   */
+  async getConversationsWithTags(connectionId: string): Promise<(Conversation & { tags: Tag[] })[]> {
+    // Busca todas as conversas
+    const allConversations = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.connectionId, connectionId))
+      .orderBy(desc(conversations.lastMessageTime));
+    
+    // Busca todas as tags associadas
+    const conversationIds = allConversations.map(c => c.id);
+    
+    if (conversationIds.length === 0) {
+      return [];
+    }
+
+    const allTags = await db
+      .select({
+        conversationId: conversationTags.conversationId,
+        tag: tags,
+      })
+      .from(conversationTags)
+      .innerJoin(tags, eq(conversationTags.tagId, tags.id))
+      .where(inArray(conversationTags.conversationId, conversationIds));
+    
+    // Agrupa tags por conversa
+    const tagsByConversation = new Map<string, Tag[]>();
+    for (const { conversationId, tag } of allTags) {
+      if (!tagsByConversation.has(conversationId)) {
+        tagsByConversation.set(conversationId, []);
+      }
+      tagsByConversation.get(conversationId)!.push(tag);
+    }
+    
+    // Combina conversas com suas tags
+    return allConversations.map(conv => ({
+      ...conv,
+      tags: tagsByConversation.get(conv.id) || [],
+    }));
   }
 }
 

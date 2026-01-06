@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, MessageCircle, Smartphone, X } from "lucide-react";
+import { Search, MessageCircle, Smartphone, X, Tags, Filter } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@shared/schema";
@@ -15,6 +15,30 @@ import {
   DialogContent,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import { TagBadges, ConversationTagsModal } from "./conversation-tags";
+
+// Tag interface
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  icon?: string | null;
+  isDefault: boolean;
+  position: number;
+}
+
+// Conversation with tags
+interface ConversationWithTags extends Conversation {
+  tags?: Tag[];
+}
 
 interface ConversationsListProps {
   connectionId?: string;
@@ -32,11 +56,34 @@ export function ConversationsList({
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   const [avatarModalImage, setAvatarModalImage] = useState<string | null>(null);
   const [avatarModalName, setAvatarModalName] = useState<string>("");
+  
+  // Tag filter states
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
+  const [tagModalOpen, setTagModalOpen] = useState(false);
+  const [tagModalConversationId, setTagModalConversationId] = useState<string>("");
+  const [tagModalCurrentTags, setTagModalCurrentTags] = useState<Tag[]>([]);
 
-  const { data: conversations = [], isLoading } = useQuery<Conversation[]>({
-    queryKey: ["/api/conversations"],
+  // Buscar conversas com tags
+  const { data: conversationsWithTags = [], isLoading } = useQuery<ConversationWithTags[]>({
+    queryKey: ["/api/conversations-with-tags", selectedTagFilter],
+    queryFn: async () => {
+      const url = selectedTagFilter 
+        ? `/api/conversations-with-tags?tagId=${selectedTagFilter}`
+        : "/api/conversations-with-tags";
+      const response = await fetch(url, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch conversations");
+      return response.json();
+    },
     enabled: !!connectionId,
-    refetchInterval: 5000, // Refetch a cada 5 segundos como fallback
+    refetchInterval: 5000,
+  });
+  
+  // Buscar tags disponíveis para filtro
+  const { data: availableTags = [] } = useQuery<Tag[]>({
+    queryKey: ["/api/tags"],
+    enabled: !!connectionId,
   });
 
   // WebSocket para atualização em tempo real
@@ -75,7 +122,7 @@ export function ConversationsList({
 
             // Atualizar lista de conversas quando receber nova mensagem
             if (data.type === "new_message" || data.type === "agent_response") {
-              queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
             }
           } catch (error) {
             console.error("Erro ao processar mensagem WebSocket:", error);
@@ -107,21 +154,10 @@ export function ConversationsList({
   }, [connectionId]);
 
   // Filtrar conversas de grupos e status no frontend (camada extra de segurança)
-  const individualConversations = conversations.filter((conv) => {
-    // Ignorar conversas que parecem ser de grupos ou status
-    // Grupos geralmente têm contactNumber muito longo ou com padrões específicos
+  const individualConversations = conversationsWithTags.filter((conv) => {
     const number = conv.contactNumber;
-
-    // Filtro básico: número deve ter entre 10-15 dígitos (típico de números de telefone)
-    if (number.length < 10 || number.length > 15) {
-      return false;
-    }
-
-    // Filtro adicional: evitar números que começam com padrões de grupo/broadcast
-    if (number.startsWith("120") || number.startsWith("status")) {
-      return false;
-    }
-
+    if (number.length < 10 || number.length > 15) return false;
+    if (number.startsWith("120") || number.startsWith("status")) return false;
     return true;
   });
 
@@ -139,10 +175,70 @@ export function ConversationsList({
     );
   });
 
+  const openTagModal = (conv: ConversationWithTags, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTagModalConversationId(conv.id);
+    setTagModalCurrentTags(conv.tags || []);
+    setTagModalOpen(true);
+  };
+
+  const handleTagsUpdated = (updatedTags: Tag[]) => {
+    queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
+  };
+
+  const activeFilterTag = availableTags.find(t => t.id === selectedTagFilter);
+
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 md:p-4 border-b space-y-3 md:space-y-4 flex-shrink-0">
-        <h2 className="font-semibold text-lg">Conversas</h2>
+      <div className="p-3 md:p-4 border-b space-y-3 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-lg">Conversas</h2>
+          {/* Dropdown de filtro por tag */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant={selectedTagFilter ? "default" : "ghost"} 
+                size="icon" 
+                className="h-8 w-8"
+                style={activeFilterTag ? {
+                  backgroundColor: activeFilterTag.color,
+                  borderColor: activeFilterTag.color,
+                } : undefined}
+              >
+                <Filter className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Filtrar por Etiqueta</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={selectedTagFilter === null}
+                onCheckedChange={() => setSelectedTagFilter(null)}
+              >
+                <span className="font-medium">Todas as conversas</span>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              {availableTags.map(tag => (
+                <DropdownMenuCheckboxItem
+                  key={tag.id}
+                  checked={selectedTagFilter === tag.id}
+                  onCheckedChange={() => setSelectedTagFilter(
+                    selectedTagFilter === tag.id ? null : tag.id
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: tag.color }}
+                    />
+                    <span>{tag.name}</span>
+                  </div>
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -150,10 +246,33 @@ export function ConversationsList({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
-            style={{ fontSize: '16px' }} // Prevent iOS zoom
+            style={{ fontSize: '16px' }}
             data-testid="input-search-conversations"
           />
         </div>
+        
+        {/* Indicador de filtro ativo */}
+        {selectedTagFilter && activeFilterTag && (
+          <div className="flex items-center gap-2">
+            <Badge
+              style={{ 
+                backgroundColor: `${activeFilterTag.color}20`,
+                color: activeFilterTag.color,
+                borderColor: activeFilterTag.color
+              }}
+              variant="outline"
+              className="cursor-pointer"
+              onClick={() => setSelectedTagFilter(null)}
+            >
+              <Tags className="w-3 h-3 mr-1" />
+              {activeFilterTag.name}
+              <X className="w-3 h-3 ml-1" />
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              Filtro ativo
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
@@ -186,16 +305,28 @@ export function ConversationsList({
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <MessageCircle className="w-12 h-12 text-muted-foreground mb-4" />
             <h3 className="font-medium text-sm mb-2">
-              {searchQuery ? "Nenhuma conversa encontrada" : "Nenhuma conversa"}
+              {searchQuery || selectedTagFilter ? "Nenhuma conversa encontrada" : "Nenhuma conversa"}
             </h3>
             <p className="text-xs text-muted-foreground max-w-xs">
-              {searchQuery
+              {searchQuery 
                 ? "Tente buscar por outro termo"
-                : "As conversas aparecerão aqui quando você receber mensagens"}
+                : selectedTagFilter 
+                  ? "Nenhuma conversa com esta etiqueta"
+                  : "As conversas aparecerão aqui quando você receber mensagens"}
             </p>
+            {selectedTagFilter && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() => setSelectedTagFilter(null)}
+              >
+                Limpar filtro
+              </Button>
+            )}
           </div>
-      ) : (
-        <div className="divide-y" data-testid="list-conversations">
+        ) : (
+          <div className="divide-y" data-testid="list-conversations">
             {filteredConversations.map((conversation) => {
               const displayNumber =
                 conversation.contactNumber ||
@@ -203,73 +334,87 @@ export function ConversationsList({
                 "?";
 
               return (
-              <button
-                key={conversation.id}
-                onClick={() => onSelectConversation(conversation.id)}
-                className={`w-full p-3 md:p-4 text-left hover-elevate active-elevate-2 transition-colors touch-manipulation ${
-                  selectedConversationId === conversation.id
-                    ? "bg-sidebar-accent"
-                    : ""
-                }`}
-                data-testid={`conversation-item-${conversation.id}`}
-              >
-                <div className="flex items-start gap-3">
-                  <Avatar className="w-11 h-11 md:w-12 md:h-12 flex-shrink-0">
-                    {conversation.contactAvatar ? (
-                      <img 
-                        src={conversation.contactAvatar} 
-                        alt={conversation.contactName || displayNumber}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          // Fallback para inicial se imagem falhar
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                        }}
-                      />
-                    ) : null}
-                    <AvatarFallback 
-                      className={`bg-primary/10 text-primary font-semibold ${conversation.contactAvatar ? 'hidden' : ''}`}
-                    >
-                      {conversation.contactName
-                        ? conversation.contactName.charAt(0).toUpperCase()
-                        : displayNumber.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <h3 className="font-semibold text-sm truncate">
-                        {conversation.contactName ||
-                          displayNumber}
-                      </h3>
-                      {conversation.lastMessageTime && (
-                        <span className="text-xs text-muted-foreground flex-shrink-0">
-                          {formatDistanceToNow(
-                            new Date(conversation.lastMessageTime),
-                            {
-                              addSuffix: true,
-                              locale: ptBR,
-                            },
+                <button
+                  key={conversation.id}
+                  onClick={() => onSelectConversation(conversation.id)}
+                  className={`w-full p-3 md:p-4 text-left hover-elevate active-elevate-2 transition-colors touch-manipulation ${
+                    selectedConversationId === conversation.id
+                      ? "bg-sidebar-accent"
+                      : ""
+                  }`}
+                  data-testid={`conversation-item-${conversation.id}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <Avatar className="w-11 h-11 md:w-12 md:h-12 flex-shrink-0">
+                      {conversation.contactAvatar ? (
+                        <img 
+                          src={conversation.contactAvatar} 
+                          alt={conversation.contactName || displayNumber}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <AvatarFallback 
+                        className={`bg-primary/10 text-primary font-semibold ${conversation.contactAvatar ? 'hidden' : ''}`}
+                      >
+                        {conversation.contactName
+                          ? conversation.contactName.charAt(0).toUpperCase()
+                          : displayNumber.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <h3 className="font-semibold text-sm truncate">
+                          {conversation.contactName || displayNumber}
+                        </h3>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {conversation.lastMessageTime && (
+                            <span className="text-xs text-muted-foreground">
+                              {formatDistanceToNow(
+                                new Date(conversation.lastMessageTime),
+                                { addSuffix: true, locale: ptBR }
+                              )}
+                            </span>
                           )}
-                        </span>
+                          {/* Botão de tag */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-60 hover:opacity-100"
+                            onClick={(e) => openTagModal(conversation, e)}
+                          >
+                            <Tags className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {/* Tags da conversa */}
+                      {conversation.tags && conversation.tags.length > 0 && (
+                        <div className="mb-1">
+                          <TagBadges tags={conversation.tags} maxVisible={3} size="sm" />
+                        </div>
                       )}
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground truncate">
-                        {conversation.lastMessageText || "Sem mensagens"}
-                      </p>
-                      {conversation.unreadCount > 0 && (
-                        <Badge
-                          variant="default"
-                          className="flex-shrink-0 h-5 min-w-5 px-1.5 text-xs"
-                          data-testid={`badge-unread-${conversation.id}`}
-                        >
-                          {conversation.unreadCount}
-                        </Badge>
-                      )}
+                      
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs text-muted-foreground truncate">
+                          {conversation.lastMessageText || "Sem mensagens"}
+                        </p>
+                        {conversation.unreadCount > 0 && (
+                          <Badge
+                            variant="default"
+                            className="flex-shrink-0 h-5 min-w-5 px-1.5 text-xs"
+                            data-testid={`badge-unread-${conversation.id}`}
+                          >
+                            {conversation.unreadCount}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </button>
+                </button>
               );
             })}
           </div>
@@ -295,6 +440,15 @@ export function ConversationsList({
           )}
         </DialogContent>
       </Dialog>
+      
+      {/* Modal de tags da conversa */}
+      <ConversationTagsModal
+        open={tagModalOpen}
+        onOpenChange={setTagModalOpen}
+        conversationId={tagModalConversationId}
+        currentTags={tagModalCurrentTags}
+        onTagsUpdated={handleTagsUpdated}
+      />
     </div>
   );
 }

@@ -1254,6 +1254,260 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== TAGS / ETIQUETAS ====================
+
+  // GET - Listar todas as tags do usuário
+  app.get("/api/tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      let userTags = await storage.getTagsByUserId(userId);
+      
+      // Se o usuário não tem tags, cria as tags padrão
+      if (userTags.length === 0) {
+        userTags = await storage.createDefaultTags(userId);
+      }
+      
+      res.json(userTags);
+    } catch (error) {
+      console.error("Error fetching tags:", error);
+      res.status(500).json({ message: "Failed to fetch tags" });
+    }
+  });
+
+  // POST - Criar uma nova tag
+  app.post("/api/tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, color, icon, description, position } = req.body;
+      
+      if (!name || name.trim().length === 0) {
+        return res.status(400).json({ message: "Nome da etiqueta é obrigatório" });
+      }
+      
+      const tag = await storage.createTag({
+        userId,
+        name: name.trim(),
+        color: color || "#6b7280",
+        icon: icon || null,
+        description: description || null,
+        position: position || 0,
+        isDefault: false,
+      });
+      
+      res.status(201).json(tag);
+    } catch (error: any) {
+      console.error("Error creating tag:", error);
+      if (error.code === '23505') { // Unique violation
+        return res.status(400).json({ message: "Já existe uma etiqueta com este nome" });
+      }
+      res.status(500).json({ message: "Failed to create tag" });
+    }
+  });
+
+  // PUT - Atualizar uma tag
+  app.put("/api/tags/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { name, color, icon, description, position } = req.body;
+      
+      // Verifica se a tag pertence ao usuário
+      const existingTag = await storage.getTag(id);
+      if (!existingTag || existingTag.userId !== userId) {
+        return res.status(404).json({ message: "Tag not found" });
+      }
+      
+      const updatedData: any = {};
+      if (name !== undefined) updatedData.name = name.trim();
+      if (color !== undefined) updatedData.color = color;
+      if (icon !== undefined) updatedData.icon = icon;
+      if (description !== undefined) updatedData.description = description;
+      if (position !== undefined) updatedData.position = position;
+      
+      const tag = await storage.updateTag(id, updatedData);
+      res.json(tag);
+    } catch (error: any) {
+      console.error("Error updating tag:", error);
+      if (error.code === '23505') {
+        return res.status(400).json({ message: "Já existe uma etiqueta com este nome" });
+      }
+      res.status(500).json({ message: "Failed to update tag" });
+    }
+  });
+
+  // DELETE - Deletar uma tag
+  app.delete("/api/tags/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      // Verifica se a tag pertence ao usuário
+      const existingTag = await storage.getTag(id);
+      if (!existingTag || existingTag.userId !== userId) {
+        return res.status(404).json({ message: "Tag not found" });
+      }
+      
+      await storage.deleteTag(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting tag:", error);
+      res.status(500).json({ message: "Failed to delete tag" });
+    }
+  });
+
+  // ==================== CONVERSATION TAGS ====================
+
+  // GET - Obter tags de uma conversa específica
+  app.get("/api/conversations/:conversationId/tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { conversationId } = req.params;
+      
+      // Verifica se a conversa pertence ao usuário
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      const conversationTagsList = await storage.getConversationTags(conversationId);
+      res.json(conversationTagsList);
+    } catch (error) {
+      console.error("Error fetching conversation tags:", error);
+      res.status(500).json({ message: "Failed to fetch conversation tags" });
+    }
+  });
+
+  // PUT - Atualizar tags de uma conversa (substitui todas)
+  app.put("/api/conversations/:conversationId/tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { conversationId } = req.params;
+      const { tagIds } = req.body;
+      
+      // Verifica se a conversa pertence ao usuário
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      // Verifica se todas as tags pertencem ao usuário
+      const userTags = await storage.getTagsByUserId(userId);
+      const userTagIds = new Set(userTags.map(t => t.id));
+      const validTagIds = (tagIds || []).filter((id: string) => userTagIds.has(id));
+      
+      await storage.setConversationTags(conversationId, validTagIds);
+      
+      const updatedTags = await storage.getConversationTags(conversationId);
+      res.json(updatedTags);
+    } catch (error) {
+      console.error("Error updating conversation tags:", error);
+      res.status(500).json({ message: "Failed to update conversation tags" });
+    }
+  });
+
+  // POST - Adicionar uma tag a uma conversa
+  app.post("/api/conversations/:conversationId/tags/:tagId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { conversationId, tagId } = req.params;
+      
+      // Verifica se a conversa pertence ao usuário
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      // Verifica se a tag pertence ao usuário
+      const tag = await storage.getTag(tagId);
+      if (!tag || tag.userId !== userId) {
+        return res.status(404).json({ message: "Tag not found" });
+      }
+      
+      await storage.addTagToConversation(conversationId, tagId);
+      
+      const updatedTags = await storage.getConversationTags(conversationId);
+      res.json(updatedTags);
+    } catch (error) {
+      console.error("Error adding tag to conversation:", error);
+      res.status(500).json({ message: "Failed to add tag to conversation" });
+    }
+  });
+
+  // DELETE - Remover uma tag de uma conversa
+  app.delete("/api/conversations/:conversationId/tags/:tagId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { conversationId, tagId } = req.params;
+      
+      // Verifica se a conversa pertence ao usuário
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      await storage.removeTagFromConversation(conversationId, tagId);
+      
+      const updatedTags = await storage.getConversationTags(conversationId);
+      res.json(updatedTags);
+    } catch (error) {
+      console.error("Error removing tag from conversation:", error);
+      res.status(500).json({ message: "Failed to remove tag from conversation" });
+    }
+  });
+
+  // GET - Obter conversas com suas tags (para listagem com filtro)
+  app.get("/api/conversations-with-tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { tagId } = req.query;
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.json([]);
+      }
+      
+      // Se tem filtro por tag, busca apenas conversas com essa tag
+      if (tagId) {
+        const conversations = await storage.getConversationsByTag(tagId, connection.id);
+        // Adiciona as tags a cada conversa
+        const conversationsWithTags = await Promise.all(
+          conversations.map(async (conv) => ({
+            ...conv,
+            tags: await storage.getConversationTags(conv.id),
+          }))
+        );
+        return res.json(conversationsWithTags);
+      }
+      
+      // Sem filtro, retorna todas as conversas com suas tags
+      const conversationsWithTags = await storage.getConversationsWithTags(connection.id);
+      res.json(conversationsWithTags);
+    } catch (error) {
+      console.error("Error fetching conversations with tags:", error);
+      res.status(500).json({ message: "Failed to fetch conversations with tags" });
+    }
+  });
+
   // ==================== AUTO-TRANSCRIPTION ====================
   
   // POST - Auto-transcribe all untranscribed audios in a conversation
