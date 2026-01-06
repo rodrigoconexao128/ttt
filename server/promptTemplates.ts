@@ -97,7 +97,13 @@ Personalidade: {{PERSONALIDADE}}
 {{POLITICAS}}
 
 ═══════════════════════════════════════════════════════════
-🚧 LIMITES E GUARDRAILS
+� INSTRUÇÕES PERSONALIZADAS (DO CLIENTE)
+═══════════════════════════════════════════════════════════
+
+{{INSTRUCOES_PERSONALIZADAS}}
+
+═══════════════════════════════════════════════════════════
+�🚧 LIMITES E GUARDRAILS
 ═══════════════════════════════════════════════════════════
 
 ✅ TÓPICOS PERMITIDOS (você pode responder sobre):
@@ -313,6 +319,7 @@ export interface PromptContext {
   conversationHistory?: Array<{ role: string; content: string }>;
   currentTime?: Date;
   previousTopics?: string[];
+  customInstructions?: string; // 🔥 Injeção do prompt legado/customizado
 }
 
 export function generateSystemPrompt(
@@ -340,6 +347,13 @@ export function generateSystemPrompt(
 
   const policiesFormatted = formatPolicies(config.policies as any || {});
   prompt = prompt.replace(/{{POLITICAS}}/g, policiesFormatted ? `📋 *POLÍTICAS:*\n${policiesFormatted}` : "");
+
+  // Custom Instructions Layer
+  const customInstructions = context?.customInstructions || "";
+  if (customInstructions) {
+     console.log(`📝 [PromptTemplate] Injecting ${customInstructions.length} chars of custom instructions`);
+  }
+  prompt = prompt.replace(/{{INSTRUCOES_PERSONALIZADAS}}/g, customInstructions ? customInstructions : "Siga as diretrizes padrão da empresa.");
 
   // Guardrails Layer
   prompt = prompt.replace(/{{TOPICOS_PERMITIDOS}}/g, formatTopicList(config.allowedTopics || []));

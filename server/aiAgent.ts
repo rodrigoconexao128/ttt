@@ -705,6 +705,9 @@ export async function generateAIResponse(
            content: m.text || "",
          })),
          currentTime: new Date(),
+         // 🔥 INJETAR PROMPT LEGADO COMO INSTRUÇÃO PERSONALIZADA
+         // Isso garante que edições manuais no prompt sejam respeitadas mesmo no modo avançado
+         customInstructions: agentConfig?.prompt || ""
        };
        
        systemPrompt = generateSystemPrompt(businessConfig, promptContext);

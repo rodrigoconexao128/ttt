@@ -65,77 +65,17 @@ REGRAS:
 5. Use múltiplas edições pequenas (2-5) ao invés de reescrever seções grandes
 6. A resposta_chat deve ser natural, como se você estivesse conversando com o usuário
 
-⚠️ REGRA ESPECIAL - TEXTO VERBATIM:
-Quando o usuário fornecer um texto formatado com emojis, quebras de linha, asteriscos (*) ou underscores (_),
-você DEVE copiar esse texto LITERALMENTE como o valor "substituir", sem modificar nada.
-Não melhore, não reformate, não altere emojis ou formatação. COPIE EXATAMENTE.
-
 EXEMPLOS DE EDIÇÃO:
 - Mudar nome: {"buscar": "Carlos", "substituir": "Roberto"}
 - Mudar tom: {"buscar": "Olá, bom dia!", "substituir": "E aí! 🔥"}
 - Adicionar info: {"buscar": "Nosso horário é das 9h às 18h.", "substituir": "Nosso horário é das 9h às 18h. Também atendemos aos sábados!"}
 - Remover algo: {"buscar": "Texto para remover.", "substituir": ""}
-- TEXTO VERBATIM: Se o usuário diz "a primeira mensagem deve ser: 🎹 Olá! *negrito*", use:
-  {"buscar": "[texto existente da primeira mensagem]", "substituir": "🎹 Olá! *negrito*"}
 
 IMPORTANTE:
 - Copie o texto EXATAMENTE como aparece no documento (incluindo pontuação, espaços, emojis)
 - Nunca invente texto que não existe no documento
 - Se não encontrar algo para editar, use operacao="nenhuma" e explique
-- Seja criativo e proativo nas sugestões
-- Quando o usuário disser "exatamente assim", "assim:", "dessa forma:" - COPIE LITERALMENTE o texto fornecido`;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// FUNÇÃO DE DETECÇÃO DE TEXTO VERBATIM
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Detecta se a instrução contém texto verbatim que deve ser copiado literalmente
- * Preserva TODAS as quebras de linha e formatação do texto original
- * Retorna o texto verbatim se encontrado, ou null
- */
-function detectarTextoVerbatim(instrucao: string): { textoVerbatim: string; tipoEdicao: string } | null {
-  // Padrões que indicam texto verbatim - captura TUDO após o padrão
-  const padroesVerbatim = [
-    // "faça com que sempre a primeira mensagem escreva assim:" + texto
-    /(?:fa[çc]a com que|quero que)[\s\S]*?(?:assim|seja)[:\s]*\n([\s\S]+)$/i,
-    // "primeira mensagem deve ser assim:" + texto  
-    /(?:primeira mensagem|mensagem inicial)[\s\S]*?(?:assim|seja|exatamente|literalmente)?[:\s]*\n([\s\S]+)$/i,
-    // "escreva/mande/envie assim:" + texto
-    /(?:escreva|mande|envie)\s+(?:assim|exatamente|literalmente)[:\s]*\n([\s\S]+)$/i,
-    // "sempre envie/mande assim:" + texto
-    /sempre\s+(?:envie|mande|escreva)[\s\S]*?[:\s]*\n([\s\S]+)$/i,
-  ];
-  
-  for (const padrao of padroesVerbatim) {
-    const match = instrucao.match(padrao);
-    if (match && match[1]) {
-      // Preserva o texto EXATAMENTE como foi enviado, incluindo todas as quebras de linha
-      const textoCapturado = match[1].trimEnd(); // Só remove espaços no final, preserva \n
-      
-      // Verifica se tem formatação típica de mensagem (emojis, asteriscos, quebras de linha)
-      const temEmojis = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]/u.test(textoCapturado);
-      const temFormatacao = textoCapturado.includes('*') || textoCapturado.includes('_');
-      const temQuebrasLinha = textoCapturado.includes('\n');
-      
-      console.log(`[EditService] 📝 Texto verbatim detectado:`);
-      console.log(`[EditService]   - Tamanho: ${textoCapturado.length} chars`);
-      console.log(`[EditService]   - Tem emojis: ${temEmojis}`);
-      console.log(`[EditService]   - Tem formatação (*/_): ${temFormatacao}`);
-      console.log(`[EditService]   - Tem quebras de linha: ${temQuebrasLinha}`);
-      console.log(`[EditService]   - Número de linhas: ${textoCapturado.split('\n').length}`);
-      
-      if (textoCapturado.length > 30 && (temEmojis || temFormatacao || temQuebrasLinha)) {
-        return {
-          textoVerbatim: textoCapturado,
-          tipoEdicao: 'primeira_mensagem'
-        };
-      }
-    }
-  }
-  
-  return null;
-}
+- Seja criativo e proativo nas sugestões`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FUNÇÃO PRINCIPAL: Editar Prompt via IA
@@ -155,78 +95,6 @@ export async function editarPromptViaIA(
   console.log(`[EditService] Modelo: ${modelo}`);
   console.log(`[EditService] API Key type: ${typeof apiKey}`);
   console.log(`[EditService] API Key length: ${apiKeyStr.length}`);
-  
-  // ═══════════════════════════════════════════════════════════════════════════
-  // DETECÇÃO DE TEXTO VERBATIM - Bypass da IA para textos exatos
-  // ═══════════════════════════════════════════════════════════════════════════
-  const verbatimDetectado = detectarTextoVerbatim(instrucaoUsuario);
-  
-  if (verbatimDetectado) {
-    console.log(`[EditService] 🎯 TEXTO VERBATIM DETECTADO! Aplicando diretamente...`);
-    console.log(`[EditService] Tipo: ${verbatimDetectado.tipoEdicao}`);
-    console.log(`[EditService] Texto (primeiros 100 chars): ${verbatimDetectado.textoVerbatim.substring(0, 100)}...`);
-    
-    // Procura o marcador de primeira mensagem no prompt atual
-    const marcadoresPrimeiraMensagem = [
-      /Sempre na primeira mensagem[^:]*:\s*([\s\S]*?)(?=\n\nApós|$)/i,
-      /primeira mensagem[^:]*envie[^:]*:\s*([\s\S]*?)(?=\n\nApós|$)/i,
-      /MENSAGEM INICIAL[^:]*:\s*([\s\S]*?)(?=\n\n|$)/i,
-    ];
-    
-    let textoAntigo: string | null = null;
-    
-    for (const marcador of marcadoresPrimeiraMensagem) {
-      const match = promptAtual.match(marcador);
-      if (match && match[1]) {
-        textoAntigo = match[0]; // Pega todo o match incluindo o prefixo
-        break;
-      }
-    }
-    
-    if (textoAntigo) {
-      // Constrói o novo texto mantendo o prefixo
-      const novoTexto = `Sempre na primeira mensagem ao responder o cliente, envie EXATAMENTE este texto (com formatação e emojis):\n${verbatimDetectado.textoVerbatim}`;
-      
-      const novoPrompt = promptAtual.replace(textoAntigo, novoTexto);
-      
-      if (novoPrompt !== promptAtual) {
-        return {
-          success: true,
-          novoPrompt,
-          mensagemChat: "✅ Apliquei o texto exatamente como você enviou! A primeira mensagem agora está configurada com a formatação correta.",
-          edicoesAplicadas: 1,
-          edicoesFalharam: 0,
-          detalhes: [{
-            buscar: textoAntigo.substring(0, 100) + "...",
-            substituir: novoTexto.substring(0, 100) + "...",
-            status: "aplicada",
-            matchType: "exato"
-          }]
-        };
-      }
-    }
-    
-    // Se não encontrou marcador, adiciona no final do prompt
-    const novoPrompt = promptAtual + `\n\nSempre na primeira mensagem ao responder o cliente, envie EXATAMENTE este texto (com formatação e emojis):\n${verbatimDetectado.textoVerbatim}`;
-    
-    return {
-      success: true,
-      novoPrompt,
-      mensagemChat: "✅ Adicionei a primeira mensagem exatamente como você enviou! O agente vai usar esse texto formatado.",
-      edicoesAplicadas: 1,
-      edicoesFalharam: 0,
-      detalhes: [{
-        buscar: "[final do prompt]",
-        substituir: verbatimDetectado.textoVerbatim.substring(0, 100) + "...",
-        status: "aplicada",
-        matchType: "exato"
-      }]
-    };
-  }
-  
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FLUXO NORMAL - Usa IA para edições
-  // ═══════════════════════════════════════════════════════════════════════════
   
   // Configura cliente baseado no modelo
   const client = new OpenAI({

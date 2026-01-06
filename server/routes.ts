@@ -1283,8 +1283,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const messages = await storage.getMessagesByConversationId(conversationId);
-      res.json(messages);
+      const afterRaw = (req.query?.after as string | undefined) || undefined;
+      const limitRaw = (req.query?.limit as string | undefined) || undefined;
+
+      if (afterRaw) {
+        const afterDate = new Date(afterRaw);
+        if (Number.isNaN(afterDate.getTime())) {
+          return res.status(400).json({ message: "Invalid 'after' timestamp" });
+        }
+
+        const parsedLimit = limitRaw ? Number.parseInt(limitRaw, 10) : 500;
+        const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(parsedLimit, 2000)) : 500;
+
+        const newer = await storage.getMessagesByConversationIdAfter(conversationId, afterDate, limit);
+        return res.json(newer);
+      }
+
+      const allMessages = await storage.getMessagesByConversationId(conversationId);
+      res.json(allMessages);
     } catch (error) {
       console.error("Error fetching messages:", error);
       res.status(500).json({ message: "Failed to fetch messages" });
@@ -1824,32 +1840,47 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       console.log(`📝 [Edit Prompt] Sucesso: ${result.success}, Edições: ${result.edicoesAplicadas}`);
       console.log(`📝 [Edit Prompt] Resposta IA: ${result.mensagemChat}`);
       
-      // Salvar no histórico se teve edição bem-sucedida
+      // ==================================================================================
+      // 📝 CORREÇÃO CRÍTICA: SEMPRE SALVAR HISTÓRICO DO CHAT
+      // ==================================================================================
+      // Mesmo que o prompt não mude (ex: pergunta, dúvida, ou "nenhuma edição necessária"),
+      // devemos salvar a interação para que não suma ao dar refresh.
+      
+      // 1. Salvar mensagem do usuário (SEMPRE)
+      await salvarMensagemChat({
+        userId,
+        configType: 'ai_agent_config',
+        role: 'user',
+        content: instruction
+      });
+      
+      // 2. Salvar resposta da IA (SEMPRE)
+      await salvarMensagemChat({
+        userId,
+        configType: 'ai_agent_config',
+        role: 'assistant',
+        content: result.mensagemChat,
+        metadata: {
+          edicoes_aplicadas: result.edicoesAplicadas,
+          edicoes_falharam: result.edicoesFalharam,
+          operacao: result.novoPrompt !== currentPrompt ? 'edicao' : 'chat'
+        }
+      });
+      
+      // 3. Lógica específica de EDIÇÃO (apenas se houve mudança)
       if (result.success && result.novoPrompt !== currentPrompt) {
         // 📈 Incrementar contador de calibrações do dia (para usuários free)
         if (!hasActiveSubscription) {
           await storage.incrementPromptEdits(userId);
         }
-        
-        // Salvar mensagem do usuário
-        await salvarMensagemChat({
-          userId,
-          configType: 'ai_agent_config',
-          role: 'user',
-          content: instruction
+
+        // 💾 CRÍTICO: Atualizar prompt na configuração principal (ai_agent_config)
+        // Isso garante que a UI e o Chatbot usem a versão mais recente imediatamente,
+        // sem depender exclusivamente do frontend enviar o update.
+        await storage.updateAgentConfig(userId, { 
+          prompt: result.novoPrompt 
         });
-        
-        // Salvar resposta da IA
-        await salvarMensagemChat({
-          userId,
-          configType: 'ai_agent_config',
-          role: 'assistant',
-          content: result.mensagemChat,
-          metadata: {
-            edicoes_aplicadas: result.edicoesAplicadas,
-            edicoes_falharam: result.edicoesFalharam
-          }
-        });
+        console.log(`[Edit Prompt] ✅ Config principal atualizada com novo prompt`);
         
         // Salvar nova versão do prompt
         await salvarVersaoPrompt({

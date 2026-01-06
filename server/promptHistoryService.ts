@@ -290,17 +290,29 @@ export async function listarChatHistory(
   limite: number = 100
 ): Promise<PromptEditChatMessage[]> {
   try {
+    // 📝 FIX v2: Buscar os ÚLTIMOS 'limite' registros e reordenar ASC
+    console.log(`[HistoryService] 📜 Buscando chat history para user ${userId}, limite ${limite}`);
+    
     const result = await pool.query(
-      `SELECT * FROM prompt_edit_chat 
-       WHERE user_id = $1 AND config_type = $2 
-       ORDER BY created_at ASC 
-       LIMIT $3`,
+      `SELECT * FROM (
+         SELECT * FROM prompt_edit_chat 
+         WHERE user_id = $1 AND config_type = $2 
+         ORDER BY created_at DESC 
+         LIMIT $3
+       ) sub
+       ORDER BY created_at ASC`,
       [userId, configType, limite]
     ) as QueryResult<PromptEditChatMessage>;
     
+    console.log(`[HistoryService] ✅ Retornando ${result.rows?.length || 0} mensagens`);
+    if (result.rows?.length > 0) {
+      console.log(`[HistoryService] Primeira: "${result.rows[0].content?.substring(0, 50)}..."`);
+      console.log(`[HistoryService] Última: "${result.rows[result.rows.length - 1].content?.substring(0, 50)}..."`);
+    }
+    
     return result.rows || [];
   } catch (error) {
-    console.error('[HistoryService] Erro ao listar chat:', error);
+    console.error('[HistoryService] ❌ Erro ao listar chat:', error);
     return [];
   }
 }
