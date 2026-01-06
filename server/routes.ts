@@ -9355,5 +9355,302 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     }
   });
 
+  // ==================== KANBAN CRM ROUTES ====================
+
+  /**
+   * Get user's kanban stages (creates defaults if none exist)
+   * GET /api/kanban/stages
+   */
+  app.get("/api/kanban/stages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Check if user has stages, create defaults if not
+      const { data: stages, error } = await supabase
+        .from('kanban_stages')
+        .select('*')
+        .eq('user_id', userId)
+        .order('position', { ascending: true });
+
+      if (error) throw error;
+
+      // If no stages, create defaults
+      if (!stages || stages.length === 0) {
+        const defaultStages = [
+          { user_id: userId, name: 'Novos', description: 'Leads novos', color: 'bg-blue-500', position: 0, is_default: true },
+          { user_id: userId, name: 'Prospectando', description: 'Em prospecção', color: 'bg-purple-500', position: 1, is_default: true },
+          { user_id: userId, name: 'Negociando', description: 'Em negociação', color: 'bg-amber-500', position: 2, is_default: true },
+          { user_id: userId, name: 'Fechado', description: 'Venda concluída', color: 'bg-emerald-500', position: 3, is_default: true },
+          { user_id: userId, name: 'Perdido', description: 'Não converteu', color: 'bg-slate-400', position: 4, is_default: true },
+        ];
+
+        const { data: newStages, error: insertError } = await supabase
+          .from('kanban_stages')
+          .insert(defaultStages)
+          .select();
+
+        if (insertError) throw insertError;
+        return res.json(newStages);
+      }
+
+      res.json(stages);
+    } catch (error: any) {
+      console.error("Error fetching kanban stages:", error);
+      res.status(500).json({ message: "Failed to fetch kanban stages" });
+    }
+  });
+
+  /**
+   * Create new kanban stage
+   * POST /api/kanban/stages
+   */
+  app.post("/api/kanban/stages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, description, color, position } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ message: "Stage name is required" });
+      }
+
+      // Get max position if not provided
+      let newPosition = position;
+      if (newPosition === undefined) {
+        const { data: maxPos } = await supabase
+          .from('kanban_stages')
+          .select('position')
+          .eq('user_id', userId)
+          .order('position', { ascending: false })
+          .limit(1)
+          .single();
+        
+        newPosition = (maxPos?.position || 0) + 1;
+      }
+
+      const { data: stage, error } = await supabase
+        .from('kanban_stages')
+        .insert({
+          user_id: userId,
+          name,
+          description: description || '',
+          color: color || 'bg-slate-500',
+          position: newPosition,
+          is_default: false,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json(stage);
+    } catch (error: any) {
+      console.error("Error creating kanban stage:", error);
+      res.status(500).json({ message: "Failed to create kanban stage" });
+    }
+  });
+
+  /**
+   * Update kanban stage
+   * PUT /api/kanban/stages/:id
+   */
+  app.put("/api/kanban/stages/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { name, description, color, position } = req.body;
+
+      const { data: stage, error } = await supabase
+        .from('kanban_stages')
+        .update({
+          name,
+          description,
+          color,
+          position,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!stage) {
+        return res.status(404).json({ message: "Stage not found" });
+      }
+
+      res.json(stage);
+    } catch (error: any) {
+      console.error("Error updating kanban stage:", error);
+      res.status(500).json({ message: "Failed to update kanban stage" });
+    }
+  });
+
+  /**
+   * Delete kanban stage
+   * DELETE /api/kanban/stages/:id
+   */
+  app.delete("/api/kanban/stages/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      // First, remove stage from all conversations
+      await supabase
+        .from('conversations')
+        .update({ kanban_stage_id: null })
+        .eq('kanban_stage_id', id);
+
+      const { error } = await supabase
+        .from('kanban_stages')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting kanban stage:", error);
+      res.status(500).json({ message: "Failed to delete kanban stage" });
+    }
+  });
+
+  /**
+   * Reorder kanban stages
+   * PUT /api/kanban/stages/reorder
+   */
+  app.put("/api/kanban/stages/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { stageIds } = req.body; // Array of stage IDs in new order
+
+      if (!Array.isArray(stageIds)) {
+        return res.status(400).json({ message: "stageIds must be an array" });
+      }
+
+      // Update positions
+      const updates = stageIds.map((id, index) => 
+        supabase
+          .from('kanban_stages')
+          .update({ position: index })
+          .eq('id', id)
+          .eq('user_id', userId)
+      );
+
+      await Promise.all(updates);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error reordering kanban stages:", error);
+      res.status(500).json({ message: "Failed to reorder stages" });
+    }
+  });
+
+  /**
+   * Get conversations for kanban (with stage info)
+   * GET /api/kanban/conversations
+   */
+  app.get("/api/kanban/conversations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Get user's connection
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.json([]);
+      }
+
+      // Get conversations with kanban data
+      const { data: conversations, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('connection_id', connection.id)
+        .order('last_message_time', { ascending: false });
+
+      if (error) throw error;
+      res.json(conversations || []);
+    } catch (error: any) {
+      console.error("Error fetching kanban conversations:", error);
+      res.status(500).json({ message: "Failed to fetch conversations" });
+    }
+  });
+
+  /**
+   * Move conversation to a kanban stage
+   * PUT /api/kanban/conversations/:id/move
+   */
+  app.put("/api/kanban/conversations/:id/move", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { stageId } = req.body;
+
+      // Verify ownership
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "No connection found" });
+      }
+
+      const { data: conversation, error } = await supabase
+        .from('conversations')
+        .update({ 
+          kanban_stage_id: stageId,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', id)
+        .eq('connection_id', connection.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      res.json(conversation);
+    } catch (error: any) {
+      console.error("Error moving conversation:", error);
+      res.status(500).json({ message: "Failed to move conversation" });
+    }
+  });
+
+  /**
+   * Update conversation kanban data (notes, priority)
+   * PUT /api/kanban/conversations/:id
+   */
+  app.put("/api/kanban/conversations/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { kanban_notes, priority, contact_name } = req.body;
+
+      // Verify ownership
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "No connection found" });
+      }
+
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (kanban_notes !== undefined) updateData.kanban_notes = kanban_notes;
+      if (priority !== undefined) updateData.priority = priority;
+      if (contact_name !== undefined) updateData.contact_name = contact_name;
+
+      const { data: conversation, error } = await supabase
+        .from('conversations')
+        .update(updateData)
+        .eq('id', id)
+        .eq('connection_id', connection.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      res.json(conversation);
+    } catch (error: any) {
+      console.error("Error updating conversation:", error);
+      res.status(500).json({ message: "Failed to update conversation" });
+    }
+  });
+
   return httpServer;
 }
