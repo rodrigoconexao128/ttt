@@ -4317,8 +4317,54 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         const paymentResult = await paymentResponse.json();
         console.log("[MP Subscription] Payment result:", JSON.stringify(paymentResult, null, 2));
         
-        // Verificar resultado do pagamento imediato
-        if (paymentResult.status !== "approved" && paymentResult.status !== "in_process") {
+        // ═══════════════════════════════════════════════════════════════════
+        // VERIFICAR RESULTADO DO PAGAMENTO - APENAS "approved" PERMITE CONTINUAR!
+        // CORREÇÃO 2025: NÃO tratar "in_process" como aprovado!
+        // ═══════════════════════════════════════════════════════════════════
+        
+        // CASO 1: PAGAMENTO EM ANÁLISE (in_process) - NÃO criar assinatura ainda!
+        if (paymentResult.status === "in_process") {
+          console.log("[MP Subscription] ⏳ Pagamento em análise (in_process):", paymentResult.status_detail);
+          
+          // Registrar no histórico como pendente
+          try {
+            await storage.createPaymentHistory({
+              subscriptionId,
+              userId,
+              mpPaymentId: paymentResult.id.toString(),
+              amount: primeiraCobrancaValor.toString(),
+              status: "in_process",
+              statusDetail: paymentResult.status_detail || "pending_review_manual",
+              paymentType: hasSetupFee ? "setup_fee" : "subscription_first_payment",
+              paymentMethod: paymentMethodId || "credit_card",
+              paymentDate: new Date(),
+              payerEmail,
+              rawResponse: paymentResult,
+            });
+            console.log("[MP Subscription] Pagamento pendente registrado no histórico");
+          } catch (historyError) {
+            console.error("[MP Subscription] Erro ao registrar histórico:", historyError);
+          }
+          
+          // Atualizar assinatura local como "pending_payment"
+          await storage.updateSubscription(subscriptionId, {
+            status: "pending_payment",
+            mpStatus: "in_process",
+            payerEmail,
+            paymentMethod: paymentMethodId || "credit_card",
+          });
+          
+          // Retornar status pendente - NÃO ativar a assinatura!
+          return res.json({
+            status: "in_process",
+            message: "⏳ Pagamento em análise. Você receberá uma confirmação em até 2 dias úteis por e-mail. Sua assinatura será ativada automaticamente após a aprovação.",
+            mpPaymentId: paymentResult.id,
+            statusDetail: paymentResult.status_detail,
+          });
+        }
+        
+        // CASO 2: PAGAMENTO REJEITADO - Retornar erro
+        if (paymentResult.status !== "approved") {
           // Pagamento falhou - não criar assinatura
           const errorMessages: Record<string, string> = {
             "cc_rejected_bad_filled_card_number": "Número do cartão inválido.",
@@ -4344,8 +4390,8 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           });
         }
         
-        // Pagamento aprovado! Registrar no histórico
-        console.log("[MP Subscription] ✅ Pagamento aprovado! ID:", paymentResult.id);
+        // CASO 3: PAGAMENTO APROVADO - Continuar com criação da assinatura
+        console.log("[MP Subscription] ✅ Pagamento APROVADO! ID:", paymentResult.id);
         
         try {
           await storage.createPaymentHistory({
@@ -4532,8 +4578,54 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         const paymentResult = await paymentResponse.json();
         console.log("[MP Subscription] Payment result:", JSON.stringify(paymentResult, null, 2));
         
-        // Verificar resultado do pagamento imediato
-        if (paymentResult.status !== "approved" && paymentResult.status !== "in_process") {
+        // ═══════════════════════════════════════════════════════════════════
+        // VERIFICAR RESULTADO DO PAGAMENTO - APENAS "approved" PERMITE CONTINUAR!
+        // CORREÇÃO 2025: NÃO tratar "in_process" como aprovado!
+        // ═══════════════════════════════════════════════════════════════════
+        
+        // CASO 1: PAGAMENTO EM ANÁLISE (in_process) - NÃO criar assinatura ainda!
+        if (paymentResult.status === "in_process") {
+          console.log("[MP Subscription] ⏳ Pagamento em análise (in_process):", paymentResult.status_detail);
+          
+          // Registrar no histórico como pendente
+          try {
+            await storage.createPaymentHistory({
+              subscriptionId,
+              userId,
+              mpPaymentId: paymentResult.id.toString(),
+              amount: primeiraCobrancaValor.toString(),
+              status: "in_process",
+              statusDetail: paymentResult.status_detail || "pending_review_manual",
+              paymentType: hasSetupFee ? "setup_fee" : "subscription_first_payment",
+              paymentMethod: paymentMethodId || "credit_card",
+              paymentDate: new Date(),
+              payerEmail,
+              rawResponse: paymentResult,
+            });
+            console.log("[MP Subscription] Pagamento pendente registrado no histórico");
+          } catch (historyError) {
+            console.error("[MP Subscription] Erro ao registrar histórico:", historyError);
+          }
+          
+          // Atualizar assinatura local como "pending_payment"
+          await storage.updateSubscription(subscriptionId, {
+            status: "pending_payment",
+            mpStatus: "in_process",
+            payerEmail,
+            paymentMethod: paymentMethodId || "credit_card",
+          });
+          
+          // Retornar status pendente - NÃO ativar a assinatura!
+          return res.json({
+            status: "in_process",
+            message: "⏳ Pagamento em análise. Você receberá uma confirmação em até 2 dias úteis por e-mail. Sua assinatura será ativada automaticamente após a aprovação.",
+            mpPaymentId: paymentResult.id,
+            statusDetail: paymentResult.status_detail,
+          });
+        }
+        
+        // CASO 2: PAGAMENTO REJEITADO - Retornar erro
+        if (paymentResult.status !== "approved") {
           // Pagamento falhou
           const errorMessages: Record<string, string> = {
             "cc_rejected_bad_filled_card_number": "Número do cartão inválido.",
@@ -4559,8 +4651,8 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           });
         }
         
-        // Pagamento aprovado! Registrar no histórico
-        console.log("[MP Subscription] ✅ Pagamento imediato aprovado! ID:", paymentResult.id);
+        // CASO 3: PAGAMENTO APROVADO - Continuar com criação da assinatura
+        console.log("[MP Subscription] ✅ Pagamento imediato APROVADO! ID:", paymentResult.id);
         
         try {
           await storage.createPaymentHistory({
@@ -5016,9 +5108,9 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         await mercadoPagoService.processWebhook("subscription_authorized_payment", data);
       } else if (type === "payment") {
         // ═══════════════════════════════════════════════════════════════════
-        // PROCESSAR PAGAMENTO PIX - Atualizar assinatura automaticamente
+        // PROCESSAR PAGAMENTO - PIX e Cartão de Crédito (in_process → approved)
         // ═══════════════════════════════════════════════════════════════════
-        console.log("[MP Webhook] Payment notification - processing PIX:", data);
+        console.log("[MP Webhook] Payment notification:", data);
         
         if (data?.id) {
           try {
@@ -5041,66 +5133,125 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
                 externalRef: payment.external_reference,
               });
               
-              // Verificar se é um pagamento PIX aprovado
-              if (payment.status === "approved" && payment.payment_method_id === "pix") {
+              // ═══════════════════════════════════════════════════════════════════
+              // CASO 1: PAGAMENTO APROVADO (pode ser PIX ou Cartão que estava in_process)
+              // ═══════════════════════════════════════════════════════════════════
+              if (payment.status === "approved") {
                 const externalRef = payment.external_reference || "";
-                const subscriptionIdMatch = externalRef.match(/pix_([^_]+)/);
-                const subscriptionId = subscriptionIdMatch ? subscriptionIdMatch[1] : null;
+                let subscriptionId: string | null = null;
+                
+                // Extrair ID da assinatura do external_reference
+                // Formato PIX: pix_UUID
+                // Formato Cartão: sub_UUID_first ou sub_UUID_single ou sub_UUID_recurring
+                const pixMatch = externalRef.match(/pix_([^_]+)/);
+                const cardMatch = externalRef.match(/sub_([^_]+)_/);
+                subscriptionId = pixMatch ? pixMatch[1] : (cardMatch ? cardMatch[1] : null);
                 
                 if (subscriptionId) {
                   const subscription = await storage.getSubscription(subscriptionId) as any;
                   
                   if (subscription) {
-                    // Get plan para calcular próxima cobrança
-                    const plan = await storage.getPlan(subscription.planId) as any;
-                    const frequenciaDias = plan?.frequenciaDias || 30;
+                    // Verificar se a assinatura estava pendente de pagamento
+                    const wasInProcess = subscription.status === "pending_payment" || subscription.mpStatus === "in_process";
                     
-                    // Calcular data fim do período
-                    const dataFim = new Date();
-                    dataFim.setDate(dataFim.getDate() + frequenciaDias);
+                    if (wasInProcess || subscription.status === "pending_pix") {
+                      console.log("[MP Webhook] ✅ Ativando assinatura após pagamento aprovado:", subscriptionId);
+                      
+                      // Get plan para calcular próxima cobrança
+                      const plan = await storage.getPlan(subscription.planId) as any;
+                      const frequenciaDias = plan?.frequenciaDias || 30;
+                      
+                      // Calcular data fim do período
+                      const dataFim = new Date();
+                      dataFim.setDate(dataFim.getDate() + frequenciaDias);
+                      
+                      // Próximo pagamento
+                      const nextPaymentDate = new Date();
+                      nextPaymentDate.setDate(nextPaymentDate.getDate() + frequenciaDias);
+                      
+                      // Atualizar assinatura para ativa
+                      await storage.updateSubscription(subscriptionId, {
+                        status: "active",
+                        dataInicio: subscription.dataInicio || new Date(),
+                        dataFim,
+                        mpStatus: "authorized",
+                        nextPaymentDate,
+                      });
+                      
+                      // Atualizar histórico de pagamento existente ou criar novo
+                      const existingHistory = await storage.getPaymentHistoryByMpPaymentId(payment.id?.toString());
+                      
+                      if (existingHistory) {
+                        // Atualizar status do pagamento existente
+                        await storage.updatePaymentHistory(existingHistory.id, {
+                          status: "approved",
+                          statusDetail: payment.status_detail || "accredited",
+                          rawResponse: payment,
+                        });
+                        console.log("[MP Webhook] Payment history UPDATED to approved:", payment.id);
+                      } else {
+                        // Registrar novo pagamento no histórico
+                        const isPix = payment.payment_method_id === "pix";
+                        await storage.createPaymentHistory({
+                          subscriptionId,
+                          userId: subscription.userId,
+                          mpPaymentId: payment.id?.toString(),
+                          amount: payment.transaction_amount?.toString(),
+                          netAmount: payment.transaction_details?.net_received_amount?.toString(),
+                          feeAmount: payment.fee_details?.[0]?.amount?.toString(),
+                          status: "approved",
+                          statusDetail: payment.status_detail || "accredited",
+                          paymentType: isPix ? "pix_first_payment" : "subscription_first_payment",
+                          paymentMethod: payment.payment_method_id || "credit_card",
+                          paymentDate: new Date(),
+                          payerEmail: payment.payer?.email || subscription.payerEmail,
+                          rawResponse: payment,
+                        });
+                        console.log("[MP Webhook] Payment history CREATED:", payment.id);
+                      }
+                      
+                      console.log("[MP Webhook] ✅ Assinatura ATIVADA via webhook:", subscriptionId);
+                    }
+                  }
+                }
+              }
+              
+              // ═══════════════════════════════════════════════════════════════════
+              // CASO 2: PAGAMENTO REJEITADO (in_process → rejected)
+              // ═══════════════════════════════════════════════════════════════════
+              if (payment.status === "rejected" || payment.status === "cancelled") {
+                const externalRef = payment.external_reference || "";
+                const cardMatch = externalRef.match(/sub_([^_]+)_/);
+                const subscriptionId = cardMatch ? cardMatch[1] : null;
+                
+                if (subscriptionId) {
+                  const subscription = await storage.getSubscription(subscriptionId) as any;
+                  
+                  if (subscription && (subscription.status === "pending_payment" || subscription.mpStatus === "in_process")) {
+                    console.log("[MP Webhook] ❌ Pagamento rejeitado, cancelando assinatura:", subscriptionId);
                     
-                    // Próximo pagamento
-                    const nextPaymentDate = new Date();
-                    nextPaymentDate.setDate(nextPaymentDate.getDate() + frequenciaDias);
-                    
-                    // Atualizar assinatura para ativa
                     await storage.updateSubscription(subscriptionId, {
-                      status: "active",
-                      dataInicio: subscription.dataInicio || new Date(),
-                      dataFim,
-                      mpStatus: "authorized",
-                      nextPaymentDate,
+                      status: "cancelled",
+                      mpStatus: payment.status,
                     });
                     
-                    // Registrar pagamento no histórico
-                    try {
-                      await storage.createPaymentHistory({
-                        subscriptionId,
-                        userId: subscription.userId,
-                        mpPaymentId: payment.id?.toString(),
-                        amount: payment.transaction_amount?.toString(),
-                        netAmount: payment.transaction_details?.net_received_amount?.toString(),
-                        feeAmount: payment.fee_details?.[0]?.amount?.toString(),
-                        status: "approved",
-                        statusDetail: payment.status_detail || "accredited",
-                        paymentType: subscription.status === "pending_pix" ? "pix_first_payment" : "pix_recurring",
-                        paymentMethod: "pix",
-                        paymentDate: new Date(),
-                        payerEmail: payment.payer?.email || subscription.payerEmail,
+                    // Atualizar histórico de pagamento
+                    const existingHistory = await storage.getPaymentHistoryByMpPaymentId(payment.id?.toString());
+                    if (existingHistory) {
+                      await storage.updatePaymentHistory(existingHistory.id, {
+                        status: payment.status,
+                        statusDetail: payment.status_detail,
                         rawResponse: payment,
                       });
-                      console.log("[MP Webhook] Payment history recorded for PIX:", payment.id);
-                    } catch (historyError) {
-                      console.error("[MP Webhook] Error recording history:", historyError);
                     }
                     
-                    console.log("[MP Webhook] Subscription activated via PIX webhook:", subscriptionId);
+                    console.log("[MP Webhook] ❌ Assinatura CANCELADA via webhook:", subscriptionId);
                   }
                 }
               }
             }
           } catch (paymentError) {
-            console.error("[MP Webhook] Error processing PIX payment:", paymentError);
+            console.error("[MP Webhook] Error processing payment:", paymentError);
           }
         }
       }

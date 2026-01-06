@@ -225,6 +225,17 @@ export default function Subscribe() {
       return res.json();
     },
     onSuccess: (data) => {
+      // Pagamento em análise (pendente de revisão manual)
+      if (data.status === "in_process") {
+        toast({ 
+          title: "⏳ Pagamento em análise", 
+          description: data.message || "Você receberá uma confirmação em até 2 dias úteis por e-mail." 
+        });
+        setIsProcessing(false);
+        setTimeout(() => setLocation("/dashboard"), 3000);
+        return;
+      }
+      
       if (data.status === "approved") {
         toast({ 
           title: "🎉 Assinatura ativada com sucesso!", 

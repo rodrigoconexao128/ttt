@@ -131,6 +131,7 @@ export interface IStorage {
   // Payment History operations (MercadoPago, etc)
   createPaymentHistory(payment: Partial<InsertPaymentHistory>): Promise<PaymentHistory>;
   getPaymentHistory(id: string): Promise<PaymentHistory | undefined>;
+  getPaymentHistoryByMpPaymentId(mpPaymentId: string): Promise<PaymentHistory | undefined>;
   getPaymentHistoryBySubscription(subscriptionId: string): Promise<PaymentHistory[]>;
   getPaymentHistoryByUser(userId: string): Promise<PaymentHistory[]>;
   getAllPaymentHistory(): Promise<(PaymentHistory & { subscription?: Subscription; user?: User })[]>;
@@ -974,6 +975,11 @@ export class DatabaseStorage implements IStorage {
 
   async getPaymentHistory(id: string): Promise<PaymentHistory | undefined> {
     const [payment] = await db.select().from(paymentHistory).where(eq(paymentHistory.id, id));
+    return payment;
+  }
+
+  async getPaymentHistoryByMpPaymentId(mpPaymentId: string): Promise<PaymentHistory | undefined> {
+    const [payment] = await db.select().from(paymentHistory).where(eq(paymentHistory.mpPaymentId, mpPaymentId));
     return payment;
   }
 
