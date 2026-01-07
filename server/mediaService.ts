@@ -229,14 +229,15 @@ export function generateMediaPromptBlock(mediaList: AgentMedia[]): string {
 
   let mediaBlock = `
 
-═══════════════════════════════════════════════════════════════════════════════
-🎯 SISTEMA DE MÍDIAS AUTOMÁTICO (OBRIGATÓRIO)
-═══════════════════════════════════════════════════════════════════════════════
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  🚨🚨🚨 SISTEMA DE MÍDIAS - PRIORIDADE MÁXIMA - LEIA COM ATENÇÃO 🚨🚨🚨      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 
-VOCÊ DEVE enviar mídias quando a mensagem do cliente corresponder às condições.
-Analise a mensagem do cliente e compare com cada condição abaixo.
+🔴 ATENÇÃO: ENVIAR MÍDIAS É OBRIGATÓRIO E TEM PRIORIDADE MÁXIMA!
+🔴 VOCÊ DEVE SEMPRE ENVIAR AS MÍDIAS QUANDO AS CONDIÇÕES CORRESPONDEM!
+🔴 NUNCA IGNORE ESTA SEÇÃO - É A PARTE MAIS IMPORTANTE DA SUA RESPOSTA!
 
-📁 MÍDIAS E SUAS CONDIÇÕES DE ENVIO:
+📁 MÍDIAS DISPONÍVEIS (ENVIO OBRIGATÓRIO QUANDO CONDIÇÃO BATE):
 `;
 
   // Lista cada mídia com seu gatilho - mais direto
@@ -245,36 +246,45 @@ Analise a mensagem do cliente e compare com cada condição abaixo.
     const whenToUse = media.whenToUse || 'quando solicitado';
     
     mediaBlock += `
-▸ ${media.name}
-  CONDIÇÃO: ${whenToUse}
-  COMO USAR: Adicione [MEDIA:${media.name}] no final da sua resposta
+🎯 MÍDIA ${i + 1}: ${media.name}
+   📋 CONDIÇÃO DE ENVIO: ${whenToUse}
+   ✅ TAG OBRIGATÓRIA: [MEDIA:${media.name}]
 `;
   }
 
   mediaBlock += `
-═══════════════════════════════════════════════════════════════════════════════
-📝 INSTRUÇÕES OBRIGATÓRIAS DE MÍDIA:
-═══════════════════════════════════════════════════════════════════════════════
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  ⚡ REGRAS DE ENVIO DE MÍDIA - SEGUIR À RISCA ⚡                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 
-⚠️ REGRA CRÍTICA: VOCÊ DEVE ENVIAR **TODAS** AS MÍDIAS ACIMA CUJAS CONDIÇÕES SE APLICAM!
-⚠️ NÃO escolha apenas uma - se 3 condições batem, envie 3 tags!
+🚨 REGRA #1 (OBRIGATÓRIA): 
+   Para CADA mídia acima, verifique se a CONDIÇÃO corresponde à situação atual.
+   Se corresponder → VOCÊ DEVE ADICIONAR A TAG [MEDIA:NOME] NO FINAL DA RESPOSTA!
 
-PROCESSO OBRIGATÓRIO:
-1. Leia a mensagem do cliente
-2. Para CADA mídia acima, verifique se a CONDIÇÃO se aplica
-3. Se a condição de uma mídia bate → ADICIONE a tag [MEDIA:NOME]
-4. Se a condição de outra mídia também bate → ADICIONE essa tag também
-5. Continue até verificar TODAS as mídias
+🚨 REGRA #2 (MÚLTIPLAS MÍDIAS):
+   Se VÁRIAS condições correspondem → ENVIE TODAS AS TAGS!
+   Exemplo: [MEDIA:AUDIO][MEDIA:IMAGEM][MEDIA:VIDEO]
 
-FORMATO CORRETO (MÚLTIPLAS MÍDIAS):
+🚨 REGRA #3 (PRIMEIRA MENSAGEM):
+   Na PRIMEIRA mensagem de uma conversa (cliente disse "oi", "olá", "bom dia", etc):
+   → Verifique TODAS as mídias com condição de "primeira mensagem", "boas vindas", "início"
+   → ENVIE OBRIGATORIAMENTE todas essas mídias!
+
+🚨 REGRA #4 (NUNCA ESQUECER):
+   VOCÊ NÃO PODE RESPONDER SEM VERIFICAR AS MÍDIAS!
+   Antes de finalizar sua resposta, SEMPRE pergunte a si mesmo:
+   "Alguma condição de mídia se aplica aqui? Se sim, DEVO adicionar a tag!"
+
+📌 EXEMPLO CORRETO:
 Cliente: "Oi, boa tarde!"
-Resposta: "Oi! Tudo bem? [MEDIA:AUDIO_BOAS_VINDAS][MEDIA:BANNER][MEDIA:VIDEO_APRESENTACAO]"
+Resposta: "Oi! Tudo bem? [MEDIA:AUDIO_BOAS_VINDAS][MEDIA:BANNER][MEDIA:VIDEO]"
 
-⚠️ NÃO repita mídias já enviadas nesta conversa
-⚠️ NÃO mencione que está enviando áudio/vídeo/imagem
-⚠️ Se nenhuma condição corresponder, NÃO envie mídia
+⚠️ Não repita mídias já enviadas nesta conversa
+⚠️ Não mencione que está enviando áudio/vídeo/imagem
 
-═══════════════════════════════════════════════════════════════════════════════
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  LEMBRE-SE: MÍDIAS SÃO PRIORIDADE #1 - NUNCA IGNORE ESTA SEÇÃO!             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 `;
 
   return mediaBlock;
