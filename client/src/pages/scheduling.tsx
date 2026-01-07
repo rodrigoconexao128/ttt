@@ -57,6 +57,7 @@ interface SchedulingConfig {
   minBookingNoticeHours: number;
   requireConfirmation: boolean;
   autoConfirm: boolean;
+  allowCancellation: boolean;
   sendReminder: boolean;
   reminderHoursBefore: number;
   googleCalendarEnabled: boolean;
@@ -320,6 +321,7 @@ export default function SchedulingPage() {
     minBookingNoticeHours: data.min_booking_notice_hours ?? 2,
     requireConfirmation: data.require_confirmation ?? true,
     autoConfirm: data.auto_confirm ?? false,
+    allowCancellation: data.allow_cancellation ?? true,
     sendReminder: data.send_reminder ?? true,
     reminderHoursBefore: data.reminder_hours_before ?? 24,
     googleCalendarEnabled: data.google_calendar_enabled ?? false,
@@ -540,6 +542,7 @@ export default function SchedulingPage() {
       min_booking_notice_hours: configForm.minBookingNoticeHours,
       require_confirmation: configForm.requireConfirmation,
       auto_confirm: configForm.autoConfirm,
+      allow_cancellation: configForm.allowCancellation,
       send_reminder: configForm.sendReminder,
       reminder_hours_before: configForm.reminderHoursBefore,
       google_calendar_enabled: configForm.googleCalendarEnabled,
@@ -1119,6 +1122,16 @@ export default function SchedulingPage() {
                     <Switch
                       checked={configForm.sendReminder || false}
                       onCheckedChange={(checked) => setConfigForm({ ...configForm, sendReminder: checked })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Permitir cancelamento pelo cliente</Label>
+                      <p className="text-sm text-muted-foreground">Cliente pode cancelar agendamento via IA</p>
+                    </div>
+                    <Switch
+                      checked={configForm.allowCancellation ?? true}
+                      onCheckedChange={(checked) => setConfigForm({ ...configForm, allowCancellation: checked })}
                     />
                   </div>
                   {configForm.sendReminder && (

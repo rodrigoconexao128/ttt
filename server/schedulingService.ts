@@ -79,6 +79,7 @@ export interface SchedulingConfig {
   min_booking_notice_hours: number;
   require_confirmation: boolean;
   auto_confirm: boolean;
+  allow_cancellation: boolean;
   send_reminder: boolean;
   reminder_hours_before: number;
   google_calendar_enabled: boolean;
@@ -148,6 +149,22 @@ const SCHEDULING_PATTERNS = {
     /agenda livre/i,
     /disponibilidade/i,
   ],
+  // IMPORTANTE: reschedule deve vir ANTES de book_appointment para priorizar "reagendar"
+  reschedule: [
+    /remarcar/i,
+    /reagendar/i,
+    /trocar o hor[aá]rio/i,
+    /mudar o hor[aá]rio/i,
+    /alterar (o )?(meu )?agendamento/i,
+    /outro hor[aá]rio/i,
+  ],
+  cancel_appointment: [
+    /cancelar/i,
+    /desmarcar/i,
+    /n[aã]o vou (poder )?(ir|comparecer)/i,
+    /n[aã]o posso (ir|comparecer)/i,
+    /preciso cancelar/i,
+  ],
   book_appointment: [
     /quero agendar/i,
     /quero marcar/i,
@@ -160,20 +177,6 @@ const SCHEDULING_PATTERNS = {
     /confirma o hor[aá]rio/i,
     /esse hor[aá]rio/i,
     /pode ser [àa]s/i,
-  ],
-  cancel_appointment: [
-    /cancelar/i,
-    /desmarcar/i,
-    /n[aã]o (vou|posso) (ir|comparecer)/i,
-    /preciso cancelar/i,
-  ],
-  reschedule: [
-    /remarcar/i,
-    /reagendar/i,
-    /trocar o hor[aá]rio/i,
-    /mudar o hor[aá]rio/i,
-    /alterar (o )?agendamento/i,
-    /outro hor[aá]rio/i,
   ],
   info: [
     /onde (fica|é|[eé] o endereço)/i,
@@ -197,7 +200,10 @@ const DATE_PATTERNS = {
 };
 
 const TIME_PATTERNS = {
-  specific: /(\d{1,2})(?::(\d{2}))?\s*(h|hrs?|horas?)?/i,
+  // Captura: 14:00, 14h, 14h30, 14:30, 14 horas
+  specific: /(\d{1,2})(?:(?:h|:)(\d{2})|(:(\d{2}))|h)?\s*(hrs?|horas?)?/i,
+  // Formato alternativo: 14h30 (sem : )
+  withH: /(\d{1,2})h(\d{2})/i,
   morning: /manh[ãa]|de manh[ãa]/i,
   afternoon: /tarde|de tarde/i,
   evening: /noite|de noite/i,
@@ -215,8 +221,17 @@ export function detectSchedulingIntent(message: string): SchedulingIntent {
   
   const normalizedMsg = message.toLowerCase().trim();
   
-  // Verificar cada tipo de intenção
-  for (const [intentType, patterns] of Object.entries(SCHEDULING_PATTERNS)) {
+  // Ordem específica para priorizar reschedule sobre book_appointment
+  const orderedIntents: (keyof typeof SCHEDULING_PATTERNS)[] = [
+    'check_availability',
+    'reschedule', 
+    'cancel_appointment',
+    'book_appointment',
+    'info'
+  ];
+  
+  for (const intentType of orderedIntents) {
+    const patterns = SCHEDULING_PATTERNS[intentType];
     for (const pattern of patterns) {
       if (pattern.test(normalizedMsg)) {
         result.detected = true;
@@ -258,24 +273,28 @@ export function detectSchedulingIntent(message: string): SchedulingIntent {
 
 /**
  * Extrai uma data da mensagem
+ * IMPORTANTE: Verificar "depois de amanhã" ANTES de "amanhã" para evitar match parcial
  */
 function extractDate(message: string): string | undefined {
-  const today = new Date();
+  const brazil = getBrazilDateTime();
+  const today = brazil.date;
   
-  if (DATE_PATTERNS.today.test(message)) {
-    return formatDate(today);
+  // PRIMEIRO verificar "depois de amanhã" (mais específico)
+  if (DATE_PATTERNS.dayAfterTomorrow.test(message)) {
+    const dayAfter = new Date(today);
+    dayAfter.setDate(dayAfter.getDate() + 2);
+    return formatDate(dayAfter);
   }
   
+  // DEPOIS verificar "amanhã"
   if (DATE_PATTERNS.tomorrow.test(message)) {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     return formatDate(tomorrow);
   }
   
-  if (DATE_PATTERNS.dayAfterTomorrow.test(message)) {
-    const dayAfter = new Date(today);
-    dayAfter.setDate(dayAfter.getDate() + 2);
-    return formatDate(dayAfter);
+  if (DATE_PATTERNS.today.test(message)) {
+    return formatDate(today);
   }
   
   const weekdayMatch = message.match(DATE_PATTERNS.weekday);
@@ -286,7 +305,8 @@ function extractDate(message: string): string | undefined {
     };
     const targetDay = weekdays[weekdayMatch[1].toLowerCase()];
     if (targetDay !== undefined) {
-      const date = new Date(today);
+      const brazil = getBrazilDateTime();
+      const date = new Date(brazil.date);
       const currentDay = date.getDay();
       let daysToAdd = targetDay - currentDay;
       if (daysToAdd <= 0) daysToAdd += 7;
@@ -297,15 +317,17 @@ function extractDate(message: string): string | undefined {
   
   const specificMatch = message.match(DATE_PATTERNS.specificDate);
   if (specificMatch) {
+    const brazil = getBrazilDateTime();
     const day = parseInt(specificMatch[1]);
     const month = parseInt(specificMatch[2]) - 1;
-    const year = specificMatch[3] ? parseInt(specificMatch[3]) : today.getFullYear();
+    const year = specificMatch[3] ? parseInt(specificMatch[3]) : brazil.date.getFullYear();
     const fullYear = year < 100 ? 2000 + year : year;
     return formatDate(new Date(fullYear, month, day));
   }
   
   if (DATE_PATTERNS.nextWeek.test(message)) {
-    const nextWeek = new Date(today);
+    const brazil = getBrazilDateTime();
+    const nextWeek = new Date(brazil.date);
     nextWeek.setDate(nextWeek.getDate() + 7);
     return formatDate(nextWeek);
   }
@@ -315,12 +337,25 @@ function extractDate(message: string): string | undefined {
 
 /**
  * Extrai uma hora da mensagem
+ * Suporta: 14:00, 14h, 14h30, 14:30, 14 horas, manhã, tarde, noite
  */
 function extractTime(message: string): string | undefined {
+  // Primeiro tentar formato XhYY (ex: 14h30, 10h45)
+  const withHMatch = message.match(TIME_PATTERNS.withH);
+  if (withHMatch) {
+    const hour = parseInt(withHMatch[1]);
+    const minutes = parseInt(withHMatch[2]);
+    if (hour >= 0 && hour <= 23 && minutes >= 0 && minutes <= 59) {
+      return `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
+  }
+  
+  // Depois tentar formato geral (14:00, 14h, 14 horas)
   const timeMatch = message.match(TIME_PATTERNS.specific);
   if (timeMatch) {
     const hour = parseInt(timeMatch[1]);
-    const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+    // Capturar minutos de diferentes grupos
+    const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : (timeMatch[4] ? parseInt(timeMatch[4]) : 0);
     if (hour >= 0 && hour <= 23 && minutes >= 0 && minutes <= 59) {
       return `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
     }
@@ -479,10 +514,26 @@ export async function getAvailableSlots(
 ): Promise<TimeSlot[]> {
   // Usar config fornecida ou buscar do cache
   const config = providedConfig ?? await getSchedulingConfigCached(userId);
-  if (!config || !config.is_enabled) return [];
+  console.log(`📅 [getAvailableSlots] Config para ${userId}:`, {
+    is_enabled: config?.is_enabled,
+    work_start_time: config?.work_start_time,
+    work_end_time: config?.work_end_time,
+    available_days: config?.available_days,
+    slot_duration: config?.slot_duration,
+    has_break: config?.has_break,
+    break_start: config?.break_start_time,
+    break_end: config?.break_end_time
+  });
+  
+  if (!config || !config.is_enabled) {
+    console.log(`📅 [getAvailableSlots] ❌ Config não habilitada ou não encontrada`);
+    return [];
+  }
   
   const exception = await getExceptionForDate(userId, date);
-  if (!isDayAvailable(date, config, exception)) return [];
+  if (!isDayAvailable(date, config, exception)) {
+    return [];
+  }
   
   const existingAppointments = await getAppointmentsForDate(userId, date);
   
@@ -503,7 +554,13 @@ export async function getAvailableSlots(
   const [startH, startM] = startTime.split(':').map(Number);
   const [endH, endM] = endTime.split(':').map(Number);
   const startMinutes = startH * 60 + startM;
-  const endMinutes = endH * 60 + endM;
+  // IMPORTANTE: Se end_time é 00:00 (meia-noite), tratar como 24:00 (1440 minutos)
+  // Isso permite horários até meia-noite, ex: 09:00-00:00
+  let endMinutes = endH * 60 + endM;
+  if (endMinutes === 0 || (endMinutes > 0 && endMinutes <= startMinutes)) {
+    // Se end_time é 00:00 ou menor/igual ao start (ex: trabalhar até meia-noite)
+    endMinutes = 24 * 60; // 1440 = meia-noite
+  }
   
   // Horário de pausa (almoço)
   let breakStartMinutes = 0;
@@ -564,6 +621,10 @@ export async function getAvailableSlots(
     currentMinutes += slotDuration + buffer;
   }
   
+  const availableSlots = slots.filter(s => s.available);
+  console.log(`📅 [getAvailableSlots] ${date}: Gerados ${slots.length} slots, ${availableSlots.length} disponíveis`);
+  console.log(`📅 [getAvailableSlots] Slots disponíveis:`, availableSlots.map(s => s.start).slice(0, 10), availableSlots.length > 10 ? '...' : '');
+  
   return slots;
 }
 
@@ -579,7 +640,7 @@ export async function createPendingAppointment(
   startTime: string,
   clientNotes?: string,
   providedConfig?: SchedulingConfig | null
-): Promise<{ success: boolean; appointment?: Appointment; error?: string }> {
+): Promise<{ success: boolean; appointment?: Appointment; error?: string; adjustedTime?: string }> {
   // Usar config fornecida ou buscar do cache
   const config = providedConfig ?? await getSchedulingConfigCached(userId);
   if (!config || !config.is_enabled) {
@@ -588,14 +649,52 @@ export async function createPendingAppointment(
   
   // Verificar disponibilidade (passar config para evitar query duplicada)
   const slots = await getAvailableSlots(userId, appointmentDate, config);
-  const selectedSlot = slots.find(s => s.start === startTime && s.available);
+  
+  // Tentar encontrar slot exato primeiro
+  let selectedSlot = slots.find(s => s.start === startTime && s.available);
+  let adjustedTime: string | undefined;
+  
+  // Se não encontrou slot exato, procurar o mais próximo disponível
+  if (!selectedSlot) {
+    const requestedMinutes = timeToMinutes(startTime);
+    const availableSlots = slots.filter(s => s.available);
+    
+    if (availableSlots.length > 0) {
+      // Encontrar slot mais próximo (dentro de 30 minutos de tolerância)
+      const TOLERANCE_MINUTES = 30;
+      let closestSlot: TimeSlot | null = null;
+      let minDiff = Infinity;
+      
+      for (const slot of availableSlots) {
+        const slotMinutes = timeToMinutes(slot.start);
+        const diff = Math.abs(slotMinutes - requestedMinutes);
+        
+        if (diff <= TOLERANCE_MINUTES && diff < minDiff) {
+          minDiff = diff;
+          closestSlot = slot;
+        }
+      }
+      
+      if (closestSlot) {
+        selectedSlot = closestSlot;
+        adjustedTime = closestSlot.start;
+        console.log(`📅 [Scheduling] Horário ${startTime} não disponível, ajustado para ${adjustedTime} (diferença: ${minDiff}min)`);
+      }
+    }
+  }
   
   if (!selectedSlot) {
+    // Log para debug: mostrar quais slots existem
+    const availableSlots = slots.filter(s => s.available).map(s => s.start).join(', ');
+    console.log(`📅 [Scheduling] Slot ${startTime} não encontrado. Slots disponíveis: ${availableSlots || 'nenhum'}`);
     return { success: false, error: 'Horário não disponível' };
   }
   
+  // Usar o horário do slot selecionado (pode ser ajustado)
+  const finalStartTime = selectedSlot.start;
+  
   // Calcular horário de término
-  const startMinutes = timeToMinutes(startTime);
+  const startMinutes = timeToMinutes(finalStartTime);
   const endMinutes = startMinutes + config.slot_duration;
   const endTime = minutesToTime(endMinutes);
   
@@ -611,7 +710,7 @@ export async function createPendingAppointment(
         client_phone: clientPhone,
         service_name: config.service_name,
         appointment_date: appointmentDate,
-        start_time: startTime,
+        start_time: finalStartTime,
         end_time: endTime,
         duration_minutes: config.slot_duration,
         location: config.location,
@@ -631,7 +730,7 @@ export async function createPendingAppointment(
       return { success: false, error: 'Erro ao criar agendamento' };
     }
     
-    return { success: true, appointment: data as Appointment };
+    return { success: true, appointment: data as Appointment, adjustedTime };
   } catch (error) {
     console.error('[Scheduling] Error creating appointment:', error);
     return { success: false, error: 'Erro ao criar agendamento' };
@@ -679,10 +778,10 @@ export async function generateSchedulingPromptBlock(userId: string): Promise<str
   
   let breakText = '';
   if (config.has_break) {
-    breakText = `\n- Pausa/Almoço: ${config.break_start_time} às ${config.break_end_time}`;
+    breakText = ` (pausa ${config.break_start_time}-${config.break_end_time})`;
   }
   
-  // Adiciona data/hora atual no timezone de São Paulo
+  // Data/hora no timezone de São Paulo
   const brazil = getBrazilDateTime();
   const todayStr = brazil.dateStr;
   const todayDayName = daysMap[brazil.date.getDay()];
@@ -693,59 +792,98 @@ export async function generateSchedulingPromptBlock(userId: string): Promise<str
   const tomorrowStr = `${tomorrow.getFullYear()}-${(tomorrow.getMonth() + 1).toString().padStart(2, '0')}-${tomorrow.getDate().toString().padStart(2, '0')}`;
   const tomorrowDayName = daysMap[tomorrow.getDay()];
   
-  const afterTomorrow = new Date(brazil.date);
-  afterTomorrow.setDate(afterTomorrow.getDate() + 2);
-  const afterTomorrowStr = `${afterTomorrow.getFullYear()}-${(afterTomorrow.getMonth() + 1).toString().padStart(2, '0')}-${afterTomorrow.getDate().toString().padStart(2, '0')}`;
-  const afterTomorrowDayName = daysMap[afterTomorrow.getDay()];
+  // BUSCAR SLOTS REAIS DO BANCO (não apenas teóricos)
+  const todaySlots = await getAvailableSlots(userId, todayStr, config);
+  const tomorrowSlots = await getAvailableSlots(userId, tomorrowStr, config);
   
+  const todaySlotsAvailable = todaySlots.filter(s => s.available).map(s => s.start);
+  const tomorrowSlotsAvailable = tomorrowSlots.filter(s => s.available).map(s => s.start);
+  
+  const todayAvailable = config.available_days.includes(brazil.date.getDay());
+  const tomorrowAvailable = config.available_days.includes(tomorrow.getDay());
+
+  // Buscar exceções para hoje e amanhã
+  const todayException = await getExceptionForDate(userId, todayStr);
+  const tomorrowException = await getExceptionForDate(userId, tomorrowStr);
+
+  // Construir info de disponibilidade real (considerando exceções)
+  let todayInfo = '';
+  if (todayException && (todayException.exception_type === 'blocked' || todayException.exception_type === 'holiday')) {
+    const reason = todayException.reason || (todayException.exception_type === 'holiday' ? 'feriado' : 'dia de folga');
+    todayInfo = `Hoje (${todayDayName}): NÃO ATENDEMOS (${reason})`;
+  } else if (!todayAvailable) {
+    todayInfo = `Hoje (${todayDayName}): não atendemos neste dia da semana`;
+  } else if (todaySlotsAvailable.length === 0) {
+    todayInfo = `Hoje: horários esgotados ou já passaram`;
+  } else {
+    todayInfo = `Hoje: ${todaySlotsAvailable.join(', ')}`;
+  }
+  
+  let tomorrowInfo = '';
+  if (tomorrowException && (tomorrowException.exception_type === 'blocked' || tomorrowException.exception_type === 'holiday')) {
+    const reason = tomorrowException.reason || (tomorrowException.exception_type === 'holiday' ? 'feriado' : 'dia de folga');
+    tomorrowInfo = `Amanhã (${tomorrowDayName}): NÃO ATENDEMOS (${reason})`;
+  } else if (!tomorrowAvailable) {
+    tomorrowInfo = `Amanhã (${tomorrowDayName}): não atendemos neste dia da semana`;
+  } else if (tomorrowSlotsAvailable.length === 0) {
+    tomorrowInfo = `Amanhã: lotado`;
+  } else {
+    tomorrowInfo = `Amanhã: ${tomorrowSlotsAvailable.join(', ')}`;
+  }
+
+  // Info sobre cancelamento
+  const cancellationInfo = config.allow_cancellation 
+    ? 'O cliente pode cancelar seu agendamento a qualquer momento.'
+    : 'O cliente NÃO pode cancelar pelo chat. Para cancelamentos, deve entrar em contato por outro meio.';
+
+  // Calcular horário mínimo para agendamento hoje (antecedência mínima)
+  const currentMinutes = brazil.date.getHours() * 60 + brazil.date.getMinutes();
+  const minBookingMinutes = currentMinutes + (config.min_booking_notice_hours * 60);
+  const minBookingTime = minutesToTime(minBookingMinutes > 24*60 ? 24*60 : minBookingMinutes);
+  
+  // Gerar texto de antecedência mínima
+  const noticeText = config.min_booking_notice_hours > 0 
+    ? `\n⏰ ANTECEDÊNCIA MÍNIMA: ${config.min_booking_notice_hours}h (para hoje, só horários a partir de ${minBookingTime})`
+    : '';
+
   return `
+---
+📅 RECURSO DE AGENDAMENTO ATIVO
+Agora: ${todayStr} ${currentTime} | Atendimento: ${availableDaysText}, ${config.work_start_time}-${config.work_end_time}${breakText}${noticeText}
 
-═══════════════════════════════════════════════════════════════════════════════
-📅 SISTEMA DE AGENDAMENTO ATIVO
-═══════════════════════════════════════════════════════════════════════════════
+HORÁRIOS DISPONÍVEIS (ATUALIZADOS EM TEMPO REAL):
+• ${todayInfo}
+• ${tomorrowInfo}
 
-🕐 DATA E HORA ATUAL: ${todayStr} (${todayDayName}) às ${currentTime}
-📆 REFERÊNCIA DE DATAS:
-- HOJE: ${todayStr} (${todayDayName})
-- AMANHÃ: ${tomorrowStr} (${tomorrowDayName})
-- DEPOIS DE AMANHÃ: ${afterTomorrowStr} (${afterTomorrowDayName})
+COMO RESPONDER QUANDO O HORÁRIO PEDIDO NÃO ESTÁ DISPONÍVEL:
+- Por antecedência: "Para hoje precisamos de ${config.min_booking_notice_hours}h de antecedência. O próximo horário disponível é [horário da lista]."
+- Se ocupado/lotado: "Esse horário já está reservado. Temos disponível: [horários da lista]."
+- Fora do expediente: "Nosso horário é das ${config.work_start_time} às ${config.work_end_time}. Temos disponível: [horários da lista]."
+- Dia de folga/feriado: Se o dia estiver marcado como "NÃO ATENDEMOS", explique o motivo entre parênteses e sugira o próximo dia com disponibilidade.
+- Sempre ofereça o PRÓXIMO horário/dia disponível!
 
-VOCÊ PODE AGENDAR PARA CLIENTES! Informações do serviço:
+POLÍTICA DE CANCELAMENTO:
+${cancellationInfo}
 
-📋 SERVIÇO: ${config.service_name}
-⏱️ DURAÇÃO: ${config.slot_duration} minutos
-📍 LOCAL: ${config.location || 'A definir'}
-🏷️ TIPO: ${config.location_type === 'presencial' ? 'Presencial' : config.location_type === 'online' ? 'Online' : 'Presencial ou Online'}
+⚠️ REGRA CRÍTICA DE AGENDAMENTO:
+PARA CADA CLIENTE diferente que quiser agendar, você DEVE usar a tag [AGENDAR:].
+A tag é o que REALMENTE cria o agendamento no sistema.
+Sem a tag = sem agendamento = cliente não vai receber confirmação/lembrete!
 
-📆 DISPONIBILIDADE:
-- Dias: ${availableDaysText}
-- Horário: ${config.work_start_time} às ${config.work_end_time}${breakText}
-- Máximo por dia: ${config.max_appointments_per_day} atendimentos
-- Antecedência mínima: ${config.min_booking_notice_hours} hora(s)
-- Agendamento até: ${config.advance_booking_days} dias à frente
+COMO USAR:
+[AGENDAR: DATA=YYYY-MM-DD, HORA=HH:MM, NOME=Nome do Cliente]
 
-🤖 COMO AGENDAR:
+Exemplos:
+- Hoje: DATA=${todayStr}
+- Amanhã: DATA=${tomorrowStr}
 
-1. Quando cliente perguntar sobre horários, INFORME a disponibilidade geral
-2. Quando cliente CONFIRMAR um horário específico, use a tag especial:
+FLUXO:
+1. Cliente pergunta horários → Diga as opções disponíveis acima
+2. Cliente escolhe horário → Peça o nome se ainda não souber
+3. Tem horário E nome → USE A TAG! Ex: [AGENDAR: DATA=${tomorrowStr}, HORA=10:15, NOME=João]
 
-   [AGENDAR: DATA=YYYY-MM-DD, HORA=HH:MM, NOME=Nome do Cliente]
-
-   Exemplo: [AGENDAR: DATA=2025-01-20, HORA=14:00, NOME=Maria Silva]
-
-3. Após criar o agendamento, confirme ao cliente:
-${config.require_confirmation 
-  ? '   "Seu agendamento foi criado e está PENDENTE de confirmação. Você receberá uma confirmação em breve!"'
-  : '   "Seu agendamento foi CONFIRMADO! Anotei aqui para você."'}
-
-${config.confirmation_message ? `\n📝 MENSAGEM DE CONFIRMAÇÃO:\n${config.confirmation_message}` : ''}
-
-⚠️ REGRAS IMPORTANTES:
-- NÃO invente horários - respeite os dias e horários configurados
-- NÃO agende no passado ou além do limite de dias
-- Se não souber o nome do cliente, pergunte antes de agendar
-- Se o horário pedido não estiver disponível, sugira alternativas
-═══════════════════════════════════════════════════════════════════════════════
+Depois da tag, converse naturalmente sobre o agendamento.
+---
 `;
 }
 
@@ -763,6 +901,14 @@ export async function processSchedulingTags(
   let modifiedText = responseText;
   let appointmentCreated: Appointment | undefined;
   
+  // Buscar configuração de agendamento para saber se precisa confirmação
+  let schedulingConfig: SchedulingConfig | null = null;
+  try {
+    schedulingConfig = await getSchedulingConfigCached(userId);
+  } catch (e) {
+    console.error('📅 [Scheduling] Error fetching config:', e);
+  }
+  
   while (match) {
     const [fullMatch, date, time, clientName] = match;
     
@@ -779,15 +925,31 @@ export async function processSchedulingTags(
     if (result.success && result.appointment) {
       console.log(`✅ [Scheduling] Appointment created: ${result.appointment.id}`);
       appointmentCreated = result.appointment;
-      // Remove a tag da resposta
+      
+      // ABORDAGEM: Agendamento Invisível
+      // A IA já escreveu a confirmação naturalmente, apenas removemos a tag
+      // e adicionamos um ✅ discreto no final (se a IA não tiver colocado)
+      
+      // Remover a tag da resposta
       modifiedText = modifiedText.replace(fullMatch, '');
+      
+      // Adicionar checkmark discreto apenas se a resposta não terminar com emoji de sucesso
+      const trimmed = modifiedText.trim();
+      if (!trimmed.endsWith('✅') && !trimmed.endsWith('📅') && !trimmed.endsWith('👍') && !trimmed.endsWith('😊')) {
+        modifiedText = trimmed + ' ✅';
+      }
     } else {
       console.log(`❌ [Scheduling] Failed to create appointment: ${result.error}`);
-      // Substituir a tag por uma mensagem de erro
-      modifiedText = modifiedText.replace(
-        fullMatch,
-        `\n\n⚠️ Não foi possível agendar: ${result.error}. Por favor, escolha outro horário.`
-      );
+      // Apenas remover a tag sem adicionar mensagem de erro
+      // Com as novas instruções, a IA só usa a tag após confirmação,
+      // então se falhar é um erro técnico - a IA já informou o cliente
+      modifiedText = modifiedText.replace(fullMatch, '');
+      
+      // Se a mensagem ficou vazia após remover a tag, adicionar fallback
+      // Isso acontece quando a IA só enviou a tag sem texto natural
+      if (modifiedText.trim() === '') {
+        modifiedText = `Puxa, o horário ${time} não está mais disponível! 😅 Mas sem problemas, posso verificar outros horários para você. Qual horário prefere?`;
+      }
     }
     
     match = schedulingTagRegex.exec(responseText);

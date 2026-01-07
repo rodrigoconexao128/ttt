@@ -1476,6 +1476,7 @@ export const schedulingConfig = pgTable("scheduling_config", {
   // Configurações de confirmação
   requireConfirmation: boolean("require_confirmation").default(true), // IA confirma antes de agendar
   autoConfirm: boolean("auto_confirm").default(false), // Agendar automaticamente
+  allowCancellation: boolean("allow_cancellation").default(true), // Permitir cancelamento pelo cliente via IA
   sendReminder: boolean("send_reminder").default(true),
   reminderHoursBefore: integer("reminder_hours_before").default(24),
   

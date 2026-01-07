@@ -11372,7 +11372,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     try {
       const userId = getUserId(req);
       const { id } = req.params;
-      const { confirmedBy } = req.body; // 'client' ou 'business'
+      const { confirmedBy, sendNotification = true } = req.body; // 'client' ou 'business'
       
       const updateData: any = {
         status: 'confirmed',
@@ -11397,6 +11397,18 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       if (error) throw error;
       
       console.log(`✅ [SCHEDULING] Agendamento ${id} confirmado por ${confirmedBy}`);
+      
+      // 📤 Se confirmado pelo negócio E sendNotification ativo, enviar mensagem ao cliente via IA
+      if (confirmedBy === 'business' && sendNotification && data) {
+        try {
+          const { sendConfirmationToClientViaAI } = await import('./appointmentReminderService');
+          await sendConfirmationToClientViaAI(data, userId);
+        } catch (notifyError) {
+          console.error("❌ [SCHEDULING] Erro ao enviar confirmação:", notifyError);
+          // Não falhar a operação principal
+        }
+      }
+      
       res.json(data);
     } catch (error: any) {
       console.error("Error confirming appointment:", error);
@@ -11412,7 +11424,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     try {
       const userId = getUserId(req);
       const { id } = req.params;
-      const { cancelledBy, reason } = req.body;
+      const { cancelledBy, reason, sendNotification = true } = req.body;
       
       const { data, error } = await supabase
         .from('appointments')
@@ -11431,6 +11443,18 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       if (error) throw error;
       
       console.log(`❌ [SCHEDULING] Agendamento ${id} cancelado por ${cancelledBy}`);
+      
+      // 📤 Se cancelado pelo negócio E sendNotification ativo, enviar mensagem ao cliente via IA
+      if (cancelledBy === 'business' && sendNotification && data) {
+        try {
+          const { sendCancellationToClientViaAI } = await import('./appointmentReminderService');
+          await sendCancellationToClientViaAI(data, userId, reason);
+        } catch (notifyError) {
+          console.error("❌ [SCHEDULING] Erro ao enviar notificação de cancelamento:", notifyError);
+          // Não falhar a operação principal
+        }
+      }
+      
       res.json(data);
     } catch (error: any) {
       console.error("Error cancelling appointment:", error);

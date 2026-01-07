@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { restoreExistingSessions, restoreAdminSessions, startConnectionHealthCheck } from "./whatsapp";
 import { followUpService } from "./followUpService";
+import { appointmentReminderService } from "./appointmentReminderService";
 import { seedDatabase } from "./seed";
 import path from "path";
 import fs from "fs";
@@ -170,7 +171,10 @@ app.use((req, res, next) => {
     // Start Follow-up Service
     followUpService.start();
     
-    // 🔄 Iniciar Health Check Monitor para reconexão automática
+    // � Start Appointment Reminder Service (lembretes via IA)
+    appointmentReminderService.start();
+    
+    // �🔄 Iniciar Health Check Monitor para reconexão automática
     // Verifica a cada 5 minutos se as conexões estão saudáveis
     startConnectionHealthCheck();
   });
