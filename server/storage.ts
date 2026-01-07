@@ -56,8 +56,129 @@ import {
   type InsertConversationTag,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
-import { eq, desc, and, gte, sql, inArray } from "drizzle-orm";
+import { eq, desc, and, gte, sql, inArray, lte } from "drizzle-orm";
 import { transcribeAudioWithMistral } from "./mistralClient";
+
+// ============================================
+// CACHE EM MEMÓRIA PARA REDUZIR CARGA NO DB
+// ============================================
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number; // time to live in ms
+}
+
+class MemoryCache {
+  private cache = new Map<string, CacheEntry<any>>();
+  private maxSize = 500; // Máximo de entradas no cache
+
+  set<T>(key: string, data: T, ttlMs: number = 30000): void {
+    // Limpar cache se estiver muito grande
+    if (this.cache.size >= this.maxSize) {
+      this.cleanup();
+    }
+    this.cache.set(key, { data, timestamp: Date.now(), ttl: ttlMs });
+  }
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.data as T;
+  }
+
+  invalidate(pattern: string): void {
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
+  private cleanup(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > entry.ttl) {
+        this.cache.delete(key);
+      }
+    }
+    // Se ainda estiver grande, remover os mais antigos
+    if (this.cache.size >= this.maxSize) {
+      const entries = Array.from(this.cache.entries())
+        .sort((a, b) => a[1].timestamp - b[1].timestamp);
+      const toRemove = entries.slice(0, Math.floor(this.maxSize / 2));
+      toRemove.forEach(([key]) => this.cache.delete(key));
+    }
+  }
+
+  getStats(): { size: number; maxSize: number; hitRate: string } {
+    return {
+      size: this.cache.size,
+      maxSize: this.maxSize,
+      hitRate: 'n/a', // Podemos implementar contagem de hits/misses futuramente
+    };
+  }
+}
+
+export const memoryCache = new MemoryCache();
+
+// ============================================
+// CIRCUIT BREAKER PARA PROTEÇÃO DO DB
+// ============================================
+class CircuitBreaker {
+  private failures = 0;
+  private lastFailure = 0;
+  private state: 'closed' | 'open' | 'half-open' = 'closed';
+  private readonly threshold = 5; // Número de falhas para abrir
+  private readonly resetTimeout = 30000; // 30 segundos para tentar novamente
+
+  async execute<T>(operation: () => Promise<T>, fallback?: T): Promise<T> {
+    if (this.state === 'open') {
+      if (Date.now() - this.lastFailure > this.resetTimeout) {
+        this.state = 'half-open';
+      } else {
+        console.warn('⚡ [Circuit Breaker] Circuito ABERTO - usando fallback');
+        if (fallback !== undefined) return fallback;
+        throw new Error('Database circuit breaker is open');
+      }
+    }
+
+    try {
+      const result = await operation();
+      if (this.state === 'half-open') {
+        this.state = 'closed';
+        this.failures = 0;
+        console.log('✅ [Circuit Breaker] Circuito FECHADO - DB recuperado');
+      }
+      return result;
+    } catch (error: any) {
+      this.failures++;
+      this.lastFailure = Date.now();
+      
+      if (this.failures >= this.threshold) {
+        this.state = 'open';
+        console.error(`🔴 [Circuit Breaker] Circuito ABERTO após ${this.failures} falhas`);
+      }
+      
+      if (fallback !== undefined) return fallback;
+      throw error;
+    }
+  }
+
+  isOpen(): boolean {
+    return this.state === 'open';
+  }
+
+  getState(): string {
+    return this.state;
+  }
+}
+
+export const dbCircuitBreaker = new CircuitBreaker();
 
 export interface IStorage {
   // User operations (IMPORTANT: mandatory for Replit Auth)
@@ -397,13 +518,68 @@ export class DatabaseStorage implements IStorage {
     return conversation;
   }
 
-  // Message operations
+  // Message operations - OTIMIZADO para reduzir egress do Supabase
+  // Por padrão NÃO retorna media_url que pode ser muito grande (base64)
   async getMessagesByConversationId(conversationId: string): Promise<Message[]> {
+    // Verificar cache primeiro
+    const cacheKey = `messages:${conversationId}`;
+    const cached = memoryCache.get<Message[]>(cacheKey);
+    if (cached) return cached;
+
+    // Query otimizada SEM media_url para economizar bandwidth
+    const result = await db
+      .select({
+        id: messages.id,
+        conversationId: messages.conversationId,
+        messageId: messages.messageId,
+        fromMe: messages.fromMe,
+        text: messages.text,
+        timestamp: messages.timestamp,
+        status: messages.status,
+        isFromAgent: messages.isFromAgent,
+        mediaType: messages.mediaType,
+        // media_url NÃO incluído - usar getMessageMedia() quando necessário
+        mediaMimeType: messages.mediaMimeType,
+        mediaDuration: messages.mediaDuration,
+        mediaCaption: messages.mediaCaption,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.timestamp);
+
+    // Converter para tipo Message (media_url será null)
+    const messagesWithNullMedia = result.map(m => ({
+      ...m,
+      mediaUrl: null, // Não buscar media_url aqui - usar lazy loading
+    })) as Message[];
+
+    // Cache por 30 segundos
+    memoryCache.set(cacheKey, messagesWithNullMedia, 30000);
+    return messagesWithNullMedia;
+  }
+
+  // Nova função para buscar media_url de uma mensagem específica (lazy loading)
+  async getMessageMedia(messageId: string): Promise<{ mediaUrl: string | null; mediaType: string | null } | null> {
+    const [result] = await db
+      .select({ 
+        mediaUrl: messages.mediaUrl,
+        mediaType: messages.mediaType 
+      })
+      .from(messages)
+      .where(eq(messages.id, messageId))
+      .limit(1);
+    return result || null;
+  }
+
+  // Versão completa com media_url - usar apenas quando REALMENTE necessário
+  async getMessagesByConversationIdWithMedia(conversationId: string, limit: number = 50): Promise<Message[]> {
     return await db
       .select()
       .from(messages)
       .where(eq(messages.conversationId, conversationId))
-      .orderBy(messages.timestamp);
+      .orderBy(desc(messages.timestamp))
+      .limit(limit);
   }
 
   async updateMessage(id: string, data: Partial<InsertMessage>): Promise<Message> {

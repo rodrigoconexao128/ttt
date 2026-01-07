@@ -1,8 +1,8 @@
-import type { Express, Request } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
-import { storage } from "./storage";
+import { storage, dbCircuitBreaker, memoryCache } from "./storage";
 import { followUpService } from "./followUpService";
 import { userFollowUpService } from "./userFollowUpService";
 import { registerFollowUpRoutes } from "./routes_user_followup";
@@ -10,6 +10,138 @@ import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth
 import { withRetry, db } from "./db";
 import { eq, and, gte, desc, inArray } from "drizzle-orm";
 import { subscriptions, paymentHistory } from "@shared/schema";
+
+// ============================================
+// SISTEMA DE MANUTENÇÃO E FALLBACK
+// ============================================
+let maintenanceMode = false;
+let maintenanceMessage = "Estamos realizando uma manutenção rápida. Voltamos em instantes!";
+
+export function setMaintenanceMode(enabled: boolean, message?: string): void {
+  maintenanceMode = enabled;
+  if (message) maintenanceMessage = message;
+  console.log(`🔧 [MAINTENANCE] Modo de manutenção: ${enabled ? 'ATIVADO' : 'DESATIVADO'}`);
+}
+
+export function isInMaintenanceMode(): boolean {
+  return maintenanceMode || dbCircuitBreaker.isOpen();
+}
+
+// Middleware de manutenção - retorna página amigável quando sistema está instável
+function maintenanceMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // Sempre permitir health check
+  if (req.path === '/api/health' || req.path === '/api/status') {
+    return next();
+  }
+
+  // Se em manutenção ou circuit breaker aberto
+  if (isInMaintenanceMode()) {
+    // Para APIs, retornar JSON
+    if (req.path.startsWith('/api/')) {
+      res.status(503).json({
+        error: 'maintenance',
+        message: dbCircuitBreaker.isOpen() 
+          ? 'Sistema temporariamente indisponível. Tentando reconectar automaticamente...'
+          : maintenanceMessage,
+        retryAfter: 30,
+      });
+      return;
+    }
+    
+    // Para páginas, retornar HTML de manutenção
+    res.status(503).send(getMaintenanceHTML());
+    return;
+  }
+
+  next();
+}
+
+function getMaintenanceHTML(): string {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manutenção - AgenteZap</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: white;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+      max-width: 500px;
+    }
+    .icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      color: #00d26a;
+    }
+    p {
+      font-size: 1.1rem;
+      opacity: 0.9;
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+    .status {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background: rgba(255,255,255,0.1);
+      border-radius: 20px;
+      font-size: 0.9rem;
+    }
+    .progress {
+      width: 200px;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 2px;
+      margin: 1.5rem auto;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 30%;
+      background: #00d26a;
+      border-radius: 2px;
+      animation: loading 1.5s infinite;
+    }
+    @keyframes loading {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(400%); }
+    }
+  </style>
+  <script>
+    // Tentar recarregar a cada 30 segundos
+    setTimeout(() => window.location.reload(), 30000);
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">🔧</div>
+    <h1>Estamos melhorando para você!</h1>
+    <p>${maintenanceMessage}</p>
+    <div class="progress"><div class="progress-bar"></div></div>
+    <span class="status">⏱️ Recarregando automaticamente...</span>
+  </div>
+</body>
+</html>`;
+}
 
 // Configurar multer para upload em memória (depois envia pro Supabase Storage)
 const upload = multer({
@@ -209,6 +341,35 @@ NÃO FAZER:
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
+
+  // ==================== HEALTH CHECK E STATUS ====================
+  // Estes endpoints SEMPRE funcionam, mesmo em manutenção
+  app.get("/api/health", async (req, res) => {
+    const dbStatus = !dbCircuitBreaker.isOpen();
+    const cacheStats = memoryCache.getStats();
+    
+    res.json({
+      status: dbStatus ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      database: {
+        connected: dbStatus,
+        circuitBreaker: dbCircuitBreaker.getState(),
+      },
+      cache: cacheStats,
+      maintenance: maintenanceMode,
+    });
+  });
+
+  app.get("/api/status", (req, res) => {
+    res.json({
+      operational: !isInMaintenanceMode(),
+      maintenance: maintenanceMode,
+      dbAvailable: !dbCircuitBreaker.isOpen(),
+    });
+  });
+
+  // Aplicar middleware de manutenção APÓS os health checks
+  app.use(maintenanceMiddleware);
 
   // ==================== FOLLOW-UP INTELIGENTE ROUTES ====================
   registerFollowUpRoutes(app);
@@ -1669,6 +1830,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting messages:", error);
       res.status(500).json({ message: "Failed to delete messages" });
+    }
+  });
+
+  // ==================== LAZY LOAD DE MEDIA ====================
+  // Endpoint para carregar media (imagens/áudio) sob demanda - reduz Egress
+  app.get("/api/messages/:messageId/media", isAuthenticated, async (req: any, res) => {
+    try {
+      const { messageId } = req.params;
+      const userId = getUserId(req);
+
+      // Buscar mensagem para verificar propriedade
+      const message = await storage.getMessageByMessageId(messageId);
+      if (!message) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+
+      // Verificar propriedade via conversation -> connection
+      const conversation = await storage.getConversation(message.conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Buscar apenas a media_url da mensagem
+      const mediaData = await storage.getMessageMedia(messageId);
+      
+      if (!mediaData || mediaData.mediaUrl === null) {
+        return res.json({ mediaUrl: null, hasMedia: false });
+      }
+
+      // Adicionar headers de cache (media raramente muda)
+      res.set('Cache-Control', 'private, max-age=3600'); // Cache 1 hora
+      res.json({ 
+        mediaUrl: mediaData.mediaUrl, 
+        mediaType: mediaData.mediaType ?? 'unknown',
+        hasMedia: true 
+      });
+    } catch (error) {
+      console.error("Error fetching message media:", error);
+      res.status(500).json({ message: "Failed to fetch media" });
     }
   });
 
