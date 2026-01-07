@@ -588,6 +588,11 @@ export class DatabaseStorage implements IStorage {
       .set(data)
       .where(eq(messages.id, id))
       .returning();
+    
+    // 🔥 Invalidar cache de mensagens da conversa após atualização
+    if (message?.conversationId) {
+      memoryCache.invalidate(`messages:${message.conversationId}`);
+    }
     return message;
   }
 
@@ -601,6 +606,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteMessagesByConversationId(conversationId: string): Promise<void> {
+    // 🔥 Invalidar cache antes de deletar
+    memoryCache.invalidate(`messages:${conversationId}`);
+    
     await db
       .delete(messages)
       .where(eq(messages.conversationId, conversationId));
@@ -608,6 +616,10 @@ export class DatabaseStorage implements IStorage {
 
   async createMessage(messageData: InsertMessage): Promise<Message> {
     const data: InsertMessage = { ...messageData };
+
+    // 🔥 CRÍTICO: Invalidar cache de mensagens da conversa ANTES de inserir
+    // Isso evita o bug onde a verificação de última mensagem retorna dados desatualizados
+    memoryCache.invalidate(`messages:${data.conversationId}`);
 
     // Transcrição automática para mensagens de áudio, independente do agente estar ativo ou não.
     if (data.mediaType === "audio" && data.mediaUrl) {

@@ -362,39 +362,96 @@ function extractVerbatimFirstMessage(prompt: string): string | null {
     return texto;
   }
   
-  // 🆕 PADRÃO 2: Texto entre aspas após "Use exatamente", "Envie apenas o texto:", etc
-  // Este padrão detecta prompts como:
-  // "Use **exatamente** o texto abaixo... Envie **apenas** o texto: "Oi, tudo bem? Eu sou a Ana..."
-  const quotedTextPatterns = [
-    // "Envie apenas o texto:" seguido de texto entre aspas
-    /envie\s+\*?\*?apenas\*?\*?\s+o\s+texto:?\s*\n?\s*[""]([^""]+)[""](?:\s*\n|$)/i,
-    // "Use exatamente o texto abaixo..." seguido de texto entre aspas (pode ter outras instruções no meio)
-    /use\s+\*?\*?exatamente\*?\*?\s+o\s+texto\s+abaixo[^""]*[""]([^""]+)[""](?:\s*\n|$)/i,
-    // "Primeira mensagem:" seguido de texto entre aspas (genérico)
-    /\*?\*?primeira\s+mensagem\*?\*?:?[^""]*[""]([^""]+)[""](?:\s*\n|$)/i,
-  ];
+  // 🆕 PADRÃO 2: NOVA ESTRATÉGIA SIMPLIFICADA
+  // Buscar TODOS os textos entre aspas LONGAS no prompt e retornar o correto
+  // Um texto verbatim real tem:
+  // - Mais de 100 caracteres
+  // - Começa com saudação (Oi, Olá, etc) ou é uma apresentação
+  // - NÃO é uma instrução ("Use exatamente", "O sistema é projetado" etc)
   
-  for (const pattern of quotedTextPatterns) {
-    const match = prompt.match(pattern);
-    if (match && match[1]) {
-      const texto = match[1].trim();
-      // Texto entre aspas geralmente é a mensagem real - aceitar se tiver tamanho razoável
-      if (texto.length > 30) {
-        console.log(`🎯 [AI Agent] TEXTO VERBATIM ENCONTRADO entre aspas!`);
-        console.log(`   Tamanho: ${texto.length} chars`);
-        console.log(`   Preview: "${texto.substring(0, 80)}..."`);
-        return texto;
-      }
+  // Regex para capturar textos entre aspas (aspas normais " e curvas "")
+  const allQuotedTexts: string[] = [];
+  
+  // Capturar textos com aspas normais
+  const normalQuotes = prompt.matchAll(/"([^"]{80,})"/g);
+  for (const match of normalQuotes) {
+    if (match[1]) allQuotedTexts.push(match[1]);
+  }
+  
+  // Capturar textos com aspas curvas
+  const curlyQuotes = prompt.matchAll(/"([^"]{80,})"/g);
+  for (const match of curlyQuotes) {
+    if (match[1]) allQuotedTexts.push(match[1]);
+  }
+  
+  console.log(`🎯 [AI Agent] Encontrados ${allQuotedTexts.length} textos longos entre aspas`);
+  
+  // Filtrar para encontrar o texto CORRETO
+  for (const texto of allQuotedTexts) {
+    const textoLower = texto.toLowerCase().trim();
+    
+    // IGNORAR se parece ser um exemplo técnico ou instrução
+    const isExemploTecnico = 
+      textoLower.startsWith('o sistema é projetado') ||
+      textoLower.startsWith('use exatamente') ||
+      textoLower.startsWith('ex:') ||
+      textoLower.startsWith('exemplo:');
+    
+    // IGNORAR se está claramente após "Exemplo:" no contexto
+    const posicaoNoPrompt = prompt.indexOf(texto);
+    const contextoAntes = prompt.substring(Math.max(0, posicaoNoPrompt - 50), posicaoNoPrompt).toLowerCase();
+    const isAposExemplo = contextoAntes.includes('exemplo:') || contextoAntes.includes('exemplo:');
+    
+    // ACEITAR se parece ser uma mensagem real de apresentação
+    const isApresentacao = 
+      textoLower.startsWith('oi') ||
+      textoLower.startsWith('olá') ||
+      textoLower.startsWith('ola') ||
+      textoLower.startsWith('ei,') ||
+      textoLower.startsWith('e aí') ||
+      textoLower.includes('eu sou') ||
+      textoLower.includes('meu nome é');
+    
+    console.log(`🎯 [AI Agent] Analisando texto: "${texto.substring(0, 50)}..."`);
+    console.log(`   - É exemplo técnico: ${isExemploTecnico}`);
+    console.log(`   - Está após "Exemplo:": ${isAposExemplo}`);
+    console.log(`   - É apresentação: ${isApresentacao}`);
+    
+    // Se é uma apresentação e NÃO é exemplo técnico, usar!
+    if (isApresentacao && !isExemploTecnico && !isAposExemplo) {
+      console.log(`🎯 [AI Agent] ✅ TEXTO VERBATIM ENCONTRADO!`);
+      console.log(`   Tamanho: ${texto.length} chars`);
+      console.log(`   Preview: "${texto.substring(0, 80)}..."`);
+      return texto.trim();
     }
   }
   
-  // PADRÃO 3: Com instrução "envie EXATAMENTE este texto" (sem aspas, texto livre)
-  // Busca do marcador até "Após enviar" ou fim do prompt
+  // Se não achou apresentação, tentar o PRIMEIRO texto longo que não seja exemplo
+  for (const texto of allQuotedTexts) {
+    const textoLower = texto.toLowerCase().trim();
+    
+    const isExemploTecnico = 
+      textoLower.startsWith('o sistema é projetado') ||
+      textoLower.startsWith('use exatamente') ||
+      textoLower.startsWith('ex:') ||
+      textoLower.startsWith('exemplo:');
+    
+    const posicaoNoPrompt = prompt.indexOf(texto);
+    const contextoAntes = prompt.substring(Math.max(0, posicaoNoPrompt - 50), posicaoNoPrompt).toLowerCase();
+    const isAposExemplo = contextoAntes.includes('exemplo:') || contextoAntes.includes('exemplo:');
+    
+    if (!isExemploTecnico && !isAposExemplo && texto.length > 100) {
+      console.log(`🎯 [AI Agent] ✅ TEXTO VERBATIM ENCONTRADO (fallback)!`);
+      console.log(`   Tamanho: ${texto.length} chars`);
+      console.log(`   Preview: "${texto.substring(0, 80)}..."`);
+      return texto.trim();
+    }
+  }
+  
+  // PADRÃO 3: Fallback - texto com formatação após "primeira mensagem"
   const exactlyPatterns = [
     // "Sempre na primeira mensagem... envie EXATAMENTE este texto (com formatação):"
     /envie\s+EXATAMENTE\s+(?:este\s+)?texto\s*(?:\([^)]*\))?\s*:\s*([\s\S]+?)(?=(?:Após\s+enviar|===\s*FIM|Caso\s+ele|Respostas?\s+claras|•\s*\*?\*?Após|$))/i,
-    // "primeira mensagem deve ser:"
-    /primeira\s+mensagem[^:]*:\s*([\s\S]+?)(?=(?:Após\s+enviar|===\s*FIM|Caso\s+ele|Respostas?\s+claras|•\s*\*?\*?Após|$))/i,
   ];
   
   for (const pattern of exactlyPatterns) {
@@ -415,27 +472,22 @@ function extractVerbatimFirstMessage(prompt: string): string | null {
       if (texto.length > 50 && (temEmojis || temFormatacao)) {
         console.log(`🎯 [AI Agent] TEXTO VERBATIM DETECTADO no prompt (padrão 3)!`);
         console.log(`   Tamanho: ${texto.length} chars`);
-        console.log(`   Quebras de linha: ${(texto.match(/\n/g) || []).length}`);
         console.log(`   Tem emojis: ${temEmojis}`);
         console.log(`   Tem formatação: ${temFormatacao}`);
         
         // Se não tem quebras de linha, tentar reconstruir a formatação
-        // baseado nos emojis que tipicamente iniciam novas linhas
         if (!texto.includes('\n') && temEmojis) {
           console.log(`🎯 [AI Agent] Texto sem quebras - tentando reconstruir formatação...`);
           const textoFormatado = reconstruirQuebrasDeLinha(texto);
-          console.log(`🎯 [AI Agent] Texto reconstruído com ${(textoFormatado.match(/\n/g) || []).length} quebras`);
           return textoFormatado;
         }
         
         return texto;
       }
       
-      // Se não tem emojis/formatação mas tem tamanho razoável, ainda pode ser válido
-      // (como o caso do cliente Jeferson que é texto simples)
+      // Texto simples mas válido
       if (texto.length > 50) {
-        console.log(`🎯 [AI Agent] TEXTO VERBATIM DETECTADO (texto simples, sem emojis)!`);
-        console.log(`   Tamanho: ${texto.length} chars`);
+        console.log(`🎯 [AI Agent] TEXTO VERBATIM DETECTADO (texto simples)!`);
         console.log(`   Preview: "${texto.substring(0, 80)}..."`);
         return texto;
       }
