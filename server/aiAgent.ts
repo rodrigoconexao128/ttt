@@ -288,6 +288,62 @@ export interface AIResponseOptions {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🧹 FUNÇÃO PARA LIMPAR VAZAMENTOS DE INSTRUÇÕES NA RESPOSTA DA IA
+// Remove instruções técnicas que a IA às vezes copia do prompt para a resposta
+// Ex: "Use exatamente o texto abaixo..." não deve aparecer na mensagem ao cliente
+// ═══════════════════════════════════════════════════════════════════════
+function cleanInstructionLeaks(responseText: string): string {
+  const originalText = responseText;
+  let cleanedText = responseText;
+  
+  // Padrões de instruções técnicas que vazam na resposta
+  const instructionPatterns = [
+    // "Use exatamente o texto abaixo..." e variações
+    /^\s*\*?\*?\s*use\s+\*?exatamente\*?\s+o\s+texto\s+abaixo[^"]*?:\s*/i,
+    /^\s*use\s+o\s+(?:modelo|texto)\s+abaixo[^"]*?:\s*/i,
+    // "Envie apenas o texto:" e variações
+    /envie\s+\*?\*?apenas\*?\*?\s*o\s+texto:?\s*/i,
+    // "sem exibir instruções ou notas técnicas"
+    /,?\s*sem\s+exibir\s+instru[cç][oõ]es\s+ou\s+notas\s+t[eé]cnicas[^"]*?[:.]?\s*/i,
+    // "(ex: "Use exatamente...")"
+    /\s*\(ex:?\s*[""][^""]+[""]\.?\)\s*\.?\s*/gi,
+    // "mantendo o tom natural e direto:"
+    /,?\s*mantendo\s+o\s+tom\s+natural\s+(?:e\s+)?direto:?\s*/i,
+    // "sem alterar nome, estrutura ou tom:"
+    /,?\s*sem\s+alterar\s+nome,?\s+estrutura\s+ou\s+tom:?\s*/i,
+    // Remover asteriscos soltos no início
+    /^\s*\*+\s*/,
+  ];
+  
+  // Aplicar cada padrão de limpeza
+  for (const pattern of instructionPatterns) {
+    cleanedText = cleanedText.replace(pattern, '');
+  }
+  
+  // Se a resposta começa com aspas duplas, provavelmente é o texto entre aspas que queremos
+  // Extrair o conteúdo entre as primeiras aspas
+  const quotedTextMatch = cleanedText.match(/^[""]([^""]+)[""]$/);
+  if (quotedTextMatch) {
+    cleanedText = quotedTextMatch[1];
+  }
+  
+  // Se ainda tem aspas no início (sem fechar), remover
+  cleanedText = cleanedText.replace(/^[""]/, '').replace(/[""]$/, '');
+  
+  // Limpar espaços extras
+  cleanedText = cleanedText.trim();
+  
+  // Se limpamos algo significativo, logar
+  if (cleanedText !== originalText) {
+    console.log(`🧹 [AI Agent] Limpeza de instruções vazadas:`);
+    console.log(`   Original (${originalText.length} chars): "${originalText.substring(0, 100)}..."`);
+    console.log(`   Limpo (${cleanedText.length} chars): "${cleanedText.substring(0, 100)}..."`);
+  }
+  
+  return cleanedText;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 🎯 FUNÇÃO PARA EXTRAIR TEXTO VERBATIM DO PROMPT
 // Se o prompt tem "envie EXATAMENTE este texto", extrai e usa diretamente
 // Isso garante que formatação com quebras de linha seja preservada
@@ -306,26 +362,58 @@ function extractVerbatimFirstMessage(prompt: string): string | null {
     return texto;
   }
   
-  // PADRÃO 2: Com instrução "envie EXATAMENTE este texto"
+  // 🆕 PADRÃO 2: Texto entre aspas após "Use exatamente", "Envie apenas o texto:", etc
+  // Este padrão detecta prompts como:
+  // "Use **exatamente** o texto abaixo... Envie **apenas** o texto: "Oi, tudo bem? Eu sou a Ana..."
+  const quotedTextPatterns = [
+    // "Envie apenas o texto:" seguido de texto entre aspas
+    /envie\s+\*?\*?apenas\*?\*?\s+o\s+texto:?\s*\n?\s*[""]([^""]+)[""](?:\s*\n|$)/i,
+    // "Use exatamente o texto abaixo..." seguido de texto entre aspas (pode ter outras instruções no meio)
+    /use\s+\*?\*?exatamente\*?\*?\s+o\s+texto\s+abaixo[^""]*[""]([^""]+)[""](?:\s*\n|$)/i,
+    // "Primeira mensagem:" seguido de texto entre aspas (genérico)
+    /\*?\*?primeira\s+mensagem\*?\*?:?[^""]*[""]([^""]+)[""](?:\s*\n|$)/i,
+  ];
+  
+  for (const pattern of quotedTextPatterns) {
+    const match = prompt.match(pattern);
+    if (match && match[1]) {
+      const texto = match[1].trim();
+      // Texto entre aspas geralmente é a mensagem real - aceitar se tiver tamanho razoável
+      if (texto.length > 30) {
+        console.log(`🎯 [AI Agent] TEXTO VERBATIM ENCONTRADO entre aspas!`);
+        console.log(`   Tamanho: ${texto.length} chars`);
+        console.log(`   Preview: "${texto.substring(0, 80)}..."`);
+        return texto;
+      }
+    }
+  }
+  
+  // PADRÃO 3: Com instrução "envie EXATAMENTE este texto" (sem aspas, texto livre)
   // Busca do marcador até "Após enviar" ou fim do prompt
   const exactlyPatterns = [
     // "Sempre na primeira mensagem... envie EXATAMENTE este texto (com formatação):"
-    /envie\s+EXATAMENTE\s+(?:este\s+)?texto\s*(?:\([^)]*\))?\s*:\s*([\s\S]+?)(?=(?:Após\s+enviar|===\s*FIM|Caso\s+ele|Respostas?\s+claras|$))/i,
+    /envie\s+EXATAMENTE\s+(?:este\s+)?texto\s*(?:\([^)]*\))?\s*:\s*([\s\S]+?)(?=(?:Após\s+enviar|===\s*FIM|Caso\s+ele|Respostas?\s+claras|•\s*\*?\*?Após|$))/i,
     // "primeira mensagem deve ser:"
-    /primeira\s+mensagem[^:]*:\s*([\s\S]+?)(?=(?:Após\s+enviar|===\s*FIM|Caso\s+ele|Respostas?\s+claras|$))/i,
+    /primeira\s+mensagem[^:]*:\s*([\s\S]+?)(?=(?:Após\s+enviar|===\s*FIM|Caso\s+ele|Respostas?\s+claras|•\s*\*?\*?Após|$))/i,
   ];
   
   for (const pattern of exactlyPatterns) {
     const match = prompt.match(pattern);
     if (match && match[1]) {
-      const texto = match[1].trim();
+      let texto = match[1].trim();
       
-      // Verificar se tem características de texto formatado
+      // Se o texto capturado começa com aspas, extrair só o conteúdo entre aspas
+      const innerQuoteMatch = texto.match(/^[""]([^""]+)[""]$/);
+      if (innerQuoteMatch) {
+        texto = innerQuoteMatch[1].trim();
+      }
+      
+      // Verificar se tem características de texto formatado (emojis ou formatação)
       const temEmojis = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]/u.test(texto);
       const temFormatacao = texto.includes('*') || texto.includes('_');
       
       if (texto.length > 50 && (temEmojis || temFormatacao)) {
-        console.log(`🎯 [AI Agent] TEXTO VERBATIM DETECTADO no prompt!`);
+        console.log(`🎯 [AI Agent] TEXTO VERBATIM DETECTADO no prompt (padrão 3)!`);
         console.log(`   Tamanho: ${texto.length} chars`);
         console.log(`   Quebras de linha: ${(texto.match(/\n/g) || []).length}`);
         console.log(`   Tem emojis: ${temEmojis}`);
@@ -340,6 +428,15 @@ function extractVerbatimFirstMessage(prompt: string): string | null {
           return textoFormatado;
         }
         
+        return texto;
+      }
+      
+      // Se não tem emojis/formatação mas tem tamanho razoável, ainda pode ser válido
+      // (como o caso do cliente Jeferson que é texto simples)
+      if (texto.length > 50) {
+        console.log(`🎯 [AI Agent] TEXTO VERBATIM DETECTADO (texto simples, sem emojis)!`);
+        console.log(`   Tamanho: ${texto.length} chars`);
+        console.log(`   Preview: "${texto.substring(0, 80)}..."`);
         return texto;
       }
     }
@@ -1332,6 +1429,10 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       
       // 🚨 POST-PROCESSING: Detectar e limpar possíveis vazamentos de instruções do prompt
       // CUIDADO: Não truncar agressivamente - apenas limpar padrões específicos problemáticos
+      
+      // 🆕 FIX: Remover instruções técnicas que vazam na resposta da IA
+      // Padrões como "Use exatamente o texto abaixo..." são instruções, não respostas
+      responseText = cleanInstructionLeaks(responseText);
       
       // 1. Detectar se tem texto que parece ser do prompt (padrões de instrução)
       const hasPromptLeak = responseText.includes('online/cadastro)') ||
