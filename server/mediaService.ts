@@ -253,19 +253,22 @@ Analise a mensagem do cliente e compare com cada condição abaixo.
 
   mediaBlock += `
 ═══════════════════════════════════════════════════════════════════════════════
-📝 INSTRUÇÕES:
+📝 INSTRUÇÕES OBRIGATÓRIAS DE MÍDIA:
 ═══════════════════════════════════════════════════════════════════════════════
 
+⚠️ REGRA CRÍTICA: VOCÊ DEVE ENVIAR **TODAS** AS MÍDIAS ACIMA CUJAS CONDIÇÕES SE APLICAM!
+⚠️ NÃO escolha apenas uma - se 3 condições batem, envie 3 tags!
+
+PROCESSO OBRIGATÓRIO:
 1. Leia a mensagem do cliente
-2. Compare com as CONDIÇÕES listadas acima
-3. Se corresponder, adicione a TAG no FINAL da sua resposta
-4. Escolha APENAS UMA mídia (a mais relevante para a situação atual)
+2. Para CADA mídia acima, verifique se a CONDIÇÃO se aplica
+3. Se a condição de uma mídia bate → ADICIONE a tag [MEDIA:NOME]
+4. Se a condição de outra mídia também bate → ADICIONE essa tag também
+5. Continue até verificar TODAS as mídias
 
-FORMATO: Responda normalmente, depois adicione [MEDIA:NOME_DA_MIDIA]
-
-EXEMPLO:
+FORMATO CORRETO (MÚLTIPLAS MÍDIAS):
 Cliente: "Oi, boa tarde!"
-Resposta: "Oi! Tudo bem? Com o que você trabalha? [MEDIA:AUDIO_BOAS_VINDAS]"
+Resposta: "Oi! Tudo bem? [MEDIA:AUDIO_BOAS_VINDAS][MEDIA:BANNER][MEDIA:VIDEO_APRESENTACAO]"
 
 ⚠️ NÃO repita mídias já enviadas nesta conversa
 ⚠️ NÃO mencione que está enviando áudio/vídeo/imagem
