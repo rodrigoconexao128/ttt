@@ -32,6 +32,74 @@ const agentConfigCache = new Map<string, CacheEntry<any>>();
 // Cache global da chave Mistral
 let mistralKeyCache: CacheEntry<string | null> | null = null;
 
+// 🔒 ANTI-DUPLICAÇÃO: Cache de mensagens enviadas recentemente
+// Armazena hash das mensagens enviadas por conversa nos últimos 30 minutos
+const sentMessagesCache = new Map<string, { hash: string; timestamp: number }[]>();
+
+// 🔒 ANTI-DUPLICAÇÃO: Set de conversas sendo processadas agora
+// Evita que a mesma conversa seja processada em paralelo
+const conversationsBeingProcessed = new Set<string>();
+
+// Limpar cache de mensagens enviadas a cada 10 minutos
+setInterval(() => {
+  const now = Date.now();
+  const THIRTY_MINUTES = 30 * 60 * 1000;
+  
+  for (const [convId, messages] of sentMessagesCache.entries()) {
+    const filtered = messages.filter(m => now - m.timestamp < THIRTY_MINUTES);
+    if (filtered.length === 0) {
+      sentMessagesCache.delete(convId);
+    } else {
+      sentMessagesCache.set(convId, filtered);
+    }
+  }
+}, 10 * 60 * 1000);
+
+/**
+ * Gera hash simples de uma mensagem para detectar duplicatas
+ */
+function generateMessageHash(message: string): string {
+  const normalized = message.toLowerCase()
+    .replace(/[^a-záéíóúàèìòùâêîôûãõ\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  // Hash simples baseado em soma de caracteres
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = ((hash << 5) - hash) + normalized.charCodeAt(i);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash.toString(16);
+}
+
+/**
+ * Verifica se uma mensagem similar já foi enviada recentemente
+ */
+function wasMessageRecentlySent(conversationId: string, message: string): boolean {
+  const cache = sentMessagesCache.get(conversationId);
+  if (!cache || cache.length === 0) return false;
+  
+  const newHash = generateMessageHash(message);
+  return cache.some(m => m.hash === newHash);
+}
+
+/**
+ * Registra uma mensagem como enviada
+ */
+function registerSentMessage(conversationId: string, message: string): void {
+  const hash = generateMessageHash(message);
+  const existing = sentMessagesCache.get(conversationId) || [];
+  existing.push({ hash, timestamp: Date.now() });
+  
+  // Manter apenas últimas 20 mensagens no cache
+  if (existing.length > 20) {
+    existing.shift();
+  }
+  
+  sentMessagesCache.set(conversationId, existing);
+}
+
 // Limpar caches expirados periodicamente
 setInterval(() => {
   const now = Date.now();
@@ -199,6 +267,15 @@ export class UserFollowUpService {
       return;
     }
 
+    // 🔒 ANTI-DUPLICAÇÃO: Verificar se esta conversa já está sendo processada
+    if (conversationsBeingProcessed.has(conversation.id)) {
+      console.log(`⏳ [USER-FOLLOW-UP] Conversa ${conversation.contactNumber} já está sendo processada - ignorando`);
+      return;
+    }
+    
+    // Marcar como em processamento
+    conversationsBeingProcessed.add(conversation.id);
+
     console.log(`👉 [USER-FOLLOW-UP] Processando ${conversation.contactNumber} (Estágio ${conversation.followupStage})`);
 
     try {
@@ -261,6 +338,15 @@ export class UserFollowUpService {
 
       // 4. Gerar mensagem de follow-up
       if (decision.action === 'send' && decision.message) {
+        // 🔒 ANTI-DUPLICAÇÃO: Verificar se mensagem similar já foi enviada recentemente
+        if (wasMessageRecentlySent(conversation.id, decision.message)) {
+          console.warn(`🔒 [USER-FOLLOW-UP] Mensagem DUPLICADA detectada para ${conversation.contactNumber} - NÃO enviando`);
+          const nextDate = addRandomSeconds(new Date(Date.now() + 60 * 60 * 1000)); // 1 hora
+          await this.scheduleNextFollowUp(conversation.id, nextDate);
+          await this.logFollowUp(conversation, userId, 'skipped', decision.message, decision, 'Mensagem duplicada bloqueada');
+          return;
+        }
+        
         // 4.1 Validação básica de segurança (a IA deve gerar mensagem correta)
         if (!validateMessage(decision.message)) {
           console.warn(`⚠️ [USER-FOLLOW-UP] Mensagem inválida para ${conversation.contactNumber}, reagendando`);
@@ -283,6 +369,9 @@ export class UserFollowUpService {
           );
 
           if (result.success) {
+            // ✅ Registrar mensagem enviada no cache anti-duplicação
+            registerSentMessage(conversation.id, decision.message);
+            
             // Sucesso: Logar e agendar próximo estágio
             await this.logFollowUp(
               conversation, 
@@ -350,6 +439,9 @@ export class UserFollowUpService {
 
     } catch (error) {
       console.error(`❌ [USER-FOLLOW-UP] Erro ao executar para ${conversation.contactNumber}:`, error);
+    } finally {
+      // 🔓 ANTI-DUPLICAÇÃO: Liberar lock da conversa
+      conversationsBeingProcessed.delete(conversation.id);
     }
   }
 
@@ -573,79 +665,100 @@ ${productsList ? `\nPRODUTOS/SERVIÇOS:\n${productsList}` : ''}
     const offeredPrice = ourLastMessages.some(m => m?.toLowerCase().includes('99') || m?.toLowerCase().includes('199') || m?.toLowerCase().includes('preço') || m?.toLowerCase().includes('plano'));
     const askedQuestion = ourLastMessages[0]?.includes('?');
 
-    const prompt = `Você é ${agentName || 'um assistente'} da ${companyName || 'empresa'}, fazendo follow-up INTELIGENTE via WhatsApp.
+    const prompt = `## 📌 O QUE É FOLLOW-UP E QUANDO USAR
 
-## 🎯 SUA IDENTIDADE (MEMORIZE!)
-- Você é: ${agentName || 'Assistente Virtual'}
-- Empresa: ${companyName || 'Não informado'}
-- Seu cargo: ${businessContext.includes('Cargo') ? businessContext.split('Cargo:')[1]?.split('\n')[0]?.trim() || 'Assistente' : 'Assistente'}
+FOLLOW-UP significa "acompanhamento" - é uma mensagem que enviamos para RETOMAR uma conversa que FICOU PARADA.
+
+❌ **FOLLOW-UP NÃO É:**
+- Responder mensagem normal do cliente (isso é conversa, não follow-up)
+- Enviar se já mandamos msg há menos de 2 horas
+- Repetir a mesma informação de antes
+- Insistir quando cliente não quer
+
+✅ **FOLLOW-UP É:**
+- Retomar contato quando CLIENTE ficou em silêncio há MUITAS HORAS
+- Continuar de onde a conversa PAROU, não começar do zero
+- Agregar VALOR NOVO (nova info, novo benefício, nova abordagem)
+- Ser natural como um humano falaria
+
+---
+
+## 🎯 SUA IDENTIDADE
+- Você é: ${agentName || 'Assistente Virtual'} da ${companyName || 'empresa'}
 ${businessContext}
 
-## 📅 DATA E HORA ATUAL
-- Hoje: ${todayStr} (${todayName})
+## 📅 MOMENTO ATUAL
+- Data: ${todayStr} (${todayName})  
 - Hora: ${brazilNow.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
 
-## 👤 DADOS DO CLIENTE
-- Nome: ${clientName || '(não informado)'}
-- Última msg do CLIENTE há: ${minutesSinceClient} minutos (${Math.floor(minutesSinceClient/60)}h${minutesSinceClient % 60}min)
-- Nossa última msg há: ${minutesSinceOur} minutos
-- Quem falou por último: ${lastMessageWasOurs ? 'NÓS' : 'CLIENTE'}
-- Estágio: ${conversation.followupStage || 0}
-${hasNegativeFeedback ? '\n🚨 ALERTA: Cliente JÁ RECLAMOU de repetição!' : ''}
+## 👤 CLIENTE: ${clientName || 'Não identificado'}
 
-## 💬 HISTÓRICO COMPLETO DA CONVERSA (LEIA TUDO ANTES DE RESPONDER!)
+## ⏰ ANÁLISE TEMPORAL CRÍTICA
+- CLIENTE respondeu há: **${minutesSinceClient} minutos** (${Math.floor(minutesSinceClient/60)}h ${minutesSinceClient % 60}min)
+- NÓS enviamos msg há: **${minutesSinceOur} minutos**
+- Quem falou por ÚLTIMO: **${lastMessageWasOurs ? '⚠️ NÓS (cliente não respondeu)' : '🟢 CLIENTE (aguardando NOSSA resposta)'}**
+- Estágio do follow-up: ${conversation.followupStage || 0}
+${hasNegativeFeedback ? '\n⛔ **ALERTA CRÍTICO**: Cliente JÁ RECLAMOU de mensagens repetidas!' : ''}
+
+## 💬 HISTÓRICO COMPLETO (LEIA TUDO COM ATENÇÃO!)
 ${historyFormatted.map(h => `[${h.hora}] ${h.de}: ${h.mensagem}`).join('\n')}
 
-## ⚠️ MENSAGENS QUE JÁ ENVIAMOS (NÃO REPITA!)
+## 🚫 NOSSAS ÚLTIMAS MENSAGENS (NÃO REPITA NENHUMA DELAS!)
 ${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).join('\n') : '(nenhuma ainda)'}
 
-## 🔍 ANÁLISE DO CONTEXTO
-- Última msg do cliente: "${lastClientText}"
-- Já oferecemos demo/vídeo: ${offeredDemo ? 'SIM' : 'NÃO'}
-- Já falamos de preço: ${offeredPrice ? 'SIM' : 'NÃO'}
-- Última msg foi pergunta: ${askedQuestion ? 'SIM' : 'NÃO'}
+## 🧠 ANÁLISE INTELIGENTE DO CONTEXTO
+- Última fala do cliente: "${lastClientText}"
+- Já oferecemos demonstração: ${offeredDemo ? 'SIM' : 'NÃO'}
+- Já falamos de preço/planos: ${offeredPrice ? 'SIM' : 'NÃO'}
 
-## 📚 TÉCNICAS DE FOLLOW-UP PROFISSIONAL
-1. **CONTINUAR A CONVERSA**: Sua msg deve ser continuação NATURAL do último assunto
-2. **AGREGAR VALOR NOVO**: Trazer informação/benefício que ainda não mencionamos
-3. **NÃO INSISTIR**: Se cliente está ocupado ou pediu tempo, ESPERAR
-4. **PERSONALIZAR**: Usar o nome do cliente e referências da conversa
-5. **SER ÚTIL**: Oferecer ajuda genuína, não só empurrar venda
+---
 
-## ❌ PROIBIDO (CAUSAM IRRITAÇÃO)
-- Repetir a mesma frase, pergunta ou informação
-- Ignorar o que o cliente disse por último
-- Usar colchetes [], barras /, ou formatação técnica
-- Enviar msg se respondemos há menos de 2h
-- Usar o nome ${agentName || 'do agente'} em vez do nome do cliente
-- Mensagens genéricas tipo "Oi, tudo bem?"
-- Terminar com "Áudio" ou "Audio"
+## 🎯 REGRAS DE DECISÃO (SIGA RIGOROSAMENTE!)
 
-## ✅ OBRIGATÓRIO
-- LEIA o histórico e CONTINUE o assunto de onde parou
-- Se o cliente fez pergunta, RESPONDA ela
-- Se oferecemos algo e ele aceitou, CONCRETIZE
-- Se ele mostrou interesse, avance para PRÓXIMO PASSO
-- Mensagem CURTA (máximo 2-3 frases)
-- Tom: ${toneMap[config.tone] || 'consultivo'}
-${config.useEmojis ? '- Use no máximo 1 emoji' : '- NÃO use emojis'}
+### WAIT (esperar) - Escolha quando:
+1. Cliente respondeu há MENOS de 2 horas (conversa ativa, não incomodar)
+2. NÓS enviamos msg há menos de 2 horas e cliente não respondeu (dar tempo)
+3. Cliente pediu para esperar, disse que está ocupado
+4. Não temos nada NOVO para agregar
 
-## 🎯 DECISÃO
-Analise e decida:
-- **WAIT**: Nossa última msg foi há menos de 2h OU estamos aguardando resposta OU cliente pediu tempo
-- **SEND**: Cliente parou há mais de 2h E podemos agregar valor NOVO
-- **SCHEDULE**: Cliente mencionou data específica (segunda, amanhã, dia X, etc)
-- **ABORT**: Cliente disse NÃO claramente, comprou, ou cancelou
+### SEND (enviar) - Escolha APENAS quando TODOS os critérios:
+1. Cliente parou de responder há MAIS de 2 horas
+2. Temos algo NOVO/DIFERENTE para falar (não repetir)
+3. A conversa não teve fechamento negativo
 
-## 📋 FORMATO (JSON válido, sem texto extra)
-{"action":"wait|send|abort|schedule","reason":"motivo curto","message":"texto PRONTO para enviar (só se action=send)","scheduleDate":"YYYY-MM-DDTHH:MM (só se action=schedule)"}`;
+### ABORT (cancelar follow-up) - Escolha quando:
+1. Cliente disse NÃO claramente, rejeitou
+2. Cliente já comprou/fechou
+3. Cliente pediu para não enviar mais mensagens
+
+### SCHEDULE (agendar) - Escolha quando:
+1. Cliente mencionou data específica ("me liga segunda", "depois do carnaval")
+
+---
+
+## ✍️ COMO ESCREVER A MENSAGEM (se action=send)
+
+1. **CONTINUE DE ONDE PAROU**: Releia o histórico e continue o ASSUNTO que estava em discussão
+2. **SEJA DIFERENTE**: Use abordagem/palavras diferentes das msgs anteriores
+3. **AGREGUE VALOR**: Traga informação nova, benefício novo, ângulo novo
+4. **SEJA CURTO**: Máximo 2-3 frases, WhatsApp não é email
+5. **SEJA HUMANO**: Escreva como pessoa real, não robô
+6. **USE O NOME**: Chame o cliente pelo nome se souber
+
+**Tom**: ${toneMap[config.tone] || 'consultivo'}
+**Emojis**: ${config.useEmojis ? 'Pode usar 1 emoji sutil' : 'NÃO use emojis'}
+
+---
+
+## 📋 RESPONDA APENAS EM JSON (sem texto antes ou depois):
+{"action":"wait|send|abort|schedule","reason":"explicação curta do motivo","message":"texto pronto (só se action=send)","scheduleDate":"YYYY-MM-DDTHH:MM (só se action=schedule)"}`;
 
     try {
       const mistral = await getMistralClient();
       const response = await mistral.chat.complete({
         model: "mistral-small-latest",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.7 // Um pouco mais criativo para evitar repetições
+        temperature: 0.8 // Mais criatividade para variar mensagens
       });
       
       const rawContent = response.choices?.[0]?.message?.content || "";
@@ -654,6 +767,13 @@ Analise e decida:
       
       // Tentar parsear JSON
       const parsed = JSON.parse(jsonStr);
+      
+      // 🔧 NOVA VERIFICAÇÃO: Se quem falou por último foi o CLIENTE, não é follow-up!
+      // Follow-up é para retomar conversa quando CLIENTE não respondeu
+      if (!lastMessageWasOurs && minutesSinceClient < 120) {
+        console.log(`⏸️ [FOLLOW-UP] Cliente respondeu há ${minutesSinceClient}min e foi o último a falar - aguardando NOSSA resposta normal, não follow-up`);
+        return { action: 'wait', reason: 'Cliente foi o último a falar - aguardar resposta normal da IA, não follow-up' };
+      }
       
       // Se action é schedule, validar a data
       if (parsed.action === 'schedule' && parsed.scheduleDate) {
@@ -687,31 +807,31 @@ Analise e decida:
         // Limpar espaços duplos
         message = message.replace(/\s+/g, ' ').trim();
         
-        // 🔧 VERIFICAÇÃO MELHORADA DE REPETIÇÃO
+        // 🔧 VERIFICAÇÃO MELHORADA DE REPETIÇÃO - THRESHOLD AUMENTADO PARA 60%
         // Verificar se é muito similar a mensagens anteriores
         const isSimilar = ourLastMessages.some(prev => {
           if (!prev) return false;
           const similarity = this.calculateTextSimilarity(message, prev);
           console.log(`📊 Similaridade com msg anterior: ${(similarity * 100).toFixed(1)}%`);
-          return similarity > 0.4; // 40% similar = muito parecido (mais restritivo)
+          return similarity > 0.6; // 60% similar = muito parecido (MAIS RESTRITIVO)
         });
         
         if (isSimilar) {
-          console.warn(`⚠️ [FOLLOW-UP] Mensagem SIMILAR detectada - NÃO ENVIANDO`);
+          console.warn(`⚠️ [FOLLOW-UP] Mensagem SIMILAR detectada (>60%) - NÃO ENVIANDO`);
           return { action: 'wait', reason: 'Mensagem muito similar à anterior - evitando repetição' };
         }
         
         // Verificar se a mensagem parece repetitiva (mesma estrutura)
         const sameStructure = ourLastMessages.some(prev => {
           if (!prev) return false;
-          // Se começa igual (primeiras 40 chars) ou termina igual (últimas 40 chars)
-          const msgStart = message.substring(0, 40).toLowerCase();
-          const msgEnd = message.substring(Math.max(0, message.length - 40)).toLowerCase();
-          const prevStart = prev.substring(0, 40).toLowerCase();
-          const prevEnd = prev.substring(Math.max(0, prev.length - 40)).toLowerCase();
+          // Se começa igual (primeiras 30 chars) ou termina igual (últimas 30 chars)
+          const msgStart = message.substring(0, 30).toLowerCase();
+          const msgEnd = message.substring(Math.max(0, message.length - 30)).toLowerCase();
+          const prevStart = prev.substring(0, 30).toLowerCase();
+          const prevEnd = prev.substring(Math.max(0, prev.length - 30)).toLowerCase();
           
-          const startSame = msgStart === prevStart && msgStart.length > 15;
-          const endSame = msgEnd === prevEnd && msgEnd.length > 15;
+          const startSame = msgStart === prevStart && msgStart.length > 12;
+          const endSame = msgEnd === prevEnd && msgEnd.length > 12;
           
           if (startSame || endSame) {
             console.log(`📊 Estrutura similar: início=${startSame}, fim=${endSame}`);
@@ -728,8 +848,8 @@ Analise e decida:
         const hasExactPhrase = ourLastMessages.some(prev => {
           if (!prev || prev.length < 20) return false;
           // Dividir em frases e verificar se alguma é igual
-          const prevPhrases = prev.split(/[.!?]/).filter(p => p.trim().length > 15);
-          const newPhrases = message.split(/[.!?]/).filter(p => p.trim().length > 15);
+          const prevPhrases = prev.split(/[.!?]/).filter(p => p.trim().length > 12);
+          const newPhrases = message.split(/[.!?]/).filter(p => p.trim().length > 12);
           
           return newPhrases.some(np => 
             prevPhrases.some(pp => 
@@ -741,6 +861,17 @@ Analise e decida:
         if (hasExactPhrase) {
           console.warn(`⚠️ [FOLLOW-UP] Frase EXATA repetida - NÃO ENVIANDO`);
           return { action: 'wait', reason: 'Contém frase exatamente igual a anterior' };
+        }
+        
+        // 🆕 VERIFICAÇÃO EXTRA: Palavras-chave muito repetidas
+        const keyPhrases = ['entendi', 'vamos resolver', 'passo a passo', 'fico feliz', 'estou à disposição'];
+        const msgLower = message.toLowerCase();
+        for (const phrase of keyPhrases) {
+          const usedBefore = ourLastMessages.some(prev => prev?.toLowerCase().includes(phrase));
+          if (usedBefore && msgLower.includes(phrase)) {
+            console.warn(`⚠️ [FOLLOW-UP] Frase "${phrase}" já usada antes - NÃO ENVIANDO`);
+            return { action: 'wait', reason: `Frase "${phrase}" repetida - gerar mensagem diferente` };
+          }
         }
       }
       
