@@ -11,6 +11,60 @@ import {
 import { eq, and, lte, isNotNull } from "drizzle-orm";
 import { getMistralClient } from "./mistralClient";
 import { storage } from "./storage";
+import { getSessions } from "./whatsapp";
+
+// ============================================================================
+// 🚀 SISTEMA DE CACHE PARA REDUZIR QUERIES NO DB
+// ============================================================================
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+// Cache de configurações de follow-up por usuário
+const followupConfigCache = new Map<string, CacheEntry<typeof followupConfigs.$inferSelect | null>>();
+
+// Cache de configurações de agente por usuário
+const agentConfigCache = new Map<string, CacheEntry<any>>();
+
+// Cache global da chave Mistral
+let mistralKeyCache: CacheEntry<string | null> | null = null;
+
+// Limpar caches expirados periodicamente
+setInterval(() => {
+  const now = Date.now();
+  
+  for (const [key, entry] of followupConfigCache.entries()) {
+    if (now - entry.timestamp > CACHE_TTL_MS) {
+      followupConfigCache.delete(key);
+    }
+  }
+  
+  for (const [key, entry] of agentConfigCache.entries()) {
+    if (now - entry.timestamp > CACHE_TTL_MS) {
+      agentConfigCache.delete(key);
+    }
+  }
+  
+  if (mistralKeyCache && now - mistralKeyCache.timestamp > CACHE_TTL_MS) {
+    mistralKeyCache = null;
+  }
+}, 10 * 60 * 1000); // Limpar a cada 10 minutos
+
+/**
+ * Verifica se há pelo menos uma conexão WhatsApp ativa
+ */
+function hasAnyActiveWhatsAppConnection(): boolean {
+  const sessions = getSessions();
+  for (const session of sessions.values()) {
+    if (session.socket?.ws?.readyState === 1) { // WebSocket.OPEN = 1
+      return true;
+    }
+  }
+  return false;
+}
 
 // ============================================================================
 // FOLLOW-UP INTELIGENTE PARA USUÁRIOS
@@ -98,6 +152,13 @@ export class UserFollowUpService {
    */
   private async processFollowUps() {
     try {
+      // 🚀 OTIMIZAÇÃO: Verificar conexões WhatsApp ANTES de buscar conversas
+      // Economiza CENTENAS de queries quando nenhum WhatsApp está conectado
+      if (!hasAnyActiveWhatsAppConnection()) {
+        console.log(`⏸️ [USER-FOLLOW-UP] Nenhuma conexão WhatsApp ativa - pulando ciclo`);
+        return;
+      }
+      
       const now = new Date();
       
       // Buscar conversas que precisam de follow-up
@@ -293,9 +354,15 @@ export class UserFollowUpService {
   }
 
   /**
-   * Busca ou cria configuração de follow-up para o usuário
+   * Busca ou cria configuração de follow-up para o usuário (COM CACHE)
    */
   async getFollowupConfig(userId: string) {
+    // 🚀 Verificar cache primeiro
+    const cached = followupConfigCache.get(userId);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return cached.data;
+    }
+    
     let config = await db.query.followupConfigs.findFirst({
       where: eq(followupConfigs.userId, userId)
     });
@@ -322,13 +389,19 @@ export class UserFollowUpService {
       config = newConfig;
     }
 
+    // 🚀 Salvar no cache
+    followupConfigCache.set(userId, { data: config, timestamp: Date.now() });
+    
     return config;
   }
 
   /**
-   * Atualiza configuração de follow-up
+   * Atualiza configuração de follow-up (invalida cache)
    */
   async updateFollowupConfig(userId: string, data: Partial<typeof followupConfigs.$inferInsert>) {
+    // 🚀 Invalidar cache ao atualizar
+    followupConfigCache.delete(userId);
+    
     // Remover campos que não devem ser atualizados pelo frontend
     const { id, userId: _, createdAt, updatedAt, ...cleanData } = data as any;
     
@@ -341,11 +414,17 @@ export class UserFollowUpService {
         .set({ ...cleanData, updatedAt: new Date() })
         .where(eq(followupConfigs.userId, userId))
         .returning();
+      
+      // 🚀 Atualizar cache
+      followupConfigCache.set(userId, { data: updated, timestamp: Date.now() });
       return updated;
     } else {
       const [created] = await db.insert(followupConfigs)
         .values({ userId, ...cleanData })
         .returning();
+      
+      // 🚀 Salvar no cache
+      followupConfigCache.set(userId, { data: created, timestamp: Date.now() });
       return created;
     }
   }

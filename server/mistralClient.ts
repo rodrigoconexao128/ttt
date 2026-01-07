@@ -3,6 +3,24 @@ import { db } from "./db";
 import { systemConfig } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
+// ============================================================================
+// 🚀 CACHE DA API KEY PARA REDUZIR QUERIES NO DB
+// ============================================================================
+interface ApiKeyCache {
+  key: string;
+  timestamp: number;
+}
+let apiKeyCache: ApiKeyCache | null = null;
+const API_KEY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+/**
+ * Invalida o cache da API key (usar quando a key for atualizada)
+ */
+export function invalidateMistralKeyCache(): void {
+  apiKeyCache = null;
+  console.log(`[Mistral] Cache da API key invalidado`);
+}
+
 /**
  * Limpa a chave removendo espaços, quebras de linha e caracteres invisíveis
  */
@@ -11,6 +29,11 @@ function sanitizeApiKey(key: string): string {
 }
 
 export async function resolveApiKey(): Promise<string> {
+  // 🚀 CACHE: Verificar se já temos a key em cache
+  if (apiKeyCache && (Date.now() - apiKeyCache.timestamp < API_KEY_CACHE_TTL_MS)) {
+    return apiKeyCache.key;
+  }
+  
   // 🔧 PRIORIDADE: Banco de dados PRIMEIRO, depois ambiente
   // Isso permite que o admin altere a chave sem precisar redeploy
   
@@ -25,6 +48,8 @@ export async function resolveApiKey(): Promise<string> {
     if (fromDb && fromDb.length >= 32) {
       const cleanKey = sanitizeApiKey(fromDb);
       console.log(`[Mistral] Using API key from DATABASE (${cleanKey.length} chars)`);
+      // 🚀 Salvar no cache
+      apiKeyCache = { key: cleanKey, timestamp: Date.now() };
       return cleanKey;
     } else if (fromDb) {
       console.warn(`[Mistral] DB key exists but seems invalid (${fromDb.length} chars), trying environment...`);
@@ -38,6 +63,8 @@ export async function resolveApiKey(): Promise<string> {
     const envKey = sanitizeApiKey(process.env.MISTRAL_API_KEY);
     if (envKey.length >= 32) {
       console.log(`[Mistral] Using API key from ENVIRONMENT (${envKey.length} chars)`);
+      // 🚀 Salvar no cache
+      apiKeyCache = { key: envKey, timestamp: Date.now() };
       return envKey;
     } else {
       console.warn(`[Mistral] Environment key seems invalid (${envKey.length} chars)`);

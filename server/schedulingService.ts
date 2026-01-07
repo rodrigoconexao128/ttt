@@ -6,9 +6,57 @@
  * 2. Verifique horários disponíveis automaticamente
  * 3. Crie agendamentos pendentes para confirmação
  * 4. Responda sobre disponibilidade de forma inteligente
+ * 
+ * OTIMIZAÇÕES:
+ * - Cache em memória para configurações (reduz queries ao Supabase)
+ * - Verificação de is_enabled ANTES de queries pesadas
+ * - TTL de 5 minutos para cache de config
  */
 
 import { supabase } from "./supabaseAuth";
+
+// ========== CACHE SYSTEM ==========
+// Cache em memória para reduzir Disk IO e Egress do Supabase
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+const schedulingConfigCache = new Map<string, CacheEntry<SchedulingConfig | null>>();
+
+/**
+ * Limpa cache expirado periodicamente
+ */
+function cleanExpiredCache() {
+  const now = Date.now();
+  for (const [key, entry] of schedulingConfigCache.entries()) {
+    if (now - entry.timestamp > CACHE_TTL_MS) {
+      schedulingConfigCache.delete(key);
+    }
+  }
+}
+
+// Limpar cache a cada 10 minutos
+setInterval(cleanExpiredCache, 10 * 60 * 1000);
+
+/**
+ * Invalida o cache de um usuário específico
+ * Chamar quando a configuração for alterada
+ */
+export function invalidateSchedulingCache(userId: string): void {
+  schedulingConfigCache.delete(userId);
+  console.log(`🗑️ [Scheduling] Cache invalidado para user ${userId}`);
+}
+
+/**
+ * Verifica RAPIDAMENTE se o agendamento está habilitado (usa cache)
+ * Esta função evita queries desnecessárias ao Supabase
+ */
+export async function isSchedulingEnabled(userId: string): Promise<boolean> {
+  const config = await getSchedulingConfigCached(userId);
+  return config?.is_enabled === true;
+}
 
 export interface SchedulingConfig {
   id: string;
@@ -297,9 +345,17 @@ function formatDate(date: Date): string {
 }
 
 /**
- * Busca a configuração de agendamento do usuário
+ * Busca a configuração de agendamento do usuário COM CACHE
+ * Reduz Disk IO e Egress do Supabase
  */
-export async function getSchedulingConfig(userId: string): Promise<SchedulingConfig | null> {
+export async function getSchedulingConfigCached(userId: string): Promise<SchedulingConfig | null> {
+  // Verificar cache primeiro
+  const cached = schedulingConfigCache.get(userId);
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+    return cached.data;
+  }
+  
+  // Cache miss ou expirado - buscar do banco
   try {
     const { data, error } = await supabase
       .from('scheduling_config')
@@ -307,12 +363,27 @@ export async function getSchedulingConfig(userId: string): Promise<SchedulingCon
       .eq('user_id', userId)
       .single();
     
-    if (error || !data) return null;
-    return data as SchedulingConfig;
+    const config = (error || !data) ? null : data as SchedulingConfig;
+    
+    // Salvar no cache
+    schedulingConfigCache.set(userId, {
+      data: config,
+      timestamp: Date.now()
+    });
+    
+    return config;
   } catch (error) {
     console.error('[Scheduling] Error fetching config:', error);
     return null;
   }
+}
+
+/**
+ * Busca a configuração de agendamento do usuário (sem cache - para compatibilidade)
+ * @deprecated Use getSchedulingConfigCached para melhor performance
+ */
+export async function getSchedulingConfig(userId: string): Promise<SchedulingConfig | null> {
+  return getSchedulingConfigCached(userId);
 }
 
 /**
@@ -397,12 +468,17 @@ export function isDayAvailable(date: string, config: SchedulingConfig, exception
 
 /**
  * Gera os slots de horário disponíveis para uma data
+ * @param userId - ID do usuário
+ * @param date - Data no formato YYYY-MM-DD
+ * @param providedConfig - Config já buscada (opcional, evita query duplicada)
  */
 export async function getAvailableSlots(
   userId: string, 
-  date: string
+  date: string,
+  providedConfig?: SchedulingConfig | null
 ): Promise<TimeSlot[]> {
-  const config = await getSchedulingConfig(userId);
+  // Usar config fornecida ou buscar do cache
+  const config = providedConfig ?? await getSchedulingConfigCached(userId);
   if (!config || !config.is_enabled) return [];
   
   const exception = await getExceptionForDate(userId, date);
@@ -493,6 +569,7 @@ export async function getAvailableSlots(
 
 /**
  * Cria um agendamento pendente (para confirmação)
+ * @param providedConfig - Config já buscada (opcional, evita query duplicada)
  */
 export async function createPendingAppointment(
   userId: string,
@@ -500,15 +577,17 @@ export async function createPendingAppointment(
   clientPhone: string,
   appointmentDate: string,
   startTime: string,
-  clientNotes?: string
+  clientNotes?: string,
+  providedConfig?: SchedulingConfig | null
 ): Promise<{ success: boolean; appointment?: Appointment; error?: string }> {
-  const config = await getSchedulingConfig(userId);
+  // Usar config fornecida ou buscar do cache
+  const config = providedConfig ?? await getSchedulingConfigCached(userId);
   if (!config || !config.is_enabled) {
     return { success: false, error: 'Sistema de agendamento desativado' };
   }
   
-  // Verificar disponibilidade
-  const slots = await getAvailableSlots(userId, appointmentDate);
+  // Verificar disponibilidade (passar config para evitar query duplicada)
+  const slots = await getAvailableSlots(userId, appointmentDate, config);
   const selectedSlot = slots.find(s => s.start === startTime && s.available);
   
   if (!selectedSlot) {
@@ -584,7 +663,8 @@ function getBrazilDateTime(): { date: Date; dateStr: string; timeStr: string } {
 }
 
 export async function generateSchedulingPromptBlock(userId: string): Promise<string> {
-  const config = await getSchedulingConfig(userId);
+  // Usa cache para evitar query duplicada
+  const config = await getSchedulingConfigCached(userId);
   
   if (!config || !config.is_enabled) {
     return '';

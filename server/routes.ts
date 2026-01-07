@@ -11152,6 +11152,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       const userId = getUserId(req);
       const config = req.body;
       
+      // Importar função de invalidação de cache
+      const { invalidateSchedulingCache } = await import("./schedulingService");
+      
       // Verificar se já existe config
       const { data: existing } = await supabase
         .from('scheduling_config')
@@ -11186,6 +11189,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
         if (error) throw error;
         result = data;
       }
+      
+      // Invalidar cache após atualização
+      invalidateSchedulingCache(userId);
       
       console.log(`📅 [SCHEDULING] Config atualizada para usuário ${userId}`);
       res.json(result);
