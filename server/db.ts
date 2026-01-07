@@ -24,22 +24,22 @@ console.log(
   `[DB] Modo de conexão: ${isPoolerConnection ? 'Supabase Pooler (PgBouncer)' : 'Direct Connection'}`,
 );
 
-// Configurações otimizadas para Supabase
+// Configurações otimizadas para Supabase com Disk IO limitado
 // IMPORTANTE: PgBouncer (porta 6543) tem limitações com prepared statements
 const poolConfig: any = {
   connectionString: dbUrl,
   ssl: {
     rejectUnauthorized: false
   },
-  // Pool configurado para funcionar com PgBouncer
-  // Em produção o painel faz várias requisições em paralelo.
-  // Com max=1 essas requisições ficam na fila e estouram connectionTimeoutMillis (erro: "timeout exceeded when trying to connect").
-  max: isPoolerConnection ? 3 : 5,
-  min: 0,
-  idleTimeoutMillis: isPoolerConnection ? 10000 : 30000,
-  connectionTimeoutMillis: isPoolerConnection ? 120000 : 30000,
+  // Pool configurado para funcionar com PgBouncer + economia de recursos
+  // OTIMIZAÇÃO: Aumentamos max para evitar filas, mas com timeout agressivo
+  max: isPoolerConnection ? 3 : 5, // 3 conexões max para balancear throughput vs recursos
+  min: 0, // Não manter conexões ociosas
+  idleTimeoutMillis: isPoolerConnection ? 5000 : 30000, // Liberar conexões ociosas rápido
+  connectionTimeoutMillis: 15000, // Timeout de 15s (reduzido para falhar rápido)
+  // Timeout para queries individuais (evita queries longas travarem o pool)
+  statement_timeout: 10000, // 10 segundos max por query
   // IMPORTANTE: allowExitOnIdle: false para manter o servidor rodando
-  // Quando true, o Node.js sai quando o pool fica ocioso
   allowExitOnIdle: false,
 };
 

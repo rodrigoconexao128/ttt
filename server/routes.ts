@@ -72,6 +72,18 @@ import {
   parseMistralResponse,
 } from "./mediaService";
 import {
+  isGoogleCalendarConfigured,
+  getGoogleAuthUrl,
+  handleGoogleCallback,
+  isGoogleCalendarConnected,
+  getGoogleCalendarStatus,
+  disconnectGoogleCalendar,
+  syncAppointmentToCalendar,
+  removeAppointmentFromCalendar,
+  listCalendarEvents,
+  checkCalendarAvailability,
+} from "./googleCalendarService";
+import {
   addAdminMedia,
   updateAdminMedia as updateAdminMediaStore,
   deleteAdminMedia as deleteAdminMediaStore,
@@ -10868,6 +10880,1155 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     } catch (error: any) {
       console.error("Error updating conversation:", error);
       res.status(500).json({ message: "Failed to update conversation" });
+    }
+  });
+
+  // ==================== SISTEMA DE AGENDAMENTOS ====================
+
+  /**
+   * Obter configuração de agendamento do usuário
+   * GET /api/scheduling/config
+   */
+  app.get("/api/scheduling/config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const { data: config, error } = await supabase
+        .from('scheduling_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      // Retornar config padrão se não existir
+      if (!config) {
+        return res.json({
+          isEnabled: false,
+          serviceName: '',
+          serviceDuration: 60,
+          location: '',
+          locationType: 'presencial',
+          availableDays: [1, 2, 3, 4, 5],
+          workStartTime: '09:00',
+          workEndTime: '18:00',
+          breakStartTime: '12:00',
+          breakEndTime: '13:00',
+          hasBreak: true,
+          slotDuration: 60,
+          bufferBetweenAppointments: 15,
+          maxAppointmentsPerDay: 10,
+          advanceBookingDays: 30,
+          minBookingNoticeHours: 2,
+          requireConfirmation: true,
+          autoConfirm: false,
+          sendReminder: true,
+          reminderHoursBefore: 24,
+          googleCalendarEnabled: false,
+          confirmationMessage: 'Seu agendamento foi confirmado! 📅',
+          reminderMessage: 'Lembrete: Você tem um agendamento amanhã!',
+          cancellationMessage: 'Seu agendamento foi cancelado.',
+        });
+      }
+      
+      res.json(config);
+    } catch (error: any) {
+      console.error("Error fetching scheduling config:", error);
+      res.status(500).json({ message: "Failed to fetch scheduling config" });
+    }
+  });
+
+  /**
+   * Salvar/atualizar configuração de agendamento
+   * PUT /api/scheduling/config
+   */
+  app.put("/api/scheduling/config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const config = req.body;
+      
+      // Verificar se já existe config
+      const { data: existing } = await supabase
+        .from('scheduling_config')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+      
+      let result;
+      if (existing) {
+        // Update
+        const { data, error } = await supabase
+          .from('scheduling_config')
+          .update({
+            ...config,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId)
+          .select()
+          .single();
+        if (error) throw error;
+        result = data;
+      } else {
+        // Insert
+        const { data, error } = await supabase
+          .from('scheduling_config')
+          .insert({
+            user_id: userId,
+            ...config,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        result = data;
+      }
+      
+      console.log(`📅 [SCHEDULING] Config atualizada para usuário ${userId}`);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error updating scheduling config:", error);
+      res.status(500).json({ message: "Failed to update scheduling config" });
+    }
+  });
+
+  /**
+   * Obter todos os agendamentos do usuário
+   * GET /api/scheduling/appointments?status=pending,confirmed&from=2025-01-01&to=2025-01-31
+   */
+  app.get("/api/scheduling/appointments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { status, from, to } = req.query;
+      
+      let query = supabase
+        .from('appointments')
+        .select('*')
+        .eq('user_id', userId)
+        .order('appointment_date', { ascending: true })
+        .order('start_time', { ascending: true });
+      
+      // Filtrar por status
+      if (status) {
+        const statuses = (status as string).split(',');
+        query = query.in('status', statuses);
+      }
+      
+      // Filtrar por data
+      if (from) {
+        query = query.gte('appointment_date', from);
+      }
+      if (to) {
+        query = query.lte('appointment_date', to);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      res.json(data || []);
+    } catch (error: any) {
+      console.error("Error fetching appointments:", error);
+      res.status(500).json({ message: "Failed to fetch appointments" });
+    }
+  });
+
+  /**
+   * Obter um agendamento específico
+   * GET /api/scheduling/appointments/:id
+   */
+  app.get("/api/scheduling/appointments/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) throw error;
+      if (!data) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+      
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error fetching appointment:", error);
+      res.status(500).json({ message: "Failed to fetch appointment" });
+    }
+  });
+
+  /**
+   * Criar novo agendamento
+   * POST /api/scheduling/appointments
+   */
+  app.post("/api/scheduling/appointments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const appointmentData = req.body;
+      
+      // Verificar disponibilidade do slot
+      const { data: existing, error: existingError } = await supabase
+        .from('appointments')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('appointment_date', appointmentData.appointmentDate || appointmentData.appointment_date)
+        .eq('start_time', appointmentData.startTime || appointmentData.start_time)
+        .in('status', ['pending', 'confirmed']);
+      
+      if (existingError) throw existingError;
+      
+      if (existing && existing.length > 0) {
+        return res.status(409).json({ 
+          message: "Horário já está ocupado",
+          code: "SLOT_TAKEN"
+        });
+      }
+      
+      // Criar agendamento
+      const { data, error } = await supabase
+        .from('appointments')
+        .insert({
+          user_id: userId,
+          client_name: appointmentData.clientName || appointmentData.client_name,
+          client_phone: appointmentData.clientPhone || appointmentData.client_phone,
+          client_email: appointmentData.clientEmail || appointmentData.client_email,
+          service_name: appointmentData.serviceName || appointmentData.service_name,
+          appointment_date: appointmentData.appointmentDate || appointmentData.appointment_date,
+          start_time: appointmentData.startTime || appointmentData.start_time,
+          end_time: appointmentData.endTime || appointmentData.end_time,
+          duration_minutes: appointmentData.durationMinutes || appointmentData.duration_minutes || 60,
+          location: appointmentData.location,
+          location_type: appointmentData.locationType || appointmentData.location_type || 'presencial',
+          client_notes: appointmentData.clientNotes || appointmentData.client_notes,
+          internal_notes: appointmentData.internalNotes || appointmentData.internal_notes,
+          created_by_ai: appointmentData.createdByAi || appointmentData.created_by_ai || false,
+          conversation_id: appointmentData.conversationId || appointmentData.conversation_id,
+          status: appointmentData.status || 'pending',
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log(`📅 [SCHEDULING] Novo agendamento criado: ${data.id} para ${appointmentData.clientName || appointmentData.client_name}`);
+      res.status(201).json(data);
+    } catch (error: any) {
+      console.error("Error creating appointment:", error);
+      res.status(500).json({ message: "Failed to create appointment" });
+    }
+  });
+
+  /**
+   * Atualizar agendamento
+   * PUT /api/scheduling/appointments/:id
+   */
+  app.put("/api/scheduling/appointments/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      if (!data) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+      
+      console.log(`📅 [SCHEDULING] Agendamento ${id} atualizado`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error updating appointment:", error);
+      res.status(500).json({ message: "Failed to update appointment" });
+    }
+  });
+
+  /**
+   * Confirmar agendamento
+   * POST /api/scheduling/appointments/:id/confirm
+   */
+  app.post("/api/scheduling/appointments/:id/confirm", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { confirmedBy } = req.body; // 'client' ou 'business'
+      
+      const updateData: any = {
+        status: 'confirmed',
+        confirmed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      
+      if (confirmedBy === 'client') {
+        updateData.confirmed_by_client = true;
+      } else {
+        updateData.confirmed_by_business = true;
+      }
+      
+      const { data, error } = await supabase
+        .from('appointments')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log(`✅ [SCHEDULING] Agendamento ${id} confirmado por ${confirmedBy}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error confirming appointment:", error);
+      res.status(500).json({ message: "Failed to confirm appointment" });
+    }
+  });
+
+  /**
+   * Cancelar agendamento
+   * POST /api/scheduling/appointments/:id/cancel
+   */
+  app.post("/api/scheduling/appointments/:id/cancel", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { cancelledBy, reason } = req.body;
+      
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: cancelledBy || 'business',
+          cancellation_reason: reason,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log(`❌ [SCHEDULING] Agendamento ${id} cancelado por ${cancelledBy}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error cancelling appointment:", error);
+      res.status(500).json({ message: "Failed to cancel appointment" });
+    }
+  });
+
+  /**
+   * Marcar como concluído/no-show
+   * POST /api/scheduling/appointments/:id/complete
+   */
+  app.post("/api/scheduling/appointments/:id/complete", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { status } = req.body; // 'completed' ou 'no_show'
+      
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          status: status || 'completed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log(`📌 [SCHEDULING] Agendamento ${id} marcado como ${status}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error completing appointment:", error);
+      res.status(500).json({ message: "Failed to complete appointment" });
+    }
+  });
+
+  /**
+   * Deletar agendamento
+   * DELETE /api/scheduling/appointments/:id
+   */
+  app.delete("/api/scheduling/appointments/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { error } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+      
+      console.log(`🗑️ [SCHEDULING] Agendamento ${id} deletado`);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting appointment:", error);
+      res.status(500).json({ message: "Failed to delete appointment" });
+    }
+  });
+
+  /**
+   * Obter slots disponíveis para uma data
+   * GET /api/scheduling/available-slots?date=2025-01-10
+   */
+  app.get("/api/scheduling/available-slots", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { date } = req.query;
+      
+      if (!date) {
+        return res.status(400).json({ message: "Date is required" });
+      }
+      
+      // Buscar configuração
+      const { data: config, error: configError } = await supabase
+        .from('scheduling_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (configError && configError.code !== 'PGRST116') throw configError;
+      
+      if (!config || !config.is_enabled) {
+        return res.json({ slots: [], message: "Agendamento não está ativado" });
+      }
+      
+      // Verificar se o dia está disponível
+      const dayOfWeek = new Date(date as string).getDay();
+      const availableDays = config.available_days || [1,2,3,4,5];
+      
+      if (!availableDays.includes(dayOfWeek)) {
+        return res.json({ slots: [], message: "Dia não disponível para agendamentos" });
+      }
+      
+      // Verificar exceções para o dia
+      const { data: exception } = await supabase
+        .from('scheduling_exceptions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('exception_date', date)
+        .single();
+      
+      if (exception && exception.exception_type === 'blocked') {
+        return res.json({ slots: [], message: exception.reason || "Dia bloqueado" });
+      }
+      
+      // Determinar horários de início e fim
+      let startTime = config.work_start_time || '09:00';
+      let endTime = config.work_end_time || '18:00';
+      
+      if (exception && exception.exception_type === 'modified_hours') {
+        startTime = exception.custom_start_time || startTime;
+        endTime = exception.custom_end_time || endTime;
+      }
+      
+      // Gerar todos os slots possíveis
+      const slotDuration = config.slot_duration || 60;
+      const buffer = config.buffer_between_appointments || 0;
+      const slots: string[] = [];
+      
+      const [startHour, startMin] = startTime.split(':').map(Number);
+      const [endHour, endMin] = endTime.split(':').map(Number);
+      const breakStart = config.break_start_time || '12:00';
+      const breakEnd = config.break_end_time || '13:00';
+      
+      let currentMinutes = startHour * 60 + startMin;
+      const endMinutes = endHour * 60 + endMin;
+      const [breakStartHour, breakStartMin] = breakStart.split(':').map(Number);
+      const [breakEndHour, breakEndMin] = breakEnd.split(':').map(Number);
+      const breakStartMinutes = breakStartHour * 60 + breakStartMin;
+      const breakEndMinutes = breakEndHour * 60 + breakEndMin;
+      
+      while (currentMinutes + slotDuration <= endMinutes) {
+        const slotEnd = currentMinutes + slotDuration;
+        
+        // Verificar se está no horário de pausa
+        if (config.has_break) {
+          if (currentMinutes < breakEndMinutes && slotEnd > breakStartMinutes) {
+            currentMinutes = breakEndMinutes;
+            continue;
+          }
+        }
+        
+        const hour = Math.floor(currentMinutes / 60);
+        const min = currentMinutes % 60;
+        slots.push(`${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`);
+        
+        currentMinutes += slotDuration + buffer;
+      }
+      
+      // Buscar agendamentos existentes para o dia
+      const { data: existingAppointments, error: apptError } = await supabase
+        .from('appointments')
+        .select('start_time')
+        .eq('user_id', userId)
+        .eq('appointment_date', date)
+        .in('status', ['pending', 'confirmed']);
+      
+      if (apptError) throw apptError;
+      
+      // Filtrar slots já ocupados
+      const occupiedSlots = new Set(existingAppointments?.map(a => a.start_time) || []);
+      const availableSlots = slots.filter(slot => !occupiedSlots.has(slot));
+      
+      // Verificar limite máximo por dia
+      const maxPerDay = config.max_appointments_per_day || 10;
+      const currentCount = existingAppointments?.length || 0;
+      
+      if (currentCount >= maxPerDay) {
+        return res.json({ slots: [], message: "Limite de agendamentos para o dia atingido" });
+      }
+      
+      res.json({ 
+        slots: availableSlots,
+        config: {
+          slotDuration,
+          location: config.location,
+          serviceName: config.service_name,
+        }
+      });
+    } catch (error: any) {
+      console.error("Error fetching available slots:", error);
+      res.status(500).json({ message: "Failed to fetch available slots" });
+    }
+  });
+
+  /**
+   * Obter dias disponíveis do mês
+   * GET /api/scheduling/available-days?month=2025-01
+   */
+  app.get("/api/scheduling/available-days", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { month } = req.query; // YYYY-MM
+      
+      if (!month) {
+        return res.status(400).json({ message: "Month is required (YYYY-MM)" });
+      }
+      
+      // Buscar configuração
+      const { data: config, error: configError } = await supabase
+        .from('scheduling_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (configError && configError.code !== 'PGRST116') throw configError;
+      
+      if (!config || !config.is_enabled) {
+        return res.json({ days: [], message: "Agendamento não está ativado" });
+      }
+      
+      // Gerar todos os dias do mês
+      const [year, monthNum] = (month as string).split('-').map(Number);
+      const daysInMonth = new Date(year, monthNum, 0).getDate();
+      const availableDays = config.available_days || [1,2,3,4,5];
+      const advanceBookingDays = config.advance_booking_days || 30;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const maxDate = new Date(today);
+      maxDate.setDate(maxDate.getDate() + advanceBookingDays);
+      
+      // Buscar exceções do mês
+      const startOfMonth = `${month}-01`;
+      const endOfMonth = `${month}-${daysInMonth.toString().padStart(2, '0')}`;
+      
+      const { data: exceptions } = await supabase
+        .from('scheduling_exceptions')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('exception_date', startOfMonth)
+        .lte('exception_date', endOfMonth);
+      
+      const blockedDates = new Set(
+        exceptions?.filter(e => e.exception_type === 'blocked').map(e => e.exception_date) || []
+      );
+      
+      // Buscar contagem de agendamentos por dia
+      const { data: appointments } = await supabase
+        .from('appointments')
+        .select('appointment_date')
+        .eq('user_id', userId)
+        .gte('appointment_date', startOfMonth)
+        .lte('appointment_date', endOfMonth)
+        .in('status', ['pending', 'confirmed']);
+      
+      const appointmentCounts: Record<string, number> = {};
+      appointments?.forEach(a => {
+        appointmentCounts[a.appointment_date] = (appointmentCounts[a.appointment_date] || 0) + 1;
+      });
+      
+      const maxPerDay = config.max_appointments_per_day || 10;
+      
+      const days: { date: string; available: boolean; reason?: string }[] = [];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${month}-${day.toString().padStart(2, '0')}`;
+        const date = new Date(year, monthNum - 1, day);
+        const dayOfWeek = date.getDay();
+        
+        let available = true;
+        let reason = '';
+        
+        // Verificar se é dia passado
+        if (date < today) {
+          available = false;
+          reason = 'Data passada';
+        }
+        // Verificar limite de dias à frente
+        else if (date > maxDate) {
+          available = false;
+          reason = 'Fora do período de agendamento';
+        }
+        // Verificar dia da semana
+        else if (!availableDays.includes(dayOfWeek)) {
+          available = false;
+          reason = 'Dia não disponível';
+        }
+        // Verificar exceções
+        else if (blockedDates.has(dateStr)) {
+          available = false;
+          reason = 'Dia bloqueado';
+        }
+        // Verificar limite de agendamentos
+        else if ((appointmentCounts[dateStr] || 0) >= maxPerDay) {
+          available = false;
+          reason = 'Lotado';
+        }
+        
+        days.push({ date: dateStr, available, reason: available ? undefined : reason });
+      }
+      
+      res.json({ days, config: { availableDays, advanceBookingDays } });
+    } catch (error: any) {
+      console.error("Error fetching available days:", error);
+      res.status(500).json({ message: "Failed to fetch available days" });
+    }
+  });
+
+  /**
+   * Gerenciar exceções (feriados, dias especiais)
+   * GET /api/scheduling/exceptions
+   */
+  app.get("/api/scheduling/exceptions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const { data, error } = await supabase
+        .from('scheduling_exceptions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('exception_date', { ascending: true });
+      
+      if (error) throw error;
+      res.json(data || []);
+    } catch (error: any) {
+      console.error("Error fetching exceptions:", error);
+      res.status(500).json({ message: "Failed to fetch exceptions" });
+    }
+  });
+
+  /**
+   * Criar exceção (bloquear dia, modificar horário)
+   * POST /api/scheduling/exceptions
+   */
+  app.post("/api/scheduling/exceptions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const exceptionData = req.body;
+      
+      const { data, error } = await supabase
+        .from('scheduling_exceptions')
+        .insert({
+          user_id: userId,
+          exception_date: exceptionData.exceptionDate || exceptionData.exception_date,
+          exception_type: exceptionData.exceptionType || exceptionData.exception_type,
+          custom_start_time: exceptionData.customStartTime || exceptionData.custom_start_time,
+          custom_end_time: exceptionData.customEndTime || exceptionData.custom_end_time,
+          reason: exceptionData.reason,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log(`📅 [SCHEDULING] Exceção criada para ${exceptionData.exceptionDate}`);
+      res.status(201).json(data);
+    } catch (error: any) {
+      console.error("Error creating exception:", error);
+      res.status(500).json({ message: "Failed to create exception" });
+    }
+  });
+
+  /**
+   * Deletar exceção
+   * DELETE /api/scheduling/exceptions/:id
+   */
+  app.delete("/api/scheduling/exceptions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { error } = await supabase
+        .from('scheduling_exceptions')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting exception:", error);
+      res.status(500).json({ message: "Failed to delete exception" });
+    }
+  });
+
+  /**
+   * IA - Verificar disponibilidade e sugerir horários
+   * POST /api/scheduling/ai/check-availability
+   * Usado pela IA para verificar antes de confirmar agendamento
+   */
+  app.post("/api/scheduling/ai/check-availability", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { date, preferredTime, clientPhone } = req.body;
+      
+      // Buscar configuração
+      const { data: config } = await supabase
+        .from('scheduling_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!config || !config.is_enabled) {
+        return res.json({
+          available: false,
+          message: "Sistema de agendamento não está ativado",
+          suggestions: [],
+        });
+      }
+      
+      // Buscar slots disponíveis para o dia solicitado
+      const dayOfWeek = new Date(date).getDay();
+      const availableDays = config.available_days || [1,2,3,4,5];
+      
+      if (!availableDays.includes(dayOfWeek)) {
+        // Sugerir próximo dia disponível
+        const suggestions: string[] = [];
+        const checkDate = new Date(date);
+        for (let i = 1; i <= 7 && suggestions.length < 3; i++) {
+          checkDate.setDate(checkDate.getDate() + 1);
+          if (availableDays.includes(checkDate.getDay())) {
+            suggestions.push(checkDate.toISOString().split('T')[0]);
+          }
+        }
+        
+        return res.json({
+          available: false,
+          message: `Não atendemos nesse dia. Dias disponíveis: ${availableDays.map((d: number) => ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d]).join(', ')}`,
+          suggestions,
+        });
+      }
+      
+      // Buscar slots ocupados
+      const { data: existingAppointments } = await supabase
+        .from('appointments')
+        .select('start_time')
+        .eq('user_id', userId)
+        .eq('appointment_date', date)
+        .in('status', ['pending', 'confirmed']);
+      
+      const occupiedSlots = new Set(existingAppointments?.map(a => a.start_time) || []);
+      
+      // Verificar se o horário preferido está disponível
+      if (preferredTime && !occupiedSlots.has(preferredTime)) {
+        return res.json({
+          available: true,
+          slot: preferredTime,
+          date,
+          serviceName: config.service_name,
+          location: config.location,
+          duration: config.slot_duration || 60,
+          message: `Horário disponível! ${date} às ${preferredTime}`,
+        });
+      }
+      
+      // Gerar slots disponíveis como sugestão
+      const startTime = config.work_start_time || '09:00';
+      const endTime = config.work_end_time || '18:00';
+      const slotDuration = config.slot_duration || 60;
+      
+      const [startHour, startMin] = startTime.split(':').map(Number);
+      const [endHour, endMin] = endTime.split(':').map(Number);
+      
+      let currentMinutes = startHour * 60 + startMin;
+      const endMinutes = endHour * 60 + endMin;
+      
+      const availableSlots: string[] = [];
+      while (currentMinutes + slotDuration <= endMinutes && availableSlots.length < 5) {
+        const hour = Math.floor(currentMinutes / 60);
+        const min = currentMinutes % 60;
+        const slot = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+        
+        if (!occupiedSlots.has(slot)) {
+          availableSlots.push(slot);
+        }
+        
+        currentMinutes += slotDuration;
+      }
+      
+      if (availableSlots.length === 0) {
+        return res.json({
+          available: false,
+          message: "Não há horários disponíveis para esta data",
+          suggestions: [],
+        });
+      }
+      
+      res.json({
+        available: true,
+        slot: availableSlots[0],
+        date,
+        serviceName: config.service_name,
+        location: config.location,
+        duration: config.slot_duration || 60,
+        suggestions: availableSlots,
+        message: `Horários disponíveis para ${date}: ${availableSlots.join(', ')}`,
+      });
+    } catch (error: any) {
+      console.error("Error checking availability:", error);
+      res.status(500).json({ message: "Failed to check availability" });
+    }
+  });
+
+  /**
+   * IA - Criar agendamento pendente (aguardando confirmação)
+   * POST /api/scheduling/ai/create-pending
+   */
+  app.post("/api/scheduling/ai/create-pending", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { 
+        clientName, clientPhone, clientEmail,
+        date, time, 
+        conversationId, conversationContext 
+      } = req.body;
+      
+      // Buscar configuração
+      const { data: config } = await supabase
+        .from('scheduling_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!config || !config.is_enabled) {
+        return res.status(400).json({ 
+          message: "Sistema de agendamento não está ativado" 
+        });
+      }
+      
+      // Calcular horário de término
+      const slotDuration = config.slot_duration || 60;
+      const [hour, min] = time.split(':').map(Number);
+      const endMinutes = hour * 60 + min + slotDuration;
+      const endHour = Math.floor(endMinutes / 60);
+      const endMin = endMinutes % 60;
+      const endTime = `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+      
+      // Criar agendamento
+      const status = config.require_confirmation ? 'pending' : 'confirmed';
+      const aiConfirmationPending = config.require_confirmation;
+      
+      const { data, error } = await supabase
+        .from('appointments')
+        .insert({
+          user_id: userId,
+          client_name: clientName,
+          client_phone: clientPhone,
+          client_email: clientEmail,
+          service_name: config.service_name,
+          appointment_date: date,
+          start_time: time,
+          end_time: endTime,
+          duration_minutes: slotDuration,
+          location: config.location,
+          location_type: config.location_type,
+          status,
+          created_by_ai: true,
+          ai_confirmation_pending: aiConfirmationPending,
+          ai_conversation_context: conversationContext,
+          conversation_id: conversationId,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      console.log(`🤖 [SCHEDULING-AI] Agendamento ${status} criado para ${clientName} em ${date} às ${time}`);
+      
+      res.status(201).json({
+        ...data,
+        confirmationMessage: config.require_confirmation 
+          ? `Agendamento solicitado para ${date} às ${time}. Aguardando confirmação.`
+          : config.confirmation_message,
+        requiresConfirmation: config.require_confirmation,
+      });
+    } catch (error: any) {
+      console.error("Error creating AI appointment:", error);
+      res.status(500).json({ message: "Failed to create appointment" });
+    }
+  });
+
+  // =====================================================================
+  // GOOGLE CALENDAR INTEGRATION ROUTES
+  // =====================================================================
+
+  /**
+   * Verificar status da integração Google Calendar
+   * GET /api/google-calendar/status
+   */
+  app.get("/api/google-calendar/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const status = await getGoogleCalendarStatus(userId);
+      res.json(status);
+    } catch (error: any) {
+      console.error("Error getting Google Calendar status:", error);
+      res.status(500).json({ message: "Failed to get status" });
+    }
+  });
+
+  /**
+   * Verificar se Google Calendar está configurado no servidor
+   * GET /api/google-calendar/configured
+   */
+  app.get("/api/google-calendar/configured", isAuthenticated, async (req: any, res) => {
+    res.json({ configured: isGoogleCalendarConfigured() });
+  });
+
+  /**
+   * Iniciar fluxo OAuth do Google Calendar
+   * GET /api/google-calendar/auth
+   */
+  app.get("/api/google-calendar/auth", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      if (!isGoogleCalendarConfigured()) {
+        return res.status(400).json({ 
+          message: "Google Calendar não está configurado. Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET." 
+        });
+      }
+      
+      const authUrl = getGoogleAuthUrl(userId);
+      res.json({ authUrl });
+    } catch (error: any) {
+      console.error("Error generating auth URL:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  /**
+   * Callback do OAuth Google (redirecionamento)
+   * GET /api/google-calendar/callback?code=...&state=...
+   */
+  app.get("/api/google-calendar/callback", async (req, res) => {
+    try {
+      const { code, state: userId, error: oauthError } = req.query;
+      
+      if (oauthError) {
+        console.error('[GoogleCalendar] OAuth error:', oauthError);
+        return res.redirect('/#/agendamentos?google_error=' + encodeURIComponent(String(oauthError)));
+      }
+      
+      if (!code || !userId) {
+        return res.redirect('/#/agendamentos?google_error=missing_params');
+      }
+      
+      const result = await handleGoogleCallback(code as string, userId as string);
+      
+      if (result.success) {
+        console.log(`[GoogleCalendar] Conectado com sucesso para usuário ${userId}`);
+        res.redirect('/#/agendamentos?google_connected=true');
+      } else {
+        console.error('[GoogleCalendar] Erro no callback:', result.error);
+        res.redirect('/#/agendamentos?google_error=' + encodeURIComponent(result.error || 'unknown'));
+      }
+    } catch (error: any) {
+      console.error("Error in Google Calendar callback:", error);
+      res.redirect('/#/agendamentos?google_error=' + encodeURIComponent(error.message));
+    }
+  });
+
+  /**
+   * Desconectar Google Calendar
+   * POST /api/google-calendar/disconnect
+   */
+  app.post("/api/google-calendar/disconnect", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const result = await disconnectGoogleCalendar(userId);
+      
+      if (result.success) {
+        res.json({ message: "Google Calendar desconectado com sucesso" });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error disconnecting Google Calendar:", error);
+      res.status(500).json({ message: "Failed to disconnect" });
+    }
+  });
+
+  /**
+   * Listar eventos do Google Calendar
+   * GET /api/google-calendar/events?from=2025-01-01&to=2025-01-31
+   */
+  app.get("/api/google-calendar/events", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { from, to } = req.query;
+      
+      if (!from || !to) {
+        return res.status(400).json({ message: "from and to dates are required" });
+      }
+      
+      const startDate = new Date(from as string);
+      const endDate = new Date(to as string);
+      
+      const result = await listCalendarEvents(userId, startDate, endDate);
+      
+      if (result.success) {
+        res.json({ events: result.events });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error listing Google Calendar events:", error);
+      res.status(500).json({ message: "Failed to list events" });
+    }
+  });
+
+  /**
+   * Sincronizar agendamento com Google Calendar
+   * POST /api/google-calendar/sync-appointment/:appointmentId
+   */
+  app.post("/api/google-calendar/sync-appointment/:appointmentId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { appointmentId } = req.params;
+      
+      // Buscar agendamento
+      const { data: appointment, error: apptError } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('id', appointmentId)
+        .eq('user_id', userId)
+        .single();
+      
+      if (apptError || !appointment) {
+        return res.status(404).json({ message: "Agendamento não encontrado" });
+      }
+      
+      // Buscar configuração para duração
+      const { data: config } = await supabase
+        .from('scheduling_config')
+        .select('slot_duration, service_name')
+        .eq('user_id', userId)
+        .single();
+      
+      const result = await syncAppointmentToCalendar(userId, {
+        id: appointment.id,
+        clientName: appointment.client_name,
+        clientPhone: appointment.client_phone,
+        appointmentDate: appointment.appointment_date,
+        appointmentTime: appointment.start_time,
+        serviceName: appointment.service_name || config?.service_name,
+        notes: appointment.notes,
+        googleEventId: appointment.google_event_id,
+      }, config?.slot_duration || 60);
+      
+      if (result.success && result.eventId) {
+        // Salvar eventId no agendamento
+        await supabase
+          .from('appointments')
+          .update({ 
+            google_event_id: result.eventId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', appointmentId);
+        
+        res.json({ 
+          message: "Sincronizado com Google Calendar",
+          eventId: result.eventId 
+        });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error syncing appointment:", error);
+      res.status(500).json({ message: "Failed to sync appointment" });
+    }
+  });
+
+  /**
+   * Remover evento do Google Calendar
+   * DELETE /api/google-calendar/event/:eventId
+   */
+  app.delete("/api/google-calendar/event/:eventId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { eventId } = req.params;
+      
+      const result = await removeAppointmentFromCalendar(userId, eventId);
+      
+      if (result.success) {
+        res.json({ message: "Evento removido do Google Calendar" });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error removing calendar event:", error);
+      res.status(500).json({ message: "Failed to remove event" });
+    }
+  });
+
+  /**
+   * Verificar disponibilidade no Google Calendar
+   * GET /api/google-calendar/check-availability?start=...&end=...
+   */
+  app.get("/api/google-calendar/check-availability", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { start, end } = req.query;
+      
+      if (!start || !end) {
+        return res.status(400).json({ message: "start and end datetimes are required" });
+      }
+      
+      const result = await checkCalendarAvailability(userId, start as string, end as string);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error checking calendar availability:", error);
+      res.status(500).json({ message: "Failed to check availability" });
     }
   });
 

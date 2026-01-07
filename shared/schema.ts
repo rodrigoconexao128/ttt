@@ -1437,3 +1437,192 @@ export type InsertFunnelStage = z.infer<typeof insertFunnelStageSchema>;
 export type FunnelDeal = typeof funnelDeals.$inferSelect;
 export type InsertFunnelDeal = z.infer<typeof insertFunnelDealSchema>;
 export type DealHistoryItem = typeof dealHistory.$inferSelect;
+
+// ==================== SISTEMA DE AGENDAMENTOS ====================
+
+// Configuração de agendamento por usuário
+export const schedulingConfig = pgTable("scheduling_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Status
+  isEnabled: boolean("is_enabled").default(false).notNull(),
+  
+  // Informações do local/serviço
+  serviceName: varchar("service_name", { length: 255 }),
+  serviceDuration: integer("service_duration").default(60), // Duração em minutos
+  location: varchar("location", { length: 500 }),
+  locationType: varchar("location_type", { length: 50 }).default("presencial"), // presencial, online, ambos
+  
+  // Dias disponíveis (array de 0-6, onde 0=Domingo)
+  availableDays: jsonb("available_days").default([1,2,3,4,5]),
+  
+  // Horários de funcionamento
+  workStartTime: varchar("work_start_time", { length: 10 }).default("09:00"),
+  workEndTime: varchar("work_end_time", { length: 10 }).default("18:00"),
+  
+  // Intervalos de almoço/pausa
+  breakStartTime: varchar("break_start_time", { length: 10 }).default("12:00"),
+  breakEndTime: varchar("break_end_time", { length: 10 }).default("13:00"),
+  hasBreak: boolean("has_break").default(true),
+  
+  // Configurações avançadas
+  slotDuration: integer("slot_duration").default(60), // Duração de cada slot em minutos
+  bufferBetweenAppointments: integer("buffer_between_appointments").default(15),
+  maxAppointmentsPerDay: integer("max_appointments_per_day").default(10),
+  advanceBookingDays: integer("advance_booking_days").default(30), // Quantos dias à frente pode agendar
+  minBookingNoticeHours: integer("min_booking_notice_hours").default(2), // Mínimo de antecedência
+  
+  // Configurações de confirmação
+  requireConfirmation: boolean("require_confirmation").default(true), // IA confirma antes de agendar
+  autoConfirm: boolean("auto_confirm").default(false), // Agendar automaticamente
+  sendReminder: boolean("send_reminder").default(true),
+  reminderHoursBefore: integer("reminder_hours_before").default(24),
+  
+  // Google Calendar
+  googleCalendarEnabled: boolean("google_calendar_enabled").default(false),
+  googleCalendarId: varchar("google_calendar_id", { length: 255 }),
+  googleSyncMode: varchar("google_sync_mode", { length: 50 }).default("two_way"),
+  
+  // Mensagens personalizadas
+  confirmationMessage: text("confirmation_message").default("Seu agendamento foi confirmado! 📅"),
+  reminderMessage: text("reminder_message").default("Lembrete: Você tem um agendamento amanhã!"),
+  cancellationMessage: text("cancellation_message").default("Seu agendamento foi cancelado."),
+  
+  // Metadados
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Agendamentos
+export const appointments = pgTable("appointments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: 'set null' }),
+  
+  // Informações do cliente
+  clientName: varchar("client_name", { length: 255 }).notNull(),
+  clientPhone: varchar("client_phone", { length: 50 }).notNull(),
+  clientEmail: varchar("client_email", { length: 255 }),
+  
+  // Detalhes do agendamento
+  serviceName: varchar("service_name", { length: 255 }),
+  appointmentDate: varchar("appointment_date", { length: 20 }).notNull(), // YYYY-MM-DD
+  startTime: varchar("start_time", { length: 10 }).notNull(), // HH:mm
+  endTime: varchar("end_time", { length: 10 }).notNull(), // HH:mm
+  durationMinutes: integer("duration_minutes").default(60),
+  
+  // Local
+  location: varchar("location", { length: 500 }),
+  locationType: varchar("location_type", { length: 50 }).default("presencial"),
+  meetingLink: varchar("meeting_link", { length: 500 }),
+  
+  // Status do agendamento
+  status: varchar("status", { length: 50 }).default("pending"), // pending, confirmed, cancelled, completed, no_show
+  
+  // Confirmações
+  confirmedByClient: boolean("confirmed_by_client").default(false),
+  confirmedByBusiness: boolean("confirmed_by_business").default(false),
+  confirmedAt: timestamp("confirmed_at"),
+  
+  // Cancelamento
+  cancelledAt: timestamp("cancelled_at"),
+  cancelledBy: varchar("cancelled_by", { length: 50 }),
+  cancellationReason: text("cancellation_reason"),
+  
+  // Lembretes
+  reminderSent: boolean("reminder_sent").default(false),
+  reminderSentAt: timestamp("reminder_sent_at"),
+  
+  // Google Calendar
+  googleEventId: varchar("google_event_id", { length: 255 }),
+  googleCalendarSynced: boolean("google_calendar_synced").default(false),
+  
+  // Notas
+  clientNotes: text("client_notes"),
+  internalNotes: text("internal_notes"),
+  
+  // IA
+  createdByAi: boolean("created_by_ai").default(false),
+  aiConfirmationPending: boolean("ai_confirmation_pending").default(false),
+  aiConversationContext: jsonb("ai_conversation_context"),
+  
+  // Metadados
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_appointments_user_date").on(table.userId, table.appointmentDate),
+  index("idx_appointments_status").on(table.status),
+  index("idx_appointments_client_phone").on(table.clientPhone),
+]);
+
+// Tokens do Google Calendar
+export const googleCalendarTokens = pgTable("google_calendar_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenType: varchar("token_type", { length: 50 }),
+  expiryDate: timestamp("expiry_date"),
+  scope: text("scope"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Exceções de horário (feriados, dias bloqueados)
+export const schedulingExceptions = pgTable("scheduling_exceptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  exceptionDate: varchar("exception_date", { length: 20 }).notNull(), // YYYY-MM-DD
+  exceptionType: varchar("exception_type", { length: 50 }).notNull(), // blocked, modified_hours, holiday
+  
+  // Se modified_hours
+  customStartTime: varchar("custom_start_time", { length: 10 }),
+  customEndTime: varchar("custom_end_time", { length: 10 }),
+  
+  reason: varchar("reason", { length: 255 }),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_scheduling_exceptions_user_date").on(table.userId, table.exceptionDate),
+]);
+
+// Relations
+export const schedulingConfigRelations = relations(schedulingConfig, ({ one }) => ({
+  user: one(users, { fields: [schedulingConfig.userId], references: [users.id] }),
+}));
+
+export const appointmentsRelations = relations(appointments, ({ one }) => ({
+  user: one(users, { fields: [appointments.userId], references: [users.id] }),
+  conversation: one(conversations, { fields: [appointments.conversationId], references: [conversations.id] }),
+}));
+
+// Schemas Zod para validação de Agendamentos
+export const insertSchedulingConfigSchema = createInsertSchema(schedulingConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAppointmentSchema = createInsertSchema(appointments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSchedulingExceptionSchema = createInsertSchema(schedulingExceptions).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types de Agendamentos
+export type SchedulingConfig = typeof schedulingConfig.$inferSelect;
+export type InsertSchedulingConfig = z.infer<typeof insertSchedulingConfigSchema>;
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
+export type SchedulingException = typeof schedulingExceptions.$inferSelect;
+export type InsertSchedulingException = z.infer<typeof insertSchedulingExceptionSchema>;
+export type GoogleCalendarToken = typeof googleCalendarTokens.$inferSelect;

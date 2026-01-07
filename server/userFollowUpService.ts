@@ -73,10 +73,10 @@ export class UserFollowUpService {
     this.isRunning = true;
     console.log("🚀 [USER-FOLLOW-UP] Serviço iniciado");
     
-    // Verificar a cada minuto
-    this.checkInterval = setInterval(() => this.processFollowUps(), 60 * 1000);
-    // Executar imediatamente ao iniciar
-    setTimeout(() => this.processFollowUps(), 5000);
+    // Verificar a cada 5 minutos (otimizado para reduzir carga no DB)
+    this.checkInterval = setInterval(() => this.processFollowUps(), 5 * 60 * 1000);
+    // Aguardar 60s antes da primeira execução para não sobrecarregar na inicialização
+    setTimeout(() => this.processFollowUps(), 60 * 1000);
   }
 
   stop() {

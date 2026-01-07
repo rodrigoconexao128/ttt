@@ -22,6 +22,13 @@ import {
   executeMediaActions,
 } from "./mediaService";
 import { processResponsePlaceholders } from "./textUtils";
+import {
+  generateSchedulingPromptBlock,
+  processSchedulingTags,
+  detectSchedulingIntent,
+  getNextAvailableSlots,
+  formatAvailableSlotsForAI,
+} from "./schedulingService";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🌅 FUNÇÃO DE SAUDAÇÃO BASEADA NO HORÁRIO DO BRASIL
@@ -250,6 +257,7 @@ export interface AIResponseResult {
     shouldNotify: boolean;
     reason: string;
   };
+  appointmentCreated?: any;
 }
 
 // 📝 Converter formatação Markdown para WhatsApp
@@ -275,6 +283,7 @@ function convertMarkdownToWhatsApp(text: string): string {
 // Opções extras para contexto dinâmico
 export interface AIResponseOptions {
   contactName?: string;  // Nome do cliente (pushName do WhatsApp)
+  contactPhone?: string; // Telefone do cliente (para agendamento)
   sentMedias?: string[]; // Lista de mídias já enviadas nesta conversa
 }
 
@@ -730,6 +739,17 @@ export async function generateAIResponse(
          );
          systemPrompt += notificationSection;
        }
+
+       // 📅 INJETAR SISTEMA DE AGENDAMENTO NO AVANÇADO
+       try {
+         const schedulingPromptBlock = await generateSchedulingPromptBlock(userId);
+         if (schedulingPromptBlock) {
+           systemPrompt += schedulingPromptBlock;
+           console.log(`📅 [AI Agent] Scheduling system ACTIVE (Advanced) - prompt injected`);
+         }
+       } catch (schedError) {
+         console.error(`📅 [AI Agent] Error loading scheduling config:`, schedError);
+       }
        
        console.log(`🎨 [AI Agent] Generated advanced prompt (${systemPrompt.length} chars)${hasMedia ? ' + media library' : ''}`);
      } else {
@@ -783,6 +803,17 @@ export async function generateAIResponse(
          );
          systemPrompt += notificationSection;
          console.log(`🔔 [AI Agent] Added notification system to legacy prompt`);
+       }
+
+       // 📅 INJETAR SISTEMA DE AGENDAMENTO NO LEGADO
+       try {
+         const schedulingPromptBlock = await generateSchedulingPromptBlock(userId);
+         if (schedulingPromptBlock) {
+           systemPrompt += schedulingPromptBlock;
+           console.log(`📅 [AI Agent] Scheduling system ACTIVE (Legacy) - prompt injected`);
+         }
+       } catch (schedError) {
+         console.error(`📅 [AI Agent] Error loading scheduling config:`, schedError);
        }
 
        console.log(`📝 [AI Agent] Using legacy prompt (${systemPrompt.length} chars)`);
@@ -1437,10 +1468,26 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       console.log(`🔄 [AI Agent] Placeholders processados na resposta`);
     }
     
+    // 📅 PROCESSAR TAGS DE AGENDAMENTO [AGENDAR: DATA=..., HORA=..., NOME=...]
+    let appointmentCreated: any = undefined;
+    if (responseText && options?.contactPhone) {
+      try {
+        const schedulingResult = await processSchedulingTags(responseText, userId, options.contactPhone);
+        responseText = schedulingResult.text;
+        if (schedulingResult.appointmentCreated) {
+          appointmentCreated = schedulingResult.appointmentCreated;
+          console.log(`📅 [AI Agent] Appointment created: ${appointmentCreated.id} for ${appointmentCreated.client_name}`);
+        }
+      } catch (schedError) {
+        console.error(`📅 [AI Agent] Error processing scheduling tags:`, schedError);
+      }
+    }
+    
     return {
       text: responseText,
       mediaActions,
       notification,
+      appointmentCreated,
     };
   } catch (error: any) {
     console.error("Error generating AI response:", error);
@@ -1473,6 +1520,7 @@ Mensagem do cliente: ${newMessageText.trim()}`;
  * - conversationHistory: vem do parâmetro (simulador mantém em memória)
  * - contactName: configurável (default "Visitante")
  * - sentMedias: rastreado pelo simulador
+ * - appointmentCreated: retorna agendamento criado (se houver)
  */
 export async function testAgentResponse(
   userId: string,
@@ -1481,7 +1529,7 @@ export async function testAgentResponse(
   conversationHistory?: Message[],
   sentMedias?: string[],
   contactName: string = "Visitante"
-): Promise<{ text: string | null; mediaActions: MistralResponse['actions'] }> {
+): Promise<{ text: string | null; mediaActions: MistralResponse['actions']; appointmentCreated?: any }> {
   try {
     console.log(`\n🧪 ═══════════════════════════════════════════════════════════════`);
     console.log(`🧪 [SIMULADOR UNIFICADO] Usando MESMO fluxo do WhatsApp`);
@@ -1508,6 +1556,7 @@ export async function testAgentResponse(
     // - Humanização funciona
     // - Placeholders são processados
     // - Mídias são detectadas e não repetidas
+    // - Agendamentos podem ser criados (com telefone simulado)
     
     const result = await generateAIResponse(
       userId,
@@ -1515,6 +1564,7 @@ export async function testAgentResponse(
       testMessage,
       {
         contactName, // 🆕 Usa nome passado (pode ser customizado pelo frontend)
+        contactPhone: "5511999999999", // 📅 Telefone simulado para testar agendamentos
         sentMedias: sentMedias || [],
       },
       // Se customPrompt foi fornecido, injetar via testDependencies
@@ -1528,16 +1578,20 @@ export async function testAgentResponse(
     
     if (!result) {
       console.log(`🧪 [SIMULADOR] ⚠️ Sem resposta do generateAIResponse`);
-      return { text: null, mediaActions: [] };
+      return { text: null, mediaActions: [], appointmentCreated: undefined };
     }
     
     console.log(`🧪 [SIMULADOR] ✅ Resposta gerada: ${result.text?.substring(0, 80)}...`);
     console.log(`🧪 [SIMULADOR] 📁 Mídias na resposta: ${result.mediaActions?.length || 0}`);
+    if (result.appointmentCreated) {
+      console.log(`🧪 [SIMULADOR] 📅 Agendamento criado: ${result.appointmentCreated.id}`);
+    }
     console.log(`🧪 ═══════════════════════════════════════════════════════════════\n`);
     
     return { 
       text: result.text, 
-      mediaActions: result.mediaActions || [] 
+      mediaActions: result.mediaActions || [],
+      appointmentCreated: result.appointmentCreated
     };
   } catch (error) {
     console.error("🧪 [SIMULADOR] Error:", error);

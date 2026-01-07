@@ -2287,6 +2287,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       combinedText, // ✅ Todas as mensagens combinadas
       {
         contactName, // ✅ Nome do cliente para personalização
+        contactPhone: contactNumber, // ✅ Telefone do cliente para agendamento
         sentMedias,  // ✅ Mídias já enviadas para evitar repetição
       }
     );
