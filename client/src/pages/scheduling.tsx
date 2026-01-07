@@ -60,10 +60,6 @@ interface SchedulingConfig {
   allowCancellation: boolean;
   sendReminder: boolean;
   reminderHoursBefore: number;
-  googleCalendarEnabled: boolean;
-  confirmationMessage: string;
-  reminderMessage: string;
-  cancellationMessage: string;
 }
 
 interface Appointment {
@@ -131,167 +127,6 @@ async function authFetch(url: string, options: RequestInit = {}): Promise<Respon
 }
 
 // Google Calendar Integration Component
-function GoogleCalendarCard() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  // Fetch Google Calendar status
-  const { data: calendarStatus, isLoading } = useQuery<{
-    connected: boolean;
-    configured: boolean;
-    email?: string;
-  }>({
-    queryKey: ['google-calendar-status'],
-    queryFn: async () => {
-      const res = await authFetch('/api/google-calendar/status');
-      if (!res.ok) throw new Error('Failed to fetch status');
-      return res.json();
-    },
-    refetchInterval: 10000, // Check every 10 seconds for updates
-  });
-
-  // Check URL params for callback results
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-    const connected = params.get('google_connected');
-    const error = params.get('google_error');
-    
-    if (connected === 'true') {
-      toast({ title: "✅ Google Calendar conectado!", description: "Seus agendamentos serão sincronizados." });
-      queryClient.invalidateQueries({ queryKey: ['google-calendar-status'] });
-      // Clean URL
-      window.history.replaceState({}, '', window.location.pathname + '#/agendamentos');
-    } else if (error) {
-      toast({ title: "❌ Erro ao conectar", description: decodeURIComponent(error), variant: "destructive" });
-      window.history.replaceState({}, '', window.location.pathname + '#/agendamentos');
-    }
-  }, []);
-
-  // Connect to Google Calendar
-  const handleConnect = async () => {
-    setIsConnecting(true);
-    try {
-      const res = await authFetch('/api/google-calendar/auth');
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message);
-      }
-      const { authUrl } = await res.json();
-      window.location.href = authUrl;
-    } catch (error: any) {
-      toast({ title: "❌ Erro", description: error.message, variant: "destructive" });
-      setIsConnecting(false);
-    }
-  };
-
-  // Disconnect mutation
-  const disconnectMutation = useMutation({
-    mutationFn: async () => {
-      const res = await authFetch('/api/google-calendar/disconnect', {
-        method: 'POST',
-      });
-      if (!res.ok) throw new Error('Failed to disconnect');
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['google-calendar-status'] });
-      toast({ title: "✅ Desconectado", description: "Google Calendar foi desconectado." });
-    },
-    onError: () => {
-      toast({ title: "❌ Erro ao desconectar", variant: "destructive" });
-    },
-  });
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5" />
-            Google Calendar
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="w-6 h-6 animate-spin" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CalendarIcon className="w-5 h-5 text-blue-600" />
-          Google Calendar
-        </CardTitle>
-        <CardDescription>
-          Sincronize seus agendamentos com o Google Calendar
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!calendarStatus?.configured ? (
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">
-              ⚠️ Google Calendar não está configurado no servidor. 
-              Configure as variáveis <code className="bg-yellow-100 px-1 rounded">GOOGLE_CLIENT_ID</code> e{' '}
-              <code className="bg-yellow-100 px-1 rounded">GOOGLE_CLIENT_SECRET</code>.
-            </p>
-          </div>
-        ) : calendarStatus?.connected ? (
-          <>
-            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <CheckCircle2 className="w-5 h-5 text-green-600" />
-              <div>
-                <p className="font-medium text-green-800">Conectado</p>
-                {calendarStatus.email && (
-                  <p className="text-sm text-green-600">{calendarStatus.email}</p>
-                )}
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Novos agendamentos serão automaticamente adicionados ao seu Google Calendar.
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => disconnectMutation.mutate()}
-              disabled={disconnectMutation.isPending}
-              className="w-full"
-            >
-              {disconnectMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : null}
-              Desconectar Google Calendar
-            </Button>
-          </>
-        ) : (
-          <>
-            <p className="text-sm text-muted-foreground">
-              Conecte sua conta do Google para sincronizar automaticamente 
-              os agendamentos com seu calendário.
-            </p>
-            <Button
-              onClick={handleConnect}
-              disabled={isConnecting}
-              className="w-full bg-blue-600 hover:bg-blue-700"
-            >
-              {isConnecting ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <CalendarIcon className="w-4 h-4 mr-2" />
-              )}
-              Conectar Google Calendar
-            </Button>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function SchedulingPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -324,10 +159,6 @@ export default function SchedulingPage() {
     allowCancellation: data.allow_cancellation ?? true,
     sendReminder: data.send_reminder ?? true,
     reminderHoursBefore: data.reminder_hours_before ?? 24,
-    googleCalendarEnabled: data.google_calendar_enabled ?? false,
-    confirmationMessage: data.confirmation_message ?? 'Seu agendamento foi confirmado! 📅',
-    reminderMessage: data.reminder_message ?? 'Lembrete: Você tem um agendamento amanhã!',
-    cancellationMessage: data.cancellation_message ?? 'Seu agendamento foi cancelado.',
   });
 
   // Fetch config
@@ -545,10 +376,6 @@ export default function SchedulingPage() {
       allow_cancellation: configForm.allowCancellation,
       send_reminder: configForm.sendReminder,
       reminder_hours_before: configForm.reminderHoursBefore,
-      google_calendar_enabled: configForm.googleCalendarEnabled,
-      confirmation_message: configForm.confirmationMessage,
-      reminder_message: configForm.reminderMessage,
-      cancellation_message: configForm.cancellationMessage,
     } as any);
   };
 
@@ -1146,43 +973,6 @@ export default function SchedulingPage() {
                       />
                     </div>
                   )}
-                </CardContent>
-              </Card>
-
-              {/* Google Calendar Integration */}
-              <GoogleCalendarCard />
-
-              {/* Messages */}
-              <Card className="lg:col-span-2">
-                <CardHeader>
-                  <CardTitle>Mensagens Automáticas</CardTitle>
-                  <CardDescription>Personalize as mensagens enviadas aos clientes</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Mensagem de Confirmação</Label>
-                    <Textarea
-                      value={configForm.confirmationMessage || ''}
-                      onChange={(e) => setConfigForm({ ...configForm, confirmationMessage: e.target.value })}
-                      placeholder="Seu agendamento foi confirmado! 📅"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Mensagem de Lembrete</Label>
-                    <Textarea
-                      value={configForm.reminderMessage || ''}
-                      onChange={(e) => setConfigForm({ ...configForm, reminderMessage: e.target.value })}
-                      placeholder="Lembrete: Você tem um agendamento amanhã!"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Mensagem de Cancelamento</Label>
-                    <Textarea
-                      value={configForm.cancellationMessage || ''}
-                      onChange={(e) => setConfigForm({ ...configForm, cancellationMessage: e.target.value })}
-                      placeholder="Seu agendamento foi cancelado."
-                    />
-                  </div>
                 </CardContent>
               </Card>
             </div>
