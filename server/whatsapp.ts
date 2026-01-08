@@ -1486,6 +1486,20 @@ export async function connectWhatsApp(userId: string): Promise<void> {
             console.error(`❌ [UNRESPONDED CHECK] Erro ao verificar mensagens:`, error);
           }
         }, 10000); // 10 segundos após conexão
+        
+        // ======================================================================
+        // 🔄 FOLLOW-UP: Reativar follow-ups que estavam aguardando conexão
+        // ======================================================================
+        // Quando o WhatsApp reconecta, os follow-ups que foram pausados por falta
+        // de conexão devem ser reagendados para processar em breve
+        setTimeout(async () => {
+          try {
+            await userFollowUpService.clearConnectionWaitingStatus(session.connectionId);
+            console.log(`✅ [FOLLOW-UP] Status de aguardo de conexão limpo para ${userId}`);
+          } catch (error) {
+            console.error(`❌ [FOLLOW-UP] Erro ao limpar status de aguardo:`, error);
+          }
+        }, 5000); // 5 segundos após conexão
       }
     });
 
