@@ -1325,42 +1325,33 @@ ${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).j
   /**
    * Limpa o status de "aguardando conexão" para todas as conversas de uma conexão específica
    * Chamado quando o WhatsApp reconecta para permitir que os follow-ups sejam processados novamente
+   * 
+   * 🚀 OTIMIZADO: Faz apenas 1 UPDATE direto sem SELECT prévio
    */
   async clearConnectionWaitingStatus(connectionId: string): Promise<number> {
     try {
-      // Buscar conversas que estavam aguardando esta conexão
-      const waitingConversations = await db.query.conversations.findMany({
-        where: and(
-          eq(conversations.connectionId, connectionId),
-          eq(conversations.followupActive, true)
-        )
-      });
-      
-      const waitingCount = waitingConversations.filter(
-        c => c.followupDisabledReason === '🔄 Aguardando conexão WhatsApp...'
-      ).length;
-      
-      if (waitingCount === 0) {
-        console.log(`📭 [USER-FOLLOW-UP] Nenhuma conversa aguardando reconexão para ${connectionId}`);
-        return 0;
-      }
-      
       // Reagendar para 2 minutos no futuro
       const nextDate = addRandomSeconds(new Date(Date.now() + 2 * 60 * 1000));
       
-      // Atualizar todas as conversas que estavam aguardando
-      await db.update(conversations)
+      // UPDATE direto apenas nas conversas que realmente precisam (sem SELECT prévio)
+      // Isso economiza 1 query e reduz Disk I/O significativamente
+      const result = await db.update(conversations)
         .set({ 
           followupDisabledReason: null,
           nextFollowupAt: nextDate
         })
         .where(and(
           eq(conversations.connectionId, connectionId),
-          eq(conversations.followupActive, true)
-        ));
+          eq(conversations.followupActive, true),
+          eq(conversations.followupDisabledReason, '🔄 Aguardando conexão WhatsApp...')
+        ))
+        .returning({ id: conversations.id });
       
-      console.log(`🔄 [USER-FOLLOW-UP] ${waitingCount} conversas reativadas para conexão ${connectionId}`);
-      return waitingCount;
+      const count = result.length;
+      if (count > 0) {
+        console.log(`🔄 [USER-FOLLOW-UP] ${count} conversas reativadas para conexão ${connectionId}`);
+      }
+      return count;
     } catch (error) {
       console.error(`❌ [USER-FOLLOW-UP] Erro ao limpar status de aguardo:`, error);
       return 0;
