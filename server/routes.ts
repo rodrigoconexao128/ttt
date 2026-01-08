@@ -10,6 +10,7 @@ import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth
 import { withRetry, db } from "./db";
 import { eq, and, gte, desc, inArray } from "drizzle-orm";
 import { subscriptions, paymentHistory } from "@shared/schema";
+import { resellerService } from "./resellerService";
 
 // ============================================
 // SISTEMA DE MANUTENÇÃO E FALLBACK
@@ -1211,6 +1212,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating password:", error);
       res.status(500).json({ message: "Falha ao alterar senha" });
+    }
+  });
+
+  // Get user branding (white-label for reseller clients)
+  app.get("/api/user/branding", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // If user is a reseller client, return reseller branding
+      if (user.resellerId) {
+        const reseller = await storage.getReseller(user.resellerId);
+        if (reseller && reseller.isActive) {
+          return res.json({
+            isWhiteLabel: true,
+            companyName: reseller.companyName,
+            logoUrl: reseller.logoUrl,
+            primaryColor: reseller.primaryColor || "#000000",
+            secondaryColor: reseller.secondaryColor || "#ffffff",
+            accentColor: reseller.accentColor || "#22c55e",
+            supportEmail: reseller.supportEmail,
+            supportPhone: reseller.supportPhone,
+            welcomeMessage: reseller.welcomeMessage,
+          });
+        }
+      }
+
+      // Return default AgenteZap branding
+      return res.json({
+        isWhiteLabel: false,
+        companyName: "AgenteZap",
+        logoUrl: null,
+        primaryColor: "#000000",
+        secondaryColor: "#ffffff",
+        accentColor: "#22c55e",
+      });
+    } catch (error) {
+      console.error("Error fetching user branding:", error);
+      res.status(500).json({ message: "Failed to fetch branding" });
     }
   });
 
@@ -12264,6 +12308,638 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     } catch (error: any) {
       console.error("Error checking calendar availability:", error);
       res.status(500).json({ message: "Failed to check availability" });
+    }
+  });
+
+  // ============================================================
+  // ROTAS DE REVENDA WHITE-LABEL
+  // ============================================================
+
+  /**
+   * Verificar se o usuário tem plano de revenda
+   * GET /api/reseller/status
+   */
+  app.get("/api/reseller/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const hasReseller = await resellerService.hasResellerPlan(userId);
+      const reseller = await storage.getResellerByUserId(userId);
+      
+      res.json({ 
+        hasResellerPlan: hasReseller,
+        reseller: reseller || null
+      });
+    } catch (error: any) {
+      console.error("Error checking reseller status:", error);
+      res.status(500).json({ message: "Erro ao verificar status de revenda" });
+    }
+  });
+
+  /**
+   * Obter/Criar/Atualizar perfil do revendedor
+   * GET/POST/PUT /api/reseller/profile
+   */
+  app.get("/api/reseller/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Verificar se tem plano de revenda
+      const hasReseller = await resellerService.hasResellerPlan(userId);
+      if (!hasReseller) {
+        return res.status(403).json({ message: "Você não possui plano de revenda ativo" });
+      }
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(404).json({ message: "Perfil de revendedor não encontrado. Configure seu perfil." });
+      }
+      
+      res.json(reseller);
+    } catch (error: any) {
+      console.error("Error getting reseller profile:", error);
+      res.status(500).json({ message: "Erro ao obter perfil de revendedor" });
+    }
+  });
+
+  app.post("/api/reseller/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Verificar se tem plano de revenda
+      const hasReseller = await resellerService.hasResellerPlan(userId);
+      if (!hasReseller) {
+        return res.status(403).json({ message: "Você não possui plano de revenda ativo" });
+      }
+      
+      const result = await resellerService.setupReseller(userId, req.body);
+      
+      if (result.success) {
+        res.json({ message: "Perfil de revendedor configurado com sucesso", reseller: result.reseller });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error creating reseller profile:", error);
+      res.status(500).json({ message: "Erro ao criar perfil de revendedor" });
+    }
+  });
+
+  app.put("/api/reseller/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(404).json({ message: "Perfil de revendedor não encontrado" });
+      }
+      
+      const updated = await storage.updateReseller(reseller.id, req.body);
+      res.json({ message: "Perfil atualizado com sucesso", reseller: updated });
+    } catch (error: any) {
+      console.error("Error updating reseller profile:", error);
+      res.status(500).json({ message: "Erro ao atualizar perfil de revendedor" });
+    }
+  });
+
+  /**
+   * Listar clientes do revendedor
+   * GET /api/reseller/clients
+   */
+  app.get("/api/reseller/clients", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      const clients = await storage.getResellerClients(reseller.id);
+      res.json(clients);
+    } catch (error: any) {
+      console.error("Error listing reseller clients:", error);
+      res.status(500).json({ message: "Erro ao listar clientes" });
+    }
+  });
+
+  /**
+   * Criar novo cliente do revendedor
+   * POST /api/reseller/clients
+   */
+  app.post("/api/reseller/clients", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { email, name, phone, password } = req.body;
+      
+      if (!email || !name || !password) {
+        return res.status(400).json({ message: "Email, nome e senha são obrigatórios" });
+      }
+      
+      // Obter o revendedor
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      const result = await resellerService.createClient({
+        resellerId: reseller.id,
+        email,
+        name,
+        phone: phone || '',
+        password
+      });
+      
+      if (result.success) {
+        res.json({ 
+          message: "Cliente criado com sucesso",
+          clientId: result.clientId,
+          userId: result.userId,
+          paymentUrl: result.paymentUrl
+        });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error creating reseller client:", error);
+      res.status(500).json({ message: "Erro ao criar cliente" });
+    }
+  });
+
+  /**
+   * Suspender cliente do revendedor
+   * POST /api/reseller/clients/:clientId/suspend
+   */
+  app.post("/api/reseller/clients/:clientId/suspend", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      await storage.suspendResellerClient(clientId);
+      res.json({ message: "Cliente suspenso com sucesso" });
+    } catch (error: any) {
+      console.error("Error suspending client:", error);
+      res.status(500).json({ message: "Erro ao suspender cliente" });
+    }
+  });
+
+  /**
+   * Reativar cliente do revendedor
+   * POST /api/reseller/clients/:clientId/reactivate
+   */
+  app.post("/api/reseller/clients/:clientId/reactivate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      await storage.reactivateResellerClient(clientId);
+      res.json({ message: "Cliente reativado com sucesso" });
+    } catch (error: any) {
+      console.error("Error reactivating client:", error);
+      res.status(500).json({ message: "Erro ao reativar cliente" });
+    }
+  });
+
+  /**
+   * Cancelar cliente do revendedor
+   * POST /api/reseller/clients/:clientId/cancel
+   */
+  app.post("/api/reseller/clients/:clientId/cancel", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      await storage.cancelResellerClient(clientId);
+      res.json({ message: "Cliente cancelado com sucesso" });
+    } catch (error: any) {
+      console.error("Error canceling client:", error);
+      res.status(500).json({ message: "Erro ao cancelar cliente" });
+    }
+  });
+
+  /**
+   * Obter métricas do dashboard do revendedor
+   * GET /api/reseller/dashboard
+   */
+  app.get("/api/reseller/dashboard", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      const metrics = await storage.getResellerDashboardMetrics(reseller.id);
+      res.json(metrics);
+    } catch (error: any) {
+      console.error("Error getting reseller dashboard:", error);
+      res.status(500).json({ message: "Erro ao obter métricas do dashboard" });
+    }
+  });
+
+  /**
+   * Obter histórico de pagamentos do revendedor
+   * GET /api/reseller/payments
+   */
+  app.get("/api/reseller/payments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      const payments = await storage.getResellerPayments(reseller.id);
+      res.json(payments);
+    } catch (error: any) {
+      console.error("Error getting reseller payments:", error);
+      res.status(500).json({ message: "Erro ao obter histórico de pagamentos" });
+    }
+  });
+
+  /**
+   * Webhook para pagamentos de criação de cliente
+   * POST /api/reseller/webhook/payment
+   */
+  app.post("/api/reseller/webhook/payment", async (req: any, res) => {
+    try {
+      const { external_reference, status, payment_id } = req.body;
+      
+      if (!external_reference) {
+        return res.status(400).json({ message: "external_reference é obrigatório" });
+      }
+      
+      await resellerService.processPaymentWebhook(external_reference, status, payment_id);
+      res.json({ message: "Pagamento processado com sucesso" });
+    } catch (error: any) {
+      console.error("Error processing reseller payment webhook:", error);
+      res.status(500).json({ message: "Erro ao processar webhook de pagamento" });
+    }
+  });
+
+  /**
+   * Verificar se pode criar cliente gratuito
+   * GET /api/reseller/free-client-available
+   */
+  app.get("/api/reseller/free-client-available", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      const hasFreeSlot = await resellerService.hasFreeClientSlot(reseller.id);
+      const usedFreeClients = await storage.countFreeResellerClients(reseller.id);
+      
+      res.json({ 
+        available: hasFreeSlot,
+        used: usedFreeClients,
+        limit: 1, // 1 cliente gratuito por revendedor
+      });
+    } catch (error: any) {
+      console.error("Error checking free client slot:", error);
+      res.status(500).json({ message: "Erro ao verificar slot gratuito" });
+    }
+  });
+
+  /**
+   * Criar cliente gratuito (para demonstração - 1 por revendedor)
+   * POST /api/reseller/clients/free
+   */
+  app.post("/api/reseller/clients/free", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { email, name, phone, password, clientPrice } = req.body;
+      
+      if (!email || !name || !password) {
+        return res.status(400).json({ message: "Email, nome e senha são obrigatórios" });
+      }
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      const result = await resellerService.createFreeClient({
+        resellerId: reseller.id,
+        email,
+        name,
+        phone: phone || '',
+        password,
+        clientPrice,
+        isFreeClient: true,
+      });
+      
+      if (result.success) {
+        res.json({ 
+          message: "Cliente de demonstração criado com sucesso!",
+          clientId: result.clientId,
+          userId: result.userId,
+        });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error creating free client:", error);
+      res.status(500).json({ message: "Erro ao criar cliente gratuito" });
+    }
+  });
+
+  /**
+   * Iniciar checkout para criar cliente (PIX ou Cartão)
+   * POST /api/reseller/clients/checkout
+   */
+  app.post("/api/reseller/clients/checkout", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, email, phone, password, clientPrice, paymentMethod, cardData } = req.body;
+      
+      if (!email || !name || !password) {
+        return res.status(400).json({ message: "Dados do cliente incompletos" });
+      }
+      
+      if (!paymentMethod || !['pix', 'credit_card'].includes(paymentMethod)) {
+        return res.status(400).json({ message: "Método de pagamento inválido" });
+      }
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      const result = await resellerService.createClientCheckout({
+        resellerId: reseller.id,
+        clientData: { name, email, phone: phone || '', password, clientPrice },
+        paymentMethod,
+        cardData,
+      });
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error creating checkout:", error);
+      res.status(500).json({ message: "Erro ao criar checkout" });
+    }
+  });
+
+  /**
+   * Confirmar pagamento PIX manualmente (para testes ou confirmação manual)
+   * POST /api/reseller/payments/:paymentId/confirm
+   */
+  app.post("/api/reseller/payments/:paymentId/confirm", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const paymentId = req.params.paymentId;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o pagamento pertence ao revendedor
+      const payment = await storage.getResellerPayment(paymentId);
+      if (!payment || payment.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Pagamento não encontrado" });
+      }
+      
+      const result = await resellerService.confirmPixPayment(paymentId);
+      
+      if (result.success) {
+        res.json({ 
+          message: "Pagamento confirmado e cliente criado com sucesso!",
+          clientId: result.clientId,
+          userId: result.userId,
+        });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error confirming payment:", error);
+      res.status(500).json({ message: "Erro ao confirmar pagamento" });
+    }
+  });
+
+  /**
+   * Obter plano do cliente da revenda (para mostrar na página de planos)
+   * GET /api/user/reseller-plan
+   */
+  app.get("/api/user/reseller-plan", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      
+      if (!user || !user.resellerId) {
+        // Não é cliente de revenda - retornar null para mostrar planos normais
+        return res.json({ isResellerClient: false });
+      }
+      
+      // É cliente de revenda - buscar dados do revendedor e do cliente
+      const reseller = await storage.getReseller(user.resellerId);
+      if (!reseller || !reseller.isActive) {
+        return res.json({ isResellerClient: false });
+      }
+      
+      // Buscar dados do cliente da revenda
+      const resellerClient = await storage.getResellerClientByUserId(userId);
+      
+      // Calcular o preço que o cliente vê (definido pelo revendedor)
+      const clientPrice = resellerClient?.clientPrice || reseller.clientMonthlyPrice || "99.99";
+      
+      res.json({
+        isResellerClient: true,
+        plan: {
+          name: "Plano Ilimitado",
+          price: clientPrice,
+          features: [
+            "Conversas ilimitadas",
+            "Agente IA avançado",
+            "Follow-up automático",
+            "Suporte prioritário",
+            "Todas as funcionalidades"
+          ],
+        },
+        reseller: {
+          companyName: reseller.companyName,
+          supportEmail: reseller.supportEmail,
+          supportPhone: reseller.supportPhone,
+          primaryColor: reseller.primaryColor,
+        },
+        status: resellerClient?.status || "pending",
+      });
+    } catch (error: any) {
+      console.error("Error getting reseller plan:", error);
+      res.status(500).json({ message: "Erro ao obter plano" });
+    }
+  });
+
+  /**
+   * Detectar revendedor pelo host (para white-label)
+   * GET /api/reseller/detect
+   */
+  app.get("/api/reseller/detect", async (req: any, res) => {
+    try {
+      const host = req.headers.host || req.hostname;
+      const result = await resellerService.detectResellerByHost(host);
+      
+      if (result && result.reseller) {
+        const r = result.reseller;
+        res.json({
+          detected: true,
+          reseller: {
+            companyName: r.companyName,
+            logo: r.logoUrl,
+            primaryColor: r.primaryColor,
+            secondaryColor: r.secondaryColor,
+            supportEmail: r.supportEmail,
+            supportPhone: r.supportPhone
+          }
+        });
+      } else {
+        res.json({ detected: false });
+      }
+    } catch (error: any) {
+      console.error("Error detecting reseller:", error);
+      res.json({ detected: false });
+    }
+  });
+
+  // ============================================================
+  // ROTAS DE ADMIN PARA GERENCIAR REVENDEDORES
+  // ============================================================
+
+  /**
+   * Listar todos os revendedores (Admin)
+   * GET /api/admin/resellers
+   */
+  app.get("/api/admin/resellers", isAdmin, async (req: any, res) => {
+    try {
+      const resellers = await storage.getAllResellers();
+      res.json(resellers);
+    } catch (error: any) {
+      console.error("Error listing resellers:", error);
+      res.status(500).json({ message: "Erro ao listar revendedores" });
+    }
+  });
+
+  /**
+   * Obter detalhes de um revendedor (Admin)
+   * GET /api/admin/resellers/:resellerId
+   */
+  app.get("/api/admin/resellers/:resellerId", isAdmin, async (req: any, res) => {
+    try {
+      const resellerId = req.params.resellerId;
+      const reseller = await storage.getReseller(resellerId);
+      
+      if (!reseller) {
+        return res.status(404).json({ message: "Revendedor não encontrado" });
+      }
+      
+      const clients = await storage.getResellerClients(resellerId);
+      const metrics = await storage.getResellerDashboardMetrics(resellerId);
+      
+      res.json({ reseller, clients, metrics });
+    } catch (error: any) {
+      console.error("Error getting reseller details:", error);
+      res.status(500).json({ message: "Erro ao obter detalhes do revendedor" });
+    }
+  });
+
+  /**
+   * Ativar/Desativar revendedor (Admin)
+   * PUT /api/admin/resellers/:resellerId/status
+   */
+  app.put("/api/admin/resellers/:resellerId/status", isAdmin, async (req: any, res) => {
+    try {
+      const resellerId = req.params.resellerId;
+      const { active } = req.body;
+      
+      await storage.updateReseller(resellerId, { isActive: active });
+      res.json({ message: active ? "Revendedor ativado" : "Revendedor desativado" });
+    } catch (error: any) {
+      console.error("Error updating reseller status:", error);
+      res.status(500).json({ message: "Erro ao atualizar status do revendedor" });
+    }
+  });
+
+  /**
+   * Atribuir plano de revenda a um usuário (Admin)
+   * POST /api/admin/users/:userId/make-reseller
+   */
+  app.post("/api/admin/users/:userId/make-reseller", isAdmin, async (req: any, res) => {
+    try {
+      const targetUserId = req.params.userId;
+      
+      // Buscar plano de revenda
+      const allPlans = await storage.getAllPlans();
+      const resellerPlan = allPlans.find((p: any) => p.tipo === 'revenda');
+      
+      if (!resellerPlan) {
+        return res.status(404).json({ message: "Plano de revenda não encontrado. Crie um plano com tipo 'revenda' primeiro." });
+      }
+      
+      // Criar assinatura de revenda para o usuário
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + 1);
+      
+      await storage.createSubscription({
+        userId: targetUserId,
+        planId: resellerPlan.id,
+        status: 'active',
+        mpSubscriptionId: `admin_assigned_${Date.now()}`,
+        dataInicio: new Date(),
+        dataFim: endDate
+      });
+      
+      // Criar perfil de revendedor
+      await storage.createReseller({
+        userId: targetUserId,
+        companyName: 'Minha Revenda',
+        isActive: true
+      });
+      
+      res.json({ message: "Plano de revenda atribuído com sucesso" });
+    } catch (error: any) {
+      console.error("Error making user reseller:", error);
+      res.status(500).json({ message: "Erro ao atribuir plano de revenda" });
     }
   });
 

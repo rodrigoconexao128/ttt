@@ -25,6 +25,8 @@ export const users = pgTable("users", {
   role: varchar("role", { length: 50 }).default("user").notNull(),
   whatsappNumber: varchar("whatsapp_number"),
   onboardingCompleted: boolean("onboarding_completed").default(false).notNull(),
+  // Reseller reference - se este usuário é cliente de um revendedor
+  resellerId: varchar("reseller_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1627,3 +1629,183 @@ export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type SchedulingException = typeof schedulingExceptions.$inferSelect;
 export type InsertSchedulingException = z.infer<typeof insertSchedulingExceptionSchema>;
 export type GoogleCalendarToken = typeof googleCalendarTokens.$inferSelect;
+
+// =============================================================================
+// SISTEMA DE REVENDA WHITE-LABEL
+// =============================================================================
+
+// Configuração do Revendedor
+export const resellers = pgTable("resellers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Branding
+  logoUrl: text("logo_url"),
+  primaryColor: varchar("primary_color", { length: 20 }).default("#000000"),
+  secondaryColor: varchar("secondary_color", { length: 20 }).default("#ffffff"),
+  accentColor: varchar("accent_color", { length: 20 }).default("#22c55e"),
+  companyName: varchar("company_name", { length: 255 }),
+  companyDescription: text("company_description"),
+  
+  // Domínio customizado
+  customDomain: varchar("custom_domain", { length: 255 }).unique(),
+  subdomain: varchar("subdomain", { length: 100 }).unique(),
+  domainVerified: boolean("domain_verified").default(false).notNull(),
+  
+  // Preços para clientes finais (o que o revendedor cobra dos seus clientes)
+  clientMonthlyPrice: decimal("client_monthly_price", { precision: 10, scale: 2 }).default("99.99"),
+  clientSetupFee: decimal("client_setup_fee", { precision: 10, scale: 2 }).default("0"),
+  
+  // Custo por cliente para o revendedor (paga para nós)
+  costPerClient: decimal("cost_per_client", { precision: 10, scale: 2 }).default("49.99"),
+  
+  // Configurações
+  isActive: boolean("is_active").default(true).notNull(),
+  maxClients: integer("max_clients").default(100),
+  
+  // Textos customizados
+  welcomeMessage: text("welcome_message"),
+  supportEmail: varchar("support_email", { length: 255 }),
+  supportPhone: varchar("support_phone", { length: 50 }),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_resellers_user").on(table.userId),
+  index("idx_resellers_domain").on(table.customDomain),
+  index("idx_resellers_subdomain").on(table.subdomain),
+]);
+
+// Clientes do Revendedor
+export const resellerClients = pgTable("reseller_clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  resellerId: varchar("reseller_id").notNull().references(() => resellers.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Status
+  status: varchar("status", { length: 50 }).default("active").notNull(), // active, suspended, cancelled, pending
+  
+  // Financeiro (cobra do revendedor por este cliente)
+  monthlyCost: decimal("monthly_cost", { precision: 10, scale: 2 }).default("49.99"),
+  
+  // Preço que o revendedor cobra deste cliente específico
+  clientPrice: decimal("client_price", { precision: 10, scale: 2 }),
+  
+  // Se é cliente gratuito (demo/teste - 1 por revendedor)
+  isFreeClient: boolean("is_free_client").default(false).notNull(),
+  
+  // Assinatura MercadoPago
+  mpSubscriptionId: varchar("mp_subscription_id", { length: 255 }),
+  mpStatus: varchar("mp_status", { length: 50 }),
+  nextPaymentDate: timestamp("next_payment_date"),
+  
+  // Datas
+  activatedAt: timestamp("activated_at").defaultNow(),
+  suspendedAt: timestamp("suspended_at"),
+  cancelledAt: timestamp("cancelled_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_reseller_clients_reseller").on(table.resellerId),
+  index("idx_reseller_clients_user").on(table.userId),
+  index("idx_reseller_clients_status").on(table.status),
+]);
+
+// Pagamentos do Revendedor (por cliente criado)
+export const resellerPayments = pgTable("reseller_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  resellerId: varchar("reseller_id").notNull().references(() => resellers.id, { onDelete: 'cascade' }),
+  resellerClientId: varchar("reseller_client_id").references(() => resellerClients.id, { onDelete: 'set null' }),
+  
+  // Valores
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  paymentType: varchar("payment_type", { length: 50 }).notNull(), // client_creation, recurring, setup_fee
+  
+  // Status
+  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, approved, rejected, refunded
+  statusDetail: varchar("status_detail", { length: 100 }),
+  
+  // MercadoPago
+  mpPaymentId: varchar("mp_payment_id", { length: 255 }),
+  mpSubscriptionId: varchar("mp_subscription_id", { length: 255 }),
+  paymentMethod: varchar("payment_method", { length: 50 }), // credit_card, pix
+  
+  // Informações do pagador
+  payerEmail: varchar("payer_email", { length: 255 }),
+  cardLastFourDigits: varchar("card_last_four_digits", { length: 4 }),
+  cardBrand: varchar("card_brand", { length: 50 }),
+  
+  // Descrição
+  description: text("description"),
+  
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_reseller_payments_reseller").on(table.resellerId),
+  index("idx_reseller_payments_client").on(table.resellerClientId),
+  index("idx_reseller_payments_status").on(table.status),
+  index("idx_reseller_payments_date").on(table.createdAt),
+]);
+
+// Relations para Resellers
+export const resellersRelations = relations(resellers, ({ one, many }) => ({
+  user: one(users, { fields: [resellers.userId], references: [users.id] }),
+  clients: many(resellerClients),
+  payments: many(resellerPayments),
+}));
+
+export const resellerClientsRelations = relations(resellerClients, ({ one, many }) => ({
+  reseller: one(resellers, { fields: [resellerClients.resellerId], references: [resellers.id] }),
+  user: one(users, { fields: [resellerClients.userId], references: [users.id] }),
+  payments: many(resellerPayments),
+}));
+
+export const resellerPaymentsRelations = relations(resellerPayments, ({ one }) => ({
+  reseller: one(resellers, { fields: [resellerPayments.resellerId], references: [resellers.id] }),
+  client: one(resellerClients, { fields: [resellerPayments.resellerClientId], references: [resellerClients.id] }),
+}));
+
+// Schemas Zod para validação de Resellers
+export const insertResellerSchema = createInsertSchema(resellers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const resellerSchema = z.object({
+  logoUrl: z.string().url().optional().nullable(),
+  primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#000000"),
+  secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#ffffff"),
+  accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#22c55e"),
+  companyName: z.string().min(1).max(255),
+  companyDescription: z.string().optional(),
+  customDomain: z.string().max(255).optional().nullable(),
+  subdomain: z.string().min(3).max(100).regex(/^[a-z0-9-]+$/).optional().nullable(),
+  clientMonthlyPrice: z.string().or(z.number()).transform(v => String(v)).default("99.99"),
+  clientSetupFee: z.string().or(z.number()).transform(v => String(v)).default("0"),
+  welcomeMessage: z.string().optional(),
+  supportEmail: z.string().email().optional().nullable(),
+  supportPhone: z.string().max(50).optional().nullable(),
+});
+
+export const insertResellerClientSchema = createInsertSchema(resellerClients).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertResellerPaymentSchema = createInsertSchema(resellerPayments).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types para Resellers
+export type Reseller = typeof resellers.$inferSelect;
+export type InsertReseller = z.infer<typeof insertResellerSchema>;
+export type ResellerInput = z.infer<typeof resellerSchema>;
+export type ResellerClient = typeof resellerClients.$inferSelect;
+export type InsertResellerClient = z.infer<typeof insertResellerClientSchema>;
+export type ResellerPayment = typeof resellerPayments.$inferSelect;
+export type InsertResellerPayment = z.infer<typeof insertResellerPaymentSchema>;
+

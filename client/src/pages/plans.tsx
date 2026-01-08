@@ -26,6 +26,21 @@ interface CustomPlanValidation {
   message?: string;
 }
 
+// Interface para plano de revenda
+interface ResellerPlan {
+  isResellerClient: boolean;
+  reseller?: {
+    companyName: string;
+    supportEmail?: string;
+    supportPhone?: string;
+  };
+  plan?: {
+    name: string;
+    price: string;
+    features: string[];
+  };
+}
+
 export default function PlansPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -43,6 +58,11 @@ export default function PlansPage() {
   // Estado para modal de subscribe
   const [subscribeModalOpen, setSubscribeModalOpen] = useState(false);
   const [pendingSubscriptionId, setPendingSubscriptionId] = useState<string | null>(null);
+
+  // Verificar se é cliente de revenda
+  const { data: resellerPlan, isLoading: resellerPlanLoading } = useQuery<ResellerPlan>({
+    queryKey: ["/api/user/reseller-plan"],
+  });
 
   const { data: plans, isLoading: plansLoading } = useQuery<Plan[]>({
     queryKey: ["/api/plans"],
@@ -152,7 +172,7 @@ export default function PlansPage() {
     },
   });
 
-  if (plansLoading || subscriptionLoading) {
+  if (plansLoading || subscriptionLoading || resellerPlanLoading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[60vh]">
         <Loader2 className="h-8 w-8 animate-spin text-green-500" />
@@ -276,6 +296,113 @@ export default function PlansPage() {
       answer: "Pagamento via PIX, instantâneo e seguro. O acesso é liberado imediatamente após a confirmação."
     }
   ];
+
+  // Se é cliente de revenda e não tem assinatura, mostrar plano da revenda
+  if (resellerPlan?.isResellerClient && resellerPlan.plan && !hasActiveSubscription) {
+    return (
+      <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
+        <div className="max-w-2xl mx-auto px-4 py-6 md:py-12">
+          <div className="text-center mb-8">
+            <Badge className="mb-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-0">
+              Plano Exclusivo
+            </Badge>
+            <h1 className="text-xl md:text-3xl font-semibold text-gray-900 dark:text-white mb-2">
+              {resellerPlan.reseller?.companyName || "Seu Revendedor"}
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400">
+              Assine agora e tenha acesso completo à plataforma
+            </p>
+          </div>
+
+          <Card className="border-2 border-purple-500/50 shadow-lg">
+            <CardHeader className="text-center pb-4">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Crown className="h-6 w-6 text-purple-500" />
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {resellerPlan.plan.name}
+                </h2>
+              </div>
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-4xl font-bold text-purple-600">
+                  R$ {Number(resellerPlan.plan.price).toFixed(2).replace('.', ',')}
+                </span>
+                <span className="text-gray-500">/mês</span>
+              </div>
+            </CardHeader>
+            
+            <CardContent className="pt-0">
+              <div className="space-y-3 py-4">
+                {resellerPlan.plan.features.map((feature, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span className="text-gray-600 dark:text-gray-300">{feature}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+            
+            <CardFooter className="flex flex-col gap-4">
+              <Button 
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white"
+                size="lg"
+                onClick={() => {
+                  // Criar assinatura com plano da revenda
+                  // Buscar o plano pelo valor
+                  const matchingPlan = plans?.find(p => p.valor === resellerPlan.plan!.price);
+                  if (matchingPlan) {
+                    setSelectedPlan("reseller");
+                    createSubscriptionMutation.mutate({ planId: matchingPlan.id.toString() });
+                  } else {
+                    toast({ 
+                      title: "Entre em contato com seu revendedor", 
+                      description: resellerPlan.reseller?.supportEmail || resellerPlan.reseller?.supportPhone || "Suporte indisponível",
+                      variant: "default" 
+                    });
+                  }
+                }}
+                disabled={createSubscriptionMutation.isPending}
+              >
+                {createSubscriptionMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4 mr-2" />
+                    Assinar Agora
+                  </>
+                )}
+              </Button>
+              
+              {/* Informações de contato do revendedor */}
+              {(resellerPlan.reseller?.supportEmail || resellerPlan.reseller?.supportPhone) && (
+                <div className="text-center text-sm text-gray-500">
+                  <p>Dúvidas? Entre em contato:</p>
+                  {resellerPlan.reseller?.supportEmail && (
+                    <p className="font-medium">{resellerPlan.reseller.supportEmail}</p>
+                  )}
+                  {resellerPlan.reseller?.supportPhone && (
+                    <p className="font-medium">{resellerPlan.reseller.supportPhone}</p>
+                  )}
+                </div>
+              )}
+            </CardFooter>
+          </Card>
+        </div>
+
+        {/* Modal de subscribe */}
+        <SubscribeModal
+          isOpen={subscribeModalOpen}
+          onClose={() => {
+            setSubscribeModalOpen(false);
+            setPendingSubscriptionId(null);
+          }}
+          subscriptionId={pendingSubscriptionId || ""}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">

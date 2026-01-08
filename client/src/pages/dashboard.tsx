@@ -1,8 +1,9 @@
 ﻿import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useBranding } from "@/hooks/useBranding";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -60,10 +61,17 @@ import { cn } from "@/lib/utils";
 export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
+  const { branding } = useBranding(); // Get white-label branding
   const { data: subscription } = useQuery<Subscription & { plan: Plan } | null>({
     queryKey: ["/api/subscriptions/current"],
     enabled: !!isAuthenticated,
   });
+  // Verificar se usuário é revendedor
+  const { data: resellerStatus } = useQuery<{ hasResellerPlan: boolean }>({
+    queryKey: ["/api/reseller/status"],
+    enabled: !!isAuthenticated,
+  });
+  const isReseller = resellerStatus?.hasResellerPlan || false;
   const [selectedView, setSelectedView] = useState<"conversations" | "connection" | "stats" | "agent">("conversations");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [location, setLocation] = useLocation();
@@ -312,7 +320,16 @@ const toolsNavigation: ToolNavItem[] = [
       <SidebarProvider>
       <Sidebar>
         <SidebarHeader>
-          <div className="px-2 py-1.5 text-sm font-semibold flex items-center gap-2"><Bot className="w-4 h-4 text-muted-foreground" /><span>AgenteZap</span></div>
+          <div className="px-2 py-1.5 text-sm font-semibold flex items-center gap-2">
+            {branding.logoUrl ? (
+              <img src={branding.logoUrl} alt={branding.companyName} className="w-5 h-5 object-contain" />
+            ) : (
+              <Bot className="w-4 h-4 text-muted-foreground" />
+            )}
+            <span style={branding.isWhiteLabel ? { color: branding.primaryColor } : undefined}>
+              {branding.companyName}
+            </span>
+          </div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
@@ -362,6 +379,21 @@ const toolsNavigation: ToolNavItem[] = [
                   <span>Meu Agente IA</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {/* Menu de Revenda - visível apenas para revendedores */}
+              {isReseller && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip="Painel de Revenda"
+                    data-testid="button-nav-reseller"
+                  >
+                    <Link href="/revenda">
+                      <Building2 className="w-4 h-4" />
+                      <span>Minha Revenda</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem className="mt-4 pt-3 border-t border-sidebar-border/50">
                 <Collapsible open={toolsOpen} onOpenChange={setToolsOpen} className="group">
                   <CollapsibleTrigger asChild>
@@ -540,8 +572,14 @@ const toolsNavigation: ToolNavItem[] = [
           <div className="md:hidden sticky top-0 z-50 bg-background border-b border-border/60">
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-2">
-                <Bot className="w-6 h-6 text-primary" />
-                <span className="font-bold text-lg">AgenteZap</span>
+                {branding.logoUrl ? (
+                  <img src={branding.logoUrl} alt={branding.companyName} className="w-6 h-6 object-contain" />
+                ) : (
+                  <Bot className="w-6 h-6 text-primary" />
+                )}
+                <span className="font-bold text-lg" style={branding.isWhiteLabel ? { color: branding.primaryColor } : undefined}>
+                  {branding.companyName}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Button 

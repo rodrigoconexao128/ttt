@@ -18,6 +18,7 @@ import AdminSimulator from "@/pages/AdminSimulator";
 import LoadingScreen from "@/components/LoadingScreen";
 import TestTTS from "@/pages/TestTTS";
 import Subscribe from "@/pages/subscribe";
+import ResellerDashboard from "@/pages/reseller";
 import { AccessBlocker, SubscriptionExpiringBanner } from "@/components/access-blocker";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
@@ -82,6 +83,8 @@ function Router() {
       <Route path="/notificador" component={Dashboard} />
       <Route path="/biblioteca-midias" component={Dashboard} />
       <Route path="/lista-exclusao" component={Dashboard} />
+      <Route path="/revenda" component={ResellerDashboard} />
+      <Route path="/reseller" component={ResellerDashboard} />
       
       <Route component={NotFound} />
     </Switch>

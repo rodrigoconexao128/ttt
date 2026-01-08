@@ -20,6 +20,9 @@ import {
   coupons,
   tags,
   conversationTags,
+  resellers,
+  resellerClients,
+  resellerPayments,
   type User,
   type UpsertUser,
   type WhatsappConnection,
@@ -54,6 +57,12 @@ import {
   type InsertTag,
   type ConversationTag,
   type InsertConversationTag,
+  type Reseller,
+  type InsertReseller,
+  type ResellerClient,
+  type InsertResellerClient,
+  type ResellerPayment,
+  type InsertResellerPayment,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray, lte } from "drizzle-orm";
@@ -342,6 +351,11 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(
       sql`${users.phone} = ${phoneWithPlus} OR ${users.phone} = ${cleanPhone} OR REPLACE(${users.phone}, '+', '') = ${cleanPhone}`
     );
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 
@@ -2926,6 +2940,365 @@ export class DatabaseStorage implements IStorage {
       ...conv,
       tags: tagsByConversation.get(conv.id) || [],
     }));
+  }
+
+  // ============================================
+  // RESELLER FUNCTIONS - Sistema de Revenda White-Label
+  // ============================================
+
+  /**
+   * Cria um novo revendedor
+   */
+  async createReseller(data: InsertReseller): Promise<Reseller> {
+    const [result] = await db.insert(resellers).values(data).returning();
+    return result;
+  }
+
+  /**
+   * Obtém revendedor por ID
+   */
+  async getReseller(id: string): Promise<Reseller | undefined> {
+    const [result] = await db.select().from(resellers).where(eq(resellers.id, id)).limit(1);
+    return result;
+  }
+
+  /**
+   * Obtém revendedor pelo ID do usuário
+   */
+  async getResellerByUserId(userId: string): Promise<Reseller | undefined> {
+    const [result] = await db.select().from(resellers).where(eq(resellers.userId, userId)).limit(1);
+    return result;
+  }
+
+  /**
+   * Obtém revendedor pelo domínio customizado
+   */
+  async getResellerByDomain(domain: string): Promise<Reseller | undefined> {
+    const [result] = await db.select().from(resellers).where(eq(resellers.customDomain, domain)).limit(1);
+    return result;
+  }
+
+  /**
+   * Obtém revendedor pelo subdomínio
+   */
+  async getResellerBySubdomain(subdomain: string): Promise<Reseller | undefined> {
+    const [result] = await db.select().from(resellers).where(eq(resellers.subdomain, subdomain)).limit(1);
+    return result;
+  }
+
+  /**
+   * Atualiza revendedor
+   */
+  async updateReseller(id: string, data: Partial<InsertReseller>): Promise<Reseller | undefined> {
+    const [result] = await db
+      .update(resellers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(resellers.id, id))
+      .returning();
+    return result;
+  }
+
+  /**
+   * Obtém revendedor por ID
+   */
+  async getResellerById(id: number): Promise<Reseller | undefined> {
+    const [result] = await db.select().from(resellers).where(eq(resellers.id, id)).limit(1);
+    return result;
+  }
+
+  /**
+   * Lista todos os revendedores (admin)
+   */
+  async getAllResellers(): Promise<(Reseller & { user: User | null; clientCount: number })[]> {
+    const allResellers = await db.select().from(resellers).orderBy(desc(resellers.createdAt));
+    
+    const results: (Reseller & { user: User | null; clientCount: number })[] = [];
+    
+    for (const reseller of allResellers) {
+      const [user] = await db.select().from(users).where(eq(users.id, reseller.userId)).limit(1);
+      const clientCountResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(resellerClients)
+        .where(eq(resellerClients.resellerId, reseller.id));
+      
+      results.push({
+        ...reseller,
+        user: user || null,
+        clientCount: Number(clientCountResult[0]?.count || 0),
+      });
+    }
+    
+    return results;
+  }
+
+  /**
+   * Verifica se subdomínio está disponível
+   */
+  async isSubdomainAvailable(subdomain: string): Promise<boolean> {
+    const [existing] = await db.select().from(resellers).where(eq(resellers.subdomain, subdomain)).limit(1);
+    return !existing;
+  }
+
+  /**
+   * Verifica se domínio está disponível
+   */
+  async isDomainAvailable(domain: string): Promise<boolean> {
+    const [existing] = await db.select().from(resellers).where(eq(resellers.customDomain, domain)).limit(1);
+    return !existing;
+  }
+
+  // ============================================
+  // RESELLER CLIENTS FUNCTIONS
+  // ============================================
+
+  /**
+   * Cria um novo cliente do revendedor
+   */
+  async createResellerClient(data: InsertResellerClient): Promise<ResellerClient> {
+    const [result] = await db.insert(resellerClients).values(data).returning();
+    
+    // Atualizar o reseller_id do usuário
+    await db.update(users).set({ resellerId: data.resellerId }).where(eq(users.id, data.userId));
+    
+    return result;
+  }
+
+  /**
+   * Obtém cliente do revendedor por ID
+   */
+  async getResellerClient(id: string): Promise<ResellerClient | undefined> {
+    const [result] = await db.select().from(resellerClients).where(eq(resellerClients.id, id)).limit(1);
+    return result;
+  }
+
+  /**
+   * Obtém cliente do revendedor por ID (número)
+   */
+  async getResellerClientById(id: number): Promise<ResellerClient | undefined> {
+    const [result] = await db.select().from(resellerClients).where(eq(resellerClients.id, id)).limit(1);
+    return result;
+  }
+
+  /**
+   * Obtém cliente do revendedor pelo ID do usuário
+   */
+  async getResellerClientByUserId(userId: string): Promise<ResellerClient | undefined> {
+    const [result] = await db.select().from(resellerClients).where(eq(resellerClients.userId, userId)).limit(1);
+    return result;
+  }
+
+  /**
+   * Lista clientes de um revendedor
+   */
+  async getResellerClients(resellerId: string): Promise<(ResellerClient & { user: User | null })[]> {
+    const clients = await db
+      .select()
+      .from(resellerClients)
+      .where(eq(resellerClients.resellerId, resellerId))
+      .orderBy(desc(resellerClients.createdAt));
+    
+    const results: (ResellerClient & { user: User | null })[] = [];
+    
+    for (const client of clients) {
+      const [user] = await db.select().from(users).where(eq(users.id, client.userId)).limit(1);
+      results.push({ ...client, user: user || null });
+    }
+    
+    return results;
+  }
+
+  /**
+   * Atualiza cliente do revendedor
+   */
+  async updateResellerClient(id: string, data: Partial<InsertResellerClient>): Promise<ResellerClient | undefined> {
+    const [result] = await db
+      .update(resellerClients)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(resellerClients.id, id))
+      .returning();
+    return result;
+  }
+
+  /**
+   * Suspende cliente do revendedor
+   */
+  async suspendResellerClient(id: string): Promise<ResellerClient | undefined> {
+    const [result] = await db
+      .update(resellerClients)
+      .set({ status: "suspended", suspendedAt: new Date(), updatedAt: new Date() })
+      .where(eq(resellerClients.id, id))
+      .returning();
+    return result;
+  }
+
+  /**
+   * Reativa cliente do revendedor
+   */
+  async reactivateResellerClient(id: string): Promise<ResellerClient | undefined> {
+    const [result] = await db
+      .update(resellerClients)
+      .set({ status: "active", suspendedAt: null, updatedAt: new Date() })
+      .where(eq(resellerClients.id, id))
+      .returning();
+    return result;
+  }
+
+  /**
+   * Cancela cliente do revendedor
+   */
+  async cancelResellerClient(id: string): Promise<ResellerClient | undefined> {
+    const [result] = await db
+      .update(resellerClients)
+      .set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
+      .where(eq(resellerClients.id, id))
+      .returning();
+    return result;
+  }
+
+  /**
+   * Conta clientes ativos de um revendedor
+   */
+  async countActiveResellerClients(resellerId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(resellerClients)
+      .where(and(eq(resellerClients.resellerId, resellerId), eq(resellerClients.status, "active")));
+    return Number(result?.count || 0);
+  }
+
+  /**
+   * Conta clientes gratuitos de um revendedor (máximo 1)
+   */
+  async countFreeResellerClients(resellerId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(resellerClients)
+      .where(and(
+        eq(resellerClients.resellerId, resellerId), 
+        eq(resellerClients.isFreeClient, true)
+      ));
+    return Number(result?.count || 0);
+  }
+
+  // ============================================
+  // RESELLER PAYMENTS FUNCTIONS
+  // ============================================
+
+  /**
+   * Cria um novo pagamento do revendedor
+   */
+  async createResellerPayment(data: InsertResellerPayment): Promise<ResellerPayment> {
+    const [result] = await db.insert(resellerPayments).values(data).returning();
+    return result;
+  }
+
+  /**
+   * Obtém pagamento do revendedor por ID
+   */
+  async getResellerPayment(id: string): Promise<ResellerPayment | undefined> {
+    const [result] = await db.select().from(resellerPayments).where(eq(resellerPayments.id, id)).limit(1);
+    return result;
+  }
+
+  /**
+   * Lista pagamentos de um revendedor
+   */
+  async getResellerPayments(resellerId: string, limit: number = 50): Promise<ResellerPayment[]> {
+    return db
+      .select()
+      .from(resellerPayments)
+      .where(eq(resellerPayments.resellerId, resellerId))
+      .orderBy(desc(resellerPayments.createdAt))
+      .limit(limit);
+  }
+
+  /**
+   * Atualiza pagamento do revendedor
+   */
+  async updateResellerPayment(id: string, data: Partial<InsertResellerPayment>): Promise<ResellerPayment | undefined> {
+    const [result] = await db
+      .update(resellerPayments)
+      .set(data)
+      .where(eq(resellerPayments.id, id))
+      .returning();
+    return result;
+  }
+
+  /**
+   * Obtém métricas do revendedor
+   */
+  async getResellerDashboardMetrics(resellerId: string): Promise<{
+    totalClients: number;
+    activeClients: number;
+    suspendedClients: number;
+    cancelledClients: number;
+    totalRevenue: number;
+    monthlyRevenue: number;
+    monthlyCost: number;
+    monthlyProfit: number;
+  }> {
+    // Contagem de clientes por status
+    const clientStats = await db
+      .select({
+        status: resellerClients.status,
+        count: sql<number>`count(*)`,
+      })
+      .from(resellerClients)
+      .where(eq(resellerClients.resellerId, resellerId))
+      .groupBy(resellerClients.status);
+    
+    const stats = {
+      totalClients: 0,
+      activeClients: 0,
+      suspendedClients: 0,
+      cancelledClients: 0,
+    };
+    
+    for (const { status, count } of clientStats) {
+      const countNum = Number(count);
+      stats.totalClients += countNum;
+      if (status === "active") stats.activeClients = countNum;
+      if (status === "suspended") stats.suspendedClients = countNum;
+      if (status === "cancelled") stats.cancelledClients = countNum;
+    }
+    
+    // Receita total (pagamentos aprovados)
+    const [totalRevenueResult] = await db
+      .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+      .from(resellerPayments)
+      .where(and(eq(resellerPayments.resellerId, resellerId), eq(resellerPayments.status, "approved")));
+    
+    // Receita do mês atual
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    
+    const [monthlyRevenueResult] = await db
+      .select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+      .from(resellerPayments)
+      .where(
+        and(
+          eq(resellerPayments.resellerId, resellerId),
+          eq(resellerPayments.status, "approved"),
+          gte(resellerPayments.createdAt, startOfMonth)
+        )
+      );
+    
+    // Obter config do revendedor para calcular custo
+    const reseller = await this.getReseller(resellerId);
+    const costPerClient = Number(reseller?.costPerClient || 49.99);
+    const monthlyPrice = Number(reseller?.clientMonthlyPrice || 99.99);
+    
+    const monthlyCost = stats.activeClients * costPerClient;
+    const monthlyRevenue = stats.activeClients * monthlyPrice;
+    
+    return {
+      ...stats,
+      totalRevenue: Number(totalRevenueResult?.total || 0),
+      monthlyRevenue,
+      monthlyCost,
+      monthlyProfit: monthlyRevenue - monthlyCost,
+    };
   }
 }
 

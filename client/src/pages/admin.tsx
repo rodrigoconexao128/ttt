@@ -29,7 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2 } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -196,6 +196,8 @@ export default function AdminPanel() {
         return <FollowUpCalendar />;
       case "cupons":
         return <CouponsManager />;
+      case "resellers":
+        return <ResellersManager />;
       case "config":
         return <ConfigManager config={config} />;
       default:
@@ -326,6 +328,16 @@ export default function AdminPanel() {
                   >
                     <Tag className="w-4 h-4" />
                     <span>Cupons</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("resellers")}
+                    isActive={activeTab === "resellers"}
+                    tooltip="Revendedores White-Label"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span>Revendedores</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -468,6 +480,16 @@ export default function AdminPanel() {
                 >
                   <Tag className="w-4 h-4" />
                   <span>Cupons</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("resellers")}
+                  isActive={activeTab === "resellers"}
+                  tooltip="Revendedores White-Label"
+                >
+                  <Building2 className="w-4 h-4" />
+                  <span>Revendedores</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -2435,6 +2457,437 @@ function CouponsManager() {
           <p>• Evite padrões óbvios como PROMO1, PROMO2, DESCONTO10</p>
           <p>• Configure limite de usos para promoções limitadas</p>
           <p>• Defina data de validade para campanhas temporárias</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================================
+// RESELLERS MANAGER - Gerenciamento de Revendedores White-Label
+// ============================================================================
+
+interface Reseller {
+  id: string;
+  userId: string;
+  companyName: string;
+  companyDescription?: string;
+  logoUrl?: string;
+  subdomain?: string;
+  customDomain?: string;
+  domainVerified?: boolean;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  clientMonthlyPrice?: string;
+  clientSetupFee?: string;
+  costPerClient?: string;
+  maxClients?: number;
+  supportEmail?: string;
+  supportPhone?: string;
+  welcomeMessage?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  user?: { name: string; email: string };
+  clientCount?: number;
+}
+
+function ResellersManager() {
+  const { toast } = useToast();
+  const [selectedReseller, setSelectedReseller] = useState<Reseller | null>(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [makeResellerDialogOpen, setMakeResellerDialogOpen] = useState(false);
+  const [selectedUserForReseller, setSelectedUserForReseller] = useState<string>("");
+
+  // Buscar revendedores
+  const { data: resellers, isLoading, refetch } = useQuery<Reseller[]>({
+    queryKey: ["/api/admin/resellers"],
+  });
+
+  // Buscar usuários para atribuir plano de revenda
+  const { data: users } = useQuery<User[]>({
+    queryKey: ["/api/admin/users"],
+  });
+
+  // Mutation para ativar/desativar revendedor
+  const toggleResellerMutation = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      const response = await apiRequest("PUT", `/api/admin/resellers/${id}/status`, { active });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/resellers"] });
+      toast({ title: "Status atualizado com sucesso!" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao atualizar status", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation para tornar usuário revendedor
+  const makeResellerMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await apiRequest("POST", `/api/admin/users/${userId}/make-reseller`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/resellers"] });
+      toast({ title: "Usuário agora é revendedor!" });
+      setMakeResellerDialogOpen(false);
+      setSelectedUserForReseller("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao tornar revendedor", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Ver detalhes do revendedor
+  const handleViewDetails = async (reseller: Reseller) => {
+    try {
+      const response = await apiRequest("GET", `/api/admin/resellers/${reseller.id}`);
+      const data = await response.json();
+      setSelectedReseller(data.reseller);
+      setIsDetailsDialogOpen(true);
+    } catch (error: any) {
+      toast({ title: "Erro ao carregar detalhes", description: error.message, variant: "destructive" });
+    }
+  };
+
+  // Filtrar revendedores
+  const filteredResellers = resellers?.filter(r => 
+    r.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Usuários que ainda não são revendedores
+  const nonResellerUsers = users?.filter(u => 
+    !resellers?.some(r => r.userId === u.id)
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Revendedores White-Label</h2>
+          <p className="text-muted-foreground">
+            Gerencie revendedores que possuem marca própria no sistema
+          </p>
+        </div>
+        <Dialog open={makeResellerDialogOpen} onOpenChange={setMakeResellerDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Tornar Revendedor
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Tornar Usuário em Revendedor</DialogTitle>
+              <DialogDescription>
+                Selecione um usuário para atribuir o plano de revenda (R$700/mês).
+                O usuário poderá criar clientes white-label.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Selecione o Usuário</Label>
+                <Select value={selectedUserForReseller} onValueChange={setSelectedUserForReseller}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um usuário..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {nonResellerUsers?.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.name} ({user.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="bg-muted p-4 rounded-lg text-sm space-y-2">
+                <p className="font-medium">O que acontece:</p>
+                <ul className="list-disc list-inside text-muted-foreground">
+                  <li>Usuário recebe assinatura do Plano Revenda</li>
+                  <li>Pode personalizar logo, cores e domínio</li>
+                  <li>Pode criar clientes por R$49,99/cada</li>
+                  <li>Clientes veem apenas a marca do revendedor</li>
+                </ul>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMakeResellerDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={() => selectedUserForReseller && makeResellerMutation.mutate(selectedUserForReseller)}
+                disabled={!selectedUserForReseller || makeResellerMutation.isPending}
+              >
+                {makeResellerMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Confirmar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Barra de busca */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por empresa, nome ou email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button variant="outline" onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Atualizar
+        </Button>
+      </div>
+
+      {/* Estatísticas */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Revendedores</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{resellers?.length || 0}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ativos</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {resellers?.filter(r => r.isActive).length || 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Clientes</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {resellers?.reduce((acc, r) => acc + (r.clientCount || 0), 0) || 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Receita Mensal Est.</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              R$ {((resellers?.length || 0) * 700 + (resellers?.reduce((acc, r) => acc + (r.clientCount || 0), 0) || 0) * 49.99).toFixed(2)}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabela de revendedores */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Revendedores</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredResellers?.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Nenhum revendedor encontrado</p>
+              <p className="text-sm">Clique em "Tornar Revendedor" para adicionar</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Responsável</TableHead>
+                  <TableHead>Subdomínio</TableHead>
+                  <TableHead>Clientes</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredResellers?.map((reseller) => (
+                  <TableRow key={reseller.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        {reseller.logoUrl ? (
+                          <img src={reseller.logoUrl} alt="" className="h-8 w-8 rounded object-contain bg-muted" />
+                        ) : (
+                          <div className="h-8 w-8 rounded bg-muted flex items-center justify-center">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium">{reseller.companyName}</p>
+                          {reseller.customDomain && (
+                            <p className="text-xs text-muted-foreground">{reseller.customDomain}</p>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{reseller.user?.name || '-'}</p>
+                        <p className="text-xs text-muted-foreground">{reseller.user?.email || '-'}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {reseller.subdomain ? (
+                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                          {reseller.subdomain}.agentezap.com
+                        </code>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{reseller.clientCount || 0} clientes</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={reseller.isActive ? "default" : "destructive"}>
+                        {reseller.isActive ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetails(reseller)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleResellerMutation.mutate({ 
+                            id: reseller.id, 
+                            active: !reseller.isActive 
+                          })}
+                        >
+                          {reseller.isActive ? (
+                            <Lock className="h-4 w-4 text-red-500" />
+                          ) : (
+                            <Check className="h-4 w-4 text-green-500" />
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog de detalhes */}
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Revendedor</DialogTitle>
+          </DialogHeader>
+          {selectedReseller && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Empresa</Label>
+                  <p className="font-medium">{selectedReseller.companyName}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Responsável</Label>
+                  <p className="font-medium">{selectedReseller.user?.name || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Email</Label>
+                  <p>{selectedReseller.user?.email || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Subdomínio</Label>
+                  <p>{selectedReseller.subdomain ? `${selectedReseller.subdomain}.agentezap.com` : '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Domínio Customizado</Label>
+                  <p>{selectedReseller.customDomain || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Clientes</Label>
+                  <p>{selectedReseller.clientCount || 0}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Preço para Clientes</Label>
+                  <p>R$ {selectedReseller.clientMonthlyPrice || '99.99'}/mês</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Custo por Cliente</Label>
+                  <p>R$ {selectedReseller.costPerClient || '49.99'}/mês</p>
+                </div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Cores da Marca</Label>
+                <div className="flex gap-2 mt-2">
+                  <div 
+                    className="w-8 h-8 rounded border" 
+                    style={{ backgroundColor: selectedReseller.primaryColor || '#000000' }}
+                    title="Cor Primária"
+                  />
+                  <div 
+                    className="w-8 h-8 rounded border" 
+                    style={{ backgroundColor: selectedReseller.secondaryColor || '#ffffff' }}
+                    title="Cor Secundária"
+                  />
+                  <div 
+                    className="w-8 h-8 rounded border" 
+                    style={{ backgroundColor: selectedReseller.accentColor || '#22c55e' }}
+                    title="Cor de Destaque"
+                  />
+                </div>
+              </div>
+              {selectedReseller.companyDescription && (
+                <div>
+                  <Label className="text-muted-foreground">Descrição</Label>
+                  <p className="text-sm">{selectedReseller.companyDescription}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Informações sobre o sistema de revenda */}
+      <Card className="bg-muted/50">
+        <CardHeader>
+          <CardTitle className="text-base">💼 Sistema de Revenda White-Label</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-2">
+          <p>• Revendedores pagam R$700/mês pelo plano de revenda</p>
+          <p>• Cada cliente criado custa R$49,99/mês para o revendedor</p>
+          <p>• Revendedores podem definir preço de venda para seus clientes</p>
+          <p>• Clientes do revendedor veem apenas a marca personalizada</p>
+          <p>• Subdomínio ou domínio próprio para cada revendedor</p>
         </CardContent>
       </Card>
     </div>
