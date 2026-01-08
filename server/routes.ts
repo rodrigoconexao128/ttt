@@ -3128,13 +3128,10 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       await storage.enableAgentForConversation(conversationId);
       
-      // 🔄 Quando IA é reativada, verificar se há mensagens pendentes e responder
-      try {
-        const triggerResult = await triggerAgentResponseForConversation(userId, conversationId);
-        console.log(`🔄 [ENABLE] IA reativada para ${conversationId}: ${triggerResult.reason}`);
-      } catch (triggerError) {
-        console.error("Erro ao disparar resposta após reativar IA:", triggerError);
-      }
+      // ℹ️ Quando IA é reativada, NÃO dispara resposta automática
+      // O usuário deve usar "Responder com IA" se quiser uma resposta imediata
+      // Isso evita conflitos em conversas que já foram encerradas
+      console.log(`🔄 [ENABLE] IA reativada para ${conversationId} - aguardando nova mensagem do cliente`);
       
       res.json({ success: true });
     } catch (error) {
@@ -3165,19 +3162,71 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       } else {
         await storage.enableAgentForConversation(conversationId);
         
-        // 🔄 Quando IA é reativada, verificar se há mensagens pendentes e responder
-        try {
-          const triggerResult = await triggerAgentResponseForConversation(userId, conversationId);
-          console.log(`🔄 [TOGGLE] IA reativada para ${conversationId}: ${triggerResult.reason}`);
-        } catch (triggerError) {
-          console.error("Erro ao disparar resposta após reativar IA:", triggerError);
-        }
+        // ℹ️ Quando IA é reativada, NÃO dispara resposta automática
+        // O usuário deve usar "Responder com IA" se quiser uma resposta imediata
+        // Isso evita conflitos em conversas que já foram encerradas
+        console.log(`🔄 [TOGGLE] IA reativada para ${conversationId} - aguardando nova mensagem do cliente`);
       }
 
       res.json({ success: true, isDisabled: disable });
     } catch (error) {
       console.error("Error toggling agent:", error);
       res.status(500).json({ message: "Failed to toggle agent" });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🤖 RESPONDER COM IA - Dispara resposta da IA manualmente
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Este endpoint permite o usuário disparar uma resposta da IA sob demanda,
+  // útil quando:
+  // - A IA estava desativada e o usuário quer que ela responda uma vez
+  // - O usuário quer forçar uma resposta mesmo que a última mensagem seja dele
+  // ═══════════════════════════════════════════════════════════════════════════
+  app.post("/api/agent/respond/:conversationId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const userId = getUserId(req);
+
+      // Verificar propriedade da conversa
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      // Verificar se agente global está ativo
+      const agentConfig = await storage.getAgentConfig(userId);
+      if (!agentConfig?.isActive) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "O agente precisa estar ativo globalmente. Ative-o em 'Meu Agente IA'." 
+        });
+      }
+
+      // Disparar resposta da IA imediatamente
+      try {
+        const triggerResult = await triggerAgentResponseForConversation(userId, conversationId);
+        console.log(`🤖 [RESPONDER COM IA] Disparado para ${conversationId}: ${triggerResult.reason}`);
+        
+        res.json({ 
+          success: triggerResult.triggered, 
+          message: triggerResult.reason 
+        });
+      } catch (triggerError) {
+        console.error("Erro ao disparar resposta da IA:", triggerError);
+        res.status(500).json({ 
+          success: false, 
+          message: "Erro ao processar resposta da IA" 
+        });
+      }
+    } catch (error) {
+      console.error("Error in respond with AI:", error);
+      res.status(500).json({ message: "Falha ao responder com IA" });
     }
   });
 

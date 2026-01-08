@@ -109,13 +109,35 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
       toast({
         title: agentStatus?.isDisabled ? "Agente Ativado" : "Agente Desativado",
         description: agentStatus?.isDisabled 
-          ? "O agente voltara a responder automaticamente" 
-          : "O agente nao respondera mais nesta conversa",
+          ? "O agente voltará a responder quando o cliente enviar nova mensagem" 
+          : "O agente não responderá mais nesta conversa",
       });
     },
     onError: (error: Error) => {
       toast({
         title: "Erro ao alterar agente",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // 🤖 Responder com IA - dispara resposta manualmente
+  const respondWithAIMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/agent/respond/${conversationId}`);
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+      toast({
+        title: data.success ? "✅ IA Respondendo" : "⚠️ Aviso",
+        description: data.message,
+        variant: data.success ? "default" : "destructive",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao responder com IA",
         description: error.message,
         variant: "destructive",
       });
@@ -831,6 +853,39 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
             disabled={toggleAgentMutation.isPending}
             data-testid="switch-agent-chat"
           />
+          
+          {/* 🤖 Botão Responder com IA - dispara resposta manual */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 h-7 px-2 bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 border-purple-500/30"
+                  onClick={() => respondWithAIMutation.mutate()}
+                  disabled={respondWithAIMutation.isPending || !agentConfig?.isActive}
+                  data-testid="button-respond-with-ai"
+                >
+                  {respondWithAIMutation.isPending ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3 h-3 text-purple-500" />
+                  )}
+                  <span className="hidden md:inline text-xs">Responder com IA</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs">
+                  Faz a IA responder imediatamente a última mensagem do cliente.
+                  {!agentConfig?.isActive && (
+                    <span className="block text-amber-500 mt-1">
+                      ⚠️ Ative o agente global em "Meu Agente IA" primeiro.
+                    </span>
+                  )}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           
           <AlertDialog>
             <AlertDialogTrigger asChild>
