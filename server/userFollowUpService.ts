@@ -124,11 +124,14 @@ setInterval(() => {
 /**
  * Verifica se um usuário específico tem conexão WhatsApp ativa em memória
  * 🚀 OTIMIZADO: Não faz query no DB, apenas verifica memória
+ * 
+ * IMPORTANTE: Baileys usa socket.user para indicar conexão ativa (não socket.ws.readyState)
  */
 function isUserConnectionActive(userId: string): boolean {
   const sessions = getSessions();
   const session = sessions.get(userId);
-  return session?.socket?.ws?.readyState === 1; // WebSocket.OPEN = 1
+  // Baileys: socket.user !== undefined significa conexão ativa
+  return session?.socket?.user !== undefined;
 }
 
 // ============================================================================
