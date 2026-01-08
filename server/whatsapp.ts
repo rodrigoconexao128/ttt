@@ -1057,7 +1057,7 @@ export function addAdminWebSocketClient(ws: AuthenticatedWebSocket, adminId: str
   });
 }
 
-function broadcastToUser(userId: string, data: any) {
+export function broadcastToUser(userId: string, data: any) {
   const userClients = wsClients.get(userId);
   if (!userClients) {
     console.log(`[BROADCAST] No WebSocket clients found for user ${userId}`);
@@ -1786,17 +1786,21 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   // 🛑 AUTO-PAUSE IA: Quando o dono responde manualmente, PAUSA a IA
   // A IA só volta a responder quando o usuário reativar em /conversas
   // CONFIGURÁVEL: Só pausa se pauseOnManualReply estiver ativado (padrão: true)
+  // NOVO: Suporta auto-reativação após timer configurável
   // ═══════════════════════════════════════════════════════════════════════
   try {
     // Verificar configuração do agente para pauseOnManualReply
     const agentConfig = await storage.getAgentConfig(session.userId);
     const shouldPauseOnManualReply = agentConfig?.pauseOnManualReply !== false; // Padrão: true
+    const autoReactivateMinutes = (agentConfig as any)?.autoReactivateMinutes ?? null; // NULL = nunca
     
     if (shouldPauseOnManualReply) {
       const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversation.id);
       if (!isAlreadyDisabled) {
-        await storage.disableAgentForConversation(conversation.id);
-        console.log(`🛑 [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversation.id} - dono respondeu manualmente`);
+        // Pausar com timer de auto-reativação (se configurado)
+        await storage.disableAgentForConversation(conversation.id, autoReactivateMinutes);
+        console.log(`🛑 [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversation.id} - dono respondeu manualmente` + 
+          (autoReactivateMinutes ? ` (reativa em ${autoReactivateMinutes}min)` : ' (manual only)'));
         
         // Cancelar qualquer resposta pendente do agente para esta conversa
         const pendingResponse = pendingResponses.get(conversation.id);
@@ -1811,7 +1815,12 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
           type: "agent_auto_paused",
           conversationId: conversation.id,
           reason: "manual_reply",
+          autoReactivateMinutes,
         });
+      } else {
+        // Já estava pausada, apenas atualizar timestamp do dono (reset timer)
+        await storage.updateDisabledConversationOwnerReply(conversation.id);
+        console.log(`🔄 [AUTO-PAUSE] Timer resetado para conversa ${conversation.id} - dono respondeu novamente`);
       }
     } else {
       console.log(`✅ [AUTO-PAUSE DESATIVADO] Dono respondeu manualmente mas pauseOnManualReply está desativado - IA continua ativa`);
@@ -2141,6 +2150,17 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     if (lastMessage && lastMessage.fromMe) {
       console.log(`⏸️ [AI AGENT] Última mensagem foi do agente, não respondendo (evita loop)`);
       return;
+    }
+    
+    // 📬 AUTO-REATIVAÇÃO: Se IA está pausada, marcar que cliente tem mensagem pendente
+    // Isso permite que o sistema de auto-reativação saiba que deve responder
+    if (isAgentDisabled) {
+      try {
+        await storage.markClientPendingMessage(conversation.id);
+        console.log(`📬 [AUTO-REATIVATE] Cliente enviou mensagem enquanto IA pausada - marcado como pendente`);
+      } catch (err) {
+        console.error("Erro ao marcar mensagem pendente:", err);
+      }
     }
     
     if (!isAgentDisabled) {

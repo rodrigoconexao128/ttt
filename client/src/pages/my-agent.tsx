@@ -120,6 +120,7 @@ export default function MyAgent() {
   const [responseDelaySeconds, setResponseDelaySeconds] = useState(30);
   const [fetchHistoryOnFirstResponse, setFetchHistoryOnFirstResponse] = useState(false);
   const [pauseOnManualReply, setPauseOnManualReply] = useState(true);
+  const [autoReactivateMinutes, setAutoReactivateMinutes] = useState<number | null>(null);
   
   // Estado do teste - Playground com histórico de mensagens
   const [testMessage, setTestMessage] = useState("");
@@ -171,6 +172,7 @@ export default function MyAgent() {
       setResponseDelaySeconds(config.responseDelaySeconds ?? 30);
       setFetchHistoryOnFirstResponse(config.fetchHistoryOnFirstResponse ?? false);
       setPauseOnManualReply((config as any).pauseOnManualReply ?? true);
+      setAutoReactivateMinutes((config as any).autoReactivateMinutes ?? null);
       
       // Se não tem prompt configurado, mostra o gerador
       if (!config.prompt || config.prompt.length < 50) {
@@ -218,6 +220,7 @@ export default function MyAgent() {
         responseDelaySeconds,
         fetchHistoryOnFirstResponse,
         pauseOnManualReply,
+        autoReactivateMinutes,
       });
     },
     onSuccess: () => {
@@ -1178,6 +1181,86 @@ O QUE NÃO FAZER:
                     className="scale-125"
                   />
                 </div>
+
+                {/* Timer de Auto-Reativação - só aparece quando pauseOnManualReply está ativo */}
+                {pauseOnManualReply && (
+                  <div className="space-y-3 p-4 bg-muted/30 rounded-lg border border-dashed">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-500" />
+                      <Label className="text-sm font-medium">Reativar IA Automaticamente</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Se você não continuar conversando após sua resposta, a IA volta automaticamente após o tempo configurado
+                    </p>
+                    
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                      <Button
+                        variant={autoReactivateMinutes === null ? "default" : "outline"}
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setAutoReactivateMinutes(null)}
+                      >
+                        Nunca
+                      </Button>
+                      <Button
+                        variant={autoReactivateMinutes === 10 ? "default" : "outline"}
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setAutoReactivateMinutes(10)}
+                      >
+                        10 min
+                      </Button>
+                      <Button
+                        variant={autoReactivateMinutes === 30 ? "default" : "outline"}
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setAutoReactivateMinutes(30)}
+                      >
+                        30 min
+                      </Button>
+                      <Button
+                        variant={autoReactivateMinutes === 60 ? "default" : "outline"}
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setAutoReactivateMinutes(60)}
+                      >
+                        1 hora
+                      </Button>
+                      <Button
+                        variant={autoReactivateMinutes === 120 ? "default" : "outline"}
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setAutoReactivateMinutes(120)}
+                      >
+                        2 horas
+                      </Button>
+                      <Button
+                        variant={autoReactivateMinutes !== null && ![10, 30, 60, 120].includes(autoReactivateMinutes) ? "default" : "outline"}
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => {
+                          const custom = prompt("Digite o tempo em minutos:");
+                          if (custom && !isNaN(Number(custom))) {
+                            setAutoReactivateMinutes(Number(custom));
+                          }
+                        }}
+                      >
+                        {autoReactivateMinutes !== null && ![null, 10, 30, 60, 120].includes(autoReactivateMinutes) 
+                          ? `${autoReactivateMinutes} min` 
+                          : "Custom"}
+                      </Button>
+                    </div>
+                    
+                    <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md">
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        {autoReactivateMinutes === null 
+                          ? "💡 A IA só volta quando você reativar manualmente na conversa."
+                          : `⏰ Se o cliente enviar mensagem e você não responder em ${autoReactivateMinutes} min, a IA lê o contexto e responde automaticamente.`
+                        }
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-md">
                   ⚠️ <strong>Recomendado: Ativado.</strong> Quando você responde manualmente, geralmente deseja assumir a conversa. 

@@ -65,7 +65,7 @@ import {
   type InsertResellerPayment,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
-import { eq, desc, and, gte, sql, inArray, lte } from "drizzle-orm";
+import { eq, desc, and, gte, sql, inArray, lte, isNotNull } from "drizzle-orm";
 import { transcribeAudioWithMistral } from "./mistralClient";
 
 // ============================================
@@ -199,6 +199,7 @@ export interface IStorage {
 
   // WhatsApp connection operations
   getConnectionByUserId(userId: string): Promise<WhatsappConnection | undefined>;
+  getConnectionById(connectionId: string): Promise<WhatsappConnection | undefined>;
   getAdminConnection(): Promise<AdminWhatsappConnection | undefined>;
   getAllConnections(): Promise<WhatsappConnection[]>;
   createConnection(connection: InsertWhatsappConnection): Promise<WhatsappConnection>;
@@ -231,8 +232,12 @@ export interface IStorage {
   
   // Agent conversation control
   isAgentDisabledForConversation(conversationId: string): Promise<boolean>;
-  disableAgentForConversation(conversationId: string): Promise<void>;
+  disableAgentForConversation(conversationId: string, autoReactivateAfterMinutes?: number | null): Promise<void>;
   enableAgentForConversation(conversationId: string): Promise<void>;
+  updateDisabledConversationOwnerReply(conversationId: string): Promise<void>;
+  markClientPendingMessage(conversationId: string): Promise<void>;
+  getConversationsToAutoReactivate(): Promise<Array<{ conversationId: string; clientLastMessageAt: Date | null }>>;
+  getDisabledConversationDetails(conversationId: string): Promise<{ ownerLastReplyAt: Date | null; autoReactivateAfterMinutes: number | null; clientHasPendingMessage: boolean } | null>;
 
   // Plan operations
   getAllPlans(): Promise<Plan[]>;
@@ -435,6 +440,15 @@ export class DatabaseStorage implements IStorage {
       .from(whatsappConnections)
       .where(eq(whatsappConnections.userId, userId))
       .orderBy(desc(whatsappConnections.createdAt))
+      .limit(1);
+    return connection;
+  }
+
+  async getConnectionById(connectionId: string): Promise<WhatsappConnection | undefined> {
+    const [connection] = await db
+      .select()
+      .from(whatsappConnections)
+      .where(eq(whatsappConnections.id, connectionId))
       .limit(1);
     return connection;
   }
@@ -789,17 +803,142 @@ export class DatabaseStorage implements IStorage {
     return !!disabled;
   }
 
-  async disableAgentForConversation(conversationId: string): Promise<void> {
+  async disableAgentForConversation(conversationId: string, autoReactivateAfterMinutes?: number | null): Promise<void> {
     await db
       .insert(agentDisabledConversations)
-      .values({ conversationId })
-      .onConflictDoNothing();
+      .values({ 
+        conversationId,
+        ownerLastReplyAt: new Date(),
+        autoReactivateAfterMinutes: autoReactivateAfterMinutes ?? null,
+        clientHasPendingMessage: false,
+        clientLastMessageAt: null,
+      })
+      .onConflictDoUpdate({
+        target: agentDisabledConversations.conversationId,
+        set: {
+          ownerLastReplyAt: new Date(),
+          autoReactivateAfterMinutes: autoReactivateAfterMinutes ?? null,
+          // Reset pending message flag when owner replies again
+          clientHasPendingMessage: false,
+        }
+      });
   }
 
   async enableAgentForConversation(conversationId: string): Promise<void> {
     await db
       .delete(agentDisabledConversations)
       .where(eq(agentDisabledConversations.conversationId, conversationId));
+  }
+
+  async updateDisabledConversationOwnerReply(conversationId: string): Promise<void> {
+    await db
+      .update(agentDisabledConversations)
+      .set({ 
+        ownerLastReplyAt: new Date(),
+        clientHasPendingMessage: false, // Reset when owner replies again
+      })
+      .where(eq(agentDisabledConversations.conversationId, conversationId));
+  }
+
+  async markClientPendingMessage(conversationId: string): Promise<void> {
+    await db
+      .update(agentDisabledConversations)
+      .set({ 
+        clientHasPendingMessage: true,
+        clientLastMessageAt: new Date(),
+      })
+      .where(eq(agentDisabledConversations.conversationId, conversationId));
+  }
+
+  async getConversationsToAutoReactivate(): Promise<Array<{ conversationId: string; clientLastMessageAt: Date | null }>> {
+    // 🔥 OTIMIZAÇÃO: Query 100% SQL para minimizar Egress
+    // Usa cálculo de tempo direto no PostgreSQL ao invés de filtrar em JS
+    // Retorna APENAS registros que precisam ser reativados AGORA
+    try {
+      const { pool } = await import("./db");
+      const result = await pool.query(`
+        SELECT 
+          conversation_id as "conversationId",
+          client_last_message_at as "clientLastMessageAt"
+        FROM agent_disabled_conversations
+        WHERE 
+          auto_reactivate_after_minutes IS NOT NULL
+          AND client_has_pending_message = true
+          AND owner_last_reply_at IS NOT NULL
+          AND owner_last_reply_at + (auto_reactivate_after_minutes || ' minutes')::interval <= NOW()
+        LIMIT 10
+      `);
+      
+      return result.rows.map(r => ({
+        conversationId: r.conversationId,
+        clientLastMessageAt: r.clientLastMessageAt ? new Date(r.clientLastMessageAt) : null,
+      }));
+    } catch (error) {
+      console.error(`❌ [STORAGE] Erro em getConversationsToAutoReactivate:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * 🔥 OTIMIZAÇÃO: Verifica rapidamente se há conversas para reativar
+   * Usa COUNT(*) que é muito mais leve que SELECT * para verificação
+   */
+  async hasConversationsToAutoReactivate(): Promise<boolean> {
+    try {
+      const { pool } = await import("./db");
+      const result = await pool.query(`
+        SELECT EXISTS (
+          SELECT 1 FROM agent_disabled_conversations
+          WHERE 
+            auto_reactivate_after_minutes IS NOT NULL
+            AND client_has_pending_message = true
+            AND owner_last_reply_at IS NOT NULL
+            AND owner_last_reply_at + (auto_reactivate_after_minutes || ' minutes')::interval <= NOW()
+          LIMIT 1
+        ) as has_pending
+      `);
+      return result.rows[0]?.has_pending === true;
+    } catch (error) {
+      console.error(`❌ [STORAGE] Erro em hasConversationsToAutoReactivate:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 🔥 OTIMIZAÇÃO: Conta conversas com timers ativos (para ajuste dinâmico de intervalo)
+   */
+  async countActiveAutoReactivateTimers(): Promise<number> {
+    try {
+      const { pool } = await import("./db");
+      const result = await pool.query(`
+        SELECT COUNT(*) as count 
+        FROM agent_disabled_conversations
+        WHERE auto_reactivate_after_minutes IS NOT NULL
+          AND client_has_pending_message = true
+      `);
+      return parseInt(result.rows[0]?.count || '0', 10);
+    } catch (error) {
+      console.error(`❌ [STORAGE] Erro em countActiveAutoReactivateTimers:`, error);
+      return 0;
+    }
+  }
+
+  async getDisabledConversationDetails(conversationId: string): Promise<{ ownerLastReplyAt: Date | null; autoReactivateAfterMinutes: number | null; clientHasPendingMessage: boolean } | null> {
+    const [result] = await db
+      .select({
+        ownerLastReplyAt: agentDisabledConversations.ownerLastReplyAt,
+        autoReactivateAfterMinutes: agentDisabledConversations.autoReactivateAfterMinutes,
+        clientHasPendingMessage: agentDisabledConversations.clientHasPendingMessage,
+      })
+      .from(agentDisabledConversations)
+      .where(eq(agentDisabledConversations.conversationId, conversationId));
+    
+    if (!result) return null;
+    return {
+      ownerLastReplyAt: result.ownerLastReplyAt,
+      autoReactivateAfterMinutes: result.autoReactivateAfterMinutes,
+      clientHasPendingMessage: result.clientHasPendingMessage ?? false,
+    };
   }
 
   // Plan operations

@@ -124,6 +124,7 @@ interface AgentConfig {
   responseDelaySeconds: number;
   fetchHistoryOnFirstResponse: boolean;
   pauseOnManualReply: boolean;
+  autoReactivateMinutes: number | null;
 }
 
 interface MediaItem {
@@ -241,6 +242,7 @@ export function AgentStudioUnified() {
   const [newTriggerPhrase, setNewTriggerPhrase] = useState("");
   const [fetchHistoryOnFirstResponse, setFetchHistoryOnFirstResponse] = useState(true);
   const [pauseOnManualReply, setPauseOnManualReply] = useState(true);
+  const [autoReactivateMinutes, setAutoReactivateMinutes] = useState<number | null>(null);
   
   // Estado de mídias
   const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
@@ -529,6 +531,7 @@ export function AgentStudioUnified() {
       setTriggerPhrases(config.triggerPhrases || []);
       setFetchHistoryOnFirstResponse(config.fetchHistoryOnFirstResponse ?? true);
       setPauseOnManualReply(config.pauseOnManualReply ?? true);
+      setAutoReactivateMinutes((config as any).autoReactivateMinutes ?? null);
       
       // Inicializa histórico
       if (promptHistory.length === 0 && config.prompt) {
@@ -960,7 +963,8 @@ export function AgentStudioUnified() {
       messageSplitChars,
       triggerPhrases,
       fetchHistoryOnFirstResponse,
-      pauseOnManualReply
+      pauseOnManualReply,
+      autoReactivateMinutes
     });
   };
 
@@ -1878,6 +1882,88 @@ export function AgentStudioUnified() {
                       />
                     </div>
                   </CardHeader>
+                  
+                  {/* Timer de Auto-Reativação - só aparece quando pauseOnManualReply está ativo */}
+                  {pauseOnManualReply && (
+                    <CardContent className="pt-0 pb-4">
+                      <div className="space-y-3 border-t pt-4">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <Label className="text-sm font-medium">Reativar IA Automaticamente</Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Se você não continuar conversando, a IA volta após o tempo selecionado
+                        </p>
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          <Button
+                            variant={autoReactivateMinutes === null ? "default" : "outline"}
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => setAutoReactivateMinutes(null)}
+                          >
+                            Nunca
+                          </Button>
+                          <Button
+                            variant={autoReactivateMinutes === 10 ? "default" : "outline"}
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => setAutoReactivateMinutes(10)}
+                          >
+                            10 min
+                          </Button>
+                          <Button
+                            variant={autoReactivateMinutes === 30 ? "default" : "outline"}
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => setAutoReactivateMinutes(30)}
+                          >
+                            30 min
+                          </Button>
+                          <Button
+                            variant={autoReactivateMinutes === 60 ? "default" : "outline"}
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => setAutoReactivateMinutes(60)}
+                          >
+                            1 hora
+                          </Button>
+                          <Button
+                            variant={autoReactivateMinutes === 120 ? "default" : "outline"}
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => setAutoReactivateMinutes(120)}
+                          >
+                            2 horas
+                          </Button>
+                          <Button
+                            variant={autoReactivateMinutes !== null && ![10, 30, 60, 120].includes(autoReactivateMinutes) ? "default" : "outline"}
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => {
+                              const custom = prompt("Digite o tempo em minutos:");
+                              if (custom && !isNaN(Number(custom))) {
+                                setAutoReactivateMinutes(Number(custom));
+                              }
+                            }}
+                          >
+                            {autoReactivateMinutes !== null && ![null, 10, 30, 60, 120].includes(autoReactivateMinutes) 
+                              ? `${autoReactivateMinutes} min` 
+                              : "Custom"}
+                          </Button>
+                        </div>
+                        
+                        <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md">
+                          <p className="text-xs text-blue-700 dark:text-blue-300">
+                            {autoReactivateMinutes === null 
+                              ? "💡 A IA só volta quando você reativar manualmente na conversa."
+                              : `⏰ Se o cliente enviar mensagem e você não responder em ${autoReactivateMinutes} min, a IA lê o contexto e responde.`
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  )}
                 </Card>
 
                 {/* Botão Salvar */}

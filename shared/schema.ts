@@ -142,6 +142,7 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   responseDelaySeconds: integer("response_delay_seconds").default(30), // Tempo de espera antes de responder (acumulação de mensagens)
   fetchHistoryOnFirstResponse: boolean("fetch_history_on_first_response").default(false).notNull(), // Buscar histórico do WhatsApp ao responder pela primeira vez
   pauseOnManualReply: boolean("pause_on_manual_reply").default(true).notNull(), // Pausar IA automaticamente quando dono responde manualmente
+  autoReactivateMinutes: integer("auto_reactivate_minutes"), // Tempo em minutos para reativar IA automaticamente (NULL = nunca)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -275,6 +276,11 @@ export const businessAgentConfigs = pgTable("business_agent_configs", {
 export const agentDisabledConversations = pgTable("agent_disabled_conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id").notNull().unique().references(() => conversations.id, { onDelete: 'cascade' }),
+  // Auto-reactivation timer fields
+  ownerLastReplyAt: timestamp("owner_last_reply_at").defaultNow(), // Quando o dono respondeu pela última vez
+  autoReactivateAfterMinutes: integer("auto_reactivate_after_minutes"), // NULL = nunca, número = minutos para reativar
+  clientHasPendingMessage: boolean("client_has_pending_message").default(false), // Cliente enviou mensagem após pausa?
+  clientLastMessageAt: timestamp("client_last_message_at"), // Quando cliente enviou última mensagem
   createdAt: timestamp("created_at").defaultNow(),
 });
 
