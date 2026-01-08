@@ -43,7 +43,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { 
   Loader2, 
@@ -163,6 +163,19 @@ export default function ResellerDashboard() {
   const [pixQrCode, setPixQrCode] = useState("");
   const [pendingPaymentId, setPendingPaymentId] = useState("");
   const [checkingPayment, setCheckingPayment] = useState(false);
+  
+  // Estados para pagamento com cartão
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [cardHolder, setCardHolder] = useState("");
+  const [docType, setDocType] = useState("CPF");
+  const [docNumber, setDocNumber] = useState("");
+  const [cardBrand, setCardBrand] = useState<string | null>(null);
+  const [mpReady, setMpReady] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [isProcessingCard, setIsProcessingCard] = useState(false);
+  const mpInstanceRef = useRef<any>(null);
 
   // Verificar status de revendedor
   const { data: resellerStatus, isLoading: isLoadingStatus } = useQuery<{
@@ -205,6 +218,55 @@ export default function ResellerDashboard() {
     queryKey: ["/api/reseller/payments"],
     enabled: !!resellerStatus?.hasResellerPlan,
   });
+
+  // Buscar chave pública MercadoPago para pagamento com cartão
+  const { data: mpConfig } = useQuery({
+    queryKey: ["mp-public-key"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/mercadopago/public-key");
+      return res.json();
+    },
+    enabled: !!resellerStatus?.hasResellerPlan,
+  });
+
+  // Inicializar MercadoPago SDK
+  useEffect(() => {
+    if (!mpConfig?.publicKey) return;
+    
+    const initMP = () => {
+      if ((window as any).MercadoPago && mpConfig.publicKey) {
+        try {
+          mpInstanceRef.current = new (window as any).MercadoPago(mpConfig.publicKey, { locale: 'pt-BR' });
+          setMpReady(true);
+        } catch (err) {
+          console.error("Erro ao inicializar MercadoPago:", err);
+        }
+      }
+    };
+    
+    if ((window as any).MercadoPago) {
+      initMP();
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://sdk.mercadopago.com/js/v2";
+      script.async = true;
+      script.onload = initMP;
+      document.body.appendChild(script);
+    }
+  }, [mpConfig]);
+
+  // Detectar bandeira do cartão
+  useEffect(() => {
+    const clean = cardNumber.replace(/\s/g, "");
+    if (clean.length >= 4) {
+      if (/^4/.test(clean)) setCardBrand("visa");
+      else if (/^5[1-5]/.test(clean) || /^2/.test(clean)) setCardBrand("mastercard");
+      else if (/^3[47]/.test(clean)) setCardBrand("amex");
+      else if (/^(636368|438935|504175|451416|636297|506|4576|4011)/.test(clean)) setCardBrand("elo");
+      else if (/^(606282|3841)/.test(clean)) setCardBrand("hipercard");
+      else setCardBrand(null);
+    } else setCardBrand(null);
+  }, [cardNumber]);
 
   // Atualizar formulário quando perfil carrega
   useEffect(() => {
@@ -391,6 +453,13 @@ export default function ResellerDashboard() {
     setPixCode("");
     setPixQrCode("");
     setPendingPaymentId("");
+    // Limpar campos do cartão
+    setCardNumber("");
+    setExpiryDate("");
+    setCvv("");
+    setCardHolder("");
+    setDocNumber("");
+    setCardError(null);
   };
 
   const handleSaveProfile = () => {
@@ -433,8 +502,11 @@ export default function ResellerDashboard() {
         password: newClientPassword,
         clientPrice: newClientPrice,
       });
+    } else if (paymentMethod === "credit_card") {
+      // Para cartão, ir direto para o formulário de cartão (sem chamar API primeiro)
+      setCheckoutStep("payment");
     } else {
-      // Iniciar checkout pago
+      // Iniciar checkout com PIX
       checkoutMutation.mutate({
         name: newClientName,
         email: newClientEmail,
@@ -454,6 +526,137 @@ export default function ResellerDashboard() {
     } finally {
       setCheckingPayment(false);
     }
+  };
+
+  // Formatadores de cartão
+  const formatCardNumber = (v: string) => v.replace(/\D/g, "").slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+  const formatExpiryDate = (v: string) => {
+    const clean = v.replace(/\D/g, "").slice(0, 4);
+    return clean.length >= 2 ? `${clean.slice(0, 2)}/${clean.slice(2)}` : clean;
+  };
+  const formatDoc = (v: string) => {
+    const clean = v.replace(/\D/g, "");
+    if (docType === "CPF") {
+      return clean.slice(0, 11)
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d{1,2})/, "$1-$2");
+    }
+    return clean.slice(0, 14)
+      .replace(/(\d{2})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1/$2")
+      .replace(/(\d{4})(\d{1,2})/, "$1-$2");
+  };
+
+  // Handler para pagamento com cartão de crédito
+  const handleCardPayment = async () => {
+    if (!mpInstanceRef.current) {
+      setCardError("Sistema de pagamento não inicializado. Recarregue a página.");
+      return;
+    }
+    
+    if (!cardNumber || !expiryDate || !cvv || !cardHolder || !docNumber) {
+      setCardError("Preencha todos os campos do cartão.");
+      return;
+    }
+    
+    setIsProcessingCard(true);
+    setCardError(null);
+
+    try {
+      const [expirationMonth, expirationYear] = expiryDate.split("/");
+      
+      // Dados do cartão para tokenização
+      const cardData = {
+        cardNumber: cardNumber.replace(/\s/g, ""),
+        cardholderName: cardHolder,
+        cardExpirationMonth: expirationMonth,
+        cardExpirationYear: "20" + expirationYear,
+        securityCode: cvv,
+        identificationType: docType,
+        identificationNumber: docNumber.replace(/\D/g, ""),
+      };
+      
+      // Criar token do cartão
+      const cardToken = await mpInstanceRef.current.createCardToken(cardData);
+      if (cardToken?.error || cardToken?.message) {
+        throw new Error(cardToken.error || cardToken.message || "Erro ao processar cartão");
+      }
+      if (!cardToken || !cardToken.id) {
+        throw new Error("Não foi possível processar os dados do cartão.");
+      }
+
+      // Determinar o método de pagamento
+      const paymentMethodMap: Record<string, string> = {
+        visa: "visa", mastercard: "master", amex: "amex", elo: "elo", hipercard: "hipercard"
+      };
+      const paymentMethodId = cardBrand ? paymentMethodMap[cardBrand] || "visa" : "visa";
+
+      // Enviar checkout com token do cartão
+      const response = await apiRequest("POST", "/api/reseller/clients/checkout", {
+        name: newClientName,
+        email: newClientEmail,
+        phone: newClientPhone,
+        password: newClientPassword,
+        clientPrice: parseFloat(newClientPrice),
+        paymentMethod: "credit_card",
+        cardData: {
+          token: cardToken.id,
+          paymentMethodId,
+          payerEmail: newClientEmail,
+          installments: 1,
+        },
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        if (result.requiresPayment && result.error) {
+          // Pagamento em processamento
+          toast({ title: "Pagamento em processamento", description: result.error });
+          setPendingPaymentId(result.paymentId);
+          setCheckoutStep("payment");
+        } else {
+          // Pagamento aprovado - cliente criado
+          queryClient.invalidateQueries({ queryKey: ["/api/reseller/clients"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/reseller/dashboard"] });
+          toast({ title: "✅ Pagamento aprovado!", description: "Cliente criado com sucesso!" });
+          setCheckoutStep("success");
+        }
+      } else {
+        setCardError(result.message || "Erro ao processar pagamento");
+      }
+    } catch (err: any) {
+      let errorMessage = "Verifique os dados do cartão.";
+      const errMsg = String(err?.message || err?.error || String(err) || "").toLowerCase();
+      
+      if (errMsg.includes("card token") || errMsg.includes("service not found") || errMsg.includes("secure") || errMsg.includes("https")) {
+        errorMessage = "⚠️ Pagamento seguro requer HTTPS.";
+      } else if (err?.cause?.[0]?.code) {
+        const code = err.cause[0].code;
+        if (code === "205" || code === "E205") errorMessage = "Número do cartão inválido.";
+        else if (code === "208" || code === "E208") errorMessage = "Mês de validade inválido.";
+        else if (code === "209" || code === "E209") errorMessage = "Ano de validade inválido.";
+        else if (code === "224" || code === "E224") errorMessage = "Código CVV inválido.";
+      } else if (errMsg) {
+        errorMessage = errMsg;
+      }
+      
+      setCardError(errorMessage);
+    } finally {
+      setIsProcessingCard(false);
+    }
+  };
+
+  // Limpar campos de cartão ao resetar formulário
+  const resetCardForm = () => {
+    setCardNumber("");
+    setExpiryDate("");
+    setCvv("");
+    setCardHolder("");
+    setDocNumber("");
+    setCardError(null);
   };
 
   const generatePassword = () => {
@@ -845,40 +1048,135 @@ export default function ResellerDashboard() {
                   {checkoutStep === "payment" && (
                     <>
                       <DialogHeader>
-                        <DialogTitle>Pagamento PIX</DialogTitle>
+                        <DialogTitle>
+                          {paymentMethod === "pix" ? "Pagamento PIX" : "Pagamento com Cartão"}
+                        </DialogTitle>
                         <DialogDescription>
-                          Escaneie o QR Code ou copie o código PIX para pagar
+                          {paymentMethod === "pix" 
+                            ? "Escaneie o QR Code ou copie o código PIX para pagar"
+                            : "Preencha os dados do seu cartão de crédito"
+                          }
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
-                        {pixQrCode && (
-                          <div className="flex justify-center">
-                            <img 
-                              src={`data:image/png;base64,${pixQrCode}`} 
-                              alt="QR Code PIX" 
-                              className="w-48 h-48 border rounded-lg"
-                            />
-                          </div>
-                        )}
-                        {pixCode && (
-                          <div className="space-y-2">
-                            <Label>Código PIX Copia e Cola</Label>
-                            <div className="flex gap-2">
-                              <Input 
-                                value={pixCode} 
-                                readOnly 
-                                className="font-mono text-xs"
-                              />
-                              <Button variant="outline" onClick={() => copyToClipboard(pixCode)}>
-                                <Copy className="h-4 w-4" />
-                              </Button>
+                        {/* PAGAMENTO PIX */}
+                        {paymentMethod === "pix" && (
+                          <>
+                            {pixQrCode && (
+                              <div className="flex justify-center">
+                                <img 
+                                  src={pixQrCode.startsWith('data:') ? pixQrCode : `data:image/png;base64,${pixQrCode}`} 
+                                  alt="QR Code PIX" 
+                                  className="w-48 h-48 border rounded-lg"
+                                />
+                              </div>
+                            )}
+                            {pixCode && (
+                              <div className="space-y-2">
+                                <Label>Código PIX Copia e Cola</Label>
+                                <div className="flex gap-2">
+                                  <Input 
+                                    value={pixCode} 
+                                    readOnly 
+                                    className="font-mono text-xs"
+                                  />
+                                  <Button variant="outline" onClick={() => copyToClipboard(pixCode)}>
+                                    <Copy className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            <div className="text-center text-sm text-muted-foreground">
+                              <p>Após o pagamento, clique em "Verificar Pagamento"</p>
+                              <p className="text-xs">O pagamento é confirmado automaticamente em até 1 minuto</p>
                             </div>
+                          </>
+                        )}
+
+                        {/* PAGAMENTO COM CARTÃO */}
+                        {paymentMethod === "credit_card" && (
+                          <div className="space-y-4">
+                            <div>
+                              <Label className="text-sm font-medium mb-1.5 block">Número do cartão</Label>
+                              <div className="relative">
+                                <Input
+                                  placeholder="0000 0000 0000 0000"
+                                  value={cardNumber}
+                                  onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                                  maxLength={19}
+                                  className="h-10"
+                                />
+                                {cardBrand && (
+                                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold uppercase text-primary">
+                                    {cardBrand}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-sm font-medium mb-1.5 block">Validade</Label>
+                                <Input
+                                  placeholder="MM/AA"
+                                  value={expiryDate}
+                                  onChange={(e) => setExpiryDate(formatExpiryDate(e.target.value))}
+                                  maxLength={5}
+                                  className="h-10"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-1.5 block">CVV</Label>
+                                <Input
+                                  placeholder="000"
+                                  value={cvv}
+                                  onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                                  maxLength={4}
+                                  className="h-10"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <Label className="text-sm font-medium mb-1.5 block">Nome no cartão</Label>
+                              <Input
+                                placeholder="NOME COMPLETO"
+                                value={cardHolder}
+                                onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
+                                className="h-10"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2">
+                              <select
+                                value={docType}
+                                onChange={(e) => setDocType(e.target.value)}
+                                className="h-10 rounded-md border border-gray-300 bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                              >
+                                <option value="CPF">CPF</option>
+                                <option value="CNPJ">CNPJ</option>
+                              </select>
+                              <Input
+                                placeholder="Documento"
+                                value={docNumber}
+                                onChange={(e) => setDocNumber(formatDoc(e.target.value))}
+                                className="col-span-2 h-10"
+                              />
+                            </div>
+
+                            {cardError && (
+                              <div className="p-2 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded text-red-600 dark:text-red-400 text-xs">
+                                {cardError}
+                              </div>
+                            )}
+
+                            {!mpReady && (
+                              <div className="p-2 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded text-amber-600 dark:text-amber-400 text-xs">
+                                ⚠️ Sistema de pagamento carregando...
+                              </div>
+                            )}
                           </div>
                         )}
-                        <div className="text-center text-sm text-muted-foreground">
-                          <p>Após o pagamento, clique em "Verificar Pagamento"</p>
-                          <p className="text-xs">O pagamento é confirmado automaticamente em até 1 minuto</p>
-                        </div>
                       </div>
                       <DialogFooter className="flex-col sm:flex-row gap-2">
                         <Button 
@@ -887,20 +1185,34 @@ export default function ResellerDashboard() {
                             setCheckoutStep("form");
                             setPixCode("");
                             setPixQrCode("");
+                            resetCardForm();
                           }}
                         >
                           Voltar
                         </Button>
-                        <Button 
-                          onClick={handleCheckPayment}
-                          disabled={checkingPayment || confirmPixMutation.isPending}
-                        >
-                          {(checkingPayment || confirmPixMutation.isPending) && (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          )}
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Verificar Pagamento
-                        </Button>
+                        {paymentMethod === "pix" ? (
+                          <Button 
+                            onClick={handleCheckPayment}
+                            disabled={checkingPayment || confirmPixMutation.isPending}
+                          >
+                            {(checkingPayment || confirmPixMutation.isPending) && (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            )}
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Verificar Pagamento
+                          </Button>
+                        ) : (
+                          <Button 
+                            onClick={handleCardPayment}
+                            disabled={isProcessingCard || !mpReady}
+                          >
+                            {isProcessingCard && (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            )}
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            {isProcessingCard ? "Processando..." : `Pagar R$ ${parseFloat(newClientPrice).toFixed(2).replace('.', ',')}`}
+                          </Button>
+                        )}
                       </DialogFooter>
                     </>
                   )}

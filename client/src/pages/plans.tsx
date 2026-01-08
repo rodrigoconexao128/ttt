@@ -172,6 +172,28 @@ export default function PlansPage() {
     },
   });
 
+  // Mutation específica para clientes de revenda
+  const createResellerSubscriptionMutation = useMutation<Subscription, Error, void>({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/reseller-client/subscription/create", {});
+      const data = await response.json();
+      return data as Subscription;
+    },
+    onSuccess: (data: Subscription) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/subscriptions/current"] });
+      toast({ title: "Assinatura criada! Agora realize o pagamento." });
+      setPendingSubscriptionId(data.id);
+      setSubscribeModalOpen(true);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao criar assinatura",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (plansLoading || subscriptionLoading || resellerPlanLoading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[60vh]">
@@ -346,23 +368,13 @@ export default function PlansPage() {
                 className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white"
                 size="lg"
                 onClick={() => {
-                  // Criar assinatura com plano da revenda
-                  // Buscar o plano pelo valor
-                  const matchingPlan = plans?.find(p => p.valor === resellerPlan.plan!.price);
-                  if (matchingPlan) {
-                    setSelectedPlan("reseller");
-                    createSubscriptionMutation.mutate({ planId: matchingPlan.id.toString() });
-                  } else {
-                    toast({ 
-                      title: "Entre em contato com seu revendedor", 
-                      description: resellerPlan.reseller?.supportEmail || resellerPlan.reseller?.supportPhone || "Suporte indisponível",
-                      variant: "default" 
-                    });
-                  }
+                  // Usar a rota específica para clientes de revenda
+                  setSelectedPlan("reseller");
+                  createResellerSubscriptionMutation.mutate();
                 }}
-                disabled={createSubscriptionMutation.isPending}
+                disabled={createResellerSubscriptionMutation.isPending}
               >
-                {createSubscriptionMutation.isPending ? (
+                {createResellerSubscriptionMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Processando...

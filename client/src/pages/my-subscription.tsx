@@ -999,7 +999,7 @@ export default function MySubscription() {
               <div className="flex justify-center">
                 {pixData.qrCodeBase64 && (
                   <img 
-                    src={`data:image/png;base64,${pixData.qrCodeBase64}`}
+                    src={pixData.qrCodeBase64.startsWith('data:') ? pixData.qrCodeBase64 : `data:image/png;base64,${pixData.qrCodeBase64}`}
                     alt="QR Code PIX"
                     className="w-48 h-48 border rounded-lg"
                   />

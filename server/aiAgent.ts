@@ -144,9 +144,14 @@ async function withRetry<T>(
   throw lastError || new Error(`${operationName} falhou após ${maxRetries} tentativas`);
 }
 
-// �🔔 FUNÇÃO PARA GERAR PROMPT DE NOTIFICAÇÃO DINÂMICO E UNIVERSAL
+// 🔔 FUNÇÃO PARA GERAR PROMPT DE NOTIFICAÇÃO DINÂMICO E UNIVERSAL
 // Suporta detecção em mensagens do cliente E respostas do agente
-function getNotificationPrompt(trigger: string, manualKeywords?: string): string {
+function getNotificationPrompt(trigger: string | null | undefined, manualKeywords?: string): string {
+  // Proteção contra trigger undefined ou null
+  if (!trigger) {
+    console.warn('⚠️ [getNotificationPrompt] trigger está undefined/null - retornando string vazia');
+    return '';
+  }
   const triggerLower = trigger.toLowerCase();
   
   // Combinar palavras-chave predefinidas + manuais
@@ -359,7 +364,7 @@ function detectFormattingRequest(conversationHistory: Array<{text?: string | nul
   const clientMessages = conversationHistory
     .filter(m => !m.fromMe)
     .map(m => m.text || '')
-    .concat([newMessageText])
+    .concat([newMessageText || ''])
     .join(' ')
     .toLowerCase();
   
@@ -953,10 +958,10 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
         const hasAgentReplies = agentMessages.length > 0;
         
         // Verificar se nova mensagem é uma saudação simples
-        const isSaudacao = /^(oi|olá|ola|bom dia|boa tarde|boa noite|ei|e ai|eai|fala|tudo bem|blz|beleza)[\s\?!\.]*$/i.test(newMessageText.trim());
+        const isSaudacao = /^(oi|olá|ola|bom dia|boa tarde|boa noite|ei|e ai|eai|fala|tudo bem|blz|beleza)[\s\?!\.]*$/i.test((newMessageText || '').trim());
         
         // Detectar se a mensagem atual já contém informações do negócio do cliente
-        const msgLower = newMessageText.toLowerCase();
+        const msgLower = (newMessageText || '').toLowerCase();
         const jaDisseOQueTrabalha = /trabalho|faço|vendo|sou|tenho|minha|empresa|loja|negócio|vendas|atendimento|clientes/i.test(msgLower);
         const jaPediuAjuda = /preciso|quero|gostaria|ajuda|ajudar|responder|automatizar|atender/i.test(msgLower);
         

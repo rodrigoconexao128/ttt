@@ -838,7 +838,7 @@ export default function Subscribe() {
                 <div className="bg-white p-4 rounded-lg shadow-md border">
                   {pixData.qrCodeBase64 ? (
                     <img 
-                      src={`data:image/png;base64,${pixData.qrCodeBase64}`} 
+                      src={pixData.qrCodeBase64.startsWith('data:') ? pixData.qrCodeBase64 : `data:image/png;base64,${pixData.qrCodeBase64}`} 
                       alt="QR Code PIX" 
                       className="w-48 h-48"
                     />

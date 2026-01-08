@@ -772,7 +772,7 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                 <div className="space-y-4 text-center">
                   {pixData.qrCodeBase64 && (
                     <img 
-                      src={pixData.qrCodeBase64}
+                      src={pixData.qrCodeBase64.startsWith('data:') ? pixData.qrCodeBase64 : `data:image/png;base64,${pixData.qrCodeBase64}`}
                       alt="QR Code PIX"
                       className="w-40 h-40 mx-auto border rounded-lg"
                     />

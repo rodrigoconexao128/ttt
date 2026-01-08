@@ -12812,6 +12812,96 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   });
 
   /**
+   * Criar assinatura para cliente de revenda
+   * POST /api/reseller-client/subscription/create
+   * Cria uma assinatura usando o preço definido pelo revendedor
+   */
+  app.post("/api/reseller-client/subscription/create", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+
+      if (!user || !user.resellerId) {
+        return res.status(403).json({ message: "Apenas clientes de revenda podem usar esta rota" });
+      }
+
+      // Buscar dados do revendedor e cliente
+      const reseller = await storage.getReseller(user.resellerId);
+      if (!reseller || !reseller.isActive) {
+        return res.status(403).json({ message: "Revendedor inativo" });
+      }
+
+      const resellerClient = await storage.getResellerClientByUserId(userId);
+      if (!resellerClient) {
+        return res.status(404).json({ message: "Cliente de revenda não encontrado" });
+      }
+
+      // Verificar se já tem assinatura ativa
+      const existingSubscription = await storage.getUserSubscription(userId);
+      if (existingSubscription?.status === "active") {
+        return res.status(400).json({ message: "Você já possui uma assinatura ativa" });
+      }
+
+      // Calcular o preço do cliente
+      const clientPrice = resellerClient.clientPrice || reseller.clientMonthlyPrice || "99.99";
+
+      // Buscar ou criar um plano para o cliente de revenda
+      // Primeiro, tentar encontrar um plano com o mesmo valor
+      let plan = await db.query.plans.findFirst({
+        where: and(
+          eq(plans.valor, clientPrice),
+          eq(plans.ativo, true)
+        )
+      });
+
+      // Se não encontrar, usar o plano Pro padrão e ajustar o preço via couponPrice
+      if (!plan) {
+        plan = await db.query.plans.findFirst({
+          where: eq(plans.ativo, true),
+          orderBy: [desc(plans.createdAt)]
+        });
+      }
+
+      if (!plan) {
+        return res.status(500).json({ message: "Nenhum plano disponível no sistema" });
+      }
+
+      // Verificar se já existe assinatura pendente recente
+      const recentPendingSubscription = await db.query.subscriptions.findFirst({
+        where: and(
+          eq(subscriptions.userId, userId),
+          eq(subscriptions.status, "pending"),
+          gte(subscriptions.createdAt, new Date(Date.now() - 5 * 60 * 1000))
+        ),
+        orderBy: [desc(subscriptions.createdAt)]
+      });
+
+      if (recentPendingSubscription) {
+        console.log(`[Reseller Client] Reutilizando assinatura pendente: ${recentPendingSubscription.id}`);
+        return res.json(recentPendingSubscription);
+      }
+
+      // Criar assinatura com o preço do cliente de revenda
+      const subscription = await storage.createSubscription({
+        userId,
+        planId: plan.id,
+        status: "pending",
+        dataInicio: new Date(),
+        // Usar couponPrice para definir o preço real que o cliente vai pagar
+        couponPrice: clientPrice,
+        couponCode: `RESELLER_${reseller.id.substring(0, 8)}`,
+      });
+
+      console.log(`[Reseller Client] Assinatura criada: ${subscription.id} - Preço: R$ ${clientPrice}`);
+
+      res.json(subscription);
+    } catch (error: any) {
+      console.error("Error creating reseller client subscription:", error);
+      res.status(500).json({ message: "Erro ao criar assinatura" });
+    }
+  });
+
+  /**
    * Detectar revendedor pelo host (para white-label)
    * GET /api/reseller/detect
    */
