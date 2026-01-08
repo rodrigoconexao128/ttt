@@ -2530,7 +2530,13 @@ export async function triggerAgentResponseForConversation(
     // 1. Buscar a sessão do usuário
     const session = sessions.get(userId);
     if (!session?.socket) {
-      console.log(`⚠️ [TRIGGER] Sessão WhatsApp não disponível para usuário ${userId}`);
+      // Verificar se estamos em modo dev sem WhatsApp
+      const skipRestore = process.env.SKIP_WHATSAPP_RESTORE === 'true';
+      console.log(`⚠️ [TRIGGER] Sessão WhatsApp não disponível para usuário ${userId} (SKIP_WHATSAPP_RESTORE: ${skipRestore})`);
+      
+      if (skipRestore) {
+        return { triggered: false, reason: "Modo desenvolvimento: WhatsApp não conectado localmente. Em produção, a sessão será restaurada automaticamente." };
+      }
       return { triggered: false, reason: "WhatsApp não conectado. Verifique a conexão em 'Conexão'." };
     }
     
