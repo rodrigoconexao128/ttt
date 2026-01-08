@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { Check, Loader2, Shield, Zap, Crown, ChevronDown, ChevronUp, Tag, Key } from "lucide-react";
+import { Check, Loader2, Shield, Zap, Crown, ChevronDown, ChevronUp, Tag, Key, Copy } from "lucide-react";
 import type { Plan, Subscription } from "@shared/schema";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,10 @@ interface ResellerPlan {
     companyName: string;
     supportEmail?: string;
     supportPhone?: string;
+    pixKey?: string;
+    pixKeyType?: string;
+    pixHolderName?: string;
+    pixBankName?: string;
   };
   plan?: {
     name: string;
@@ -361,6 +365,93 @@ export default function PlansPage() {
                   </div>
                 ))}
               </div>
+              
+              {/* Seção de Pagamento PIX */}
+              {resellerPlan.reseller?.pixKey && (
+                <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                  <div className="text-center mb-4">
+                    <p className="text-lg font-bold text-yellow-800 dark:text-yellow-200">
+                      💰 Pague via PIX
+                    </p>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                      Faça o pagamento e envie o comprovante
+                    </p>
+                  </div>
+                  
+                  {/* Dados bancários */}
+                  <div className="space-y-2">
+                    {/* Titular */}
+                    {resellerPlan.reseller.pixHolderName && (
+                      <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg p-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500">👤</span>
+                          <span className="text-sm text-muted-foreground">Titular:</span>
+                        </div>
+                        <span className="font-medium text-sm">{resellerPlan.reseller.pixHolderName}</span>
+                      </div>
+                    )}
+                    
+                    {/* Banco */}
+                    {resellerPlan.reseller.pixBankName && (
+                      <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg p-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500">🏦</span>
+                          <span className="text-sm text-muted-foreground">Banco:</span>
+                        </div>
+                        <span className="font-medium text-sm">{resellerPlan.reseller.pixBankName}</span>
+                      </div>
+                    )}
+                    
+                    {/* Chave PIX */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500">🔑</span>
+                          <span className="text-sm text-muted-foreground">
+                            PIX ({resellerPlan.reseller.pixKeyType?.toUpperCase()}):
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(resellerPlan.reseller!.pixKey!);
+                            toast({ title: "✅ Chave PIX copiada!" });
+                          }}
+                        >
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copiar
+                        </Button>
+                      </div>
+                      <code className="block mt-2 text-center font-mono bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded text-sm break-all">
+                        {resellerPlan.reseller.pixKey}
+                      </code>
+                    </div>
+                  </div>
+                  
+                  {/* Botão WhatsApp */}
+                  {resellerPlan.reseller?.supportPhone && (
+                    <div className="mt-4">
+                      <Button
+                        className="w-full"
+                        style={{ 
+                          backgroundColor: '#25D366',
+                          color: 'white'
+                        }}
+                        onClick={() => {
+                          const phone = resellerPlan.reseller?.supportPhone?.replace(/\D/g, '');
+                          const message = encodeURIComponent(
+                            `Olá! Fiz o pagamento de R$ ${Number(resellerPlan.plan!.price).toFixed(2).replace('.', ',')} via PIX para ativar minha assinatura. Segue o comprovante:`
+                          );
+                          window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+                        }}
+                      >
+                        📲 Enviar Comprovante via WhatsApp
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
             
             <CardFooter className="flex flex-col gap-4">
@@ -382,7 +473,7 @@ export default function PlansPage() {
                 ) : (
                   <>
                     <Zap className="h-4 w-4 mr-2" />
-                    Assinar Agora
+                    Ativar Plano
                   </>
                 )}
               </Button>

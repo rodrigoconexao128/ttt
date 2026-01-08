@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, index, uniqueIndex, decimal, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, index, uniqueIndex, decimal, uuid, serial, date } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -1665,6 +1665,17 @@ export const resellers = pgTable("resellers", {
   // Custo por cliente para o revendedor (paga para nós)
   costPerClient: decimal("cost_per_client", { precision: 10, scale: 2 }).default("49.99"),
   
+  // Chave PIX para recebimento dos clientes
+  pixKey: varchar("pix_key", { length: 255 }),
+  pixKeyType: varchar("pix_key_type", { length: 20 }), // cpf, cnpj, email, phone, random
+  pixHolderName: varchar("pix_holder_name", { length: 255 }), // Nome do titular da conta
+  pixBankName: varchar("pix_bank_name", { length: 100 }), // Nome do banco (Nubank, Inter, etc)
+  
+  // Ciclo de cobrança do revendedor (quanto o revendedor paga para nós)
+  billingDay: integer("billing_day").default(1), // Dia do mês para vencimento (1-28)
+  nextPaymentDate: timestamp("next_payment_date"), // Próximo vencimento do revendedor
+  resellerStatus: varchar("reseller_status", { length: 50 }).default("active"), // active, suspended, cancelled
+  
   // Configurações
   isActive: boolean("is_active").default(true).notNull(),
   maxClients: integer("max_clients").default(100),
@@ -1700,6 +1711,9 @@ export const resellerClients = pgTable("reseller_clients", {
   // Se é cliente gratuito (demo/teste - 1 por revendedor)
   isFreeClient: boolean("is_free_client").default(false).notNull(),
   
+  // Dia de vencimento deste cliente específico
+  billingDay: integer("billing_day").default(1), // Dia do mês (1-28)
+  
   // Assinatura MercadoPago
   mpSubscriptionId: varchar("mp_subscription_id", { length: 255 }),
   mpStatus: varchar("mp_status", { length: 50 }),
@@ -1726,16 +1740,20 @@ export const resellerPayments = pgTable("reseller_payments", {
   
   // Valores
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  paymentType: varchar("payment_type", { length: 50 }).notNull(), // client_creation, recurring, setup_fee
+  paymentType: varchar("payment_type", { length: 50 }).notNull(), // client_creation, recurring, setup_fee, monthly_fee
   
   // Status
   status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, approved, rejected, refunded
   statusDetail: varchar("status_detail", { length: 100 }),
   
+  // Referência da Fatura (para sistema de faturas mensais)
+  referenceMonth: varchar("reference_month", { length: 7 }), // Formato: YYYY-MM (ex: 2025-01)
+  dueDate: timestamp("due_date"), // Data de vencimento da fatura
+  
   // MercadoPago
   mpPaymentId: varchar("mp_payment_id", { length: 255 }),
   mpSubscriptionId: varchar("mp_subscription_id", { length: 255 }),
-  paymentMethod: varchar("payment_method", { length: 50 }), // credit_card, pix
+  paymentMethod: varchar("payment_method", { length: 50 }), // credit_card, pix, manual
   
   // Informações do pagador
   payerEmail: varchar("payer_email", { length: 255 }),
@@ -1752,6 +1770,7 @@ export const resellerPayments = pgTable("reseller_payments", {
   index("idx_reseller_payments_client").on(table.resellerClientId),
   index("idx_reseller_payments_status").on(table.status),
   index("idx_reseller_payments_date").on(table.createdAt),
+  index("idx_reseller_payments_reference").on(table.referenceMonth),
 ]);
 
 // Relations para Resellers
@@ -1759,6 +1778,7 @@ export const resellersRelations = relations(resellers, ({ one, many }) => ({
   user: one(users, { fields: [resellers.userId], references: [users.id] }),
   clients: many(resellerClients),
   payments: many(resellerPayments),
+  invoices: many(resellerInvoices),
 }));
 
 export const resellerClientsRelations = relations(resellerClients, ({ one, many }) => ({
@@ -1770,6 +1790,30 @@ export const resellerClientsRelations = relations(resellerClients, ({ one, many 
 export const resellerPaymentsRelations = relations(resellerPayments, ({ one }) => ({
   reseller: one(resellers, { fields: [resellerPayments.resellerId], references: [resellers.id] }),
   client: one(resellerClients, { fields: [resellerPayments.resellerClientId], references: [resellerClients.id] }),
+}));
+
+// Tabela de faturas do revendedor para o sistema (Flow 2: Reseller -> System)
+export const resellerInvoices = pgTable("reseller_invoices", {
+  id: serial("id").primaryKey(),
+  resellerId: varchar("reseller_id", { length: 255 }).notNull().references(() => resellers.id, { onDelete: "cascade" }),
+  referenceMonth: varchar("reference_month", { length: 7 }).notNull(), // Formato: "2025-01"
+  dueDate: date("due_date").notNull(),
+  activeClients: integer("active_clients").notNull().default(0),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull().default("49.99"),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, paid, overdue
+  paymentMethod: varchar("payment_method", { length: 20 }), // pix, card
+  mpPaymentId: varchar("mp_payment_id", { length: 100 }),
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_reseller_invoices_reseller").on(table.resellerId),
+  index("idx_reseller_invoices_status").on(table.status),
+  index("idx_reseller_invoices_due_date").on(table.dueDate),
+]);
+
+export const resellerInvoicesRelations = relations(resellerInvoices, ({ one }) => ({
+  reseller: one(resellers, { fields: [resellerInvoices.resellerId], references: [resellers.id] }),
 }));
 
 // Schemas Zod para validação de Resellers
@@ -1806,6 +1850,11 @@ export const insertResellerPaymentSchema = createInsertSchema(resellerPayments).
   createdAt: true,
 });
 
+export const insertResellerInvoiceSchema = createInsertSchema(resellerInvoices).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types para Resellers
 export type Reseller = typeof resellers.$inferSelect;
 export type InsertReseller = z.infer<typeof insertResellerSchema>;
@@ -1814,4 +1863,6 @@ export type ResellerClient = typeof resellerClients.$inferSelect;
 export type InsertResellerClient = z.infer<typeof insertResellerClientSchema>;
 export type ResellerPayment = typeof resellerPayments.$inferSelect;
 export type InsertResellerPayment = z.infer<typeof insertResellerPaymentSchema>;
+export type ResellerInvoice = typeof resellerInvoices.$inferSelect;
+export type InsertResellerInvoice = z.infer<typeof insertResellerInvoiceSchema>;
 

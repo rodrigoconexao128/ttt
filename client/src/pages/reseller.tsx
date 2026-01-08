@@ -3,15 +3,17 @@
  * 
  * Esta página é acessada por usuários que possuem o plano de revenda.
  * Funcionalidades:
- * - Configuração de branding (logo, cores, domínio)
+ * - Dashboard com métricas
  * - Criação e gerenciamento de clientes
- * - Métricas e faturamento
+ * - Detalhes completos do cliente (pagamentos, status, conexão)
+ * - Reset de senha de clientes
+ * - Marcar pagamentos como pagos manualmente
  * - Histórico de pagamentos
  */
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +45,18 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetFooter,
+  SheetClose,
+} from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { 
@@ -66,7 +80,20 @@ import {
   Trash2,
   CreditCard,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Wifi,
+  WifiOff,
+  Key,
+  FileText,
+  Phone,
+  Mail,
+  Calendar,
+  MessageSquare,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ChevronRight,
+  ArrowLeft
 } from "lucide-react";
 
 interface ResellerProfile {
@@ -90,6 +117,13 @@ interface ResellerProfile {
   welcomeMessage?: string;
   isActive?: boolean;
   createdAt?: string;
+  // Campos PIX
+  pixKey?: string;
+  pixKeyType?: string; // cpf, cnpj, email, phone, random
+  // Ciclo de cobrança
+  billingDay?: number;
+  nextPaymentDate?: string;
+  resellerStatus?: string;
 }
 
 interface ResellerClient {
@@ -97,14 +131,57 @@ interface ResellerClient {
   userId: string;
   status: string;
   monthlyCost?: string;
+  clientPrice?: string;
+  isFreeClient?: boolean;
   activatedAt?: string;
   suspendedAt?: string;
   cancelledAt?: string;
   createdAt?: string;
+  nextPaymentDate?: string;
+  billingDay?: number;
   user?: {
     name: string;
     email: string;
     phone?: string;
+  };
+}
+
+interface ClientDetails {
+  client: {
+    id: string;
+    status: string;
+    monthlyCost: string;
+    clientPrice: string;
+    isFreeClient: boolean;
+    activatedAt?: string;
+    suspendedAt?: string;
+    cancelledAt?: string;
+    nextPaymentDate?: string;
+    createdAt: string;
+  };
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    createdAt: string;
+    onboardingCompleted: boolean;
+  } | null;
+  connection: {
+    id: string;
+    isConnected: boolean;
+    phoneNumber?: string;
+    updatedAt: string;
+  } | null;
+  subscription: {
+    id: string;
+    status: string;
+    dataInicio?: string;
+    dataFim?: string;
+  } | null;
+  payments: Payment[];
+  stats: {
+    totalConversations: number;
   };
 }
 
@@ -124,9 +201,64 @@ interface Payment {
   amount: string;
   status: string;
   paymentType: string;
+  paymentMethod?: string;
   description?: string;
+  referenceMonth?: string;
+  dueDate?: string;
   createdAt: string;
   paidAt?: string;
+}
+
+// Interface para fatura pendente
+interface PendingInvoice {
+  referenceMonth: string;
+  dueDate: Date;
+  amount: number;
+  status: 'pending' | 'overdue' | 'upcoming';
+  daysUntilDue: number;
+}
+
+// Interface para assinatura do revendedor (o que ele paga ao sistema)
+interface ResellerSubscription {
+  activeClients: number;
+  costPerClient: number;
+  totalMonthly: number;
+  billingDay: number;
+  currentInvoice: {
+    id: number;
+    referenceMonth: string;
+    dueDate: string;
+    activeClients: number;
+    unitPrice: string;
+    totalAmount: string;
+    status: string;
+  } | null;
+  pendingInvoices: {
+    id: number;
+    referenceMonth: string;
+    dueDate: string;
+    activeClients: number;
+    totalAmount: string;
+    status: string;
+  }[];
+  resellerStatus: string;
+  daysPastDue: number;
+}
+
+// Interface para fatura do revendedor
+interface ResellerInvoice {
+  id: number;
+  resellerId: string;
+  referenceMonth: string;
+  dueDate: string;
+  activeClients: number;
+  unitPrice: string;
+  totalAmount: string;
+  status: string;
+  paymentMethod?: string;
+  mpPaymentId?: string;
+  paidAt?: string;
+  createdAt: string;
 }
 
 export default function ResellerDashboard() {
@@ -177,6 +309,18 @@ export default function ResellerDashboard() {
   const [isProcessingCard, setIsProcessingCard] = useState(false);
   const mpInstanceRef = useRef<any>(null);
 
+  // Estados para detalhes do cliente
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [isClientDetailsOpen, setIsClientDetailsOpen] = useState(false);
+  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
+  const [newPasswordForReset, setNewPasswordForReset] = useState("");
+  
+  // Estados para pagamento baseado em fatura mensal
+  const [selectedInvoice, setSelectedInvoice] = useState<PendingInvoice | null>(null);
+  const [isMarkPaidOpen, setIsMarkPaidOpen] = useState(false);
+  const [markPaidAmount, setMarkPaidAmount] = useState("");
+  const [markPaidDescription, setMarkPaidDescription] = useState("");
+
   // Verificar status de revendedor
   const { data: resellerStatus, isLoading: isLoadingStatus } = useQuery<{
     hasResellerPlan: boolean;
@@ -217,6 +361,16 @@ export default function ResellerDashboard() {
   const { data: payments, isLoading: isLoadingPayments } = useQuery<Payment[]>({
     queryKey: ["/api/reseller/payments"],
     enabled: !!resellerStatus?.hasResellerPlan,
+  });
+
+  // Buscar detalhes do cliente selecionado
+  const { data: clientDetails, isLoading: isLoadingClientDetails, refetch: refetchClientDetails } = useQuery<ClientDetails>({
+    queryKey: ["/api/reseller/clients", selectedClientId, "details"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/reseller/clients/${selectedClientId}/details`);
+      return res.json();
+    },
+    enabled: !!selectedClientId && isClientDetailsOpen,
   });
 
   // Buscar chave pública MercadoPago para pagamento com cartão
@@ -297,6 +451,20 @@ export default function ResellerDashboard() {
     },
     onError: (error: any) => {
       toast({ title: "Erro ao salvar perfil", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation para atualizar campos específicos do revendedor (inline updates)
+  const updateResellerMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiRequest("PUT", "/api/reseller/profile", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/reseller/profile"] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     },
   });
 
@@ -441,6 +609,63 @@ export default function ResellerDashboard() {
     },
   });
 
+  // Mutation para resetar senha do cliente
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ clientId, newPassword }: { clientId: string; newPassword?: string }) => {
+      const response = await apiRequest("POST", `/api/reseller/clients/${clientId}/reset-password`, {
+        newPassword,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "✅ Senha resetada!",
+        description: `Nova senha: ${data.newPassword}`,
+      });
+      setIsResetPasswordOpen(false);
+      setNewPasswordForReset("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao resetar senha", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation para confirmar pagamento de fatura mensal
+  const markAsPaidMutation = useMutation({
+    mutationFn: async ({ clientId, amount, description, referenceMonth, dueDate }: { 
+      clientId: string; 
+      amount?: string; 
+      description?: string;
+      referenceMonth?: string;
+      dueDate?: string;
+    }) => {
+      const response = await apiRequest("POST", `/api/reseller/clients/${clientId}/mark-paid`, {
+        amount,
+        description,
+        paymentMethod: 'manual',
+        referenceMonth,
+        dueDate,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/reseller/clients"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reseller/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reseller/clients", selectedClientId, "details"] });
+      toast({ 
+        title: "✅ Pagamento confirmado!",
+        description: `Fatura de R$ ${data.payment.amount} confirmada com sucesso.`,
+      });
+      setIsMarkPaidOpen(false);
+      setMarkPaidAmount("");
+      setMarkPaidDescription("");
+      setSelectedInvoice(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao confirmar pagamento", description: error.message, variant: "destructive" });
+    },
+  });
+
   const resetCreateClientForm = () => {
     setNewClientName("");
     setNewClientEmail("");
@@ -526,6 +751,123 @@ export default function ResellerDashboard() {
     } finally {
       setCheckingPayment(false);
     }
+  };
+
+  // Abrir detalhes do cliente
+  const openClientDetails = (clientId: string) => {
+    setSelectedClientId(clientId);
+    setIsClientDetailsOpen(true);
+  };
+
+  // Fechar detalhes do cliente
+  const closeClientDetails = () => {
+    setSelectedClientId(null);
+    setIsClientDetailsOpen(false);
+  };
+
+  // Abrir modal de reset de senha
+  const openResetPassword = () => {
+    setNewPasswordForReset("");
+    setIsResetPasswordOpen(true);
+  };
+
+  // Calcular faturas pendentes/vencidas do cliente
+  const getClientInvoices = (): PendingInvoice[] => {
+    if (!clientDetails?.client) return [];
+    
+    const invoices: PendingInvoice[] = [];
+    const now = new Date();
+    const clientPrice = parseFloat(clientDetails.client.clientPrice || '0');
+    
+    if (clientPrice <= 0 || clientDetails.client.isFreeClient) return [];
+    
+    // Pegar a data de ativação ou criação como base
+    const activatedAt = clientDetails.client.activatedAt 
+      ? new Date(clientDetails.client.activatedAt) 
+      : new Date(clientDetails.client.createdAt);
+    
+    // Encontrar meses que já foram pagos
+    const paidMonths = new Set(
+      clientDetails.payments
+        .filter(p => p.status === 'approved')
+        .map(p => p.referenceMonth || '')
+        .filter(m => m)
+    );
+    
+    // Calcular meses desde a ativação até agora + 1 mês futuro (para antecipar)
+    const monthsToShow = [];
+    const startDate = new Date(activatedAt.getFullYear(), activatedAt.getMonth(), 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 2, 0); // Próximo mês
+    
+    let currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      monthsToShow.push(new Date(currentDate));
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    // Gerar faturas para cada mês
+    for (const month of monthsToShow) {
+      const referenceMonth = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Pular se já foi pago
+      if (paidMonths.has(referenceMonth)) continue;
+      
+      // Calcular data de vencimento (dia 10 do mês seguinte por padrão)
+      const billingDay = profile?.billingDay || 10;
+      const dueDate = new Date(month.getFullYear(), month.getMonth() + 1, billingDay);
+      
+      const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      let status: 'pending' | 'overdue' | 'upcoming' = 'upcoming';
+      if (daysUntilDue < 0) {
+        status = 'overdue';
+      } else if (daysUntilDue <= 30) {
+        status = 'pending';
+      }
+      
+      // Só mostrar faturas vencidas, pendentes (próximas 30 dias) ou próximo mês para antecipar
+      if (status === 'upcoming' && daysUntilDue > 60) continue;
+      
+      invoices.push({
+        referenceMonth,
+        dueDate,
+        amount: clientPrice,
+        status,
+        daysUntilDue
+      });
+    }
+    
+    // Ordenar por data de vencimento
+    return invoices.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  };
+
+  // Abrir modal de confirmar pagamento de fatura específica
+  const openPayInvoice = (invoice: PendingInvoice) => {
+    setSelectedInvoice(invoice);
+    setMarkPaidAmount(invoice.amount.toString());
+    setMarkPaidDescription(`Mensalidade ${new Date(invoice.referenceMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`);
+    setIsMarkPaidOpen(true);
+  };
+
+  // Handler para resetar senha
+  const handleResetPassword = () => {
+    if (!selectedClientId) return;
+    resetPasswordMutation.mutate({
+      clientId: selectedClientId,
+      newPassword: newPasswordForReset || undefined,
+    });
+  };
+
+  // Handler para confirmar pagamento de fatura
+  const handleMarkAsPaid = () => {
+    if (!selectedClientId || !selectedInvoice) return;
+    markAsPaidMutation.mutate({
+      clientId: selectedClientId,
+      amount: markPaidAmount || undefined,
+      description: markPaidDescription || undefined,
+      referenceMonth: selectedInvoice.referenceMonth,
+      dueDate: selectedInvoice.dueDate.toISOString(),
+    });
   };
 
   // Formatadores de cartão
@@ -726,24 +1068,28 @@ export default function ResellerDashboard() {
         )}
       </div>
 
-      {/* Tabs */}
+      {/* Tabs - 5 abas: Dashboard, Clientes, Recebimentos, Minha Assinatura, Configurações */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
-            Dashboard
+            <span className="hidden sm:inline">Dashboard</span>
           </TabsTrigger>
           <TabsTrigger value="clients" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Clientes
-          </TabsTrigger>
-          <TabsTrigger value="branding" className="flex items-center gap-2">
-            <Palette className="h-4 w-4" />
-            Branding
+            <span className="hidden sm:inline">Clientes</span>
           </TabsTrigger>
           <TabsTrigger value="payments" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
-            Pagamentos
+            <span className="hidden sm:inline">Recebimentos</span>
+          </TabsTrigger>
+          <TabsTrigger value="my-subscription" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Minha Assinatura</span>
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            <span className="hidden sm:inline">Config</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1285,57 +1631,97 @@ export default function ResellerDashboard() {
                   <TableRow>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Valor Mensal</TableHead>
+                    <TableHead>Conexão</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Desde</TableHead>
-                    <TableHead>Ações</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {clients?.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell className="font-medium">{client.user?.name || '-'}</TableCell>
-                      <TableCell>{client.user?.email || '-'}</TableCell>
+                    <TableRow key={client.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openClientDetails(client.id)}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Users className="h-4 w-4 text-primary" />
+                          </div>
+                          <span>{client.user?.name || '-'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{client.user?.email || '-'}</TableCell>
+                      <TableCell>
+                        <span className="font-medium text-green-600">
+                          R$ {client.clientPrice || profile?.clientMonthlyPrice || '99.99'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {/* Status será atualizado quando abrir detalhes */}
+                        <Badge variant="outline" className="gap-1">
+                          <Wifi className="h-3 w-3" />
+                          Ver
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={
                           client.status === 'active' ? 'default' :
                           client.status === 'suspended' ? 'secondary' :
                           client.status === 'pending' ? 'outline' :
                           'destructive'
-                        }>
+                        } className="gap-1">
+                          {client.status === 'active' && <CheckCircle2 className="h-3 w-3" />}
+                          {client.status === 'suspended' && <Pause className="h-3 w-3" />}
+                          {client.status === 'pending' && <Clock className="h-3 w-3" />}
+                          {client.status === 'cancelled' && <XCircle className="h-3 w-3" />}
                           {client.status === 'active' ? 'Ativo' :
                            client.status === 'suspended' ? 'Suspenso' :
                            client.status === 'pending' ? 'Pendente' :
                            'Cancelado'}
                         </Badge>
+                        {client.isFreeClient && (
+                          <Badge variant="outline" className="ml-1 text-green-600 border-green-600">
+                            Gratuito
+                          </Badge>
+                        )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-muted-foreground">
                         {client.activatedAt ? new Date(client.activatedAt).toLocaleDateString('pt-BR') : '-'}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openClientDetails(client.id)}
+                            title="Ver detalhes"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
                           {client.status === 'active' && (
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
                               onClick={() => suspendClientMutation.mutate(client.id)}
                               disabled={suspendClientMutation.isPending}
+                              title="Suspender"
                             >
-                              <Pause className="h-4 w-4" />
+                              <Pause className="h-4 w-4 text-orange-500" />
                             </Button>
                           )}
                           {client.status === 'suspended' && (
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
                               onClick={() => reactivateClientMutation.mutate(client.id)}
                               disabled={reactivateClientMutation.isPending}
+                              title="Reativar"
                             >
-                              <Play className="h-4 w-4" />
+                              <Play className="h-4 w-4 text-green-500" />
                             </Button>
                           )}
                           {client.status !== 'cancelled' && (
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
                               onClick={() => {
                                 if (confirm('Tem certeza que deseja cancelar este cliente?')) {
@@ -1343,6 +1729,7 @@ export default function ResellerDashboard() {
                                 }
                               }}
                               disabled={cancelClientMutation.isPending}
+                              title="Cancelar"
                             >
                               <Trash2 className="h-4 w-4 text-red-500" />
                             </Button>
@@ -1357,228 +1744,13 @@ export default function ResellerDashboard() {
           )}
         </TabsContent>
 
-        {/* Branding Tab */}
-        <TabsContent value="branding" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Informações da Empresa */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Informações da Empresa
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nome da Empresa *</Label>
-                  <Input
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="Sua Empresa LTDA"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Descrição</Label>
-                  <Textarea
-                    value={companyDescription}
-                    onChange={(e) => setCompanyDescription(e.target.value)}
-                    placeholder="Breve descrição da sua empresa"
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email de Suporte</Label>
-                  <Input
-                    type="email"
-                    value={supportEmail}
-                    onChange={(e) => setSupportEmail(e.target.value)}
-                    placeholder="suporte@suaempresa.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Telefone de Suporte</Label>
-                  <Input
-                    value={supportPhone}
-                    onChange={(e) => setSupportPhone(e.target.value)}
-                    placeholder="(11) 99999-9999"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Cores e Visual */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Palette className="h-5 w-5" />
-                  Cores da Marca
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Cor Primária</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="color"
-                      value={primaryColor}
-                      onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="w-16 h-10 p-1"
-                    />
-                    <Input
-                      value={primaryColor}
-                      onChange={(e) => setPrimaryColor(e.target.value)}
-                      placeholder="#000000"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Cor Secundária</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="color"
-                      value={secondaryColor}
-                      onChange={(e) => setSecondaryColor(e.target.value)}
-                      className="w-16 h-10 p-1"
-                    />
-                    <Input
-                      value={secondaryColor}
-                      onChange={(e) => setSecondaryColor(e.target.value)}
-                      placeholder="#ffffff"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Cor de Destaque</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="color"
-                      value={accentColor}
-                      onChange={(e) => setAccentColor(e.target.value)}
-                      className="w-16 h-10 p-1"
-                    />
-                    <Input
-                      value={accentColor}
-                      onChange={(e) => setAccentColor(e.target.value)}
-                      placeholder="#22c55e"
-                    />
-                  </div>
-                </div>
-
-                {/* Preview das cores */}
-                <div className="mt-4 p-4 rounded-lg border">
-                  <p className="text-sm text-muted-foreground mb-2">Preview:</p>
-                  <div 
-                    className="p-4 rounded-lg"
-                    style={{ backgroundColor: secondaryColor, color: primaryColor }}
-                  >
-                    <p className="font-bold">{companyName || 'Nome da Empresa'}</p>
-                    <button 
-                      className="mt-2 px-4 py-2 rounded"
-                      style={{ backgroundColor: accentColor, color: secondaryColor }}
-                    >
-                      Botão de Exemplo
-                    </button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Domínio */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5" />
-                  Domínio
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Subdomínio</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={subdomain}
-                      onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                      placeholder="suaempresa"
-                      className="flex-1"
-                    />
-                    <span className="text-muted-foreground">.agentezap.com</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Apenas letras minúsculas, números e hífen
-                  </p>
-                </div>
-                {profile?.customDomain && (
-                  <div className="space-y-2">
-                    <Label>Domínio Customizado</Label>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-muted px-3 py-2 rounded text-sm">
-                        {profile.customDomain}
-                      </code>
-                      <Badge variant={profile.domainVerified ? "default" : "secondary"}>
-                        {profile.domainVerified ? "Verificado" : "Pendente"}
-                      </Badge>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Configurações de Preço */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Preço para Clientes
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Mensalidade (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="49.99"
-                    value={clientMonthlyPrice}
-                    onChange={(e) => setClientMonthlyPrice(e.target.value)}
-                    placeholder="99.99"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Valor mínimo: R$ 49,99 (seu custo por cliente)
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Mensagem de Boas-Vindas</Label>
-                  <Textarea
-                    value={welcomeMessage}
-                    onChange={(e) => setWelcomeMessage(e.target.value)}
-                    placeholder="Mensagem exibida para novos clientes ao fazer login"
-                    rows={3}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Botão Salvar */}
-          <div className="flex justify-end">
-            <Button 
-              onClick={handleSaveProfile}
-              disabled={saveProfileMutation.isPending}
-              size="lg"
-            >
-              {saveProfileMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Salvar Configurações
-            </Button>
-          </div>
-        </TabsContent>
-
-        {/* Payments Tab */}
+        {/* Payments Tab - Agora chamado "Recebimentos" - pagamentos que você RECEBEU dos clientes */}
         <TabsContent value="payments" className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Histórico de Pagamentos</h2>
+              <h2 className="text-xl font-semibold">Recebimentos dos Clientes</h2>
               <p className="text-sm text-muted-foreground">
-                Cobranças por criação de clientes
+                Pagamentos que você recebeu dos seus clientes
               </p>
             </div>
           </div>
@@ -1631,7 +1803,1124 @@ export default function ResellerDashboard() {
             </Card>
           )}
         </TabsContent>
+
+        {/* My Subscription Tab - O que você PAGA ao sistema */}
+        <TabsContent value="my-subscription" className="space-y-6">
+          <MySubscriptionTab profile={profile} />
+        </TabsContent>
+
+        {/* Settings Tab - Configurações e PIX */}
+        <TabsContent value="settings" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Configuração do PIX */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5" />
+                  Chave PIX para Recebimento
+                </CardTitle>
+                <CardDescription>
+                  Configure sua chave PIX para receber pagamentos dos seus clientes
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Tipo de Chave PIX</Label>
+                  <select
+                    className="w-full p-2 border rounded-lg bg-background"
+                    value={profile?.pixKeyType || ''}
+                    onChange={(e) => {
+                      updateResellerMutation.mutate({
+                        pixKeyType: e.target.value,
+                      });
+                    }}
+                  >
+                    <option value="">Selecione o tipo</option>
+                    <option value="cpf">CPF</option>
+                    <option value="cnpj">CNPJ</option>
+                    <option value="email">Email</option>
+                    <option value="phone">Telefone</option>
+                    <option value="random">Chave Aleatória</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Chave PIX</Label>
+                  <Input
+                    placeholder={
+                      profile?.pixKeyType === 'cpf' ? '000.000.000-00' :
+                      profile?.pixKeyType === 'cnpj' ? '00.000.000/0000-00' :
+                      profile?.pixKeyType === 'email' ? 'seu@email.com' :
+                      profile?.pixKeyType === 'phone' ? '+55 11 99999-9999' :
+                      'Cole sua chave aleatória'
+                    }
+                    value={profile?.pixKey || ''}
+                    onChange={(e) => {
+                      // Será salvo ao clicar em salvar
+                    }}
+                    onBlur={(e) => {
+                      if (e.target.value !== profile?.pixKey) {
+                        updateResellerMutation.mutate({
+                          pixKey: e.target.value,
+                        });
+                      }
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nome do Titular</Label>
+                  <Input
+                    placeholder="Nome completo do titular da conta"
+                    value={(profile as any)?.pixHolderName || ''}
+                    onBlur={(e) => {
+                      if (e.target.value !== (profile as any)?.pixHolderName) {
+                        updateResellerMutation.mutate({
+                          pixHolderName: e.target.value,
+                        });
+                      }
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nome do Banco</Label>
+                  <Input
+                    placeholder="Ex: Nubank, Inter, Itaú, Bradesco"
+                    value={(profile as any)?.pixBankName || ''}
+                    onBlur={(e) => {
+                      if (e.target.value !== (profile as any)?.pixBankName) {
+                        updateResellerMutation.mutate({
+                          pixBankName: e.target.value,
+                        });
+                      }
+                    }}
+                  />
+                </div>
+                {profile?.pixKey && profile?.pixKeyType && (
+                  <div className="p-3 border rounded-lg bg-green-50 dark:bg-green-950">
+                    <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="text-sm font-medium">PIX configurado!</span>
+                    </div>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      Seus clientes verão essa chave para fazer os pagamentos
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Preços para Clientes */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Preços para Seus Clientes
+                </CardTitle>
+                <CardDescription>
+                  Configure os valores que você cobra dos seus clientes
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Mensalidade Padrão (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={profile?.clientMonthlyPrice || '99.99'}
+                    onChange={(e) => {
+                      updateResellerMutation.mutate({
+                        clientMonthlyPrice: e.target.value,
+                      });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Valor padrão cobrado mensalmente de cada cliente
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Taxa de Setup (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={profile?.clientSetupFee || '0'}
+                    onChange={(e) => {
+                      updateResellerMutation.mutate({
+                        clientSetupFee: e.target.value,
+                      });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Taxa única de ativação (opcional)
+                  </p>
+                </div>
+                <div className="pt-4 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Seu custo por cliente:</span>
+                    <span className="font-medium">R$ {profile?.costPerClient || '49.99'}/mês</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm text-muted-foreground">Seu lucro por cliente:</span>
+                    <span className="font-medium text-green-600">
+                      R$ {(Number(profile?.clientMonthlyPrice || 99.99) - Number(profile?.costPerClient || 49.99)).toFixed(2)}/mês
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Branding */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Palette className="h-5 w-5" />
+                  Sua Marca
+                </CardTitle>
+                <CardDescription>
+                  Personalize a aparência do seu sistema
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Nome da Empresa</Label>
+                  <Input
+                    value={profile?.companyName || ''}
+                    onChange={(e) => {
+                      updateResellerMutation.mutate({
+                        companyName: e.target.value,
+                      });
+                    }}
+                    placeholder="Nome da sua empresa"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Cor Primária</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={profile?.primaryColor || '#000000'}
+                        onChange={(e) => {
+                          updateResellerMutation.mutate({
+                            primaryColor: e.target.value,
+                          });
+                        }}
+                        className="w-10 h-10 rounded cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Cor Secundária</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={profile?.secondaryColor || '#ffffff'}
+                        onChange={(e) => {
+                          updateResellerMutation.mutate({
+                            secondaryColor: e.target.value,
+                          });
+                        }}
+                        className="w-10 h-10 rounded cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Destaque</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={profile?.accentColor || '#22c55e'}
+                        onChange={(e) => {
+                          updateResellerMutation.mutate({
+                            accentColor: e.target.value,
+                          });
+                        }}
+                        className="w-10 h-10 rounded cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Contato */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Phone className="h-5 w-5" />
+                  Informações de Contato
+                </CardTitle>
+                <CardDescription>
+                  Esses dados serão exibidos para seus clientes
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Email de Suporte</Label>
+                  <Input
+                    type="email"
+                    value={profile?.supportEmail || ''}
+                    onChange={(e) => {
+                      updateResellerMutation.mutate({
+                        supportEmail: e.target.value,
+                      });
+                    }}
+                    placeholder="suporte@suaempresa.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefone/WhatsApp</Label>
+                  <Input
+                    value={profile?.supportPhone || ''}
+                    onChange={(e) => {
+                      updateResellerMutation.mutate({
+                        supportPhone: e.target.value,
+                      });
+                    }}
+                    placeholder="(11) 99999-9999"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Mensagem de Boas-vindas</Label>
+                  <Textarea
+                    value={profile?.welcomeMessage || ''}
+                    onChange={(e) => {
+                      updateResellerMutation.mutate({
+                        welcomeMessage: e.target.value,
+                      });
+                    }}
+                    placeholder="Mensagem personalizada para seus clientes..."
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
       </Tabs>
+
+      {/* Dialog Centralizado de Detalhes do Cliente */}
+      <Dialog open={isClientDetailsOpen} onOpenChange={setIsClientDetailsOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {isLoadingClientDetails ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : clientDetails ? (
+            <>
+              <DialogHeader className="space-y-4 pb-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Users className="h-8 w-8 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <DialogTitle className="text-2xl">{clientDetails.user?.name || 'Cliente'}</DialogTitle>
+                    <DialogDescription className="flex items-center gap-2 mt-1">
+                      <Mail className="h-4 w-4" />
+                      {clientDetails.user?.email}
+                    </DialogDescription>
+                  </div>
+                  <Badge variant={
+                    clientDetails.client.status === 'active' ? 'default' :
+                    clientDetails.client.status === 'suspended' ? 'secondary' :
+                    'destructive'
+                  } className="text-sm py-1 px-3">
+                    {clientDetails.client.status === 'active' ? '✅ Ativo' :
+                     clientDetails.client.status === 'suspended' ? '⏸️ Suspenso' :
+                     clientDetails.client.status === 'pending' ? '⏳ Pendente' :
+                     '❌ Cancelado'}
+                  </Badge>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-6">
+                {/* Status de Conexão WhatsApp */}
+                <Card className={cn(
+                  "border-2",
+                  clientDetails.connection?.isConnected 
+                    ? "border-green-500 bg-green-50 dark:bg-green-950" 
+                    : "border-orange-500 bg-orange-50 dark:bg-orange-950"
+                )}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {clientDetails.connection?.isConnected ? (
+                          <Wifi className="h-6 w-6 text-green-600" />
+                        ) : (
+                          <WifiOff className="h-6 w-6 text-orange-600" />
+                        )}
+                        <div>
+                          <p className="font-medium">
+                            {clientDetails.connection?.isConnected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado'}
+                          </p>
+                          {clientDetails.connection?.phoneNumber && (
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {clientDetails.connection.phoneNumber}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Conversas</p>
+                        <p className="text-lg font-bold">{clientDetails.stats.totalConversations}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Informações Financeiras */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Informações Financeiras
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-sm text-muted-foreground">Valor Mensal</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          R$ {clientDetails.client.clientPrice || '99.99'}
+                        </p>
+                        {clientDetails.client.isFreeClient && (
+                          <Badge variant="outline" className="mt-2 text-green-600">🎁 Cliente Demo</Badge>
+                        )}
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-sm text-muted-foreground">Seu Custo</p>
+                        <p className="text-2xl font-bold">
+                          R$ {clientDetails.client.monthlyCost || '49.99'}
+                        </p>
+                        <Badge variant="outline" className="mt-2">
+                          Lucro: R$ {(
+                            parseFloat(clientDetails.client.clientPrice || '99.99') - 
+                            parseFloat(clientDetails.client.monthlyCost || '49.99')
+                          ).toFixed(2)}
+                        </Badge>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+
+                {/* Datas Importantes */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Datas
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between p-2 bg-muted/50 rounded">
+                      <span className="text-muted-foreground">Cadastro</span>
+                      <span>{clientDetails.user?.createdAt ? new Date(clientDetails.user.createdAt).toLocaleDateString('pt-BR') : '-'}</span>
+                    </div>
+                    <div className="flex justify-between p-2 bg-muted/50 rounded">
+                      <span className="text-muted-foreground">Ativação</span>
+                      <span>{clientDetails.client.activatedAt ? new Date(clientDetails.client.activatedAt).toLocaleDateString('pt-BR') : '-'}</span>
+                    </div>
+                    {clientDetails.client.nextPaymentDate && (
+                      <div className="flex justify-between p-2 bg-muted/50 rounded">
+                        <span className="text-muted-foreground">Próximo Pagamento</span>
+                        <span className="font-medium">{new Date(clientDetails.client.nextPaymentDate).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    )}
+                    {clientDetails.client.suspendedAt && (
+                      <div className="flex justify-between p-2 bg-orange-50 dark:bg-orange-950 rounded">
+                        <span className="text-orange-600">Suspenso em</span>
+                        <span className="text-orange-600">{new Date(clientDetails.client.suspendedAt).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Faturas Pendentes/Vencidas */}
+                {!clientDetails.client.isFreeClient && parseFloat(clientDetails.client.clientPrice || '0') > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      Faturas
+                    </h3>
+                    {(() => {
+                      const invoices = getClientInvoices();
+                      if (invoices.length === 0) {
+                        return (
+                          <Card className="border-green-200 bg-green-50 dark:bg-green-950">
+                            <CardContent className="p-4 text-center">
+                              <CheckCircle2 className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                              <p className="text-green-700 dark:text-green-300">Todas as faturas pagas!</p>
+                            </CardContent>
+                          </Card>
+                        );
+                      }
+                      return (
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {invoices.map((invoice) => (
+                            <div 
+                              key={invoice.referenceMonth}
+                              className={cn(
+                                "flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors",
+                                invoice.status === 'overdue' && "border-red-300 bg-red-50 dark:bg-red-950",
+                                invoice.status === 'pending' && "border-yellow-300 bg-yellow-50 dark:bg-yellow-950",
+                                invoice.status === 'upcoming' && "border-blue-300 bg-blue-50 dark:bg-blue-950"
+                              )}
+                              onClick={() => openPayInvoice(invoice)}
+                            >
+                              <div>
+                                <p className="font-medium">
+                                  {new Date(invoice.referenceMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Vence: {invoice.dueDate.toLocaleDateString('pt-BR')}
+                                </p>
+                              </div>
+                              <div className="text-right flex items-center gap-2">
+                                <div>
+                                  <p className="font-bold">R$ {invoice.amount.toFixed(2)}</p>
+                                  <Badge variant={
+                                    invoice.status === 'overdue' ? 'destructive' :
+                                    invoice.status === 'pending' ? 'outline' :
+                                    'secondary'
+                                  } className="text-xs">
+                                    {invoice.status === 'overdue' ? `⚠️ Vencida há ${Math.abs(invoice.daysUntilDue)} dias` :
+                                     invoice.status === 'pending' ? `⏳ Vence em ${invoice.daysUntilDue} dias` :
+                                     '🔜 Antecipar'}
+                                  </Badge>
+                                </div>
+                                <Button size="sm" variant={invoice.status === 'overdue' ? 'destructive' : 'outline'}>
+                                  {invoice.status === 'overdue' ? 'Pagar' : 
+                                   invoice.status === 'pending' ? 'Confirmar' : 
+                                   'Antecipar'}
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Histórico de Pagamentos */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Histórico de Pagamentos
+                  </h3>
+                  {clientDetails.payments.length === 0 ? (
+                    <Card>
+                      <CardContent className="p-4 text-center text-muted-foreground">
+                        Nenhum pagamento registrado
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {clientDetails.payments.filter(p => p.status === 'approved').map((payment) => (
+                        <div 
+                          key={payment.id} 
+                          className="flex items-center justify-between p-3 border rounded-lg bg-green-50/50 dark:bg-green-950/20"
+                        >
+                          <div>
+                            <p className="font-medium">R$ {payment.amount}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {payment.referenceMonth 
+                                ? new Date(payment.referenceMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+                                : payment.description || payment.paymentType
+                              }
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant="default" className="mb-1 bg-green-600">
+                              ✅ Pago
+                            </Badge>
+                            <p className="text-xs text-muted-foreground">
+                              {payment.paidAt 
+                                ? new Date(payment.paidAt).toLocaleDateString('pt-BR')
+                                : new Date(payment.createdAt).toLocaleDateString('pt-BR')
+                              }
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Ações */}
+                <Separator />
+                <div className="space-y-3">
+                  <h3 className="font-semibold">Ações</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Reset de Senha */}
+                    <Dialog open={isResetPasswordOpen} onOpenChange={setIsResetPasswordOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" className="w-full gap-2">
+                          <Key className="h-4 w-4" />
+                          Resetar Senha
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Resetar Senha do Cliente</DialogTitle>
+                          <DialogDescription>
+                            Gere uma nova senha para {clientDetails.user?.name}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label>Nova Senha (deixe em branco para gerar automaticamente)</Label>
+                            <Input
+                              type="text"
+                              value={newPasswordForReset}
+                              onChange={(e) => setNewPasswordForReset(e.target.value)}
+                              placeholder="Deixe vazio para gerar automaticamente"
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsResetPasswordOpen(false)}>
+                            Cancelar
+                          </Button>
+                          <Button 
+                            onClick={handleResetPassword}
+                            disabled={resetPasswordMutation.isPending}
+                          >
+                            {resetPasswordMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Resetar Senha
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+
+                    {/* Dialog de Confirmar Pagamento */}
+                    <Dialog open={isMarkPaidOpen} onOpenChange={(open) => {
+                      setIsMarkPaidOpen(open);
+                      if (!open) setSelectedInvoice(null);
+                    }}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Confirmar Pagamento</DialogTitle>
+                          <DialogDescription>
+                            {selectedInvoice && (
+                              <>
+                                Confirme o recebimento da fatura de{' '}
+                                <strong>{new Date(selectedInvoice.referenceMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</strong>
+                              </>
+                            )}
+                          </DialogDescription>
+                        </DialogHeader>
+                        {selectedInvoice && (
+                          <div className="space-y-4 py-4">
+                            <div className={cn(
+                              "p-4 rounded-lg border-2",
+                              selectedInvoice.status === 'overdue' && "border-red-300 bg-red-50 dark:bg-red-950",
+                              selectedInvoice.status === 'pending' && "border-yellow-300 bg-yellow-50 dark:bg-yellow-950",
+                              selectedInvoice.status === 'upcoming' && "border-blue-300 bg-blue-50 dark:bg-blue-950"
+                            )}>
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <p className="text-sm text-muted-foreground">Valor da Fatura</p>
+                                  <p className="text-2xl font-bold">R$ {selectedInvoice.amount.toFixed(2)}</p>
+                                </div>
+                                <Badge variant={selectedInvoice.status === 'overdue' ? 'destructive' : 'outline'}>
+                                  {selectedInvoice.status === 'overdue' ? '⚠️ Vencida' :
+                                   selectedInvoice.status === 'pending' ? '⏳ A vencer' :
+                                   '🔜 Antecipação'}
+                                </Badge>
+                              </div>
+                              <div className="mt-2 text-sm text-muted-foreground">
+                                <p>Vencimento: {selectedInvoice.dueDate.toLocaleDateString('pt-BR')}</p>
+                                <p>Referência: {new Date(selectedInvoice.referenceMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</p>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Observação (opcional)</Label>
+                              <Input
+                                value={markPaidDescription}
+                                onChange={(e) => setMarkPaidDescription(e.target.value)}
+                                placeholder="Ex: PIX recebido, Dinheiro..."
+                              />
+                            </div>
+                          </div>
+                        )}
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => {
+                            setIsMarkPaidOpen(false);
+                            setSelectedInvoice(null);
+                          }}>
+                            Cancelar
+                          </Button>
+                          <Button 
+                            onClick={handleMarkAsPaid}
+                            disabled={markAsPaidMutation.isPending}
+                            variant={selectedInvoice?.status === 'overdue' ? 'destructive' : 'default'}
+                          >
+                            {markAsPaidMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            ✅ Confirmar Pagamento
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+
+                    {/* Suspender/Reativar */}
+                    {clientDetails.client.status === 'active' && (
+                      <Button 
+                        variant="outline" 
+                        className="w-full gap-2 text-orange-600 hover:text-orange-700"
+                        onClick={() => {
+                          suspendClientMutation.mutate(selectedClientId!);
+                          closeClientDetails();
+                        }}
+                      >
+                        <Pause className="h-4 w-4" />
+                        Suspender
+                      </Button>
+                    )}
+                    {clientDetails.client.status === 'suspended' && (
+                      <Button 
+                        variant="outline" 
+                        className="w-full gap-2 text-green-600 hover:text-green-700"
+                        onClick={() => {
+                          reactivateClientMutation.mutate(selectedClientId!);
+                          closeClientDetails();
+                        }}
+                      >
+                        <Play className="h-4 w-4" />
+                        Reativar
+                      </Button>
+                    )}
+
+                    {/* Cancelar */}
+                    {clientDetails.client.status !== 'cancelled' && (
+                      <Button 
+                        variant="outline" 
+                        className="w-full gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => {
+                          if (confirm('Tem certeza que deseja cancelar este cliente? Esta ação não pode ser desfeita.')) {
+                            cancelClientMutation.mutate(selectedClientId!);
+                            closeClientDetails();
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Cancelar Cliente
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              Cliente não encontrado
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Componente separado para a aba "Minha Assinatura"
+function MySubscriptionTab({ profile }: { profile: ResellerProfile | undefined }) {
+  const { toast } = useToast();
+  const [isPayPixOpen, setIsPayPixOpen] = useState(false);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
+  const [pixData, setPixData] = useState<{
+    qrCode: string;
+    qrCodeBase64: string;
+    amount: number;
+    referenceMonth: string;
+  } | null>(null);
+  const [isGeneratingPix, setIsGeneratingPix] = useState(false);
+  const [isCheckingPayment, setIsCheckingPayment] = useState(false);
+
+  // Buscar dados da assinatura do revendedor
+  const { data: subscription, isLoading, refetch } = useQuery<ResellerSubscription>({
+    queryKey: ["/api/reseller/my-subscription"],
+    refetchInterval: 30000, // Atualizar a cada 30 segundos
+  });
+
+  // Buscar histórico de faturas
+  const { data: invoices, isLoading: isLoadingInvoices } = useQuery<ResellerInvoice[]>({
+    queryKey: ["/api/reseller/my-invoices"],
+  });
+
+  // Gerar PIX para pagamento
+  const generatePix = async (invoiceId: number) => {
+    setIsGeneratingPix(true);
+    try {
+      const response = await apiRequest("POST", `/api/reseller/my-invoices/${invoiceId}/pay-pix`);
+      const data = await response.json();
+      setPixData(data);
+      setSelectedInvoiceId(invoiceId);
+      setIsPayPixOpen(true);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao gerar PIX",
+        description: error.message || "Tente novamente mais tarde",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPix(false);
+    }
+  };
+
+  // Verificar status do pagamento
+  const checkPayment = async (invoiceId: number) => {
+    setIsCheckingPayment(true);
+    try {
+      const response = await apiRequest("GET", `/api/reseller/my-invoices/${invoiceId}/check-payment`);
+      const data = await response.json();
+      if (data.status === 'paid') {
+        toast({
+          title: "Pagamento confirmado!",
+          description: "Sua fatura foi paga com sucesso.",
+        });
+        setIsPayPixOpen(false);
+        setPixData(null);
+        refetch();
+      } else {
+        toast({
+          title: "Pagamento ainda não confirmado",
+          description: "Continue aguardando ou tente novamente em alguns segundos.",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao verificar pagamento",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingPayment(false);
+    }
+  };
+
+  // Copiar código PIX
+  const copyPixCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({
+      title: "Copiado!",
+      description: "Código PIX copiado para a área de transferência",
+    });
+  };
+
+  // Formatar mês de referência
+  const formatMonth = (monthStr: string | undefined | null) => {
+    if (!monthStr) return 'Mês indisponível';
+    const parts = monthStr.split('-');
+    if (parts.length !== 2) return monthStr;
+    const [year, month] = parts;
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const monthIndex = parseInt(month) - 1;
+    if (monthIndex < 0 || monthIndex > 11) return monthStr;
+    return `${months[monthIndex]}/${year}`;
+  };
+
+  // Status badge color
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return <Badge className="bg-green-500">Pago</Badge>;
+      case 'pending':
+        return <Badge variant="outline" className="border-yellow-500 text-yellow-600">Pendente</Badge>;
+      case 'overdue':
+        return <Badge variant="destructive">Vencido</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Minha Assinatura</h2>
+          <p className="text-sm text-muted-foreground">
+            Gerencie suas faturas com o sistema AgenteZap
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Atualizar
+        </Button>
+      </div>
+
+      {/* Card de Status Principal */}
+      <Card className={cn(
+        "border-2",
+        subscription?.resellerStatus === 'blocked' && "border-red-500 bg-red-50 dark:bg-red-950",
+        subscription?.resellerStatus === 'overdue' && "border-yellow-500 bg-yellow-50 dark:bg-yellow-950",
+        subscription?.resellerStatus === 'active' && "border-green-500"
+      )}>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Resumo da Assinatura
+            </CardTitle>
+            {subscription?.resellerStatus === 'blocked' && (
+              <Badge variant="destructive" className="animate-pulse">BLOQUEADO</Badge>
+            )}
+            {subscription?.resellerStatus === 'overdue' && (
+              <Badge className="bg-yellow-500 animate-pulse">VENCIDO</Badge>
+            )}
+            {subscription?.resellerStatus === 'active' && (
+              <Badge className="bg-green-500">EM DIA</Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <Users className="h-6 w-6 mx-auto mb-2 text-blue-500" />
+              <p className="text-2xl font-bold">{subscription?.activeClients || 0}</p>
+              <p className="text-sm text-muted-foreground">Clientes Ativos</p>
+            </div>
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <DollarSign className="h-6 w-6 mx-auto mb-2 text-green-500" />
+              <p className="text-2xl font-bold">R$ {subscription?.costPerClient?.toFixed(2) || '49.99'}</p>
+              <p className="text-sm text-muted-foreground">Por Cliente</p>
+            </div>
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <CreditCard className="h-6 w-6 mx-auto mb-2 text-purple-500" />
+              <p className="text-2xl font-bold">R$ {subscription?.totalMonthly?.toFixed(2) || '0.00'}</p>
+              <p className="text-sm text-muted-foreground">Total Mensal</p>
+            </div>
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <Calendar className="h-6 w-6 mx-auto mb-2 text-orange-500" />
+              <p className="text-2xl font-bold">Dia {subscription?.billingDay || 10}</p>
+              <p className="text-sm text-muted-foreground">Vencimento</p>
+            </div>
+          </div>
+
+          {/* Aviso de Bloqueio */}
+          {subscription?.resellerStatus === 'blocked' && (
+            <div className="mt-4 p-4 bg-red-100 dark:bg-red-900 rounded-lg">
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
+                <AlertCircle className="h-5 w-5" />
+                <span className="font-semibold">Sua conta está bloqueada!</span>
+              </div>
+              <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                Você está com {subscription.daysPastDue} dias de atraso. Regularize sua situação para liberar o acesso dos seus clientes.
+              </p>
+            </div>
+          )}
+
+          {/* Aviso de Vencimento */}
+          {subscription?.resellerStatus === 'overdue' && (
+            <div className="mt-4 p-4 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
+              <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
+                <Clock className="h-5 w-5" />
+                <span className="font-semibold">Fatura vencida!</span>
+              </div>
+              <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
+                Você tem {subscription.daysPastDue} dias de atraso. Pague até 10 dias para evitar o bloqueio.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Faturas Pendentes */}
+      {subscription?.pendingInvoices && subscription.pendingInvoices.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-yellow-500" />
+              Faturas Pendentes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {subscription.pendingInvoices.map((invoice) => (
+                <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <p className="font-semibold">{formatMonth(invoice.referenceMonth)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Vencimento: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {invoice.activeClients} clientes
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-bold">R$ {parseFloat(invoice.totalAmount).toFixed(2)}</p>
+                    {getStatusBadge(invoice.status)}
+                    <div className="mt-2">
+                      <Button 
+                        size="sm" 
+                        onClick={() => generatePix(invoice.id)}
+                        disabled={isGeneratingPix}
+                      >
+                        {isGeneratingPix ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <CreditCard className="h-4 w-4 mr-2" />
+                        )}
+                        Pagar com PIX
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Histórico de Faturas */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Histórico de Faturas</CardTitle>
+          <CardDescription>Todas as suas faturas com o sistema</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingInvoices ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : invoices?.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Nenhuma fatura ainda</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Referência</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead>Clientes</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Pago em</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invoices?.map((invoice) => (
+                  <TableRow key={invoice.id}>
+                    <TableCell className="font-medium">
+                      {formatMonth(invoice.referenceMonth)}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell>{invoice.activeClients}</TableCell>
+                    <TableCell className="font-semibold">
+                      R$ {parseFloat(invoice.totalAmount).toFixed(2)}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(invoice.status)}</TableCell>
+                    <TableCell>
+                      {invoice.paidAt 
+                        ? new Date(invoice.paidAt).toLocaleDateString('pt-BR')
+                        : '-'
+                      }
+                    </TableCell>
+                    <TableCell>
+                      {invoice.status !== 'paid' && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => generatePix(invoice.id)}
+                          disabled={isGeneratingPix}
+                        >
+                          Pagar
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Modal de Pagamento PIX */}
+      <Dialog open={isPayPixOpen} onOpenChange={setIsPayPixOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Pagar com PIX
+            </DialogTitle>
+            <DialogDescription>
+              Escaneie o QR Code ou copie o código PIX
+            </DialogDescription>
+          </DialogHeader>
+
+          {pixData && (
+            <div className="space-y-4">
+              {/* Info da fatura */}
+              <div className="p-4 bg-muted rounded-lg text-center">
+                <p className="text-sm text-muted-foreground">Fatura de</p>
+                <p className="text-lg font-semibold">{formatMonth(pixData.referenceMonth)}</p>
+                <p className="text-2xl font-bold text-green-600">
+                  R$ {pixData.amount.toFixed(2)}
+                </p>
+              </div>
+
+              {/* QR Code */}
+              {pixData.qrCodeBase64 && (
+                <div className="flex justify-center">
+                  <img 
+                    src={`data:image/png;base64,${pixData.qrCodeBase64}`}
+                    alt="QR Code PIX"
+                    className="w-48 h-48 border rounded-lg"
+                  />
+                </div>
+              )}
+
+              {/* Código PIX para copiar */}
+              <div className="space-y-2">
+                <Label>Código PIX (Copia e Cola)</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    value={pixData.qrCode} 
+                    readOnly 
+                    className="text-xs"
+                  />
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={() => copyPixCode(pixData.qrCode)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Botão de verificar pagamento */}
+              <Button 
+                className="w-full" 
+                onClick={() => selectedInvoiceId && checkPayment(selectedInvoiceId)}
+                disabled={isCheckingPayment}
+              >
+                {isCheckingPayment ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Já paguei! Verificar pagamento
+              </Button>
+
+              <p className="text-xs text-center text-muted-foreground">
+                O pagamento é processado automaticamente. Se já pagou, clique em verificar.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

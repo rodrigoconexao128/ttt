@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useState } from "react";
 import { 
   Lock, 
   CreditCard, 
@@ -9,12 +10,35 @@ import {
   Sparkles,
   CheckCircle,
   ArrowRight,
-  X
+  X,
+  Copy,
+  Building,
+  User,
+  Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogOverlay } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+
+// Informações do revendedor para clientes de revenda
+interface ResellerInfo {
+  isResellerClient: boolean;
+  clientId: string;
+  status: string;
+  nextPaymentDate: string | null;
+  clientPrice?: string;
+  reseller: {
+    companyName: string;
+    pixKey?: string;
+    pixKeyType?: string;
+    pixHolderName?: string;
+    pixBankName?: string;
+    supportPhone?: string;
+    supportEmail?: string;
+  };
+}
 
 interface AccessStatus {
   accessStatus: 'active' | 'trial' | 'blocked' | 'expired';
@@ -31,11 +55,14 @@ interface AccessStatus {
   trialMessagesLimit: number;
   trialLimitReached: boolean;
   message: string | null;
+  resellerInfo?: ResellerInfo | null;
 }
 
 // Full screen blocker when access is denied - Now as elegant modal overlay
 export function AccessBlocker({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [pixCopied, setPixCopied] = useState(false);
   
   const { data: accessStatus, isLoading } = useQuery<AccessStatus>({
     queryKey: ["/api/access-status"],
@@ -69,7 +96,9 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
 
   // If access should be blocked, show overlay modal while keeping background visible
   if (accessStatus?.shouldBlock) {
-    const isExpired = accessStatus.blockReason === 'subscription_expired';
+    const isExpired = accessStatus.blockReason === 'subscription_expired' || accessStatus.blockReason === 'reseller_client_expired';
+    const isResellerClient = (accessStatus.blockReason === 'reseller_client_expired' || accessStatus.blockReason === 'reseller_blocked') && accessStatus.resellerInfo;
+    const isResellerBlocked = accessStatus.blockReason === 'reseller_blocked'; // Novo: bloqueio em cascata
     const percentUsed = 100;
 
     return (
@@ -88,20 +117,129 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
                 <Lock className="w-7 h-7 text-amber-600 dark:text-amber-400" />
               </div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-                {isExpired ? 'Assinatura Expirada' : 'Limite de Teste Atingido'}
+                {isResellerBlocked
+                  ? 'Sistema Temporariamente Indisponível'
+                  : isResellerClient 
+                    ? 'Pagamento Pendente' 
+                    : isExpired 
+                      ? 'Assinatura Expirada' 
+                      : 'Limite de Teste Atingido'}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                {isExpired 
-                  ? 'Renove para continuar usando todos os recursos'
-                  : 'Assine um plano para continuar vendendo'
+                {isResellerBlocked
+                  ? `Entre em contato com ${accessStatus.resellerInfo?.reseller.companyName} para mais informações`
+                  : isResellerClient
+                    ? `Entre em contato com ${accessStatus.resellerInfo?.reseller.companyName}`
+                    : isExpired 
+                      ? 'Renove para continuar usando todos os recursos'
+                      : 'Assine um plano para continuar vendendo'
                 }
               </p>
             </div>
             
             <div className="p-6 space-y-5">
-              {/* Status Info - Clean Card */}
-              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3">
-                {isExpired ? (
+              {/* Seção especial para cliente de revenda */}
+              {isResellerClient && accessStatus.resellerInfo && (
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 rounded-xl p-5 space-y-4 border border-amber-200 dark:border-amber-800">
+                  {/* Cabeçalho com valor */}
+                  <div className="text-center pb-3 border-b border-amber-200 dark:border-amber-700">
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mb-1">Valor da mensalidade</p>
+                    <p className="text-3xl font-bold text-slate-900 dark:text-white">
+                      R$ {Number(accessStatus.resellerInfo.clientPrice || "99.99").toFixed(2).replace('.', ',')}
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      Pague via PIX para {accessStatus.resellerInfo.reseller.companyName}
+                    </p>
+                  </div>
+                  
+                  {/* Dados bancários */}
+                  {accessStatus.resellerInfo.reseller.pixKey && (
+                    <div className="space-y-3">
+                      {/* Nome do Titular */}
+                      {accessStatus.resellerInfo.reseller.pixHolderName && (
+                        <div className="flex items-center gap-3 p-2 bg-white dark:bg-slate-800 rounded-lg">
+                          <User className="w-4 h-4 text-slate-500" />
+                          <div className="flex-1">
+                            <p className="text-xs text-slate-500">Titular</p>
+                            <p className="font-medium text-slate-900 dark:text-white text-sm">
+                              {accessStatus.resellerInfo.reseller.pixHolderName}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Banco */}
+                      {accessStatus.resellerInfo.reseller.pixBankName && (
+                        <div className="flex items-center gap-3 p-2 bg-white dark:bg-slate-800 rounded-lg">
+                          <Building className="w-4 h-4 text-slate-500" />
+                          <div className="flex-1">
+                            <p className="text-xs text-slate-500">Banco</p>
+                            <p className="font-medium text-slate-900 dark:text-white text-sm">
+                              {accessStatus.resellerInfo.reseller.pixBankName}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Chave PIX com botão copiar */}
+                      <div className="p-3 bg-white dark:bg-slate-800 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-slate-500">
+                            Chave PIX ({accessStatus.resellerInfo.reseller.pixKeyType?.toUpperCase()})
+                          </p>
+                          <Button
+                            size="sm"
+                            variant={pixCopied ? "default" : "outline"}
+                            className={pixCopied ? "bg-green-600 text-white" : ""}
+                            onClick={() => {
+                              navigator.clipboard.writeText(accessStatus.resellerInfo!.reseller.pixKey!);
+                              setPixCopied(true);
+                              toast({ title: "Chave PIX copiada!", description: "Cole no app do seu banco" });
+                              setTimeout(() => setPixCopied(false), 3000);
+                            }}
+                          >
+                            {pixCopied ? (
+                              <><CheckCircle className="w-3 h-3 mr-1" /> Copiado!</>
+                            ) : (
+                              <><Copy className="w-3 h-3 mr-1" /> Copiar</>
+                            )}
+                          </Button>
+                        </div>
+                        <code className="block w-full text-sm font-mono bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded border break-all">
+                          {accessStatus.resellerInfo.reseller.pixKey}
+                        </code>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Botão Enviar Comprovante via WhatsApp */}
+                  {accessStatus.resellerInfo.reseller.supportPhone && (
+                    <Button
+                      className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-5"
+                      onClick={() => {
+                        const phone = accessStatus.resellerInfo!.reseller.supportPhone!.replace(/\D/g, '');
+                        const valor = Number(accessStatus.resellerInfo!.clientPrice || "99.99").toFixed(2).replace('.', ',');
+                        const msg = `Olá! Acabei de fazer o pagamento de R$ ${valor} via PIX. Segue o comprovante:`;
+                        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+                      }}
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Enviar Comprovante via WhatsApp
+                    </Button>
+                  )}
+                  
+                  {accessStatus.resellerInfo.reseller.supportEmail && (
+                    <p className="text-xs text-center text-amber-600 dark:text-amber-400">
+                      Ou envie por email: {accessStatus.resellerInfo.reseller.supportEmail}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Status Info - Clean Card (para não-revenda) */}
+              {!isResellerClient && (
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3">
+                  {isExpired ? (
                   <>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
@@ -142,8 +280,10 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
                   </>
                 )}
               </div>
+              )}
 
-              {/* Benefits - Professional list */}
+              {/* Benefits - Professional list (não mostrar para cliente de revenda) */}
+              {!isResellerClient && (
               <div className="space-y-2.5">
                 <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-500" />
@@ -164,8 +304,10 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
                   ))}
                 </ul>
               </div>
+              )}
 
-              {/* Action Buttons */}
+              {/* Action Buttons (não mostrar para cliente de revenda) */}
+              {!isResellerClient && (
               <div className="space-y-2.5 pt-2">
                 <Button 
                   className="w-full bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-semibold py-5 text-base shadow-lg hover:shadow-xl transition-all duration-200"
@@ -187,8 +329,10 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
                   </Button>
                 )}
               </div>
+              )}
 
-              {/* Contact support */}
+              {/* Contact support - texto diferente para cliente de revenda */}
+              {!isResellerClient && (
               <p className="text-xs text-center text-slate-400 dark:text-slate-500 pt-2">
                 Precisa de ajuda?{' '}
                 <a 
@@ -200,6 +344,7 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
                   Fale conosco pelo WhatsApp
                 </a>
               </p>
+              )}
             </div>
           </div>
         </div>

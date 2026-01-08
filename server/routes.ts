@@ -9,7 +9,7 @@ import { registerFollowUpRoutes } from "./routes_user_followup";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 import { withRetry, db } from "./db";
 import { eq, and, gte, desc, inArray } from "drizzle-orm";
-import { subscriptions, paymentHistory } from "@shared/schema";
+import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users } from "@shared/schema";
 import { resellerService } from "./resellerService";
 
 // ============================================
@@ -1998,11 +1998,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== ACCESS CONTROL ROUTES ====================
   
   // Check user access status (subscription + trial messages)
+  // Também verifica se é cliente de revendedor e aplica lógica de bloqueio em CASCATA
+  // Se o REVENDEDOR está bloqueado, TODOS os clientes dele são bloqueados
   app.get("/api/access-status", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
       const connection = await storage.getConnectionByUserId(userId);
       const subscription = await storage.getUserSubscription(userId);
+      
+      // Verificar se é cliente de revendedor
+      const resellerClient = await storage.getResellerClientByUserId(userId);
+      let resellerInfo = null;
+      let resellerBlocked = false; // Flag para bloqueio em cascata
+      
+      if (resellerClient) {
+        const reseller = await storage.getReseller(resellerClient.resellerId);
+        if (reseller) {
+          // VERIFICAR SE O REVENDEDOR ESTÁ BLOQUEADO (CASCATA)
+          if (reseller.resellerStatus === 'blocked') {
+            resellerBlocked = true;
+          }
+          
+          resellerInfo = {
+            isResellerClient: true,
+            clientId: resellerClient.id,
+            status: resellerClient.status,
+            nextPaymentDate: resellerClient.nextPaymentDate,
+            resellerBlocked, // Informar se o bloqueio é por causa do revendedor
+            clientPrice: resellerClient.clientPrice || reseller.clientMonthlyPrice,
+            reseller: {
+              companyName: reseller.companyName,
+              pixKey: reseller.pixKey,
+              pixKeyType: reseller.pixKeyType,
+              pixHolderName: (reseller as any).pixHolderName,
+              pixBankName: (reseller as any).pixBankName,
+              supportPhone: reseller.supportPhone,
+              supportEmail: reseller.supportEmail,
+              resellerStatus: reseller.resellerStatus, // Status do revendedor
+            },
+          };
+        }
+      }
       
       const FREE_TRIAL_LIMIT = 25;
       
@@ -2012,16 +2048,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         agentMessagesCount = await storage.getAgentMessagesCount(connection.id);
       }
       
-      // Check subscription status
-      const hasActiveSubscription = subscription?.status === 'active';
-      const isSubscriptionExpired = subscription?.dataFim 
+      // Check subscription status - considerar cliente de revenda
+      let hasActiveSubscription = subscription?.status === 'active';
+      let isSubscriptionExpired = subscription?.dataFim 
         ? new Date(subscription.dataFim) < new Date() 
         : false;
       
+      // Se for cliente de revendedor, verificar status do cliente na revenda
+      if (resellerClient) {
+        // PRIMEIRO: Verificar se o REVENDEDOR está bloqueado (cascata)
+        if (resellerBlocked) {
+          hasActiveSubscription = false;
+          isSubscriptionExpired = true;
+        }
+        // Cliente gratuito da revenda nunca é bloqueado (exceto se revendedor bloqueado)
+        else if (resellerClient.isFreeClient) {
+          hasActiveSubscription = true;
+          isSubscriptionExpired = false;
+        } else {
+          // Cliente pago da revenda
+          if (resellerClient.status === 'suspended' || resellerClient.status === 'cancelled' || resellerClient.status === 'blocked') {
+            hasActiveSubscription = false;
+            isSubscriptionExpired = true;
+          } else if (resellerClient.status === 'active') {
+            hasActiveSubscription = true;
+            // Verificar se está vencido pela data de próximo pagamento
+            if (resellerClient.nextPaymentDate) {
+              const nextPayment = new Date(resellerClient.nextPaymentDate);
+              const today = new Date();
+              // Se a data de vencimento passou há mais de 5 dias, considera expirado
+              const daysOverdue = Math.floor((today.getTime() - nextPayment.getTime()) / (1000 * 60 * 60 * 24));
+              if (daysOverdue > 5) {
+                isSubscriptionExpired = true;
+              }
+            }
+          }
+        }
+      }
+      
       // Calculate days remaining
-      const daysRemaining = subscription?.dataFim 
+      let daysRemaining = subscription?.dataFim 
         ? Math.ceil((new Date(subscription.dataFim).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
         : 0;
+        
+      // Para cliente de revenda, usar nextPaymentDate
+      if (resellerClient && resellerClient.nextPaymentDate) {
+        daysRemaining = Math.ceil((new Date(resellerClient.nextPaymentDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      }
       
       // Trial messages
       const trialMessagesUsed = agentMessagesCount;
@@ -2034,9 +2107,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (hasActiveSubscription && !isSubscriptionExpired) {
         accessStatus = 'active';
-      } else if (subscription && isSubscriptionExpired) {
+      } else if ((subscription || resellerClient) && isSubscriptionExpired) {
         accessStatus = 'expired';
-        blockReason = 'subscription_expired';
+        // Diferenciar se o bloqueio é por causa do revendedor
+        if (resellerBlocked) {
+          blockReason = 'reseller_blocked'; // Novo: revendedor bloqueado
+        } else if (resellerClient) {
+          blockReason = 'reseller_client_expired';
+        } else {
+          blockReason = 'subscription_expired';
+        }
       } else if (trialLimitReached) {
         accessStatus = 'blocked';
         blockReason = 'trial_limit_reached';
@@ -2047,18 +2127,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Should block the system?
       const shouldBlock = accessStatus === 'blocked' || accessStatus === 'expired';
       
+      // Mensagem customizada para cliente de revenda
+      let message = null;
+      if (shouldBlock) {
+        if (blockReason === 'reseller_blocked' && resellerInfo) {
+          // Bloqueio em cascata - revendedor não pagou o sistema
+          message = `O sistema está temporariamente indisponível. Entre em contato com ${resellerInfo.reseller.companyName}.`;
+          if (resellerInfo.reseller.supportPhone) {
+            message += ` WhatsApp: ${resellerInfo.reseller.supportPhone}`;
+          }
+        } else if (blockReason === 'reseller_client_expired' && resellerInfo) {
+          message = `Sua assinatura está vencida. Entre em contato com ${resellerInfo.reseller.companyName} para regularizar.`;
+          if (resellerInfo.reseller.supportPhone) {
+            message += ` WhatsApp: ${resellerInfo.reseller.supportPhone}`;
+          }
+        } else if (blockReason === 'subscription_expired') {
+          message = 'Sua assinatura expirou. Renove para continuar usando o sistema.';
+        } else {
+          message = 'Você atingiu o limite de 25 mensagens de teste. Assine um plano para continuar.';
+        }
+      }
+      
       res.json({
         accessStatus,
         shouldBlock,
         blockReason,
         
         // Subscription info
-        hasSubscription: !!subscription,
-        subscriptionStatus: subscription?.status || null,
+        hasSubscription: !!(subscription || resellerClient),
+        subscriptionStatus: resellerClient?.status || subscription?.status || null,
         isSubscriptionExpired,
         daysRemaining: Math.max(0, daysRemaining),
-        subscriptionEndDate: subscription?.dataFim || null,
-        planName: subscription?.plan?.nome || null,
+        subscriptionEndDate: resellerClient?.nextPaymentDate || subscription?.dataFim || null,
+        planName: subscription?.plan?.nome || (resellerClient ? 'Plano Revenda' : null),
         
         // Trial info
         trialMessagesUsed,
@@ -2066,12 +2167,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         trialMessagesLimit: FREE_TRIAL_LIMIT,
         trialLimitReached,
         
+        // Reseller info (para UI mostrar info do revendedor)
+        resellerInfo,
+        
         // For UI
-        message: shouldBlock 
-          ? (blockReason === 'subscription_expired' 
-              ? 'Sua assinatura expirou. Renove para continuar usando o sistema.'
-              : 'Você atingiu o limite de 25 mensagens de teste. Assine um plano para continuar.')
-          : null,
+        message,
       });
     } catch (error) {
       console.error("Error checking access status:", error);
@@ -6046,9 +6146,43 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   // ==================== MY SUBSCRIPTION ROUTES (CLIENTE) ====================
   
   // Get current user's active subscription with full details
+  // Também retorna info do revendedor se for cliente de revenda
   app.get("/api/my-subscription", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
+      
+      // Verificar se é cliente de revendedor
+      const resellerClient = await storage.getResellerClientByUserId(userId);
+      let resellerInfo = null;
+      
+      if (resellerClient) {
+        const reseller = await storage.getReseller(resellerClient.resellerId);
+        if (reseller) {
+          resellerInfo = {
+            isResellerClient: true,
+            clientId: resellerClient.id,
+            status: resellerClient.status,
+            clientPrice: resellerClient.clientPrice || reseller.clientMonthlyPrice,
+            nextPaymentDate: resellerClient.nextPaymentDate,
+            billingDay: resellerClient.billingDay || 1,
+            activatedAt: resellerClient.activatedAt,
+            isFreeClient: resellerClient.isFreeClient,
+            reseller: {
+              companyName: reseller.companyName,
+              logoUrl: reseller.logoUrl,
+              primaryColor: reseller.primaryColor,
+              accentColor: reseller.accentColor,
+              supportEmail: reseller.supportEmail,
+              supportPhone: reseller.supportPhone,
+              welcomeMessage: reseller.welcomeMessage,
+              pixKey: reseller.pixKey,
+              pixKeyType: reseller.pixKeyType,
+              pixHolderName: (reseller as any).pixHolderName,
+              pixBankName: (reseller as any).pixBankName,
+            },
+          };
+        }
+      }
       
       // Get user's subscription (uses getUserSubscription which prefers active)
       const subscriptionWithPlan = await storage.getUserSubscription(userId) as any;
@@ -6155,7 +6289,9 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           totalPayments: payments.length || (subscription.status === "active" ? 1 : 0),
           approvedPayments: payments.filter((p: any) => p.status === "approved").length || (subscription.status === "active" ? 1 : 0),
           failedPayments: payments.filter((p: any) => p.status === "rejected").length,
-        }
+        },
+        // Informações do revendedor (se for cliente de revenda)
+        resellerInfo,
       });
     } catch (error) {
       console.error("Error fetching my subscription:", error);
@@ -9370,7 +9506,195 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       }
     });
     
+    // ==================== TESTE DO KILL SWITCH ====================
+    // Rota de debug para testar o bloqueio em cascata de clientes de revendedor
+    app.get("/api/test/kill-switch/status", async (req, res) => {
+      try {
+        const resellerId = req.query.resellerId as string;
+        
+        let reseller;
+        if (resellerId) {
+          [reseller] = await db.select().from(resellers).where(eq(resellers.id, resellerId)).limit(1);
+        } else {
+          [reseller] = await db.select().from(resellers).limit(1);
+        }
+        
+        if (!reseller) {
+          return res.json({ error: "Nenhum reseller encontrado" });
+        }
+        
+        const clients = await db.select()
+          .from(resellerClients)
+          .innerJoin(users, eq(resellerClients.userId, users.id))
+          .where(eq(resellerClients.resellerId, reseller.id));
+        
+        res.json({
+          reseller: {
+            id: reseller.id,
+            companyName: reseller.companyName,
+            resellerStatus: reseller.resellerStatus,
+            isActive: reseller.isActive,
+          },
+          clients: clients.map(c => ({
+            clientId: c.reseller_clients.id,
+            userId: c.users.id,
+            email: c.users.email,
+            status: c.reseller_clients.status,
+            hasResellerId: !!c.users.resellerId,
+            killSwitchActive: c.users.resellerId === reseller.id,
+          })),
+          killSwitchWouldBlock: reseller.resellerStatus === 'blocked',
+        });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+    
+    // Bloquear/Desbloquear reseller para teste do Kill Switch
+    app.post("/api/test/kill-switch/toggle", async (req, res) => {
+      try {
+        const { action, resellerId } = req.body; // 'block' or 'unblock', optional resellerId
+        
+        let reseller;
+        if (resellerId) {
+          [reseller] = await db.select().from(resellers).where(eq(resellers.id, resellerId)).limit(1);
+        } else {
+          [reseller] = await db.select().from(resellers).limit(1);
+        }
+        
+        if (!reseller) {
+          return res.json({ error: "Nenhum reseller encontrado" });
+        }
+        
+        const newStatus = action === 'block' ? 'blocked' : 'active';
+        
+        await db.update(resellers)
+          .set({ resellerStatus: newStatus, updatedAt: new Date() })
+          .where(eq(resellers.id, reseller.id));
+        
+        console.log(`[KILL SWITCH TEST] Reseller ${reseller.id} ${newStatus === 'blocked' ? 'BLOQUEADO' : 'ATIVADO'}`);
+        
+        res.json({
+          success: true,
+          resellerId: reseller.id,
+          previousStatus: reseller.resellerStatus,
+          newStatus,
+          message: newStatus === 'blocked' 
+            ? '⛔ Kill Switch ATIVADO - Clientes serão bloqueados'
+            : '✅ Kill Switch DESATIVADO - Clientes podem acessar',
+        });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+    
     console.log("✅ [DEV] Rotas de teste habilitadas: /api/test/*");
+    
+    // Rota para simular verificação de Kill Switch para um usuário específico
+    app.get("/api/test/kill-switch/verify/:userId", async (req, res) => {
+      try {
+        const { userId } = req.params;
+        
+        // Buscar usuário
+        const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        
+        if (!user.length) {
+          return res.json({ error: "Usuário não encontrado" });
+        }
+        
+        const dbUser = user[0];
+        
+        if (!dbUser.resellerId) {
+          return res.json({
+            userId: dbUser.id,
+            email: dbUser.email,
+            hasReseller: false,
+            wouldBlock: false,
+            message: "Usuário não está vinculado a nenhum revendedor",
+          });
+        }
+        
+        // Buscar reseller
+        const [reseller] = await db.select().from(resellers).where(eq(resellers.id, dbUser.resellerId)).limit(1);
+        
+        if (!reseller) {
+          return res.json({
+            userId: dbUser.id,
+            email: dbUser.email,
+            hasReseller: true,
+            resellerId: dbUser.resellerId,
+            wouldBlock: false,
+            message: "Revendedor não encontrado no banco",
+          });
+        }
+        
+        const isBlocked = reseller.resellerStatus === 'blocked' || reseller.isActive === false;
+        
+        res.json({
+          userId: dbUser.id,
+          email: dbUser.email,
+          hasReseller: true,
+          reseller: {
+            id: reseller.id,
+            companyName: reseller.companyName,
+            resellerStatus: reseller.resellerStatus,
+            isActive: reseller.isActive,
+          },
+          wouldBlock: isBlocked,
+          message: isBlocked 
+            ? "⛔ KILL SWITCH ATIVO - Este usuário seria BLOQUEADO ao tentar acessar"
+            : "✅ Acesso permitido - Revendedor está ativo",
+        });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    /**
+     * Rota de teste para simular login como cliente de revenda
+     * GET /api/test/simulate-login/:email
+     */
+    app.get("/api/test/simulate-login/:email", async (req: any, res) => {
+      try {
+        const { email } = req.params;
+        
+        const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        
+        if (!user.length) {
+          return res.status(404).json({ error: "Usuário não encontrado" });
+        }
+        
+        const dbUser = user[0];
+        
+        // Definir sessão diretamente (express-session)
+        req.session.userId = dbUser.id;
+        req.session.user = {
+          id: dbUser.id,
+          email: dbUser.email,
+          name: dbUser.name,
+        };
+        
+        req.session.save((err: any) => {
+          if (err) {
+            return res.status(500).json({ error: "Erro ao criar sessão: " + err.message });
+          }
+          
+          res.json({
+            success: true,
+            user: {
+              id: dbUser.id,
+              email: dbUser.email,
+              name: dbUser.name,
+              resellerId: dbUser.resellerId,
+            },
+            message: "Sessão criada! Agora você pode acessar rotas autenticadas.",
+            redirectTo: dbUser.resellerId ? "/plans" : "/dashboard",
+          });
+        });
+      } catch (error: any) {
+        res.status(500).json({ error: error.message });
+      }
+    });
   }
 
   // ==================== PÁGINA DE TESTE DO AGENTE (PÚBLICA) ====================
@@ -12852,6 +13176,10 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
           supportEmail: reseller.supportEmail,
           supportPhone: reseller.supportPhone,
           primaryColor: reseller.primaryColor,
+          pixKey: reseller.pixKey,
+          pixKeyType: reseller.pixKeyType,
+          pixHolderName: (reseller as any).pixHolderName,
+          pixBankName: (reseller as any).pixBankName,
         },
         status: resellerClient?.status || "pending",
       });
@@ -13024,16 +13352,38 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   });
 
   /**
-   * Ativar/Desativar revendedor (Admin)
+   * Ativar/Desativar/Bloquear revendedor (Admin)
    * PUT /api/admin/resellers/:resellerId/status
+   * Body: { active?: boolean, resellerStatus?: 'active' | 'suspended' | 'blocked' | 'overdue' }
    */
   app.put("/api/admin/resellers/:resellerId/status", isAdmin, async (req: any, res) => {
     try {
       const resellerId = req.params.resellerId;
-      const { active } = req.body;
+      const { active, resellerStatus } = req.body;
       
-      await storage.updateReseller(resellerId, { isActive: active });
-      res.json({ message: active ? "Revendedor ativado" : "Revendedor desativado" });
+      const updateData: any = {};
+      
+      // Suporte para isActive (legado)
+      if (typeof active === 'boolean') {
+        updateData.isActive = active;
+      }
+      
+      // Suporte para resellerStatus (novo - para Kill Switch)
+      if (resellerStatus && ['active', 'suspended', 'blocked', 'overdue'].includes(resellerStatus)) {
+        updateData.resellerStatus = resellerStatus;
+        console.log(`[ADMIN] Alterando status do revendedor ${resellerId} para: ${resellerStatus}`);
+      }
+      
+      await storage.updateReseller(resellerId, updateData);
+      
+      let message = 'Revendedor atualizado';
+      if (resellerStatus === 'blocked') {
+        message = '⛔ Revendedor BLOQUEADO - Clientes serão bloqueados em cascata';
+      } else if (resellerStatus === 'active') {
+        message = '✅ Revendedor ATIVADO - Clientes podem acessar';
+      }
+      
+      res.json({ message, resellerStatus: resellerStatus || (active ? 'active' : 'suspended') });
     } catch (error: any) {
       console.error("Error updating reseller status:", error);
       res.status(500).json({ message: "Erro ao atualizar status do revendedor" });
@@ -13083,5 +13433,666 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     }
   });
 
+  // ============================================================
+  // ROTAS AVANÇADAS DE RESELLER - Detalhes do Cliente
+  // ============================================================
+
+  /**
+   * Obter detalhes completos de um cliente
+   * GET /api/reseller/clients/:clientId/details
+   * Retorna: dados do cliente, histórico de pagamentos, status de conexão
+   */
+  app.get("/api/reseller/clients/:clientId/details", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      // Buscar dados do usuário
+      const user = await storage.getUser(client.userId);
+      
+      // Buscar conexão WhatsApp do cliente
+      const connection = await storage.getConnectionByUserId(client.userId);
+      
+      // Buscar assinatura do cliente
+      const subscription = await storage.getUserSubscription(client.userId);
+      
+      // Buscar histórico de pagamentos do cliente na reseller_payments
+      const allPayments = await storage.getResellerPayments(reseller.id, 100);
+      const clientPayments = allPayments.filter(p => p.resellerClientId === clientId);
+      
+      // Buscar estatísticas de uso do cliente
+      const conversations = await db.query.conversations.findMany({
+        where: eq(conversationsTable.connectionId, connection?.id || ''),
+      });
+      
+      res.json({
+        client: {
+          id: client.id,
+          status: client.status,
+          monthlyCost: client.monthlyCost,
+          clientPrice: client.clientPrice,
+          isFreeClient: client.isFreeClient,
+          activatedAt: client.activatedAt,
+          suspendedAt: client.suspendedAt,
+          cancelledAt: client.cancelledAt,
+          nextPaymentDate: client.nextPaymentDate,
+          createdAt: client.createdAt,
+        },
+        user: user ? {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          createdAt: user.createdAt,
+          onboardingCompleted: user.onboardingCompleted,
+        } : null,
+        connection: connection ? {
+          id: connection.id,
+          isConnected: connection.isConnected,
+          phoneNumber: connection.phoneNumber,
+          updatedAt: connection.updatedAt,
+        } : null,
+        subscription: subscription ? {
+          id: subscription.id,
+          status: subscription.status,
+          dataInicio: subscription.dataInicio,
+          dataFim: subscription.dataFim,
+        } : null,
+        payments: clientPayments.map(p => ({
+          id: p.id,
+          amount: p.amount,
+          status: p.status,
+          paymentType: p.paymentType,
+          paymentMethod: p.paymentMethod,
+          description: p.description,
+          paidAt: p.paidAt,
+          createdAt: p.createdAt,
+        })),
+        stats: {
+          totalConversations: conversations.length,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error getting client details:", error);
+      res.status(500).json({ message: "Erro ao obter detalhes do cliente" });
+    }
+  });
+
+  /**
+   * Resetar senha de um cliente
+   * POST /api/reseller/clients/:clientId/reset-password
+   */
+  app.post("/api/reseller/clients/:clientId/reset-password", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      const { newPassword } = req.body;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      // Gerar nova senha se não foi fornecida
+      const password = newPassword || generateRandomPassword();
+      
+      // Atualizar senha no Supabase Auth
+      const { error: authError } = await supabase.auth.admin.updateUserById(
+        client.userId,
+        { password }
+      );
+      
+      if (authError) {
+        console.error("Error resetting password:", authError);
+        return res.status(500).json({ message: "Erro ao resetar senha" });
+      }
+      
+      res.json({ 
+        message: "Senha resetada com sucesso",
+        newPassword: password, // Retorna a nova senha para o revendedor enviar ao cliente
+      });
+    } catch (error: any) {
+      console.error("Error resetting client password:", error);
+      res.status(500).json({ message: "Erro ao resetar senha" });
+    }
+  });
+
+  /**
+   * Marcar pagamento do cliente como pago manualmente
+   * POST /api/reseller/clients/:clientId/mark-paid
+   * Registra pagamento de uma fatura específica (baseado em referenceMonth)
+   */
+  app.post("/api/reseller/clients/:clientId/mark-paid", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      const { amount, description, paymentMethod = 'manual', referenceMonth, dueDate } = req.body;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      // Verificar se a fatura já foi paga (evitar duplicidade)
+      if (referenceMonth) {
+        const existingPayments = await storage.getResellerPayments(reseller.id, 100);
+        const alreadyPaid = existingPayments.some(
+          p => p.resellerClientId === clientId && 
+               p.status === 'approved' && 
+               p.referenceMonth === referenceMonth
+        );
+        if (alreadyPaid) {
+          return res.status(400).json({ message: `Fatura de ${referenceMonth} já foi paga` });
+        }
+      }
+      
+      // Calcular valor se não fornecido
+      const paymentAmount = amount || client.clientPrice || reseller.clientMonthlyPrice || "99.99";
+      
+      // Criar registro de pagamento com referência à fatura
+      const payment = await storage.createResellerPayment({
+        resellerId: reseller.id,
+        resellerClientId: clientId,
+        amount: String(paymentAmount),
+        paymentType: 'monthly_fee',
+        status: 'approved',
+        paymentMethod: paymentMethod,
+        description: description || `Mensalidade ${referenceMonth || 'manual'}`,
+        paidAt: new Date(),
+        referenceMonth: referenceMonth || null,
+        dueDate: dueDate ? new Date(dueDate) : null,
+      });
+      
+      // Calcular próximo vencimento baseado na fatura paga
+      let nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      if (referenceMonth) {
+        // Se pagou uma fatura específica, o próximo vencimento é o mês seguinte
+        const [year, month] = referenceMonth.split('-').map(Number);
+        const nextMonth = month === 12 ? 1 : month + 1;
+        const nextYear = month === 12 ? year + 1 : year;
+        const billingDay = client.billingDay || 1;
+        nextPaymentDate = new Date(nextYear, nextMonth - 1, billingDay);
+      }
+      
+      // Se o cliente estava suspenso, reativar
+      if (client.status === 'suspended' || client.status === 'pending') {
+        await storage.updateResellerClient(clientId, {
+          status: 'active',
+          activatedAt: client.activatedAt || new Date(),
+          suspendedAt: null,
+          nextPaymentDate: nextPaymentDate,
+        });
+        
+        // Atualizar assinatura do cliente também
+        const subscription = await storage.getUserSubscription(client.userId);
+        if (subscription) {
+          await storage.updateSubscription(subscription.id, {
+            status: 'active',
+            dataFim: nextPaymentDate,
+          });
+        }
+      } else {
+        // Atualizar apenas a data do próximo pagamento
+        await storage.updateResellerClient(clientId, {
+          nextPaymentDate: nextPaymentDate,
+        });
+      }
+      
+      res.json({ 
+        message: "Pagamento registrado com sucesso",
+        payment: {
+          id: payment.id,
+          amount: payment.amount,
+          status: payment.status,
+          referenceMonth: payment.referenceMonth,
+          createdAt: payment.createdAt,
+        },
+        clientStatus: client.status === 'suspended' || client.status === 'pending' ? 'active' : client.status,
+        nextPaymentDate: nextPaymentDate,
+      });
+    } catch (error: any) {
+      console.error("Error marking payment as paid:", error);
+      res.status(500).json({ message: "Erro ao registrar pagamento" });
+    }
+  });
+
+  /**
+   * Histórico de pagamentos de um cliente específico
+   * GET /api/reseller/clients/:clientId/payments
+   */
+  app.get("/api/reseller/clients/:clientId/payments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      // Buscar pagamentos do cliente
+      const allPayments = await storage.getResellerPayments(reseller.id, 100);
+      const clientPayments = allPayments.filter(p => p.resellerClientId === clientId);
+      
+      res.json(clientPayments);
+    } catch (error: any) {
+      console.error("Error getting client payments:", error);
+      res.status(500).json({ message: "Erro ao obter histórico de pagamentos" });
+    }
+  });
+
+  /**
+   * Atualizar preço mensal de um cliente
+   * PUT /api/reseller/clients/:clientId/price
+   */
+  app.put("/api/reseller/clients/:clientId/price", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      const { clientPrice } = req.body;
+      
+      if (!clientPrice || parseFloat(clientPrice) < 0) {
+        return res.status(400).json({ message: "Preço inválido" });
+      }
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      await storage.updateResellerClient(clientId, {
+        clientPrice: String(clientPrice),
+      });
+      
+      res.json({ 
+        message: "Preço atualizado com sucesso",
+        newPrice: clientPrice,
+      });
+    } catch (error: any) {
+      console.error("Error updating client price:", error);
+      res.status(500).json({ message: "Erro ao atualizar preço" });
+    }
+  });
+
+  // ============================================================
+  // ROTAS DE FATURAMENTO DO REVENDEDOR (Flow 2: Reseller -> System)
+  // ============================================================
+
+  /**
+   * Obter resumo da assinatura do revendedor
+   * GET /api/reseller/my-subscription
+   * Retorna: clientes ativos, valor mensal, próxima fatura, status
+   */
+  app.get("/api/reseller/my-subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Contar clientes ativos
+      const activeClients = await storage.countActiveResellerClients(reseller.id);
+      
+      // Valores
+      const costPerClient = Number(reseller.costPerClient || 49.99);
+      const totalMonthly = activeClients * costPerClient;
+      
+      // Buscar fatura atual (mês corrente)
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      let currentInvoice = await storage.getResellerInvoiceByMonth(reseller.id, currentMonth);
+      
+      // Se não existe fatura do mês atual e tem clientes, criar
+      if (!currentInvoice && activeClients > 0) {
+        const billingDay = reseller.billingDay || 10;
+        const dueDate = new Date(now.getFullYear(), now.getMonth(), billingDay);
+        if (dueDate < now) {
+          // Se já passou o dia de vencimento, é para o próximo mês
+          dueDate.setMonth(dueDate.getMonth() + 1);
+        }
+        
+        currentInvoice = await storage.createResellerInvoice({
+          resellerId: reseller.id,
+          referenceMonth: currentMonth,
+          dueDate: dueDate.toISOString().split('T')[0],
+          activeClients,
+          unitPrice: String(costPerClient),
+          totalAmount: String(totalMonthly),
+          status: 'pending',
+        });
+      }
+      
+      // Buscar faturas pendentes/vencidas
+      const pendingInvoices = await storage.getResellerPendingInvoices(reseller.id);
+      
+      // Verificar se há faturas vencidas e atualizar status
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      for (const invoice of pendingInvoices) {
+        const dueDate = new Date(invoice.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        
+        if (invoice.status === 'pending' && dueDate < today) {
+          await storage.updateResellerInvoice(invoice.id, { status: 'overdue' });
+          invoice.status = 'overdue';
+        }
+      }
+      
+      // Determinar status geral do revendedor
+      const hasOverdue = pendingInvoices.some(inv => inv.status === 'overdue');
+      const daysPastDue = hasOverdue ? Math.floor((today.getTime() - new Date(pendingInvoices.find(i => i.status === 'overdue')!.dueDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+      
+      // Atualizar status do revendedor se necessário
+      let resellerStatus = reseller.resellerStatus || 'active';
+      if (hasOverdue && daysPastDue > 10) {
+        resellerStatus = 'blocked';
+        await storage.updateReseller(reseller.id, { resellerStatus: 'blocked' });
+      } else if (hasOverdue && daysPastDue > 5) {
+        resellerStatus = 'overdue';
+        await storage.updateReseller(reseller.id, { resellerStatus: 'overdue' });
+      } else if (pendingInvoices.length > 0) {
+        resellerStatus = 'pending';
+      } else {
+        resellerStatus = 'active';
+      }
+      
+      res.json({
+        activeClients,
+        costPerClient,
+        totalMonthly,
+        billingDay: reseller.billingDay || 10,
+        currentInvoice: currentInvoice ? {
+          id: currentInvoice.id,
+          referenceMonth: currentInvoice.referenceMonth,
+          dueDate: currentInvoice.dueDate,
+          activeClients: currentInvoice.activeClients,
+          unitPrice: currentInvoice.unitPrice,
+          totalAmount: currentInvoice.totalAmount,
+          status: currentInvoice.status,
+        } : null,
+        pendingInvoices: pendingInvoices.map(inv => ({
+          id: inv.id,
+          referenceMonth: inv.referenceMonth,
+          dueDate: inv.dueDate,
+          activeClients: inv.activeClients,
+          totalAmount: inv.totalAmount,
+          status: inv.status,
+        })),
+        resellerStatus,
+        daysPastDue: hasOverdue ? daysPastDue : 0,
+      });
+    } catch (error: any) {
+      console.error("Error getting reseller subscription:", error);
+      res.status(500).json({ message: "Erro ao obter dados da assinatura" });
+    }
+  });
+
+  /**
+   * Listar todas as faturas do revendedor
+   * GET /api/reseller/my-invoices
+   */
+  app.get("/api/reseller/my-invoices", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      const invoices = await storage.getResellerInvoices(reseller.id);
+      
+      res.json(invoices);
+    } catch (error: any) {
+      console.error("Error getting reseller invoices:", error);
+      res.status(500).json({ message: "Erro ao obter faturas" });
+    }
+  });
+
+  /**
+   * Gerar PIX para pagar fatura
+   * POST /api/reseller/my-invoices/:invoiceId/pay-pix
+   * Gera QR Code PIX para pagamento ao dono do sistema
+   */
+  app.post("/api/reseller/my-invoices/:invoiceId/pay-pix", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const invoiceId = parseInt(req.params.invoiceId);
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      const invoice = await storage.getResellerInvoice(invoiceId);
+      if (!invoice || invoice.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Fatura não encontrada" });
+      }
+      
+      if (invoice.status === 'paid') {
+        return res.status(400).json({ message: "Esta fatura já foi paga" });
+      }
+      
+      // Buscar usuário do revendedor para pegar email
+      const user = await storage.getUser(userId);
+      
+      // Criar pagamento PIX no Mercado Pago (usando credenciais do sistema)
+      const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
+      const mpAccessToken = configMap.get("mercadopago_access_token");
+      
+      if (!mpAccessToken) {
+        return res.status(500).json({ message: "Configuração de pagamento não encontrada" });
+      }
+      
+      // Criar preferência de pagamento PIX
+      const amount = parseFloat(String(invoice.totalAmount));
+      const timestamp = Date.now();
+      const externalReference = `reseller_invoice_${invoice.id}_${timestamp}`;
+      const idempotencyKey = `reseller-invoice-pix-${invoice.id}-${timestamp}`;
+      
+      const pixResponse = await fetch('https://api.mercadopago.com/v1/payments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${mpAccessToken}`,
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify({
+          transaction_amount: amount,
+          description: `Fatura ${invoice.referenceMonth} - ${reseller.companyName}`,
+          payment_method_id: 'pix',
+          external_reference: externalReference,
+          payer: {
+            email: user?.email || 'reseller@agentezap.com',
+            first_name: reseller.companyName?.split(' ')[0] || 'Revendedor',
+          },
+        }),
+      });
+      
+      const pixData = await pixResponse.json();
+      
+      if (!pixResponse.ok || !pixData.point_of_interaction?.transaction_data) {
+        console.error('Erro ao criar PIX:', pixData);
+        return res.status(500).json({ message: "Erro ao gerar PIX" });
+      }
+      
+      // Atualizar fatura com ID do pagamento
+      await storage.updateResellerInvoice(invoiceId, {
+        mpPaymentId: String(pixData.id),
+        paymentMethod: 'pix',
+      });
+      
+      res.json({
+        paymentId: pixData.id,
+        qrCode: pixData.point_of_interaction.transaction_data.qr_code,
+        qrCodeBase64: pixData.point_of_interaction.transaction_data.qr_code_base64,
+        ticketUrl: pixData.point_of_interaction.transaction_data.ticket_url,
+        expirationDate: pixData.date_of_expiration,
+        amount: amount,
+        referenceMonth: invoice.referenceMonth,
+      });
+    } catch (error: any) {
+      console.error("Error generating PIX:", error);
+      res.status(500).json({ message: "Erro ao gerar PIX" });
+    }
+  });
+
+  /**
+   * Verificar status de pagamento de fatura
+   * GET /api/reseller/my-invoices/:invoiceId/check-payment
+   */
+  app.get("/api/reseller/my-invoices/:invoiceId/check-payment", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const invoiceId = parseInt(req.params.invoiceId);
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      const invoice = await storage.getResellerInvoice(invoiceId);
+      if (!invoice || invoice.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Fatura não encontrada" });
+      }
+      
+      if (invoice.status === 'paid') {
+        return res.json({ status: 'paid', paidAt: invoice.paidAt });
+      }
+      
+      if (!invoice.mpPaymentId) {
+        return res.json({ status: invoice.status });
+      }
+      
+      // Verificar status no Mercado Pago
+      const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
+      const mpAccessToken = configMap.get("mercadopago_access_token");
+      
+      const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${invoice.mpPaymentId}`, {
+        headers: { 'Authorization': `Bearer ${mpAccessToken}` },
+      });
+      
+      const mpData = await mpResponse.json();
+      
+      if (mpData.status === 'approved') {
+        // Atualizar fatura como paga
+        await storage.updateResellerInvoice(invoiceId, {
+          status: 'paid',
+          paidAt: new Date(),
+        });
+        
+        // Atualizar status do revendedor
+        await storage.updateReseller(reseller.id, { resellerStatus: 'active' });
+        
+        return res.json({ status: 'paid', paidAt: new Date() });
+      }
+      
+      res.json({ status: mpData.status || invoice.status });
+    } catch (error: any) {
+      console.error("Error checking payment:", error);
+      res.status(500).json({ message: "Erro ao verificar pagamento" });
+    }
+  });
+
+  /**
+   * Marcar fatura como paga manualmente (admin)
+   * POST /api/reseller/my-invoices/:invoiceId/mark-paid
+   */
+  app.post("/api/reseller/my-invoices/:invoiceId/mark-paid", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const invoiceId = parseInt(req.params.invoiceId);
+      const { paymentMethod = 'manual' } = req.body;
+      
+      // Verificar se é admin ou o próprio revendedor
+      const user = await storage.getUser(userId);
+      const reseller = await storage.getResellerByUserId(userId);
+      
+      const invoice = await storage.getResellerInvoice(invoiceId);
+      if (!invoice) {
+        return res.status(404).json({ message: "Fatura não encontrada" });
+      }
+      
+      // Apenas admin ou o próprio revendedor podem marcar como pago
+      const isAdmin = user?.role === 'admin';
+      const isOwner = reseller && invoice.resellerId === reseller.id;
+      
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ message: "Sem permissão para esta ação" });
+      }
+      
+      if (invoice.status === 'paid') {
+        return res.status(400).json({ message: "Esta fatura já foi paga" });
+      }
+      
+      // Atualizar fatura
+      await storage.updateResellerInvoice(invoiceId, {
+        status: 'paid',
+        paymentMethod,
+        paidAt: new Date(),
+      });
+      
+      // Atualizar status do revendedor
+      await storage.updateReseller(invoice.resellerId, { resellerStatus: 'active' });
+      
+      res.json({ 
+        message: "Fatura marcada como paga com sucesso",
+        status: 'paid',
+        paidAt: new Date(),
+      });
+    } catch (error: any) {
+      console.error("Error marking invoice as paid:", error);
+      res.status(500).json({ message: "Erro ao marcar fatura como paga" });
+    }
+  });
+
   return httpServer;
+}
+
+// Helper function to generate random password
+function generateRandomPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+  let password = '';
+  for (let i = 0; i < 12; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
 }

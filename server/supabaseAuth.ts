@@ -326,9 +326,18 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
       }
     };
 
+    // ============================================================
+    // KILL SWITCH: NÃO bloqueia LOGIN!
+    // O bloqueio é feito via /api/access-status que mostra a tela de 
+    // pagamento pendente DENTRO do sistema (não bloqueia a autenticação)
+    // Isso permite que o cliente veja a tela de pagamento e pague
+    // ============================================================
+    // O cliente de revenda pode fazer login, mas verá a tela de bloqueio
+    // via AccessBlocker no frontend se o revendedor estiver inadimplente
+
     next();
   } catch (error) {
     console.error("Erro na autenticação:", error);
-    res.status(401).json({ message: "Unauthorized" });
+    return res.status(401).json({ message: "Unauthorized" });
   }
 };

@@ -23,6 +23,7 @@ import {
   resellers,
   resellerClients,
   resellerPayments,
+  resellerInvoices,
   type User,
   type UpsertUser,
   type WhatsappConnection,
@@ -63,6 +64,8 @@ import {
   type InsertResellerClient,
   type ResellerPayment,
   type InsertResellerPayment,
+  type ResellerInvoice,
+  type InsertResellerInvoice,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray, lte, isNotNull } from "drizzle-orm";
@@ -3438,6 +3441,99 @@ export class DatabaseStorage implements IStorage {
       monthlyCost,
       monthlyProfit: monthlyRevenue - monthlyCost,
     };
+  }
+
+  // ============================================
+  // RESELLER INVOICES FUNCTIONS (Flow 2: Reseller -> System)
+  // ============================================
+
+  /**
+   * Cria uma nova fatura do revendedor para o sistema
+   */
+  async createResellerInvoice(data: InsertResellerInvoice): Promise<ResellerInvoice> {
+    const [result] = await db.insert(resellerInvoices).values(data).returning();
+    return result;
+  }
+
+  /**
+   * Obtém fatura do revendedor por ID
+   */
+  async getResellerInvoice(id: number): Promise<ResellerInvoice | undefined> {
+    const [result] = await db.select().from(resellerInvoices).where(eq(resellerInvoices.id, id)).limit(1);
+    return result;
+  }
+
+  /**
+   * Lista faturas de um revendedor
+   */
+  async getResellerInvoices(resellerId: string, limit: number = 50): Promise<ResellerInvoice[]> {
+    return db
+      .select()
+      .from(resellerInvoices)
+      .where(eq(resellerInvoices.resellerId, resellerId))
+      .orderBy(desc(resellerInvoices.createdAt))
+      .limit(limit);
+  }
+
+  /**
+   * Obtém fatura por mês de referência
+   */
+  async getResellerInvoiceByMonth(resellerId: string, referenceMonth: string): Promise<ResellerInvoice | undefined> {
+    const [result] = await db
+      .select()
+      .from(resellerInvoices)
+      .where(
+        and(
+          eq(resellerInvoices.resellerId, resellerId),
+          eq(resellerInvoices.referenceMonth, referenceMonth)
+        )
+      )
+      .limit(1);
+    return result;
+  }
+
+  /**
+   * Atualiza fatura do revendedor
+   */
+  async updateResellerInvoice(id: number, data: Partial<InsertResellerInvoice>): Promise<ResellerInvoice | undefined> {
+    const [result] = await db
+      .update(resellerInvoices)
+      .set(data)
+      .where(eq(resellerInvoices.id, id))
+      .returning();
+    return result;
+  }
+
+  /**
+   * Obtém faturas pendentes ou vencidas de um revendedor
+   */
+  async getResellerPendingInvoices(resellerId: string): Promise<ResellerInvoice[]> {
+    return db
+      .select()
+      .from(resellerInvoices)
+      .where(
+        and(
+          eq(resellerInvoices.resellerId, resellerId),
+          sql`${resellerInvoices.status} IN ('pending', 'overdue')`
+        )
+      )
+      .orderBy(desc(resellerInvoices.dueDate));
+  }
+
+  /**
+   * Conta clientes ativos de um revendedor
+   */
+  async countActiveResellerClients(resellerId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(resellerClients)
+      .where(
+        and(
+          eq(resellerClients.resellerId, resellerId),
+          eq(resellerClients.status, 'active')
+        )
+      );
+    return Number(result?.count || 0);
   }
 }
 

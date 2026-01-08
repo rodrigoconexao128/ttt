@@ -105,6 +105,31 @@ interface PaymentRecord {
   dueDate: string;
 }
 
+// Informações do revendedor (se for cliente de revenda)
+interface ResellerInfo {
+  isResellerClient: boolean;
+  clientId: string;
+  status: string;
+  clientPrice: string;
+  nextPaymentDate: string | null;
+  billingDay: number;
+  activatedAt: string;
+  isFreeClient: boolean;
+  reseller: {
+    companyName: string;
+    logoUrl?: string;
+    primaryColor?: string;
+    accentColor?: string;
+    supportEmail?: string;
+    supportPhone?: string;
+    welcomeMessage?: string;
+    pixKey?: string;
+    pixKeyType?: string;
+    pixHolderName?: string;
+    pixBankName?: string;
+  };
+}
+
 interface SubscriptionData {
   subscription: {
     id: string;
@@ -137,6 +162,7 @@ interface SubscriptionData {
     approvedPayments: number;
     failedPayments: number;
   };
+  resellerInfo?: ResellerInfo | null;
 }
 interface PixData {
   qrCode: string;
@@ -589,12 +615,158 @@ export default function MySubscription() {
     );
   }
 
+  const { resellerInfo } = data || {};
+
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
+      {/* Banner do Revendedor - Aparece quando é cliente de revenda */}
+      {resellerInfo?.isResellerClient && resellerInfo.reseller && (
+        <Card className="mb-6 overflow-hidden border-2" style={{ borderColor: resellerInfo.reseller.accentColor || '#22c55e' }}>
+          <div className="flex items-center justify-between p-4" style={{ backgroundColor: `${resellerInfo.reseller.primaryColor || '#000000'}10` }}>
+            <div className="flex items-center gap-4">
+              {resellerInfo.reseller.logoUrl ? (
+                <img 
+                  src={resellerInfo.reseller.logoUrl} 
+                  alt={resellerInfo.reseller.companyName}
+                  className="h-12 w-12 rounded-lg object-contain bg-white p-1"
+                />
+              ) : (
+                <div className="h-12 w-12 rounded-lg flex items-center justify-center text-white text-lg font-bold"
+                     style={{ backgroundColor: resellerInfo.reseller.accentColor || '#22c55e' }}>
+                  {resellerInfo.reseller.companyName?.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h2 className="font-semibold text-lg">{resellerInfo.reseller.companyName}</h2>
+                {resellerInfo.reseller.welcomeMessage && (
+                  <p className="text-sm text-muted-foreground">{resellerInfo.reseller.welcomeMessage}</p>
+                )}
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">Contato</p>
+              {resellerInfo.reseller.supportPhone && (
+                <a 
+                  href={`https://wa.me/${resellerInfo.reseller.supportPhone.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium hover:underline"
+                  style={{ color: resellerInfo.reseller.accentColor || '#22c55e' }}
+                >
+                  📱 {resellerInfo.reseller.supportPhone}
+                </a>
+              )}
+              {resellerInfo.reseller.supportEmail && (
+                <p className="text-sm text-muted-foreground">{resellerInfo.reseller.supportEmail}</p>
+              )}
+            </div>
+          </div>
+          
+          {/* Seção de Pagamento PIX */}
+          {resellerInfo.reseller.pixKey && !resellerInfo.isFreeClient && (
+            <div className="p-4 border-t bg-yellow-50 dark:bg-yellow-950/30">
+              <div className="text-center mb-4">
+                <p className="text-lg font-bold text-yellow-800 dark:text-yellow-200">
+                  💰 Pagamento via PIX
+                </p>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  Faça o pagamento direto para {resellerInfo.reseller.companyName}
+                </p>
+              </div>
+              
+              {/* Valor a Pagar */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4">
+                <p className="text-sm text-muted-foreground text-center">Valor da mensalidade:</p>
+                <p className="text-3xl font-bold text-center" style={{ color: resellerInfo.reseller.accentColor || '#22c55e' }}>
+                  R$ {parseFloat(resellerInfo.clientPrice || '0').toFixed(2)}
+                </p>
+              </div>
+              
+              {/* Dados bancários */}
+              <div className="space-y-3">
+                {/* Titular */}
+                {resellerInfo.reseller.pixHolderName && (
+                  <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">👤</span>
+                      <span className="text-sm text-muted-foreground">Titular:</span>
+                    </div>
+                    <span className="font-medium">{resellerInfo.reseller.pixHolderName}</span>
+                  </div>
+                )}
+                
+                {/* Banco */}
+                {resellerInfo.reseller.pixBankName && (
+                  <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">🏦</span>
+                      <span className="text-sm text-muted-foreground">Banco:</span>
+                    </div>
+                    <span className="font-medium">{resellerInfo.reseller.pixBankName}</span>
+                  </div>
+                )}
+                
+                {/* Chave PIX */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">🔑</span>
+                      <span className="text-sm text-muted-foreground">
+                        Chave PIX ({resellerInfo.reseller.pixKeyType?.toUpperCase()}):
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(resellerInfo.reseller.pixKey!);
+                        toast({ title: "✅ Chave PIX copiada!", description: "Cole no seu app de banco" });
+                      }}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copiar
+                    </Button>
+                  </div>
+                  <code className="block mt-2 text-center font-mono bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded text-sm break-all">
+                    {resellerInfo.reseller.pixKey}
+                  </code>
+                </div>
+              </div>
+              
+              {/* Botão WhatsApp */}
+              {resellerInfo.reseller.supportPhone && (
+                <div className="mt-4">
+                  <Button
+                    className="w-full"
+                    style={{ 
+                      backgroundColor: '#25D366',
+                      color: 'white'
+                    }}
+                    onClick={() => {
+                      const phone = resellerInfo.reseller.supportPhone?.replace(/\D/g, '');
+                      const message = encodeURIComponent(
+                        `Olá! Acabei de fazer o pagamento de R$ ${parseFloat(resellerInfo.clientPrice || '0').toFixed(2)} via PIX. Segue o comprovante:`
+                      );
+                      window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+                    }}
+                  >
+                    📲 Enviar Comprovante via WhatsApp
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">Minha Assinatura</h1>
-          <p className="text-muted-foreground">Gerencie sua assinatura e pagamentos</p>
+          <p className="text-muted-foreground">
+            {resellerInfo?.isResellerClient 
+              ? `Gerenciada por ${resellerInfo.reseller.companyName}` 
+              : 'Gerencie sua assinatura e pagamentos'}
+          </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           <RefreshCw className="w-4 h-4 mr-2" />
