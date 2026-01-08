@@ -122,16 +122,13 @@ setInterval(() => {
 }, 10 * 60 * 1000); // Limpar a cada 10 minutos
 
 /**
- * Verifica se há pelo menos uma conexão WhatsApp ativa
+ * Verifica se um usuário específico tem conexão WhatsApp ativa em memória
+ * 🚀 OTIMIZADO: Não faz query no DB, apenas verifica memória
  */
-function hasAnyActiveWhatsAppConnection(): boolean {
+function isUserConnectionActive(userId: string): boolean {
   const sessions = getSessions();
-  for (const session of sessions.values()) {
-    if (session.socket?.ws?.readyState === 1) { // WebSocket.OPEN = 1
-      return true;
-    }
-  }
-  return false;
+  const session = sessions.get(userId);
+  return session?.socket?.ws?.readyState === 1; // WebSocket.OPEN = 1
 }
 
 // ============================================================================
@@ -220,12 +217,10 @@ export class UserFollowUpService {
    */
   private async processFollowUps() {
     try {
-      // 🚀 OTIMIZAÇÃO: Verificar conexões WhatsApp ANTES de buscar conversas
-      // Economiza CENTENAS de queries quando nenhum WhatsApp está conectado
-      if (!hasAnyActiveWhatsAppConnection()) {
-        console.log(`⏸️ [USER-FOLLOW-UP] Nenhuma conexão WhatsApp ativa - pulando ciclo`);
-        return;
-      }
+      // 🚀 REMOVIDO: Verificação global hasAnyActiveWhatsAppConnection()
+      // Motivo: Após restart do servidor, a memória está vazia mas o banco tem conexões ativas
+      // NOVA ESTRATÉGIA: Verificar conexão por usuário específico no executeFollowUp
+      // Isso permite processar follow-ups de usuários conectados mesmo se outros não estão
       
       const now = new Date();
       
@@ -267,7 +262,26 @@ export class UserFollowUpService {
       return;
     }
 
-    // 🔒 ANTI-DUPLICAÇÃO: Verificar se esta conversa já está sendo processada
+    // � VERIFICAÇÃO POR USUÁRIO: Verificar se ESTE usuário específico tem conexão ativa
+    // Isso permite processar follow-ups de outros usuários mesmo se este não está conectado
+    if (!isUserConnectionActive(userId)) {
+      // Reagendar apenas ESTA conversa para tentar novamente em 5 minutos
+      // NÃO bloqueia outras conversas de outros usuários!
+      const retryDate = addRandomSeconds(new Date(Date.now() + 5 * 60 * 1000));
+      await db.update(conversations)
+        .set({ 
+          nextFollowupAt: retryDate,
+          followupDisabledReason: '🔄 Aguardando conexão WhatsApp...'
+        })
+        .where(eq(conversations.id, conversation.id));
+      // Log apenas se for primeira vez (evitar spam no console)
+      if (conversation.followupDisabledReason !== '🔄 Aguardando conexão WhatsApp...') {
+        console.log(`⏸️ [USER-FOLLOW-UP] Usuário ${userId} sem conexão ativa - reagendando ${conversation.contactNumber}`);
+      }
+      return;
+    }
+
+    // �🔒 ANTI-DUPLICAÇÃO: Verificar se esta conversa já está sendo processada
     if (conversationsBeingProcessed.has(conversation.id)) {
       console.log(`⏳ [USER-FOLLOW-UP] Conversa ${conversation.contactNumber} já está sendo processada - ignorando`);
       return;
