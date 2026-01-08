@@ -3208,22 +3208,23 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         });
       }
 
-      // Disparar resposta da IA imediatamente (forceRespond=true para ignorar check de última mensagem)
-      try {
-        const triggerResult = await triggerAgentResponseForConversation(userId, conversationId, true);
-        console.log(`🤖 [RESPONDER COM IA] Disparado para ${conversationId}: ${triggerResult.reason}`);
-        
-        res.json({ 
-          success: triggerResult.triggered, 
-          message: triggerResult.reason 
+      // Disparar resposta da IA em background (fire and forget)
+      console.log(`🤖 [RESPONDER COM IA] Iniciando processamento para ${conversationId}`);
+      
+      // Disparar sem esperar resultado (não bloqueia a resposta)
+      triggerAgentResponseForConversation(userId, conversationId, true)
+        .then(result => {
+          console.log(`✅ [RESPONDER COM IA] Processado para ${conversationId}: ${result.reason}`);
+        })
+        .catch(error => {
+          console.error(`❌ [RESPONDER COM IA] Erro ao processar ${conversationId}:`, error);
         });
-      } catch (triggerError) {
-        console.error("Erro ao disparar resposta da IA:", triggerError);
-        res.status(500).json({ 
-          success: false, 
-          message: "Erro ao processar resposta da IA" 
-        });
-      }
+      
+      // Retorna sucesso imediatamente - processamento continua em background
+      res.json({ 
+        success: true, 
+        message: "Solicitação enviada. A IA irá responder em breve." 
+      });
     } catch (error) {
       console.error("Error in respond with AI:", error);
       res.status(500).json({ message: "Falha ao responder com IA" });

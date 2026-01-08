@@ -129,10 +129,11 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+      // Sempre mostra sucesso - a IA irá processar em background
       toast({
-        title: data.success ? "✅ IA Respondendo" : "⚠️ Aviso",
-        description: data.message,
-        variant: data.success ? "default" : "destructive",
+        title: "✅ Solicitação Enviada",
+        description: "A IA irá processar e responder em breve",
+        variant: "default",
       });
     },
     onError: (error: Error) => {
