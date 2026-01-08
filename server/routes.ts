@@ -3208,9 +3208,9 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         });
       }
 
-      // Disparar resposta da IA imediatamente
+      // Disparar resposta da IA imediatamente (forceRespond=true para ignorar check de última mensagem)
       try {
-        const triggerResult = await triggerAgentResponseForConversation(userId, conversationId);
+        const triggerResult = await triggerAgentResponseForConversation(userId, conversationId, true);
         console.log(`🤖 [RESPONDER COM IA] Disparado para ${conversationId}: ${triggerResult.reason}`);
         
         res.json({ 

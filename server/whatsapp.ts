@@ -2515,84 +2515,104 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
 // ═══════════════════════════════════════════════════════════════════════════
 // Quando o usuário reativa a IA para uma conversa, verificamos se há mensagens
 // pendentes do cliente que ainda não foram respondidas e disparamos a resposta.
+// 
+// Parâmetro forceRespond: Quando true (chamado pelo botão "Responder com IA"),
+// ignora a verificação de "última mensagem é do dono" e responde mesmo assim.
 // ═══════════════════════════════════════════════════════════════════════════
 export async function triggerAgentResponseForConversation(
   userId: string,
-  conversationId: string
+  conversationId: string,
+  forceRespond: boolean = false
 ): Promise<{ triggered: boolean; reason: string }> {
-  console.log(`\n🔄 [TRIGGER ON ENABLE] Verificando mensagens pendentes para conversa ${conversationId}...`);
+  console.log(`\n🔄 [TRIGGER] Verificando mensagens para conversa ${conversationId}... (force: ${forceRespond})`);
   
   try {
     // 1. Buscar a sessão do usuário
     const session = sessions.get(userId);
     if (!session?.socket) {
-      console.log(`⚠️ [TRIGGER ON ENABLE] Sessão WhatsApp não disponível para usuário ${userId}`);
-      return { triggered: false, reason: "WhatsApp não conectado" };
+      console.log(`⚠️ [TRIGGER] Sessão WhatsApp não disponível para usuário ${userId}`);
+      return { triggered: false, reason: "WhatsApp não conectado. Verifique a conexão em 'Conexão'." };
     }
     
     // 2. Verificar se o agente está ativo globalmente
     const agentConfig = await storage.getAgentConfig(userId);
     if (!agentConfig?.isActive) {
-      console.log(`⚠️ [TRIGGER ON ENABLE] Agente globalmente inativo para usuário ${userId}`);
-      return { triggered: false, reason: "Agente inativo" };
+      console.log(`⚠️ [TRIGGER] Agente globalmente inativo para usuário ${userId}`);
+      return { triggered: false, reason: "Ative o agente em 'Meu Agente IA' primeiro." };
     }
     
     // 3. Buscar dados da conversa
     const conversation = await storage.getConversation(conversationId);
     if (!conversation) {
-      console.log(`⚠️ [TRIGGER ON ENABLE] Conversa ${conversationId} não encontrada`);
-      return { triggered: false, reason: "Conversa não encontrada" };
+      console.log(`⚠️ [TRIGGER] Conversa ${conversationId} não encontrada`);
+      return { triggered: false, reason: "Conversa não encontrada." };
     }
     
     // 4. Buscar mensagens da conversa
     const messages = await storage.getMessagesByConversationId(conversationId);
     if (messages.length === 0) {
-      console.log(`ℹ️ [TRIGGER ON ENABLE] Nenhuma mensagem na conversa`);
-      return { triggered: false, reason: "Nenhuma mensagem na conversa" };
+      console.log(`ℹ️ [TRIGGER] Nenhuma mensagem na conversa`);
+      return { triggered: false, reason: "Nenhuma mensagem na conversa para responder." };
     }
     
     // 5. Verificar última mensagem
     const lastMessage = messages[messages.length - 1];
     
-    // Se última mensagem é do agente/dono, não precisa responder
-    if (lastMessage.fromMe) {
-      console.log(`ℹ️ [TRIGGER ON ENABLE] Última mensagem é do agente/dono - não precisa responder`);
-      return { triggered: false, reason: "Última mensagem já foi respondida" };
+    // Se última mensagem é do agente/dono, só responder se forceRespond=true
+    if (lastMessage.fromMe && !forceRespond) {
+      console.log(`ℹ️ [TRIGGER] Última mensagem é do agente/dono - não precisa responder`);
+      return { triggered: false, reason: "Última mensagem já foi respondida." };
+    }
+    
+    // Se forceRespond mas última é do agente, precisamos de contexto anterior
+    let messagesToProcess: string[] = [];
+    
+    if (lastMessage.fromMe && forceRespond) {
+      // Forçar resposta: usar últimas mensagens do cliente como contexto
+      console.log(`🔄 [TRIGGER] Forçando resposta - buscando contexto anterior...`);
+      
+      // Buscar últimas mensagens do cliente (não do agente)
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (!msg.fromMe && msg.text) {
+          messagesToProcess.unshift(msg.text);
+          if (messagesToProcess.length >= 3) break; // Últimas 3 mensagens do cliente
+        }
+      }
+      
+      if (messagesToProcess.length === 0) {
+        return { triggered: false, reason: "Não há mensagens do cliente para processar." };
+      }
+    } else {
+      // Comportamento normal: coletar mensagens não respondidas do cliente
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (msg.fromMe) break; // Parar quando encontrar mensagem do agente/dono
+        if (msg.text) {
+          messagesToProcess.unshift(msg.text);
+        }
+      }
+      
+      if (messagesToProcess.length === 0) {
+        messagesToProcess.push('[mensagem recebida]');
+      }
     }
     
     // 6. Verificar se já tem resposta pendente
     if (pendingResponses.has(conversationId)) {
-      console.log(`⏳ [TRIGGER ON ENABLE] Já existe resposta pendente para esta conversa`);
-      return { triggered: false, reason: "Resposta já em processamento" };
+      console.log(`⏳ [TRIGGER] Já existe resposta pendente para esta conversa`);
+      return { triggered: false, reason: "Resposta já em processamento. Aguarde." };
     }
     
-    console.log(`📨 [TRIGGER ON ENABLE] Mensagem do cliente sem resposta encontrada!`);
+    console.log(`📨 [TRIGGER] ${messagesToProcess.length} mensagem(s) para processar`);
     console.log(`   👤 Cliente: ${conversation.contactNumber}`);
-    console.log(`   💬 Última mensagem: "${(lastMessage.text || '[mídia]').substring(0, 50)}..."`);
-    console.log(`   🕐 Enviada em: ${lastMessage.timestamp}`);
     
-    // 7. Coletar todas as mensagens do cliente desde a última mensagem do agente
-    const clientMessagesBuffer: string[] = [];
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (msg.fromMe) break; // Parar quando encontrar mensagem do agente/dono
-      if (msg.text) {
-        clientMessagesBuffer.unshift(msg.text); // Manter ordem cronológica
-      }
-    }
-    
-    if (clientMessagesBuffer.length === 0) {
-      clientMessagesBuffer.push('[mensagem recebida]');
-    }
-    
-    console.log(`📝 [TRIGGER ON ENABLE] ${clientMessagesBuffer.length} mensagem(s) do cliente para processar`);
-    
-    // 8. Criar resposta pendente com delay mínimo (3 segundos para parecer natural)
-    const responseDelaySeconds = Math.max(agentConfig?.responseDelaySeconds ?? 3, 3);
+    // 7. Criar resposta pendente com delay mínimo (1s quando forçado, senão 3s)
+    const responseDelaySeconds = forceRespond ? 1 : Math.max(agentConfig?.responseDelaySeconds ?? 3, 3);
     
     const pending: PendingResponse = {
       timeout: null as any,
-      messages: clientMessagesBuffer,
+      messages: messagesToProcess,
       conversationId,
       userId,
       contactNumber: conversation.contactNumber,
@@ -2601,19 +2621,19 @@ export async function triggerAgentResponseForConversation(
     };
     
     pending.timeout = setTimeout(async () => {
-      console.log(`🚀 [TRIGGER ON ENABLE] Processando resposta para ${conversation.contactNumber}`);
+      console.log(`🚀 [TRIGGER] Processando resposta para ${conversation.contactNumber}`);
       await processAccumulatedMessages(pending);
     }, responseDelaySeconds * 1000);
     
     pendingResponses.set(conversationId, pending);
     
-    console.log(`✅ [TRIGGER ON ENABLE] Resposta agendada em ${responseDelaySeconds}s para ${conversation.contactNumber}`);
+    console.log(`✅ [TRIGGER] Resposta agendada em ${responseDelaySeconds}s`);
     
-    return { triggered: true, reason: `Resposta agendada para ${clientMessagesBuffer.length} mensagem(s) pendente(s)` };
+    return { triggered: true, reason: `Resposta da IA agendada! Processando ${messagesToProcess.length} mensagem(s)...` };
     
   } catch (error) {
-    console.error(`❌ [TRIGGER ON ENABLE] Erro:`, error);
-    return { triggered: false, reason: "Erro ao processar" };
+    console.error(`❌ [TRIGGER] Erro:`, error);
+    return { triggered: false, reason: "Erro ao processar. Tente novamente." };
   }
 }
 
