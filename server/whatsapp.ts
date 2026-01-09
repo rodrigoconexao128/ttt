@@ -24,6 +24,9 @@ import { supabase } from "./supabaseAuth";
 // 🗂️ FUNÇÃO PARA UPLOAD DE MÍDIA NO SUPABASE STORAGE
 // Ao invés de salvar base64 no banco (limite ~1MB), faz upload no Storage
 // ═══════════════════════════════════════════════════════════════════════
+// Cache para evitar chamadas repetidas de createBucket
+let whatsappMediaBucketChecked = false;
+
 async function uploadMediaToStorage(
   buffer: Buffer, 
   mimeType: string, 
@@ -37,14 +40,17 @@ async function uploadMediaToStorage(
       : `media_${timestamp}`;
     const storagePath = `whatsapp-media/${timestamp}_${safeFileName}.${extension}`;
 
-    // Criar bucket se não existir
-    const { error: bucketError } = await supabase.storage.createBucket('whatsapp-media', {
-      public: true,
-      fileSizeLimit: 104857600 // 100MB
-    });
-    
-    if (bucketError && !bucketError.message?.includes('already exists')) {
-      console.log(`ℹ️ [STORAGE] Bucket info: ${bucketError.message}`);
+    // Verificar bucket apenas uma vez por sessão do servidor
+    if (!whatsappMediaBucketChecked) {
+      const { error: bucketError } = await supabase.storage.createBucket('whatsapp-media', {
+        public: true,
+        fileSizeLimit: 104857600 // 100MB
+      });
+      
+      if (bucketError && !bucketError.message?.includes('already exists')) {
+        console.log(`ℹ️ [STORAGE] Bucket info: ${bucketError.message}`);
+      }
+      whatsappMediaBucketChecked = true;
     }
 
     // Upload do arquivo

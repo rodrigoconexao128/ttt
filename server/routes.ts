@@ -13,6 +13,11 @@ import { subscriptions, paymentHistory, conversations as conversationsTable, pla
 import { resellerService } from "./resellerService";
 
 // ============================================
+// CACHE PARA BUCKETS DE STORAGE
+// ============================================
+let agentMediaBucketChecked = false;
+
+// ============================================
 // SISTEMA DE MANUTENÇÃO E FALLBACK
 // ============================================
 let maintenanceMode = false;
@@ -3094,13 +3099,15 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       if (uploadError) {
         console.error("Supabase upload error:", uploadError);
         
-        // Se o bucket não existir, tentar criar
-        if (uploadError.message?.includes('Bucket not found')) {
+        // Se o bucket não existir, tentar criar (apenas se ainda não verificamos)
+        if (uploadError.message?.includes('Bucket not found') && !agentMediaBucketChecked) {
           // Criar bucket
           const { error: createError } = await supabase.storage.createBucket('agent-media', {
             public: true,
             fileSizeLimit: 52428800 // 50MB
           });
+          
+          agentMediaBucketChecked = true;
           
           if (createError && !createError.message?.includes('already exists')) {
             return res.status(500).json({ message: "Failed to create storage bucket", error: createError.message });
@@ -8448,12 +8455,14 @@ Foco: fazer o cliente TESTAR a ferramenta.`
       if (uploadError) {
         console.error("Supabase upload error:", uploadError);
         
-        // Se o bucket não existir, tentar criar
-        if (uploadError.message?.includes('Bucket not found')) {
+        // Se o bucket não existir, tentar criar (apenas se ainda não verificamos)
+        if (uploadError.message?.includes('Bucket not found') && !agentMediaBucketChecked) {
           const { error: createError } = await supabase.storage.createBucket('agent-media', {
             public: true,
             fileSizeLimit: 52428800
           });
+          
+          agentMediaBucketChecked = true;
           
           if (createError && !createError.message?.includes('already exists')) {
             return res.status(500).json({ message: "Failed to create storage bucket", error: createError.message });

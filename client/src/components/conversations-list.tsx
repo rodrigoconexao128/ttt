@@ -383,15 +383,21 @@ export function ConversationsList({
                               )}
                             </span>
                           )}
-                          {/* Botão de tag */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 opacity-60 hover:opacity-100"
+                          {/* Botão de tag - usando div para evitar button aninhado */}
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            className="h-6 w-6 opacity-60 hover:opacity-100 flex items-center justify-center rounded-md hover:bg-accent cursor-pointer"
                             onClick={(e) => openTagModal(conversation, e)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                openTagModal(conversation, e);
+                              }
+                            }}
                           >
                             <Tags className="w-3.5 h-3.5" />
-                          </Button>
+                          </div>
                         </div>
                       </div>
                       

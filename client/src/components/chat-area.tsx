@@ -28,6 +28,8 @@ import { ptBR } from "date-fns/locale";
 import type { Message, Conversation, AiAgentConfig } from "@shared/schema";
 import { MessageImage } from "@/components/message-image";
 import { MessageAudio } from "@/components/message-audio";
+import { MessageVideo } from "@/components/message-video";
+import { MessageDocument } from "@/components/message-document";
 import { UserAudioRecorder } from "@/components/user-audio-recorder";
 import { UserMediaUploader } from "@/components/user-media-uploader";
 import { UserQuickReplies } from "@/components/user-quick-replies";
@@ -980,37 +982,118 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
                       duration={message.mediaDuration}
                       fromMe={message.fromMe}
                     />
-                    {message.text && (
+                    {message.text && !message.text.startsWith('[Áudio') && !message.text.startsWith('🎵') && !message.text.startsWith('🎤') && (
                       <p className="text-sm whitespace-pre-wrap break-words italic opacity-80">
                         📝 {message.text.replace(/^\[ÁUDIO ENVIADO PELO AGENTE\]:\s*/i, '')}
                       </p>
                     )}
                   </div>
                 ) : message.mediaType === "video" && message.mediaUrl ? (
-                  <div className="space-y-2">
-                    <video 
-                      src={message.mediaUrl} 
-                      controls 
-                      className="max-w-[280px] max-h-[280px] rounded-lg"
-                    />
-                    {(message.mediaCaption || message.text) && (
-                      <p className="text-sm whitespace-pre-wrap break-words">{message.mediaCaption || message.text}</p>
-                    )}
-                  </div>
+                  <MessageVideo 
+                    src={message.mediaUrl}
+                    caption={message.mediaCaption}
+                    duration={message.mediaDuration}
+                    fromMe={message.fromMe}
+                  />
                 ) : message.mediaType === "document" && message.mediaUrl ? (
-                  <div className="space-y-2">
-                    <a 
-                      href={message.mediaUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className={`flex items-center gap-2 p-2 rounded border ${
-                        message.fromMe 
-                          ? "border-primary-foreground/30 hover:bg-primary-foreground/10" 
-                          : "border-muted-foreground/30 hover:bg-muted-foreground/10"
-                      }`}
-                    >
-                      📄 <span className="text-sm underline">{message.text || "Documento"}</span>
-                    </a>
+                  <MessageDocument 
+                    src={message.mediaUrl}
+                    fileName={message.text?.replace(/^📄\s*/, '') || "Documento"}
+                    mimeType={message.mediaMimeType || undefined}
+                    caption={message.mediaCaption}
+                    fromMe={message.fromMe}
+                  />
+                ) : message.mediaType === "image" && !message.mediaUrl ? (
+                  /* Imagem sem URL - mostrar placeholder */
+                  <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                    message.fromMe 
+                      ? "bg-white/10" 
+                      : "bg-gray-100"
+                  }`}>
+                    <span className="text-2xl">🖼️</span>
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        message.fromMe ? "text-white" : "text-gray-900"
+                      }`}>
+                        Imagem enviada
+                      </p>
+                      <p className={`text-xs ${
+                        message.fromMe ? "text-white/60" : "text-gray-500"
+                      }`}>
+                        {message.fromMe 
+                          ? "Enviado pelo WhatsApp - visualize no app" 
+                          : "Mídia não disponível"}
+                      </p>
+                    </div>
+                  </div>
+                ) : message.mediaType === "document" && !message.mediaUrl ? (
+                  /* Documento sem URL - mostrar placeholder */
+                  <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                    message.fromMe 
+                      ? "bg-white/10" 
+                      : "bg-gray-100"
+                  }`}>
+                    <span className="text-2xl">📄</span>
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        message.fromMe ? "text-white" : "text-gray-900"
+                      }`}>
+                        {message.text?.replace(/^📄\s*/, '').replace(/^\[Documento.*\]\s*/, '') || "Documento enviado"}
+                      </p>
+                      <p className={`text-xs ${
+                        message.fromMe ? "text-white/60" : "text-gray-500"
+                      }`}>
+                        {message.fromMe 
+                          ? "Enviado pelo WhatsApp - visualize no app" 
+                          : "Mídia não disponível"}
+                      </p>
+                    </div>
+                  </div>
+                ) : message.mediaType === "video" && !message.mediaUrl ? (
+                  /* Vídeo sem URL - mostrar placeholder */
+                  <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                    message.fromMe 
+                      ? "bg-white/10" 
+                      : "bg-gray-100"
+                  }`}>
+                    <span className="text-2xl">🎥</span>
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        message.fromMe ? "text-white" : "text-gray-900"
+                      }`}>
+                        Vídeo enviado
+                      </p>
+                      <p className={`text-xs ${
+                        message.fromMe ? "text-white/60" : "text-gray-500"
+                      }`}>
+                        {message.fromMe 
+                          ? "Enviado pelo WhatsApp - visualize no app" 
+                          : "Mídia não disponível"}
+                      </p>
+                    </div>
+                  </div>
+                ) : message.mediaType === "audio" && !message.mediaUrl ? (
+                  /* Áudio sem URL - mostrar placeholder */
+                  <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                    message.fromMe 
+                      ? "bg-white/10" 
+                      : "bg-gray-100"
+                  }`}>
+                    <span className="text-2xl">🎤</span>
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        message.fromMe ? "text-white" : "text-gray-900"
+                      }`}>
+                        Áudio enviado
+                      </p>
+                      <p className={`text-xs ${
+                        message.fromMe ? "text-white/60" : "text-gray-500"
+                      }`}>
+                        {message.fromMe 
+                          ? "Enviado pelo WhatsApp - visualize no app" 
+                          : "Mídia não disponível"}
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>

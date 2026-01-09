@@ -557,7 +557,7 @@ export class DatabaseStorage implements IStorage {
     const cached = memoryCache.get<Message[]>(cacheKey);
     if (cached) return cached;
 
-    // Query otimizada SEM media_url para economizar bandwidth
+    // Query completa incluindo media_url para renderizar mídias no chat
     const result = await db
       .select({
         id: messages.id,
@@ -569,7 +569,7 @@ export class DatabaseStorage implements IStorage {
         status: messages.status,
         isFromAgent: messages.isFromAgent,
         mediaType: messages.mediaType,
-        // media_url NÃO incluído - usar getMessageMedia() quando necessário
+        mediaUrl: messages.mediaUrl, // Incluir media_url para exibir mídias
         mediaMimeType: messages.mediaMimeType,
         mediaDuration: messages.mediaDuration,
         mediaCaption: messages.mediaCaption,
@@ -579,15 +579,9 @@ export class DatabaseStorage implements IStorage {
       .where(eq(messages.conversationId, conversationId))
       .orderBy(messages.timestamp);
 
-    // Converter para tipo Message (media_url será null)
-    const messagesWithNullMedia = result.map(m => ({
-      ...m,
-      mediaUrl: null, // Não buscar media_url aqui - usar lazy loading
-    })) as Message[];
-
     // Cache por 30 segundos
-    memoryCache.set(cacheKey, messagesWithNullMedia, 30000);
-    return messagesWithNullMedia;
+    memoryCache.set(cacheKey, result as Message[], 30000);
+    return result as Message[];
   }
 
   // Nova função para buscar media_url de uma mensagem específica (lazy loading)
@@ -702,12 +696,19 @@ export class DatabaseStorage implements IStorage {
     return message;
   }
 
+  // 🔥 OTIMIZADO: Usar COUNT(*) em vez de trazer todas as linhas
+  // Reduz drasticamente o Egress do Supabase
   async getTodayMessagesCount(connectionId: string): Promise<number> {
+    // Cache para evitar queries repetidas (TTL 60s)
+    const cacheKey = `todayMsgCount:${connectionId}`;
+    const cached = memoryCache.get<number>(cacheKey);
+    if (cached !== null) return cached;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const result = await db
-      .select()
+      .select({ count: sql<number>`count(*)::int` })
       .from(messages)
       .innerJoin(conversations, eq(messages.conversationId, conversations.id))
       .where(
@@ -717,12 +718,22 @@ export class DatabaseStorage implements IStorage {
         )
       );
 
-    return result.length;
+    const count = result[0]?.count || 0;
+    memoryCache.set(cacheKey, count, 60000); // Cache por 60 segundos
+    return count;
   }
 
+  // 🔥 OTIMIZADO: Usar COUNT(*) em vez de trazer todas as linhas
+  // Antes: trazia TODAS as mensagens do agente (milhares de rows com media_url grande)
+  // Agora: retorna apenas 1 número, reduz Egress em ~99%
   async getAgentMessagesCount(connectionId: string): Promise<number> {
+    // Cache para evitar queries repetidas (TTL 60s)
+    const cacheKey = `agentMsgCount:${connectionId}`;
+    const cached = memoryCache.get<number>(cacheKey);
+    if (cached !== null) return cached;
+
     const result = await db
-      .select()
+      .select({ count: sql<number>`count(*)::int` })
       .from(messages)
       .innerJoin(conversations, eq(messages.conversationId, conversations.id))
       .where(
@@ -732,7 +743,9 @@ export class DatabaseStorage implements IStorage {
         )
       );
 
-    return result.length;
+    const count = result[0]?.count || 0;
+    memoryCache.set(cacheKey, count, 60000); // Cache por 60 segundos
+    return count;
   }
 
   // AI Agent operations
@@ -1462,13 +1475,14 @@ export class DatabaseStorage implements IStorage {
     return Number(result[0]?.total || 0);
   }
 
+  // 🔥 OTIMIZADO: Usar COUNT(*) em vez de trazer todas as linhas
   async getActiveSubscriptionsCount(): Promise<number> {
     const result = await db
-      .select()
+      .select({ count: sql<number>`count(*)::int` })
       .from(subscriptions)
       .where(eq(subscriptions.status, "active"));
 
-    return result.length;
+    return result[0]?.count || 0;
   }
 
   // ======================================================================

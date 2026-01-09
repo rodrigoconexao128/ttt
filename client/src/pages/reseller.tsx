@@ -58,7 +58,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useRoute, Link } from "wouter";
 import { 
   Loader2, 
   Plus, 
@@ -263,8 +263,51 @@ interface ResellerInvoice {
 
 export default function ResellerDashboard() {
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [location, setLocation] = useLocation();
+  
+  // Rotas para navegação via URL
+  const [, clientParams] = useRoute("/revenda/cliente/:clientId");
+  const clientIdFromUrl = clientParams?.clientId;
+  
+  // Mapear URL para aba ativa
+  const getTabFromUrl = () => {
+    if (location === "/revenda/clientes" || location.startsWith("/revenda/cliente/")) return "clients";
+    if (location === "/revenda/recebimentos") return "payments";
+    if (location === "/revenda/assinatura") return "my-subscription";
+    if (location === "/revenda/configuracoes") return "settings";
+    return "dashboard";
+  };
+  
+  const [activeTab, setActiveTab] = useState(getTabFromUrl());
+  
+  // Sincronizar aba com URL quando mudar
+  useEffect(() => {
+    const tab = getTabFromUrl();
+    if (tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [location]);
+  
+  // Navegar para URL correspondente quando mudar aba
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    switch (tab) {
+      case "clients":
+        setLocation("/revenda/clientes");
+        break;
+      case "payments":
+        setLocation("/revenda/recebimentos");
+        break;
+      case "my-subscription":
+        setLocation("/revenda/assinatura");
+        break;
+      case "settings":
+        setLocation("/revenda/configuracoes");
+        break;
+      default:
+        setLocation("/revenda");
+    }
+  };
   
   // Estados para o formulário de perfil
   const [companyName, setCompanyName] = useState("");
@@ -309,9 +352,9 @@ export default function ResellerDashboard() {
   const [isProcessingCard, setIsProcessingCard] = useState(false);
   const mpInstanceRef = useRef<any>(null);
 
-  // Estados para detalhes do cliente
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [isClientDetailsOpen, setIsClientDetailsOpen] = useState(false);
+  // Estados para detalhes do cliente - sincronizado com URL
+  const selectedClientId = clientIdFromUrl || null;
+  const isClientDetailsOpen = !!clientIdFromUrl;
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
   const [newPasswordForReset, setNewPasswordForReset] = useState("");
   
@@ -753,16 +796,14 @@ export default function ResellerDashboard() {
     }
   };
 
-  // Abrir detalhes do cliente
+  // Abrir detalhes do cliente - navega para URL dedicada
   const openClientDetails = (clientId: string) => {
-    setSelectedClientId(clientId);
-    setIsClientDetailsOpen(true);
+    setLocation(`/revenda/cliente/${clientId}`);
   };
 
-  // Fechar detalhes do cliente
+  // Fechar detalhes do cliente - volta para lista de clientes
   const closeClientDetails = () => {
-    setSelectedClientId(null);
-    setIsClientDetailsOpen(false);
+    setLocation("/revenda/clientes");
   };
 
   // Abrir modal de reset de senha
@@ -1060,16 +1101,25 @@ export default function ResellerDashboard() {
             Gerencie sua marca e clientes white-label
           </p>
         </div>
-        {profile?.subdomain && (
-          <Button variant="outline" onClick={() => window.open(`https://${profile.subdomain}.agentezap.com`, '_blank')}>
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Ver Meu Site
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/dashboard">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Voltar ao Dashboard
+            </Link>
           </Button>
-        )}
+          {profile?.subdomain && (
+            <Button variant="outline" onClick={() => window.open(`https://${profile.subdomain}.agentezap.com`, '_blank')}>
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Ver Meu Site
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tabs - 5 abas: Dashboard, Clientes, Recebimentos, Minha Assinatura, Configurações */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      {/* URLs navegáveis: /revenda, /revenda/clientes, /revenda/recebimentos, /revenda/assinatura, /revenda/configuracoes */}
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
@@ -2098,7 +2148,7 @@ export default function ResellerDashboard() {
       </Tabs>
 
       {/* Dialog Centralizado de Detalhes do Cliente */}
-      <Dialog open={isClientDetailsOpen} onOpenChange={setIsClientDetailsOpen}>
+      <Dialog open={isClientDetailsOpen} onOpenChange={(open) => !open && closeClientDetails()}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {isLoadingClientDetails ? (
             <div className="flex items-center justify-center py-12">

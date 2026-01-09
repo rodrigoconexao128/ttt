@@ -4,6 +4,7 @@ node_modules
 .gitignore
 .vscode
 .idea
+.kilocode
 
 # Build and caches
 dist
@@ -11,13 +12,37 @@ dist
 *.log
 server.log
 tmp*
+tmp/
+temp_audio/
+logs/
 
 # Large folders not needed for deploy
 mcp-playwright-server/
 sequentialthinking-mcp-server/
 pix-por-piggly/
+supabase-mcp-server/
+findeas theme/
+attached_assets/
+tutorial/
+tests/
 
 # WhatsApp local session folders (Baileys). Use a Railway Volume and
 # set SESSIONS_DIR to persist these in production instead of baking into image.
 auth_*/
 auth_admin_*/
+
+# Documentation and test files
+*.md
+test-*.ts
+teste-*.ts
+check-*.ts
+debug-*.ts
+fix-*.ts
+run-*.ts
+investigate-*.ts
+*.txt
+*.png
+*.wav
+*.mp3
+piggly.zip
+*.json.backup

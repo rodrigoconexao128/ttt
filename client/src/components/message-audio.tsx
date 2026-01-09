@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Play, Pause, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -8,11 +8,28 @@ interface MessageAudioProps {
   fromMe?: boolean;
 }
 
+// Gerar waveform pseudo-aleatório mas consistente baseado na duração
+function generateWaveform(duration: number, bars: number = 40): number[] {
+  const heights: number[] = [];
+  const seed = Math.floor(duration * 100);
+  for (let i = 0; i < bars; i++) {
+    // Gerar altura pseudo-aleatória baseada no índice e duração
+    const noise = Math.sin(seed + i * 0.7) * 0.5 + Math.cos(seed * 0.3 + i * 1.2) * 0.3;
+    const base = 0.3 + Math.abs(noise) * 0.7;
+    heights.push(Math.min(1, Math.max(0.2, base)));
+  }
+  return heights;
+}
+
 export function MessageAudio({ src, duration, fromMe = false }: MessageAudioProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(duration || 0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Gerar waveform baseado na duração
+  const waveform = useMemo(() => generateWaveform(audioDuration || 10, 35), [audioDuration]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -45,13 +62,24 @@ export function MessageAudio({ src, duration, fromMe = false }: MessageAudioProp
     setIsPlaying(!isPlaying);
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSeek = (index: number) => {
+    const audio = audioRef.current;
+    if (!audio || !audioDuration) return;
+
+    const newTime = (index / waveform.length) * audioDuration;
+    audio.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const cyclePlaybackRate = () => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const newTime = parseFloat(e.target.value);
-    audio.currentTime = newTime;
-    setCurrentTime(newTime);
+    const rates = [1, 1.5, 2];
+    const currentIndex = rates.indexOf(playbackRate);
+    const nextRate = rates[(currentIndex + 1) % rates.length];
+    audio.playbackRate = nextRate;
+    setPlaybackRate(nextRate);
   };
 
   const formatTime = (seconds: number) => {
@@ -61,59 +89,106 @@ export function MessageAudio({ src, duration, fromMe = false }: MessageAudioProp
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleDownload = () => {
-    const link = document.createElement("a");
-    link.href = src;
-    link.download = `whatsapp-audio-${Date.now()}.ogg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      const response = await fetch(src);
+      const contentType = response.headers.get('Content-Type') || 'audio/ogg';
+      const blob = await response.blob();
+      
+      // Garantir que o blob tem o MIME type correto
+      const finalBlob = new Blob([blob], { type: contentType });
+      const url = window.URL.createObjectURL(finalBlob);
+      
+      // Determinar extensão baseado no MIME type
+      let ext = '.ogg';
+      if (contentType.includes('mp3') || contentType.includes('mpeg')) ext = '.mp3';
+      else if (contentType.includes('wav')) ext = '.wav';
+      else if (contentType.includes('m4a')) ext = '.m4a';
+      
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `whatsapp-audio-${Date.now()}${ext}`;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Erro ao baixar áudio:", error);
+      // Fallback: abrir em nova aba
+      window.open(src, '_blank', 'noopener,noreferrer');
+    }
   };
 
-  const progress = audioDuration > 0 ? (currentTime / audioDuration) * 100 : 0;
+  const progress = audioDuration > 0 ? currentTime / audioDuration : 0;
+  const playedBars = Math.floor(progress * waveform.length);
 
   return (
-    <div className="flex items-center gap-2 min-w-[240px] max-w-[280px]">
+    <div className="flex items-center gap-2 min-w-[240px] max-w-[300px] py-1">
       <audio ref={audioRef} src={src} preload="metadata" />
       
-      {/* Play/Pause Button */}
-      <Button
-        variant="ghost"
-        size="icon"
+      {/* Play/Pause Button - Estilo WhatsApp */}
+      <button
         onClick={togglePlay}
-        className={`h-10 w-10 rounded-full flex-shrink-0 ${
+        className={`h-11 w-11 rounded-full flex-shrink-0 flex items-center justify-center transition-all ${
           fromMe 
-            ? "hover:bg-primary-foreground/20" 
-            : "hover:bg-secondary"
+            ? "bg-white/20 hover:bg-white/30 text-white" 
+            : "bg-[#00a884] hover:bg-[#00a884]/90 text-white"
         }`}
       >
         {isPlaying ? (
-          <Pause className="w-5 h-5" />
+          <Pause className="w-5 h-5" fill="currentColor" />
         ) : (
-          <Play className="w-5 h-5 ml-0.5" />
+          <Play className="w-5 h-5 ml-0.5" fill="currentColor" />
         )}
-      </Button>
+      </button>
 
-      {/* Waveform / Progress Bar */}
+      {/* Waveform */}
       <div className="flex-1 space-y-1">
-        <div className="relative h-1 bg-white/20 rounded-full overflow-hidden">
-          <div 
-            className={`absolute top-0 left-0 h-full transition-all ${
-              fromMe ? "bg-primary-foreground/60" : "bg-primary/60"
-            }`}
-            style={{ width: `${progress}%` }}
-          />
-          <input
-            type="range"
-            min="0"
-            max={audioDuration || 0}
-            value={currentTime}
-            onChange={handleSeek}
-            className="absolute inset-0 w-full opacity-0 cursor-pointer"
-          />
+        <div className="flex items-center gap-[2px] h-8 cursor-pointer">
+          {waveform.map((height, index) => {
+            const isPlayed = index < playedBars;
+            return (
+              <div
+                key={index}
+                onClick={() => handleSeek(index)}
+                className={`w-[3px] rounded-full transition-all ${
+                  isPlayed
+                    ? fromMe 
+                      ? "bg-white" 
+                      : "bg-[#00a884]"
+                    : fromMe
+                      ? "bg-white/40"
+                      : "bg-gray-400/60"
+                } ${isPlaying && index === playedBars ? "animate-pulse" : ""}`}
+                style={{ 
+                  height: `${height * 100}%`,
+                  minHeight: "4px"
+                }}
+              />
+            );
+          })}
         </div>
-        <div className={`text-xs ${fromMe ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-          {formatTime(currentTime)} / {formatTime(audioDuration)}
+        
+        {/* Time and Speed */}
+        <div className={`flex items-center justify-between text-xs ${
+          fromMe ? "text-white/70" : "text-muted-foreground"
+        }`}>
+          <span>{formatTime(currentTime)}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={cyclePlaybackRate}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                fromMe 
+                  ? "bg-white/20 hover:bg-white/30" 
+                  : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+              }`}
+            >
+              {playbackRate}x
+            </button>
+            <span>{formatTime(audioDuration)}</span>
+          </div>
         </div>
       </div>
 
@@ -121,10 +196,14 @@ export function MessageAudio({ src, duration, fromMe = false }: MessageAudioProp
       <Button
         variant="ghost"
         size="icon"
-        onClick={handleDownload}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          handleDownload(e);
+        }}
         className={`h-8 w-8 flex-shrink-0 ${
           fromMe 
-            ? "hover:bg-primary-foreground/20" 
+            ? "hover:bg-white/20 text-white" 
             : "hover:bg-secondary"
         }`}
       >
