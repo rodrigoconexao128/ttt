@@ -18,6 +18,60 @@ import { generateAIResponse, type AIResponseResult, type AIResponseOptions } fro
 import { executeMediaActions, downloadMediaAsBuffer } from "./mediaService";
 import { registerFollowUpCallback, registerScheduledContactCallback, followUpService } from "./followUpService";
 import { userFollowUpService } from "./userFollowUpService";
+import { supabase } from "./supabaseAuth";
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🗂️ FUNÇÃO PARA UPLOAD DE MÍDIA NO SUPABASE STORAGE
+// Ao invés de salvar base64 no banco (limite ~1MB), faz upload no Storage
+// ═══════════════════════════════════════════════════════════════════════
+async function uploadMediaToStorage(
+  buffer: Buffer, 
+  mimeType: string, 
+  originalFileName?: string
+): Promise<string | null> {
+  try {
+    const timestamp = Date.now();
+    const extension = mimeType.split('/')[1]?.split(';')[0] || 'bin';
+    const safeFileName = originalFileName 
+      ? originalFileName.replace(/[^a-zA-Z0-9.-]/g, '_')
+      : `media_${timestamp}`;
+    const storagePath = `whatsapp-media/${timestamp}_${safeFileName}.${extension}`;
+
+    // Criar bucket se não existir
+    const { error: bucketError } = await supabase.storage.createBucket('whatsapp-media', {
+      public: true,
+      fileSizeLimit: 104857600 // 100MB
+    });
+    
+    if (bucketError && !bucketError.message?.includes('already exists')) {
+      console.log(`ℹ️ [STORAGE] Bucket info: ${bucketError.message}`);
+    }
+
+    // Upload do arquivo
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('whatsapp-media')
+      .upload(storagePath, buffer, {
+        contentType: mimeType,
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error("❌ [STORAGE] Erro no upload:", uploadError);
+      return null;
+    }
+
+    // Obter URL pública
+    const { data: urlData } = supabase.storage
+      .from('whatsapp-media')
+      .getPublicUrl(storagePath);
+
+    console.log(`✅ [STORAGE] Upload concluído: ${urlData.publicUrl}`);
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error("❌ [STORAGE] Erro ao fazer upload:", error);
+    return null;
+  }
+}
 
 // Cache manual de contatos para mapear @lid → phoneNumber
 interface Contact {
@@ -1653,15 +1707,71 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   } else if (msg?.imageMessage?.caption) {
     messageText = msg.imageMessage.caption;
     mediaType = "image";
+    mediaMimeType = msg.imageMessage.mimetype || "image/jpeg";
+    // 🖼️ IMAGEM DO DONO: Baixar para exibir no chat
+    try {
+      console.log(`🖼️ [FROM ME] Baixando imagem do dono com caption...`);
+      console.log(`🖼️ [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
+      console.log(`🖼️ [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
+      const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      console.log(`✅ [FROM ME] Imagem do dono baixada: ${buffer.length} bytes`);
+    } catch (error: any) {
+      console.error("❌ [FROM ME] Erro ao baixar imagem:", error?.message || error);
+      mediaUrl = null;
+    }
   } else if (msg?.imageMessage) {
-    messageText = "[Imagem recebida]";
+    messageText = "[Imagem enviada]";
     mediaType = "image";
+    mediaMimeType = msg.imageMessage.mimetype || "image/jpeg";
+    // 🖼️ IMAGEM DO DONO: Baixar para exibir no chat
+    try {
+      console.log(`🖼️ [FROM ME] Baixando imagem do dono sem caption...`);
+      console.log(`🖼️ [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
+      console.log(`🖼️ [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
+      const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      console.log(`✅ [FROM ME] Imagem do dono baixada: ${buffer.length} bytes`);
+    } catch (error: any) {
+      console.error("❌ [FROM ME] Erro ao baixar imagem:", error?.message || error);
+      mediaUrl = null;
+    }
   } else if (msg?.videoMessage?.caption) {
     messageText = msg.videoMessage.caption;
     mediaType = "video";
+    mediaMimeType = msg.videoMessage.mimetype || "video/mp4";
+    // 🎥 VÍDEO DO DONO: Baixar para exibir no chat
+    try {
+      console.log(`🎥 [FROM ME] Baixando vídeo do dono com caption...`);
+      console.log(`🎥 [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
+      console.log(`🎥 [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
+      console.log(`🎥 [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
+      const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      console.log(`✅ [FROM ME] Vídeo do dono baixado: ${buffer.length} bytes`);
+    } catch (error: any) {
+      console.error("❌ [FROM ME] Erro ao baixar vídeo:", error?.message || error);
+      console.error("❌ [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      mediaUrl = null;
+    }
   } else if (msg?.videoMessage) {
-    messageText = "[Vídeo recebido]";
+    messageText = "[Vídeo enviado]";
     mediaType = "video";
+    mediaMimeType = msg.videoMessage.mimetype || "video/mp4";
+    // 🎥 VÍDEO DO DONO: Baixar para exibir no chat
+    try {
+      console.log(`🎥 [FROM ME] Baixando vídeo do dono sem caption...`);
+      console.log(`🎥 [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
+      console.log(`🎥 [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
+      console.log(`🎥 [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
+      const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      console.log(`✅ [FROM ME] Vídeo do dono baixado: ${buffer.length} bytes`);
+    } catch (error: any) {
+      console.error("❌ [FROM ME] Erro ao baixar vídeo:", error?.message || error);
+      console.error("❌ [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      mediaUrl = null;
+    }
   } else if (msg?.audioMessage) {
     // 🎤 ÁUDIO DO DONO: Baixar e preparar para transcrição (igual cliente)
     mediaType = "audio";
@@ -1670,19 +1780,69 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     
     try {
       console.log(`🎤 [FROM ME] Baixando áudio do dono para transcrição...`);
+      console.log(`🎤 [FROM ME] mediaKey presente:`, !!msg.audioMessage.mediaKey);
+      console.log(`🎤 [FROM ME] directPath presente:`, !!msg.audioMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
       console.log(`✅ [FROM ME] Áudio do dono baixado: ${buffer.length} bytes`);
-    } catch (error) {
-      console.error("❌ [FROM ME] Erro ao baixar áudio:", error);
+    } catch (error: any) {
+      console.error("❌ [FROM ME] Erro ao baixar áudio:", error?.message || error);
+      mediaUrl = null;
+    }
+  }
+  // ═══════════════════════════════════════════════════════════════════════
+  // 📄 DOCUMENTO COM LEGENDA (documentWithCaptionMessage) - FROM ME
+  // ═══════════════════════════════════════════════════════════════════════
+  else if (msg?.documentWithCaptionMessage?.message?.documentMessage) {
+    const docMsg = msg.documentWithCaptionMessage.message.documentMessage;
+    messageText = docMsg.caption || `📄 ${docMsg.fileName || "Documento"}`;
+    mediaType = "document";
+    mediaMimeType = docMsg.mimetype || "application/octet-stream";
+    // 📄 DOCUMENTO DO DONO (COM CAPTION): Baixar para exibir/download no chat
+    try {
+      console.log(`📄 [FROM ME] Baixando documento do dono (com caption): ${docMsg.fileName}...`);
+      console.log(`📄 [FROM ME] mediaKey presente:`, !!docMsg.mediaKey);
+      console.log(`📄 [FROM ME] directPath presente:`, !!docMsg.directPath);
+      const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      console.log(`✅ [FROM ME] Documento do dono (com caption) baixado: ${buffer.length} bytes`);
+    } catch (error: any) {
+      console.error("❌ [FROM ME] Erro ao baixar documento (com caption):", error?.message || error);
       mediaUrl = null;
     }
   } else if (msg?.documentMessage?.caption) {
     messageText = msg.documentMessage.caption;
     mediaType = "document";
+    mediaMimeType = msg.documentMessage.mimetype || "application/octet-stream";
+    // 📄 DOCUMENTO DO DONO: Baixar para exibir/download no chat
+    try {
+      console.log(`📄 [FROM ME] Baixando documento do dono com caption: ${msg.documentMessage.fileName}...`);
+      console.log(`📄 [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
+      console.log(`📄 [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
+      const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
+      console.log(`✅ [FROM ME] Documento do dono baixado: ${buffer.length} bytes`);
+    } catch (error: any) {
+      console.error("❌ [FROM ME] Erro ao baixar documento:", error?.message || error);
+      mediaUrl = null;
+    }
   } else if (msg?.documentMessage) {
-    messageText = "[Documento recebido]";
+    messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
     mediaType = "document";
+    mediaMimeType = msg.documentMessage.mimetype || "application/octet-stream";
+    // 📄 DOCUMENTO DO DONO: Baixar para exibir/download no chat
+    try {
+      console.log(`📄 [FROM ME] Baixando documento do dono: ${msg.documentMessage.fileName}...`);
+      console.log(`📄 [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
+      console.log(`📄 [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
+      const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      console.log(`✅ [FROM ME] Documento do dono baixado: ${buffer.length} bytes`);
+    } catch (error: any) {
+      console.error("❌ [FROM ME] Erro ao baixar documento:", error?.message || error);
+      mediaUrl = null;
+    }
   } else {
     console.log(`📱 [FROM ME] Unsupported message type, skipping`);
     return;
@@ -1993,10 +2153,16 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     messageText = mediaCaption || "ðŸ“· Imagem";
     
     try {
+      console.log(`🖼️ [CLIENT] Baixando imagem...`);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      console.log(`🖼️ [CLIENT] Imagem baixada: ${buffer.length} bytes`);
+      // Upload para Supabase Storage ao invés de base64
+      mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, "imagem");
+      if (!mediaUrl && buffer.length < 500000) {
+        mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      }
     } catch (error) {
-      console.error("Error downloading image:", error);
+      console.error("❌ [CLIENT] Erro ao baixar imagem:", error);
       mediaUrl = null;
     }
   }
@@ -2008,10 +2174,16 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     messageText = "ðŸŽµ Ãudio";
     
     try {
+      console.log(`🎵 [CLIENT] Baixando áudio...`);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      console.log(`🎵 [CLIENT] Áudio baixado: ${buffer.length} bytes`);
+      // Upload para Supabase Storage
+      mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, "audio");
+      if (!mediaUrl && buffer.length < 1000000) {
+        mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      }
     } catch (error) {
-      console.error("Error downloading audio:", error);
+      console.error("❌ [CLIENT] Erro ao baixar áudio:", error);
       mediaUrl = null;
     }
   }
@@ -2024,20 +2196,69 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     messageText = mediaCaption || "ðŸŽ¥ VÃ­deo";
     
     try {
+      console.log(`🎥 [CLIENT] Baixando vídeo...`);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      console.log(`🎥 [CLIENT] Vídeo baixado: ${buffer.length} bytes`);
+      // Upload para Supabase Storage (vídeos são sempre grandes)
+      mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, "video");
     } catch (error) {
-      console.error("Error downloading video:", error);
+      console.error("❌ [CLIENT] Erro ao baixar vídeo:", error);
       mediaUrl = null;
     }
   }
-  // Check for document
+  // ═══════════════════════════════════════════════════════════════════════
+  // 📄 DOCUMENTO COM LEGENDA (documentWithCaptionMessage) - WRAPPER DO WHATSAPP
+  // Documentos com legenda chegam em: msg.documentWithCaptionMessage.message.documentMessage
+  // ═══════════════════════════════════════════════════════════════════════
+  else if (msg?.documentWithCaptionMessage?.message?.documentMessage) {
+    const docMsg = msg.documentWithCaptionMessage.message.documentMessage;
+    mediaType = "document";
+    mediaMimeType = docMsg.mimetype || "application/octet-stream";
+    mediaCaption = docMsg.caption || null;
+    const fileName = docMsg.fileName || "Documento";
+    messageText = mediaCaption || `📄 ${fileName}`;
+    
+    // 📄 DOCUMENTO DO CLIENTE (COM CAPTION): Baixar e upload para Supabase Storage
+    try {
+      console.log(`📄 [CLIENT] Baixando documento (com caption): ${fileName}...`);
+      console.log(`📄 [CLIENT] mediaKey presente:`, !!docMsg.mediaKey);
+      console.log(`📄 [CLIENT] directPath presente:`, !!docMsg.directPath);
+      const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+      console.log(`📄 [CLIENT] Documento baixado: ${buffer.length} bytes, fazendo upload...`);
+      // Upload para Supabase Storage
+      mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, fileName);
+      console.log(`✅ [CLIENT] Documento (com caption) processado: ${mediaUrl ? 'URL gerada' : 'falhou'}`);
+    } catch (error) {
+      console.error("❌ [CLIENT] Erro ao baixar documento (com caption):", error);
+      mediaUrl = null;
+    }
+  }
+  // ═══════════════════════════════════════════════════════════════════════
+  // 📄 DOCUMENTO SIMPLES (documentMessage) - SEM WRAPPER
+  // ═══════════════════════════════════════════════════════════════════════
   else if (msg?.documentMessage) {
     mediaType = "document";
     mediaMimeType = msg.documentMessage.mimetype || "application/octet-stream";
-    messageText = `ðŸ“„ ${msg.documentMessage.fileName || "Documento"}`;
+    mediaCaption = msg.documentMessage.caption || null;
+    const fileName = msg.documentMessage.fileName || "Documento";
+    messageText = mediaCaption || `📄 ${fileName}`;
+    
+    // 📄 DOCUMENTO DO CLIENTE: Baixar e upload para Supabase Storage
+    try {
+      console.log(`📄 [CLIENT] Baixando documento: ${fileName}...`);
+      console.log(`📄 [CLIENT] mediaKey presente:`, !!msg.documentMessage.mediaKey);
+      console.log(`📄 [CLIENT] directPath presente:`, !!msg.documentMessage.directPath);
+      const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+      console.log(`📄 [CLIENT] Documento baixado: ${buffer.length} bytes, fazendo upload...`);
+      // Upload para Supabase Storage
+      mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, fileName);
+      console.log(`✅ [CLIENT] Documento processado: ${mediaUrl ? 'URL gerada' : 'falhou'}`);
+    } catch (error) {
+      console.error("❌ [CLIENT] Erro ao baixar documento:", error);
+      mediaUrl = null;
+    }
   }
-  // Ignorar mensagens de tipos nÃ£o suportados (reaÃ§Ãµes, status, etc)
+    // Ignorar mensagens de tipos nÃ£o suportados (reaÃ§Ãµes, status, etc)
   else {
     console.log(`Ignoring unsupported message type from ${contactNumber}:`, Object.keys(msg || {}));
     return; // NÃ£o processar mensagens nÃ£o suportadas
