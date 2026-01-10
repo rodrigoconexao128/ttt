@@ -23,7 +23,9 @@ import {
   CalendarClock,
   AlertTriangle,
   Shield,
-  Lock
+  Lock,
+  MessageSquare,
+  Mail
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
@@ -404,11 +406,28 @@ export default function MySubscription() {
 
   const generatePixMutation = useMutation({
     mutationFn: async (subscriptionId: string) => {
+      // Se for cliente de revendedor, não gera PIX do sistema (usar dados do revendedor manualmente)
+      if (resellerInfo?.isResellerClient && resellerInfo.reseller?.pixKey) {
+        // Retornar dados fictícios para abrir o dialog com dados do revendedor
+        return {
+          status: "reseller_manual",
+          isResellerPix: true,
+          resellerData: resellerInfo.reseller,
+          amount: resellerInfo.clientPrice || "0",
+        };
+      }
       const response = await apiRequest("POST", "/api/my-subscription/generate-pix", { subscriptionId });
       return response.json();
     },
     onSuccess: (data) => {
-      if (data.status === "pending") {
+      if (data.status === "reseller_manual") {
+        // Mostrar dialog especial com dados do revendedor
+        setShowPixDialog(true);
+        toast({
+          title: "Dados de Pagamento",
+          description: `Realize o pagamento via PIX para ${data.resellerData.companyName}`,
+        });
+      } else if (data.status === "pending") {
         setPixData({
           qrCode: data.qrCode,
           qrCodeBase64: data.qrCodeBase64,
@@ -589,8 +608,9 @@ export default function MySubscription() {
     );
   }
 
-  const { subscription, plan, payments, stats } = data || {};
+  const { subscription, plan, payments, stats, resellerInfo } = data || {};
 
+  // Tela padrão de "nenhuma assinatura" (mesma para todos)
   if (!subscription) {
     return (
       <div className="container mx-auto py-8 px-4">
@@ -614,8 +634,6 @@ export default function MySubscription() {
       </div>
     );
   }
-
-  const { resellerInfo } = data || {};
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
@@ -1161,11 +1179,99 @@ export default function MySubscription() {
           <DialogHeader>
             <DialogTitle className="text-center">Pagamento via PIX</DialogTitle>
             <DialogDescription className="text-center">
-              Escaneie o QR Code ou copie o código para pagar
+              {resellerInfo?.isResellerClient && resellerInfo.reseller?.pixKey
+                ? `Realize o pagamento para ${resellerInfo.reseller.companyName}`
+                : "Escaneie o QR Code ou copie o código para pagar"}
             </DialogDescription>
           </DialogHeader>
           
-          {pixData && (
+          {/* Se for cliente de revendedor, mostrar dados do revendedor */}
+          {resellerInfo?.isResellerClient && resellerInfo.reseller?.pixKey ? (
+            <div className="space-y-4">
+              {/* Valor a Pagar */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 rounded-lg p-4 border-2 border-green-200">
+                <p className="text-sm text-center text-muted-foreground mb-1">Valor da mensalidade:</p>
+                <p className="text-3xl font-bold text-center text-green-600">
+                  R$ {parseFloat(resellerInfo.clientPrice || '0').toFixed(2)}
+                </p>
+              </div>
+              
+              {/* Dados bancários do Revendedor */}
+              <div className="space-y-3">
+                {/* Titular */}
+                {resellerInfo.reseller.pixHolderName && (
+                  <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">👤</span>
+                      <span className="text-sm text-muted-foreground">Titular:</span>
+                    </div>
+                    <span className="font-medium">{resellerInfo.reseller.pixHolderName}</span>
+                  </div>
+                )}
+                
+                {/* Banco */}
+                {resellerInfo.reseller.pixBankName && (
+                  <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">🏦</span>
+                      <span className="text-sm text-muted-foreground">Banco:</span>
+                    </div>
+                    <span className="font-medium">{resellerInfo.reseller.pixBankName}</span>
+                  </div>
+                )}
+                
+                {/* Chave PIX */}
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">🔑</span>
+                      <span className="text-sm text-muted-foreground">
+                        Chave PIX ({resellerInfo.reseller.pixKeyType?.toUpperCase() || 'CHAVE'}):
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(resellerInfo.reseller.pixKey!);
+                        toast({ title: "✅ Chave PIX copiada!", description: "Cole no seu app de banco" });
+                      }}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copiar
+                    </Button>
+                  </div>
+                  <code className="block text-center font-mono bg-white dark:bg-gray-700 px-3 py-2 rounded text-sm break-all border">
+                    {resellerInfo.reseller.pixKey}
+                  </code>
+                </div>
+              </div>
+              
+              {/* Botão WhatsApp para enviar comprovante */}
+              {resellerInfo.reseller.supportPhone && (
+                <Button
+                  className="w-full py-6 text-base"
+                  style={{ backgroundColor: '#25D366' }}
+                  onClick={() => {
+                    const phone = resellerInfo.reseller.supportPhone?.replace(/\D/g, '');
+                    const message = encodeURIComponent(
+                      `Olá! Acabei de realizar o pagamento de R$ ${parseFloat(resellerInfo.clientPrice || '0').toFixed(2)} via PIX. Segue o comprovante:`
+                    );
+                    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+                  }}
+                >
+                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  </svg>
+                  Enviar Comprovante via WhatsApp
+                </Button>
+              )}
+              
+              <p className="text-xs text-center text-muted-foreground">
+                Após o pagamento, envie o comprovante via WhatsApp para confirmação.
+              </p>
+            </div>
+          ) : pixData && (
             <div className="space-y-4">
               {/* QR Code */}
               <div className="flex justify-center">

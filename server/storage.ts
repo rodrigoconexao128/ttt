@@ -66,6 +66,9 @@ import {
   type InsertResellerPayment,
   type ResellerInvoice,
   type InsertResellerInvoice,
+  resellerInvoiceItems,
+  type ResellerInvoiceItem,
+  type InsertResellerInvoiceItem,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray, lte, isNotNull } from "drizzle-orm";
@@ -3246,18 +3249,48 @@ export class DatabaseStorage implements IStorage {
   /**
    * Lista clientes de um revendedor
    */
-  async getResellerClients(resellerId: string): Promise<(ResellerClient & { user: User | null })[]> {
+  async getResellerClients(resellerId: string): Promise<(ResellerClient & { user: User | null, firstPaymentDate: Date | null, lastPaymentDate: Date | null, isOverdue: boolean, monthsInSystem: number })[]> {
     const clients = await db
       .select()
       .from(resellerClients)
       .where(eq(resellerClients.resellerId, resellerId))
       .orderBy(desc(resellerClients.createdAt));
     
-    const results: (ResellerClient & { user: User | null })[] = [];
+    const results: (ResellerClient & { user: User | null, firstPaymentDate: Date | null, lastPaymentDate: Date | null, isOverdue: boolean, monthsInSystem: number })[] = [];
     
     for (const client of clients) {
       const [user] = await db.select().from(users).where(eq(users.id, client.userId)).limit(1);
-      results.push({ ...client, user: user || null });
+      
+      // Buscar pagamentos do cliente
+      const payments = await db
+        .select()
+        .from(resellerPayments)
+        .where(and(
+          eq(resellerPayments.resellerId, resellerId),
+          eq(resellerPayments.resellerClientId, client.id),
+          eq(resellerPayments.status, 'paid')
+        ))
+        .orderBy(resellerPayments.paidAt);
+      
+      const firstPaymentDate = payments.length > 0 && payments[0].paidAt ? payments[0].paidAt : null;
+      const lastPaymentDate = payments.length > 0 && payments[payments.length - 1].paidAt ? payments[payments.length - 1].paidAt : null;
+      
+      // Cliente está em atraso se nextPaymentDate passou e não é cliente gratuito
+      const isOverdue = !client.isFreeClient && 
+                        client.nextPaymentDate !== null && 
+                        new Date(client.nextPaymentDate) < new Date();
+      
+      // Quantos meses no sistema = quantidade de pagamentos
+      const monthsInSystem = payments.length;
+      
+      results.push({ 
+        ...client, 
+        user: user || null,
+        firstPaymentDate,
+        lastPaymentDate,
+        isOverdue,
+        monthsInSystem
+      });
     }
     
     return results;
@@ -3535,19 +3568,50 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Conta clientes ativos de um revendedor
+   * Cria fatura com itens (transacional)
    */
-  async countActiveResellerClients(resellerId: string): Promise<number> {
+  async createResellerInvoiceWithItems(
+    invoice: InsertResellerInvoice,
+    items: InsertResellerInvoiceItem[]
+  ): Promise<ResellerInvoice> {
+    return await db.transaction(async (tx) => {
+      const [newInvoice] = await tx
+        .insert(resellerInvoices)
+        .values(invoice)
+        .returning();
+
+      if (items.length > 0) {
+        const itemsWithId = items.map((item) => ({
+          ...item,
+          invoiceId: newInvoice.id,
+        }));
+        await tx.insert(resellerInvoiceItems).values(itemsWithId);
+      }
+
+      return newInvoice;
+    });
+  }
+
+  /**
+   * Obtém fatura pelo ID do Mercado Pago
+   */
+  async getResellerInvoiceByMpPaymentId(mpPaymentId: string): Promise<ResellerInvoice | undefined> {
     const [result] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(resellerClients)
-      .where(
-        and(
-          eq(resellerClients.resellerId, resellerId),
-          eq(resellerClients.status, 'active')
-        )
-      );
-    return Number(result?.count || 0);
+      .select()
+      .from(resellerInvoices)
+      .where(eq(resellerInvoices.mpPaymentId, mpPaymentId))
+      .limit(1);
+    return result;
+  }
+
+  /**
+   * Obtém itens de uma fatura
+   */
+  async getResellerInvoiceItems(invoiceId: number): Promise<ResellerInvoiceItem[]> {
+    return db
+      .select()
+      .from(resellerInvoiceItems)
+      .where(eq(resellerInvoiceItems.invoiceId, invoiceId));
   }
 }
 

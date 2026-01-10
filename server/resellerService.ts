@@ -547,6 +547,167 @@ class ResellerService {
   }
 
   /**
+   * Cria fatura granular para lista de clientes selecionados
+   */
+  async createGranularInvoice(resellerId: string, clientIds: string[]): Promise<{
+    success: boolean;
+    invoiceId?: number;
+    paymentUrl?: string; // Point of Interaction do PIX
+    qrCode?: string;
+    totalAmount?: number;
+    error?: string;
+  }> {
+    try {
+      const reseller = await storage.getReseller(resellerId);
+      if (!reseller) throw new Error("Revendedor não encontrado");
+
+      // Validar clientes e calcular total
+      const unitPrice = Number(reseller.costPerClient || 49.99);
+      let totalAmount = 0;
+      const invoiceItems = [];
+
+      for (const clientId of clientIds) {
+        // Verificar se cliente pertence ao revendedor
+        const client = await storage.getResellerClient(clientId);
+        if (!client || client.resellerId !== resellerId) {
+            console.warn(`Cliente ${clientId} inválido para revendedor ${resellerId}`);
+            continue;
+        }
+
+        totalAmount += unitPrice;
+        invoiceItems.push({
+            resellerClientId: clientId,
+            amount: String(unitPrice),
+            description: `Renovação SaaS - Cliente ${clientId}`
+        });
+      }
+
+      if (invoiceItems.length === 0) {
+        return { success: false, error: "Nenhum cliente válido selecionado" };
+      }
+
+      // Criar Preferência de Pagamento no Mercado Pago (PIX)
+       const creds = await mercadoPagoService.loadCredentials();
+       if (!creds) throw new Error("MercadoPago não configurado na admin");
+
+       const externalReference = `reseller_granular_${Date.now()}_${resellerId}`;
+       
+       // Criação do pagamento PIX Imediato
+       const pixPaymentData = {
+          transaction_amount: totalAmount,
+          description: `Renovação de ${invoiceItems.length} clientes - Revenda`,
+          payment_method_id: "pix",
+          payer: {
+            email: (await storage.getUser(reseller.userId))?.email || "reseller@agentezap.online",
+             first_name: reseller.companyName
+          },
+          external_reference: externalReference,
+           notification_url: `${process.env.BASE_URL || 'https://agentezap.online'}/api/webhooks/mercadopago`
+       };
+
+        const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${creds.accessToken}`,
+             "X-Idempotency-Key": externalReference
+          },
+          body: JSON.stringify(pixPaymentData),
+        });
+
+        const pixResult = await pixResponse.json();
+        
+        if (pixResult.status === "rejected") {
+            return { success: false, error: "Pagamento rejeitado pelo Mercado Pago" };
+        }
+
+        // Criar Invoice no Banco
+        const invoice = await storage.createResellerInvoiceWithItems(
+            {
+                resellerId,
+                referenceMonth: new Date().toISOString().slice(0, 7), // YYYY-MM
+                dueDate: new Date().toISOString(), // Hoje
+                activeClients: invoiceItems.length,
+                unitPrice: String(unitPrice),
+                totalAmount: String(totalAmount),
+                status: "pending",
+                paymentMethod: "pix",
+                mpPaymentId: String(pixResult.id)
+            },
+            invoiceItems as any
+        );
+
+        return {
+            success: true,
+            invoiceId: invoice.id,
+            paymentUrl: pixResult.point_of_interaction?.transaction_data?.ticket_url,
+            qrCode: pixResult.point_of_interaction?.transaction_data?.qr_code,
+            totalAmount
+        };
+
+    } catch (error: any) {
+        console.error("Erro ao criar fatura granular:", error);
+        return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Processa Webhook de pagamento granular (Pix Aprovado)
+   */
+  async processGranularPaymentWebhook(payment: any): Promise<void> {
+    if (payment.status !== "approved") {
+        console.log(`[ResellerService] Pagamento granular ${payment.id} não aprovado (${payment.status})`);
+        return;
+    }
+
+    const invoice = await storage.getResellerInvoiceByMpPaymentId(String(payment.id));
+    if (!invoice) {
+        console.error(`[ResellerService] Fatura granular não encontrada para pagamento ${payment.id}`);
+        return;
+    }
+
+    if (invoice.status === "paid") {
+        console.log(`[ResellerService] Fatura ${invoice.id} já está paga.`);
+        return;
+    }
+
+    // Atualizar fatura para PAGO
+    await storage.updateResellerInvoice(invoice.id, {
+        status: "paid",
+        paidAt: new Date(),
+        paymentMethod: payment.payment_method_id
+    });
+
+    // Processar itens (Clientes)
+    const items = await storage.getResellerInvoiceItems(invoice.id);
+    
+    for (const item of items) {
+        if (!item.resellerClientId) continue;
+
+        const client = await storage.getResellerClient(item.resellerClientId);
+        if (!client) continue;
+
+        // Calcular nova data de vencimento
+        let currentSaaSDate = client.saasPaidUntil ? new Date(client.saasPaidUntil) : new Date();
+        if (currentSaaSDate < new Date()) {
+            currentSaaSDate = new Date(); // Se já venceu, começa de hoje
+        }
+        
+        // Adicionar 30 dias
+        const newExpirtyDate = new Date(currentSaaSDate);
+        newExpirtyDate.setDate(newExpirtyDate.getDate() + 30);
+
+        // Atualizar cliente
+        await storage.updateResellerClient(client.id, {
+            saasPaidUntil: newExpirtyDate,
+            saasStatus: "active"
+        });
+        
+        console.log(`[ResellerService] SaaS renovado para cliente ${client.id} até ${newExpirtyDate.toISOString()}`);
+    }
+  }
+
+  /**
    * Confirma pagamento PIX e cria o cliente
    */
   async confirmPixPayment(paymentId: string): Promise<CreateClientResult> {

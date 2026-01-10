@@ -9,7 +9,7 @@ import { registerFollowUpRoutes } from "./routes_user_followup";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 import { withRetry, db } from "./db";
 import { eq, and, gte, desc, inArray } from "drizzle-orm";
-import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users } from "@shared/schema";
+import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users, resellerInvoiceItems as resellerInvoiceItemsTable, resellerInvoices as resellerInvoicesTable } from "@shared/schema";
 import { resellerService } from "./resellerService";
 
 // ============================================
@@ -2077,8 +2077,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             isSubscriptionExpired = true;
           } else if (resellerClient.status === 'active') {
             hasActiveSubscription = true;
-            // Verificar se está vencido pela data de próximo pagamento
-            if (resellerClient.nextPaymentDate) {
+            
+            // PRIORITIZE: Verificar se está vencido pelo saasPaidUntil (pagamentos granulares)
+            if (resellerClient.saasPaidUntil) {
+              const paidUntil = new Date(resellerClient.saasPaidUntil);
+              const today = new Date();
+              if (today > paidUntil) {
+                isSubscriptionExpired = true;
+                hasActiveSubscription = false;
+              }
+            }
+            // FALLBACK: Verificar se está vencido pela data de próximo pagamento (assinaturas)
+            else if (resellerClient.nextPaymentDate) {
               const nextPayment = new Date(resellerClient.nextPaymentDate);
               const today = new Date();
               // Se a data de vencimento passou há mais de 5 dias, considera expirado
@@ -5875,6 +5885,15 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
               // ═══════════════════════════════════════════════════════════════════
               if (payment.status === "approved") {
                 const externalRef = payment.external_reference || "";
+
+                // 🔥 NEW: Reseller Granular Payments
+                if (externalRef && externalRef.startsWith("reseller_granular_")) {
+                   const { resellerService } = await import("./resellerService");
+                   await resellerService.processGranularPaymentWebhook(payment);
+                   console.log("[MP Webhook] Granular payment processed:", payment.id);
+                   return res.json({ message: "Granular payment processed" });
+                }
+
                 let subscriptionId: string | null = null;
                 
                 // Extrair ID da assinatura do external_reference
@@ -6195,7 +6214,14 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       const subscriptionWithPlan = await storage.getUserSubscription(userId) as any;
       
       if (!subscriptionWithPlan) {
-        return res.json({ subscription: null, plan: null, payments: [], stats: { totalPaid: 0, totalPayments: 0, approvedPayments: 0, failedPayments: 0 } });
+        // Retornar resellerInfo mesmo sem subscription (cliente de revenda sem subscription tradicional)
+        return res.json({ 
+          subscription: null, 
+          plan: null, 
+          payments: [], 
+          stats: { totalPaid: 0, totalPayments: 0, approvedPayments: 0, failedPayments: 0 },
+          resellerInfo // IMPORTANTE: incluir resellerInfo para clientes de revenda
+        });
       }
       
       const subscription = subscriptionWithPlan;
@@ -12933,6 +12959,448 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   });
 
   /**
+   * Pagar antecipado (adiciona 30 dias ao saasPaidUntil)
+   * POST /api/reseller/clients/:clientId/pay-ahead
+   */
+  app.post("/api/reseller/clients/:clientId/pay-ahead", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      // Calcular nova data (atual saasPaidUntil + 30 dias)
+      let currentSaaSDate = client.saasPaidUntil ? new Date(client.saasPaidUntil) : new Date();
+      if (currentSaaSDate < new Date()) {
+        currentSaaSDate = new Date(); // Se já venceu, começa de hoje
+      }
+      
+      const newDate = new Date(currentSaaSDate);
+      newDate.setDate(newDate.getDate() + 30);
+      
+      // Calcular referência do mês
+      const referenceMonth = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Preço do cliente
+      const clientPrice = parseFloat(client.clientPrice || client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
+      
+      // Criar ou obter fatura do mês atual
+      let invoice = await db.query.resellerInvoices.findFirst({
+        where: and(
+          eq(resellerInvoicesTable.resellerId, reseller.id),
+          eq(resellerInvoicesTable.referenceMonth, referenceMonth)
+        ),
+      });
+      
+      if (!invoice) {
+        // Criar nova fatura
+        const [newInvoice] = await db.insert(resellerInvoicesTable).values({
+          resellerId: reseller.id,
+          amount: clientPrice.toFixed(2),
+          status: 'paid',
+          referenceMonth,
+          dueDate: newDate,
+          paymentMethod: 'pay_ahead',
+          paidAt: new Date(),
+        }).returning();
+        invoice = newInvoice;
+      }
+      
+      // Adicionar item da fatura para este cliente
+      await db.insert(resellerInvoiceItemsTable).values({
+        invoiceId: invoice.id,
+        resellerClientId: clientId,
+        amount: clientPrice.toFixed(2),
+        description: `Pagamento Antecipado - ${client.userId}`,
+      });
+      
+      // Atualizar cliente
+      await storage.updateResellerClient(clientId, {
+        saasPaidUntil: newDate,
+        saasStatus: "active",
+        status: "active",
+        nextPaymentDate: newDate,
+      });
+      
+      res.json({ 
+        message: "Pagamento antecipado processado",
+        saasPaidUntil: newDate.toISOString(),
+      });
+    } catch (error: any) {
+      console.error("Error processing pay-ahead:", error);
+      res.status(500).json({ message: "Erro ao processar pagamento antecipado" });
+    }
+  });
+
+  /**
+   * Pagar anual (adiciona 365 dias ao saasPaidUntil)
+   * POST /api/reseller/clients/:clientId/pay-annual
+   */
+  app.post("/api/reseller/clients/:clientId/pay-annual", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      // Calcular nova data (atual saasPaidUntil + 365 dias)
+      let currentSaaSDate = client.saasPaidUntil ? new Date(client.saasPaidUntil) : new Date();
+      if (currentSaaSDate < new Date()) {
+        currentSaaSDate = new Date(); // Se já venceu, começa de hoje
+      }
+      
+      const newDate = new Date(currentSaaSDate);
+      newDate.setDate(newDate.getDate() + 365);
+      
+      // Preço do cliente
+      const clientPrice = parseFloat(client.clientPrice || client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
+      const annualPrice = clientPrice * 12; // 12 meses
+      
+      // Calcular referência do mês
+      const referenceMonth = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Criar fatura anual
+      const [invoice] = await db.insert(resellerInvoicesTable).values({
+        resellerId: reseller.id,
+        amount: annualPrice.toFixed(2),
+        status: 'paid',
+        referenceMonth,
+        dueDate: newDate,
+        paymentMethod: 'pay_annual',
+        paidAt: new Date(),
+      }).returning();
+      
+      // Adicionar item da fatura para este cliente
+      await db.insert(resellerInvoiceItemsTable).values({
+        invoiceId: invoice.id,
+        resellerClientId: clientId,
+        amount: annualPrice.toFixed(2),
+        description: `Pagamento Anual (12 meses) - ${client.userId}`,
+      });
+      
+      // Atualizar cliente
+      await storage.updateResellerClient(clientId, {
+        saasPaidUntil: newDate,
+        saasStatus: "active",
+        status: "active",
+        nextPaymentDate: newDate,
+      });
+      
+      res.json({ 
+        message: "Pagamento anual processado",
+        saasPaidUntil: newDate.toISOString(),
+      });
+    } catch (error: any) {
+      console.error("Error processing annual payment:", error);
+      res.status(500).json({ message: "Erro ao processar pagamento anual" });
+    }
+  });
+
+  /**
+   * Gerar PIX para pagamento mensal de um cliente (revendedor paga ao dono do sistema)
+   * POST /api/reseller/clients/:clientId/generate-pix
+   * IMPORTANTE: Este PIX é para o REVENDEDOR pagar ao DONO DO SISTEMA via Mercado Pago
+   */
+  app.post("/api/reseller/clients/:clientId/generate-pix", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      // Buscar usuário do cliente para obter email
+      const clientUser = await storage.getUser(client.userId);
+      if (!clientUser) {
+        return res.status(404).json({ message: "Usuário do cliente não encontrado" });
+      }
+      
+      // Calcular valor mensal - usa o custo que o REVENDEDOR paga ao dono do sistema
+      // O valor do plano do revendedor é o que ele paga por cliente
+      const monthlyValue = parseFloat(client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
+      
+      if (!monthlyValue || isNaN(monthlyValue) || monthlyValue <= 0) {
+        return res.status(400).json({ message: "Valor mensal inválido" });
+      }
+      
+      // Get MP credentials - usa as credenciais do SISTEMA (dono da plataforma)
+      const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
+      const accessToken = configMap.get("mercadopago_access_token");
+      
+      if (!accessToken) {
+        return res.status(500).json({ message: "Mercado Pago não configurado" });
+      }
+      
+      // Usar email do revendedor como pagador (ele que está pagando)
+      const resellerUser = await storage.getUser(userId);
+      const payerEmail = resellerUser?.email || '';
+      
+      if (!payerEmail) {
+        return res.status(400).json({ message: "Email do revendedor não encontrado" });
+      }
+      
+      console.log("[RESELLER PIX] Gerando PIX - Revendedor:", reseller.companyName, "Cliente:", clientUser.name, "Valor:", monthlyValue);
+      
+      // Create PIX payment via Mercado Pago
+      const pixPaymentData = {
+        transaction_amount: monthlyValue,
+        payment_method_id: "pix",
+        description: `Mensalidade Cliente ${clientUser.name || clientUser.email} - ${reseller.companyName} - AgenteZap`,
+        payer: {
+          email: payerEmail,
+        },
+        external_reference: `reseller_pix_${reseller.id}_${clientId}_${Date.now()}`,
+        notification_url: `${process.env.BASE_URL || 'https://agentezap.online'}/api/webhooks/mercadopago`,
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      };
+      
+      const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "X-Idempotency-Key": `reseller_pix_${clientId}_${Date.now()}`,
+        },
+        body: JSON.stringify(pixPaymentData),
+      });
+      
+      const pixResult = await pixResponse.json();
+      
+      if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
+        const transactionData = pixResult.point_of_interaction.transaction_data;
+        
+        // Registrar pagamento pendente
+        const referenceMonth = new Date().toISOString().slice(0, 7);
+        await db.insert(resellerInvoicesTable).values({
+          resellerId: reseller.id,
+          totalAmount: monthlyValue.toFixed(2),
+          activeClients: 1,
+          unitPrice: monthlyValue.toFixed(2),
+          status: 'pending',
+          referenceMonth,
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          paymentMethod: 'pix',
+          mpPaymentId: pixResult.id?.toString(),
+        });
+        
+        return res.json({
+          status: "pending",
+          message: "PIX gerado com sucesso! Escaneie o QR Code para pagar.",
+          paymentId: pixResult.id,
+          qrCode: transactionData.qr_code,
+          qrCodeBase64: transactionData.qr_code_base64,
+          ticketUrl: transactionData.ticket_url,
+          expirationDate: pixResult.date_of_expiration,
+          amount: monthlyValue,
+          clientName: clientUser.name || clientUser.email,
+        });
+      } else {
+        console.error("[RESELLER PIX] Erro Mercado Pago:", pixResult);
+        return res.json({
+          status: "error",
+          message: pixResult.message || "Erro ao gerar PIX",
+        });
+      }
+    } catch (error: any) {
+      console.error("[RESELLER PIX] Erro:", error);
+      res.status(500).json({ message: error.message || "Erro ao gerar PIX" });
+    }
+  });
+
+  /**
+   * Gerar PIX para pagamento anual de um cliente (revendedor paga ao dono do sistema)
+   * POST /api/reseller/clients/:clientId/generate-annual-pix
+   * IMPORTANTE: Este PIX é para o REVENDEDOR pagar ao DONO DO SISTEMA via Mercado Pago (12 meses com desconto)
+   */
+  app.post("/api/reseller/clients/:clientId/generate-annual-pix", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const clientId = req.params.clientId;
+      const { discountPercent = 5 } = req.body;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Verificar se o cliente pertence ao revendedor
+      const client = await storage.getResellerClient(clientId);
+      if (!client || client.resellerId !== reseller.id) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      // Buscar usuário do cliente para obter nome
+      const clientUser = await storage.getUser(client.userId);
+      if (!clientUser) {
+        return res.status(404).json({ message: "Usuário do cliente não encontrado" });
+      }
+      
+      // Calcular valor anual com desconto
+      const monthlyValue = parseFloat(client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
+      
+      if (!monthlyValue || isNaN(monthlyValue) || monthlyValue <= 0) {
+        return res.status(400).json({ message: "Valor mensal inválido" });
+      }
+      
+      const annualValue = monthlyValue * 12;
+      const discount = annualValue * (discountPercent / 100);
+      const finalValue = Math.round((annualValue - discount) * 100) / 100;
+      
+      console.log("[RESELLER ANNUAL PIX] Valores:", { monthlyValue, annualValue, discount, finalValue, discountPercent });
+      
+      // Get MP credentials
+      const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
+      const accessToken = configMap.get("mercadopago_access_token");
+      
+      if (!accessToken) {
+        return res.status(500).json({ message: "Mercado Pago não configurado" });
+      }
+      
+      // Usar email do revendedor como pagador
+      const resellerUser = await storage.getUser(userId);
+      const payerEmail = resellerUser?.email || '';
+      
+      if (!payerEmail) {
+        return res.status(400).json({ message: "Email do revendedor não encontrado" });
+      }
+      
+      // Create PIX payment via Mercado Pago
+      const pixPaymentData = {
+        transaction_amount: finalValue,
+        payment_method_id: "pix",
+        description: `Plano Anual (12 meses) Cliente ${clientUser.name || clientUser.email} - ${reseller.companyName} - AgenteZap - ${discountPercent}% desconto`,
+        payer: {
+          email: payerEmail,
+        },
+        external_reference: `reseller_annual_pix_${reseller.id}_${clientId}_${Date.now()}`,
+        notification_url: `${process.env.BASE_URL || 'https://agentezap.online'}/api/webhooks/mercadopago`,
+        date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      };
+      
+      const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "X-Idempotency-Key": `reseller_annual_pix_${clientId}_${Date.now()}`,
+        },
+        body: JSON.stringify(pixPaymentData),
+      });
+      
+      const pixResult = await pixResponse.json();
+      
+      if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
+        const transactionData = pixResult.point_of_interaction.transaction_data;
+        
+        // Registrar pagamento pendente (anual = 12 meses)
+        const referenceMonth = new Date().toISOString().slice(0, 7);
+        await db.insert(resellerInvoicesTable).values({
+          resellerId: reseller.id,
+          totalAmount: finalValue.toFixed(2),
+          activeClients: 1,
+          unitPrice: monthlyValue.toFixed(2),
+          status: 'pending',
+          referenceMonth,
+          dueDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          paymentMethod: 'pix_annual',
+          mpPaymentId: pixResult.id?.toString(),
+        });
+        
+        return res.json({
+          status: "pending",
+          message: "PIX Anual gerado com sucesso!",
+          paymentId: pixResult.id,
+          qrCode: transactionData.qr_code,
+          qrCodeBase64: transactionData.qr_code_base64,
+          ticketUrl: transactionData.ticket_url,
+          expirationDate: pixResult.date_of_expiration,
+          amount: finalValue,
+          originalAmount: annualValue,
+          discountPercent,
+          discountAmount: discount,
+          clientName: clientUser.name || clientUser.email,
+        });
+      } else {
+        console.error("[RESELLER ANNUAL PIX] Erro Mercado Pago:", pixResult);
+        return res.json({
+          status: "error",
+          message: pixResult.message || "Erro ao gerar PIX",
+        });
+      }
+    } catch (error: any) {
+      console.error("[RESELLER ANNUAL PIX] Erro:", error);
+      res.status(500).json({ message: error.message || "Erro ao gerar PIX anual" });
+    }
+  });
+
+  /**
+   * Verificar status de pagamento PIX do revendedor
+   * GET /api/reseller/check-pix-status/:paymentId
+   */
+  app.get("/api/reseller/check-pix-status/:paymentId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const paymentId = req.params.paymentId;
+      
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+      
+      // Get MP credentials
+      const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
+      const accessToken = configMap.get("mercadopago_access_token");
+      
+      if (!accessToken) {
+        return res.status(500).json({ message: "Mercado Pago não configurado" });
+      }
+      
+      // Check payment status
+      const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+        },
+      });
+      
+      const payment = await response.json();
+      
+      return res.json({
+        status: payment.status,
+        statusDetail: payment.status_detail,
+      });
+    } catch (error: any) {
+      console.error("[RESELLER PIX STATUS] Erro:", error);
+      res.status(500).json({ message: error.message || "Erro ao verificar status do PIX" });
+    }
+  });
+
+  /**
    * Obter métricas do dashboard do revendedor
    * GET /api/reseller/dashboard
    */
@@ -12991,6 +13459,43 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     } catch (error: any) {
       console.error("Error processing reseller payment webhook:", error);
       res.status(500).json({ message: "Erro ao processar webhook de pagamento" });
+    }
+  });
+
+  /**
+   * Criar fatura granular para clientes selecionados
+   * POST /api/reseller/invoices/custom
+   */
+  app.post("/api/reseller/invoices/custom", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { clientIds } = req.body;
+
+      if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
+        return res.status(400).json({ message: "clientIds é obrigatório e deve ser um array não vazio" });
+      }
+
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+
+      const result = await resellerService.createGranularInvoice(reseller.id, clientIds);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.error });
+      }
+
+      res.json({
+        success: true,
+        invoiceId: result.invoiceId,
+        paymentUrl: result.paymentUrl,
+        qrCode: result.qrCode,
+        totalAmount: result.totalAmount
+      });
+    } catch (error: any) {
+      console.error("Error creating granular invoice:", error);
+      res.status(500).json({ message: "Erro ao criar fatura" });
     }
   });
 
@@ -13150,19 +13655,35 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
       
-      if (!user || !user.resellerId) {
+      // Verificar se é cliente de revenda de duas formas:
+      // 1. Campo resellerId no user
+      // 2. Registro na tabela reseller_clients
+      let resellerId = user?.resellerId;
+      let resellerClient = null;
+      
+      // Se não tem resellerId diretamente, verificar na tabela reseller_clients
+      if (!resellerId) {
+        resellerClient = await storage.getResellerClientByUserId(userId);
+        if (resellerClient) {
+          resellerId = resellerClient.resellerId;
+        }
+      }
+      
+      if (!resellerId) {
         // Não é cliente de revenda - retornar null para mostrar planos normais
         return res.json({ isResellerClient: false });
       }
       
       // É cliente de revenda - buscar dados do revendedor e do cliente
-      const reseller = await storage.getReseller(user.resellerId);
+      const reseller = await storage.getReseller(resellerId);
       if (!reseller || !reseller.isActive) {
         return res.json({ isResellerClient: false });
       }
       
-      // Buscar dados do cliente da revenda
-      const resellerClient = await storage.getResellerClientByUserId(userId);
+      // Buscar dados do cliente da revenda se ainda não temos
+      if (!resellerClient) {
+        resellerClient = await storage.getResellerClientByUserId(userId);
+      }
       
       // Calcular o preço que o cliente vê (definido pelo revendedor)
       const clientPrice = resellerClient?.clientPrice || reseller.clientMonthlyPrice || "99.99";
@@ -13449,7 +13970,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   /**
    * Obter detalhes completos de um cliente
    * GET /api/reseller/clients/:clientId/details
-   * Retorna: dados do cliente, histórico de pagamentos, status de conexão
+   * Retorna: dados do cliente no formato similar a /api/my-subscription
    */
   app.get("/api/reseller/clients/:clientId/details", isAuthenticated, async (req: any, res) => {
     try {
@@ -13473,12 +13994,81 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       // Buscar conexão WhatsApp do cliente
       const connection = await storage.getConnectionByUserId(client.userId);
       
-      // Buscar assinatura do cliente
+      // Buscar assinatura do cliente (se existir)
       const subscription = await storage.getUserSubscription(client.userId);
       
-      // Buscar histórico de pagamentos do cliente na reseller_payments
-      const allPayments = await storage.getResellerPayments(reseller.id, 100);
-      const clientPayments = allPayments.filter(p => p.resellerClientId === clientId);
+      // Buscar histórico de pagamentos do cliente via invoice_items (Revendedor -> Sistema)
+      const invoiceItems = await db.query.resellerInvoiceItems.findMany({
+        where: eq(resellerInvoiceItemsTable.resellerClientId, clientId),
+        with: {
+          invoice: true,
+        },
+      });
+      
+      // Filtrar apenas invoices pagas e mapear histórico
+      const paidInvoiceItems = invoiceItems.filter(item => item.invoice?.status === 'paid');
+      
+      // CALCULAR DATAS E STATUS CORRETOS
+      const now = new Date();
+      
+      // Determinar data de ativação
+      const activatedAt = client.activatedAt ? new Date(client.activatedAt) : new Date(client.createdAt);
+      
+      // Calcular saasPaidUntil - se não existe, é activatedAt + 30 dias
+      let saasPaidUntil = client.saasPaidUntil ? new Date(client.saasPaidUntil) : null;
+      if (!saasPaidUntil) {
+        saasPaidUntil = new Date(activatedAt);
+        saasPaidUntil.setDate(saasPaidUntil.getDate() + 30);
+      }
+      
+      // Calcular dias restantes
+      const daysRemaining = Math.max(0, Math.ceil((saasPaidUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+      
+      // Determinar status efetivo
+      const isExpired = saasPaidUntil < now;
+      const effectiveStatus = client.status === 'cancelled' ? 'cancelled' : 
+                              client.status === 'suspended' ? 'suspended' :
+                              isExpired ? 'overdue' : 'active';
+      
+      // Calcular próxima fatura (saasPaidUntil é a data limite, próximo pagamento é antes disso)
+      const nextPaymentDate = client.nextPaymentDate ? new Date(client.nextPaymentDate) : saasPaidUntil;
+      
+      // Preço do cliente (usa clientPrice, senão monthlyCost, senão preço padrão do revendedor)
+      const clientPrice = parseFloat(client.clientPrice || client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
+      
+      // CONSTRUIR HISTÓRICO DE PAGAMENTOS
+      let paymentHistory = paidInvoiceItems.map(item => ({
+        id: item.id,
+        amount: item.amount,
+        paidAt: item.invoice!.paidAt,
+        createdAt: item.invoice!.createdAt,
+        referenceMonth: item.invoice!.referenceMonth || '',
+        paymentMethod: item.invoice!.paymentMethod || 'pix',
+        status: 'approved',
+        description: `Mensalidade ${item.invoice!.referenceMonth || ''}`,
+      }));
+      
+      // Se não tem histórico mas está ativo, criar registro virtual de ativação
+      if (paymentHistory.length === 0 && client.status === 'active') {
+        paymentHistory = [{
+          id: 'activation_' + client.id,
+          amount: clientPrice.toFixed(2),
+          paidAt: activatedAt.toISOString(),
+          createdAt: activatedAt.toISOString(),
+          referenceMonth: `${activatedAt.getFullYear()}-${String(activatedAt.getMonth() + 1).padStart(2, '0')}`,
+          paymentMethod: 'activation',
+          status: 'approved',
+          description: 'Ativação do Cliente',
+        }];
+      }
+      
+      // Calcular estatísticas
+      const totalPaid = paymentHistory.reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0);
+      const totalPayments = paymentHistory.length;
+      const approvedPayments = paymentHistory.filter(p => p.status === 'approved').length;
+      
+      // Calcular meses no sistema
+      const monthsInSystem = Math.max(0, Math.floor((now.getTime() - activatedAt.getTime()) / (1000 * 60 * 60 * 24 * 30)));
       
       // Buscar estatísticas de uso do cliente
       const conversations = await db.query.conversations.findMany({
@@ -13486,50 +14076,63 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       });
       
       res.json({
+        // Dados do cliente (estilo simplificado)
         client: {
           id: client.id,
-          status: client.status,
-          monthlyCost: client.monthlyCost,
-          clientPrice: client.clientPrice,
-          isFreeClient: client.isFreeClient,
-          activatedAt: client.activatedAt,
-          suspendedAt: client.suspendedAt,
-          cancelledAt: client.cancelledAt,
-          nextPaymentDate: client.nextPaymentDate,
+          status: effectiveStatus,
+          activatedAt: activatedAt.toISOString(),
+          saasPaidUntil: saasPaidUntil.toISOString(),
+          isFreeClient: client.isFreeClient || false,
           createdAt: client.createdAt,
         },
+        // Dados do usuário
         user: user ? {
           id: user.id,
           name: user.name,
           email: user.email,
           phone: user.phone,
-          createdAt: user.createdAt,
-          onboardingCompleted: user.onboardingCompleted,
         } : null,
+        // Conexão WhatsApp
         connection: connection ? {
           id: connection.id,
           isConnected: connection.isConnected,
           phoneNumber: connection.phoneNumber,
-          updatedAt: connection.updatedAt,
         } : null,
-        subscription: subscription ? {
-          id: subscription.id,
-          status: subscription.status,
-          dataInicio: subscription.dataInicio,
-          dataFim: subscription.dataFim,
-        } : null,
-        payments: clientPayments.map(p => ({
-          id: p.id,
-          amount: p.amount,
-          status: p.status,
-          paymentType: p.paymentType,
-          paymentMethod: p.paymentMethod,
-          description: p.description,
-          paidAt: p.paidAt,
-          createdAt: p.createdAt,
-        })),
+        // FORMATO SIMILAR A /api/my-subscription
+        subscriptionView: {
+          status: effectiveStatus,
+          daysRemaining,
+          nextPaymentDate: nextPaymentDate.toISOString(),
+          dataInicio: activatedAt.toISOString(),
+          dataFim: saasPaidUntil.toISOString(),
+          needsPayment: isExpired || daysRemaining <= 5,
+          isOverdue: isExpired,
+        },
+        // Plano/Preço
+        plan: {
+          nome: client.isFreeClient ? 'Plano Gratuito' : 'Plano Mensal',
+          valor: clientPrice.toFixed(2),
+          descricao: `Gerenciado por ${reseller.companyName}`,
+        },
+        // Histórico de pagamentos
+        paymentHistory,
+        // Estatísticas
         stats: {
+          totalPaid,
+          totalPayments,
+          approvedPayments,
+          monthsInSystem,
           totalConversations: conversations.length,
+        },
+        // Info do revendedor (para exibir dados de contato/PIX)
+        reseller: {
+          companyName: reseller.companyName,
+          pixKey: reseller.pixKey,
+          pixKeyType: reseller.pixKeyType,
+          pixHolderName: (reseller as any).pixHolderName,
+          pixBankName: (reseller as any).pixBankName,
+          supportPhone: reseller.supportPhone,
+          supportEmail: reseller.supportEmail,
         },
       });
     } catch (error: any) {

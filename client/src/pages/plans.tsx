@@ -208,6 +208,9 @@ export default function PlansPage() {
 
   const hasActiveSubscription = currentSubscription?.status === "active";
   
+  // Para clientes de revenda: verificar se tem status ativo no resellerPlan
+  const isResellerClientActive = resellerPlan?.isResellerClient && resellerPlan.status === 'active';
+  
   // Detectar qual plano está ativo baseado no tipo
   const activePlanTipo = currentSubscription?.plan?.tipo;
   const isCurrentMensal = hasActiveSubscription && (activePlanTipo === "padrao" || activePlanTipo === "mensal");
@@ -323,8 +326,8 @@ export default function PlansPage() {
     }
   ];
 
-  // Se é cliente de revenda e não tem assinatura, mostrar plano da revenda
-  if (resellerPlan?.isResellerClient && resellerPlan.plan && !hasActiveSubscription) {
+  // Se é cliente de revenda, sempre mostrar plano da revenda (com ou sem assinatura tradicional)
+  if (resellerPlan?.isResellerClient && resellerPlan.plan) {
     return (
       <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
         <div className="max-w-2xl mx-auto px-4 py-6 md:py-12">

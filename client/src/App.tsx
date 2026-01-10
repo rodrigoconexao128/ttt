@@ -83,13 +83,16 @@ function Router() {
       <Route path="/notificador" component={Dashboard} />
       <Route path="/biblioteca-midias" component={Dashboard} />
       <Route path="/lista-exclusao" component={Dashboard} />
-      {/* Rotas de Revenda com sub-navegação */}
+      {/* Rotas de Revenda com sub-navegação - URLs claras */}
       <Route path="/revenda" component={ResellerDashboard} />
       <Route path="/revenda/clientes" component={ResellerDashboard} />
-      <Route path="/revenda/cliente/:clientId" component={ResellerDashboard} />
+      <Route path="/revenda/clientes/:clientId" component={ResellerDashboard} />
+      <Route path="/revenda/cobrancas" component={ResellerDashboard} /> {/* Cobranças = pagamentos dos clientes */}
+      <Route path="/revenda/faturas" component={ResellerDashboard} /> {/* Minhas Faturas = pagamentos ao sistema */}
+      <Route path="/revenda/configuracoes" component={ResellerDashboard} />
+      {/* Aliases antigos para compatibilidade */}
       <Route path="/revenda/recebimentos" component={ResellerDashboard} />
       <Route path="/revenda/assinatura" component={ResellerDashboard} />
-      <Route path="/revenda/configuracoes" component={ResellerDashboard} />
       <Route path="/reseller" component={ResellerDashboard} />
       
       <Route component={NotFound} />

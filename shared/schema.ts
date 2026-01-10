@@ -1713,7 +1713,11 @@ export const resellerClients = pgTable("reseller_clients", {
   
   // Dia de vencimento deste cliente específico
   billingDay: integer("billing_day").default(1), // Dia do mês (1-28)
-  
+
+  // SaaS Payment Control (Added for Granular Payments)
+  saasPaidUntil: timestamp("saas_paid_until"),
+  saasStatus: varchar("saas_status", { length: 20 }).default("active"), // active, overdue
+
   // Assinatura MercadoPago
   mpSubscriptionId: varchar("mp_subscription_id", { length: 255 }),
   mpStatus: varchar("mp_status", { length: 50 }),
@@ -1812,8 +1816,27 @@ export const resellerInvoices = pgTable("reseller_invoices", {
   index("idx_reseller_invoices_due_date").on(table.dueDate),
 ]);
 
-export const resellerInvoicesRelations = relations(resellerInvoices, ({ one }) => ({
+// Items da fatura do revendedor (para pagamentos granulares)
+export const resellerInvoiceItems = pgTable("reseller_invoice_items", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").notNull().references(() => resellerInvoices.id, { onDelete: "cascade" }),
+  resellerClientId: varchar("reseller_client_id", { length: 255 }).references(() => resellerClients.id, { onDelete: "set null" }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  description: varchar("description", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_reseller_invoice_items_invoice").on(table.invoiceId),
+  index("idx_reseller_invoice_items_client").on(table.resellerClientId),
+]);
+
+export const resellerInvoicesRelations = relations(resellerInvoices, ({ one, many }) => ({
   reseller: one(resellers, { fields: [resellerInvoices.resellerId], references: [resellers.id] }),
+  items: many(resellerInvoiceItems),
+}));
+
+export const resellerInvoiceItemsRelations = relations(resellerInvoiceItems, ({ one }) => ({
+  invoice: one(resellerInvoices, { fields: [resellerInvoiceItems.invoiceId], references: [resellerInvoices.id] }),
+  client: one(resellerClients, { fields: [resellerInvoiceItems.resellerClientId], references: [resellerClients.id] }),
 }));
 
 // Schemas Zod para validação de Resellers
@@ -1855,6 +1878,11 @@ export const insertResellerInvoiceSchema = createInsertSchema(resellerInvoices).
   createdAt: true,
 });
 
+export const insertResellerInvoiceItemsSchema = createInsertSchema(resellerInvoiceItems).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types para Resellers
 export type Reseller = typeof resellers.$inferSelect;
 export type InsertReseller = z.infer<typeof insertResellerSchema>;
@@ -1865,4 +1893,6 @@ export type ResellerPayment = typeof resellerPayments.$inferSelect;
 export type InsertResellerPayment = z.infer<typeof insertResellerPaymentSchema>;
 export type ResellerInvoice = typeof resellerInvoices.$inferSelect;
 export type InsertResellerInvoice = z.infer<typeof insertResellerInvoiceSchema>;
+export type ResellerInvoiceItem = typeof resellerInvoiceItems.$inferSelect;
+export type InsertResellerInvoiceItem = z.infer<typeof insertResellerInvoiceItemsSchema>;
 

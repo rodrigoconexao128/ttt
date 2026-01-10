@@ -11,7 +11,7 @@
  * - Histórico de pagamentos
  */
 
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useRoute, Link } from "wouter";
+import QRCode from "qrcode";
 import { 
   Loader2, 
   Plus, 
@@ -93,7 +94,11 @@ import {
   XCircle,
   Clock,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  Receipt,
+  AlertTriangle,
+  QrCode,
+  Gift
 } from "lucide-react";
 
 interface ResellerProfile {
@@ -150,13 +155,9 @@ interface ClientDetails {
   client: {
     id: string;
     status: string;
-    monthlyCost: string;
-    clientPrice: string;
+    activatedAt: string;
+    saasPaidUntil: string;
     isFreeClient: boolean;
-    activatedAt?: string;
-    suspendedAt?: string;
-    cancelledAt?: string;
-    nextPaymentDate?: string;
     createdAt: string;
   };
   user: {
@@ -164,24 +165,51 @@ interface ClientDetails {
     name: string;
     email: string;
     phone?: string;
-    createdAt: string;
-    onboardingCompleted: boolean;
   } | null;
   connection: {
     id: string;
     isConnected: boolean;
     phoneNumber?: string;
-    updatedAt: string;
   } | null;
-  subscription: {
-    id: string;
+  subscriptionView: {
     status: string;
-    dataInicio?: string;
-    dataFim?: string;
-  } | null;
-  payments: Payment[];
+    daysRemaining: number;
+    nextPaymentDate: string;
+    dataInicio: string;
+    dataFim: string;
+    needsPayment: boolean;
+    isOverdue: boolean;
+  };
+  plan: {
+    nome: string;
+    valor: string;
+    descricao: string;
+  };
+  paymentHistory: {
+    id: string;
+    amount: string;
+    paidAt: string;
+    createdAt: string;
+    referenceMonth: string;
+    paymentMethod: string;
+    status: string;
+    description: string;
+  }[];
   stats: {
+    totalPaid: number;
+    totalPayments: number;
+    approvedPayments: number;
+    monthsInSystem: number;
     totalConversations: number;
+  };
+  reseller: {
+    companyName: string;
+    pixKey?: string;
+    pixKeyType?: string;
+    pixHolderName?: string;
+    pixBankName?: string;
+    supportPhone?: string;
+    supportEmail?: string;
   };
 }
 
@@ -266,14 +294,14 @@ export default function ResellerDashboard() {
   const [location, setLocation] = useLocation();
   
   // Rotas para navegação via URL
-  const [, clientParams] = useRoute("/revenda/cliente/:clientId");
+  const [, clientParams] = useRoute("/revenda/clientes/:clientId");
   const clientIdFromUrl = clientParams?.clientId;
   
   // Mapear URL para aba ativa
   const getTabFromUrl = () => {
-    if (location === "/revenda/clientes" || location.startsWith("/revenda/cliente/")) return "clients";
-    if (location === "/revenda/recebimentos") return "payments";
-    if (location === "/revenda/assinatura") return "my-subscription";
+    if (location === "/revenda/clientes" || location.startsWith("/revenda/clientes/")) return "clients";
+    if (location === "/revenda/cobrancas") return "payments"; // Cobranças = pagamentos dos clientes para mim
+    if (location === "/revenda/faturas") return "my-subscription"; // Minhas Faturas = o que eu pago ao sistema
     if (location === "/revenda/configuracoes") return "settings";
     return "dashboard";
   };
@@ -296,10 +324,10 @@ export default function ResellerDashboard() {
         setLocation("/revenda/clientes");
         break;
       case "payments":
-        setLocation("/revenda/recebimentos");
+        setLocation("/revenda/cobrancas"); // Cobranças dos clientes
         break;
       case "my-subscription":
-        setLocation("/revenda/assinatura");
+        setLocation("/revenda/faturas"); // Minhas faturas ao sistema
         break;
       case "settings":
         setLocation("/revenda/configuracoes");
@@ -354,15 +382,34 @@ export default function ResellerDashboard() {
 
   // Estados para detalhes do cliente - sincronizado com URL
   const selectedClientId = clientIdFromUrl || null;
-  const isClientDetailsOpen = !!clientIdFromUrl;
+  // Dialog só abre quando tem clientId MAS não está na rota de detalhes
+  const isClientDetailsOpen = !!clientIdFromUrl && !location.startsWith("/revenda/clientes/");
   const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
   const [newPasswordForReset, setNewPasswordForReset] = useState("");
+  const [selectedClientForReset, setSelectedClientForReset] = useState<string | null>(null);
   
   // Estados para pagamento baseado em fatura mensal
   const [selectedInvoice, setSelectedInvoice] = useState<PendingInvoice | null>(null);
   const [isMarkPaidOpen, setIsMarkPaidOpen] = useState(false);
   const [markPaidAmount, setMarkPaidAmount] = useState("");
   const [markPaidDescription, setMarkPaidDescription] = useState("");
+
+  // Estados para checkout granular (pagamento de múltiplos clientes)
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
+  const [isGranularCheckoutOpen, setIsGranularCheckoutOpen] = useState(false);
+  const [granularPixCode, setGranularPixCode] = useState("");
+  const [granularPixQrCode, setGranularPixQrCode] = useState("");
+  const [granularTotalAmount, setGranularTotalAmount] = useState(0);
+  const [isCreatingGranularInvoice, setIsCreatingGranularInvoice] = useState(false);
+
+  // Gerar QR Code quando o código PIX mudar
+  useEffect(() => {
+    if (granularPixCode) {
+      QRCode.toDataURL(granularPixCode, { errorCorrectionLevel: 'M', width: 256 })
+        .then(url => setGranularPixQrCode(url))
+        .catch(err => console.error('Erro ao gerar QR Code:', err));
+    }
+  }, [granularPixCode]);
 
   // Verificar status de revendedor
   const { data: resellerStatus, isLoading: isLoadingStatus } = useQuery<{
@@ -575,6 +622,28 @@ export default function ResellerDashboard() {
     },
   });
 
+  // Mutation para criar fatura granular (múltiplos clientes)
+  const createGranularInvoiceMutation = useMutation({
+    mutationFn: async (clientIds: string[]) => {
+      const response = await apiRequest("POST", "/api/reseller/invoices/custom", { clientIds });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setGranularPixCode(data.qrCode || ""); // O qrCode do MP é o código PIX string
+      setGranularTotalAmount(data.totalAmount);
+      setIsGranularCheckoutOpen(true);
+      setIsCreatingGranularInvoice(false);
+      toast({ 
+        title: "Fatura criada!", 
+        description: `Total: R$ ${data.totalAmount.toFixed(2)} - ${data.clientCount || selectedClientIds.length} cliente(s)` 
+      });
+    },
+    onError: (error: any) => {
+      setIsCreatingGranularInvoice(false);
+      toast({ title: "Erro ao criar fatura", description: error.message, variant: "destructive" });
+    },
+  });
+
   // Mutation para criar cliente (legado - para compatibilidade)
   const createClientMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -667,6 +736,7 @@ export default function ResellerDashboard() {
       });
       setIsResetPasswordOpen(false);
       setNewPasswordForReset("");
+      setSelectedClientForReset(null);
     },
     onError: (error: any) => {
       toast({ title: "Erro ao resetar senha", description: error.message, variant: "destructive" });
@@ -798,7 +868,7 @@ export default function ResellerDashboard() {
 
   // Abrir detalhes do cliente - navega para URL dedicada
   const openClientDetails = (clientId: string) => {
-    setLocation(`/revenda/cliente/${clientId}`);
+    setLocation(`/revenda/clientes/${clientId}`);
   };
 
   // Fechar detalhes do cliente - volta para lista de clientes
@@ -829,8 +899,7 @@ export default function ResellerDashboard() {
     
     // Encontrar meses que já foram pagos
     const paidMonths = new Set(
-      clientDetails.payments
-        .filter(p => p.status === 'approved')
+      (clientDetails.paymentHistory || [])
         .map(p => p.referenceMonth || '')
         .filter(m => m)
     );
@@ -892,9 +961,10 @@ export default function ResellerDashboard() {
 
   // Handler para resetar senha
   const handleResetPassword = () => {
-    if (!selectedClientId) return;
+    const clientIdToReset = selectedClientForReset || selectedClientId;
+    if (!clientIdToReset) return;
     resetPasswordMutation.mutate({
-      clientId: selectedClientId,
+      clientId: clientIdToReset,
       newPassword: newPasswordForReset || undefined,
     });
   };
@@ -1090,37 +1160,55 @@ export default function ResellerDashboard() {
 
   return (
     <div className="container py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Building2 className="h-8 w-8" />
-            Painel do Revendedor
-          </h1>
-          <p className="text-muted-foreground">
-            Gerencie sua marca e clientes white-label
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/dashboard">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar ao Dashboard
-            </Link>
-          </Button>
-          {profile?.subdomain && (
-            <Button variant="outline" onClick={() => window.open(`https://${profile.subdomain}.agentezap.com`, '_blank')}>
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Ver Meu Site
-            </Button>
-          )}
-        </div>
-      </div>
+      {/* Detectar se estamos na rota de detalhes do cliente */}
+      {location.startsWith("/revenda/clientes/") && clientIdFromUrl ? (
+        /* Renderizar página de detalhes do cliente */
+        <ClientDetailsPage clientId={clientIdFromUrl} setLocation={setLocation} />
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+                <Building2 className="h-8 w-8" />
+                Painel do Revendedor
+              </h1>
+              <p className="text-muted-foreground">
+                Gerencie sua marca e clientes white-label
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" asChild>
+                <Link href="/dashboard">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Voltar ao Dashboard
+                </Link>
+              </Button>
+              {profile?.subdomain && (
+                <Button variant="outline" onClick={() => window.open(`https://${profile.subdomain}.agentezap.com`, '_blank')}>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Ver Meu Site
+                </Button>
+              )}
+            </div>
+          </div>
 
-      {/* Tabs - 5 abas: Dashboard, Clientes, Recebimentos, Minha Assinatura, Configurações */}
-      {/* URLs navegáveis: /revenda, /revenda/clientes, /revenda/recebimentos, /revenda/assinatura, /revenda/configuracoes */}
+      {/* Tabs - 5 abas com nomenclatura clara */}
+      {/* 
+        HIERARQUIA DO SISTEMA:
+        - TOPO: Dono do SaaS (AgenteZap) → Recebe do Revendedor
+        - MEIO: Revendedor → Paga ao SaaS, Recebe dos Clientes  
+        - BASE: Cliente → Paga ao Revendedor
+        
+        ABAS:
+        - Dashboard: Visão geral
+        - Clientes: Gerenciar clientes do revendedor
+        - Cobranças: Pagamentos que RECEBO dos meus clientes
+        - Minhas Faturas: Pagamentos que EU PAGO ao sistema (SaaS)
+        - Config: Configurações
+      */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
@@ -1128,14 +1216,6 @@ export default function ResellerDashboard() {
           <TabsTrigger value="clients" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Clientes</span>
-          </TabsTrigger>
-          <TabsTrigger value="payments" className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            <span className="hidden sm:inline">Recebimentos</span>
-          </TabsTrigger>
-          <TabsTrigger value="my-subscription" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Minha Assinatura</span>
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
@@ -1279,7 +1359,7 @@ export default function ResellerDashboard() {
                     Novo Cliente
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
+                <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                   {checkoutStep === "form" && (
                     <>
                       <DialogHeader>
@@ -1680,37 +1760,67 @@ export default function ResellerDashboard() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Cliente</TableHead>
-                    <TableHead>Email</TableHead>
                     <TableHead>Valor Mensal</TableHead>
-                    <TableHead>Conexão</TableHead>
+                    <TableHead>Vencimento</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Desde</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clients?.map((client) => (
+                  {clients?.map((client) => {
+                    // Calcular status de vencimento
+                    const nextPaymentDate = (client as any).nextPaymentDate;
+                    const isOverdue = (client as any).isOverdue;
+                    const daysUntilDue = nextPaymentDate 
+                      ? Math.ceil((new Date(nextPaymentDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                      : null;
+                    
+                    return (
                     <TableRow key={client.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openClientDetails(client.id)}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                             <Users className="h-4 w-4 text-primary" />
                           </div>
-                          <span>{client.user?.name || '-'}</span>
+                          <div>
+                            <span className="block">{client.user?.name || '-'}</span>
+                            <span className="text-xs text-muted-foreground">{client.user?.email || '-'}</span>
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{client.user?.email || '-'}</TableCell>
                       <TableCell>
                         <span className="font-medium text-green-600">
                           R$ {client.clientPrice || profile?.clientMonthlyPrice || '99.99'}
                         </span>
                       </TableCell>
                       <TableCell>
-                        {/* Status será atualizado quando abrir detalhes */}
-                        <Badge variant="outline" className="gap-1">
-                          <Wifi className="h-3 w-3" />
-                          Ver
-                        </Badge>
+                        {client.isFreeClient ? (
+                          <Badge variant="outline" className="text-green-600 border-green-600">
+                            🎁 Gratuito
+                          </Badge>
+                        ) : nextPaymentDate ? (
+                          <div className="flex flex-col">
+                            <span className={`text-sm font-medium ${isOverdue ? 'text-red-600' : daysUntilDue && daysUntilDue <= 5 ? 'text-yellow-600' : ''}`}>
+                              {new Date(nextPaymentDate).toLocaleDateString('pt-BR')}
+                            </span>
+                            {isOverdue ? (
+                              <Badge variant="destructive" className="text-xs w-fit mt-1">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Vencido
+                              </Badge>
+                            ) : daysUntilDue !== null && daysUntilDue <= 5 ? (
+                              <span className="text-xs text-yellow-600">
+                                {daysUntilDue === 0 ? 'Vence hoje' : `${daysUntilDue} dia(s)`}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                {daysUntilDue} dias restantes
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={
@@ -1728,24 +1838,44 @@ export default function ResellerDashboard() {
                            client.status === 'pending' ? 'Pendente' :
                            'Cancelado'}
                         </Badge>
-                        {client.isFreeClient && (
-                          <Badge variant="outline" className="ml-1 text-green-600 border-green-600">
-                            Gratuito
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {client.activatedAt ? new Date(client.activatedAt).toLocaleDateString('pt-BR') : '-'}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          {/* Botão Ver Detalhes - igual minha-assinatura */}
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => openClientDetails(client.id)}
                             title="Ver detalhes"
                           >
-                            <ChevronRight className="h-4 w-4" />
+                            <Eye className="h-4 w-4 mr-1" />
+                            Detalhes
+                          </Button>
+                          {/* Botão Pagar Anual */}
+                          {!client.isFreeClient && client.status !== 'cancelled' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => openClientDetails(client.id)}
+                              title="Pagar anual com desconto"
+                            >
+                              <Calendar className="h-4 w-4 mr-1" />
+                              Anual
+                            </Button>
+                          )}
+                          {/* Botão Gerar Nova Senha */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedClientForReset(client.id);
+                              setNewPasswordForReset("");
+                              setIsResetPasswordOpen(true);
+                            }}
+                            title="Gerar nova senha"
+                          >
+                            <Key className="h-4 w-4 text-blue-500" />
                           </Button>
                           {client.status === 'active' && (
                             <Button
@@ -1787,76 +1917,12 @@ export default function ResellerDashboard() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Card>
           )}
-        </TabsContent>
-
-        {/* Payments Tab - Agora chamado "Recebimentos" - pagamentos que você RECEBEU dos clientes */}
-        <TabsContent value="payments" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">Recebimentos dos Clientes</h2>
-              <p className="text-sm text-muted-foreground">
-                Pagamentos que você recebeu dos seus clientes
-              </p>
-            </div>
-          </div>
-
-          {isLoadingPayments ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : payments?.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <CreditCard className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <p className="text-muted-foreground">Nenhum pagamento registrado</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payments?.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell>
-                        {new Date(payment.createdAt).toLocaleDateString('pt-BR')}
-                      </TableCell>
-                      <TableCell>{payment.description || 'Criação de cliente'}</TableCell>
-                      <TableCell className="font-medium">R$ {payment.amount}</TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          payment.status === 'approved' ? 'default' :
-                          payment.status === 'pending' ? 'outline' :
-                          'destructive'
-                        }>
-                          {payment.status === 'approved' ? 'Pago' :
-                           payment.status === 'pending' ? 'Pendente' :
-                           'Rejeitado'}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* My Subscription Tab - O que você PAGA ao sistema */}
-        <TabsContent value="my-subscription" className="space-y-6">
-          <MySubscriptionTab profile={profile} />
         </TabsContent>
 
         {/* Settings Tab - Configurações e PIX */}
@@ -1896,6 +1962,7 @@ export default function ResellerDashboard() {
                 <div className="space-y-2">
                   <Label>Chave PIX</Label>
                   <Input
+                    key={`pixKey-${profile?.pixKey || 'empty'}`}
                     placeholder={
                       profile?.pixKeyType === 'cpf' ? '000.000.000-00' :
                       profile?.pixKeyType === 'cnpj' ? '00.000.000/0000-00' :
@@ -1903,12 +1970,9 @@ export default function ResellerDashboard() {
                       profile?.pixKeyType === 'phone' ? '+55 11 99999-9999' :
                       'Cole sua chave aleatória'
                     }
-                    value={profile?.pixKey || ''}
-                    onChange={(e) => {
-                      // Será salvo ao clicar em salvar
-                    }}
+                    defaultValue={profile?.pixKey || ''}
                     onBlur={(e) => {
-                      if (e.target.value !== profile?.pixKey) {
+                      if (e.target.value && e.target.value !== profile?.pixKey) {
                         updateResellerMutation.mutate({
                           pixKey: e.target.value,
                         });
@@ -1919,10 +1983,11 @@ export default function ResellerDashboard() {
                 <div className="space-y-2">
                   <Label>Nome do Titular</Label>
                   <Input
+                    key={`pixHolderName-${(profile as any)?.pixHolderName || 'empty'}`}
                     placeholder="Nome completo do titular da conta"
-                    value={(profile as any)?.pixHolderName || ''}
+                    defaultValue={(profile as any)?.pixHolderName || ''}
                     onBlur={(e) => {
-                      if (e.target.value !== (profile as any)?.pixHolderName) {
+                      if (e.target.value && e.target.value !== (profile as any)?.pixHolderName) {
                         updateResellerMutation.mutate({
                           pixHolderName: e.target.value,
                         });
@@ -1933,10 +1998,11 @@ export default function ResellerDashboard() {
                 <div className="space-y-2">
                   <Label>Nome do Banco</Label>
                   <Input
+                    key={`pixBankName-${(profile as any)?.pixBankName || 'empty'}`}
                     placeholder="Ex: Nubank, Inter, Itaú, Bradesco"
-                    value={(profile as any)?.pixBankName || ''}
+                    defaultValue={(profile as any)?.pixBankName || ''}
                     onBlur={(e) => {
-                      if (e.target.value !== (profile as any)?.pixBankName) {
+                      if (e.target.value && e.target.value !== (profile as any)?.pixBankName) {
                         updateResellerMutation.mutate({
                           pixBankName: e.target.value,
                         });
@@ -2146,6 +2212,53 @@ export default function ResellerDashboard() {
           </div>
         </TabsContent>
       </Tabs>
+      
+      {/* Dialog Global de Reset de Senha (usado na tabela de clientes) */}
+      <Dialog open={isResetPasswordOpen && !!selectedClientForReset} onOpenChange={(open) => {
+        setIsResetPasswordOpen(open);
+        if (!open) setSelectedClientForReset(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5" />
+              Gerar Nova Senha
+            </DialogTitle>
+            <DialogDescription>
+              Gere uma nova senha para o cliente
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nova Senha (deixe em branco para gerar automaticamente)</Label>
+              <Input
+                type="text"
+                value={newPasswordForReset}
+                onChange={(e) => setNewPasswordForReset(e.target.value)}
+                placeholder="Deixe vazio para gerar automaticamente"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsResetPasswordOpen(false);
+              setSelectedClientForReset(null);
+            }}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleResetPassword}
+              disabled={resetPasswordMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {resetPasswordMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Gerar Nova Senha
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+        </>
+      )}
 
       {/* Dialog Centralizado de Detalhes do Cliente */}
       <Dialog open={isClientDetailsOpen} onOpenChange={(open) => !open && closeClientDetails()}>
@@ -2355,7 +2468,7 @@ export default function ResellerDashboard() {
                     <FileText className="h-4 w-4" />
                     Histórico de Pagamentos
                   </h3>
-                  {clientDetails.payments.length === 0 ? (
+                  {clientDetails.paymentHistory && clientDetails.paymentHistory.length === 0 ? (
                     <Card>
                       <CardContent className="p-4 text-center text-muted-foreground">
                         Nenhum pagamento registrado
@@ -2363,31 +2476,18 @@ export default function ResellerDashboard() {
                     </Card>
                   ) : (
                     <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {clientDetails.payments.filter(p => p.status === 'approved').map((payment) => (
+                      {clientDetails.paymentHistory && clientDetails.paymentHistory.map((payment, idx) => (
                         <div 
-                          key={payment.id} 
+                          key={idx} 
                           className="flex items-center justify-between p-3 border rounded-lg bg-green-50/50 dark:bg-green-950/20"
                         >
                           <div>
                             <p className="font-medium">R$ {payment.amount}</p>
                             <p className="text-xs text-muted-foreground">
-                              {payment.referenceMonth 
-                                ? new Date(payment.referenceMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-                                : payment.description || payment.paymentType
-                              }
+                              {new Date(payment.paidAt || payment.createdAt).toLocaleDateString('pt-BR')}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <Badge variant="default" className="mb-1 bg-green-600">
-                              ✅ Pago
-                            </Badge>
-                            <p className="text-xs text-muted-foreground">
-                              {payment.paidAt 
-                                ? new Date(payment.paidAt).toLocaleDateString('pt-BR')
-                                : new Date(payment.createdAt).toLocaleDateString('pt-BR')
-                              }
-                            </p>
-                          </div>
+                          <Badge className="bg-green-500">Pago</Badge>
                         </div>
                       ))}
                     </div>
@@ -2569,8 +2669,1052 @@ export default function ResellerDashboard() {
   );
 }
 
+// Componente de Página de Detalhes do Cliente
+function ClientDetailsPage({ clientId, setLocation }: { clientId: string; setLocation: (loc: string) => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Estado para modal de pagamento PIX (QR Code Mercado Pago)
+  const [showPixDialog, setShowPixDialog] = useState(false);
+  const [showAnnualDialog, setShowAnnualDialog] = useState(false);
+  const [pixData, setPixData] = useState<{
+    qrCode: string;
+    qrCodeBase64: string;
+    ticketUrl?: string;
+    paymentId: number;
+    amount: number;
+    expirationDate: string;
+    clientName?: string;
+  } | null>(null);
+  const [timeLeft, setTimeLeft] = useState<string>("");
+  const [annualDiscountPercent] = useState(5);
+
+  // Buscar detalhes completos do cliente
+  const { data: clientDetails, isLoading, refetch, error: queryError, isError } = useQuery<ClientDetails>({
+    queryKey: ["/api/reseller/clients", clientId, "details"],
+    queryFn: async () => {
+      console.log("[ClientDetailsPage] Fetching client details for:", clientId);
+      const res = await apiRequest("GET", `/api/reseller/clients/${clientId}/details`);
+      const data = await res.json();
+      console.log("[ClientDetailsPage] Got data keys:", Object.keys(data));
+      console.log("[ClientDetailsPage] Has subscriptionView:", !!data.subscriptionView);
+      console.log("[ClientDetailsPage] subscriptionView:", JSON.stringify(data.subscriptionView));
+      return data;
+    },
+    enabled: !!clientId,
+    retry: 3,
+    staleTime: 0,
+  });
+
+  // Log para debug
+  console.log("[ClientDetailsPage] State - clientId:", clientId, "isLoading:", isLoading, "isError:", isError, "hasClientDetails:", !!clientDetails);
+  if (clientDetails) {
+    console.log("[ClientDetailsPage] clientDetails keys:", Object.keys(clientDetails));
+  }
+
+  // Mutation para ações no cliente
+  const suspendMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/reseller/clients/${clientId}/suspend`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/reseller/clients", clientId, "details"] });
+      toast({ title: "Cliente suspenso com sucesso" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao suspender cliente", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/reseller/clients/${clientId}/reactivate`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/reseller/clients", clientId, "details"] });
+      toast({ title: "Cliente reativado com sucesso" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao reativar cliente", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Estado e mutation para reset de senha
+  const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+
+  const resetPasswordMutationDetails = useMutation({
+    mutationFn: async (newPassword?: string) => {
+      const response = await apiRequest("POST", `/api/reseller/clients/${clientId}/reset-password`, {
+        newPassword: newPassword || undefined,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: "✅ Senha gerada com sucesso!",
+        description: `Nova senha: ${data.newPassword}`,
+      });
+      setShowResetPasswordDialog(false);
+      setResetPasswordValue("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao gerar senha", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation para pagamento antecipado (adiciona 30 dias)
+  const payAheadMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/reseller/clients/${clientId}/pay-ahead`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/reseller/clients", clientId, "details"] });
+      toast({ 
+        title: "Pagamento processado", 
+        description: `SaaS estendido até ${new Date(data.saasPaidUntil).toLocaleDateString('pt-BR')}` 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao processar pagamento", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation para pagamento anual (adiciona 365 dias)
+  const payAnnualMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/reseller/clients/${clientId}/pay-annual`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/reseller/clients", clientId, "details"] });
+      toast({ 
+        title: "Pagamento anual processado", 
+        description: `SaaS estendido até ${new Date(data.saasPaidUntil).toLocaleDateString('pt-BR')}` 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao processar pagamento anual", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation para gerar PIX mensal (QR Code Mercado Pago - revendedor paga ao dono do sistema)
+  const generatePixMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/reseller/clients/${clientId}/generate-pix`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.status === "pending") {
+        setPixData({
+          qrCode: data.qrCode,
+          qrCodeBase64: data.qrCodeBase64,
+          ticketUrl: data.ticketUrl,
+          paymentId: data.paymentId,
+          amount: data.amount,
+          expirationDate: data.expirationDate,
+          clientName: data.clientName,
+        });
+        setShowPixDialog(true);
+        toast({
+          title: "PIX Gerado!",
+          description: "Escaneie o QR Code para pagar",
+        });
+      } else {
+        toast({
+          title: "Erro",
+          description: data.message || "Erro ao gerar PIX",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao gerar PIX", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation para gerar PIX anual (QR Code Mercado Pago - 12 meses com desconto)
+  const generateAnnualPixMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/reseller/clients/${clientId}/generate-annual-pix`, {
+        discountPercent: annualDiscountPercent,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.status === "pending") {
+        setPixData({
+          qrCode: data.qrCode,
+          qrCodeBase64: data.qrCodeBase64,
+          ticketUrl: data.ticketUrl,
+          paymentId: data.paymentId,
+          amount: data.amount,
+          expirationDate: data.expirationDate,
+          clientName: data.clientName,
+        });
+        setShowAnnualDialog(false);
+        setShowPixDialog(true);
+        toast({
+          title: "PIX Anual Gerado!",
+          description: `Valor com ${data.discountPercent}% desconto: R$ ${data.amount.toFixed(2)}`,
+        });
+      } else {
+        toast({
+          title: "Erro",
+          description: data.message || "Erro ao gerar PIX anual",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao gerar PIX anual", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Countdown timer for PIX expiration
+  useEffect(() => {
+    if (!pixData?.expirationDate) return;
+    
+    const interval = setInterval(() => {
+      const now = new Date();
+      const expiration = new Date(pixData.expirationDate);
+      const diff = expiration.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        setTimeLeft("Expirado");
+        clearInterval(interval);
+        return;
+      }
+      
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${minutes}:${seconds.toString().padStart(2, "0")}`);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [pixData?.expirationDate]);
+
+  // Copiar código PIX
+  const copyPixCode = async () => {
+    if (pixData?.qrCode) {
+      try {
+        await navigator.clipboard.writeText(pixData.qrCode);
+        toast({ title: "Copiado!", description: "Código PIX copiado para a área de transferência" });
+      } catch (err) {
+        toast({ title: "Erro", description: "Não foi possível copiar", variant: "destructive" });
+      }
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!clientDetails || !clientDetails.client || !clientDetails.subscriptionView) {
+    console.log("[ClientDetailsPage] Missing data:", {
+      hasClientDetails: !!clientDetails,
+      hasClient: !!clientDetails?.client,
+      hasSubscriptionView: !!clientDetails?.subscriptionView,
+      keys: clientDetails ? Object.keys(clientDetails) : []
+    });
+    return (
+      <Card>
+        <CardContent className="py-12 text-center">
+          <p className="text-muted-foreground">Cliente não encontrado</p>
+          <Button className="mt-4" onClick={() => setLocation("/revenda/clientes")}>
+            Voltar para Lista
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const client = clientDetails.client;
+  const user = clientDetails.user;
+  const subscriptionView = clientDetails.subscriptionView;
+  const plan = clientDetails.plan || { nome: 'Padrão', valor: '0', descricao: '' };
+  const stats = clientDetails.stats || { totalPaid: 0, totalPayments: 0, approvedPayments: 0, monthsInSystem: 0, totalConversations: 0 };
+  const reseller = clientDetails.reseller || { companyName: '' };
+  const paymentHistory = clientDetails.paymentHistory || [];
+
+  // Helper para formatar moeda
+  const formatCurrency = (value: string | number | null | undefined): string => {
+    if (value === null || value === undefined) return "R$ 0,00";
+    const numericValue = typeof value === "string" ? parseFloat(value) : value;
+    if (isNaN(numericValue)) return "R$ 0,00";
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(numericValue);
+  };
+
+  // Helper para formatar data
+  const formatDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return "Não definido";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  };
+
+  // Status Badge
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge className="bg-green-500 text-white text-lg py-1 px-3">✅ Ativo</Badge>;
+      case 'overdue':
+        return <Badge className="bg-red-500 text-white text-lg py-1 px-3">⚠️ Vencido</Badge>;
+      case 'suspended':
+        return <Badge className="bg-orange-500 text-white text-lg py-1 px-3">⏸️ Suspenso</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-gray-500 text-white text-lg py-1 px-3">❌ Cancelado</Badge>;
+      default:
+        return <Badge variant="secondary" className="text-lg py-1 px-3">{status}</Badge>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header com navegação */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" onClick={() => setLocation("/revenda/clientes")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                {user?.name?.charAt(0).toUpperCase() || 'C'}
+              </div>
+              {user?.name || 'Cliente'}
+            </h1>
+            <p className="text-sm text-muted-foreground">{user?.email}</p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Atualizar
+        </Button>
+      </div>
+
+      {/* Status Cards - Igual ao Minha Assinatura */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Status</p>
+                {getStatusBadge(subscriptionView.status)}
+              </div>
+              <CheckCircle2 className="w-8 h-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Dias Restantes</p>
+                <p className={`text-2xl font-bold ${subscriptionView.daysRemaining <= 5 ? 'text-red-500' : ''}`}>
+                  {subscriptionView.daysRemaining}
+                </p>
+              </div>
+              <Calendar className="w-8 h-8 text-blue-500" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Pago</p>
+                <p className="text-2xl font-bold">{formatCurrency(stats.totalPaid)}</p>
+              </div>
+              <TrendingUp className="w-8 h-8 text-emerald-500" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Meses no Sistema</p>
+                <p className="text-2xl font-bold">{stats.monthsInSystem}</p>
+              </div>
+              <Clock className="w-8 h-8 text-purple-500" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Próxima Fatura - Card Destacado igual Minha Assinatura */}
+      <Card className="md:col-span-2 border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Receipt className="w-5 h-5 text-primary" />
+            Próxima Fatura
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(() => {
+            const nextPayment = subscriptionView.nextPaymentDate ? new Date(subscriptionView.nextPaymentDate) : null;
+            const isOverdue = subscriptionView.isOverdue;
+            const monthlyValue = parseFloat(plan.valor || "0");
+            
+            return (
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-full ${isOverdue ? 'bg-red-100' : 'bg-primary/10'}`}>
+                    <Calendar className={`w-6 h-6 ${isOverdue ? 'text-red-600' : 'text-primary'}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Vencimento</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xl font-bold">
+                        {nextPayment ? formatDate(subscriptionView.nextPaymentDate) : "Não definido"}
+                      </p>
+                      {isOverdue && (
+                        <Badge variant="destructive" className="flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          VENCIDA
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Gerenciado por {reseller.companyName}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Valor Mensal</p>
+                    <p className="text-2xl font-bold text-primary">
+                      {formatCurrency(monthlyValue)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Seu custo por este cliente</p>
+                  </div>
+                  
+                  {/* Botões de Ação */}
+                  <div className="flex flex-col gap-2">
+                    <Button 
+                      onClick={() => payAheadMutation.mutate()}
+                      disabled={payAheadMutation.isPending}
+                      className={isOverdue ? "bg-red-600 hover:bg-red-700" : ""}
+                    >
+                      {payAheadMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          {isOverdue ? "Pagar Agora" : "Pagar Antecipado"}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
+
+      {/* Grid de Detalhes e Ações */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Detalhes do Plano */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5" />
+              Detalhes do Plano
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-muted-foreground">Plano</span>
+              <span className="font-medium">{plan.nome}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-muted-foreground">Valor</span>
+              <span className="font-medium">
+                {formatCurrency(parseFloat(plan.valor))}
+                <span className="text-sm text-muted-foreground">/mês</span>
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-muted-foreground">Data de Início</span>
+              <span className="font-medium">
+                {formatDate(subscriptionView.dataInicio)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-muted-foreground">Válido até</span>
+              <span className={`font-medium ${subscriptionView.isOverdue ? 'text-red-500' : ''}`}>
+                {formatDate(subscriptionView.dataFim)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-muted-foreground">Conversas</span>
+              <span className="font-medium">{stats.totalConversations}</span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-muted-foreground">Cliente Gratuito</span>
+              <Badge variant={client.isFreeClient ? 'default' : 'secondary'}>
+                {client.isFreeClient ? 'Sim' : 'Não'}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Ações do Cliente - PIX QR Code Mercado Pago (revendedor paga ao dono do sistema) */}
+        <Card>
+          <CardHeader>
+            <CardTitle>💳 Pagar Mensalidade</CardTitle>
+            <CardDescription>Pague a mensalidade deste cliente via PIX instantâneo</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Seção PIX QR Code - apenas para clientes pagos */}
+            {!client.isFreeClient && (
+              <>
+                {/* Card de Pagamento Mensal - Destaque Principal */}
+                <div className="p-5 border-2 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-green-300 dark:border-green-700 shadow-sm">
+                  <div className="text-center mb-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/50 mb-3">
+                      <QrCode className="h-8 w-8 text-green-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-green-800 dark:text-green-200">
+                      Pagar Mensalidade
+                    </h3>
+                    <p className="text-sm text-green-600 dark:text-green-400">
+                      Gere o QR Code PIX e pague instantaneamente
+                    </p>
+                  </div>
+                  
+                  {/* Valor em destaque */}
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4 text-center shadow-inner">
+                    <p className="text-sm text-muted-foreground mb-1">Valor mensal:</p>
+                    <p className="text-4xl font-bold text-green-600">
+                      {formatCurrency(parseFloat(plan.valor || '0'))}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Cliente: {user?.name || user?.email}
+                    </p>
+                  </div>
+                  
+                  {/* Botão Gerar PIX */}
+                  <Button 
+                    className="w-full h-14 text-lg bg-green-600 hover:bg-green-700 shadow-lg"
+                    onClick={() => generatePixMutation.mutate()}
+                    disabled={generatePixMutation.isPending}
+                  >
+                    {generatePixMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                        Gerando PIX...
+                      </>
+                    ) : (
+                      <>
+                        <QrCode className="h-5 w-5 mr-2" />
+                        Gerar QR Code PIX
+                      </>
+                    )}
+                  </Button>
+                  
+                  <p className="text-xs text-center text-green-700 dark:text-green-300 mt-3">
+                    ⚡ Pagamento confirmado automaticamente em segundos
+                  </p>
+                </div>
+                
+                {/* Card de Pagamento Anual */}
+                <div className="p-4 border-2 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-300 dark:border-blue-700">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/50">
+                        <Gift className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-blue-800 dark:text-blue-200">
+                          Pagar 12 Meses
+                        </p>
+                        <p className="text-sm text-blue-600 dark:text-blue-400">
+                          {annualDiscountPercent}% de desconto!
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground line-through">
+                        {formatCurrency(parseFloat(plan.valor || '0') * 12)}
+                      </p>
+                      <p className="text-lg font-bold text-blue-600">
+                        {formatCurrency(parseFloat(plan.valor || '0') * 12 * (1 - annualDiscountPercent / 100))}
+                      </p>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline"
+                    className="w-full mt-3 border-blue-400 text-blue-700 hover:bg-blue-50"
+                    onClick={() => setShowAnnualDialog(true)}
+                  >
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Pagar Anual com PIX
+                  </Button>
+                </div>
+              </>
+            )}
+            
+            {/* Cliente Gratuito - sem opção de pagamento */}
+            {client.isFreeClient && (
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg text-center">
+                <Gift className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+                <p className="font-medium text-emerald-700 dark:text-emerald-300">
+                  🎁 Cliente Gratuito
+                </p>
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                  Este cliente não precisa pagar mensalidade
+                </p>
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Ações de Gerenciamento */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Gerenciamento</p>
+              
+              {/* Suspender/Reativar */}
+              {client.status === 'active' || client.status === 'overdue' ? (
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                  onClick={() => suspendMutation.mutate()}
+                  disabled={suspendMutation.isPending}
+                >
+                  {suspendMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Pause className="h-4 w-4 mr-2" />
+                  )}
+                  Suspender Cliente
+                </Button>
+              ) : client.status === 'suspended' ? (
+                <Button 
+                  variant="outline"
+                  className="w-full justify-start text-green-600 hover:text-green-700 hover:bg-green-50"
+                  onClick={() => reactivateMutation.mutate()}
+                  disabled={reactivateMutation.isPending}
+                >
+                  {reactivateMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Play className="h-4 w-4 mr-2" />
+                  )}
+                  Reativar Cliente
+                </Button>
+              ) : null}
+              
+              {/* Confirmar pagamento manual recebido */}
+              <Button 
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => payAheadMutation.mutate()}
+                disabled={payAheadMutation.isPending}
+              >
+                {payAheadMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                )}
+                Confirmar Pagamento Manual (+30 dias)
+              </Button>
+              
+              {/* Gerar Nova Senha */}
+              <Button 
+                variant="outline"
+                className="w-full justify-start text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                onClick={() => setShowResetPasswordDialog(true)}
+              >
+                <Key className="h-4 w-4 mr-2" />
+                Gerar Nova Senha
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Modal de Reset de Senha */}
+      <Dialog open={showResetPasswordDialog} onOpenChange={setShowResetPasswordDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5" />
+              Gerar Nova Senha
+            </DialogTitle>
+            <DialogDescription>
+              Gere uma nova senha para {user?.name || user?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nova Senha (deixe em branco para gerar automaticamente)</Label>
+              <Input
+                type="text"
+                value={resetPasswordValue}
+                onChange={(e) => setResetPasswordValue(e.target.value)}
+                placeholder="Deixe vazio para gerar automaticamente"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowResetPasswordDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => resetPasswordMutationDetails.mutate(resetPasswordValue || undefined)}
+              disabled={resetPasswordMutationDetails.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {resetPasswordMutationDetails.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Gerar Nova Senha
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de PIX QR Code - Igual ao /minha-assinatura */}
+      <Dialog open={showPixDialog} onOpenChange={setShowPixDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center flex items-center justify-center gap-2">
+              <QrCode className="h-5 w-5 text-green-600" />
+              Pagamento via PIX
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              Escaneie o QR Code ou copie o código para pagar
+            </DialogDescription>
+          </DialogHeader>
+          
+          {pixData && (
+            <div className="space-y-4">
+              {/* QR Code */}
+              <div className="flex justify-center">
+                {pixData.qrCodeBase64 && (
+                  <img 
+                    src={pixData.qrCodeBase64.startsWith('data:') ? pixData.qrCodeBase64 : `data:image/png;base64,${pixData.qrCodeBase64}`}
+                    alt="QR Code PIX"
+                    className="w-52 h-52 border-4 border-green-200 rounded-xl shadow-lg"
+                  />
+                )}
+              </div>
+              
+              {/* Valor e Timer */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center p-3 bg-green-50 dark:bg-green-950/30 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Valor</p>
+                  <p className="text-xl font-bold text-green-600">
+                    R$ {pixData.amount.toFixed(2)}
+                  </p>
+                </div>
+                <div className="text-center p-3 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Expira em</p>
+                  <p className={`text-xl font-mono font-bold ${timeLeft === "Expirado" ? "text-red-500" : "text-yellow-600"}`}>
+                    {timeLeft}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Cliente */}
+              {pixData.clientName && (
+                <div className="text-center p-2 bg-muted/50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Pagamento para cliente: <span className="font-medium">{pixData.clientName}</span>
+                  </p>
+                </div>
+              )}
+              
+              {/* Botão Copiar */}
+              <Button 
+                variant="outline" 
+                className="w-full h-12" 
+                onClick={copyPixCode}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copiar Código PIX
+              </Button>
+              
+              {/* Abrir no App */}
+              {pixData.ticketUrl && (
+                <Button 
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => window.open(pixData.ticketUrl, '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Abrir no App do Banco
+                </Button>
+              )}
+              
+              {/* Status */}
+              <div className="flex items-center justify-center gap-2 py-3 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg border border-yellow-200">
+                <Clock className="w-4 h-4 text-yellow-600 animate-pulse" />
+                <span className="text-sm text-yellow-700 dark:text-yellow-300">
+                  Aguardando pagamento...
+                </span>
+              </div>
+              
+              <p className="text-xs text-center text-muted-foreground">
+                O PIX expira em 30 minutos. Após o pagamento, o sistema atualizará automaticamente.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação Pagamento Anual */}
+      <Dialog open={showAnnualDialog} onOpenChange={setShowAnnualDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">🎁 Pagamento Anual</DialogTitle>
+            <DialogDescription className="text-center">
+              Pague 12 meses antecipados e ganhe {annualDiscountPercent}% de desconto!
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Comparativo de valores */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-muted/30 rounded-lg text-center">
+                <p className="text-xs text-muted-foreground">Valor Normal (12x)</p>
+                <p className="text-lg font-medium line-through text-muted-foreground">
+                  {formatCurrency(parseFloat(plan.valor || '0') * 12)}
+                </p>
+              </div>
+              <div className="p-4 bg-green-50 dark:bg-green-950/30 rounded-lg text-center border-2 border-green-300">
+                <p className="text-xs text-green-600">Com Desconto</p>
+                <p className="text-xl font-bold text-green-600">
+                  {formatCurrency(parseFloat(plan.valor || '0') * 12 * (1 - annualDiscountPercent / 100))}
+                </p>
+              </div>
+            </div>
+            
+            {/* Economia */}
+            <div className="text-center p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
+              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                💰 Você economiza: {formatCurrency(parseFloat(plan.valor || '0') * 12 * (annualDiscountPercent / 100))}
+              </p>
+            </div>
+            
+            {/* Botões */}
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                className="flex-1"
+                onClick={() => setShowAnnualDialog(false)}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                className="flex-1 bg-green-600 hover:bg-green-700"
+                onClick={() => generateAnnualPixMutation.mutate()}
+                disabled={generateAnnualPixMutation.isPending}
+              >
+                {generateAnnualPixMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <QrCode className="h-4 w-4 mr-2" />
+                )}
+                Gerar PIX Anual
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Histórico de Pagamentos - Tabela Igual Minha Assinatura */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Receipt className="h-5 w-5" />
+            Histórico de Pagamentos
+          </CardTitle>
+          <CardDescription>
+            Pagamentos realizados por este cliente
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {paymentHistory.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Método</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paymentHistory.map((payment, idx) => (
+                  <TableRow key={payment.id || idx}>
+                    <TableCell>
+                      {new Date(payment.paidAt || payment.createdAt).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {payment.description || `Mensalidade ${payment.referenceMonth}`}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {payment.paymentMethod === 'activation' ? '🎉 Ativação' :
+                         payment.paymentMethod === 'pix' ? '💠 PIX' :
+                         payment.paymentMethod === 'manual' ? '✋ Manual' :
+                         payment.paymentMethod}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-green-600">
+                      {formatCurrency(payment.amount)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className="bg-green-500">
+                        ✅ {payment.status === 'approved' ? 'Pago' : payment.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Receipt className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p>Nenhum pagamento registrado</p>
+              <p className="text-xs mt-1">Os pagamentos aparecerão aqui quando processados</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Informações do Cliente e WhatsApp */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Info do Cliente */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Informações do Cliente</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-muted-foreground">Nome</span>
+              <span className="font-medium">{user?.name || '-'}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-muted-foreground">Email</span>
+              <span className="font-medium">{user?.email || '-'}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-muted-foreground">Telefone</span>
+              <span className="font-medium">{user?.phone || '-'}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b">
+              <span className="text-muted-foreground">ID do Cliente</span>
+              <code className="text-xs bg-muted px-2 py-1 rounded">{client.id}</code>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-muted-foreground">Criado em</span>
+              <span className="font-medium">{formatDate(client.createdAt)}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Status WhatsApp */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Conexão WhatsApp</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                clientDetails.connection?.isConnected ? 'bg-green-100' : 'bg-gray-100'
+              }`}>
+                <Phone className={`w-6 h-6 ${
+                  clientDetails.connection?.isConnected ? 'text-green-600' : 'text-gray-400'
+                }`} />
+              </div>
+              <div>
+                <p className="font-medium">
+                  {clientDetails.connection?.isConnected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado'}
+                </p>
+                {clientDetails.connection?.phoneNumber && (
+                  <p className="text-sm text-muted-foreground">
+                    {clientDetails.connection.phoneNumber}
+                  </p>
+                )}
+              </div>
+              <Badge 
+                variant={clientDetails.connection?.isConnected ? 'default' : 'secondary'}
+                className="ml-auto"
+              >
+                {clientDetails.connection?.isConnected ? '🟢 Online' : '⚫ Offline'}
+              </Badge>
+            </div>
+            
+            {/* Estatísticas de uso */}
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <div className="text-center p-3 rounded-lg bg-muted/30">
+                <p className="text-2xl font-bold text-primary">{stats.totalConversations}</p>
+                <p className="text-xs text-muted-foreground">Conversas</p>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-muted/30">
+                <p className="text-2xl font-bold text-primary">{stats.totalPayments}</p>
+                <p className="text-xs text-muted-foreground">Pagamentos</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 // Componente separado para a aba "Minha Assinatura"
-function MySubscriptionTab({ profile }: { profile: ResellerProfile | undefined }) {
+function MySubscriptionTab({ 
+  profile,
+  selectedClientIds,
+  setSelectedClientIds,
+  createGranularInvoiceMutation,
+  isCreatingGranularInvoice,
+  setIsCreatingGranularInvoice,
+  isGranularCheckoutOpen,
+  setIsGranularCheckoutOpen,
+  granularPixCode,
+  setGranularPixCode,
+  granularPixQrCode,
+  setGranularPixQrCode,
+  granularTotalAmount,
+  setGranularTotalAmount,
+  setLocation
+}: { 
+  profile: ResellerProfile | undefined;
+  selectedClientIds: string[];
+  setSelectedClientIds: (ids: string[]) => void;
+  createGranularInvoiceMutation: any;
+  isCreatingGranularInvoice: boolean;
+  setIsCreatingGranularInvoice: (val: boolean) => void;
+  isGranularCheckoutOpen: boolean;
+  setIsGranularCheckoutOpen: (val: boolean) => void;
+  granularPixCode: string;
+  setGranularPixCode: (val: string) => void;
+  granularPixQrCode: string;
+  setGranularPixQrCode: (val: string) => void;
+  granularTotalAmount: number;
+  setGranularTotalAmount: (val: number) => void;
+  setLocation: (loc: string) => void;
+}) {
   const { toast } = useToast();
   const [isPayPixOpen, setIsPayPixOpen] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
@@ -2592,6 +3736,11 @@ function MySubscriptionTab({ profile }: { profile: ResellerProfile | undefined }
   // Buscar histórico de faturas
   const { data: invoices, isLoading: isLoadingInvoices } = useQuery<ResellerInvoice[]>({
     queryKey: ["/api/reseller/my-invoices"],
+  });
+
+  // Buscar lista de clientes para mostrar faturas individuais
+  const { data: clients } = useQuery<ResellerClient[]>({
+    queryKey: ["/api/reseller/clients"],
   });
 
   // Gerar PIX para pagamento
@@ -2690,208 +3839,283 @@ function MySubscriptionTab({ profile }: { profile: ResellerProfile | undefined }
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Minha Assinatura</h2>
-          <p className="text-sm text-muted-foreground">
-            Gerencie suas faturas com o sistema AgenteZap
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Atualizar
-        </Button>
-      </div>
-
-      {/* Card de Status Principal */}
-      <Card className={cn(
-        "border-2",
-        subscription?.resellerStatus === 'blocked' && "border-red-500 bg-red-50 dark:bg-red-950",
-        subscription?.resellerStatus === 'overdue' && "border-yellow-500 bg-yellow-50 dark:bg-yellow-950",
-        subscription?.resellerStatus === 'active' && "border-green-500"
-      )}>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Resumo da Assinatura
-            </CardTitle>
-            {subscription?.resellerStatus === 'blocked' && (
-              <Badge variant="destructive" className="animate-pulse">BLOQUEADO</Badge>
-            )}
-            {subscription?.resellerStatus === 'overdue' && (
-              <Badge className="bg-yellow-500 animate-pulse">VENCIDO</Badge>
-            )}
-            {subscription?.resellerStatus === 'active' && (
-              <Badge className="bg-green-500">EM DIA</Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <Users className="h-6 w-6 mx-auto mb-2 text-blue-500" />
-              <p className="text-2xl font-bold">{subscription?.activeClients || 0}</p>
-              <p className="text-sm text-muted-foreground">Clientes Ativos</p>
-            </div>
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <DollarSign className="h-6 w-6 mx-auto mb-2 text-green-500" />
-              <p className="text-2xl font-bold">R$ {subscription?.costPerClient?.toFixed(2) || '49.99'}</p>
-              <p className="text-sm text-muted-foreground">Por Cliente</p>
-            </div>
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <CreditCard className="h-6 w-6 mx-auto mb-2 text-purple-500" />
-              <p className="text-2xl font-bold">R$ {subscription?.totalMonthly?.toFixed(2) || '0.00'}</p>
-              <p className="text-sm text-muted-foreground">Total Mensal</p>
-            </div>
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <Calendar className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-              <p className="text-2xl font-bold">Dia {subscription?.billingDay || 10}</p>
-              <p className="text-sm text-muted-foreground">Vencimento</p>
-            </div>
-          </div>
-
-          {/* Aviso de Bloqueio */}
-          {subscription?.resellerStatus === 'blocked' && (
-            <div className="mt-4 p-4 bg-red-100 dark:bg-red-900 rounded-lg">
-              <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
-                <AlertCircle className="h-5 w-5" />
-                <span className="font-semibold">Sua conta está bloqueada!</span>
-              </div>
-              <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                Você está com {subscription.daysPastDue} dias de atraso. Regularize sua situação para liberar o acesso dos seus clientes.
+      {/* Explicação clara da hierarquia */}
+      <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+        <CardContent className="py-4">
+          <div className="flex items-start gap-3">
+            <Users className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div>
+              <p className="font-medium text-blue-900 dark:text-blue-100">Gestão de Clientes - Cobranças Individuais</p>
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                Selecione clientes para gerar cobranças personalizadas. Cada cliente: <strong>R$ 49,99/mês</strong>. 
+                Acompanhe pagamentos, vencimentos e status em um só lugar.
               </p>
             </div>
-          )}
-
-          {/* Aviso de Vencimento */}
-          {subscription?.resellerStatus === 'overdue' && (
-            <div className="mt-4 p-4 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-              <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
-                <Clock className="h-5 w-5" />
-                <span className="font-semibold">Fatura vencida!</span>
-              </div>
-              <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
-                Você tem {subscription.daysPastDue} dias de atraso. Pague até 10 dias para evitar o bloqueio.
-              </p>
-            </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Faturas Pendentes */}
-      {subscription?.pendingInvoices && subscription.pendingInvoices.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-yellow-500" />
-              Faturas Pendentes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">� Gestão de Clientes</h2>
+          <p className="text-sm text-muted-foreground">
+            Selecione clientes e gere cobranças personalizadas (R$ 49,99/cliente)
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {selectedClientIds.length > 0 && (
+            <Button 
+              onClick={() => {
+                setIsCreatingGranularInvoice(true);
+                createGranularInvoiceMutation.mutate(selectedClientIds);
+              }}
+              disabled={isCreatingGranularInvoice}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isCreatingGranularInvoice ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <CreditCard className="h-4 w-4 mr-2" />
+              )}
+              Pagar Selecionados ({selectedClientIds.length})
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Atualizar
+          </Button>
+        </div>
+      </div>
+
+      {/* Tabela de Clientes com Seleção */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-blue-500" />
+            Seus Clientes
+          </CardTitle>
+          <CardDescription>
+            Selecione clientes para gerar cobranças ou acesse detalhes individuais
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {clients && clients.length > 0 ? (
             <div className="space-y-4">
-              {subscription.pendingInvoices.map((invoice) => (
-                <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-semibold">{formatMonth(invoice.referenceMonth)}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Vencimento: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {invoice.activeClients} clientes
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-bold">R$ {parseFloat(invoice.totalAmount).toFixed(2)}</p>
-                    {getStatusBadge(invoice.status)}
-                    <div className="mt-2">
-                      <Button 
-                        size="sm" 
-                        onClick={() => generatePix(invoice.id)}
-                        disabled={isGeneratingPix}
-                      >
-                        {isGeneratingPix ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : (
-                          <CreditCard className="h-4 w-4 mr-2" />
+              {/* Checkbox de selecionar todos e botão Pagar Todos */}
+              <div className="flex items-center justify-between pb-2 border-b">
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 cursor-pointer"
+                    checked={selectedClientIds.length === clients.length && clients.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedClientIds(clients.map(c => c.id));
+                      } else {
+                        setSelectedClientIds([]);
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium">
+                    Selecionar Todos ({clients.length})
+                  </span>
+                </div>
+                
+                {/* Botão Pagar Todos - aparece quando há seleção */}
+                {selectedClientIds.length > 0 && (
+                  <Button
+                    onClick={() => {
+                      setIsCreatingGranularInvoice(true);
+                      createGranularInvoiceMutation.mutate(selectedClientIds);
+                    }}
+                    disabled={isCreatingGranularInvoice}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {isCreatingGranularInvoice ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4 mr-2" />
+                    )}
+                    Pagar Todos ({selectedClientIds.length}) - R$ {(selectedClientIds.length * 49.99).toFixed(2)}
+                  </Button>
+                )}
+              </div>
+
+              {/* Tabela */}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">Sel.</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Primeiro Pag.</TableHead>
+                    <TableHead>Último Pag.</TableHead>
+                    <TableHead>Próximo Pag.</TableHead>
+                    <TableHead>Meses</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {clients.map((client) => {
+                    const isSelected = selectedClientIds.includes(client.id);
+                    const firstPayment = client.firstPaymentDate
+                      ? new Date(client.firstPaymentDate).toLocaleDateString('pt-BR')
+                      : 'Nunca';
+                    const lastPayment = client.lastPaymentDate 
+                      ? new Date(client.lastPaymentDate).toLocaleDateString('pt-BR')
+                      : 'Nunca';
+                    const nextPayment = client.saasPaidUntil
+                      ? new Date(client.saasPaidUntil).toLocaleDateString('pt-BR')
+                      : '-';
+                    const monthsInSystem = client.monthsInSystem || 0;
+                    const isOverdue = client.saasPaidUntil 
+                      ? new Date(client.saasPaidUntil) < new Date()
+                      : false;
+
+                    return (
+                      <TableRow 
+                        key={client.id}
+                        className={cn(
+                          "cursor-pointer hover:bg-muted/50",
+                          isSelected && "bg-blue-50 dark:bg-blue-950",
+                          isOverdue && "bg-red-50 dark:bg-red-950"
                         )}
-                        Pagar com PIX
-                      </Button>
+                      >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 cursor-pointer"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedClientIds([...selectedClientIds, client.id]);
+                              } else {
+                                setSelectedClientIds(selectedClientIds.filter(id => id !== client.id));
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold",
+                              client.saasStatus === 'active' && "bg-green-500",
+                              client.saasStatus === 'suspended' && "bg-yellow-500",
+                              "bg-gray-400"
+                            )}>
+                              {client.name?.charAt(0).toUpperCase() || 'C'}
+                            </div>
+                            <div>
+                              <p className="font-medium">{client.name}</p>
+                              <p className="text-xs text-muted-foreground">{client.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {client.saasStatus === 'active' && (
+                            <Badge className="bg-green-500">Ativo</Badge>
+                          )}
+                          {client.saasStatus === 'suspended' && (
+                            <Badge className="bg-yellow-500">Suspenso</Badge>
+                          )}
+                          {isOverdue && (
+                            <Badge variant="destructive" className="ml-1">Atrasado</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">{firstPayment}</TableCell>
+                        <TableCell className="text-sm">{lastPayment}</TableCell>
+                        <TableCell className={cn(
+                          "text-sm font-medium",
+                          isOverdue && "text-red-600"
+                        )}>
+                          {nextPayment}
+                        </TableCell>
+                        <TableCell className="text-sm">{monthsInSystem}</TableCell>
+                        <TableCell className="text-sm font-semibold text-green-600">
+                          R$ 49,99
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2 flex-wrap">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedClientIds([client.id]);
+                                setIsCreatingGranularInvoice(true);
+                                createGranularInvoiceMutation.mutate([client.id]);
+                              }}
+                            >
+                              <CreditCard className="h-3 w-3 mr-1" />
+                              Pagar
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedClientIds([client.id]);
+                                setIsCreatingGranularInvoice(true);
+                                createGranularInvoiceMutation.mutate([client.id]);
+                              }}
+                            >
+                              <Clock className="h-3 w-3 mr-1" />
+                              Antecipar
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedClientIds([client.id]);
+                                setIsCreatingGranularInvoice(true);
+                                // Criar invoice anual (12x49.99 = 599.88)
+                                createGranularInvoiceMutation.mutate([client.id]);
+                              }}
+                            >
+                              <Calendar className="h-3 w-3 mr-1" />
+                              Anual
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              onClick={() => setLocation(`/revenda/clientes/${client.id}`)}
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              Detalhes
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+
+              {/* Resumo de Seleção */}
+              {selectedClientIds.length > 0 && (
+                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        {selectedClientIds.length} cliente(s) selecionado(s) × R$ 49,99
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-bold text-blue-700 dark:text-blue-300">
+                        = R$ {(selectedClientIds.length * 49.99).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400">Total a pagar</p>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Histórico de Faturas */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Histórico de Faturas</CardTitle>
-          <CardDescription>Todas as suas faturas com o sistema</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoadingInvoices ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : invoices?.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhuma fatura ainda</p>
+              )}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Referência</TableHead>
-                  <TableHead>Vencimento</TableHead>
-                  <TableHead>Clientes</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Pago em</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices?.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">
-                      {formatMonth(invoice.referenceMonth)}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}
-                    </TableCell>
-                    <TableCell>{invoice.activeClients}</TableCell>
-                    <TableCell className="font-semibold">
-                      R$ {parseFloat(invoice.totalAmount).toFixed(2)}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(invoice.status)}</TableCell>
-                    <TableCell>
-                      {invoice.paidAt 
-                        ? new Date(invoice.paidAt).toLocaleDateString('pt-BR')
-                        : '-'
-                      }
-                    </TableCell>
-                    <TableCell>
-                      {invoice.status !== 'paid' && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => generatePix(invoice.id)}
-                          disabled={isGeneratingPix}
-                        >
-                          Pagar
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p>Você ainda não tem clientes cadastrados</p>
+              <p className="text-sm">Vá para a aba "Clientes" para adicionar seu primeiro cliente</p>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -2969,6 +4193,85 @@ function MySubscriptionTab({ profile }: { profile: ResellerProfile | undefined }
               </p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Checkout Granular PIX */}
+      <Dialog open={isGranularCheckoutOpen} onOpenChange={setIsGranularCheckoutOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Pagamento de Clientes Selecionados
+            </DialogTitle>
+            <DialogDescription>
+              Escaneie o QR Code ou copie o código PIX para pagar
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Info da cobrança */}
+            <div className="p-4 bg-muted rounded-lg text-center">
+              <p className="text-sm text-muted-foreground">Total a Pagar</p>
+              <p className="text-lg font-semibold">{selectedClientIds.length} cliente(s)</p>
+              <p className="text-2xl font-bold text-green-600">
+                R$ {granularTotalAmount.toFixed(2)}
+              </p>
+            </div>
+
+            {/* QR Code */}
+            {granularPixQrCode && (
+              <div className="flex justify-center">
+                <img 
+                  src={granularPixQrCode}
+                  alt="QR Code PIX"
+                  className="w-48 h-48 border rounded-lg"
+                />
+              </div>
+            )}
+
+            {/* Código PIX para copiar */}
+            <div className="space-y-2">
+              <Label>Código PIX (Copia e Cola)</Label>
+              <div className="flex gap-2">
+                <Input 
+                  value={granularPixCode} 
+                  readOnly 
+                  className="text-xs"
+                />
+                <Button 
+                  variant="outline" 
+                  size="icon"
+                  onClick={() => copyPixCode(granularPixCode)}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Informação sobre processamento */}
+            <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                ✓ Após o pagamento, os clientes selecionados terão sua vigência estendida automaticamente
+              </p>
+            </div>
+
+            <Button 
+              className="w-full" 
+              variant="outline"
+              onClick={() => {
+                setIsGranularCheckoutOpen(false);
+                setSelectedClientIds([]);
+                refetch();
+              }}
+            >
+              Fechar
+            </Button>
+
+            <p className="text-xs text-center text-muted-foreground">
+              O pagamento é processado automaticamente via webhook do Mercado Pago
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
