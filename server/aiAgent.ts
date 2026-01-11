@@ -68,6 +68,303 @@ function getBrazilGreeting(): { greeting: string; period: string } {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🧠 SISTEMA ANTI-AMNÉSIA GLOBAL (FUNCIONA PARA TODOS OS CLIENTES)
+// ═══════════════════════════════════════════════════════════════════════
+// Este sistema analisa TODO o histórico da conversa e gera um resumo de 
+// memória para que a IA NUNCA esqueça o que já foi discutido.
+// É injetado automaticamente para TODOS os prompts de usuários.
+// ═══════════════════════════════════════════════════════════════════════
+
+interface ConversationMemory {
+  hasGreeted: boolean;           // Já cumprimentou?
+  hasAskedName: boolean;         // Já perguntou o nome?
+  hasExplainedProduct: boolean;  // Já explicou o produto/serviço?
+  hasAskedBusiness: boolean;     // Já perguntou sobre o negócio do cliente?
+  hasSentMedia: string[];        // Quais mídias foram enviadas?
+  hasPromisedToSend: string[];   // Prometeu enviar algo?
+  hasAnsweredQuestions: string[]; // Quais perguntas já respondeu?
+  clientQuestions: string[];     // O que o cliente perguntou?
+  clientInfo: {                  // Informações coletadas sobre o cliente
+    name?: string;
+    business?: string;
+    interests?: string[];
+    objections?: string[];
+    stage?: string;
+  };
+  lastTopics: string[];          // Últimos assuntos discutidos
+  pendingActions: string[];      // Ações prometidas mas não cumpridas
+}
+
+function analyzeConversationHistory(
+  conversationHistory: Array<{ fromMe?: boolean; text?: string | null; timestamp?: Date | null; isFromAgent?: boolean }>,
+  contactName?: string
+): ConversationMemory {
+  const memory: ConversationMemory = {
+    hasGreeted: false,
+    hasAskedName: false,
+    hasExplainedProduct: false,
+    hasAskedBusiness: false,
+    hasSentMedia: [],
+    hasPromisedToSend: [],
+    hasAnsweredQuestions: [],
+    clientQuestions: [],
+    clientInfo: { name: contactName },
+    lastTopics: [],
+    pendingActions: [],
+  };
+
+  if (!conversationHistory || conversationHistory.length === 0) {
+    return memory;
+  }
+
+  // Padrões de detecção
+  const greetingPatterns = /^(oi|olá|ola|bom dia|boa tarde|boa noite|e aí|eae|hey|hello|fala|salve)/i;
+  const nameQuestionPatterns = /(qual (é |seu |o seu )?nome|como (você |vc |tu )?(se )?chama|posso te chamar de)/i;
+  const businessQuestionPatterns = /(qual (é |seu |o seu )?(negócio|ramo|área|empresa|trabalho)|o que (você |vc )?(faz|vende)|que tipo de|qual seu segmento)/i;
+  const promisePatterns = /(vou (te )?(enviar|mandar|mostrar)|deixa eu (enviar|mandar)|te (envio|mando)|já já (envio|mando))/i;
+  const questionPatterns = /\?$/;
+  const mediaPatterns = /(vídeo|video|foto|imagem|áudio|audio|documento|pdf|arquivo)/i;
+  const pricePatterns = /(preço|valor|quanto custa|R\$|\d+,\d{2}|\d+\.\d{2})/i;
+  const featurePatterns = /(funcionalidade|recurso|função|como funciona|o que faz|benefício)/i;
+
+  for (const msg of conversationHistory) {
+    if (!msg.text) continue;
+    const text = msg.text.toLowerCase();
+    const isFromUs = msg.fromMe === true;
+
+    if (isFromUs) {
+      // Análise das nossas mensagens
+      if (greetingPatterns.test(text)) {
+        memory.hasGreeted = true;
+      }
+      if (nameQuestionPatterns.test(text)) {
+        memory.hasAskedName = true;
+      }
+      if (businessQuestionPatterns.test(text)) {
+        memory.hasAskedBusiness = true;
+      }
+      if (pricePatterns.test(text)) {
+        memory.hasExplainedProduct = true;
+        memory.hasAnsweredQuestions.push("preço/valor");
+      }
+      if (featurePatterns.test(text)) {
+        memory.hasExplainedProduct = true;
+        memory.hasAnsweredQuestions.push("funcionalidades");
+      }
+
+      // Detectar promessas de envio
+      if (promisePatterns.test(text)) {
+        const mediaMatch = text.match(mediaPatterns);
+        if (mediaMatch) {
+          memory.hasPromisedToSend.push(mediaMatch[0]);
+        }
+      }
+
+      // Detectar mídias enviadas
+      if (text.includes("[vídeo") || text.includes("[video") || 
+          text.includes("enviando vídeo") || text.includes("veja o vídeo")) {
+        memory.hasSentMedia.push("vídeo");
+      }
+      if (text.includes("[imagem") || text.includes("[foto") || 
+          text.includes("enviando imagem") || text.includes("veja a imagem")) {
+        memory.hasSentMedia.push("imagem");
+      }
+      if (text.includes("[áudio") || text.includes("[audio")) {
+        memory.hasSentMedia.push("áudio");
+      }
+
+    } else {
+      // Análise das mensagens do cliente
+      if (questionPatterns.test(text)) {
+        // Extrair o assunto da pergunta
+        if (pricePatterns.test(text)) {
+          memory.clientQuestions.push("preço");
+        }
+        if (featurePatterns.test(text)) {
+          memory.clientQuestions.push("funcionalidades");
+        }
+        if (text.includes("como")) {
+          memory.clientQuestions.push("como funciona");
+        }
+      }
+
+      // Detectar informações do cliente
+      if (text.match(/trabalho com|tenho (uma |um )?(loja|empresa|negócio)|meu (negócio|ramo)/i)) {
+        memory.clientInfo.business = text;
+      }
+
+      // Detectar interesses
+      if (text.match(/me interessa|quero saber|gostaria de|preciso de/i)) {
+        memory.clientInfo.interests = memory.clientInfo.interests || [];
+        memory.clientInfo.interests.push(text.substring(0, 50));
+      }
+
+      // Detectar objeções
+      if (text.match(/caro|não sei|vou pensar|depois|agora não|muito|difícil/i)) {
+        memory.clientInfo.objections = memory.clientInfo.objections || [];
+        memory.clientInfo.objections.push(text.substring(0, 50));
+      }
+    }
+  }
+
+  // Verificar promessas não cumpridas
+  for (const promised of memory.hasPromisedToSend) {
+    if (!memory.hasSentMedia.includes(promised)) {
+      memory.pendingActions.push(`Enviar ${promised} que foi prometido`);
+    }
+  }
+
+  // Extrair últimos tópicos (das últimas 5 mensagens)
+  const recentMessages = conversationHistory.slice(-5);
+  for (const msg of recentMessages) {
+    if (msg.text) {
+      if (pricePatterns.test(msg.text)) memory.lastTopics.push("preço");
+      if (featurePatterns.test(msg.text)) memory.lastTopics.push("funcionalidades");
+      if (mediaPatterns.test(msg.text)) memory.lastTopics.push("mídia/demonstração");
+    }
+  }
+
+  return memory;
+}
+
+function generateMemoryContextBlock(
+  memory: ConversationMemory,
+  contactName?: string
+): string {
+  const sections: string[] = [];
+
+  // Nome do cliente - SEMPRE usar se disponível
+  const clientName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
+    ? contactName.trim() 
+    : null;
+
+  sections.push(`
+═══════════════════════════════════════════════════════════════════════════════
+🧠 MEMÓRIA DA CONVERSA (NUNCA ESQUEÇA - ANTI-AMNÉSIA)
+═══════════════════════════════════════════════════════════════════════════════`);
+
+  // 1. Nome do cliente - TÉCNICA DE VENDAS: Usar o nome gera rapport
+  if (clientName) {
+    sections.push(`
+👤 NOME DO CLIENTE: ${clientName}
+   → Use o nome ${clientName} naturalmente na conversa (técnica de rapport)
+   → Exemplo: "Entendi, ${clientName}..." ou "${clientName}, vou te explicar..."
+   → NÃO chame de "cara", "véi", "mano" - seja profissional mas acolhedor`);
+  } else {
+    sections.push(`
+👤 NOME DO CLIENTE: Não identificado
+   → Trate como "você" de forma respeitosa
+   → Se apropriado, pergunte o nome UMA VEZ para personalizar o atendimento`);
+  }
+
+  // 2. Status da conversa
+  if (memory.hasGreeted) {
+    sections.push(`
+🚫 CUMPRIMENTO: JÁ FOI FEITO!
+   → NÃO cumprimente novamente (sem "Oi", "Olá", "Bom dia")
+   → NÃO se apresente de novo
+   → Vá DIRETO ao assunto - continue a conversa naturalmente`);
+  }
+
+  // 3. Informações já coletadas
+  if (memory.hasAskedName) {
+    sections.push(`
+✅ JÁ PERGUNTOU O NOME: Não pergunte novamente`);
+  }
+  if (memory.hasAskedBusiness) {
+    sections.push(`
+✅ JÁ PERGUNTOU SOBRE O NEGÓCIO: Não pergunte novamente`);
+  }
+  if (memory.hasExplainedProduct) {
+    sections.push(`
+✅ JÁ EXPLICOU PRODUTO/SERVIÇO: Não repita explicações básicas`);
+  }
+
+  // 4. Perguntas já respondidas
+  if (memory.hasAnsweredQuestions.length > 0) {
+    sections.push(`
+📝 PERGUNTAS JÁ RESPONDIDAS (não repita):
+   → ${[...new Set(memory.hasAnsweredQuestions)].join(", ")}`);
+  }
+
+  // 5. Mídias enviadas
+  if (memory.hasSentMedia.length > 0) {
+    sections.push(`
+📁 MÍDIAS JÁ ENVIADAS (não repita):
+   → ${[...new Set(memory.hasSentMedia)].join(", ")}`);
+  }
+
+  // 6. AÇÕES PENDENTES - CRÍTICO!
+  if (memory.pendingActions.length > 0) {
+    sections.push(`
+⚠️ AÇÕES PENDENTES (FAÇA AGORA!):
+   → ${memory.pendingActions.join("\n   → ")}
+   → Se prometeu enviar algo, ENVIE! Não prometa de novo.`);
+  }
+
+  // 7. Contexto do cliente
+  if (memory.clientInfo.business) {
+    sections.push(`
+🏢 NEGÓCIO DO CLIENTE: ${memory.clientInfo.business.substring(0, 100)}
+   → Personalize suas respostas para este segmento`);
+  }
+  if (memory.clientInfo.interests && memory.clientInfo.interests.length > 0) {
+    sections.push(`
+💡 INTERESSES DO CLIENTE:
+   → ${memory.clientInfo.interests.slice(0, 3).join("\n   → ")}`);
+  }
+  if (memory.clientInfo.objections && memory.clientInfo.objections.length > 0) {
+    sections.push(`
+🤔 OBJEÇÕES/PREOCUPAÇÕES DO CLIENTE:
+   → ${memory.clientInfo.objections.slice(0, 3).join("\n   → ")}
+   → Trabalhe essas objeções com empatia`);
+  }
+
+  // 8. Últimos tópicos
+  if (memory.lastTopics.length > 0) {
+    sections.push(`
+📌 ÚLTIMOS ASSUNTOS DISCUTIDOS:
+   → ${[...new Set(memory.lastTopics)].join(", ")}
+   → Continue nesses tópicos ou avance naturalmente`);
+  }
+
+  sections.push(`
+═══════════════════════════════════════════════════════════════════════════════
+🎯 REGRAS UNIVERSAIS DE VENDAS (TÉCNICAS PROFISSIONAIS)
+═══════════════════════════════════════════════════════════════════════════════
+
+1. PERSONALIZAÇÃO (Rapport):
+   → Use o nome do cliente naturalmente (gera confiança)
+   → Referencie informações que ele já compartilhou
+   → Mostre que você LEMBRA da conversa anterior
+
+2. CONSISTÊNCIA:
+   → Se prometeu algo, CUMPRA
+   → Se explicou algo, não repita do zero
+   → Se fez uma pergunta, ESPERE a resposta antes de perguntar outra
+
+3. ESCUTA ATIVA:
+   → Responda EXATAMENTE o que foi perguntado
+   → Não mude de assunto sem motivo
+   → Reconheça objeções antes de contorná-las
+
+4. PROGRESSÃO:
+   → Cada mensagem deve AVANÇAR a conversa
+   → Não fique em loops repetindo as mesmas informações
+   → Tenha um objetivo claro (demo, venda, agendamento)
+
+5. HUMANIZAÇÃO (sem gírias excessivas):
+   → Seja profissional mas acolhedor
+   → Use emojis com moderação (1-2 por mensagem)
+   → Frases curtas e diretas (máx 4-5 linhas por mensagem)
+   → NÃO use: "cara", "véi", "mano", "brother" - use o NOME do cliente
+
+═══════════════════════════════════════════════════════════════════════════════`);
+
+  return sections.join("\n");
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 🧠 FUNÇÃO PARA GERAR BLOCO DE CONTEXTO DINÂMICO (NOME, HORÁRIO, ETC)
 // ═══════════════════════════════════════════════════════════════════════
 // FILOSOFIA: Passar APENAS informações para a IA decidir como usar.
@@ -764,6 +1061,11 @@ export async function generateAIResponse(
      // 🌅 GERAR BLOCO DE CONTEXTO DINÂMICO (NOME, HORÁRIO, MÍDIAS JÁ ENVIADAS)
      const dynamicContextBlock = generateDynamicContextBlock(contactName, sentMedias, conversationHistory);
      
+     // 🧠 SISTEMA ANTI-AMNÉSIA GLOBAL (para TODOS os clientes)
+     const conversationMemory = analyzeConversationHistory(conversationHistory, contactName);
+     const memoryContextBlock = generateMemoryContextBlock(conversationMemory, contactName);
+     console.log(`🧠 [AI Agent] Memory analysis: greeted=${conversationMemory.hasGreeted}, pendingActions=${conversationMemory.pendingActions.length}, sentMedia=${conversationMemory.hasSentMedia.length}`);
+     
      if (useAdvancedSystem && businessConfig) {
        // 🆕 NOVO SISTEMA: Usar template avançado com contexto
        const promptContext: PromptContext = {
@@ -782,6 +1084,9 @@ export async function generateAIResponse(
        
        // 🌅 ADICIONAR CONTEXTO DINÂMICO (horário, nome, mídias enviadas)
        systemPrompt += dynamicContextBlock;
+       
+       // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA
+       systemPrompt += memoryContextBlock;
        
        // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT
        if (mediaPromptBlock) {
@@ -817,6 +1122,8 @@ export async function generateAIResponse(
   ---
   
   ${dynamicContextBlock}
+  
+  ${memoryContextBlock}
 
   **REGRAS DE IDENTIDADE E ESCOPO (OBRIGATÓRIAS - NUNCA VIOLE):**
 
@@ -833,7 +1140,26 @@ export async function generateAIResponse(
     - Evite formato de manual técnico (##, ###, listas longas).
     - Responda de forma natural, objetiva e curta (2–5 linhas), com uma ideia por vez.
     - Se não souber, diga que não tem a informação e ofereça alternativa no escopo.
-    - IMPORTANTE: Você consegue entender mensagens de voz perfeitamente pois elas são transcritas automaticamente. Nunca diga que não consegue ouvir áudios - simplesmente responda ao conteúdo transcrito normalmente.
+    
+    🎤 REGRA CRÍTICA SOBRE ÁUDIOS (NUNCA VIOLE):
+    - Você CONSEGUE entender mensagens de voz pois elas são transcritas automaticamente.
+    - NUNCA, em hipótese alguma, diga frases como:
+      ❌ "não consigo ouvir áudios"
+      ❌ "infelizmente não consigo ouvir"
+      ❌ "não entendo mensagens de voz"
+      ❌ "pode enviar por texto?"
+    - Se receber "(o cliente enviou uma mensagem de voz que não pôde ser transcrita...)":
+      → Peça EDUCADAMENTE que o cliente repita: "Desculpa, não consegui entender bem. Pode repetir ou me explicar de outra forma?"
+      → NUNCA diga que é uma limitação sua ou que você não entende áudios
+    - Simplesmente responda ao conteúdo transcrito normalmente quando disponível.
+
+    🖼️ REGRA CRÍTICA SOBRE IMAGENS (NUNCA VIOLE):
+    - Você CONSEGUE VER e ANALISAR imagens! Elas são processadas automaticamente.
+    - Quando receber "(Cliente enviou uma imagem: ...)" - USE essa descrição para responder!
+    - Se for comprovante de pagamento: agradeça e confirme os dados que você consegue ver
+    - Se for produto/documento: responda baseado no que foi descrito
+    - NUNCA diga "não consigo ver imagens" ou "não tenho acesso a imagens"
+    - Se a imagem não pôde ser analisada: pergunte educadamente do que se trata
 
   4. 📋 REGRA CRÍTICA DE FORMATAÇÃO VERBATIM:
     - Quando o prompt acima disser "envie EXATAMENTE este texto", "primeira mensagem deve ser:" ou similar:
@@ -1157,19 +1483,49 @@ ${jaDisseOQueTrabalha || jaPediuAjuda ? `
       // 🛡️ FIX: Limpar TODOS os marcadores internos de mídia que não devem aparecer no contexto da IA
       // Isso evita que a IA "aprenda" a repetir esses textos problemáticos
       
-      // 1. Limpar padrões de mídia sincronizada do WhatsApp (🎤 Áudio, 📷 Imagem, etc.)
+      // 1. Limpar padrões de mídia sincronizada do WhatsApp (🎤 Áudio, 🎵 Áudio, 📷 Imagem, etc.)
       // CRÍTICO: Esses textos são salvos quando mídias são sincronizadas do WhatsApp
-      if (content === '🎤 Áudio' || content === '🎤 Audio') {
+      // 🎤 FIX 2025: Adicionar TODOS os padrões encontrados no banco de dados
+      const audioPatterns = [
+        '🎤 Áudio', '🎤 Audio', '🎤Áudio', '🎤Audio',
+        '🎵 Áudio', '🎵 Audio', '🎵Áudio', '🎵Audio',  // 🎵 é usado também pelo WhatsApp!
+        '[Áudio recebido]', '[Audio recebido]',
+        '[Áudio enviado]', '[Audio enviado]',
+        '*Áudio*', '*Audio*',
+        'Áudio', 'Audio'  // Fallback para casos simples
+      ];
+      
+      // Verificar se a mensagem é APENAS um marcador de áudio (sem transcrição)
+      const trimmedContent = content.trim();
+      const isAudioMarker = audioPatterns.some(pattern => 
+        trimmedContent === pattern || 
+        trimmedContent.toLowerCase() === pattern.toLowerCase()
+      );
+      
+      if (isAudioMarker) {
         // Se a mensagem é APENAS o marcador de áudio, indicar que foi mensagem de voz
-        content = '(mensagem de voz do cliente)';
-      } else if (content.startsWith('🎤 Áudio ') || content.startsWith('🎤 Audio ')) {
-        // PROBLEMA CRÍTICO: A IA está gerando texto que começa com "🎤 Áudio"
+        // MAS instruir a IA a pedir que repita de forma educada (não dizer que não entende)
+        content = '(o cliente enviou uma mensagem de voz que não pôde ser transcrita - peça educadamente que ele repita ou envie por texto)';
+      } else if (/^[🎤🎵]\s*[ÁáAa]udio\s+/i.test(content)) {
+        // PROBLEMA CRÍTICO: A IA está gerando texto que começa com "🎤 Áudio" ou "🎵 Áudio"
         // Remover esse prefixo para evitar que a IA aprenda este padrão
-        content = content.replace(/^🎤 [ÁáAa]udio\s*/i, '');
+        content = content.replace(/^[🎤🎵]\s*[ÁáAa]udio\s*/i, '');
       }
-      if (content === '📷 Imagem' || content === '🖼️ Imagem') {
-        content = '(imagem enviada)';
+      
+      // 🖼️ TRATAMENTO DE IMAGENS ANALISADAS
+      // Se a imagem foi analisada pelo Vision, manter a descrição para a IA entender
+      if (content.includes('[IMAGEM ANALISADA:')) {
+        // Manter o conteúdo da análise - a IA precisa saber o que tem na imagem!
+        // Apenas reformatar para ficar mais claro
+        const match = content.match(/\[IMAGEM ANALISADA:\s*(.*?)\]/s);
+        if (match && match[1]) {
+          content = `(Cliente enviou uma imagem: ${match[1].trim()})`;
+        }
+      } else if (content === '📷 Imagem' || content === '🖼️ Imagem' || content === '*Imagem*') {
+        // Imagem não foi analisada (fallback)
+        content = '(cliente enviou uma imagem que não pôde ser analisada - pergunte educadamente sobre o que se trata)';
       }
+      
       if (content === '🎥 Vídeo' || content === '🎬 Vídeo') {
         content = '(vídeo enviado)';
       }

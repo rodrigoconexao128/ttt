@@ -1,0 +1,447 @@
+{
+  "timestamp": "2026-01-11T14:44:47.671Z",
+  "total": 11,
+  "passou": 0,
+  "percentual": 0,
+  "resultados": [
+    {
+      "cliente": "Marina",
+      "negocio": "Loja de roupas femininas",
+      "passou": false,
+      "problemas": [
+        "❌ Usou gíria proibida: \"mano\" na mensagem 1",
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"PARC2026PROMO\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Oi!",
+          "agente": "Oi! Tudo bem? Aqui é o Rodrigo, do AgenteZap 😊\n\nVou te explicar rapidinho como funciona porque isso costuma abrir a cabeça de quem vende pelo WhatsApp.\n\nAqui vc não está contratando um sistema. Vc está *contratando um funcionário treinado para vender e atender por vc*. Funciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Tenho uma loja de roupas femininas, preciso automatizar atendimento",
+          "agente": "Que ótimo! Loja de roupas femininas é um negócio que pode se beneficiar muito com a Inteligência Artificial do AgenteZap 😊\n\nVou te explicar como funciona:\n\n1️⃣ **Atendimento 24h**: Seu AgenteZap vai responder perguntas comuns como horários, promoções, tamanhos, cores e até ajudar na escolha de looks. Ele não para, não cansa e nunca esquece nada.\n\n2️⃣ **Qualificação de clientes**: Ele pergunta o que a cliente busca, qual tamanho, cor preferida, orçamento, e já vai filtrando quem tem mais chance de comprar.\n\n3️⃣ **Recuperação de carrinho**: Se a cliente entrar na loja, ver algo e sair, seu AgenteZap pode lembrar dela depois com uma mensagem personalizada: \"Oi , vi que você olhou essa blusa linda! Ela está com 20% de desconto hoje!\"\n\n4️⃣ **Campanhas e envio em massa**: Você pode criar campanhas de promoções, lançamentos e enviar pra todas as clientes da sua loja de uma vez só, com segurança e sem risco de bloqueio.\n\n5️⃣ **Organização total**: Todas as conversas ficam organizadas, com etiquetas, histórico, e você consegue ver em que etapa cada cliente está.\n\nPra você ver como fica na prática, vou criar um teste agora com o nome da sua loja. Me diz: qual é o nome da sua loja de roupas femininas?"
+        },
+        {
+          "cliente": "Quanto custa?",
+          "agente": "O plano é simples: R$99 por mês, ilimitado, com todas as funcionalidades.\n\nE ainda tem 7 dias de garantia: se vc ativar, testar no seu WhatsApp real e não fizer sentido, pode cancelar dentro de 7 dias.\n\nMas antes de decidir, o ideal é vc ver como fica na prática. Vou criar um teste agora com o nome da sua loja pra você ver como o AgenteZap atende seus clientes.\n\nMe diz: qual é o nome da sua loja de roupas femininas?"
+        },
+        {
+          "cliente": "Tem envio em massa?",
+          "agente": "Sim, tem sim! O envio em massa é uma das funcionalidades mais poderosas do AgenteZap.\n\nEle permite que você envie mensagens personalizadas para todos os seus clientes de uma só vez, sem risco de bloqueio ou marcação como spam. Você pode criar campanhas de promoções, lançamentos, lembretes de eventos e muito mais.\n\nO mais legal é que você pode segmentar os contatos por etiquetas, então só envia pra quem faz sentido. Por exemplo, se você tem uma promoção de roupas infantis, você só envia pra quem tem filhos.\n\nAlém disso, o sistema garante que as mensagens sejam enviadas de forma inteligente, respeitando os limites do WhatsApp e evitando problemas.\n\nQuer ver como funciona na prática? Vou criar um teste agora com o nome da sua loja. Me diz: qual é o nome da sua loja de roupas femininas?"
+        },
+        {
+          "cliente": "Como faço pra testar?",
+          "agente": "Vou criar um teste agora mesmo pra sua loja! 😊\n\nPra isso, preciso só do nome da sua loja. Assim, o teste vai ficar personalizado e você vai ver como o AgenteZap vai atender seus clientes no dia a dia.\n\nMe diz: qual é o nome da sua loja de roupas femininas?"
+        },
+        {
+          "cliente": "Fechou, vou criar conta",
+          "agente": "Que ótimo! 😊\n\nVou criar o teste com o nome da sua loja agora mesmo. Em um instante, você vai receber o link pra ver como o AgenteZap atende no WhatsApp.\n\nMe diz: qual é o nome da sua loja de roupas femininas?"
+        }
+      ]
+    },
+    {
+      "cliente": "Carlos",
+      "negocio": "Clínica médica",
+      "passou": false,
+      "problemas": [
+        "❌ Usou gíria proibida: \"mano\" na mensagem 1",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 4",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 6",
+        "❌ Nunca mencionou: \"agentezap.online\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Boa tarde",
+          "agente": "Boa tarde! 😊\n\nVou te explicar rapidinho como funciona porque isso costuma abrir a cabeça de quem vende pelo WhatsApp.\n\nAqui vc não está contratando um sistema. Vc está *contratando um funcionário treinado para vender e atender por vc*. Funciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Tenho uma clínica médica, preciso de agendamento automático",
+          "agente": "Ótimo! 😊\n\nVou criar um teste personalizado pra sua clínica médica.\n\nPra isso, me diz: qual o nome da sua clínica? E qual seria o nome do funcionário que atenderia os pacientes?\n\nAssim que eu tiver esses dados, crio o teste pra vc ver como seria o atendimento automático no seu WhatsApp."
+        },
+        {
+          "cliente": "Isso é seguro? Dados de pacientes?",
+          "agente": "Ótima pergunta! 😊\n\nSim, é totalmente seguro. O AgenteZap é uma plataforma brasileira, com servidores no Brasil, e segue todas as normas de segurança de dados, incluindo a LGPD (Lei Geral de Proteção de Dados).\n\nSeus dados e os dados dos seus pacientes ficam protegidos, e você tem total controle sobre o que é armazenado e como é utilizado.\n\nAlém disso, a Inteligência Artificial não armazena informações sensíveis sem sua autorização explícita.\n\nQuer que eu crie o teste pra sua clínica agora? Assim você vê na prática como funciona e pode avaliar a segurança e a eficiência do sistema. Qual o nome da sua clínica e o nome do funcionário que atenderia os pacientes?"
+        },
+        {
+          "cliente": "Como funciona o agendamento?",
+          "agente": "Ótimo! Vou te explicar como funciona o agendamento automático no AgenteZap.\n\nA Inteligência Artificial que atende no WhatsApp pode agendar consultas, marcar horários e até enviar lembretes automaticamente. Funciona assim:\n\n1. O paciente entra em contato pelo WhatsApp e a IA atende como um funcionário humano treinado.\n2. Ela pergunta qual o motivo da consulta, qual profissional o paciente deseja e propõe horários disponíveis.\n3. O paciente escolhe o horário e a IA confirma o agendamento, enviando todos os detalhes por mensagem.\n4. Você pode configurar lembretes automáticos para o dia anterior à consulta, reduzindo faltas.\n5. Tudo isso fica registrado no painel do AgenteZap, organizado por etiquetas e funil visual, facilitando o acompanhamento.\n\nQuer que eu crie um teste pra sua clínica agora? Assim você vê na prática como funciona e pode avaliar a eficiência do sistema. Qual o nome da sua clínica e o nome do funcionário que atenderia os pacientes?"
+        },
+        {
+          "cliente": "Tem contrato de fidelidade?",
+          "agente": "Não, não temos contrato de fidelidade! 😊\n\nO AgenteZap é super flexível. Você pode cancelar a qualquer momento, sem burocracia.\n\nAlém disso, temos 7 dias de garantia: se você ativar e não gostar, pode cancelar dentro desse período e receber o reembolso.\n\nQuer que eu crie um teste pra sua clínica agora? Assim você vê na prática como funciona e pode avaliar a eficiência do sistema. Qual o nome da sua clínica e o nome do funcionário que atenderia os pacientes?"
+        },
+        {
+          "cliente": "Posso testar antes de pagar?",
+          "agente": "Sim, claro! 😊\n\nA gente sempre fala: primeiro você testa. No teste, você vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu criar o teste do seu AgenteZap, me diz: qual o nome da sua clínica? E qual seria o nome do funcionário que atenderia os pacientes?\n\nAssim que eu tiver esses dados, crio o teste pra você ver como seria o atendimento automático no seu WhatsApp."
+        }
+      ]
+    },
+    {
+      "cliente": "Roberto",
+      "negocio": "Corretor de imóveis",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"R$49\"",
+        "❌ Nunca mencionou: \"PARC2026PROMO\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Oi, não entendo muito de internet",
+          "agente": "Tudo bem, sem problemas! 😊\n\nVou explicar de um jeito bem simples.\n\nImagine que você está contratando um funcionário para atender seus clientes no WhatsApp. Só que esse funcionário é uma **Inteligência Artificial** que aprende tudo sobre o seu negócio de uma vez só.\n\nVocê explica pra ele:\n- O que você vende\n- Como é o atendimento\n- Os preços\n- As objeções mais comuns\n- O horário de funcionamento\n\nE ele fica **gravando tudo no cérebro**. Depois disso, ele atende seus clientes **como um humano**, mas sem esquecer nada e sem cansar.\n\nEnquanto ele atende, você ainda tem um painel com tudo organizado:\n- Todos os clientes salvos\n- Etiquetas para separar por tipo de interesse\n- Funil visual (tipo Kanban) para ver em que etapa cada cliente está\n- Envio em massa de mensagens com segurança\n- Qualificação automática de leads\n- Agendamento de horários e reservas\n- Integrações com outros sistemas\n\nOu seja, é como se você tivesse um **funcionário 24h** que não custa salário, não falta e não erra.\n\nE o melhor: você pode testar antes de pagar. Assim você vê como ele funciona no seu WhatsApp e decide se vale a pena.\n\nMe conta: qual é o seu ramo? O que você vende ou faz? Assim eu te mostro como seria no seu caso."
+        },
+        {
+          "cliente": "Sou corretor de imóveis",
+          "agente": "Ótimo! Corretor de imóveis é um dos negócios que mais se beneficiam com o AgenteZap, porque o atendimento é 24h, o cliente não fica esperando e vc ganha tempo pra focar no que importa.\n\nVou criar um teste **agora** pra vc ver como ficaria no seu caso.\n\nMe diz só:\n1. Qual o nome da sua imobiliária ou escritório?\n2. Qual o nome do atendente? (Ex: \"Atendente João\")\n\nAssim eu crio o teste com o nome real da sua empresa e vc já vê como ficaria na prática."
+        },
+        {
+          "cliente": "Como que funciona isso aí?",
+          "agente": "Vou te explicar de um jeito super simples, mas antes, me diz o nome da sua imobiliária e o nome do atendente (ex: \"Atendente João\") pra eu criar um teste personalizado pra vc.\n\nFunciona assim: você explica pro AgenteZap **uma única vez** como é o atendimento da sua imobiliária:\n- Quais imóveis vc tem\n- Os preços\n- As condições de pagamento\n- As objeções mais comuns (ex: \"não sei se compro\")\n- O horário de funcionamento\n\nEle grava tudo e fica atendendo seus clientes **como um humano**, mas sem esquecer nada e sem cansar.\n\nEnquanto isso, vc tem um painel com:\n- Todos os clientes salvos\n- Etiquetas pra separar por tipo de interesse (ex: \"interessado em apartamento\", \"interessado em casa\")\n- Funil visual (tipo Kanban) pra ver em que etapa cada cliente tá\n- Envio em massa de mensagens com segurança\n- Qualificação automática de leads\n- Agendamento de visitas\n- Integrações com outros sistemas\n\nOu seja, é como se vc tivesse um **funcionário 24h** que não custa salário, não falta e não erra.\n\nMe diz o nome da sua imobiliária e o nome do atendente pra eu criar o teste personalizado pra vc."
+        },
+        {
+          "cliente": "Mas eu preciso instalar alguma coisa?",
+          "agente": "Não precisa instalar nada! 😊\n\nO AgenteZap funciona **direto no seu WhatsApp**. Você não precisa instalar nenhum programa, app ou sistema.\n\nFunciona assim:\n1. Você me diz o nome da sua imobiliária e o nome do atendente\n2. Eu crio um teste **personalizado** pra vc\n3. Você vê como ficaria o atendimento no seu WhatsApp\n4. Se gostar, vc ativa o plano e pronto!\n\nTudo é feito **pela internet**, sem instalar nada. O AgenteZap atende seus clientes **direto no seu WhatsApp**, mas com uma Inteligência Artificial que aprende tudo sobre o seu negócio.\n\nMe diz o nome da sua imobiliária e o nome do atendente pra eu criar o teste pra vc."
+        },
+        {
+          "cliente": "E se o cliente perguntar algo que a IA não sabe?",
+          "agente": "Boa pergunta! 😊\n\nO AgenteZap é treinado pra entender e responder **a maioria das perguntas** sobre imóveis, mas se o cliente perguntar algo que ele **não sabe**, ele faz **três coisas**:\n\n1. **Pede pra vc entrar na conversa**: Ele avisa que não tem a resposta e te chama pra atender. Assim, vc não perde nenhum cliente.\n2. **Guarda a pergunta**: Ele salva a pergunta no histórico pra vc ver depois e treinar ele.\n3. **Aprende rápido**: Quando vc ensina ele a responder, ele **nunca mais esquece** e responde certo da próxima vez.\n\nOu seja, ele **nunca deixa o cliente sem resposta** e vc sempre pode entrar na conversa quando precisar.\n\nMe diz o nome da sua imobiliária e o nome do atendente pra eu criar o teste personalizado pra vc."
+        },
+        {
+          "cliente": "Quanto é o preço?",
+          "agente": "O plano é simples: **R$99 por mês**, ilimitado, com todas as funcionalidades.\n\nE ainda tem 7 dias de garantia: se vc ativar, testar no seu WhatsApp real e não fizer sentido, pode cancelar dentro de 7 dias.\n\nMas antes de decidir, eu te mostro como funciona no seu caso. Me diz o nome da sua imobiliária e o nome do atendente pra eu criar o teste personalizado pra vc."
+        }
+      ]
+    },
+    {
+      "cliente": "Fernanda",
+      "negocio": "Restaurante delivery",
+      "passou": false,
+      "problemas": [
+        "❌ Usou gíria proibida: \"mano\" na mensagem 1",
+        "❌ Nunca mencionou: \"agentezap.online\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Olá",
+          "agente": "Oi! Tudo bem? Aqui é o Rodrigo, do AgenteZap 😊\n\nVou te explicar rapidinho como funciona porque isso costuma abrir a cabeça de quem vende pelo WhatsApp.\n\nAqui vc não está contratando um sistema. Vc está *contratando um funcionário treinado para vender e atender por vc*. Funciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Tenho um restaurante delivery, atendo 500 pedidos por dia",
+          "agente": "Ótimo! O AgenteZap vai ser perfeito pra vc, porque no delivery o cliente sempre pergunta:\n\n- \"Tem entrega no meu bairro?\"\n- \"Qual o valor da entrega?\"\n- \"Quanto tempo demora?\"\n- \"Qual o valor do delivery?\"\n\nAlém disso, ele pode:\n\n- **Atender 24h** e não deixar nenhum pedido sem resposta\n- **Qualificar pedidos** automaticamente\n- **Organizar tudo** num painel só, com etiquetas e funil visual\n- **Disparar campanhas** pra trazer clientes de volta\n- **Enviar mensagens em massa** com segurança\n\nQuer testar agora? Me diz o nome do seu restaurante que eu crio o teste pra vc ver como ele atende."
+        },
+        {
+          "cliente": "Preciso de envio em massa pra campanhas de promoção",
+          "agente": "Ótimo! O AgenteZap vai ser perfeito pra vc, porque no delivery o cliente sempre pergunta:\n\n- \"Tem entrega no meu bairro?\"\n- \"Qual o valor da entrega?\"\n- \"Quanto tempo demora?\"\n- \"Qual o valor do delivery?\"\n\nAlém disso, ele pode:\n\n- **Atender 24h** e não deixar nenhum pedido sem resposta\n- **Qualificar pedidos** automaticamente\n- **Organizar tudo** num painel só, com etiquetas e funil visual\n- **Disparar campanhas** pra trazer clientes de volta\n- **Enviar mensagens em massa** com segurança\n\nQuer testar agora? Me diz o nome do seu restaurante que eu crio o teste pra vc ver como ele atende."
+        },
+        {
+          "cliente": "E se o cliente não responder à campanha?",
+          "agente": "Ótimo! O AgenteZap vai ser perfeito pra vc, porque no delivery o cliente sempre pergunta:\n\n- \"Tem entrega no meu bairro?\"\n- \"Qual o valor da entrega?\"\n- \"Quanto tempo demora?\"\n- \"Qual o valor do delivery?\"\n\nAlém disso, ele pode:\n\n- **Atender 24h** e não deixar nenhum pedido sem resposta\n- **Qualificar pedidos** automaticamente\n- **Organizar tudo** num painel só, com etiquetas e funil visual\n- **Disparar campanhas** pra trazer clientes de volta\n- **Enviar mensagens em massa** com segurança\n\nQuer testar agora? Me diz o nome do seu restaurante que eu crio o teste pra vc ver como ele atende."
+        },
+        {
+          "cliente": "Tem CRM pra organizar os clientes?",
+          "agente": "Sim, o AgenteZap tem CRM integrado! Ele organiza todos os clientes num painel só, com:\n\n- **Etiquetas** pra segmentar (ex: \"Novo\", \"Fidelizado\", \"Não respondeu\")\n- **Funil visual** (Kanban) pra ver em que etapa cada cliente tá\n- **Histórico completo** de conversas\n- **Qualificação automática** de leads\n- **Agendamento** de mensagens e lembretes\n\nAlém disso, ele **atende 24h** e **envia campanhas em massa** com segurança, tudo no mesmo lugar.\n\nQuer testar agora? Me diz o nome do seu restaurante que eu crio o teste pra vc ver como ele atende."
+        },
+        {
+          "cliente": "Quero ver o sistema funcionando",
+          "agente": "Ótimo! Vou criar um teste pra vc ver como o AgenteZap funciona no seu restaurante.\n\nMe diz o nome do seu restaurante pra eu criar o teste com o nome real. Depois, vc vê como ele atende, qualifica pedidos e organiza tudo num painel só."
+        }
+      ]
+    },
+    {
+      "cliente": "Juliana",
+      "negocio": "Salão de beleza",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"PARC2026PROMO\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Bom dia!",
+          "agente": "Bom dia! 😊\n\nVou te explicar rapidinho como funciona porque isso costuma abrir a cabeça de quem vende pelo WhatsApp.\n\nAqui vc não está contratando um sistema. Vc está *contratando um funcionário treinado para vender e atender por vc*. Funciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Tenho salão de beleza, preciso automatizar agendamento",
+          "agente": "Que ótimo! 😊\n\nPra salão de beleza, o AgenteZap é perfeito porque ele faz **muito mais** do que só agendamento. Ele atende seus clientes no WhatsApp como humano, marca horários, lembra de confirmar, evita falta, e ainda ajuda a organizar tudo num painel só.\n\nPor exemplo:\n\n1️⃣ **Agendamento automático**: Ele entende horários, disponibilidade, serviços e marca direto no WhatsApp, sem vc precisar ficar no celular.\n\n2️⃣ **Confirmação automática**: Ele envia lembrete antes do agendamento e confirma se o cliente vai mesmo.\n\n3️⃣ **Atendimento 24h**: Enquanto vc dorme, ele continua respondendo perguntas, tirando dúvidas e marcando horários.\n\n4️⃣ **Organização**: Todos os clientes ficam salvos, com histórico de conversa, etiquetas e em que etapa cada um tá.\n\n5️⃣ **Recuperação de clientes**: Se o cliente sumiu, ele envia mensagem automática pra trazer de volta.\n\n6️⃣ **Campanhas**: Você pode mandar promoções, ofertas especiais e novidades pra todos os clientes de uma vez, sem precisar fazer manual.\n\nPra vc ver como funciona na prática, eu vou criar um teste **do seu salão**. Assim vc vê o jeito que ele conversa, marca horários e organiza tudo.\n\nQual é o nome do seu salão? Assim eu crio o teste do jeito certo pro seu caso."
+        },
+        {
+          "cliente": "Integra com Google Calendar?",
+          "agente": "Sim! O AgenteZap integra com o Google Calendar pra agendamento. Ele marca horário, organiza no calendário e ainda envia lembrete automático.\n\nMas o mais legal é que ele não faz só isso. Ele atende seus clientes no WhatsApp como humano, tira dúvidas, marca horários, confirma agendamento e ainda organiza tudo num painel só.\n\nPra vc ver como funciona, vou criar um teste **do seu salão**. Assim vc vê o jeito que ele conversa, marca horários e organiza tudo.\n\nQual é o nome do seu salão? Assim eu crio o teste do jeito certo pro seu caso."
+        },
+        {
+          "cliente": "Tem follow-up automático pra quem não aparece?",
+          "agente": "Sim! O AgenteZap tem follow-up automático pra quem não aparece. Ele envia mensagem lembrando do agendamento, confirma se o cliente vai mesmo e, se não aparecer, ele manda mensagem automática pra trazer de volta.\n\nMas o mais legal é que ele não faz só isso. Ele atende seus clientes no WhatsApp como humano, tira dúvidas, marca horários, confirma agendamento e ainda organiza tudo num painel só.\n\nPra vc ver como funciona, vou criar um teste **do seu salão**. Assim vc vê o jeito que ele conversa, marca horários e organiza tudo.\n\nQual é o nome do seu salão? Assim eu crio o teste do jeito certo pro seu caso."
+        },
+        {
+          "cliente": "Quanto é?",
+          "agente": "O plano é simples: R$99 por mês, ilimitado, com todas as funcionalidades.\n\nE ainda tem 7 dias de garantia: se vc ativar, testar no seu WhatsApp real e não fizer sentido, pode cancelar dentro de 7 dias.\n\nMas antes de pagar, vc pode testar. Assim vc vê como funciona no seu salão, sem compromisso.\n\nQual é o nome do seu salão? Assim eu crio o teste do jeito certo pro seu caso."
+        },
+        {
+          "cliente": "Vou testar!",
+          "agente": "Que ótimo! 😊\n\nVou criar o teste do seu salão agora. Assim vc vê como o AgenteZap atende, marca horários e organiza tudo.\n\nQual é o nome do seu salão? Assim eu crio o teste do jeito certo pro seu caso."
+        }
+      ]
+    },
+    {
+      "cliente": "Pedro",
+      "negocio": "Academia de musculação",
+      "passou": false,
+      "problemas": [
+        "❌ Usou gíria proibida: \"mano\" na mensagem 2",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 3",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 4",
+        "❌ Nunca mencionou: \"agentezap.online\""
+      ],
+      "conversa": [
+        {
+          "cliente": "E aí",
+          "agente": "E aí, tudo bem? 😊\n\nMe conta, qual é o seu ramo? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Sou dono de academia",
+          "agente": "Que ótimo! Academia é um negócio que tem muito a ganhar com o AgenteZap.\n\nVou te explicar rapidinho como funciona porque isso costuma abrir a cabeça de quem vende pelo WhatsApp.\n\nAqui vc não está contratando um sistema. Vc está *contratando um funcionário treinado para vender e atender por vc*. Funciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o nome da sua academia?"
+        },
+        {
+          "cliente": "Já testei outros sistemas e nenhum funcionou",
+          "agente": "Entendo perfeitamente! Muitos clientes já chegaram aqui depois de tentarem outras soluções e não ficarem satisfeitos. O que eu posso te dizer é que o AgenteZap é diferente de tudo que você já viu.\n\nAqui, você não está contratando um sistema genérico. Você está contratando um **funcionário humano treinado para atender no WhatsApp**. A diferença é que ele não esquece, não cansa, não falta e atende 24h.\n\nEle conversa de forma natural, entende perguntas, responde objeções, explica produtos e conduz a venda. Enquanto isso, todo o processo fica organizado em um painel só, com etiquetas, funil visual, campanhas, envio em massa e muito mais.\n\nO mais importante é que você pode testar antes de decidir qualquer coisa. Assim, você vê como ele funciona no seu WhatsApp real e decide se faz sentido para o seu negócio.\n\nMe conta, qual é o nome da sua academia? Assim eu posso criar um teste personalizado para você ver como seria no seu caso."
+        },
+        {
+          "cliente": "Como vocês são diferentes?",
+          "agente": "Ótima pergunta! O AgenteZap é diferente de qualquer outra ferramenta por alguns motivos:\n\n1. **Funcionário humano treinado**: Aqui você não está contratando um sistema genérico. Você está contratando um funcionário humano treinado para atender no WhatsApp. Ele conversa de forma natural, entende perguntas, responde objeções, explica produtos e conduz a venda.\n\n2. **Organização em um único painel**: Enquanto o seu funcionário virtual atende, todo o processo fica organizado em um painel só, com etiquetas, funil visual, campanhas, envio em massa e muito mais.\n\n3. **Teste antes de decidir**: Você pode testar antes de decidir qualquer coisa. Assim, você vê como ele funciona no seu WhatsApp real e decide se faz sentido para o seu negócio.\n\n4. **Atendimento 24h**: Ele não esquece, não cansa, não falta e atende 24h.\n\nMe conta, qual é o nome da sua academia? Assim eu posso criar um teste personalizado para você ver como seria no seu caso."
+        },
+        {
+          "cliente": "Tem como qualificar leads automaticamente?",
+          "agente": "Sim, claro! O AgenteZap tem essa funcionalidade incrível de **qualificar leads automaticamente**. Quando um cliente entra em contato, o sistema já começa a entender o perfil dele, o que ele está procurando e em qual etapa do funil ele está.\n\nPor exemplo, se um lead perguntar sobre planos de academia, o sistema já identifica que ele está interessado em assinar e pode direcionar a conversa para fechar a venda. Se ele perguntar sobre horários ou preços, o sistema já sabe que ele está no estágio de consideração e pode conduzir a conversa de acordo.\n\nAlém disso, você pode criar etiquetas e categorias para organizar seus leads, facilitando o acompanhamento e a conversão. Tudo isso acontece de forma automática, sem você precisar ficar monitorando cada conversa.\n\nMe conta, qual é o nome da sua academia? Assim eu posso criar um teste personalizado para você ver como seria no seu caso."
+        },
+        {
+          "cliente": "Tá, vou dar uma olhada",
+          "agente": "Ótimo! Vou criar um teste personalizado para você ver como o AgenteZap funciona no seu caso específico. Assim, você pode ter uma ideia clara de como ele pode ajudar na sua academia.\n\nMe conta, qual é o nome da sua academia? Assim eu posso criar um teste personalizado para você ver como seria no seu caso."
+        }
+      ]
+    },
+    {
+      "cliente": "Amanda",
+      "negocio": "Loja de móveis",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Boa noite",
+          "agente": "Boa noite! 😊\n\nVou te explicar rapidinho como funciona o AgenteZap. Aqui vc não está contratando um sistema, mas sim um funcionário treinado para vender e atender por vc.\n\nFunciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Trabalho com móveis planejados",
+          "agente": "Que ótimo! Móveis planejados é um mercado que tem muita demanda no WhatsApp, né? 😊\n\nVou te mostrar como o AgenteZap pode te ajudar a vender mais e organizar melhor seu atendimento.\n\nFunciona assim: vc explica tudo do seu negócio uma única vez — os modelos de móveis, os preços, as formas de pagamento, as objeções comuns, horários de atendimento, forma de falar com o cliente — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o nome da sua empresa?"
+        },
+        {
+          "cliente": "Preciso saber como configurar o agente",
+          "agente": "Ótimo! Vou te mostrar como configurar o AgenteZap para o seu negócio de móveis planejados.\n\nPrimeiro, você vai criar um perfil para o seu agente, dando um nome e uma função, como \"Atendente de Vendas\" ou \"Consultor de Móveis\".\n\nDepois, você vai explicar tudo sobre o seu negócio: os modelos de móveis que você vende, os preços, as formas de pagamento, as objeções comuns, horários de atendimento e a forma de falar com o cliente.\n\nO AgenteZap vai gravar todas essas informações e passar a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta.\n\nEnquanto isso, você ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o nome da sua empresa?"
+        },
+        {
+          "cliente": "Como eu treino a IA pra responder sobre meus produtos?",
+          "agente": "Ótimo! Vou te explicar como treinar a Inteligência Artificial do AgenteZap para responder sobre seus produtos de móveis planejados.\n\nPrimeiro, você vai criar um perfil para o seu agente, dando um nome e uma função, como \"Atendente de Vendas\" ou \"Consultor de Móveis\".\n\nDepois, você vai explicar tudo sobre o seu negócio: os modelos de móveis que você vende, os preços, as formas de pagamento, as objeções comuns, horários de atendimento e a forma de falar com o cliente.\n\nO AgenteZap vai gravar todas essas informações e passar a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta.\n\nEnquanto isso, você ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o nome da sua empresa?"
+        },
+        {
+          "cliente": "Onde configuro isso?",
+          "agente": "Ótimo! Vamos configurar o AgenteZap para o seu negócio de móveis planejados.\n\nPrimeiro, você vai criar um perfil para o seu agente, dando um nome e uma função, como \"Atendente de Vendas\" ou \"Consultor de Móveis\".\n\nDepois, você vai explicar tudo sobre o seu negócio: os modelos de móveis que você vende, os preços, as formas de pagamento, as objeções comuns, horários de atendimento e a forma de falar com o cliente.\n\nO AgenteZap vai gravar todas essas informações e passar a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta.\n\nEnquanto isso, você ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o nome da sua empresa?"
+        },
+        {
+          "cliente": "Tem vídeo explicando?",
+          "agente": "Infelizmente, não temos vídeo explicativo no momento. Mas posso te explicar detalhadamente por aqui!\n\nVou criar um teste para você ver como o AgenteZap funciona na prática. Assim, você pode testar e ver como ele atende no WhatsApp.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o nome da sua empresa?"
+        }
+      ]
+    },
+    {
+      "cliente": "Lucas",
+      "negocio": "E-commerce de eletrônicos",
+      "passou": false,
+      "problemas": [
+        "❌ Usou gíria proibida: \"mano\" na mensagem 1",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 3",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 5",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 6",
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"anti-bloqueio\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Olá!",
+          "agente": "Oi! Tudo bem? Aqui é o Rodrigo, do AgenteZap 😊\n\nVou te explicar rapidinho como funciona porque isso costuma abrir a cabeça de quem vende pelo WhatsApp.\n\nAqui vc não está contratando um sistema. Vc está *contratando um funcionário treinado para vender e atender por vc*. Funciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Tenho e-commerce de eletrônicos, 2000 pedidos/mês",
+          "agente": "Que massa! E-commerce de eletrônicos é um ramo que tem muito potencial pra escalar com essa ferramenta.\n\nVou te explicar como funciona de um jeito que vc vai ver a diferença.\n\nImagine que vc está contratando um funcionário treinado pra atender seus clientes no WhatsApp. Só que esse funcionário:\n\n1️⃣ Não esquece nada do que vc ensina\n2️⃣ Atende 24h sem cansar\n3️⃣ Conduz a conversa até o fechamento\n4️⃣ Organiza tudo automaticamente\n\nEnquanto isso, vc tem um painel completo com:\n- Todos os contatos salvos\n- Etiquetas pra organizar\n- Funil visual tipo Kanban\n- Envio em massa seguro\n- Qualificação automática de leads\n- Agendamento de horários\n\nPra vc ver como fica na prática, vou criar um teste personalizado pro seu e-commerce. Me diz o nome da sua loja e já preparo o simulador."
+        },
+        {
+          "cliente": "Vocês usam qual modelo de IA?",
+          "agente": "Nós usamos um modelo próprio de Inteligência Artificial, desenvolvido especificamente para o atendimento humano no WhatsApp. Ele foi treinado com milhares de conversas reais de diferentes segmentos, incluindo e-commerce de eletrônicos, para oferecer respostas naturais e eficientes.\n\nO legal é que ele aprende com cada interação, melhorando constantemente. E o melhor: você tem controle total sobre o que ele fala, ajustando conforme a sua necessidade.\n\nMas o mais importante é que ele atende como um funcionário humano treinado, sem os problemas de esquecer, cansar ou faltar. Quer ver como ele funciona na prática? Me diz o nome da sua loja que eu crio um teste personalizado pra você."
+        },
+        {
+          "cliente": "Tem API pra integrar com meu sistema?",
+          "agente": "Sim, temos API completa pra integração com seu sistema. Ela permite:\n\n1️⃣ Sincronização de produtos e estoque em tempo real\n2️⃣ Atualização automática de status de pedidos\n3️⃣ Integração com seu CRM atual\n4️⃣ Envio de notificações personalizadas\n\nO legal é que vc pode usar a API pra conectar o AgenteZap com qualquer sistema que vc já usa, mantendo tudo integrado e organizado.\n\nMas pra vc ver como isso funciona na prática, vou criar um teste personalizado pro seu e-commerce. Me diz o nome da sua loja que eu preparo um simulador com as funcionalidades que vc mais usa."
+        },
+        {
+          "cliente": "E a taxa de bloqueio no WhatsApp?",
+          "agente": "Ótima pergunta! A taxa de bloqueio é um dos pontos que mais preocupam quem usa WhatsApp pra negócios, né?\n\nCom o AgenteZap, a taxa de bloqueio é extremamente baixa porque:\n\n1️⃣ Ele atende como humano, sem parecer robô\n2️⃣ Não envia mensagens em massa de forma agressiva\n3️⃣ Segue todas as regras do WhatsApp\n4️⃣ Tem um sistema de qualidade que evita respostas inadequadas\n\nAlém disso, a gente tem um sistema de monitoramento que avisa se alguma conta estiver perto do limite, pra vc poder ajustar antes.\n\nQuer ver como funciona na prática? Me diz o nome da sua loja que eu crio um teste personalizado pro seu e-commerce. Assim vc vê como o atendimento fica natural e profissional."
+        },
+        {
+          "cliente": "Quero testar",
+          "agente": "Beleza! Vou criar o teste personalizado pro seu e-commerce de eletrônicos.\n\nMe diz só o nome da sua loja que eu preparo o simulador com todas as funcionalidades que vc mais usa.\n\nAssim vc vê como o atendimento fica natural e profissional, igual um funcionário humano treinado.\n\nE depois a gente conversa sobre como isso pode ajudar a aumentar suas vendas e reduzir o tempo que vc passa no WhatsApp."
+        }
+      ]
+    },
+    {
+      "cliente": "Carla",
+      "negocio": "Consultório odontológico",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Bom dia",
+          "agente": "Bom dia! Tudo certo por aí? 😊\n\nVamos lá, então! Pra eu te mostrar como o AgenteZap funciona do jeito certo pro seu negócio, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Sou dentista, tenho consultório",
+          "agente": "Ótimo! Consultório odontológico é um dos melhores negócios pra usar o AgenteZap, porque vc pode:\n\n* Agendar consultas 24h\n* Responder dúvidas comuns\n* Enviar lembretes\n* Qualificar pacientes\n* Organizar tudo num só lugar\n\nMe diz o nome do seu consultório ou clínica, que eu crio o teste pra vc ver como ficaria no seu caso específico.\n\nE já aproveito pra te explicar como funciona:\n\nPensa como se fosse um funcionário humano treinado pra atender no WhatsApp. Vc explica uma vez como funciona o seu consultório, o que vc faz, preços, horários, e ele grava tudo.\n\nA partir daí, ele atende seus pacientes respondendo como humano, marcando consultas, lembrando de agendamentos e até qualifica leads automaticamente.\n\nE enquanto isso, vc tem tudo organizado num painel só: pacientes salvos, etiquetas, funil visual, campanhas, envio em massa, histórico de conversas…\n\nOu seja, vc para de perder paciente por não responder rápido, ganha tempo e ainda passa mais profissionalismo.\n\nPra eu te mostrar isso do jeito certo pro seu consultório, me diz o nome dele e crio o teste pra vc ver na prática."
+        },
+        {
+          "cliente": "Preciso organizar meus pacientes em etapas",
+          "agente": "Ótimo! Isso é justamente um dos pontos fortes do AgenteZap.\n\nVc pode criar etapas como:\n\n* Novo paciente\n* Agendado\n* Consultado\n* Tratamento em andamento\n* Concluído\n* Inativo\n\nE o melhor: o sistema qualifica automaticamente com base nas respostas do paciente.\n\nPor exemplo:\n\nSe um paciente novo chega e pergunta sobre preço de clareamento, ele já vai pro grupo \"Interessado em clareamento\".\n\nSe marcar consulta, vai pra \"Agendado\".\n\nSe faltar, vai pra \"Inativo\".\n\nE assim por diante.\n\nAlém disso, vc pode:\n\n* Enviar lembretes automáticos\n* Qualificar leads automaticamente\n* Criar campanhas segmentadas\n* Ver em que etapa cada paciente tá\n\nPra eu te mostrar isso na prática, me diz o nome do seu consultório que eu crio o teste com as etapas que vc precisa."
+        },
+        {
+          "cliente": "Tem kanban ou CRM?",
+          "agente": "Tem sim! E é um dos diferenciais do AgenteZap.\n\nVc tem um **CRM completo** com **funil visual tipo Kanban** que organiza automaticamente seus pacientes em etapas.\n\nPor exemplo:\n\n* Novo paciente\n* Agendado\n* Consultado\n* Em tratamento\n* Concluído\n* Inativo\n\nO sistema **qualifica automaticamente** com base nas respostas do paciente e move ele pro lugar certo no funil.\n\nAlém disso, vc pode:\n\n* Criar campanhas segmentadas\n* Enviar lembretes\n* Ver histórico de conversas\n* Usar etiquetas\n* Integrações\n\nPra eu te mostrar isso na prática, me diz o nome do seu consultório que eu crio o teste com as etapas que vc precisa."
+        },
+        {
+          "cliente": "E o follow-up pra quem não responde?",
+          "agente": "Ótimo! O AgenteZap tem um sistema de **follow-up automático** que ajuda muito com pacientes que não respondem.\n\nEle funciona assim:\n\n1. Se um paciente não responde após vc marcar consulta, o sistema envia automaticamente uma mensagem de lembrete\n2. Se ainda não responder, envia outra mensagem depois de 24h\n3. Se continuar sem resposta, pode marcar como inativo ou enviar pra uma lista de \"não respondeu\"\n\nAlém disso, vc pode:\n\n* Criar campanhas de follow-up\n* Segmentar pacientes que não responderam\n* Enviar lembretes automáticos\n* Qualificar automaticamente\n\nPra eu te mostrar isso na prática, me diz o nome do seu consultório que eu crio o teste com as etapas que vc precisa."
+        },
+        {
+          "cliente": "Vou acessar o site",
+          "agente": "Ótimo! O site tem todas as informações detalhadas, mas vou te explicar aqui como funciona na prática:\n\nO AgenteZap é um **funcionário humano treinado** pra atender no WhatsApp. Vc explica uma vez como funciona o seu consultório, o que vc faz, preços, horários, e ele grava tudo.\n\nA partir daí, ele atende seus pacientes respondendo como humano, marcando consultas, lembrando de agendamentos e até qualifica leads automaticamente.\n\nE enquanto isso, vc tem tudo organizado num painel só: pacientes salvos, etiquetas, funil visual, campanhas, envio em massa, histórico de conversas…\n\nOu seja, vc para de perder paciente por não responder rápido, ganha tempo e ainda passa mais profissionalismo.\n\nPra eu te mostrar isso do jeito certo pro seu consultório, me diz o nome dele e crio o teste pra vc ver na prática.\n\nE se tiver alguma dúvida sobre o site, é só me chamar!"
+        }
+      ]
+    },
+    {
+      "cliente": "Thiago",
+      "negocio": "Advogado",
+      "passou": false,
+      "problemas": [
+        "❌ Usou gíria proibida: \"mano\" na mensagem 1",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 2",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 5",
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"R$49\"",
+        "❌ Nunca mencionou: \"PARC2026PROMO\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Boa tarde",
+          "agente": "Boa tarde! Tudo bem?\n\nVou te explicar rapidinho como funciona o AgenteZap, porque isso costuma abrir a cabeça de quem vende pelo WhatsApp.\n\nAqui vc não está contratando um sistema. Vc está *contratando um funcionário treinado para vender e atender por vc*. Funciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Sou advogado trabalhista",
+          "agente": "Ótimo! Advogado trabalhista é um ramo que pode se beneficiar MUITO com o AgenteZap.\n\nVou te mostrar como funciona:\n\nImagine que você tem um funcionário treinado pra atender seus clientes no WhatsApp. Você explica uma vez como funciona seu escritório, os serviços que oferece, os preços, as objeções mais comuns, o horário de atendimento, o tom de voz... e ele grava tudo no cérebro.\n\nA partir daí, ele passa a atender seus clientes exatamente como um humano: conversa natural, entende perguntas, responde objeções, conduz a conversa e não deixa ninguém sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso, você tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nPra você ver como fica na prática, vou criar um teste agora. Me diz: qual é o nome do seu escritório?"
+        },
+        {
+          "cliente": "Preciso de um sistema para atendimento inicial de clientes",
+          "agente": "Ótimo! O AgenteZap é perfeito pra isso.\n\nVou criar um teste pra você ver como funciona na prática. Me diz só o nome do seu escritório pra eu personalizar o exemplo."
+        },
+        {
+          "cliente": "É possível agendar consultas automaticamente?",
+          "agente": "Com certeza! O AgenteZap faz isso de forma automática e inteligente.\n\nAlém de agendar consultas, ele pode:\n- Confirmar horários\n- Enviar lembretes automáticos\n- Cancelar e reagendar\n- Organizar sua agenda visualmente\n\nQuer ver como funciona na prática? Me diz o nome do seu escritório que eu crio um teste personalizado pra você."
+        },
+        {
+          "cliente": "Como funciona a precificação?",
+          "agente": "O plano é simples e direto:\n\n**R$99,90/mês** (Plano Pro) com todas as funcionalidades, sem limites de uso.\n\nInclui:\n✅ Inteligência Artificial que atende como humano\n✅ Organização completa de clientes\n✅ Envio em massa seguro\n✅ Funil visual (Kanban)\n✅ Etiquetas e histórico\n✅ Qualificação automática\n✅ Agendamento e reservas\n✅ Integrações\n\nE ainda tem 7 dias de garantia: se ativar, testar no seu WhatsApp real e não fizer sentido, pode cancelar dentro de 7 dias.\n\nQuer ver como funciona na prática? Me diz o nome do seu escritório que eu crio um teste personalizado pra você."
+        },
+        {
+          "cliente": "Irei avaliar",
+          "agente": "Ótimo! Vou criar um teste personalizado para você ver como o AgenteZap funciona na prática.\n\nMe diz só o nome do seu escritório de advocacia para eu personalizar o exemplo. Assim você vê como ficaria o atendimento automático e organizado para o seu ramo específico."
+        }
+      ]
+    },
+    {
+      "cliente": "Roberto (Anti-Amnésia)",
+      "negocio": "Corretor de imóveis",
+      "passou": false,
+      "problemas": [
+        "❌ Usou gíria proibida: \"mano\" na mensagem 1",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 9",
+        "❌ ANTI-AMNÉSIA: Não lembrou que já havia respondido sobre preço",
+        "❌ Usou gíria proibida: \"mano\" na mensagem 14"
+      ],
+      "conversa": [
+        {
+          "cliente": "Oi!",
+          "agente": "Oi! Tudo bem? Aqui é o Rodrigo, do AgenteZap 😊\n\nVou te explicar rapidinho como funciona porque isso costuma abrir a cabeça de quem vende pelo WhatsApp.\n\nAqui vc não está contratando um sistema. Vc está *contratando um funcionário treinado para vender e atender por vc*. Funciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Sou corretor de imóveis",
+          "agente": "Pronto, criei seu teste! Clica aqui pra ver: https://agentezap.online/test/9b759afdd9b143df\n\nVai dar uma olhada e me conta o que achou, beleza? 😊"
+        },
+        {
+          "cliente": "Trabalho com venda e aluguel de apartamentos",
+          "agente": "Pronto, criei seu teste! Clica aqui pra ver: https://agentezap.online/test/3622b1204e384249\n\nVai dar uma olhada e me conta o que achou, beleza? 😊"
+        },
+        {
+          "cliente": "Quanto custa o sistema?",
+          "agente": "O plano é simples: R$99 por mês, ilimitado, com todas as funcionalidades.\n\nE ainda tem 7 dias de garantia: se vc ativar, testar no seu WhatsApp real e não fizer sentido, pode cancelar dentro de 7 dias.\n\nPra ativar é simples. O valor é R$ 99,90/mês (Plano Pro).\n\nVocê tem 3 opções pra pagar agora:\n\n1️⃣ *Link com QR Code e Comprovante:*\nAcesse: https://agentezap.online/pagamento.html\n(Lá tem o QR Code e o botão pra me mandar o comprovante direto)\n\n2️⃣ *Chave PIX (Celular):*\n179919610665\n\n3️⃣ *PIX Copia e Cola:*\n00020101021126360014br.gov.bcb.pix0114+5517991610665520400005303986540599.905802BR5917WHATSAPP CRM SAAS6009SAO PAULO622905252BFA8DCBD16D491EB1EA5629A63040365\n\nTitular: RITA VALENTINA (Banco Will)\n\nAssim que pagar, me manda o comprovante que eu libero na hora!\n\nSe tiver alguma dúvida, é só perguntar! 😊"
+        },
+        {
+          "cliente": "Tem teste grátis?",
+          "agente": "Tem sim! O teste que você já viu é grátis. Ele serve pra você ver como a Inteligência Artificial conversa, argumenta e conduz o cliente.\n\nMas pra ver ela funcionando no seu WhatsApp real, com todas as informações do seu negócio, é preciso ativar o plano.\n\nO valor é R$99 por mês, ilimitado, com todas as funcionalidades.\n\nE ainda tem 7 dias de garantia: se você ativar, testar e não fizer sentido, pode cancelar dentro de 7 dias.\n\nPra ativar é simples. O valor é R$ 99,90/mês (Plano Pro).\n\nVocê tem 3 opções pra pagar agora:\n\n1️⃣ *Link com QR Code e Comprovante:*\nAcesse: https://agentezap.online/pagamento.html\n(Lá tem o QR Code e o botão pra me mandar o comprovante direto)\n\n2️⃣ *Chave PIX (Celular):*\n179919610665\n\n3️⃣ *PIX Copia e Cola:*\n00020101021126360014br.gov.bcb.pix0114+5517991610665520400005303986540599.905802BR5917WHATSAPP CRM SAAS6009SAO PAULO622905252BFA8DCBD16D491EB1EA5629A63040365\n\nTitular: RITA VALENTINA (Banco Will)\n\nAssim que pagar, me manda o comprovante que eu libero na hora!\n\nSe tiver alguma dúvida, é só perguntar! 😊"
+        },
+        {
+          "cliente": "Como funciona o envio em massa?",
+          "agente": "O envio em massa do AgenteZap é super seguro e eficiente. Você pode enviar mensagens para vários clientes de uma vez, mas sem risco de bloqueio, porque a gente respeita as regras do WhatsApp.\n\nVocê cria uma lista de contatos, seleciona quem quer enviar a mensagem e pronto! O sistema envia de forma organizada e controlada.\n\nAlém disso, você pode segmentar por etiquetas, criar campanhas específicas e até agendar envio para o melhor horário.\n\nQuer ver como é na prática? Dá uma olhada nessa imagem que te mandei. \n\nSe tiver mais dúvidas, é só perguntar! 😊"
+        },
+        {
+          "cliente": "E se o cliente não responder?",
+          "agente": "Se o cliente não responder, o AgenteZap tem um sistema de acompanhamento que te avisa. Você pode configurar lembretes automáticos ou até mesmo uma mensagem de follow-up para tentar reconectar com o cliente.\n\nAlém disso, você pode ver todas as interações no painel e decidir o melhor momento para entrar em contato novamente.\n\nQuer ver como é na prática? Dá uma olhada nessa imagem que te mandei. \n\nSe tiver mais dúvidas, é só perguntar! 😊"
+        },
+        {
+          "cliente": "Tem CRM?",
+          "agente": "Sim, o AgenteZap tem um CRM completo e fácil de usar. Você pode organizar todos os seus clientes em um painel visual, tipo Kanban, e ver em que etapa cada um está.\n\nDá pra adicionar etiquetas, anotar observações, qualificar leads automaticamente e até integrar com outros sistemas.\n\nTudo isso ajuda você a vender mais e perder menos cliente.\n\nQuer ver como é na prática? Dá uma olhada nessa imagem que te mandei.\n\nSe tiver mais dúvidas, é só perguntar! 😊"
+        },
+        {
+          "cliente": "Oi",
+          "agente": "Oi! Tudo bem? Aqui é o Rodrigo, do AgenteZap 😊\n\nVou te explicar rapidinho como funciona porque isso costuma abrir a cabeça de quem vende pelo WhatsApp.\n\nAqui vc não está contratando um sistema. Vc está *contratando um funcionário treinado para vender e atender por vc*. Funciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Voltando... como faço pra configurar?",
+          "agente": "Ah, sim! Vamos lá!\n\nPra configurar, é bem simples. Primeiro, você ativa o plano e depois eu te ajudo a colocar todas as informações do seu negócio.\n\nA gente faz isso passo a passo, pra garantir que o AgenteZap vai atender do jeito que você precisa.\n\nQuer que eu te mostre como é o processo? Posso te explicar melhor ou até mesmo te ajudar a configurar agora mesmo.\n\nO que você prefere? 😊"
+        },
+        {
+          "cliente": "E o agendamento?",
+          "agente": "O AgenteZap tem um sistema de agendamento super prático. Você pode marcar horários, criar lembretes e até mesmo integrar com o calendário do seu cliente.\n\nAlém disso, o AgenteZap pode enviar confirmações e lembretes automáticos, pra garantir que ninguém esquece.\n\nQuer ver como é na prática? Dá uma olhada nessa imagem que te mandei.\n\nSe tiver mais dúvidas, é só perguntar! 😊"
+        },
+        {
+          "cliente": "Quanto custa mesmo?",
+          "agente": "O plano é simples: R$99 por mês, ilimitado, com todas as funcionalidades.\n\nE ainda tem 7 dias de garantia: se vc ativar, testar no seu WhatsApp real e não fizer sentido, pode cancelar dentro de 7 dias.\n\nPra ativar é simples. O valor é R$ 99,90/mês (Plano Pro).\n\nVocê tem 3 opções pra pagar agora:\n\n1️⃣ *Link com QR Code e Comprovante:*\nAcesse: https://agentezap.online/pagamento.html\n(Lá tem o QR Code e o botão pra me mandar o comprovante direto)\n\n2️⃣ *Chave PIX (Celular):*\n179919610665\n\n3️⃣ *PIX Copia e Cola:*\n00020101021126360014br.gov.bcb.pix0114+5517991610665520400005303986540599.905802BR5917WHATSAPP CRM SAAS6009SAO PAULO622905252BFA8DCBD16D491EB1EA5629A63040365\n\nTitular: RITA VALENTINA (Banco Will)\n\nAssim que pagar, me manda o comprovante que eu libero na hora!\n\nSe tiver alguma dúvida, é só perguntar! 😊"
+        },
+        {
+          "cliente": "Tá, vou criar conta",
+          "agente": "Que ótimo! Vou criar sua conta agora mesmo.\n\nAssim que você pagar, eu ativo tudo e te ajudo a configurar.\n\nQuer que eu te explique mais alguma coisa antes? 😊\n\nPra ativar é simples. O valor é R$ 99,90/mês (Plano Pro).\n\nVocê tem 3 opções pra pagar agora:\n\n1️⃣ *Link com QR Code e Comprovante:*\nAcesse: https://agentezap.online/pagamento.html\n(Lá tem o QR Code e o botão pra me mandar o comprovante direto)\n\n2️⃣ *Chave PIX (Celular):*\n179919610665\n\n3️⃣ *PIX Copia e Cola:*\n00020101021126360014br.gov.bcb.pix0114+5517991610665520400005303986540599.905802BR5917WHATSAPP CRM SAAS6009SAO PAULO622905252BFA8DCBD16D491EB1EA5629A63040365\n\nTitular: RITA VALENTINA (Banco Will)\n\nAssim que pagar, me manda o comprovante que eu libero na hora!"
+        },
+        {
+          "cliente": "Olá",
+          "agente": "Oi! Tudo bem? Aqui é o Rodrigo, do AgenteZap 😊\n\nVou te explicar rapidinho como funciona porque isso costuma abrir a cabeça de quem vende pelo WhatsApp.\n\nAqui vc não está contratando um sistema. Vc está *contratando um funcionário treinado para vender e atender por vc*. Funciona assim: vc explica tudo do seu negócio uma única vez — o que vc vende, como atende, preços, objeções, horários, forma de falar — e ele grava tudo no cérebro.\n\nA partir disso, ele passa a atender seus clientes no WhatsApp exatamente como uma pessoa treinada: conversa normal, entende perguntas, responde certo, conduz a conversa e não deixa cliente sem resposta. Só que diferente de um humano, ele não esquece, não cansa, não falta e atende 24h.\n\nEnquanto isso acontece, vc ainda tem tudo organizado num painel só: todos os clientes ficam salvos, separados por etiquetas, dá pra ver em que etapa cada um tá, usar funil visual tipo Kanban, disparar campanhas, enviar mensagens em massa com segurança, qualificar lead automaticamente, agendar horários, reservas e integrar com outros sistemas.\n\nNa prática, serve pra qualquer negócio que usa WhatsApp pra vender ou atender — loja, clínica, prestador de serviço, imobiliária, delivery, infoproduto, tudo.\n\nPor isso a gente sempre fala: primeiro vc testa. No teste, vc vê essa Inteligência Artificial conversando como humano, do jeito que ela ficaria no seu WhatsApp, antes de decidir qualquer coisa.\n\nPra eu te mostrar isso do jeito certo pro seu caso e não algo genérico, me conta: qual é o seu ramo hoje? O que vc vende ou faz?"
+        },
+        {
+          "cliente": "Qual é o link mesmo?",
+          "agente": "O link para pagamento é:\n\n🔗 https://agentezap.online/pagamento.html\n\nLá você encontra:\n✅ QR Code para pagamento\n✅ Botão para enviar comprovante direto para mim\n\nAssim que pagar, me manda o comprovante que eu libero seu acesso na hora! 😊\n\nQuer que eu te ajude com algo mais?"
+        },
+        {
+          "cliente": "Valeu!",
+          "agente": "Disponha! É só chamar se precisar de ajuda com a configuração ou qualquer outra coisa. Boa sorte com suas vendas! 🚀😊"
+        }
+      ]
+    }
+  ]
+}

@@ -72,7 +72,7 @@ import {
 } from "@shared/schema";
 import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray, lte, isNotNull } from "drizzle-orm";
-import { transcribeAudioWithMistral } from "./mistralClient";
+import { transcribeAudioWithMistral, analyzeImageWithMistral } from "./mistralClient";
 
 // ============================================
 // CACHE EM MEMÓRIA PARA REDUZIR CARGA NO DB
@@ -721,6 +721,55 @@ export class DatabaseStorage implements IStorage {
         }
       } catch (error) {
         console.error("Error transcribing audio message in storage.createMessage:", error);
+      }
+    }
+
+    // 🖼️ ANÁLISE AUTOMÁTICA DE IMAGENS usando Mistral Vision API
+    // Quando cliente envia imagem, analisar e descrever o conteúdo para que a IA possa responder adequadamente
+    if (data.mediaType === "image" && data.mediaUrl && !data.fromMe) {
+      try {
+        let imageUrl = data.mediaUrl;
+        
+        // Se for base64, precisa converter para URL ou usar direto
+        // Mistral aceita tanto URL quanto base64 no formato data:image/...
+        if (imageUrl.startsWith("data:")) {
+          console.log(`🖼️ [Storage] Imagem base64 detectada, enviando direto para análise...`);
+        } else if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+          console.log(`🖼️ [Storage] Imagem URL detectada: ${imageUrl.substring(0, 80)}...`);
+        } else {
+          console.log(`🖼️ [Storage] Formato de imagem não reconhecido, pulando análise`);
+          imageUrl = "";
+        }
+        
+        if (imageUrl) {
+          console.log(`🖼️ [Storage] Iniciando análise de imagem com Mistral Vision...`);
+          
+          // Prompt específico para entender contexto da imagem
+          const analysisPrompt = `Analise esta imagem e descreva em português de forma clara e objetiva.
+
+IMPORTANTE:
+- Se for um COMPROVANTE DE PAGAMENTO: extraia valor, data, nome do pagador/recebedor, tipo (PIX, transferência, boleto)
+- Se for um PRODUTO: descreva características visuais, marca se visível
+- Se for uma DÚVIDA/PERGUNTA: descreva o que a pessoa parece querer saber
+- Se for DOCUMENTO: identifique o tipo e informações relevantes
+
+Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
+
+          const imageDescription = await analyzeImageWithMistral(imageUrl, analysisPrompt);
+          
+          if (imageDescription && imageDescription.length > 0) {
+            console.log(`🖼️ [Storage] ✅ Análise de imagem bem-sucedida: "${imageDescription.substring(0, 100)}..."`);
+            // Substituir texto genérico pela descrição da imagem
+            data.text = `[IMAGEM ANALISADA: ${imageDescription}]`;
+          } else {
+            console.log(`🖼️ [Storage] ⚠️ Análise de imagem vazia ou nula`);
+            data.text = data.text || "(imagem enviada pelo cliente)";
+          }
+        }
+      } catch (error) {
+        console.error("Error analyzing image message in storage.createMessage:", error);
+        // Manter texto original em caso de erro
+        data.text = data.text || "(imagem enviada pelo cliente)";
       }
     }
 

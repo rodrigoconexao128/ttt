@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
-import LandingStatic from "@/pages/landing-static";
+import LandingMinimal from "@/pages/landing-minimal";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
@@ -29,8 +29,8 @@ function Router() {
   const [location] = useLocation();
 
   // Lista de rotas que não precisam esperar o carregamento da autenticação
-  const publicRoutes = ["/admin-simulator", "/model-tester", "/test", "/testar"];
-  const isPublicRoute = publicRoutes.some(route => location.startsWith(route));
+  const publicRoutes = ["/", "/login", "/cadastro", "/admin-simulator", "/model-tester", "/test", "/testar", "/termos-de-uso"];
+  const isPublicRoute = publicRoutes.some(route => location === route || location.startsWith(route + "/"));
 
   // Se está carregando e não é rota pública, mostrar loading
   if (isLoading && !isPublicRoute) {
@@ -53,7 +53,7 @@ function Router() {
       <Route path="/termos-de-uso" component={TermsOfServicePage} />
       
       {/* Landing page apenas para não autenticados */}
-      {!isAuthenticated && <Route path="/" component={LandingStatic} />}
+      {!isAuthenticated && <Route path="/" component={LandingMinimal} />}
       
       {/* Rotas protegidas - sempre registradas, Dashboard faz o redirecionamento */}
       <Route path="/" component={Dashboard} />

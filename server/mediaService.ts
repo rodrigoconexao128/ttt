@@ -254,36 +254,44 @@ export function generateMediaPromptBlock(mediaList: AgentMedia[]): string {
 
   mediaBlock += `
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  ⚡ REGRAS DE ENVIO DE MÍDIA - SEGUIR À RISCA ⚡                              ║
+║  ⚡ REGRAS DE ENVIO DE MÍDIA - UMA DE CADA VEZ ⚡                             ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-🚨 REGRA #1 (OBRIGATÓRIA): 
-   Para CADA mídia acima, verifique se a CONDIÇÃO corresponde à situação atual.
-   Se corresponder → VOCÊ DEVE ADICIONAR A TAG [MEDIA:NOME] NO FINAL DA RESPOSTA!
+🚨 REGRA #1 - ENVIAR UMA MÍDIA POR VEZ:
+   → Leia a condição de CADA mídia com atenção
+   → Envie SOMENTE a mídia que corresponde EXATAMENTE à pergunta/situação atual
+   → NÃO envie várias mídias de uma vez! Uma por resposta, máximo DUAS se muito relacionadas
 
-🚨 REGRA #2 (MÚLTIPLAS MÍDIAS):
-   Se VÁRIAS condições correspondem → ENVIE TODAS AS TAGS!
-   Exemplo: [MEDIA:AUDIO][MEDIA:IMAGEM][MEDIA:VIDEO]
+🚨 REGRA #2 - PRIMEIRA MENSAGEM (oi, olá, bom dia):
+   → Cliente apenas cumprimentou? → ENVIE APENAS O ÁUDIO DE INÍCIO (se existir)
+   → NÃO envie vídeos, não envie demonstrações
+   → Pergunte sobre o negócio do cliente ANTES de enviar mais mídias
 
-🚨 REGRA #3 (PRIMEIRA MENSAGEM):
-   Na PRIMEIRA mensagem de uma conversa (cliente disse "oi", "olá", "bom dia", etc):
-   → Verifique TODAS as mídias com condição de "primeira mensagem", "boas vindas", "início"
-   → ENVIE OBRIGATORIAMENTE todas essas mídias!
+🚨 REGRA #3 - ENVIAR POR CONTEXTO:
+   → Cliente perguntou sobre ENVIO EM MASSA? → Envie APENAS mídia de ENVIO_EM_MASSA
+   → Cliente perguntou sobre FOLLOW-UP? → Envie APENAS mídia de FOLLOWUP
+   → Cliente quer VER o sistema? → Envie APENAS vídeo demonstrativo
+   → Cliente perguntou sobre CRM? → Envie APENAS mídia de CRM/KANBAN
+   → NUNCA misture mídias de funcionalidades diferentes!
 
-🚨 REGRA #4 (NUNCA ESQUECER):
-   VOCÊ NÃO PODE RESPONDER SEM VERIFICAR AS MÍDIAS!
-   Antes de finalizar sua resposta, SEMPRE pergunte a si mesmo:
-   "Alguma condição de mídia se aplica aqui? Se sim, DEVO adicionar a tag!"
+🚨 REGRA #4 - NÃO REPETIR:
+   → Já enviou uma mídia nesta conversa? NÃO envie de novo
+   → Se cliente pedir de novo, diga "já enviei o vídeo acima"
 
 📌 EXEMPLO CORRETO:
 Cliente: "Oi, boa tarde!"
-Resposta: "Oi! Tudo bem? [MEDIA:AUDIO_BOAS_VINDAS][MEDIA:BANNER][MEDIA:VIDEO]"
+Resposta: "Boa tarde! Como posso te ajudar? Qual é o seu ramo de negócio? [MEDIA:MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR]"
 
-⚠️ Não repita mídias já enviadas nesta conversa
-⚠️ Não mencione que está enviando áudio/vídeo/imagem
+📌 EXEMPLO CORRETO (pergunta específica):
+Cliente: "Vocês tem envio em massa?"
+Resposta: "Sim! Temos envio em massa com técnicas anti-bloqueio. Vou te mostrar: [MEDIA:ENVIO_EM_MASSA]"
+
+❌ EXEMPLO ERRADO (NUNCA FAÇA ISSO):
+Cliente: "Oi!"
+Resposta: "Oi! [MEDIA:AUDIO][MEDIA:VIDEO1][MEDIA:VIDEO2][MEDIA:VIDEO3]" ← ERRADO!
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  LEMBRE-SE: MÍDIAS SÃO PRIORIDADE #1 - NUNCA IGNORE ESTA SEÇÃO!             ║
+║  LEMBRE-SE: UMA MÍDIA POR VEZ, CONTEXTUAL E RELEVANTE!                       ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 `;
 
