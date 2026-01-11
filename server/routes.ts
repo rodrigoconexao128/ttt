@@ -387,7 +387,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   userFollowUpService.registerCallback(async (userId, conversationId, phoneNumber, remoteJid, message, stage) => {
     try {
       console.log(`📤 [FOLLOW-UP-CALLBACK] Enviando para ${phoneNumber} (estágio ${stage})`);
-      await whatsappSendMessage(userId, conversationId, message);
+      // 🔧 FIX: Marcar mensagem de follow-up como isFromAgent para que a IA
+      // saiba que foi ela quem enviou quando retomar a conversa após o cliente responder
+      await whatsappSendMessage(userId, conversationId, message, { isFromAgent: true });
       console.log(`✅ [FOLLOW-UP-CALLBACK] Mensagem enviada com sucesso para ${phoneNumber}`);
       return { success: true };
     } catch (error: any) {
@@ -1293,6 +1295,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const userId = getUserId(req);
+      
+      // 🚫 Verificar se usuário está suspenso - bloquear conexão
+      const suspensionStatus = await storage.isUserSuspended(userId);
+      if (suspensionStatus.suspended) {
+        console.log(`🚫 [SUSPENSION] Bloqueando conexão WhatsApp para usuário suspenso: ${userId}`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Sua conta está suspensa. Não é possível conectar o WhatsApp.',
+          suspended: true,
+          reason: suspensionStatus.data?.reason
+        });
+      }
+      
       await connectWhatsApp(userId);
       res.json({ success: true });
     } catch (error) {
@@ -1358,10 +1373,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
+      // 🔧 FIX: Marcar como lida quando usuário abre a conversa
+      if (conversation.unreadCount > 0) {
+        await storage.updateConversation(id, { unreadCount: 0 });
+        console.log(`📖 [READ] Conversa ${id} marcada como lida`);
+      }
+
       res.json(conversation);
     } catch (error) {
       console.error("Error fetching conversation:", error);
       res.status(500).json({ message: "Failed to fetch conversation" });
+    }
+  });
+
+  // 🔧 POST - Marcar conversa como lida explicitamente
+  app.post("/api/conversations/:id/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = getUserId(req);
+      
+      const conversation = await storage.getConversation(id);
+      
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      // Verify ownership through connection
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      await storage.updateConversation(id, { unreadCount: 0 });
+      console.log(`📖 [READ] Conversa ${id} marcada como lida via POST`);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking conversation as read:", error);
+      res.status(500).json({ message: "Failed to mark conversation as read" });
     }
   });
 
@@ -1929,6 +1978,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/messages/send", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
+      
+      // 🚫 Verificar se usuário está suspenso - bloquear envio de mensagens
+      const suspensionStatus = await storage.isUserSuspended(userId);
+      if (suspensionStatus.suspended) {
+        console.log(`🚫 [SUSPENSION] Bloqueando envio de mensagem para usuário suspenso: ${userId}`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Sua conta está suspensa. Não é possível enviar mensagens.',
+          suspended: true,
+          reason: suspensionStatus.data?.reason
+        });
+      }
+      
       const result = sendMessageSchema.safeParse(req.body);
 
       if (!result.success) {
@@ -6169,6 +6231,133 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // ==================== POLICY VIOLATIONS & SUSPENSION ROUTES ====================
+  
+  // GET - Verificar status de suspensão do usuário logado
+  app.get("/api/user/suspension-status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const suspensionStatus = await storage.isUserSuspended(userId);
+      
+      if (suspensionStatus.suspended) {
+        res.json({
+          suspended: true,
+          reason: suspensionStatus.data?.reason,
+          type: suspensionStatus.data?.type,
+          suspendedAt: suspensionStatus.data?.suspendedAt,
+          refundedAt: suspensionStatus.data?.refundedAt,
+          refundAmount: suspensionStatus.data?.refundAmount,
+        });
+      } else {
+        res.json({ suspended: false });
+      }
+    } catch (error) {
+      console.error("Error checking suspension status:", error);
+      res.status(500).json({ message: "Erro ao verificar status de suspensão" });
+    }
+  });
+
+  // GET - Admin: Listar usuários suspensos
+  app.get("/api/admin/suspended-users", isAdmin, async (_req, res) => {
+    try {
+      const suspendedUsers = await storage.getSuspendedUsers();
+      res.json(suspendedUsers);
+    } catch (error) {
+      console.error("Error fetching suspended users:", error);
+      res.status(500).json({ message: "Erro ao buscar usuários suspensos" });
+    }
+  });
+
+  // POST - Admin: Suspender usuário por violação de políticas
+  app.post("/api/admin/users/:userId/suspend", isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { violationType, reason, evidence, refundAmount } = req.body;
+      
+      if (!violationType || !reason) {
+        return res.status(400).json({ message: "Tipo de violação e motivo são obrigatórios" });
+      }
+
+      // Verificar se usuário existe
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      // Verificar se já está suspenso
+      const existingStatus = await storage.isUserSuspended(userId);
+      if (existingStatus.suspended) {
+        return res.status(400).json({ message: "Usuário já está suspenso" });
+      }
+
+      // 1. Desconectar WhatsApp automaticamente antes de suspender
+      try {
+        console.log(`🔌 [SUSPENSION] Desconectando WhatsApp do usuário ${user.email}...`);
+        await disconnectWhatsApp(userId);
+        console.log(`✅ [SUSPENSION] WhatsApp desconectado com sucesso`);
+      } catch (disconnectError) {
+        console.log(`⚠️ [SUSPENSION] Não foi possível desconectar WhatsApp (pode não estar conectado):`, disconnectError);
+        // Continua mesmo se o WhatsApp não estiver conectado
+      }
+
+      // 2. Suspender usuário
+      await storage.suspendUser(
+        userId,
+        violationType,
+        reason,
+        req.session?.admin?.id,
+        evidence || [],
+        refundAmount
+      );
+
+      console.log(`🚫 [ADMIN] Usuário ${user.email} suspenso por ${violationType}: ${reason}`);
+
+      res.json({ 
+        success: true, 
+        message: `Usuário ${user.email} suspenso com sucesso. WhatsApp desconectado.`,
+        suspendedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error suspending user:", error);
+      res.status(500).json({ message: "Erro ao suspender usuário" });
+    }
+  });
+
+  // POST - Admin: Remover suspensão de usuário
+  app.post("/api/admin/users/:userId/unsuspend", isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { adminNote } = req.body;
+
+      // Verificar se usuário existe
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      // Verificar se está suspenso
+      const existingStatus = await storage.isUserSuspended(userId);
+      if (!existingStatus.suspended) {
+        return res.status(400).json({ message: "Usuário não está suspenso" });
+      }
+
+      // Remover suspensão
+      await storage.unsuspendUser(userId, adminNote);
+
+      console.log(`✅ [ADMIN] Suspensão removida do usuário ${user.email}`);
+
+      res.json({ 
+        success: true, 
+        message: `Suspensão removida do usuário ${user.email}` 
+      });
+    } catch (error) {
+      console.error("Error unsuspending user:", error);
+      res.status(500).json({ message: "Erro ao remover suspensão" });
+    }
+  });
+
+  // ==================== END POLICY VIOLATIONS ROUTES ====================
+
   // ==================== MY SUBSCRIPTION ROUTES (CLIENTE) ====================
   
   // Get current user's active subscription with full details
@@ -8950,6 +9139,18 @@ Use emojis com moderação quando apropriado.`;
       const { id } = req.params;
       const { caption, mediaType } = req.body;
       const file = req.file;
+
+      // 🚫 Verificar se usuário está suspenso - bloquear envio de mídia
+      const suspensionStatus = await storage.isUserSuspended(userId);
+      if (suspensionStatus.suspended) {
+        console.log(`🚫 [SUSPENSION] Bloqueando envio de mídia para usuário suspenso: ${userId}`);
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Sua conta está suspensa. Não é possível enviar mídia.',
+          suspended: true,
+          reason: suspensionStatus.data?.reason
+        });
+      }
 
       if (!file) {
         return res.status(400).json({ message: "File is required" });

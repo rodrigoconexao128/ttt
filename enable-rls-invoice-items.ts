@@ -1,4 +1,5 @@
-import { db } from "./db/index.js";
+import "dotenv/config";
+import { db } from "./server/db";
 import { sql } from "drizzle-orm";
 
 async function enableRLS() {
@@ -11,9 +12,26 @@ async function enableRLS() {
     `);
     console.log("✅ RLS habilitado na tabela reseller_invoice_items");
 
-    // 2. Criar política para permitir que revendedores vejam apenas seus itens
+    // 2. Dropar políticas existentes (se houver)
+    const policies = [
+      "Resellers can view their own invoice items",
+      "Resellers can insert their own invoice items",
+      "Resellers can update their own invoice items",
+      "Resellers can delete their own invoice items",
+      "Service role has full access to invoice items"
+    ];
+
+    for (const policyName of policies) {
+      try {
+        await db.execute(sql.raw(`DROP POLICY IF EXISTS "${policyName}" ON reseller_invoice_items;`));
+      } catch (e) {
+        // Ignorar erros se a política não existir
+      }
+    }
+
+    // 3. Criar política para permitir que revendedores vejam apenas seus itens
     await db.execute(sql`
-      CREATE POLICY IF NOT EXISTS "Resellers can view their own invoice items"
+      CREATE POLICY "Resellers can view their own invoice items"
       ON reseller_invoice_items
       FOR SELECT
       USING (
@@ -25,9 +43,9 @@ async function enableRLS() {
     `);
     console.log("✅ Política SELECT criada");
 
-    // 3. Criar política para permitir que revendedores insiram itens em suas faturas
+    // 4. Criar política para permitir que revendedores insiram itens em suas faturas
     await db.execute(sql`
-      CREATE POLICY IF NOT EXISTS "Resellers can insert their own invoice items"
+      CREATE POLICY "Resellers can insert their own invoice items"
       ON reseller_invoice_items
       FOR INSERT
       WITH CHECK (
@@ -39,9 +57,9 @@ async function enableRLS() {
     `);
     console.log("✅ Política INSERT criada");
 
-    // 4. Criar política para permitir que revendedores atualizem itens de suas faturas
+    // 5. Criar política para permitir que revendedores atualizem itens de suas faturas
     await db.execute(sql`
-      CREATE POLICY IF NOT EXISTS "Resellers can update their own invoice items"
+      CREATE POLICY "Resellers can update their own invoice items"
       ON reseller_invoice_items
       FOR UPDATE
       USING (
@@ -53,9 +71,9 @@ async function enableRLS() {
     `);
     console.log("✅ Política UPDATE criada");
 
-    // 5. Criar política para permitir que revendedores deletem itens de suas faturas
+    // 6. Criar política para permitir que revendedores deletem itens de suas faturas
     await db.execute(sql`
-      CREATE POLICY IF NOT EXISTS "Resellers can delete their own invoice items"
+      CREATE POLICY "Resellers can delete their own invoice items"
       ON reseller_invoice_items
       FOR DELETE
       USING (
@@ -67,9 +85,9 @@ async function enableRLS() {
     `);
     console.log("✅ Política DELETE criada");
 
-    // 6. Criar política para service_role (bypass RLS)
+    // 7. Criar política para service_role (bypass RLS)
     await db.execute(sql`
-      CREATE POLICY IF NOT EXISTS "Service role has full access to invoice items"
+      CREATE POLICY "Service role has full access to invoice items"
       ON reseller_invoice_items
       FOR ALL
       TO service_role

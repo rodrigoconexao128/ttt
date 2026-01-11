@@ -14,7 +14,24 @@ import { storage } from "./storage";
 import { getSessions } from "./whatsapp";
 
 // ============================================================================
-// 🚀 SISTEMA DE CACHE PARA REDUZIR QUERIES NO DB
+// � VERIFICAÇÃO DE SUSPENSÃO POR VIOLAÇÃO DE POLÍTICAS
+// ============================================================================
+async function checkUserSuspensionForFollowUp(userId: string): Promise<boolean> {
+  try {
+    const suspensionStatus = await storage.isUserSuspended(userId);
+    if (suspensionStatus.suspended) {
+      console.log(`🚫 [USER-FOLLOW-UP] Usuário ${userId} está SUSPENSO - Follow-up desativado`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error(`⚠️ [USER-FOLLOW-UP] Erro ao verificar suspensão do usuário ${userId}:`, error);
+    return false;
+  }
+}
+
+// ============================================================================
+// �🚀 SISTEMA DE CACHE PARA REDUZIR QUERIES NO DB
 // ============================================================================
 interface CacheEntry<T> {
   data: T;
@@ -265,7 +282,15 @@ export class UserFollowUpService {
       return;
     }
 
-    // � VERIFICAÇÃO POR USUÁRIO: Verificar se ESTE usuário específico tem conexão ativa
+    // 🚫 VERIFICAÇÃO DE SUSPENSÃO: Usuários suspensos não podem usar follow-up
+    const isSuspended = await checkUserSuspensionForFollowUp(userId);
+    if (isSuspended) {
+      console.log(`🚫 [USER-FOLLOW-UP] Usuário ${userId} está SUSPENSO - desativando follow-up da conversa`);
+      await this.disableFollowUp(conversation.id, "Conta suspensa por violação de políticas");
+      return;
+    }
+
+    // 🔌 VERIFICAÇÃO POR USUÁRIO: Verificar se ESTE usuário específico tem conexão ativa
     // Isso permite processar follow-ups de outros usuários mesmo se este não está conectado
     if (!isUserConnectionActive(userId)) {
       // Reagendar apenas ESTA conversa para tentar novamente em 5 minutos
@@ -284,7 +309,7 @@ export class UserFollowUpService {
       return;
     }
 
-    // �🔒 ANTI-DUPLICAÇÃO: Verificar se esta conversa já está sendo processada
+    // 🔒 ANTI-DUPLICAÇÃO: Verificar se esta conversa já está sendo processada
     if (conversationsBeingProcessed.has(conversation.id)) {
       console.log(`⏳ [USER-FOLLOW-UP] Conversa ${conversation.contactNumber} já está sendo processada - ignorando`);
       return;
@@ -761,6 +786,19 @@ ${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).j
 4. **SEJA CURTO**: Máximo 2-3 frases, WhatsApp não é email
 5. **SEJA HUMANO**: Escreva como pessoa real, não robô
 6. **USE O NOME**: Chame o cliente pelo nome se souber
+
+⛔ **NUNCA NO FOLLOW-UP**:
+- NÃO cumprimente novamente (sem "Bom dia", "Oi", "Olá") - já conversamos hoje!
+- NÃO se apresente de novo (sem "Sou X da empresa Y")
+- NÃO repita a mesma pergunta que já fez
+- NÃO envie a mesma mensagem com palavras diferentes
+- NÃO seja formal demais ou robótico
+
+✅ **EXEMPLOS BONS de follow-up natural**:
+- "E aí, conseguiu pensar sobre o que conversamos?"
+- "Vi aqui que ficou uma dúvida sobre X, quer que eu explique melhor?"
+- "Só passando pra ver se posso te ajudar com mais alguma coisa"
+- "Lembrei de você! Ainda está interessado em X?"
 
 **Tom**: ${toneMap[config.tone] || 'consultivo'}
 **Emojis**: ${config.useEmojis ? 'Pode usar 1 emoji sutil' : 'NÃO use emojis'}

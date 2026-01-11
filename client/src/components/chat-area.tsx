@@ -74,6 +74,15 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
     enabled: !!conversationId,
   });
 
+  // 🔧 FIX: Quando conversa é carregada (marcada como lida no backend), atualizar lista de conversas
+  useEffect(() => {
+    if (conversation && conversationId) {
+      // Invalidar lista de conversas para atualizar o badge de não lidas
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+    }
+  }, [conversationId, conversation]);
+
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages", conversationId],
     enabled: !!conversationId,

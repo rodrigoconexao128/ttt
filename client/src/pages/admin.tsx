@@ -29,7 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -37,6 +37,7 @@ import AdminAgentConfig from "@/components/admin-agent-config";
 import AdminConversations from "@/components/admin-conversations";
 import FollowUpCalendar from "@/components/follow-up-calendar";
 import { UserAgentConfigDialog } from "@/components/user-agent-config-dialog";
+import SuspendedUsersManager from "@/components/suspended-users-manager";
 import {
   SidebarProvider,
   Sidebar,
@@ -198,6 +199,8 @@ export default function AdminPanel() {
         return <CouponsManager />;
       case "resellers":
         return <ResellersManager />;
+      case "suspended":
+        return <SuspendedUsersManager />;
       case "config":
         return <ConfigManager config={config} />;
       default:
@@ -338,6 +341,17 @@ export default function AdminPanel() {
                   >
                     <Building2 className="w-4 h-4" />
                     <span>Revendedores</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("suspended")}
+                    isActive={activeTab === "suspended"}
+                    tooltip="Usuários Suspensos"
+                    className={activeTab === "suspended" ? "" : "text-red-600 hover:text-red-700 hover:bg-red-50"}
+                  >
+                    <ShieldAlert className="w-4 h-4" />
+                    <span>Suspensos</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -490,6 +504,17 @@ export default function AdminPanel() {
                 >
                   <Building2 className="w-4 h-4" />
                   <span>Revendedores</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("suspended")}
+                  isActive={activeTab === "suspended"}
+                  tooltip="Usuários Suspensos"
+                  className={activeTab === "suspended" ? "" : "text-red-600 hover:text-red-700 hover:bg-red-50"}
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Suspensos</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

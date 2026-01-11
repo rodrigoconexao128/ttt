@@ -167,8 +167,52 @@ interface PendingResponse {
   contactNumber: string;
   jidSuffix: string;
   startTime: number;
+  isProcessing?: boolean; // 🔒 FLAG ANTI-DUPLICAÇÃO
 }
 const pendingResponses = new Map<string, PendingResponse>(); // key: conversationId
+
+// 🔒 ANTI-DUPLICAÇÃO: Set para rastrear conversas em processamento
+// Evita que múltiplos timeouts processem a mesma conversa simultaneamente
+const conversationsBeingProcessed = new Set<string>();
+
+// 🔒 ANTI-DUPLICAÇÃO: Cache de mensagens recentes enviadas (últimos 5 minutos)
+// Evita enviar mensagens idênticas em sequência
+const recentlySentMessages = new Map<string, { text: string; timestamp: number }[]>();
+
+// Limpar cache de mensagens enviadas a cada 5 minutos
+setInterval(() => {
+  const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+  for (const [convId, messages] of recentlySentMessages.entries()) {
+    const filtered = messages.filter(m => m.timestamp > fiveMinutesAgo);
+    if (filtered.length === 0) {
+      recentlySentMessages.delete(convId);
+    } else {
+      recentlySentMessages.set(convId, filtered);
+    }
+  }
+}, 60 * 1000);
+
+// 🔒 Função para verificar se mensagem é duplicata recente
+function isRecentDuplicate(conversationId: string, text: string): boolean {
+  const recent = recentlySentMessages.get(conversationId) || [];
+  const twoMinutesAgo = Date.now() - 2 * 60 * 1000;
+  
+  for (const msg of recent) {
+    if (msg.timestamp > twoMinutesAgo && msg.text === text) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// 🔒 Função para registrar mensagem enviada
+function registerSentMessageCache(conversationId: string, text: string): void {
+  const recent = recentlySentMessages.get(conversationId) || [];
+  recent.push({ text, timestamp: Date.now() });
+  // Manter apenas últimas 10 mensagens
+  if (recent.length > 10) recent.shift();
+  recentlySentMessages.set(conversationId, recent);
+}
 
 // 🎯 SISTEMA DE ACUMULAÇÃO (ADMIN AUTO-ATENDIMENTO)
 interface PendingAdminResponse {
@@ -2448,6 +2492,15 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
 async function processAccumulatedMessages(pending: PendingResponse): Promise<void> {
   const { conversationId, userId, contactNumber, jidSuffix, messages } = pending;
   
+  // 🔒 ANTI-DUPLICAÇÃO: Verificar se já está processando esta conversa
+  if (conversationsBeingProcessed.has(conversationId)) {
+    console.log(`🔒 [AI AGENT] ⚠️ Conversa ${conversationId} já está sendo processada, IGNORANDO duplicata`);
+    return;
+  }
+  
+  // 🔒 Marcar como em processamento ANTES de qualquer coisa
+  conversationsBeingProcessed.add(conversationId);
+  
   // Remover da fila de pendentes
   pendingResponses.delete(conversationId);
   
@@ -2650,6 +2703,16 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         ? buildSendJid(conversationData)
         : `${contactNumber}@${jidSuffix || DEFAULT_JID_SUFFIX}`;
       
+      // 🔒 ANTI-DUPLICAÇÃO: Verificar se resposta já foi enviada recentemente
+      if (isRecentDuplicate(conversationId, aiResponse)) {
+        console.log(`🔒 [AI AGENT] ⚠️ Resposta IDÊNTICA já enviada nos últimos 2 minutos, IGNORANDO duplicata`);
+        console.log(`   📝 Texto: "${aiResponse.substring(0, 100)}..."`);
+        return;
+      }
+      
+      // 🔒 Registrar resposta no cache anti-duplicação
+      registerSentMessageCache(conversationId, aiResponse);
+      
       // 🤖 HUMANIZAÇÃO: Quebrar mensagens longas em múltiplas
       const agentConfig = await storage.getAgentConfig(userId);
       const maxChars = agentConfig?.messageSplitChars ?? 400;
@@ -2734,6 +2797,10 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     }
   } catch (error) {
     console.error("Error generating AI response:", error);
+  } finally {
+    // 🔒 ANTI-DUPLICAÇÃO: Remover da lista de conversas em processamento
+    conversationsBeingProcessed.delete(conversationId);
+    console.log(`🔓 [AI AGENT] Conversa ${conversationId} liberada para próximo processamento`);
   }
 }
 
@@ -2971,7 +3038,12 @@ export async function triggerAdminAgentResponseForConversation(
   }
 }
 
-export async function sendMessage(userId: string, conversationId: string, text: string): Promise<void> {
+export async function sendMessage(
+  userId: string, 
+  conversationId: string, 
+  text: string,
+  options?: { isFromAgent?: boolean }
+): Promise<void> {
   const session = sessions.get(userId);
   if (!session?.socket) {
     throw new Error("WhatsApp not connected");
@@ -2988,10 +3060,21 @@ export async function sendMessage(userId: string, conversationId: string, text: 
     throw new Error("Unauthorized access to conversation");
   }
 
+  // 🔒 ANTI-DUPLICAÇÃO: Verificar se mensagem já foi enviada recentemente (para follow-up)
+  if (options?.isFromAgent) {
+    if (isRecentDuplicate(conversationId, text)) {
+      console.log(`🔒 [sendMessage] ⚠️ Mensagem IDÊNTICA já enviada recentemente, IGNORANDO duplicata`);
+      console.log(`   📝 Texto: "${text.substring(0, 80)}..."`);
+      return; // Silenciosamente ignorar duplicata
+    }
+    // Registrar mensagem no cache
+    registerSentMessageCache(conversationId, text);
+  }
+
   // Usar remoteJid normalizado do banco (suporta @lid, @s.whatsapp.net, etc)
   const jid = buildSendJid(conversation);
   
-  console.log(`[sendMessage] Sending to: ${jid}`);
+  console.log(`[sendMessage] Sending to: ${jid}${options?.isFromAgent ? ' (from agent/follow-up)' : ''}`);
   const sentMessage = await session.socket.sendMessage(jid, { text });
 
   // ⚠️ IMPORTANTE: Registrar messageId para evitar duplicata em handleOutgoingMessage
@@ -3007,6 +3090,9 @@ export async function sendMessage(userId: string, conversationId: string, text: 
     text,
     timestamp: new Date(),
     status: "sent",
+    // 🔧 FIX: Marcar mensagens de follow-up como isFromAgent para que a IA
+    // saiba que foi ela quem enviou quando retomar a conversa
+    isFromAgent: options?.isFromAgent ?? false,
   });
 
   // 🚀 FOLLOW-UP ADMIN: Continua usando sistema antigo para admin_conversations
@@ -3023,9 +3109,11 @@ export async function sendMessage(userId: string, conversationId: string, text: 
     console.error("Erro ao ativar follow-up do usuário:", error);
   }
 
+  // 🔧 FIX: Quando o dono envia mensagem, resetar unreadCount para 0
   await storage.updateConversation(conversationId, {
     lastMessageText: text,
     lastMessageTime: new Date(),
+    unreadCount: 0,
   });
 
   broadcastToUser(userId, {

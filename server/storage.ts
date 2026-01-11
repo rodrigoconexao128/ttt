@@ -650,12 +650,38 @@ export class DatabaseStorage implements IStorage {
     memoryCache.invalidate(`messages:${data.conversationId}`);
 
     // Transcrição automática para mensagens de áudio, independente do agente estar ativo ou não.
+    // 🎤 FIX 2025: Suporta TANTO URLs base64 QUANTO URLs HTTP (Supabase Storage)
     if (data.mediaType === "audio" && data.mediaUrl) {
       try {
-        const base64Part = data.mediaUrl.split(",")[1];
-        if (base64Part) {
-          const audioBuffer = Buffer.from(base64Part, "base64");
+        let audioBuffer: Buffer | null = null;
 
+        // 🎤 CASO 1: URL é base64 (data:audio/ogg;base64,...)
+        if (data.mediaUrl.startsWith("data:")) {
+          const base64Part = data.mediaUrl.split(",")[1];
+          if (base64Part) {
+            audioBuffer = Buffer.from(base64Part, "base64");
+            console.log(`🎤 [Storage] Áudio base64 detectado: ${audioBuffer.length} bytes`);
+          }
+        }
+        // 🎤 CASO 2: URL é HTTP (Supabase Storage ou outra URL externa)
+        else if (data.mediaUrl.startsWith("http://") || data.mediaUrl.startsWith("https://")) {
+          console.log(`🎤 [Storage] Baixando áudio de URL externa para transcrição...`);
+          try {
+            const audioResponse = await fetch(data.mediaUrl);
+            if (audioResponse.ok) {
+              const arrayBuffer = await audioResponse.arrayBuffer();
+              audioBuffer = Buffer.from(arrayBuffer);
+              console.log(`🎤 [Storage] Áudio baixado da URL: ${audioBuffer.length} bytes`);
+            } else {
+              console.error(`🎤 [Storage] Erro ao baixar áudio: HTTP ${audioResponse.status}`);
+            }
+          } catch (fetchError) {
+            console.error(`🎤 [Storage] Erro ao fazer fetch do áudio:`, fetchError);
+          }
+        }
+
+        // 🎤 Transcrever se temos buffer válido
+        if (audioBuffer && audioBuffer.length > 0) {
           // Descobre o usuário dono da conversa para permitir modelos
           // configuráveis no futuro (via env).
           let transcriptionModel: string | undefined;
@@ -678,14 +704,20 @@ export class DatabaseStorage implements IStorage {
             }
           }
 
+          console.log(`🎤 [Storage] Iniciando transcrição com Mistral...`);
           const transcription = await transcribeAudioWithMistral(audioBuffer, {
             fileName: "whatsapp-audio.ogg",
             model: transcriptionModel,
           });
 
           if (transcription && transcription.length > 0) {
+            console.log(`🎤 [Storage] ✅ Transcrição bem-sucedida: "${transcription.substring(0, 100)}..."`);
             data.text = transcription;
+          } else {
+            console.log(`🎤 [Storage] ⚠️ Transcrição vazia ou nula`);
           }
+        } else {
+          console.log(`🎤 [Storage] ⚠️ Não foi possível obter buffer do áudio para transcrição`);
         }
       } catch (error) {
         console.error("Error transcribing audio message in storage.createMessage:", error);
@@ -1904,25 +1936,56 @@ export class DatabaseStorage implements IStorage {
     const messageData = { ...data };
 
     // 🎤 Transcrição automática para TODOS os áudios (do dono/fromMe=true E do cliente/fromMe=false)
+    // 🎤 FIX 2025: Suporta TANTO URLs base64 QUANTO URLs HTTP (Supabase Storage)
     if (messageData.mediaType === "audio" && messageData.mediaUrl) {
       try {
-        const base64Part = messageData.mediaUrl.split(",")[1];
-        if (base64Part) {
-          const audioBuffer = Buffer.from(base64Part, "base64");
-          const origem = messageData.fromMe ? "dono" : "cliente";
-          console.log(`[Storage] Transcrevendo áudio do ${origem} (${audioBuffer.length} bytes)...`);
+        let audioBuffer: Buffer | null = null;
+        const origem = messageData.fromMe ? "dono" : "cliente";
+
+        // 🎤 CASO 1: URL é base64 (data:audio/ogg;base64,...)
+        if (messageData.mediaUrl.startsWith("data:")) {
+          const base64Part = messageData.mediaUrl.split(",")[1];
+          if (base64Part) {
+            audioBuffer = Buffer.from(base64Part, "base64");
+            console.log(`🎤 [Storage Admin] Áudio base64 do ${origem}: ${audioBuffer.length} bytes`);
+          }
+        }
+        // 🎤 CASO 2: URL é HTTP (Supabase Storage ou outra URL externa)
+        else if (messageData.mediaUrl.startsWith("http://") || messageData.mediaUrl.startsWith("https://")) {
+          console.log(`🎤 [Storage Admin] Baixando áudio do ${origem} de URL externa...`);
+          try {
+            const audioResponse = await fetch(messageData.mediaUrl);
+            if (audioResponse.ok) {
+              const arrayBuffer = await audioResponse.arrayBuffer();
+              audioBuffer = Buffer.from(arrayBuffer);
+              console.log(`🎤 [Storage Admin] Áudio do ${origem} baixado: ${audioBuffer.length} bytes`);
+            } else {
+              console.error(`🎤 [Storage Admin] Erro ao baixar áudio: HTTP ${audioResponse.status}`);
+            }
+          } catch (fetchError) {
+            console.error(`🎤 [Storage Admin] Erro ao fazer fetch do áudio:`, fetchError);
+          }
+        }
+
+        // 🎤 Transcrever se temos buffer válido
+        if (audioBuffer && audioBuffer.length > 0) {
+          console.log(`🎤 [Storage Admin] Transcrevendo áudio do ${origem} (${audioBuffer.length} bytes)...`);
           
           const transcription = await transcribeAudioWithMistral(audioBuffer, {
             fileName: `whatsapp-audio-${origem}.ogg`,
           });
 
           if (transcription && transcription.length > 0) {
-            console.log(`[Storage] Transcrição do ${origem}: ${transcription.substring(0, 100)}...`);
+            console.log(`🎤 [Storage Admin] ✅ Transcrição do ${origem}: ${transcription.substring(0, 100)}...`);
             messageData.text = transcription;
+          } else {
+            console.log(`🎤 [Storage Admin] ⚠️ Transcrição vazia para áudio do ${origem}`);
           }
+        } else {
+          console.log(`🎤 [Storage Admin] ⚠️ Não foi possível obter buffer do áudio do ${origem}`);
         }
       } catch (error) {
-        console.error("[Storage] Erro ao transcrever áudio:", error);
+        console.error("[Storage Admin] Erro ao transcrever áudio:", error);
       }
     }
 
@@ -3612,6 +3675,127 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(resellerInvoiceItems)
       .where(eq(resellerInvoiceItems.invoiceId, invoiceId));
+  }
+
+  // ============================================================================
+  // SISTEMA DE SUSPENSÃO POR VIOLAÇÃO DE POLÍTICAS
+  // ============================================================================
+
+  /**
+   * Verifica se um usuário está suspenso por violação de políticas
+   */
+  async isUserSuspended(userId: string): Promise<{ suspended: boolean; data?: { reason: string | null; type: string | null; suspendedAt: Date | null; refundedAt: Date | null; refundAmount: number | null } }> {
+    const [user] = await db.select({
+      suspendedAt: users.suspendedAt,
+      suspensionReason: users.suspensionReason,
+      suspensionType: users.suspensionType,
+      refundedAt: users.refundedAt,
+      refundAmount: users.refundAmount,
+    }).from(users).where(eq(users.id, userId));
+
+    if (!user || !user.suspendedAt) {
+      return { suspended: false };
+    }
+
+    return {
+      suspended: true,
+      data: {
+        reason: user.suspensionReason,
+        type: user.suspensionType,
+        suspendedAt: user.suspendedAt,
+        refundedAt: user.refundedAt,
+        refundAmount: user.refundAmount ? parseFloat(user.refundAmount) : null,
+      }
+    };
+  }
+
+  /**
+   * Suspende um usuário por violação de políticas
+   */
+  async suspendUser(
+    userId: string,
+    violationType: string,
+    reason: string,
+    adminId?: string,
+    evidence?: any[],
+    refundAmount?: number
+  ): Promise<void> {
+    const now = new Date();
+
+    // 1. Atualizar usuário com status de suspenso
+    await db.update(users).set({
+      suspendedAt: now,
+      suspensionReason: reason,
+      suspensionType: violationType,
+      refundedAt: refundAmount ? now : null,
+      refundAmount: refundAmount ? refundAmount.toString() : null,
+      updatedAt: now,
+    }).where(eq(users.id, userId));
+
+    // 2. Registrar violação na tabela policy_violations
+    await db.execute(sql`
+      INSERT INTO policy_violations (user_id, violation_type, description, status, resulted_in_suspension, admin_id, evidence, internal_notes)
+      VALUES (${userId}, ${violationType}, ${reason}, 'confirmed', true, ${adminId || null}, ${JSON.stringify(evidence || [])}, ${'Suspensão aplicada em ' + now.toISOString()})
+    `);
+
+    // 3. Desativar agente de IA
+    const [agentConfig] = await db.select().from(aiAgentConfig).where(eq(aiAgentConfig.userId, userId));
+    if (agentConfig) {
+      await db.update(aiAgentConfig).set({ isActive: false }).where(eq(aiAgentConfig.userId, userId));
+    }
+
+    console.log(`🚫 [SUSPENSION] Usuário ${userId} suspenso por ${violationType}: ${reason}`);
+  }
+
+  /**
+   * Obtém todos os usuários suspensos (para admin)
+   */
+  async getSuspendedUsers(): Promise<any[]> {
+    const result = await db.execute(sql`
+      SELECT 
+        u.id,
+        u.email,
+        u.name,
+        u.phone,
+        u.suspended_at as "suspendedAt",
+        u.suspension_reason as "suspensionReason",
+        u.suspension_type as "suspensionType",
+        u.refunded_at as "refundedAt",
+        u.refund_amount as "refundAmount",
+        pv.description as "violationDescription",
+        pv.evidence,
+        pv.created_at as "violationDate"
+      FROM users u
+      LEFT JOIN policy_violations pv ON pv.user_id = u.id AND pv.resulted_in_suspension = true
+      WHERE u.suspended_at IS NOT NULL
+      ORDER BY u.suspended_at DESC
+    `);
+    return result.rows as any[];
+  }
+
+  /**
+   * Remove suspensão de um usuário (para admin reverter se necessário)
+   */
+  async unsuspendUser(userId: string, adminNote?: string): Promise<void> {
+    await db.update(users).set({
+      suspendedAt: null,
+      suspensionReason: null,
+      suspensionType: null,
+      updatedAt: new Date(),
+    }).where(eq(users.id, userId));
+
+    // Registrar reversão na violação de política
+    const revertNote = `\nRevertido: ${adminNote || 'Sem motivo especificado'} em ${new Date().toISOString()}`;
+    
+    await db.execute(sql`
+      UPDATE policy_violations
+      SET status = 'dismissed', 
+          internal_notes = COALESCE(internal_notes, '') || ${revertNote},
+          updated_at = now()
+      WHERE user_id = ${userId} AND resulted_in_suspension = true
+    `);
+
+    console.log(`✅ [SUSPENSION] Suspensão removida do usuário ${userId}`);
   }
 }
 

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, index, uniqueIndex, decimal, uuid, serial, date } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, index, uniqueIndex, decimal, uuid, serial, date, numeric } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -27,6 +27,27 @@ export const users = pgTable("users", {
   onboardingCompleted: boolean("onboarding_completed").default(false).notNull(),
   // Reseller reference - se este usuário é cliente de um revendedor
   resellerId: varchar("reseller_id"),
+  // Campos de suspensão por violação de políticas
+  suspendedAt: timestamp("suspended_at"),
+  suspensionReason: text("suspension_reason"),
+  suspensionType: varchar("suspension_type", { length: 100 }),
+  refundedAt: timestamp("refunded_at"),
+  refundAmount: numeric("refund_amount", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Policy Violations table - Registro de violações de políticas da plataforma
+export const policyViolations = pgTable("policy_violations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  violationType: varchar("violation_type", { length: 100 }).notNull(), // religious_services, adult_content, illegal_activities, etc.
+  description: text("description"),
+  evidence: jsonb("evidence"), // Array de evidências (mensagens, prints, etc.)
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, confirmed, dismissed
+  resultedInSuspension: boolean("resulted_in_suspension").default(false),
+  adminId: varchar("admin_id"), // Admin que revisou
+  internalNotes: text("internal_notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

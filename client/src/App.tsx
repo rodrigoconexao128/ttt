@@ -19,6 +19,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import TestTTS from "@/pages/TestTTS";
 import Subscribe from "@/pages/subscribe";
 import ResellerDashboard from "@/pages/reseller";
+import TermsOfServicePage from "@/pages/terms-of-service";
 import { AccessBlocker, SubscriptionExpiringBanner } from "@/components/access-blocker";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
@@ -49,6 +50,7 @@ function Router() {
       <Route path="/admin" component={AdminPanel} />
       <Route path="/login" component={Login} />
       <Route path="/cadastro" component={Register} />
+      <Route path="/termos-de-uso" component={TermsOfServicePage} />
       
       {/* Landing page apenas para não autenticados */}
       {!isAuthenticated && <Route path="/" component={LandingStatic} />}

@@ -29,6 +29,7 @@ import { ChatArea } from "@/components/chat-area";
 import { ConnectionPanel } from "@/components/connection-panel";
 import { DashboardStats } from "@/components/dashboard-stats";
 import { LimitReachedTopBanner } from "@/components/usage-limit-banner";
+import { SuspensionBanner } from "@/components/suspension-banner";
 import MyAgent from "@/pages/my-agent";
 import PlansPage from "@/pages/plans";
 import SubscribePage from "@/pages/subscribe";
@@ -58,6 +59,15 @@ import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
+// Interface para status de suspensão
+interface SuspensionStatus {
+  suspended: boolean;
+  reason?: string;
+  type?: string;
+  suspendedAt?: string;
+  refundedAt?: string;
+  refundAmount?: number;
+}
 export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
@@ -66,6 +76,13 @@ export default function Dashboard() {
     queryKey: ["/api/subscriptions/current"],
     enabled: !!isAuthenticated,
   });
+  // Verificar status de suspensão do usuário
+  const { data: suspensionStatus } = useQuery<SuspensionStatus>({
+    queryKey: ["/api/user/suspension-status"],
+    enabled: !!isAuthenticated,
+    refetchInterval: 60000, // Verificar a cada minuto
+  });
+  const isSuspended = suspensionStatus?.suspended || false;
   // Verificar se usuário é revendedor
   const { data: resellerStatus } = useQuery<{ hasResellerPlan: boolean }>({
     queryKey: ["/api/reseller/status"],
@@ -137,9 +154,6 @@ export default function Dashboard() {
     !isMySubscriptionRoute &&
     !isExclusionListRoute;
   const isToolsRoute =
-    isPlansRoute ||
-    isSettingsRoute ||
-    isSubscribeRoute ||
     isMassSendRoute ||
     isCampaignsRoute ||
     isKanbanRoute ||
@@ -154,11 +168,19 @@ export default function Dashboard() {
     isContactListsRoute ||
     isNotifierRoute ||
     isFollowupRoute ||
-    isPaymentHistoryRoute ||
-    isMySubscriptionRoute ||
     isExclusionListRoute;
+  
+  // Rotas do menu Configurações
+  const isConfigRoute =
+    isPlansRoute ||
+    isSettingsRoute ||
+    isSubscribeRoute ||
+    isPaymentHistoryRoute ||
+    isMySubscriptionRoute;
+  
   // Start tools collapsed by default; open only when user clicks or route requires it
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const [toolsPickerOpen, setToolsPickerOpen] = useState(false);
 
   // 🔗 Handler para selecionar conversa e atualizar URL
@@ -296,9 +318,13 @@ const toolsNavigation: ToolNavItem[] = [
     { label: "Integrações", href: "/integracoes", icon: Plug, tooltip: "Integrações", isActive: isIntegrationsRoute, testId: "button-nav-integrations" },
     { label: "Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Agendamentos", isActive: isSchedulingRoute, testId: "button-nav-scheduling" },
     { label: "Reservas", href: "/reservas", icon: BedDouble, tooltip: "Reservas", isActive: isReservationsRoute, testId: "button-nav-reservations" },
-    { label: "Planos", href: "/plans", icon: CreditCard, tooltip: "Planos e assinatura", isActive: isPlansRoute || isSubscribeRoute, testId: "button-nav-plans" },
+  ];
+
+  // Menu de Configurações separado do Ferramentas
+  const configNavigation: ToolNavItem[] = [
+    { label: "Configurações", href: "/settings", icon: Settings, tooltip: "Configurações da conta", isActive: isSettingsRoute, testId: "button-settings" },
     { label: "Minha Assinatura", href: "/minha-assinatura", icon: Receipt, tooltip: "Ver minha assinatura e pagamentos", isActive: isMySubscriptionRoute, testId: "button-nav-my-subscription" },
-    { label: "Configurações", href: "/settings", icon: Settings, tooltip: "Configurações", isActive: isSettingsRoute, testId: "button-settings" },
+    { label: "Planos", href: "/plans", icon: CreditCard, tooltip: "Ver planos disponíveis", isActive: isPlansRoute || isSubscribeRoute, testId: "button-nav-plans" },
   ];
 
   if (isLoading) {
@@ -314,8 +340,18 @@ const toolsNavigation: ToolNavItem[] = [
 
   return (
     <>
-      {/* Banner fixo no topo quando limite atingido */}
-      <LimitReachedTopBanner />
+      {/* Banner de Suspensão - Prioridade máxima */}
+      {isSuspended && (
+        <SuspensionBanner 
+          suspensionReason={suspensionStatus?.reason}
+          suspensionType={suspensionStatus?.type}
+          refundedAt={suspensionStatus?.refundedAt}
+          refundAmount={suspensionStatus?.refundAmount}
+        />
+      )}
+      
+      {/* Banner fixo no topo quando limite atingido (só mostra se não estiver suspenso) */}
+      {!isSuspended && <LimitReachedTopBanner />}
       
       <SidebarProvider>
       <Sidebar>
@@ -447,6 +483,50 @@ const toolsNavigation: ToolNavItem[] = [
                             </span>
                           </SidebarMenuButton>
                         )}
+                      </div>
+                    ))}
+                  </CollapsibleContent>
+                </Collapsible>
+              </SidebarMenuItem>
+
+              {/* Menu de Configurações - separado de Ferramentas */}
+              <SidebarMenuItem className="mt-2 pt-2 border-t border-sidebar-border/30">
+                <Collapsible open={configOpen} onOpenChange={setConfigOpen} className="group">
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      tooltip="Configurações"
+                      isActive={isConfigRoute}
+                      data-testid="button-nav-config"
+                      aria-expanded={configOpen}
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span>Configurações</span>
+                      <ChevronDown
+                        className={cn(
+                          "ml-auto h-3.5 w-3.5 transition-transform",
+                          configOpen ? "rotate-180" : "rotate-0"
+                        )}
+                      />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-1 pt-1">
+                    {configNavigation.map((item) => (
+                      <div key={item.label} className="pl-4">
+                        <SidebarMenuButton
+                          asChild
+                          size="sm"
+                          className="text-xs"
+                          tooltip={item.tooltip}
+                          isActive={item.isActive}
+                          data-testid={item.testId}
+                        >
+                          <Link href={item.href!}>
+                            <span className="flex items-center gap-2">
+                              <item.icon className="w-3.5 h-3.5" />
+                              <span>{item.label}</span>
+                            </span>
+                          </Link>
+                        </SidebarMenuButton>
                       </div>
                     ))}
                   </CollapsibleContent>

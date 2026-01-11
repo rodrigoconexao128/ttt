@@ -31,6 +31,23 @@ import {
 } from "./schedulingService";
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🚫 VERIFICAÇÃO DE SUSPENSÃO POR VIOLAÇÃO DE POLÍTICAS
+// ═══════════════════════════════════════════════════════════════════════
+async function checkUserSuspension(userId: string): Promise<boolean> {
+  try {
+    const suspensionStatus = await storage.isUserSuspended(userId);
+    if (suspensionStatus.suspended) {
+      console.log(`🚫 [AI Agent] Usuário ${userId} está SUSPENSO - IA desativada (${suspensionStatus.data?.type})`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error(`⚠️ [AI Agent] Erro ao verificar suspensão do usuário ${userId}:`, error);
+    return false; // Em caso de erro, permitir funcionamento normal
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 🌅 FUNÇÃO DE SAUDAÇÃO BASEADA NO HORÁRIO DO BRASIL
 // ═══════════════════════════════════════════════════════════════════════
 function getBrazilGreeting(): { greeting: string; period: string } {
@@ -58,7 +75,7 @@ function getBrazilGreeting(): { greeting: string; period: string } {
 // Se tem gíria no prompt, usa gíria. Se tem formalidade, usa formalidade.
 // NÃO IMPOR REGRAS - apenas INFORMAR contexto.
 // ═══════════════════════════════════════════════════════════════════════
-function generateDynamicContextBlock(contactName?: string, sentMedias?: string[]): string {
+function generateDynamicContextBlock(contactName?: string, sentMedias?: string[], conversationHistory?: Array<{ fromMe?: boolean; text?: string | null; timestamp?: Date | null }>): string {
   const { greeting, period } = getBrazilGreeting();
   const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
     ? contactName.trim() 
@@ -69,14 +86,45 @@ function generateDynamicContextBlock(contactName?: string, sentMedias?: string[]
     : "nenhuma ainda";
   
   const brazilTime = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  const brazilToday = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  
+  // 🔄 DETECTAR SE JÁ HOUVE CONVERSA HOJE
+  // Se já temos histórico de conversa hoje, a IA NÃO deve cumprimentar novamente
+  let alreadyTalkedToday = false;
+  let hasFollowUpMessage = false;
+  
+  if (conversationHistory && conversationHistory.length > 0) {
+    const today = new Date().toDateString();
+    alreadyTalkedToday = conversationHistory.some(msg => {
+      if (!msg.timestamp) return false;
+      const msgDate = new Date(msg.timestamp).toDateString();
+      return msgDate === today && msg.fromMe === true; // Nós já enviamos msg hoje
+    });
+    
+    // Detectar se última msg nossa foi follow-up (mensagem de reengajamento)
+    const lastOurMessage = conversationHistory.filter(m => m.fromMe).slice(-1)[0];
+    if (lastOurMessage?.text) {
+      const followUpPatterns = [
+        'lembrei de você',
+        'passando pra ver',
+        'conseguiu pensar',
+        'ficou alguma dúvida',
+        'como combinamos',
+        'retomando'
+      ];
+      hasFollowUpMessage = followUpPatterns.some(p => 
+        lastOurMessage.text?.toLowerCase().includes(p)
+      );
+    }
+  }
   
   // CONTEXTO SIMPLES - IA interpreta conforme prompt do cliente
-  return `
+  let contextBlock = `
 ═══════════════════════════════════════════════════════════════════════════════
 📋 INFORMAÇÕES DO CLIENTE (use conforme seu prompt)
 ═══════════════════════════════════════════════════════════════════════════════
 
-🕐 Horário Brasil: ${brazilTime} (${period}) | Saudação sugerida: "${greeting}"
+🕐 Horário Brasil: ${brazilTime} (${period}) | Data: ${brazilToday}
 👤 Nome do cliente: ${formattedName || "(não identificado - use 'você' se precisar)"}
 📁 Mídias já enviadas nesta conversa: ${sentMediasList}
 
@@ -84,9 +132,35 @@ INSTRUÇÕES IMPORTANTES:
 - Se seu prompt usa variáveis como {{nome}}, {nome}, [nome], [cliente] etc → substitua por "${formattedName || 'você'}"
 - Se seu prompt pede para usar o nome do cliente → use "${formattedName || 'você'}"
 - Não repita mídias que já foram enviadas
-- SIGA O ESTILO DO SEU PROMPT (gírias, formalidade, etc)
+- SIGA O ESTILO DO SEU PROMPT (gírias, formalidade, etc)`;
+
+  // 🚨 INSTRUÇÕES CRÍTICAS SOBRE CUMPRIMENTOS
+  if (alreadyTalkedToday) {
+    contextBlock += `
+
+⚠️ ATENÇÃO - CONTINUAÇÃO DE CONVERSA:
+- JÁ CONVERSAMOS COM ESTE CLIENTE HOJE!
+- NÃO cumprimente novamente (sem "Bom dia", "Oi", "Olá", "Boa tarde")
+- NÃO se apresente de novo (sem "Sou X da empresa Y")
+- CONTINUE a conversa naturalmente de onde parou
+- Responda diretamente ao que o cliente perguntou/disse`;
+  }
+  
+  if (hasFollowUpMessage) {
+    contextBlock += `
+
+🔄 RETOMADA APÓS FOLLOW-UP:
+- A última mensagem foi um follow-up de reengajamento
+- O cliente está VOLTANDO a conversar - seja receptivo!
+- NÃO repita o que já foi dito no follow-up
+- Avance a conversa para o próximo passo`;
+  }
+
+  contextBlock += `
 ═══════════════════════════════════════════════════════════════════════════════
 `;
+  
+  return contextBlock;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -490,6 +564,14 @@ export async function generateAIResponse(
   }
 ): Promise<AIResponseResult | null> {
   try {
+    // 🚫 VERIFICAÇÃO DE SUSPENSÃO POR VIOLAÇÃO DE POLÍTICAS
+    // Usuários suspensos não podem usar a IA
+    const isSuspended = await checkUserSuspension(userId);
+    if (isSuspended) {
+      console.log(`🚫 [AI Agent] Usuário ${userId} está SUSPENSO - não respondendo`);
+      return null;
+    }
+
     // 🌅 EXTRAIR CONTEXTO DINÂMICO
     const contactName = options?.contactName;
     const sentMedias = options?.sentMedias || [];
@@ -680,7 +762,7 @@ export async function generateAIResponse(
      const mediaPromptBlock = hasMedia ? generateMediaPromptBlock(mediaLibrary) : '';
      
      // 🌅 GERAR BLOCO DE CONTEXTO DINÂMICO (NOME, HORÁRIO, MÍDIAS JÁ ENVIADAS)
-     const dynamicContextBlock = generateDynamicContextBlock(contactName, sentMedias);
+     const dynamicContextBlock = generateDynamicContextBlock(contactName, sentMedias, conversationHistory);
      
      if (useAdvancedSystem && businessConfig) {
        // 🆕 NOVO SISTEMA: Usar template avançado com contexto
@@ -751,7 +833,7 @@ export async function generateAIResponse(
     - Evite formato de manual técnico (##, ###, listas longas).
     - Responda de forma natural, objetiva e curta (2–5 linhas), com uma ideia por vez.
     - Se não souber, diga que não tem a informação e ofereça alternativa no escopo.
-    - Se receber o texto "(mensagem de voz)" ou "(audio)", explique educadamente que não consegue ouvir áudios e peça para o cliente escrever ou enviar texto.
+    - IMPORTANTE: Você consegue entender mensagens de voz perfeitamente pois elas são transcritas automaticamente. Nunca diga que não consegue ouvir áudios - simplesmente responda ao conteúdo transcrito normalmente.
 
   4. 📋 REGRA CRÍTICA DE FORMATAÇÃO VERBATIM:
     - Quando o prompt acima disser "envie EXATAMENTE este texto", "primeira mensagem deve ser:" ou similar:

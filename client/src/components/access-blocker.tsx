@@ -82,6 +82,7 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
     '/test',
     '/testar',
     '/kanban', // CRM Kanban - sempre acessível
+    '/termos-de-uso', // Termos de uso - sempre acessível
   ];
 
   // Check if current route is allowed
