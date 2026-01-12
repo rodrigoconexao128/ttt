@@ -310,64 +310,94 @@ export async function getSmartTriggers(adminId?: string) {
   const mediaList = await getAdminMediaList(adminId);
   const triggers: { keywords: string[], mediaName: string }[] = [];
 
-  // 1. Adicionar gatilhos padrão (se a mídia existir)
-  const activeDefaultTriggers = await getActiveTriggers(adminId);
-  triggers.push(...activeDefaultTriggers);
-
-  // 2. Gerar gatilhos dinâmicos do "whenToUse"
+  // 1. Gerar gatilhos dinâmicos do "whenToUse" (MAIOR PRIORIDADE - ESPECÍFICOS)
   for (const media of mediaList) {
     if (media.whenToUse && media.whenToUse.length > 3) {
-      // Limpar palavras de instrução para extrair a intenção real
-      // Mantemos artigos e preposições (a, o, de, da) para preservar frases como "vale a pena"
-      const instructionWords = [
-        'quando', 'cliente', 'perguntar', 'se', 'sobre', 'falar', 'pedir', 
-        'que', 'como', 'usuario', 'disser', 'solicitar', 'questionar', 
-        'caso', 'houver', 'quiser', 'saber', 'informar', 'ver',
-        'o', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'do', 'da', 'em', 'no', 'na', 'por', 'para'
+      // Palavras comuns de início de frase de instrução que devem ser removidas DO INÍCIO
+      const instructionStartWords = [
+        'quando', 'se', 'caso', 'ao', 'para', 'em', 'nos', 'nas', 'no', 'na', 
+        'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas',
+        'cliente', 'usuario', 'pessoa', 'lead',
+        'perguntar', 'falar', 'disser', 'solicitar', 'questionar', 'pedir', 'quiser',
+        'sobre', 'que', 'como', 'informar', 'ver', 'saber', 'onde'
       ];
       
-      // Normalizar texto
-      const cleanText = media.whenToUse.toLowerCase()
-        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
-        .replace(/\s{2,}/g, " ");
-      
-      const words = cleanText.split(' ');
-      
-      // Filtrar palavras de instrução
-      const keywords = words.filter(w => !instructionWords.includes(w) && w.length > 1); // w.length > 1 remove letras soltas se não forem 'a', 'e' (mas 'a' tem length 1)
-      
-      // Wait, 'a' has length 1. 'e' has length 1.
-      // If I filter w.length > 1, I remove 'a'.
-      // So I should allow 'a', 'e', 'o'.
-      
-      // Let's refine the filter.
-      const finalKeywords = words.filter(w => !instructionWords.includes(w));
-      
-      // Se sobrou algo útil, criar gatilho
-      if (finalKeywords.length > 0) {
-        // Adicionar a frase completa limpa como gatilho principal
-        const phrase = finalKeywords.join(' ');
-        
-        // Verificar se já existe gatilho para esta mídia
-        const existing = triggers.find(t => t.mediaName === media.name);
-        if (existing) {
-          // Adiciona a frase se não existir
-          if (!existing.keywords.includes(phrase)) {
-            existing.keywords.push(phrase);
+      // Separar por vírgulas, pontos ou ponto e vírgula para pegar frases isoladas
+      // Ex: "Quando pedir X, Y ou Z" -> ["Quando pedir X", " Y ou Z"] - não é perfeito, melhor separar por "," explícita
+      const rawPhrases = media.whenToUse.toLowerCase().split(/[,;.]+/);
+
+      for (let rawPhrase of rawPhrases) {
+        // Limpeza básica inicial
+        let cleanPhrase = rawPhrase.trim();
+
+        if (cleanPhrase.length < 2) continue;
+
+        // Remover palavras de instrução do INÍCIO da frase repetidamente
+        // Ex: "quando o cliente perguntar sobre envio" -> "envio"
+        let changed = true;
+        while (changed && cleanPhrase.length > 0) {
+          changed = false;
+          const firstWord = cleanPhrase.split(' ')[0];
+          if (instructionStartWords.includes(firstWord)) {
+             cleanPhrase = cleanPhrase.substring(firstWord.length).trim();
+             changed = true;
           }
-          // Adiciona também a frase original do whenToUse (limpa) para matching exato
-          const originalClean = media.whenToUse.toLowerCase().trim();
-          if (!existing.keywords.includes(originalClean)) {
-             existing.keywords.push(originalClean);
-          }
-        } else {
-          triggers.push({
-            keywords: [phrase, media.whenToUse.toLowerCase().trim()], 
-            mediaName: media.name
-          });
+        }
+
+        // Limpar pontuação restante, mas manter estrutura interna
+        cleanPhrase = cleanPhrase.replace(/[^\w\sà-úÀ-Ú\-]/g, "").trim();
+
+        // Se sobrou uma frase válida
+        if (cleanPhrase.length > 2) {
+             const existing = triggers.find(t => t.mediaName === media.name);
+             if (existing) {
+               if (!existing.keywords.includes(cleanPhrase)) {
+                 existing.keywords.push(cleanPhrase);
+               }
+             } else {
+               triggers.push({
+                 keywords: [cleanPhrase], 
+                 mediaName: media.name
+               });
+             }
         }
       }
+      
+      // Adicionar também o texto completo original (limpo de preposições iniciais) como fallback
+      let fullText = media.whenToUse.toLowerCase().trim();
+      let changed = true;
+      while (changed && fullText.length > 0) {
+          changed = false;
+          const firstWord = fullText.split(' ')[0];
+          if (instructionStartWords.includes(firstWord)) {
+             fullText = fullText.substring(firstWord.length).trim();
+             changed = true;
+          }
+      }
+      if (fullText.length > 5) {
+         const existing = triggers.find(t => t.mediaName === media.name);
+         if (existing && !existing.keywords.includes(fullText)) {
+             existing.keywords.push(fullText);
+         }
+      }
+
     }
+  }
+
+  // DEBUG TRIGGERS
+  console.log('🔍 [AdminMediaStore] DYNAMIC TRIGGERS GENERATED:', 
+        triggers.map(t => `${t.mediaName}: [${t.keywords.join(', ')}]`).join(' | ')
+  );
+
+  // 2. Adicionar gatilhos padrão (MENOR PRIORIDADE - GENÉRICOS)
+  const activeDefaultTriggers = await getActiveTriggers(adminId);
+  for (const dt of activeDefaultTriggers) {
+      const existing = triggers.find(t => t.mediaName === dt.mediaName);
+      if (existing) {
+          existing.keywords.push(...dt.keywords);
+      } else {
+          triggers.push(dt);
+      }
   }
   
   return triggers;
@@ -384,8 +414,8 @@ export let generateAdminMediaPromptBlock = async function(adminId?: string): Pro
     return '';
   }
 
-  // Filtrar gatilhos para mídias que realmente existem
-  const activeTriggers = await getActiveTriggers(adminId);
+  // Filtrar gatilhos para mídias que realmente existem (Smart Triggers inclui todos)
+  const activeTriggers = await getSmartTriggers(adminId);
 
   let mediaBlock = `
 ═══════════════════════════════════════════════════════════════════════════════

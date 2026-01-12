@@ -19,6 +19,7 @@ import { executeMediaActions, downloadMediaAsBuffer } from "./mediaService";
 import { registerFollowUpCallback, registerScheduledContactCallback, followUpService } from "./followUpService";
 import { userFollowUpService } from "./userFollowUpService";
 import { supabase } from "./supabaseAuth";
+import { messageQueueService, applyMessageVariation } from "./messageQueueService";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🗂️ FUNÇÃO PARA UPLOAD DE MÍDIA NO SUPABASE STORAGE
@@ -232,7 +233,36 @@ const pendingAdminResponses = new Map<string, PendingAdminResponse>(); // key: c
 const checkedConversationsThisSession = new Set<string>();
 
 // ═══════════════════════════════════════════════════════════════════════
-// 🔄 VERIFICAÇÃO DE MENSAGENS NÃO RESPONDIDAS AO RECONECTAR
+// �️ SISTEMA ANTI-BLOQUEIO - Registro do Callback de Envio Real
+// ═══════════════════════════════════════════════════════════════════════
+// Esta função é chamada pelo messageQueueService para enviar mensagens reais
+// O callback permite que a fila controle o timing entre mensagens
+async function internalSendMessageRaw(
+  userId: string, 
+  jid: string, 
+  text: string, 
+  options?: { isFromAgent?: boolean }
+): Promise<string | null> {
+  const session = sessions.get(userId);
+  if (!session?.socket) {
+    throw new Error("WhatsApp not connected");
+  }
+
+  const sentMessage = await session.socket.sendMessage(jid, { text });
+  
+  if (sentMessage?.key.id) {
+    agentMessageIds.add(sentMessage.key.id);
+    console.log(`🛡️ [ANTI-BLOCK] ✅ Mensagem enviada - ID: ${sentMessage.key.id}`);
+  }
+
+  return sentMessage?.key.id || null;
+}
+
+// Registrar callback no messageQueueService
+messageQueueService.registerSendCallback(internalSendMessageRaw);
+
+// ═══════════════════════════════════════════════════════════════════════
+// �🔄 VERIFICAÇÃO DE MENSAGENS NÃO RESPONDIDAS AO RECONECTAR
 // ═══════════════════════════════════════════════════════════════════════
 // Quando o WhatsApp reconecta (após desconexão/restart), verificamos se há
 // clientes que mandaram mensagem nas últimas 24h e não foram respondidos.
@@ -2724,24 +2754,22 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         const part = messageParts[i];
         const isLast = i === messageParts.length - 1;
         
-        // Delay entre mensagens (2-4 segundos) para simular digitação
-        if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 2500 + Math.random() * 1500));
-        }
-        
-        const sentMessage = await currentSession.socket.sendMessage(jid, { text: part });
+        // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens para garantir delay entre envios
+        // Cada WhatsApp tem sua própria fila - múltiplos usuários podem enviar ao mesmo tempo
+        // Aplica variação de palavras/sinônimos automaticamente
+        const queueResult = await messageQueueService.enqueue(userId, jid, part, {
+          isFromAgent: true,
+          priority: 'high', // Respostas da IA = prioridade alta
+        });
 
-        // ⚠️ IMPORTANTE: Registrar messageId para evitar duplicata em handleOutgoingMessage
-        if (sentMessage?.key.id) {
-          agentMessageIds.add(sentMessage.key.id);
-          console.log(`🔒 [AI Agent] MessageId registrado (parte ${i+1}/${messageParts.length}): ${sentMessage.key.id}`);
-        }
+        const messageId = queueResult.messageId || `${Date.now()}-${i}`;
+        const finalPart = queueResult.variedText || part;
 
         await storage.createMessage({
           conversationId: conversationId,
-          messageId: sentMessage?.key.id || `${Date.now()}-${i}`,
+          messageId,
           fromMe: true,
-          text: part,
+          text: finalPart,
           timestamp: new Date(),
           status: "sent",
           isFromAgent: true,
@@ -2750,7 +2778,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         // Só atualizar conversa na última parte
         if (isLast) {
           await storage.updateConversation(conversationId, {
-            lastMessageText: part,
+            lastMessageText: finalPart,
             lastMessageTime: new Date(),
           });
 
@@ -3075,19 +3103,22 @@ export async function sendMessage(
   const jid = buildSendJid(conversation);
   
   console.log(`[sendMessage] Sending to: ${jid}${options?.isFromAgent ? ' (from agent/follow-up)' : ''}`);
-  const sentMessage = await session.socket.sendMessage(jid, { text });
+  
+  // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens para garantir delay entre envios
+  // Cada WhatsApp tem sua própria fila - múltiplos usuários podem enviar ao mesmo tempo
+  const queueResult = await messageQueueService.enqueue(userId, jid, text, {
+    isFromAgent: options?.isFromAgent,
+    priority: options?.isFromAgent ? 'normal' : 'high', // Mensagens manuais do dono = prioridade alta
+  });
 
-  // ⚠️ IMPORTANTE: Registrar messageId para evitar duplicata em handleOutgoingMessage
-  if (sentMessage?.key.id) {
-    agentMessageIds.add(sentMessage.key.id);
-    console.log(`🔒 [sendMessage] MessageId registrado: ${sentMessage.key.id}`);
-  }
+  const messageId = queueResult.messageId || Date.now().toString();
+  const finalText = queueResult.variedText || text; // Texto pode ter sido variado pelo anti-bloqueio
 
   await storage.createMessage({
     conversationId,
-    messageId: sentMessage?.key.id || Date.now().toString(),
+    messageId,
     fromMe: true,
-    text,
+    text: finalText,
     timestamp: new Date(),
     status: "sent",
     // 🔧 FIX: Marcar mensagens de follow-up como isFromAgent para que a IA
@@ -3478,7 +3509,7 @@ export async function sendBulkMessages(
   let failed = 0;
   const errors: string[] = [];
 
-  console.log(`[BULK SEND] Iniciando envio para ${phones.length} números`);
+  console.log(`[BULK SEND] 🛡️ Iniciando envio ANTI-BLOQUEIO para ${phones.length} números`);
 
   for (const phone of phones) {
     try {
@@ -3495,23 +3526,23 @@ export async function sendBulkMessages(
       
       console.log(`[BULK SEND] Enviando para: ${jid}`);
       
-      // Enviar mensagem
-      const sentMessage = await session.socket.sendMessage(jid, { text: message });
+      // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens com delay automático de 5-10s
+      // A variação de palavras/sinônimos é aplicada automaticamente
+      const queueResult = await messageQueueService.enqueue(userId, jid, message, {
+        isFromAgent: true,
+        priority: 'low', // Bulk = prioridade baixa (respostas de IA passam na frente)
+      });
       
-      if (sentMessage?.key.id) {
-        // Registrar messageId para evitar duplicatas
-        agentMessageIds.add(sentMessage.key.id);
+      if (queueResult.success) {
         sent++;
-        console.log(`[BULK SEND] ✅ Enviado para ${phone} - MessageId: ${sentMessage.key.id}`);
+        console.log(`[BULK SEND] ✅ Enviado para ${phone}${queueResult.variedText ? ' (variado)' : ''}`);
       } else {
         failed++;
-        errors.push(`${phone}: Sem ID de mensagem retornado`);
-        console.log(`[BULK SEND] ❌ Falha ao enviar para ${phone}: Sem ID`);
+        errors.push(`${phone}: ${queueResult.error || 'Sem ID de mensagem retornado'}`);
+        console.log(`[BULK SEND] ❌ Falha ao enviar para ${phone}: ${queueResult.error}`);
       }
-
-      // Delay entre mensagens para evitar bloqueio (2-5 segundos aleatório)
-      const delay = 2000 + Math.random() * 3000;
-      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // 🛡️ A fila já controla o delay - não precisa de delay extra aqui
       
     } catch (error: any) {
       failed++;
@@ -3708,23 +3739,27 @@ export async function sendBulkMessagesAdvanced(
       console.log(`[BULK SEND ADVANCED] Enviando para: ${contact.name || contact.phone} (${jid})`);
       console.log(`[BULK SEND ADVANCED] Mensagem: ${finalMessage.substring(0, 50)}...`);
       
-      // Enviar mensagem
-      const sentMessage = await session.socket.sendMessage(jid, { text: finalMessage });
+      // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens com delay automático de 5-10s
+      // A variação adicional de palavras/sinônimos é aplicada automaticamente pelo serviço
+      const queueResult = await messageQueueService.enqueue(userId, jid, finalMessage, {
+        isFromAgent: true,
+        priority: 'low', // Bulk = prioridade baixa
+        skipVariation: useAI, // Se já aplicou variação IA, não aplicar novamente
+      });
       
-      if (sentMessage?.key.id) {
-        // Registrar messageId para evitar duplicatas
-        agentMessageIds.add(sentMessage.key.id);
+      if (queueResult.success) {
         sent++;
+        const sentText = queueResult.variedText || finalMessage;
         details.sent.push({
           phone: contact.phone,
           name: contact.name,
           timestamp: new Date().toISOString(),
-          message: finalMessage,
+          message: sentText,
         });
-        console.log(`[BULK SEND ADVANCED] ✅ Enviado para ${contact.name || contact.phone}`);
+        console.log(`[BULK SEND ADVANCED] ✅ Enviado para ${contact.name || contact.phone}${queueResult.variedText ? ' (variado)' : ''}`);
       } else {
         failed++;
-        const errorMsg = 'Sem ID de mensagem retornado';
+        const errorMsg = queueResult.error || 'Sem ID de mensagem retornado';
         errors.push(`${contact.phone}: ${errorMsg}`);
         details.failed.push({
           phone: contact.phone,
@@ -3735,10 +3770,7 @@ export async function sendBulkMessagesAdvanced(
         console.log(`[BULK SEND ADVANCED] ❌ Falha: ${contact.phone}`);
       }
 
-      // Delay humanizado entre mensagens
-      const delay = delayMin + Math.random() * (delayMax - delayMin);
-      console.log(`[BULK SEND ADVANCED] Aguardando ${(delay/1000).toFixed(1)}s...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      // 🛡️ A fila já controla o delay de 5-10s - não precisa de delay extra aqui
       
     } catch (error: any) {
       failed++;
@@ -3911,23 +3943,27 @@ export async function sendMessageToGroups(
       console.log(`[GROUP SEND] Enviando para grupo: ${groupName} (${jid})`);
       console.log(`[GROUP SEND] Mensagem: ${finalMessage.substring(0, 50)}...`);
       
-      // Enviar mensagem para o grupo
-      const sentMessage = await session.socket.sendMessage(jid, { text: finalMessage });
+      // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens com delay automático de 5-10s
+      // A variação adicional de palavras/sinônimos é aplicada automaticamente
+      const queueResult = await messageQueueService.enqueue(userId, jid, finalMessage, {
+        isFromAgent: true,
+        priority: 'low', // Grupos = prioridade baixa
+        skipVariation: useAI, // Se já aplicou variação IA, não aplicar novamente
+      });
       
-      if (sentMessage?.key.id) {
-        // Registrar messageId para evitar duplicatas
-        agentMessageIds.add(sentMessage.key.id);
+      if (queueResult.success) {
         sent++;
+        const sentText = queueResult.variedText || finalMessage;
         details.sent.push({
           groupId: jid,
           groupName,
           timestamp: new Date().toISOString(),
-          message: finalMessage,
+          message: sentText,
         });
-        console.log(`[GROUP SEND] ✅ Enviado para ${groupName}`);
+        console.log(`[GROUP SEND] ✅ Enviado para ${groupName}${queueResult.variedText ? ' (variado)' : ''}`);
       } else {
         failed++;
-        const errorMsg = 'Sem ID de mensagem retornado';
+        const errorMsg = queueResult.error || 'Sem ID de mensagem retornado';
         errors.push(`${groupName}: ${errorMsg}`);
         details.failed.push({
           groupId: jid,
@@ -3938,10 +3974,7 @@ export async function sendMessageToGroups(
         console.log(`[GROUP SEND] ❌ Falha: ${groupName}`);
       }
 
-      // Delay humanizado entre grupos
-      const delay = delayMin + Math.random() * (delayMax - delayMin);
-      console.log(`[GROUP SEND] Aguardando ${(delay/1000).toFixed(1)}s...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      // 🛡️ A fila já controla o delay de 5-10s - não precisa de delay extra aqui
       
     } catch (error: any) {
       const groupName = groupsMetadata[groupId]?.subject || groupId;

@@ -189,6 +189,7 @@ import {
   startConnectionHealthCheck,
   stopConnectionHealthCheck,
 } from "./whatsapp";
+import { messageQueueService } from "./messageQueueService";
 import { 
   sendMessageSchema, 
   insertAiAgentConfigSchema,
@@ -353,6 +354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health", async (req, res) => {
     const dbStatus = !dbCircuitBreaker.isOpen();
     const cacheStats = memoryCache.getStats();
+    const antiBlockStats = messageQueueService.getStats();
     
     res.json({
       status: dbStatus ? 'healthy' : 'degraded',
@@ -362,6 +364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         circuitBreaker: dbCircuitBreaker.getState(),
       },
       cache: cacheStats,
+      antiBlock: antiBlockStats,
       maintenance: maintenanceMode,
     });
   });
