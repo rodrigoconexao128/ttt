@@ -9,6 +9,190 @@ import {
   generateOffTopicResponse,
   validateAgentResponse,
 } from "./agentValidation";
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🤖 SISTEMA ANTI-BOT - DETECTA E IGNORA MENSAGENS DE BOTS
+// ═══════════════════════════════════════════════════════════════════════
+const BOT_PATTERNS = [
+  // Bots educacionais
+  /anhanguera/i,
+  /unopar/i,
+  /unip/i,
+  /estácio/i,
+  /kroton/i,
+  // Bots de serviços
+  /serasa/i,
+  /spc brasil/i,
+  /correios/i,
+  /sedex/i,
+  // Bots de bancos
+  /nubank/i,
+  /inter/i,
+  /c6 bank/i,
+  /banco do brasil/i,
+  /caixa econômica/i,
+  /bradesco/i,
+  /itaú/i,
+  /santander/i,
+  // Bots de delivery
+  /ifood/i,
+  /rappi/i,
+  /uber eats/i,
+  /99 food/i,
+  // Bots genéricos
+  /não responda este número/i,
+  /mensagem automática/i,
+  /canal oficial/i,
+  /mensagem gerada automaticamente/i,
+  /este é um aviso automático/i,
+  /this is an automated/i,
+  /do not reply/i,
+  /não responda/i,
+  /nao responda/i,
+  /verificação de conta/i,
+  /código de verificação/i,
+  /seu código é/i,
+  /your code is/i,
+  /^\d{4,8}$/,  // Apenas números (códigos de verificação)
+];
+
+// Padrões de mensagens automatizadas
+const AUTOMATED_MESSAGE_PATTERNS = [
+  /^(olá|oi)[,!]?\s+(sou|eu sou|aqui é)\s+(o|a)?\s*bot/i,
+  /atendimento (automático|automatizado)/i,
+  /^(sua|seu)\s+(fatura|boleto|conta)/i,
+  /vence (hoje|amanhã|em \d+ dias)/i,
+  /clique (no link|aqui) para/i,
+  /acesse o link/i,
+  /pix copia e cola/i,
+];
+
+function isMessageFromBot(text: string, contactName?: string): { isBot: boolean; reason: string } {
+  if (!text) return { isBot: false, reason: '' };
+  
+  const textLower = text.toLowerCase();
+  const nameLower = (contactName || '').toLowerCase();
+  
+  // Verificar nome do contato
+  for (const pattern of BOT_PATTERNS) {
+    if (pattern.test(nameLower)) {
+      return { isBot: true, reason: `Nome do contato match: ${pattern}` };
+    }
+  }
+  
+  // Verificar conteúdo da mensagem
+  for (const pattern of BOT_PATTERNS) {
+    if (pattern.test(textLower)) {
+      return { isBot: true, reason: `Conteúdo match: ${pattern}` };
+    }
+  }
+  
+  // Verificar padrões de mensagem automatizada
+  for (const pattern of AUTOMATED_MESSAGE_PATTERNS) {
+    if (pattern.test(textLower)) {
+      return { isBot: true, reason: `Mensagem automatizada: ${pattern}` };
+    }
+  }
+  
+  return { isBot: false, reason: '' };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔒 RATE LIMITING - PREVINE LOOPS DE RESPOSTA
+// ═══════════════════════════════════════════════════════════════════════
+interface RateLimitEntry {
+  count: number;
+  firstRequest: number;
+  lastRequest: number;
+  lastMessages: string[];
+}
+
+const rateLimitCache = new Map<string, RateLimitEntry>();
+
+const RATE_LIMIT_CONFIG = {
+  maxRequestsPerMinute: 10,      // Máx 10 msgs por minuto por conversa
+  maxRequestsPerHour: 60,        // Máx 60 msgs por hora por conversa
+  duplicateThreshold: 3,         // Se mesma msg 3x seguidas = spam
+  windowMinutes: 1,
+  windowHour: 60,
+};
+
+function checkRateLimit(conversationKey: string, messageText: string): { allowed: boolean; reason: string } {
+  const now = Date.now();
+  const entry = rateLimitCache.get(conversationKey);
+  
+  // Limpar cache antigo (mais de 1 hora)
+  if (entry && now - entry.firstRequest > RATE_LIMIT_CONFIG.windowHour * 60 * 1000) {
+    rateLimitCache.delete(conversationKey);
+  }
+  
+  const current = rateLimitCache.get(conversationKey) || {
+    count: 0,
+    firstRequest: now,
+    lastRequest: now,
+    lastMessages: [],
+  };
+  
+  // Verificar duplicatas consecutivas
+  const msgHash = messageText.substring(0, 100).toLowerCase().trim();
+  const duplicateCount = current.lastMessages.filter(m => m === msgHash).length;
+  
+  if (duplicateCount >= RATE_LIMIT_CONFIG.duplicateThreshold) {
+    return { allowed: false, reason: `Mensagem duplicada ${duplicateCount}x consecutivas` };
+  }
+  
+  // Verificar rate limit por minuto
+  const oneMinuteAgo = now - RATE_LIMIT_CONFIG.windowMinutes * 60 * 1000;
+  if (current.lastRequest > oneMinuteAgo) {
+    if (current.count >= RATE_LIMIT_CONFIG.maxRequestsPerMinute) {
+      return { allowed: false, reason: `Rate limit: ${current.count}/${RATE_LIMIT_CONFIG.maxRequestsPerMinute} msgs/min` };
+    }
+  } else {
+    // Reset contador se passou 1 minuto
+    current.count = 0;
+    current.lastMessages = [];
+  }
+  
+  // Atualizar entrada
+  current.count++;
+  current.lastRequest = now;
+  current.lastMessages.push(msgHash);
+  if (current.lastMessages.length > 5) current.lastMessages.shift();
+  
+  rateLimitCache.set(conversationKey, current);
+  
+  return { allowed: true, reason: '' };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 DEDUPLICAÇÃO DE RESPOSTAS - EVITA LOOPS
+// ═══════════════════════════════════════════════════════════════════════
+const responseHashCache = new Map<string, { hash: string; timestamp: number; count: number }>();
+
+function isDuplicateResponse(conversationKey: string, responseText: string): boolean {
+  const hash = crypto.createHash('md5').update(responseText.substring(0, 200)).digest('hex');
+  const entry = responseHashCache.get(conversationKey);
+  
+  if (entry && entry.hash === hash) {
+    entry.count++;
+    entry.timestamp = Date.now();
+    
+    if (entry.count >= 3) {
+      console.log(`🔄 [Anti-Loop] Mesma resposta detectada ${entry.count}x para ${conversationKey}`);
+      return true;
+    }
+  } else {
+    responseHashCache.set(conversationKey, { hash, timestamp: Date.now(), count: 1 });
+  }
+  
+  // Limpar cache antigo (mais de 5 minutos)
+  const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+  for (const [key, val] of responseHashCache.entries()) {
+    if (val.timestamp < fiveMinutesAgo) responseHashCache.delete(key);
+  }
+  
+  return false;
+}
 import {
   humanizeResponse,
   detectEmotion,
@@ -77,9 +261,12 @@ function getBrazilGreeting(): { greeting: string; period: string } {
 
 interface ConversationMemory {
   hasGreeted: boolean;           // Já cumprimentou?
+  greetingCount: number;         // Quantas vezes cumprimentamos?
   hasAskedName: boolean;         // Já perguntou o nome?
+  nameQuestionCount: number;     // Quantas vezes perguntamos o nome?
   hasExplainedProduct: boolean;  // Já explicou o produto/serviço?
   hasAskedBusiness: boolean;     // Já perguntou sobre o negócio do cliente?
+  businessQuestionCount: number; // Quantas vezes perguntamos sobre negócio?
   hasSentMedia: string[];        // Quais mídias foram enviadas?
   hasPromisedToSend: string[];   // Prometeu enviar algo?
   hasAnsweredQuestions: string[]; // Quais perguntas já respondeu?
@@ -93,17 +280,22 @@ interface ConversationMemory {
   };
   lastTopics: string[];          // Últimos assuntos discutidos
   pendingActions: string[];      // Ações prometidas mas não cumpridas
+  loopDetected: boolean;         // Detectado padrão de loop?
+  loopReason: string;            // Razão do loop detectado
 }
 
-function analyzeConversationHistory(
+export function analyzeConversationHistory(
   conversationHistory: Array<{ fromMe?: boolean; text?: string | null; timestamp?: Date | null; isFromAgent?: boolean }>,
   contactName?: string
 ): ConversationMemory {
   const memory: ConversationMemory = {
     hasGreeted: false,
+    greetingCount: 0,
     hasAskedName: false,
+    nameQuestionCount: 0,
     hasExplainedProduct: false,
     hasAskedBusiness: false,
+    businessQuestionCount: 0,
     hasSentMedia: [],
     hasPromisedToSend: [],
     hasAnsweredQuestions: [],
@@ -111,6 +303,8 @@ function analyzeConversationHistory(
     clientInfo: { name: contactName },
     lastTopics: [],
     pendingActions: [],
+    loopDetected: false,
+    loopReason: '',
   };
 
   if (!conversationHistory || conversationHistory.length === 0) {
@@ -121,11 +315,19 @@ function analyzeConversationHistory(
   const greetingPatterns = /^(oi|olá|ola|bom dia|boa tarde|boa noite|e aí|eae|hey|hello|fala|salve)/i;
   const nameQuestionPatterns = /(qual (é |seu |o seu )?nome|como (você |vc |tu )?(se )?chama|posso te chamar de)/i;
   const businessQuestionPatterns = /(qual (é |seu |o seu )?(negócio|ramo|área|empresa|trabalho)|o que (você |vc )?(faz|vende)|que tipo de|qual seu segmento)/i;
-  const promisePatterns = /(vou (te )?(enviar|mandar|mostrar)|deixa eu (enviar|mandar)|te (envio|mando)|já já (envio|mando))/i;
+  // Promessas explícitas ("Vou te enviar...")
+  const promisePatterns = /(vou (te )?(enviar|mandar|mostrar)|deixa eu (enviar|mandar)|te (envio|mando)|já já (envio|mando)|segue (o|a) |vou te enviar|aqui está|veja o)/i;
+  // Ofertas/Perguntas ("Posso te enviar?", "Quer ver?", "Topico te mostrar")
+  const offerPatterns = /(posso (te )?(enviar|mandar|mostrar)|quer (ver|que eu envie|que eu mostre)|topa (ver|conhecer)|gostaria de (ver|receber)|topico te (mostrar|enviar)|qual opção você prefere)/i;
+  // Aceite do cliente ("Sim", "Pode", "Aguardo", "Quero") - MAIS ABRANGENTE
+  const acceptancePatterns = /^(sim|pode|claro|com certeza|quero|manda|envia|aguardo|estou aguardando|ok|blz|tá bom|pode ser|beleza|show|perfeito|ótimo|otimo|bora|vamos|fechou|combinado|certo|isso|exato|manda aí|manda ai|por favor|please|yes|yep|yeah)/i;
+
   const questionPatterns = /\?$/;
-  const mediaPatterns = /(vídeo|video|foto|imagem|áudio|audio|documento|pdf|arquivo)/i;
+  const mediaPatterns = /(vídeo|video|foto|imagem|áudio|audio|documento|pdf|arquivo|demonstração|demo)/i;
   const pricePatterns = /(preço|valor|quanto custa|R\$|\d+,\d{2}|\d+\.\d{2})/i;
   const featurePatterns = /(funcionalidade|recurso|função|como funciona|o que faz|benefício)/i;
+
+  let lastOfferContent: string | null = null; // O que foi oferecido por último?
 
   for (const msg of conversationHistory) {
     if (!msg.text) continue;
@@ -136,12 +338,15 @@ function analyzeConversationHistory(
       // Análise das nossas mensagens
       if (greetingPatterns.test(text)) {
         memory.hasGreeted = true;
+        memory.greetingCount++;
       }
       if (nameQuestionPatterns.test(text)) {
         memory.hasAskedName = true;
+        memory.nameQuestionCount++;
       }
       if (businessQuestionPatterns.test(text)) {
         memory.hasAskedBusiness = true;
+        memory.businessQuestionCount++;
       }
       if (pricePatterns.test(text)) {
         memory.hasExplainedProduct = true;
@@ -160,14 +365,31 @@ function analyzeConversationHistory(
         }
       }
 
+      // Detectar OFERTAS de envio (possível pendência se cliente aceitar)
+      if (offerPatterns.test(text)) {
+        const mediaMatch = text.match(mediaPatterns);
+        if (mediaMatch) {
+          lastOfferContent = mediaMatch[0]; // Guardar o que foi oferecido (ex: "vídeo")
+        } else if (text.includes("como funciona") || text.includes("demonstra")) {
+          lastOfferContent = "explicação/vídeo";
+        }
+      } else {
+        // Se falamos outra coisa que não é oferta, limpamos a oferta pendente?
+        // Não necessariamente, o cliente pode responder a oferta depois.
+        // Mas vamos manter simples: só a última oferta conta.
+      }
+
       // Detectar mídias enviadas
       if (text.includes("[vídeo") || text.includes("[video") || 
-          text.includes("enviando vídeo") || text.includes("veja o vídeo")) {
+          text.includes("enviando vídeo") || text.includes("veja o vídeo") || text.includes("segue o vídeo")) {
         memory.hasSentMedia.push("vídeo");
+        // Se enviamos, removemos da lista de promessas e ofertas
+        lastOfferContent = null; 
       }
       if (text.includes("[imagem") || text.includes("[foto") || 
           text.includes("enviando imagem") || text.includes("veja a imagem")) {
         memory.hasSentMedia.push("imagem");
+        lastOfferContent = null;
       }
       if (text.includes("[áudio") || text.includes("[audio")) {
         memory.hasSentMedia.push("áudio");
@@ -175,6 +397,28 @@ function analyzeConversationHistory(
 
     } else {
       // Análise das mensagens do cliente
+      // 🚨 CRÍTICO: Se cliente aceitou oferta ou disse "aguardo"
+      if (lastOfferContent && acceptancePatterns.test(text)) {
+        memory.pendingActions.push(`CLIENTE ACEITOU SUA OFERTA! Envie agora: ${lastOfferContent}`);
+        memory.hasPromisedToSend.push(lastOfferContent); // Tratar como promessa agora
+        lastOfferContent = null; // Oferta aceita e processada
+      }
+      
+      // Se cliente disse "aguardo" ou similar, SEMPRE adicionar ação pendente
+      if (text.match(/aguardo|esperando|fico no aguardo|estou esperando|esperarei|pode mandar|pode enviar|manda aí|manda ai/i)) {
+         // Procurar no histórico o que foi prometido
+         const lastAgentMessages = conversationHistory.filter(m => m.fromMe).slice(-5);
+         let promisedItem = "o que foi prometido";
+         for (const msg of lastAgentMessages) {
+            if (msg.text && msg.text.match(/vídeo|video|áudio|audio|imagem|foto|explicar|mostrar|demonstr/i)) {
+               const match = msg.text.match(/(vídeo|video|áudio|audio|imagem|foto)/i);
+               if (match) promisedItem = match[0];
+               break;
+            }
+         }
+         memory.pendingActions.push(`CLIENTE DISSE "${text.substring(0, 20)}"! ENVIE AGORA: ${promisedItem}. NÃO PERGUNTE NADA, APENAS ENVIE!`);
+      }
+
       if (questionPatterns.test(text)) {
         // Extrair o assunto da pergunta
         if (pricePatterns.test(text)) {
@@ -224,6 +468,34 @@ function analyzeConversationHistory(
     }
   }
 
+  // 🚨 DETECÇÃO DE LOOPS - Padrões repetitivos que indicam problema
+  if (memory.greetingCount >= 2) {
+    memory.loopDetected = true;
+    memory.loopReason = `Saudação repetida ${memory.greetingCount}x`;
+  }
+  if (memory.nameQuestionCount >= 2) {
+    memory.loopDetected = true;
+    memory.loopReason = `Pergunta de nome repetida ${memory.nameQuestionCount}x`;
+  }
+  if (memory.businessQuestionCount >= 2) {
+    memory.loopDetected = true;
+    memory.loopReason = `Pergunta de negócio repetida ${memory.businessQuestionCount}x`;
+  }
+
+  // Detectar mensagens idênticas do agente
+  const agentMessages = conversationHistory.filter(m => m.fromMe).map(m => m.text?.substring(0, 100) || '');
+  const messageFrequency = new Map<string, number>();
+  for (const msg of agentMessages) {
+    if (msg.length > 20) { // Ignorar msgs muito curtas
+      const count = (messageFrequency.get(msg) || 0) + 1;
+      messageFrequency.set(msg, count);
+      if (count >= 3) {
+        memory.loopDetected = true;
+        memory.loopReason = `Mensagem repetida ${count}x: "${msg.substring(0, 30)}..."`;
+      }
+    }
+  }
+
   return memory;
 }
 
@@ -242,6 +514,27 @@ function generateMemoryContextBlock(
 ═══════════════════════════════════════════════════════════════════════════════
 🧠 MEMÓRIA DA CONVERSA (NUNCA ESQUEÇA - ANTI-AMNÉSIA)
 ═══════════════════════════════════════════════════════════════════════════════`);
+
+  // 🚨 ALERTA DE LOOP DETECTADO - PRIORIDADE MÁXIMA
+  if (memory.loopDetected) {
+    sections.push(`
+🚨🚨🚨 ALERTA CRÍTICO: LOOP DETECTADO! 🚨🚨🚨
+═══════════════════════════════════════════════════════════════════════════════
+PROBLEMA: ${memory.loopReason}
+
+VOCÊ ESTÁ REPETINDO AS MESMAS COISAS!
+ISSO FAZ VOCÊ PARECER UM ROBÔ BURRO E AFASTA CLIENTES!
+
+INSTRUÇÕES OBRIGATÓRIAS:
+1. NÃO cumprimente de novo (você já cumprimentou ${memory.greetingCount}x!)
+2. NÃO pergunte o nome de novo (você já perguntou ${memory.nameQuestionCount}x!)
+3. NÃO pergunte sobre negócio de novo (você já perguntou ${memory.businessQuestionCount}x!)
+4. AVANCE a conversa - pergunte algo NOVO ou ofereça algo NOVO
+5. Se não sabe o que fazer, pergunte: "Tem mais alguma dúvida?"
+
+SE CONTINUAR REPETINDO = CLIENTE PERDIDO!
+═══════════════════════════════════════════════════════════════════════════════`);
+  }
 
   // 1. Nome do cliente - TÉCNICA DE VENDAS: Usar o nome gera rapport
   if (clientName) {
@@ -297,9 +590,15 @@ function generateMemoryContextBlock(
   // 6. AÇÕES PENDENTES - CRÍTICO!
   if (memory.pendingActions.length > 0) {
     sections.push(`
-⚠️ AÇÕES PENDENTES (FAÇA AGORA!):
+🚨 URGENTE: AÇÃO PENDENTE DETECTADA (PRIORIDADE MÁXIMA) 🚨
+═══════════════════════════════════════════════════════════════════════════════
+O cliente está AGUARDANDO uma ação que você prometeu ou uma resposta específica.
+IGNORE saudações. IGNORE apresentações. NÃO pergunte "como posso ajudar".
+VOCÊ JÁ SABE O QUE FAZER. EXECUTE A AÇÃO ABAIXO IMEDIATAMENTE:
+
    → ${memory.pendingActions.join("\n   → ")}
-   → Se prometeu enviar algo, ENVIE! Não prometa de novo.`);
+
+⚠️ REGRA DE OURO: Se a ação é mandar um vídeo/áudio, MANDE AGORA. Não fale que vai mandar, MANDE.`);
   }
 
   // 7. Contexto do cliente
@@ -872,6 +1171,26 @@ export async function generateAIResponse(
     // 🌅 EXTRAIR CONTEXTO DINÂMICO
     const contactName = options?.contactName;
     const sentMedias = options?.sentMedias || [];
+    const contactPhone = options?.contactPhone || '';
+    
+    // 🤖 VERIFICAÇÃO ANTI-BOT - Não responder bots de empresas
+    const botCheck = isMessageFromBot(newMessageText, contactName);
+    if (botCheck.isBot) {
+      console.log(`🤖 [AI Agent] Mensagem de BOT detectada - IGNORANDO`);
+      console.log(`   Razão: ${botCheck.reason}`);
+      console.log(`   Contato: ${contactName || 'N/A'}`);
+      console.log(`   Mensagem: ${newMessageText.substring(0, 50)}...`);
+      return null;
+    }
+    
+    // 🔒 RATE LIMITING - Prevenir loops de resposta
+    const conversationKey = `${userId}:${contactPhone || contactName || 'unknown'}`;
+    const rateLimitCheck = checkRateLimit(conversationKey, newMessageText);
+    if (!rateLimitCheck.allowed) {
+      console.log(`🔒 [AI Agent] RATE LIMIT atingido para ${conversationKey}`);
+      console.log(`   Razão: ${rateLimitCheck.reason}`);
+      return null;
+    }
     
     console.log(`👤 [AI Agent] Nome do cliente: ${contactName || 'Não identificado'}`);
     console.log(`📁 [AI Agent] Mídias já enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
@@ -1085,8 +1404,8 @@ export async function generateAIResponse(
        // 🌅 ADICIONAR CONTEXTO DINÂMICO (horário, nome, mídias enviadas)
        systemPrompt += dynamicContextBlock;
        
-       // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA
-       systemPrompt += memoryContextBlock;
+       // 🧠 SISTEMA ANTI-AMNÉSIA MOVIDO PARA O FINAL
+       // systemPrompt += memoryContextBlock;
        
        // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT
        if (mediaPromptBlock) {
@@ -1114,6 +1433,10 @@ export async function generateAIResponse(
          console.error(`📅 [AI Agent] Error loading scheduling config:`, schedError);
        }
        
+       // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA (CRÍTICO: DEVE SER O ÚLTIMO)
+       // Movemos para cá para garantir que "Pending Actions" tenha prioridade máxima sobre regras anteriores
+       systemPrompt += memoryContextBlock;
+
        console.log(`🎨 [AI Agent] Generated advanced prompt (${systemPrompt.length} chars)${hasMedia ? ' + media library' : ''}`);
      } else {
        // 📝 SISTEMA LEGADO: Usar prompt manual com guardrails básicos
@@ -1123,7 +1446,7 @@ export async function generateAIResponse(
   
   ${dynamicContextBlock}
   
-  ${memoryContextBlock}
+  
 
   **REGRAS DE IDENTIDADE E ESCOPO (OBRIGATÓRIAS - NUNCA VIOLE):**
 
@@ -1199,6 +1522,9 @@ export async function generateAIResponse(
        } catch (schedError) {
          console.error(`📅 [AI Agent] Error loading scheduling config:`, schedError);
        }
+
+       // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA (CRÍTICO: DEVE SER O ÚLTIMO)
+       systemPrompt += memoryContextBlock;
 
        console.log(`📝 [AI Agent] Using legacy prompt (${systemPrompt.length} chars)`);
      }
@@ -1877,6 +2203,16 @@ Mensagem do cliente: ${newMessageText.trim()}`;
         }
       } catch (schedError) {
         console.error(`📅 [AI Agent] Error processing scheduling tags:`, schedError);
+      }
+    }
+    
+    // 🔄 VERIFICAÇÃO ANTI-LOOP - Não enviar mesma resposta repetidamente
+    if (responseText) {
+      const conversationKey = `${userId}:${options?.contactPhone || options?.contactName || 'unknown'}`;
+      if (isDuplicateResponse(conversationKey, responseText)) {
+        console.log(`🔄 [AI Agent] Resposta duplicada detectada - BLOQUEANDO para evitar loop`);
+        console.log(`   Resposta: ${responseText.substring(0, 80)}...`);
+        return null;
       }
     }
     
