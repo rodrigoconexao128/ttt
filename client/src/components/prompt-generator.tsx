@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -28,6 +28,17 @@ export function PromptGenerator({ onPromptGenerated, onSkip }: PromptGeneratorPr
   const [userInput, setUserInput] = useState("");
   const [generatedPrompt, setGeneratedPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // 🚀 UX OTIMIZADO: Auto-finaliza quando step="done" após delay curto
+  // Isso elimina o botão "ATIVAR AGENTE AGORA" - menos fricção = mais conversão
+  useEffect(() => {
+    if (step === "done" && generatedPrompt) {
+      const timer = setTimeout(() => {
+        onPromptGenerated(generatedPrompt);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [step, generatedPrompt, onPromptGenerated]);
 
   const handleGenerate = async () => {
     if (!userInput.trim() || userInput.length < 10) {
@@ -227,59 +238,35 @@ NÃO FAZER:
   }
 
   // =================== STEP: DONE ===================
+  // 🚀 UX OTIMIZADO: Auto-finaliza e vai direto pro Studio
+  // Sem botão "ATIVAR" intermediário - menos fricção = mais conversão
   if (step === "done") {
     return (
-      <div className="flex flex-col w-full max-w-3xl mx-auto animate-in slide-in-from-bottom-4 duration-500 pt-2 pb-6 px-1">
-        
-        {/* Header Compacto com Botão Voltar Discreto */}
-        <div className="flex items-center justify-between mb-3 px-1">
-            <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                    <h2 className="text-base font-bold leading-tight">Agente Criado!</h2>
-                    <p className="text-[10px] text-muted-foreground">Revise e edite se precisar</p>
-                </div>
-            </div>
-            <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setStep("input")} 
-                className="text-muted-foreground hover:text-destructive h-8 text-xs px-2"
-            >
-                <ArrowLeft className="w-3 h-3 mr-1" />
-                Refazer
-            </Button>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] py-16 space-y-6 animate-in fade-in duration-500">
+        {/* Animação de sucesso */}
+        <div className="relative">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30 animate-pulse">
+            <CheckCircle2 className="w-10 h-10 text-white" />
+          </div>
+          <div className="absolute -top-2 -right-2 bg-background rounded-full p-1 shadow-lg border border-border">
+            <Sparkles className="w-5 h-5 text-amber-500 animate-spin" />
+          </div>
         </div>
-
-        {/* Editor "Lousa" - Foco Total */}
-        <Card className="flex-1 flex flex-col w-full bg-background border-primary/20 shadow-lg overflow-hidden mb-4 ring-1 ring-border/50">
-            <div className="bg-muted/30 px-3 py-1.5 border-b border-border/50 flex justify-between items-center">
-                <span className="text-[10px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                    <Edit3 className="w-3 h-3" /> 
-                    Editor de Instruções
-                </span>
-                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-background/50">
-                    IA GENERATED
-                </Badge>
-            </div>
-            <Textarea
-              value={generatedPrompt}
-              onChange={(e) => setGeneratedPrompt(e.target.value)}
-              className="flex-1 w-full resize-none border-0 focus-visible:ring-0 bg-transparent text-sm md:text-base p-3 md:p-4 font-mono leading-relaxed text-foreground/90 min-h-[50vh] md:min-h-[40vh]"
-              spellCheck={false}
-            />
-        </Card>
-
-        {/* Botão de Ação Gigante */}
-        <Button 
-            onClick={handleFinish}
-            className="w-full h-14 text-base md:text-lg font-bold bg-green-600 hover:bg-green-700 text-white shadow-xl shadow-green-600/20 rounded-xl transition-all active:scale-95 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-100"
-        >
-            <Zap className="w-5 h-5 mr-2 fill-current" />
-            ATIVAR AGENTE AGORA
-        </Button>
+        
+        <div className="text-center space-y-2 max-w-md">
+          <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-emerald-600">
+            ✨ Agente Criado!
+          </h3>
+          <p className="text-muted-foreground text-lg">
+            Preparando o simulador para você testar...
+          </p>
+        </div>
+        
+        {/* Loader discreto */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground/70">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Ativando IA automaticamente</span>
+        </div>
       </div>
     );
   }

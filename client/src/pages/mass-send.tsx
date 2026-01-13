@@ -211,6 +211,8 @@ export default function MassSendPage() {
   const [selectedListId, setSelectedListId] = useState<string>("");
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
+  // Flag para indicar se a seleção foi inicializada
+  const [selectionInitialized, setSelectionInitialized] = useState(false);
   
   // Estado para grupos selecionados
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
@@ -265,6 +267,14 @@ export default function MassSendPage() {
     queryKey: ["/api/contacts/synced"],
     retry: false,
   });
+
+  // Inicializar seleção quando contatos sincronizados carregarem
+  useEffect(() => {
+    if (syncedContacts.length > 0 && !selectionInitialized && recipientMode === 'synced') {
+      setSelectedContactIds(new Set(syncedContacts.map(c => c.id)));
+      setSelectionInitialized(true);
+    }
+  }, [syncedContacts, selectionInitialized, recipientMode]);
 
   // Buscar grupos do WhatsApp
   const { data: whatsappGroups = [], isLoading: groupsQueryLoading, refetch: refetchGroups } = useQuery<WhatsAppGroup[]>({
@@ -462,11 +472,11 @@ export default function MassSendPage() {
     } else if (recipientMode === 'list' && selectedListId) {
       const list = contactLists.find(l => l.id === selectedListId);
       if (list?.contacts) {
-        const selected = list.contacts.filter(c => selectedContactIds.size === 0 || selectedContactIds.has(c.id));
+        const selected = list.contacts.filter(c => selectedContactIds.has(c.id));
         return selected.map(c => ({ phone: c.phone, name: c.name || '' }));
       }
     } else if (recipientMode === 'synced') {
-      const selected = syncedContacts.filter(c => selectedContactIds.size === 0 || selectedContactIds.has(c.id));
+      const selected = syncedContacts.filter(c => selectedContactIds.has(c.id));
       return selected.map(c => ({ phone: c.phone, name: c.name || '' }));
     } else if (recipientMode === 'groups') {
       // Para grupos, retornamos os grupos selecionados como "contatos" para contagem
@@ -844,7 +854,11 @@ Pedro Oliveira, 31988776655`}
                                   className={`p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer ${
                                     selectedListId === list.id ? 'border-primary bg-primary/5' : ''
                                   }`}
-                                  onClick={() => { setSelectedListId(list.id); setSelectedContactIds(new Set()); }}
+                                  onClick={() => { 
+                                    setSelectedListId(list.id); 
+                                    // Selecionar todos os contatos da nova lista
+                                    setSelectedContactIds(new Set(list.contacts?.map(c => c.id) || []));
+                                  }}
                                 >
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
@@ -925,10 +939,10 @@ Pedro Oliveira, 31988776655`}
                             </div>
                             <div className="flex items-center gap-2">
                               <Button variant="outline" size="sm" onClick={toggleSelectAll}>
-                                {selectedContactIds.size === filteredContacts.length ? 'Desmarcar' : 'Selecionar Todos'}
+                                {selectedContactIds.size === filteredContacts.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
                               </Button>
                               <span className="text-sm text-muted-foreground">
-                                {selectedContactIds.size > 0 ? selectedContactIds.size : filteredContacts.length} selecionados
+                                {selectedContactIds.size} selecionados
                               </span>
                             </div>
                           </div>
@@ -947,7 +961,7 @@ Pedro Oliveira, 31988776655`}
                                   <TableRow key={contact.id}>
                                     <TableCell>
                                       <Checkbox
-                                        checked={selectedContactIds.size === 0 || selectedContactIds.has(contact.id)}
+                                        checked={selectedContactIds.has(contact.id)}
                                         onCheckedChange={(checked) => {
                                           const newSet = new Set(selectedContactIds);
                                           if (checked) {
@@ -1032,10 +1046,10 @@ Pedro Oliveira, 31988776655`}
                         </div>
                         <div className="flex items-center gap-2">
                           <Button variant="outline" size="sm" onClick={toggleSelectAll}>
-                            {selectedContactIds.size === filteredContacts.length ? 'Desmarcar' : 'Selecionar Todos'}
+                            {selectedContactIds.size === filteredContacts.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
                           </Button>
                           <span className="text-sm text-muted-foreground">
-                            {selectedContactIds.size > 0 ? selectedContactIds.size : filteredContacts.length} selecionados
+                            {selectedContactIds.size} selecionados
                           </span>
                         </div>
                       </div>
@@ -1054,7 +1068,7 @@ Pedro Oliveira, 31988776655`}
                               <TableRow key={contact.id}>
                                 <TableCell>
                                   <Checkbox
-                                    checked={selectedContactIds.size === 0 || selectedContactIds.has(contact.id)}
+                                    checked={selectedContactIds.has(contact.id)}
                                     onCheckedChange={(checked) => {
                                       const newSet = new Set(selectedContactIds);
                                       if (checked) {

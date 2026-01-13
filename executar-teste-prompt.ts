@@ -2,7 +2,7 @@
  * 🧪 TESTE PRÁTICO DO PROMPT DE VENDAS
  * 
  * Este script executa testes reais contra a API Mistral
- * para validar o prompt do agente de vendas Rodrigo
+ * para validar o prompt do agente de vendas
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -13,9 +13,9 @@ config();
 
 // Configurações
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://bnfpcuzjvycudccycqqt.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
-const MISTRAL_KEY = process.env.MISTRAL_API_KEY || '';
-const USER_ID = 'cb9213c3-fde3-479e-a4aa-344171c59735';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuZnBjdXpqdnljdWRjY3ljcXF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzNTMzODksImV4cCI6MjA3NzkyOTM4OX0.AVDgFqn1h-00a5CzS2SZYlcXl4TxtKVrdjKDkN08kVM';
+const MISTRAL_KEY = process.env.MISTRAL_API_KEY || 'EMZSjwivLJLrPlJqPuWrTwAAOgp93lhF';
+const USER_ID = 'd4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c'; // contato@jbeletrica.com.br
 
 console.log('Usando SUPABASE_URL:', SUPABASE_URL);
 console.log('SUPABASE_KEY presente:', SUPABASE_KEY ? 'Sim' : 'Não');
@@ -24,7 +24,7 @@ console.log('MISTRAL_KEY presente:', MISTRAL_KEY ? 'Sim' : 'Não');
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ════════════════════════════════════════════════════════════════════════════
-// 📋 CENÁRIOS DE TESTE BASEADOS EM CONVERSAS REAIS
+// 📋 CENÁRIOS DE TESTE BASEADOS NA SOLICITAÇÃO (JB ELÉTRICA)
 // ════════════════════════════════════════════════════════════════════════════
 
 interface CenarioTeste {
@@ -42,388 +42,206 @@ interface CenarioTeste {
 
 const CENARIOS: CenarioTeste[] = [
   // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 1: Primeira mensagem - cliente quente com preço
+  // TESTE 1: Localização (Fora da cidade)
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: 'T01',
-    nome: 'Primeira Mensagem - Cliente Quente',
-    descricao: 'Cliente chega mencionando R$49 da campanha',
+    nome: 'Localização - Araxá',
+    descricao: 'Verificar se nega atendimento fora de Uberlândia',
     historico: [],
-    novaMensagem: 'Olá! Tenho interesse no AgenteZap por R$49 ilimitado e gostaria de saber mais.',
+    novaMensagem: 'Oi, vocês atendem em Araxá?',
     validacoes: {
-      naoDeveConter: ['R$99', 'R$149'],
-      precoCorreto: 'R$49'
+        naoDeveConter: ['Sim, atendemos em Araxá', 'posso agendar'],
+        deveConter: ['Uberlândia']
     }
   },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 2: Continuidade - NÃO deve cumprimentar novamente
+   // ═══════════════════════════════════════════════════════════════════════
+  // TESTE 2: Localização (Dentro da cidade)
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: 'T02',
-    nome: 'Continuidade - Sem Recumprimentar',
-    descricao: 'Após várias mensagens, agente não deve dizer Olá novamente',
-    historico: [
-      { role: 'user', content: 'Olá! Tenho interesse no AgenteZap por R$49' },
-      { role: 'assistant', content: 'Opa! Tudo bem? Me conta: o que você faz hoje? Vendas, atendimento ou qualificação de leads?' },
-      { role: 'user', content: 'Trabalho com escola, supletivo online' },
-      { role: 'assistant', content: 'Perfeito! Pra quem trabalha com educação, o AgenteZap é uma mão na roda! A IA pode responder dúvidas de alunos 24h, qualificar interessados e até fazer follow-up. Quer que eu te mostre como funciona?' },
-      { role: 'user', content: '[Áudio transcrito] Então, eu preciso de algo que responda automaticamente quando aluno pergunta sobre matrícula' }
-    ],
-    novaMensagem: 'Então me explica melhor como configuro essa IA',
+    nome: 'Localização - Uberlândia',
+    descricao: 'Verificar se aceita atendimento em bairro de Uberlândia',
+    historico: [],
+    novaMensagem: 'Vocês atendem no bairro Santa Mônica em Uberlândia?',
     validacoes: {
-      naoDeveConter: ['Olá', 'Oi!', 'Bom dia', 'Boa tarde', 'Rodrigo da AgenteZap aqui', 'o que você faz'],
-      deveConter: ['configura']  // Pode ser "configura" ou "configurar"
+        naoDeveConter: ['não atendemos', 'somente Uberlândia'],
+        deveConter: ['JB Elétrica']
     }
   },
-
   // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 3: Responder a pergunta do cliente
+  // TESTE 3: Vazamento de Prompt (Primeira Mensagem)
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: 'T03',
-    nome: 'Resposta Direta - Pergunta Técnica',
-    descricao: 'Cliente pergunta se precisa PC ligado - deve responder SIM/NÃO',
-    historico: [
-      { role: 'user', content: 'Oi, tudo bem?' },
-      { role: 'assistant', content: 'Tudo ótimo! Me conta: você trabalha com vendas, atendimento ou qualificação?' },
-      { role: 'user', content: 'Vendas de seguros' }
-    ],
-    novaMensagem: 'Mas preciso deixar o computador ligado o tempo todo?',
+    nome: 'Primeira Mensagem - Sem Vazamento',
+    descricao: 'Verificar se não vaza instruções lógicas (Se SIM...)',
+    historico: [],
+    novaMensagem: 'Olá',
     validacoes: {
-      naoDeveConter: ['Olá'],
-      deveConter: ['não', 'servidor', '24']
+        naoDeveConter: ['(Se SIM:', 'Se SIM"', 'Se NÃO', 'Para continuar'],
+        deveConter: ['Seja bem-vindo', 'Você já é cliente']
     }
   },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 4: Objeção de preço
+    // ═══════════════════════════════════════════════════════════════════════
+  // TESTE 4: Chuveiros (Texto Específico)
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: 'T04',
-    nome: 'Objeção - Preço Caro',
-    descricao: 'Cliente diz que está caro - deve rebater com valor',
-    historico: [
-      { role: 'user', content: 'Olá! Tenho interesse no AgenteZap' },
-      { role: 'assistant', content: 'Opa! Tudo bem? Me conta: o que você faz hoje?' },
-      { role: 'user', content: 'Loja de roupas' },
-      { role: 'assistant', content: 'Show! O AgenteZap é perfeito pra varejo. A IA responde 24h, faz follow-up, qualifica. Tudo por R$99/mês.' }
-    ],
-    novaMensagem: 'Hmm, tá caro. Vou pensar.',
+    nome: 'Serviço - Chuveiro',
+    descricao: 'Verificar o texto obrigatório para chuveiros',
+    historico: [{role: 'assistant', content: 'Você já é cliente da JB Elétrica?'}, {role: 'user', content: 'Sim'}],
+    novaMensagem: 'Meu chuveiro queimou',
     validacoes: {
-      naoDeveConter: ['Olá', 'Oi!', 'Entendo que não é pra você'],
-      deveConter: ['R$', 'cliente', 'paga']
+        naoDeveConter: ['R$ 75,00 para visita', 'cobramos visita', 'troca de resistência é R$ 75'],
+        deveConter: ['Podemos encaminhar um técnico', 'resistência à parte', 'verificação no local']
     }
   },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 5: Não repetir mídia já enviada
+     // ═══════════════════════════════════════════════════════════════════════
+  // TESTE 5: Serviços Excluídos
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: 'T05',
-    nome: 'Não Repetir Informação',
-    descricao: 'Não deve repetir o que já disse',
-    historico: [
-      { role: 'user', content: 'Me manda um vídeo mostrando o sistema' },
-      { role: 'assistant', content: 'Claro! Olha esse vídeo mostrando o sistema funcionando: [MEDIA:DETALHES_DO_SISTEMA]' }
-    ],
-    novaMensagem: 'Legal! Quero ver mais',
+    nome: 'Serviço Excluído - Cerca Elétrica',
+    descricao: 'Verificar se nega serviço excluído',
+    historico: [{role: 'assistant', content: 'Você já é cliente da JB Elétrica?'}, {role: 'user', content: 'Sim'}],
+    novaMensagem: 'Vocês instalam cerca elétrica?',
     validacoes: {
-      naoDeveConter: ['DETALHES_DO_SISTEMA']  // Não deve enviar a mesma mídia
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 6: Manter contexto de preço promocional
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T06',
-    nome: 'Manter Preço Promocional',
-    descricao: 'Após cliente mencionar R$49, não mudar para R$99',
-    historico: [
-      { role: 'user', content: 'Vi o anúncio de R$49/mês, é real?' },
-      { role: 'assistant', content: 'Sim! O R$49/mês é real. Plano ilimitado! Me conta: você trabalha com o quê?' },
-      { role: 'user', content: 'Clínica odontológica' },
-      { role: 'assistant', content: 'Perfeito! Pra clínica, a IA pode agendar consultas, responder dúvidas, fazer confirmação de retorno...' }
-    ],
-    novaMensagem: 'Quanto fica por mês mesmo?',
-    validacoes: {
-      naoDeveConter: ['R$99', 'R$149'],
-      deveConter: ['R$49'],
-      precoCorreto: 'R$49'
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 7: Cliente com dificuldade - oferecer implementação
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T07',
-    nome: 'Dificuldade → Oferecer Implementação',
-    descricao: 'Quando cliente diz que não consegue configurar, oferecer R$199',
-    historico: [
-      { role: 'user', content: 'Oi, já criei conta mas não consegui configurar' },
-      { role: 'assistant', content: 'Sem problemas! Me conta: onde você travou?' },
-      { role: 'user', content: 'Na parte do prompt, não sei escrever' }
-    ],
-    novaMensagem: 'É muito difícil pra mim, não tenho tempo',
-    validacoes: {
-      naoDeveConter: ['Olá'],
-      deveConter: ['implementação', 'R$199']
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 8: Responder a áudio transcrito
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T08',
-    nome: 'Responder Áudio Transcrito',
-    descricao: 'Quando cliente manda áudio, deve ler a transcrição e responder',
-    historico: [
-      { role: 'user', content: 'Oi, posso mandar áudio?' },
-      { role: 'assistant', content: 'Claro! Pode mandar!' }
-    ],
-    novaMensagem: '[Áudio transcrito] Olha, eu trabalho com venda de piscinas né, e meu problema é que os clientes ficam perguntando preço toda hora e eu não consigo responder rápido',
-    validacoes: {
-      naoDeveConter: ['não entendi', 'pode repetir'],
-      deveConter: ['piscina']  // Deve mencionar o segmento
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 9: Lidar com resposta monossilábica
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T09',
-    nome: 'Resposta Monossilábica',
-    descricao: 'Quando cliente responde só "ok", deve avançar conversa',
-    historico: [
-      { role: 'user', content: 'Olá! Quero saber sobre o AgenteZap' },
-      { role: 'assistant', content: 'Opa! Me conta: você trabalha com vendas, atendimento ou qualificação?' },
-      { role: 'user', content: 'Vendas' },
-      { role: 'assistant', content: 'Show! O AgenteZap é perfeito pra quem vende. A IA qualifica leads, faz follow-up automático...' }
-    ],
-    novaMensagem: 'Ok',
-    validacoes: {
-      naoDeveConter: ['Olá', 'Oi!'],
-      deveConter: ['?']  // Deve fazer pergunta para avançar
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 10: Não dar informação redundante
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T10',
-    nome: 'Não Repetir Link Já Dado',
-    descricao: 'Se já deu o link, não deve dar novamente sem ser pedido',
-    historico: [
-      { role: 'user', content: 'Como faço pra criar conta?' },
-      { role: 'assistant', content: 'É simples! Acessa https://agentezap.online/, cria conta e conecta seu WhatsApp.' },
-      { role: 'user', content: 'Entendi, vou ver' },
-      { role: 'assistant', content: 'Perfeito! Qualquer dúvida, é só chamar!' }
-    ],
-    novaMensagem: 'Voltei! Criei a conta',
-    validacoes: {
-      naoDeveConter: ['https://agentezap.online'],  // Não precisa dar o link de novo
-      deveConter: ['?']  // Deve perguntar algo para ajudar
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 11: Responder sobre IA entender áudio
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T11',
-    nome: 'IA Entende Áudio - Pergunta Direta',
-    descricao: 'Cliente pergunta se a IA entende áudio',
-    historico: [
-      { role: 'user', content: 'Oi, tenho interesse' },
-      { role: 'assistant', content: 'Opa! Me conta: você trabalha com o quê?' },
-      { role: 'user', content: 'Loja de celulares' }
-    ],
-    novaMensagem: 'A IA entende áudio? Porque meus clientes mandam muito áudio',
-    validacoes: {
-      naoDeveConter: ['Olá', 'não entende'],
-      deveConter: ['sim', 'áudio']
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 12: Cliente fala que já usa outra ferramenta
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T12',
-    nome: 'Objeção - Já Usa Concorrente',
-    descricao: 'Cliente menciona que já usa outra ferramenta',
-    historico: [
-      { role: 'user', content: 'Oi, vi o anúncio de vocês' },
-      { role: 'assistant', content: 'Opa! Me conta: você trabalha com vendas, atendimento?' },
-      { role: 'user', content: 'Vendas de imóveis' }
-    ],
-    novaMensagem: 'Já uso o Z-API e a ManyChat, não sei se preciso de mais uma ferramenta',
-    validacoes: {
-      naoDeveConter: ['Olá', 'tchau', 'entendo que não é pra você'],
-      deveConter: ['?']  // Deve perguntar ou rebater
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 13: Cliente pede para voltar depois
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T13',
-    nome: 'Objeção - Depois Eu Vejo',
-    descricao: 'Cliente diz que vai ver depois',
-    historico: [
-      { role: 'user', content: 'Oi, tudo bem?' },
-      { role: 'assistant', content: 'Tudo ótimo! Me conta: o que você faz?' },
-      { role: 'user', content: 'Academia de ginástica' },
-      { role: 'assistant', content: 'Show! Pra academia, a IA pode agendar aulas, responder sobre planos, fazer follow-up com quem parou de ir...' }
-    ],
-    novaMensagem: 'Legal, depois eu vejo isso melhor',
-    validacoes: {
-      naoDeveConter: ['Olá', 'tchau então'],
-      deveConter: ['teste', 'grátis']  // Deve lembrar que é grátis para testar
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 14: Cliente com segmento específico - Mecânica
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T14',
-    nome: 'Segmento Específico - Mecânica',
-    descricao: 'Personalizar resposta para mecânica',
-    historico: [
-      { role: 'user', content: 'Olá! Tenho interesse no AgenteZap por R$49' }
-    ],
-    novaMensagem: 'Trabalho com mecânica de carros, oficina',
-    validacoes: {
-      naoDeveConter: ['R$99'],
-      deveConter: ['mecânica']  // Pode ser mecânica OU oficina
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 15: Cliente quer saber do código promocional
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T15',
-    nome: 'Código Promocional - Explicar',
-    descricao: 'Cliente pergunta como usar o código',
-    historico: [
-      { role: 'user', content: 'Vi que tem um código promocional, como uso?' }
-    ],
-    novaMensagem: 'Onde coloco o código?',
-    validacoes: {
-      naoDeveConter: [],
-      deveConter: ['PARC2026PROMO', 'Planos']  // Deve explicar onde usar
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 16: Cliente voltando após ghost
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T16',
-    nome: 'Cliente Voltando Após Sumir',
-    descricao: 'Cliente some e volta depois',
-    historico: [
-      { role: 'user', content: 'Oi, quero saber do AgenteZap' },
-      { role: 'assistant', content: 'Opa! Me conta: você trabalha com o quê?' },
-      { role: 'user', content: 'Loja de materiais de construção' },
-      { role: 'assistant', content: 'Show! O AgenteZap é perfeito pra varejo. A IA responde preços, tira dúvidas, faz orçamento inicial...' },
-      { role: 'assistant', content: '[Follow-up] Oi! Sumiu? 😄 Tava pensando aqui... pra loja de materiais, o AgenteZap ia ajudar muito no orçamento automático. Quer que eu te explique melhor?' }
-    ],
-    novaMensagem: 'Oi, desculpa, tava corrido aqui',
-    validacoes: {
-      naoDeveConter: ['Olá', 'Oi!', 'o que você faz'],  // NÃO deve recomeçar a conversa
-      deveConter: ['?']  // Deve fazer pergunta para retomar
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 17: Cliente com múltiplas dúvidas
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T17',
-    nome: 'Múltiplas Perguntas',
-    descricao: 'Cliente faz várias perguntas de uma vez',
-    historico: [
-      { role: 'user', content: 'Oi, vi a propaganda' },
-      { role: 'assistant', content: 'Opa! Me conta: você trabalha com o quê?' },
-      { role: 'user', content: 'Consultoria' }
-    ],
-    novaMensagem: 'Quanto custa? Funciona sem internet? Preciso pagar todo mês?',
-    validacoes: {
-      naoDeveConter: ['Olá'],
-      deveConter: ['R$', 'mês']  // Deve responder pelo menos sobre preço
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 18: Cliente quer garantias
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T18',
-    nome: 'Garantia e Suporte',
-    descricao: 'Cliente pergunta sobre garantia',
-    historico: [
-      { role: 'user', content: 'Oi, tenho interesse por R$49' },
-      { role: 'assistant', content: 'Opa! O plano de R$49 é uma ótima opção. Me conta: você trabalha com o quê?' },
-      { role: 'user', content: 'E-commerce de roupas' }
-    ],
-    novaMensagem: 'Se não gostar posso cancelar? Tem garantia?',
-    validacoes: {
-      naoDeveConter: ['Olá', 'não temos'],
-      deveConter: ['cancelar', 'teste']  // Deve falar sobre cancelamento ou teste grátis
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 19: Cliente técnico - perguntas avançadas
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T19',
-    nome: 'Perguntas Técnicas Avançadas',
-    descricao: 'Cliente faz pergunta técnica',
-    historico: [
-      { role: 'user', content: 'Olá, sou desenvolvedor e quero saber mais' },
-      { role: 'assistant', content: 'Opa! Legal que você é da área! Me conta: é pra automatizar atendimento de algum negócio seu?' },
-      { role: 'user', content: 'Sim, tenho uma agência de marketing' }
-    ],
-    novaMensagem: 'Vocês usam qual modelo de IA? GPT? Tem API?',
-    validacoes: {
-      naoDeveConter: ['Olá'],
-      deveConter: ['IA']  // Deve responder sobre a IA
-    }
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // TESTE 20: Fechamento - cliente pronto para comprar
-  // ═══════════════════════════════════════════════════════════════════════
-  {
-    id: 'T20',
-    nome: 'Fechamento - Cliente Quente',
-    descricao: 'Cliente sinalizou que vai assinar',
-    historico: [
-      { role: 'user', content: 'Olá! Quero assinar o AgenteZap por R$49' },
-      { role: 'assistant', content: 'Perfeito! É só acessar https://agentezap.online/, criar conta e usar o código PARC2026PROMO.' },
-      { role: 'user', content: 'Criei a conta, tô no painel' }
-    ],
-    novaMensagem: 'Onde coloco o código pra pagar R$49?',
-    validacoes: {
-      naoDeveConter: ['Olá', 'R$99'],
-      deveConter: ['Planos', 'código', 'PARC2026PROMO']
+        naoDeveConter: ['Sim', 'posso agendar'],
+        deveConter: ['não realizamos']
     }
   }
+
 ];
 
 // ════════════════════════════════════════════════════════════════════════════
 // 🚀 EXECUTOR DE TESTES
 // ════════════════════════════════════════════════════════════════════════════
+
+const PROMPT_TESTE = `# AGENTE JB ELÉTRICA - INSTRUÇÕES OBRIGATÓRIAS
+
+## 1. IDENTIDADE
+Você é a atendente virtual oficial da JB Elétrica Produtos e Serviços Ltda.
+- Seja educada, profissional, clara, objetiva e humana.
+- NUNCA use menus numéricos (digite 1, 2, 3) - use conversa natural.
+- Use emojis com moderação.
+- **RESTRIÇÃO GEOGRÁFICA:** ATENDEMOS EXCLUSIVAMENTE DENTRO DA CIDADE DE UBERLÂNDIA-MG.
+  - Se o cliente perguntar se atende em outra cidade (ex: Araxá, Araguari, qualquer outra), diga educadamente que atendemos APENAS em Uberlândia, inclusive em todos os bairros da cidade.
+  - Se perguntar se atende em um bairro de Uberlândia, confirme que sim.
+
+## 2. HORÁRIOS DE ATENDIMENTO
+- Segunda a sexta: 08h às 12h | 13h30 às 18h (Horário de Brasília)
+- Horário de almoço: 12h às 13h30
+- SÁBADO, DOMINGO E FERIADOS: NÃO ATENDEMOS
+
+## 3. SAUDAÇÕES E FLUXO INICIAL (CRÍTICO)
+
+### PRIMEIRA MENSAGEM DO CLIENTE:
+Responda sempre com:
+"[Saudação conforme horário]! Seja bem-vindo(a) à JB Elétrica! ⚡
+Você já é cliente da JB Elétrica?"
+
+---
+**REGRA DE FLUXO (LÓGICA INTERNA - NÃO IMPRIMA ESTE TEXTO):**
+
+1. **SE O CLIENTE RESPONDER "SIM" (que já é cliente):**
+   Responda com: "Que bom ter você de volta! 😊 Qual serviço você gostaria de solicitar hoje?"
+   (Não peça nome/dados novamente, pois já temos. Prossiga perguntando o serviço).
+
+2. **SE O CLIENTE RESPONDER "NÃO" (que não é cliente):**
+   Responda EXATAMENTE com: "Para continuar, por favor me informe seu nome."
+   (Aguarde o cliente enviar o nome. SÓ DEPOIS que ele enviar o nome, diga: "Prazer, [NOME]! Qual serviço você gostaria de solicitar?")
+
+---
+
+## 4. FLUXO DE ATENDIMENTO E SERVIÇOS
+
+### SERVIÇOS ESPECÍFICOS:
+
+**CHUVEIROS (Reparo/Manutenção/Troca):**
+Se o cliente mencionar chuveiro queimado, troca de resistência ou conserto, USE EXATAMENTE O TEXTO ABAIXO:
+"Podemos encaminhar um técnico para verificar o que está acontecendo com o seu chuveiro.
+O problema pode ser na resistência, no disjuntor ou até na fiação.
+
+Caso seja apenas a troca da resistência, o valor da mão de obra é R$ 75,00 (resistência à parte, conforme o modelo).
+
+O serviço só é realizado após a verificação no local e sua autorização.
+
+Posso verificar um horário disponível para você?"
+
+### SERVIÇOS QUE NÃO REALIZAMOS (NEGAR EDUCADAMENTE):
+NÃO fazemos os seguintes serviços. Se o cliente pedir, informe que a empresa não realiza este tipo de trabalho:
+- Instalação de alarme
+- Instalação de cerca elétrica
+- Instalação de interfone
+- Conserto de interfone
+- Instalação de portão eletrônico
+
+### SERVIÇOS COM VALORES TABELADOS (INFORME SE O CLIENTE SOLICITAR):
+
+**INSTALAÇÃO DE TOMADAS:**
+- Tomada simples/dupla/tripla – R$ 55,00
+- Tomada industrial (3P+1) – R$ 85,00
+- Tomada de piso – R$ 65,00
+- Tomada sobrepor com canaleta – R$ 95,00
+
+**INSTALAÇÃO DE CHUVEIROS (Instalação nova):**
+- Chuveiro elétrico simples – R$ 95,00
+- Chuveiro elétrico luxo – R$ 130,00
+(Para conserto/manutenção, use a regra específica de CHUVEIROS acima).
+
+**INSTALAÇÃO DE TORNEIRAS:**
+- Torneira elétrica – R$ 105,00
+
+**INSTALAÇÃO DE INTERRUPTORES:**
+- Interruptor simples/duplo/bipolar – R$ 55,00
+- Interruptor e tomada (juntos) – R$ 55,00
+
+**INSTALAÇÃO DE ILUMINAÇÃO:**
+- Luminária tubular – R$ 55,00
+- Perfil de LED (1 metro) – R$ 150,00
+- Lustre simples – R$ 97,00
+- Lustre grande – R$ 145,00
+- Pendente simples – R$ 75,00
+- Luminária de emergência (embutir) – R$ 70,00
+- Luminária de emergência (sobrepor) – R$ 75,00
+- Refletor LED + sensor – R$ 105,00
+- Refletor LED + fotocélula – R$ 105,00
+- Refletor de jardim – R$ 95,00
+- Refletor de poste – R$ 140,00
+
+**INSTALAÇÃO DE SENSORES:**
+- Sensor de presença – R$ 75,00
+- Fotocélula – R$ 75,00
+
+**INSTALAÇÃO DE VENTILADORES:**
+- Ventilador de parede – R$ 120,00
+- Ventilador de teto sem passagem de fio – R$ 120,00
+- Ventilador de teto com passagem de fio – R$ 150,00
+
+**OUTROS SERVIÇOS:**
+- Chave de boia – R$ 120,00
+- IDR (DR) – R$ 120,00
+- Contator – R$ 215,00
+- Substituição disjuntor monofásico – R$ 65,00
+- Substituição disjuntor bifásico – R$ 85,00
+- Substituição disjuntor trifásico – R$ 120,00
+- Conversão de tomada 127v/220v sem passar fio – R$ 55,00
+
+## 5. REGRAS GERAIS E AGENDAMENTO
+- Se o serviço não tem preço fixo acima: "Para esse serviço, precisamos agendar uma visita técnica para avaliar. Gostaria de agendar?"
+- Ao coletar dados para agendamento (novos clientes):
+  1. Nome completo
+  2. CPF (11 dígitos)
+  3. E-mail
+  4. Endereço completo
+  Diga: "Não se preocupe, seus dados estão seguros conosco! 🔒"
+- DÚVIDAS TÉCNICAS: Use bom senso, ofereça visita técnica para diagnóstico.
+- EMERGÊNCIAS (FOGO/RISCO): Instrua desligar chave geral e chamar bombeiros (193).
+- **FINALIZAÇÃO**: Ao confirmar interesse, diga: "Vou transferir para a Jennifer confirmar os detalhes e o horário. Aguarde um momento!"
+- Ar-condicionado: Fazemos apenas ponto elétrico, não instalamos o aparelho.
+- Conversão de voltagem: Se o padrão permitir, R$ 165,00 a casa toda (sem fiação nova). Se precisar de fiação, visita técnica.
+`;
 
 interface ResultadoTeste {
   id: string;
@@ -434,17 +252,8 @@ interface ResultadoTeste {
 }
 
 async function buscarPrompt(): Promise<string> {
-  const { data, error } = await supabase
-    .from('ai_agent_config')
-    .select('prompt')
-    .eq('user_id', USER_ID)
-    .single();
-  
-  if (error || !data) {
-    throw new Error('Não foi possível buscar o prompt: ' + error?.message);
-  }
-  
-  return data.prompt;
+  // Retornar prompt hardcoded para garantir teste da versão nova
+  return PROMPT_TESTE;
 }
 
 async function chamarMistral(prompt: string, historico: any[], novaMensagem: string): Promise<string> {

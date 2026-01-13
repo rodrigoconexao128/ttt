@@ -92,7 +92,7 @@ function UpgradeModal({ isOpen, onClose, title, description, used, limit, type }
             Agora não
           </Button>
           <Button
-            onClick={() => window.location.href = "/pricing"}
+            onClick={() => window.location.href = "/plans"}
             className="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:from-emerald-600 hover:to-cyan-600"
           >
             <Zap className="w-4 h-4 mr-2" />

@@ -5,6 +5,7 @@ node_modules
 .vscode
 .idea
 .kilocode
+.railway
 
 # Build and caches
 dist
@@ -15,6 +16,7 @@ tmp*
 tmp/
 temp_audio/
 logs/
+undefined/
 
 # Large folders not needed for deploy
 mcp-playwright-server/
@@ -25,24 +27,62 @@ findeas theme/
 attached_assets/
 tutorial/
 tests/
+test-results/
+scripts/
 
 # WhatsApp local session folders (Baileys). Use a Railway Volume and
 # set SESSIONS_DIR to persist these in production instead of baking into image.
 auth_*/
 auth_admin_*/
 
-# Documentation and test files
+# Documentation and test files - ROOT LEVEL ONLY
 *.md
-test-*.ts
-teste-*.ts
-check-*.ts
-debug-*.ts
-fix-*.ts
-run-*.ts
-investigate-*.ts
+/test-*.ts
+/teste-*.ts
+/check-*.ts
+/debug-*.ts
+/fix-*.ts
+/run-*.ts
+/investigate-*.ts
+/find-*.ts
+/get-*.ts
+/update-*.ts
+/migrate-*.ts
+/create-*.ts
+/add-*.ts
+/enable-*.ts
+/verify-*.ts
+/query*.ts
+/compare*.ts
+/reproduce*.ts
+/execute*.ts
+/executar*.ts
+/reset-*.ts
+/generate-*.ts
+/setup-*.ts
+/perfis-*.ts
+/backup-*.ts
+/list-*.ts
+/remove-*.ts
+
+# Media and data files
 *.txt
 *.png
+*.jpg
+*.jpeg
+*.webp
 *.wav
 *.mp3
-piggly.zip
+*.zip
 *.json.backup
+*.py
+*.ps1
+*.cjs
+*.mjs
+
+# Admin cookies and temp
+admin_cookies.txt
+cline_mcp_settings.json
+prompt-*.txt
+*-output.log
+*-log.txt

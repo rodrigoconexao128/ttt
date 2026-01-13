@@ -27,6 +27,7 @@ import { PromptGenerator } from "@/components/prompt-generator";
 import { ExpandedEditor, ExpandButton } from "@/components/expanded-editor";
 import { PromptImprover } from "@/components/prompt-improver";
 import { AgentStudioUnified } from "@/components/agent-studio-unified";
+import { WebsiteImporter } from "@/components/website-importer";
 
 // ============== TIPOS ==============
 interface AgentMedia {
@@ -937,6 +938,9 @@ O QUE NÃO FAZER:
 
           {/* ============== ABA: CONFIGURAÇÕES ============== */}
           <TabsContent value="settings" className="space-y-4">
+            {/* 🌐 IMPORTAR WEBSITE - NOVA FUNCIONALIDADE */}
+            <WebsiteImporter />
+
             {/* Tempo de Resposta */}
             <Card className="p-6">
               <div className="space-y-4">

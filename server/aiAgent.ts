@@ -1,14 +1,10 @@
 import { storage } from "./storage";
 import type { Message, MistralResponse } from "@shared/schema";
 import { getMistralClient } from "./mistralClient";
-import { generateSystemPrompt, type PromptContext } from "./promptTemplates";
+// NOTA: generateSystemPrompt, detectJailbreak, detectOffTopic foram removidos
+// pois o sistema ADVANCED foi desativado para garantir determinismo nas respostas
 import crypto from "crypto";
-import {
-  detectOffTopic,
-  detectJailbreak,
-  generateOffTopicResponse,
-  validateAgentResponse,
-} from "./agentValidation";
+import { validateAgentResponse } from "./agentValidation";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🤖 SISTEMA ANTI-BOT - DETECTA E IGNORA MENSAGENS DE BOTS
@@ -27,7 +23,8 @@ const BOT_PATTERNS = [
   /sedex/i,
   // Bots de bancos
   /nubank/i,
-  /inter/i,
+  // ⚠️ IMPORTANT: não usar /inter/i pois bate em palavras comuns como "interesse"
+  /\binter\b/i,
   /c6 bank/i,
   /banco do brasil/i,
   /caixa econômica/i,
@@ -97,72 +94,7 @@ function isMessageFromBot(text: string, contactName?: string): { isBot: boolean;
   return { isBot: false, reason: '' };
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// 🔒 RATE LIMITING - PREVINE LOOPS DE RESPOSTA
-// ═══════════════════════════════════════════════════════════════════════
-interface RateLimitEntry {
-  count: number;
-  firstRequest: number;
-  lastRequest: number;
-  lastMessages: string[];
-}
 
-const rateLimitCache = new Map<string, RateLimitEntry>();
-
-const RATE_LIMIT_CONFIG = {
-  maxRequestsPerMinute: 10,      // Máx 10 msgs por minuto por conversa
-  maxRequestsPerHour: 60,        // Máx 60 msgs por hora por conversa
-  duplicateThreshold: 3,         // Se mesma msg 3x seguidas = spam
-  windowMinutes: 1,
-  windowHour: 60,
-};
-
-function checkRateLimit(conversationKey: string, messageText: string): { allowed: boolean; reason: string } {
-  const now = Date.now();
-  const entry = rateLimitCache.get(conversationKey);
-  
-  // Limpar cache antigo (mais de 1 hora)
-  if (entry && now - entry.firstRequest > RATE_LIMIT_CONFIG.windowHour * 60 * 1000) {
-    rateLimitCache.delete(conversationKey);
-  }
-  
-  const current = rateLimitCache.get(conversationKey) || {
-    count: 0,
-    firstRequest: now,
-    lastRequest: now,
-    lastMessages: [],
-  };
-  
-  // Verificar duplicatas consecutivas
-  const msgHash = messageText.substring(0, 100).toLowerCase().trim();
-  const duplicateCount = current.lastMessages.filter(m => m === msgHash).length;
-  
-  if (duplicateCount >= RATE_LIMIT_CONFIG.duplicateThreshold) {
-    return { allowed: false, reason: `Mensagem duplicada ${duplicateCount}x consecutivas` };
-  }
-  
-  // Verificar rate limit por minuto
-  const oneMinuteAgo = now - RATE_LIMIT_CONFIG.windowMinutes * 60 * 1000;
-  if (current.lastRequest > oneMinuteAgo) {
-    if (current.count >= RATE_LIMIT_CONFIG.maxRequestsPerMinute) {
-      return { allowed: false, reason: `Rate limit: ${current.count}/${RATE_LIMIT_CONFIG.maxRequestsPerMinute} msgs/min` };
-    }
-  } else {
-    // Reset contador se passou 1 minuto
-    current.count = 0;
-    current.lastMessages = [];
-  }
-  
-  // Atualizar entrada
-  current.count++;
-  current.lastRequest = now;
-  current.lastMessages.push(msgHash);
-  if (current.lastMessages.length > 5) current.lastMessages.shift();
-  
-  rateLimitCache.set(conversationKey, current);
-  
-  return { allowed: true, reason: '' };
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🔄 DEDUPLICAÇÃO DE RESPOSTAS - EVITA LOOPS
@@ -193,12 +125,14 @@ function isDuplicateResponse(conversationKey: string, responseText: string): boo
   
   return false;
 }
-import {
-  humanizeResponse,
-  detectEmotion,
-  adjustToneForEmotion,
-  type HumanizationOptions,
-} from "./humanization";
+// ⚠️ HUMANIZAÇÃO REMOVIDA - Estava corrompendo respostas do agente
+// Imports comentados - não usar mais:
+// import {
+//   humanizeResponse,
+//   detectEmotion,
+//   adjustToneForEmotion,
+//   type HumanizationOptions,
+// } from "./humanization";
 import {
   getAgentMediaLibrary,
   generateMediaPromptBlock,
@@ -1183,15 +1117,6 @@ export async function generateAIResponse(
       return null;
     }
     
-    // 🔒 RATE LIMITING - Prevenir loops de resposta
-    const conversationKey = `${userId}:${contactPhone || contactName || 'unknown'}`;
-    const rateLimitCheck = checkRateLimit(conversationKey, newMessageText);
-    if (!rateLimitCheck.allowed) {
-      console.log(`🔒 [AI Agent] RATE LIMIT atingido para ${conversationKey}`);
-      console.log(`   Razão: ${rateLimitCheck.reason}`);
-      return null;
-    }
-    
     console.log(`👤 [AI Agent] Nome do cliente: ${contactName || 'Não identificado'}`);
     console.log(`📁 [AI Agent] Mídias já enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
     
@@ -1258,14 +1183,12 @@ export async function generateAIResponse(
       console.log(`📁 [AI Agent] Found ${mediaLibrary.length} media items for user ${userId}`);
     }
     
-    // 🎯 USAR BUSINESS CONFIG SE DISPONÍVEL E ATIVO (modo avançado)
-    const useAdvancedSystem = businessConfig && businessConfig.isActive;
+    // 🎯 SISTEMA ÚNICO: SEMPRE USA O SISTEMA LEGACY (DETERMINÍSTICO)
+    // O sistema ADVANCED foi removido pois causava variação nas respostas
+    // devido ao tamanho do prompt (15000+ chars) que prejudica determinismo da Mistral
+    const useAdvancedSystem = false; // FORÇADO FALSE - LEGACY APENAS
     
-    if (useAdvancedSystem) {
-      console.log(`🚀 [AI Agent] Using ADVANCED system for user ${userId}`);
-    } else {
-      console.log(`📝 [AI Agent] Using LEGACY system for user ${userId}`);
-    }
+    console.log(`📝 [AI Agent] Using LEGACY system (deterministic) for user ${userId}`);
 
     // 📝 DEBUG: Log do config do agente para verificar se prompt está correto
     console.log(`\n🤖 [AI Agent] ═══════════════════════════════════════════════════`);
@@ -1278,28 +1201,10 @@ export async function generateAIResponse(
     console.log(`   Prompt (MD5 para debug): ${crypto.createHash('md5').update(agentConfig.prompt || '').digest('hex').substring(0, 8)}`);
     console.log(`🤖 [AI Agent] ═══════════════════════════════════════════════════\n`);
 
-    // 🛡️ DETECÇÃO DE JAILBREAK (apenas no sistema avançado)
-    if (useAdvancedSystem && businessConfig) {
-      const jailbreakResult = detectJailbreak(newMessageText);
-      
-      if (jailbreakResult.isJailbreakAttempt) {
-        console.log(`🚨 [AI Agent] Jailbreak attempt detected! Type: ${jailbreakResult.type}, Severity: ${jailbreakResult.severity}`);
-        
-        // Log para análise (poderia salvar em DB para monitoramento)
-        console.log(`   User ${userId} - Message: "${newMessageText.substring(0, 100)}..."`);
-        
-        // Retornar resposta educada recusando
-        return {
-          text: `Desculpe, não posso ajudar com esse tipo de solicitação. Como ${businessConfig.agentName}, estou aqui para auxiliar com ${businessConfig.allowedTopics?.[0] || "nossos serviços"}. Como posso te ajudar?`,
-          mediaActions: [],
-        };
-      }
-    }
+    // NOTA: Detecção de jailbreak foi removida (era apenas para sistema ADVANCED)
 
     // Validação de trigger phrases: se configuradas, verifica com normalização robusta
-    const triggerPhrases = useAdvancedSystem && businessConfig?.triggerPhrases 
-      ? businessConfig.triggerPhrases 
-      : agentConfig.triggerPhrases;
+    const triggerPhrases = agentConfig.triggerPhrases; // LEGACY apenas
       
     if (triggerPhrases && triggerPhrases.length > 0) {
       // Normalizador: lower, remove acentos, colapsa espaços
@@ -1346,32 +1251,9 @@ export async function generateAIResponse(
       console.log(`✅ [AI Agent] Trigger phrase detected (${foundIn}) for user ${userId}, proceeding with response`);
     }
     
-    // 🎯 DETECÇÃO OFF-TOPIC (apenas no sistema avançado)
-    if (useAdvancedSystem && businessConfig) {
-      try {
-        const offTopicResult = await detectOffTopic(
-          newMessageText,
-          businessConfig.allowedTopics || [],
-          businessConfig.prohibitedTopics || [],
-          businessConfig
-        );
-        
-        if (offTopicResult.isOffTopic && offTopicResult.confidence > 0.7) {
-          console.log(`⚠️ [AI Agent] Off-topic detected (confidence: ${offTopicResult.confidence}): ${offTopicResult.reason}`);
-          
-          // Retornar resposta de redirecionamento
-          return {
-            text: generateOffTopicResponse(businessConfig, offTopicResult),
-            mediaActions: [],
-          };
-        }
-      } catch (error) {
-        console.error(`❌ [AI Agent] Error detecting off-topic:`, error);
-        // Continuar mesmo se detecção falhar
-      }
-    }
+    // NOTA: Detecção Off-Topic foi removida (era apenas para sistema ADVANCED)
 
-     // 🎨 GERAR SYSTEM PROMPT
+     // 🎨 GERAR SYSTEM PROMPT (LEGACY APENAS)
      let systemPrompt: string;
      
      // 📁 GERAR BLOCO DE MÍDIAS SE DISPONÍVEL
@@ -1385,62 +1267,8 @@ export async function generateAIResponse(
      const memoryContextBlock = generateMemoryContextBlock(conversationMemory, contactName);
      console.log(`🧠 [AI Agent] Memory analysis: greeted=${conversationMemory.hasGreeted}, pendingActions=${conversationMemory.pendingActions.length}, sentMedia=${conversationMemory.hasSentMedia.length}`);
      
-     if (useAdvancedSystem && businessConfig) {
-       // 🆕 NOVO SISTEMA: Usar template avançado com contexto
-       const promptContext: PromptContext = {
-         customerName: contactName, // ✅ AGORA PASSA O NOME DO CLIENTE
-         conversationHistory: conversationHistory.slice(-6).map(m => ({
-           role: m.fromMe ? "assistant" : "user",
-           content: m.text || "",
-         })),
-         currentTime: new Date(),
-         // 🔥 INJETAR PROMPT LEGADO COMO INSTRUÇÃO PERSONALIZADA
-         // Isso garante que edições manuais no prompt sejam respeitadas mesmo no modo avançado
-         customInstructions: agentConfig?.prompt || ""
-       };
-       
-       systemPrompt = generateSystemPrompt(businessConfig, promptContext);
-       
-       // 🌅 ADICIONAR CONTEXTO DINÂMICO (horário, nome, mídias enviadas)
-       systemPrompt += dynamicContextBlock;
-       
-       // 🧠 SISTEMA ANTI-AMNÉSIA MOVIDO PARA O FINAL
-       // systemPrompt += memoryContextBlock;
-       
-       // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT
-       if (mediaPromptBlock) {
-         systemPrompt += mediaPromptBlock;
-       }
-
-       // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO NO AVANÇADO
-       if (businessConfig?.notificationEnabled && businessConfig?.notificationTrigger) {
-         console.log(`🔔 [AI Agent] Notification system ACTIVE (Advanced) - Trigger: "${businessConfig.notificationTrigger.substring(0, 50)}..."`);
-         const notificationSection = getNotificationPrompt(
-           businessConfig.notificationTrigger,
-           businessConfig.notificationManualKeywords || undefined
-         );
-         systemPrompt += notificationSection;
-       }
-
-       // 📅 INJETAR SISTEMA DE AGENDAMENTO NO AVANÇADO
-       try {
-         const schedulingPromptBlock = await generateSchedulingPromptBlock(userId);
-         if (schedulingPromptBlock) {
-           systemPrompt += schedulingPromptBlock;
-           console.log(`📅 [AI Agent] Scheduling system ACTIVE (Advanced) - prompt injected`);
-         }
-       } catch (schedError) {
-         console.error(`📅 [AI Agent] Error loading scheduling config:`, schedError);
-       }
-       
-       // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA (CRÍTICO: DEVE SER O ÚLTIMO)
-       // Movemos para cá para garantir que "Pending Actions" tenha prioridade máxima sobre regras anteriores
-       systemPrompt += memoryContextBlock;
-
-       console.log(`🎨 [AI Agent] Generated advanced prompt (${systemPrompt.length} chars)${hasMedia ? ' + media library' : ''}`);
-     } else {
-       // 📝 SISTEMA LEGADO: Usar prompt manual com guardrails básicos
-       systemPrompt = agentConfig.prompt + `
+     // 📝 SISTEMA LEGACY: Usar prompt manual com guardrails básicos
+     systemPrompt = agentConfig.prompt + `
 
   ---
   
@@ -1492,42 +1320,58 @@ export async function generateAIResponse(
       → PRESERVE emojis na posição exata
       → NÃO reformule, NÃO resuma, NÃO junte linhas
       → Cada linha no prompt original = uma linha na sua resposta
+
+  5. 🚨 REGRA CRÍTICA ANTI-ALUCINAÇÃO (MÁXIMA PRIORIDADE):
+    - NUNCA INVENTE números, quantidades, limites ou dados que NÃO estejam EXPLICITAMENTE no prompt acima
+    - Se o prompt diz "ilimitado", SEMPRE responda "ilimitado" - NUNCA invente um número como "10.000 tokens"
+    - Se o prompt NÃO menciona limite de tokens/mensagens, NUNCA mencione limites - diga que é ilimitado
+    - Se o prompt NÃO tem uma informação, diga "não tenho essa informação" - NUNCA invente
+    - PROIBIDO usar conhecimento geral de como outros SaaS funcionam - USE APENAS o que está no prompt
+    - Quando perguntarem sobre limites/tokens/mensagens:
+      → Verifique se o prompt menciona isso
+      → Se diz "ilimitado": responda "ilimitado" ou "sem limite"
+      → Se não menciona: diga que não tem essa informação ou pergunte ao supervisor
+    - EXEMPLOS DE RESPOSTAS PROIBIDAS (nunca diga):
+      ❌ "X tokens por mês" (se não está no prompt)
+      ❌ "limite de X mensagens" (se não está no prompt)
+      ❌ "inclui X horas de suporte" (se não está no prompt)
+    - EXEMPLOS DE RESPOSTAS CORRETAS:
+      ✅ "Nosso plano é ilimitado" (se o prompt diz ilimitado)
+      ✅ "Não tenho essa informação específica" (se não está no prompt)
   `;
-       // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT LEGADO TAMBÉM
-       if (mediaPromptBlock) {
-         systemPrompt += mediaPromptBlock;
-         console.log(`📁 [AI Agent] Added media block to legacy prompt (${mediaPromptBlock.length} chars)`);
-       }
-
-       // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO NO LEGADO SE CONFIGURADO
-       // IMPORTANTE: Verificar notificationEnabled INDEPENDENTE de businessConfig.isActive
-       // O usuário pode ter configurado apenas o notificador sem usar o sistema avançado de agente
-       if (businessConfig?.notificationEnabled && businessConfig?.notificationTrigger) {
-         console.log(`🔔 [AI Agent] Notification system ACTIVE - Trigger: "${businessConfig.notificationTrigger.substring(0, 50)}..."`);
-         const notificationSection = getNotificationPrompt(
-           businessConfig.notificationTrigger,
-           businessConfig.notificationManualKeywords || undefined
-         );
-         systemPrompt += notificationSection;
-         console.log(`🔔 [AI Agent] Added notification system to legacy prompt`);
-       }
-
-       // 📅 INJETAR SISTEMA DE AGENDAMENTO NO LEGADO
-       try {
-         const schedulingPromptBlock = await generateSchedulingPromptBlock(userId);
-         if (schedulingPromptBlock) {
-           systemPrompt += schedulingPromptBlock;
-           console.log(`📅 [AI Agent] Scheduling system ACTIVE (Legacy) - prompt injected`);
-         }
-       } catch (schedError) {
-         console.error(`📅 [AI Agent] Error loading scheduling config:`, schedError);
-       }
-
-       // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA (CRÍTICO: DEVE SER O ÚLTIMO)
-       systemPrompt += memoryContextBlock;
-
-       console.log(`📝 [AI Agent] Using legacy prompt (${systemPrompt.length} chars)`);
+     
+     // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT
+     if (mediaPromptBlock) {
+       systemPrompt += mediaPromptBlock;
+       console.log(`📁 [AI Agent] Added media block to prompt (${mediaPromptBlock.length} chars)`);
      }
+
+     // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO SE CONFIGURADO
+     if (businessConfig?.notificationEnabled && businessConfig?.notificationTrigger) {
+       console.log(`🔔 [AI Agent] Notification system ACTIVE - Trigger: "${businessConfig.notificationTrigger.substring(0, 50)}..."`);
+       const notificationSection = getNotificationPrompt(
+         businessConfig.notificationTrigger,
+         businessConfig.notificationManualKeywords || undefined
+       );
+       systemPrompt += notificationSection;
+       console.log(`🔔 [AI Agent] Added notification system to prompt`);
+     }
+
+     // 📅 INJETAR SISTEMA DE AGENDAMENTO
+     try {
+       const schedulingPromptBlock = await generateSchedulingPromptBlock(userId);
+       if (schedulingPromptBlock) {
+         systemPrompt += schedulingPromptBlock;
+         console.log(`📅 [AI Agent] Scheduling system ACTIVE - prompt injected`);
+       }
+     } catch (schedError) {
+       console.error(`📅 [AI Agent] Error loading scheduling config:`, schedError);
+     }
+
+     // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA (CRÍTICO: DEVE SER O ÚLTIMO)
+     systemPrompt += memoryContextBlock;
+
+     console.log(`📝 [AI Agent] Using LEGACY prompt (${systemPrompt.length} chars) - DETERMINISTIC MODE`);
      
      const messages: Array<{ role: string; content: string }> = [
       {
@@ -1974,15 +1818,18 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       : agentConfig.model;
     
     // 🔄 CHAMADA COM RETRY AUTOMÁTICO PARA ERROS DE API (rate limit, timeout, etc)
-    // 🎯 TEMPERATURE 0.3: Respostas mais consistentes entre simulador e WhatsApp
-    // Valor baixo = menos variação = mesma pergunta gera respostas similares
+    // 🎯 TEMPERATURE 0.0 + SEED FIXO: Respostas 100% DETERMINÍSTICAS
+    // REMOVIDA VARIAÇÃO: Usuário solicitou remover variação do simulador e WhatsApp debug
+    // randomSeed: Garante que mesma pergunta = mesma resposta SEMPRE
+    console.log(`🔧 [AI-CONFIG] DETERMINISM: temperature=0.0, randomSeed=42, model=${model}`);
     const chatResponse = await withRetry(
       async () => {
         return await mistral.chat.complete({
           model,
           messages: messages as any,
           maxTokens, // Dinâmico baseado na pergunta e config
-          temperature: 0.3, // REDUZIDO: Mais consistente entre simulador e WhatsApp
+          temperature: 0.0, // ZERO: Resposta determinística
+          randomSeed: 42, // SEED FIXO: Garante determinismo absoluto
         });
       },
       3, // 3 tentativas
@@ -2049,7 +1896,13 @@ Mensagem do cliente: ${newMessageText.trim()}`;
         responseText = responseText.replace(/🔔[^]*?Motivo:[^\n]*/gi, '').trim();
       }
       
-      // 🚨 POST-PROCESSING: Detectar e limpar possíveis vazamentos de instruções do prompt
+      // �️ FIX: Remover "[Mensagem vazia]" que pode aparecer quando histórico tinha mídia sem texto
+      if (responseText.includes('[Mensagem vazia]')) {
+        responseText = responseText.replace(/\[Mensagem vazia\]\s*/g, '').trim();
+        console.log(`⚠️ [AI Agent] Removido "[Mensagem vazia]" da resposta`);
+      }
+      
+      // �🚨 POST-PROCESSING: Detectar e limpar possíveis vazamentos de instruções do prompt
       // CUIDADO: Não truncar agressivamente - apenas limpar padrões específicos problemáticos
       
       // 🆕 FIX: Remover instruções técnicas que vazam na resposta da IA
@@ -2116,32 +1969,16 @@ Mensagem do cliente: ${newMessageText.trim()}`;
           console.log(`✅ [AI Agent] Response validation PASSED`);
         }
         
-        // 🎭 HUMANIZAÇÃO DA RESPOSTA (apenas no sistema avançado)
-        try {
-          // Detectar emoção da mensagem do usuário
-          const emotion = detectEmotion(newMessageText);
-          console.log(`🎭 [AI Agent] Detected emotion: ${emotion}`);
-          
-          // Ajustar tom baseado na emoção
-          if (emotion !== "neutral") {
-            responseText = adjustToneForEmotion(responseText, emotion, businessConfig.formalityLevel);
-          }
-          
-          // Aplicar humanização (saudações, conectores, emojis)
-          const isFirstMessage = conversationHistory.length === 0;
-          const humanizationOptions: HumanizationOptions = {
-            formalityLevel: businessConfig.formalityLevel,
-            useEmojis: businessConfig.emojiUsage as any,
-            customerName: undefined, // TODO: extrair do contato se disponível
-            isFirstMessage,
-          };
-          
-          responseText = humanizeResponse(responseText, humanizationOptions);
-          console.log(`✨ [AI Agent] Response humanized`);
-        } catch (error) {
-          console.error(`❌ [AI Agent] Error humanizing response:`, error);
-          // Continuar com resposta não humanizada
-        }
+        // ⚠️ HUMANIZAÇÃO REMOVIDA - Estava corrompendo respostas do agente
+        // A IA já gera respostas naturais no prompt, não precisa de pós-processamento
+        // que adiciona saudações/emojis indesejados
+        // 
+        // Código removido:
+        // - detectEmotion() / adjustToneForEmotion()
+        // - humanizeResponse() com saudações/conectores/emojis
+        //
+        // A resposta da Mistral agora é usada EXATAMENTE como gerada
+        console.log(`✅ [AI Agent] Usando resposta original da IA (sem humanização extra)`);
       }
       
       console.log(`✅ [AI Agent] Resposta gerada: ${responseText.substring(0, 100)}...`);

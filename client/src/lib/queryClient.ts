@@ -1,5 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { fetchWithAuth, getAuthToken } from "./supabase";
+import { fetchWithAuth, getAuthToken, refreshSession } from "./supabase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -12,6 +12,7 @@ export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
+  retryCount = 0,
 ): Promise<Response> {
   const token = await getAuthToken();
 
@@ -29,6 +30,22 @@ export async function apiRequest(
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+
+  // 🔄 RETRY: Se receber 401 e ainda não tentou refresh, tenta novamente
+  if (res.status === 401 && retryCount === 0) {
+    console.log('🔄 [API] Sessão expirou, fazendo refresh e retry...');
+    
+    // Tenta refresh da sessão
+    const refreshed = await refreshSession();
+    
+    if (refreshed) {
+      console.log('✅ [API] Sessão renovada, tentando request novamente');
+      // Retry com novo token (incrementa retryCount para evitar loop infinito)
+      return apiRequest(method, url, data, retryCount + 1);
+    } else {
+      console.log('❌ [API] Falha no refresh, lançando erro 401');
+    }
+  }
 
   await throwIfResNotOk(res);
   return res;

@@ -5,19 +5,17 @@
  * ║  Este serviço implementa proteção contra bloqueio do WhatsApp através de:   ║
  * ║  1. Fila de mensagens POR WHATSAPP (cada conexão tem sua própria fila)      ║
  * ║  2. Delay de 5-10 segundos entre mensagens do MESMO WhatsApp                ║
- * ║  3. VARIAÇÃO COM IA (Mistral) para humanizar mensagens mantendo sentido     ║
- * ║  4. Nunca envia duas mensagens no mesmo segundo                             ║
+ * ║  3. Nunca envia duas mensagens no mesmo segundo                             ║
  * ║                                                                              ║
  * ║  IMPORTANTE: Múltiplos WhatsApps podem enviar ao mesmo tempo!               ║
  * ║  A regra é POR WHATSAPP, não global.                                        ║
  * ║                                                                              ║
- * ║  🤖 A variação é feita pela IA Mistral, NÃO por substituição automática!    ║
- * ║  Isso garante que o sentido nunca seja perdido.                             ║
+ * ║  ⚠️ VARIAÇÃO DE IA REMOVIDA - Estava corrompendo respostas do agente!       ║
+ * ║  Mensagens são enviadas EXATAMENTE como recebidas.                          ║
  * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
 
 import { WASocket } from "@whiskeysockets/baileys";
-import { humanizeMessageWithAI } from "./messageHumanizer";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  INTERFACE E TIPOS
@@ -112,7 +110,7 @@ class MessageQueueService {
    * Adiciona mensagem à fila do WhatsApp específico
    * Retorna uma Promise que resolve quando a mensagem for enviada
    * 
-   * 🤖 A variação é feita pela IA Mistral para manter o sentido!
+   * ✅ VARIAÇÃO DE IA REMOVIDA - Texto enviado exatamente como recebido
    */
   async enqueue(
     userId: string,
@@ -121,8 +119,6 @@ class MessageQueueService {
     options?: {
       isFromAgent?: boolean;
       priority?: 'high' | 'normal' | 'low';
-      skipVariation?: boolean;
-      messageType?: 'followup' | 'bulk' | 'response' | 'group';
     }
   ): Promise<MessageSendResult> {
     // Inicializar fila do usuário se não existir
@@ -139,35 +135,14 @@ class MessageQueueService {
     const state = this.queues.get(userId)!;
     const messageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    // Aplicar variação ao texto usando IA (se não for skipVariation)
-    let variedText = text;
-    if (!options?.skipVariation && text.length >= 20) {
-      try {
-        // Buscar variações anteriores desta mensagem
-        const hash = this.generateHash(text);
-        const previousVariations = this.variationHistory.get(hash) || [];
-        
-        // Chamar IA para humanizar
-        variedText = await humanizeMessageWithAI(text, {
-          type: options?.messageType || (options?.priority === 'low' ? 'bulk' : 'followup'),
-          previousVariations: previousVariations.slice(-5), // Últimas 5 variações
-        });
-        
-        // Salvar no histórico
-        previousVariations.push(variedText);
-        this.variationHistory.set(hash, previousVariations.slice(-10)); // Manter últimas 10
-        
-      } catch (error) {
-        console.error('🛡️ [ANTI-BLOCK] Erro na humanização com IA, usando texto original:', error);
-        variedText = text;
-      }
-    }
+    // ⚠️ VARIAÇÃO DE IA REMOVIDA - Enviar texto EXATAMENTE como recebido
+    // A variação estava corrompendo respostas do agente e mensagens do dono
 
     return new Promise((resolve, reject) => {
       const queuedMessage: QueuedMessage = {
         id: messageId,
         jid,
-        text: variedText,
+        text: text, // ✅ Usar texto original SEM variação
         originalText: text,
         options,
         priority: options?.priority || 'normal',
@@ -181,10 +156,8 @@ class MessageQueueService {
 
       console.log(`🛡️ [ANTI-BLOCK] Mensagem enfileirada para ${userId.substring(0, 8)}...`);
       console.log(`   📊 Fila: ${state.queue.length} | Prioridade: ${options?.priority || 'normal'}`);
-      console.log(`   📝 Original: "${text.substring(0, 50)}..."`);
-      if (text !== variedText) {
-        console.log(`   🔄 Variado: "${variedText.substring(0, 50)}..."`);
-      }
+      console.log(`   📝 Texto: "${text.substring(0, 50)}..."`);
+      // ✅ VARIAÇÃO REMOVIDA - texto enviado sem modificação
 
       // Iniciar processamento se não estiver rodando
       if (!state.isProcessing) {
@@ -376,8 +349,9 @@ class MessageQueueService {
 // Singleton exportado
 export const messageQueueService = new MessageQueueService();
 
-// Re-exportar a função de humanização com IA para uso direto
-export { humanizeMessageWithAI } from "./messageHumanizer";
+// ⚠️ VARIAÇÃO DE IA REMOVIDA - não re-exportar mais
+// A humanização agora só está disponível em messageHumanizer.ts para uso em bulk send
+// export { humanizeMessageWithAI } from "./messageHumanizer";
 
 // Tipos exportados
 export type { QueuedMessage, MessageSendResult, WhatsAppQueueState };

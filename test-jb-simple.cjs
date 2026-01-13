@@ -227,7 +227,13 @@ const scenarios = [
       { role: "assistant", content: "Perfeito! A instalação de chuveiro elétrico simples custa R$ 95,00 e a versão luxo R$ 130,00. Qual você prefere?" },
       { role: "user", content: "Simples. Ah, também quero uma tomada" }
     ],
-    check: (r) => r.toLowerCase().includes("inclui") || r.toLowerCase().includes("junto") || r.toLowerCase().includes("também")
+    check: (r) => {
+      const lower = r.toLowerCase();
+      // Aceita se mencionar a tomada E transferir para Jennifer
+      const mencionaTomada = lower.includes("tomada") && lower.includes("55");
+      const transfere = lower.includes("jennifer") || lower.includes("transferir");
+      return mencionaTomada && transfere;
+    }
   },
   {
     name: "Teste 7: Emergência",

@@ -101,7 +101,7 @@ function UpgradeModal({ isOpen, onClose, title, description, used, limit, type }
             Agora não
           </Button>
           <Button
-            onClick={() => window.location.href = "/pricing"}
+            onClick={() => window.location.href = "/plans"}
             className="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:from-emerald-600 hover:to-cyan-600"
           >
             <Zap className="w-4 h-4 mr-2" />
@@ -233,6 +233,7 @@ export function AgentStudioUnified() {
   const [simulatorInput, setSimulatorInput] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulatorSentMedias, setSimulatorSentMedias] = useState<string[]>([]); // 🆕 Mídias já enviadas
+  const simulatorEpochRef = useRef(0);
   
   // Estado de configurações
   const [isActive, setIsActive] = useState(true);
@@ -243,6 +244,7 @@ export function AgentStudioUnified() {
   const [fetchHistoryOnFirstResponse, setFetchHistoryOnFirstResponse] = useState(true);
   const [pauseOnManualReply, setPauseOnManualReply] = useState(true);
   const [autoReactivateMinutes, setAutoReactivateMinutes] = useState<number | null>(null);
+  const [customMinutesInput, setCustomMinutesInput] = useState<string>("");
   
   // Estado de mídias
   const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
@@ -531,7 +533,12 @@ export function AgentStudioUnified() {
       setTriggerPhrases(config.triggerPhrases || []);
       setFetchHistoryOnFirstResponse(config.fetchHistoryOnFirstResponse ?? true);
       setPauseOnManualReply(config.pauseOnManualReply ?? true);
-      setAutoReactivateMinutes((config as any).autoReactivateMinutes ?? null);
+      const configMinutes = (config as any).autoReactivateMinutes ?? null;
+      setAutoReactivateMinutes(configMinutes);
+      // Inicializa campo custom se for valor personalizado
+      if (configMinutes !== null && ![10, 30, 60, 120].includes(configMinutes)) {
+        setCustomMinutesInput(String(configMinutes));
+      }
       
       // Inicializa histórico
       if (promptHistory.length === 0 && config.prompt) {
@@ -816,6 +823,8 @@ export function AgentStudioUnified() {
   const handleSimulate = async () => {
     if (!simulatorInput.trim() || isSimulating) return;
 
+    const epochAtSend = simulatorEpochRef.current;
+
     const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
     const userMsg: SimulatorMessage = {
@@ -830,10 +839,13 @@ export function AgentStudioUnified() {
 
     try {
       // 🆕 CONVERTER HISTÓRICO DO SIMULADOR PARA FORMATO DO BACKEND
-      const historyForBackend = simulatorMessages.map(msg => ({
-        role: msg.role === "agent" ? "assistant" : "user" as "user" | "assistant",
-        content: msg.message
-      }));
+      // 🛡️ FIX: Filtrar mensagens vazias (mídias sem texto) para evitar "[Mensagem vazia]" na resposta
+      const historyForBackend = simulatorMessages
+        .filter(msg => msg.message && msg.message.trim()) // Ignorar mídias sem texto
+        .map(msg => ({
+          role: msg.role === "agent" ? "assistant" : "user" as "user" | "assistant",
+          content: msg.message
+        }));
       
       const response = await apiRequest("POST", "/api/agent/test", {
         message: simulatorInput,
@@ -845,6 +857,11 @@ export function AgentStudioUnified() {
       
       const data = await response.json();
       const agentTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      // Se o usuário clicou em "Limpar" durante a requisição, ignorar qualquer resposta atrasada
+      if (simulatorEpochRef.current !== epochAtSend) {
+        return;
+      }
       
       // 🔒 Verificar se atingiu limite do simulador
       if (data.limitReached) {
@@ -939,8 +956,12 @@ export function AgentStudioUnified() {
   
   // 🆕 LIMPAR SIMULADOR (resetar histórico e mídias)
   const handleClearSimulator = () => {
+    // Invalida respostas de requests em voo (evita repopular após limpar)
+    simulatorEpochRef.current++;
     setSimulatorMessages([]);
     setSimulatorSentMedias([]);
+    setSimulatorInput("");
+    setIsSimulating(false);
   };
 
   // ============ SALVAR PROMPT ============
@@ -1363,7 +1384,7 @@ export function AgentStudioUnified() {
           </div>
 
           {/* History Panel */}
-          {showHistory && promptHistory.length > 1 && (
+          {showHistory && promptHistory.length > 0 && (
             <div className="absolute top-12 left-0 right-0 z-50 border-b bg-background/95 backdrop-blur-sm shadow-lg px-4 py-3 max-h-64 overflow-y-auto mx-4 rounded-lg border">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground">
@@ -1531,7 +1552,7 @@ export function AgentStudioUnified() {
                       </span>
                     </div>
                     <button
-                      onClick={() => window.location.href = "/pricing"}
+                      onClick={() => window.location.href = "/plans"}
                       className={cn(
                         "px-3 py-1 rounded-full text-[10px] font-semibold transition-all",
                         dailyLimits.calibration.isLimitReached
@@ -1539,7 +1560,7 @@ export function AgentStudioUnified() {
                           : "bg-primary/10 text-primary hover:bg-primary/20"
                       )}
                     >
-                      {dailyLimits.calibration.isLimitReached ? "Upgrade Now" : "Upgrade"}
+                      {dailyLimits.calibration.isLimitReached ? "Ver Planos" : "Upgrade"}
                     </button>
                   </div>
                 )}
@@ -1900,7 +1921,7 @@ export function AgentStudioUnified() {
                             variant={autoReactivateMinutes === null ? "default" : "outline"}
                             size="sm"
                             className="text-xs"
-                            onClick={() => setAutoReactivateMinutes(null)}
+                            onClick={() => { setAutoReactivateMinutes(null); setCustomMinutesInput(""); }}
                           >
                             Nunca
                           </Button>
@@ -1908,7 +1929,7 @@ export function AgentStudioUnified() {
                             variant={autoReactivateMinutes === 10 ? "default" : "outline"}
                             size="sm"
                             className="text-xs"
-                            onClick={() => setAutoReactivateMinutes(10)}
+                            onClick={() => { setAutoReactivateMinutes(10); setCustomMinutesInput(""); }}
                           >
                             10 min
                           </Button>
@@ -1916,7 +1937,7 @@ export function AgentStudioUnified() {
                             variant={autoReactivateMinutes === 30 ? "default" : "outline"}
                             size="sm"
                             className="text-xs"
-                            onClick={() => setAutoReactivateMinutes(30)}
+                            onClick={() => { setAutoReactivateMinutes(30); setCustomMinutesInput(""); }}
                           >
                             30 min
                           </Button>
@@ -1924,7 +1945,7 @@ export function AgentStudioUnified() {
                             variant={autoReactivateMinutes === 60 ? "default" : "outline"}
                             size="sm"
                             className="text-xs"
-                            onClick={() => setAutoReactivateMinutes(60)}
+                            onClick={() => { setAutoReactivateMinutes(60); setCustomMinutesInput(""); }}
                           >
                             1 hora
                           </Button>
@@ -1932,25 +1953,38 @@ export function AgentStudioUnified() {
                             variant={autoReactivateMinutes === 120 ? "default" : "outline"}
                             size="sm"
                             className="text-xs"
-                            onClick={() => setAutoReactivateMinutes(120)}
+                            onClick={() => { setAutoReactivateMinutes(120); setCustomMinutesInput(""); }}
                           >
                             2 horas
                           </Button>
-                          <Button
-                            variant={autoReactivateMinutes !== null && ![10, 30, 60, 120].includes(autoReactivateMinutes) ? "default" : "outline"}
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => {
-                              const custom = prompt("Digite o tempo em minutos:");
-                              if (custom && !isNaN(Number(custom))) {
-                                setAutoReactivateMinutes(Number(custom));
+                          
+                          {/* Campo Custom - Input direto de minutos */}
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="1"
+                              max="10080"
+                              placeholder="min"
+                              className={`w-16 h-8 text-xs text-center rounded-md border ${
+                                autoReactivateMinutes !== null && ![null, 10, 30, 60, 120].includes(autoReactivateMinutes)
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-input bg-background"
+                              }`}
+                              value={
+                                autoReactivateMinutes !== null && ![10, 30, 60, 120].includes(autoReactivateMinutes)
+                                  ? autoReactivateMinutes
+                                  : customMinutesInput
                               }
-                            }}
-                          >
-                            {autoReactivateMinutes !== null && ![null, 10, 30, 60, 120].includes(autoReactivateMinutes) 
-                              ? `${autoReactivateMinutes} min` 
-                              : "Custom"}
-                          </Button>
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setCustomMinutesInput(value);
+                                if (value && !isNaN(Number(value)) && Number(value) > 0) {
+                                  setAutoReactivateMinutes(Number(value));
+                                }
+                              }}
+                            />
+                            <span className="text-xs text-muted-foreground">min</span>
+                          </div>
                         </div>
                         
                         <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md">

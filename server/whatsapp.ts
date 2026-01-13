@@ -2756,20 +2756,19 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         
         // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens para garantir delay entre envios
         // Cada WhatsApp tem sua própria fila - múltiplos usuários podem enviar ao mesmo tempo
-        // Aplica variação de palavras/sinônimos automaticamente
+        // ✅ Texto enviado EXATAMENTE como gerado pela IA (variação REMOVIDA do sistema)
         const queueResult = await messageQueueService.enqueue(userId, jid, part, {
           isFromAgent: true,
           priority: 'high', // Respostas da IA = prioridade alta
         });
 
         const messageId = queueResult.messageId || `${Date.now()}-${i}`;
-        const finalPart = queueResult.variedText || part;
 
         await storage.createMessage({
           conversationId: conversationId,
           messageId,
           fromMe: true,
-          text: finalPart,
+          text: part, // ✅ Texto original sem variação
           timestamp: new Date(),
           status: "sent",
           isFromAgent: true,
@@ -3106,19 +3105,19 @@ export async function sendMessage(
   
   // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens para garantir delay entre envios
   // Cada WhatsApp tem sua própria fila - múltiplos usuários podem enviar ao mesmo tempo
+  // ✅ Texto enviado EXATAMENTE como recebido (variação REMOVIDA do sistema)
   const queueResult = await messageQueueService.enqueue(userId, jid, text, {
     isFromAgent: options?.isFromAgent,
     priority: options?.isFromAgent ? 'normal' : 'high', // Mensagens manuais do dono = prioridade alta
   });
 
   const messageId = queueResult.messageId || Date.now().toString();
-  const finalText = queueResult.variedText || text; // Texto pode ter sido variado pelo anti-bloqueio
 
   await storage.createMessage({
     conversationId,
     messageId,
     fromMe: true,
-    text: finalText,
+    text: text, // ✅ Texto original sem variação
     timestamp: new Date(),
     status: "sent",
     // 🔧 FIX: Marcar mensagens de follow-up como isFromAgent para que a IA
@@ -3527,7 +3526,7 @@ export async function sendBulkMessages(
       console.log(`[BULK SEND] Enviando para: ${jid}`);
       
       // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens com delay automático de 5-10s
-      // A variação de palavras/sinônimos é aplicada automaticamente
+      // ✅ Texto enviado EXATAMENTE como recebido (variação REMOVIDA do sistema)
       const queueResult = await messageQueueService.enqueue(userId, jid, message, {
         isFromAgent: true,
         priority: 'low', // Bulk = prioridade baixa (respostas de IA passam na frente)
@@ -3535,7 +3534,7 @@ export async function sendBulkMessages(
       
       if (queueResult.success) {
         sent++;
-        console.log(`[BULK SEND] ✅ Enviado para ${phone}${queueResult.variedText ? ' (variado)' : ''}`);
+        console.log(`[BULK SEND] ✅ Enviado para ${phone}`);
       } else {
         failed++;
         errors.push(`${phone}: ${queueResult.error || 'Sem ID de mensagem retornado'}`);
@@ -3740,23 +3739,21 @@ export async function sendBulkMessagesAdvanced(
       console.log(`[BULK SEND ADVANCED] Mensagem: ${finalMessage.substring(0, 50)}...`);
       
       // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens com delay automático de 5-10s
-      // A variação adicional de palavras/sinônimos é aplicada automaticamente pelo serviço
+      // ✅ Texto enviado EXATAMENTE como recebido (variação REMOVIDA do sistema)
       const queueResult = await messageQueueService.enqueue(userId, jid, finalMessage, {
         isFromAgent: true,
         priority: 'low', // Bulk = prioridade baixa
-        skipVariation: useAI, // Se já aplicou variação IA, não aplicar novamente
       });
       
       if (queueResult.success) {
         sent++;
-        const sentText = queueResult.variedText || finalMessage;
         details.sent.push({
           phone: contact.phone,
           name: contact.name,
           timestamp: new Date().toISOString(),
-          message: sentText,
+          message: finalMessage,
         });
-        console.log(`[BULK SEND ADVANCED] ✅ Enviado para ${contact.name || contact.phone}${queueResult.variedText ? ' (variado)' : ''}`);
+        console.log(`[BULK SEND ADVANCED] ✅ Enviado para ${contact.name || contact.phone}`);
       } else {
         failed++;
         const errorMsg = queueResult.error || 'Sem ID de mensagem retornado';
@@ -3944,23 +3941,21 @@ export async function sendMessageToGroups(
       console.log(`[GROUP SEND] Mensagem: ${finalMessage.substring(0, 50)}...`);
       
       // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens com delay automático de 5-10s
-      // A variação adicional de palavras/sinônimos é aplicada automaticamente
+      // ✅ Texto enviado EXATAMENTE como recebido (variação REMOVIDA do sistema)
       const queueResult = await messageQueueService.enqueue(userId, jid, finalMessage, {
         isFromAgent: true,
         priority: 'low', // Grupos = prioridade baixa
-        skipVariation: useAI, // Se já aplicou variação IA, não aplicar novamente
       });
       
       if (queueResult.success) {
         sent++;
-        const sentText = queueResult.variedText || finalMessage;
         details.sent.push({
           groupId: jid,
           groupName,
           timestamp: new Date().toISOString(),
-          message: sentText,
+          message: finalMessage,
         });
-        console.log(`[GROUP SEND] ✅ Enviado para ${groupName}${queueResult.variedText ? ' (variado)' : ''}`);
+        console.log(`[GROUP SEND] ✅ Enviado para ${groupName}`);
       } else {
         failed++;
         const errorMsg = queueResult.error || 'Sem ID de mensagem retornado';

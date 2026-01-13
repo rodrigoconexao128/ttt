@@ -9,8 +9,9 @@ import { registerFollowUpRoutes } from "./routes_user_followup";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 import { withRetry, db } from "./db";
 import { eq, and, gte, desc, inArray } from "drizzle-orm";
-import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users, resellerInvoiceItems as resellerInvoiceItemsTable, resellerInvoices as resellerInvoicesTable } from "@shared/schema";
+import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users, resellerInvoiceItems as resellerInvoiceItemsTable, resellerInvoices as resellerInvoicesTable, websiteImports } from "@shared/schema";
 import { resellerService } from "./resellerService";
+import { scrapeWebsite, validateUrl, formatContextForAgent, type WebsiteScrapingResult } from "./websiteScraperService";
 
 // ============================================
 // CACHE PARA BUCKETS DE STORAGE
@@ -2865,6 +2866,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   app.post("/api/agent/test", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
+      console.log(`🧪 [/api/agent/test] ENTRADA - userId: ${userId}, message: ${req.body.message?.substring(0, 30)}`);
       
       // 🔒 CHECK DAILY SIMULATOR LIMIT FOR FREE USERS
       const subscription = await storage.getUserSubscription(userId);
@@ -3268,6 +3270,301 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   // END AGENT MEDIA LIBRARY ROUTES
   // ==========================================================================
 
+  // ==========================================================================
+  // WEBSITE IMPORT ROUTES - Importação de dados de websites para o agente
+  // ==========================================================================
+
+  /**
+   * Lista todas as importações de website do usuário
+   */
+  app.get("/api/agent/website-imports", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const imports = await db
+        .select()
+        .from(websiteImports)
+        .where(eq(websiteImports.userId, userId))
+        .orderBy(desc(websiteImports.createdAt));
+      
+      res.json(imports);
+    } catch (error) {
+      console.error("[WebsiteImport] Error listing imports:", error);
+      res.status(500).json({ message: "Falha ao listar importações" });
+    }
+  });
+
+  /**
+   * Inicia o scraping de um website
+   * POST /api/agent/import-website
+   * Body: { url: string }
+   */
+  app.post("/api/agent/import-website", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { url } = req.body;
+
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ message: "URL é obrigatória" });
+      }
+
+      // Validar URL
+      const validation = validateUrl(url);
+      if (!validation.valid) {
+        return res.status(400).json({ message: validation.error });
+      }
+
+      console.log(`[WebsiteImport] Usuário ${userId} iniciando import de: ${validation.normalizedUrl}`);
+
+      // Criar registro de importação
+      const [importRecord] = await db
+        .insert(websiteImports)
+        .values({
+          userId,
+          websiteUrl: validation.normalizedUrl!,
+          status: "processing",
+        })
+        .returning();
+
+      // Iniciar scraping (async)
+      scrapeWebsite(validation.normalizedUrl!)
+        .then(async (result: WebsiteScrapingResult) => {
+          if (result.success) {
+            // Atualizar registro com dados extraídos
+            await db
+              .update(websiteImports)
+              .set({
+                status: "completed",
+                websiteName: result.websiteName,
+                websiteDescription: result.websiteDescription,
+                extractedText: result.extractedText,
+                extractedHtml: result.extractedHtml,
+                extractedProducts: result.products,
+                extractedInfo: result.businessInfo,
+                formattedContext: result.formattedContext,
+                pagesScraped: result.pagesScraped,
+                productsFound: result.productsFound,
+                lastScrapedAt: new Date(),
+                updatedAt: new Date(),
+              })
+              .where(eq(websiteImports.id, importRecord.id));
+
+            console.log(`[WebsiteImport] ✅ Import ${importRecord.id} concluído: ${result.productsFound} produtos`);
+          } else {
+            // Atualizar com erro
+            await db
+              .update(websiteImports)
+              .set({
+                status: "failed",
+                errorMessage: result.error,
+                updatedAt: new Date(),
+              })
+              .where(eq(websiteImports.id, importRecord.id));
+
+            console.log(`[WebsiteImport] ❌ Import ${importRecord.id} falhou: ${result.error}`);
+          }
+        })
+        .catch(async (error) => {
+          await db
+            .update(websiteImports)
+            .set({
+              status: "failed",
+              errorMessage: error.message,
+              updatedAt: new Date(),
+            })
+            .where(eq(websiteImports.id, importRecord.id));
+        });
+
+      // Retornar imediatamente com o ID do import
+      res.json({
+        id: importRecord.id,
+        status: "processing",
+        message: "Importação iniciada. Acompanhe o status pelo ID.",
+      });
+    } catch (error: any) {
+      console.error("[WebsiteImport] Error starting import:", error);
+      res.status(500).json({ message: `Falha ao iniciar importação: ${error.message}` });
+    }
+  });
+
+  /**
+   * Verifica o status de uma importação
+   * GET /api/agent/website-imports/:id
+   */
+  app.get("/api/agent/website-imports/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      const [importRecord] = await db
+        .select()
+        .from(websiteImports)
+        .where(and(eq(websiteImports.id, id), eq(websiteImports.userId, userId)));
+
+      if (!importRecord) {
+        return res.status(404).json({ message: "Importação não encontrada" });
+      }
+
+      res.json(importRecord);
+    } catch (error) {
+      console.error("[WebsiteImport] Error fetching import:", error);
+      res.status(500).json({ message: "Falha ao buscar importação" });
+    }
+  });
+
+  /**
+   * Aplica o conteúdo importado ao prompt do agente
+   * POST /api/agent/website-imports/:id/apply
+   */
+  app.post("/api/agent/website-imports/:id/apply", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      // Buscar importação
+      const [importRecord] = await db
+        .select()
+        .from(websiteImports)
+        .where(and(eq(websiteImports.id, id), eq(websiteImports.userId, userId)));
+
+      if (!importRecord) {
+        return res.status(404).json({ message: "Importação não encontrada" });
+      }
+
+      if (importRecord.status !== "completed") {
+        return res.status(400).json({ message: "Importação ainda não foi concluída" });
+      }
+
+      if (!importRecord.formattedContext) {
+        return res.status(400).json({ message: "Nenhum conteúdo para aplicar" });
+      }
+
+      // Buscar config atual do agente
+      const agentConfig = await storage.getAgentConfig(userId);
+      
+      if (!agentConfig) {
+        return res.status(404).json({ message: "Configure seu agente antes de importar" });
+      }
+
+      // Remover contexto anterior importado (se existir)
+      let currentPrompt = agentConfig.prompt || "";
+      const importMarkerStart = "## 📦 CATÁLOGO DE PRODUTOS/SERVIÇOS";
+      const importMarkerEnd = "*Dados atualizados automaticamente via importação de website.*";
+      
+      const startIdx = currentPrompt.indexOf(importMarkerStart);
+      if (startIdx !== -1) {
+        const endIdx = currentPrompt.indexOf(importMarkerEnd, startIdx);
+        if (endIdx !== -1) {
+          currentPrompt = currentPrompt.substring(0, startIdx) + currentPrompt.substring(endIdx + importMarkerEnd.length);
+        }
+      }
+
+      // Adicionar novo contexto
+      const newPrompt = currentPrompt.trim() + "\n" + importRecord.formattedContext;
+
+      // Salvar prompt atualizado
+      await storage.saveAgentConfig(userId, {
+        ...agentConfig,
+        prompt: newPrompt,
+      });
+
+      // Marcar importação como aplicada
+      await db
+        .update(websiteImports)
+        .set({
+          appliedToPrompt: true,
+          appliedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(websiteImports.id, id));
+
+      console.log(`[WebsiteImport] ✅ Contexto de ${importRecord.websiteUrl} aplicado ao agente de ${userId}`);
+
+      res.json({
+        success: true,
+        message: "Conteúdo aplicado ao agente com sucesso!",
+        productsAdded: importRecord.productsFound,
+      });
+    } catch (error: any) {
+      console.error("[WebsiteImport] Error applying import:", error);
+      res.status(500).json({ message: `Falha ao aplicar: ${error.message}` });
+    }
+  });
+
+  /**
+   * Exclui uma importação
+   * DELETE /api/agent/website-imports/:id
+   */
+  app.delete("/api/agent/website-imports/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      const [deleted] = await db
+        .delete(websiteImports)
+        .where(and(eq(websiteImports.id, id), eq(websiteImports.userId, userId)))
+        .returning();
+
+      if (!deleted) {
+        return res.status(404).json({ message: "Importação não encontrada" });
+      }
+
+      res.json({ success: true, message: "Importação excluída" });
+    } catch (error) {
+      console.error("[WebsiteImport] Error deleting import:", error);
+      res.status(500).json({ message: "Falha ao excluir importação" });
+    }
+  });
+
+  /**
+   * Preview do scraping sem salvar
+   * POST /api/agent/website-imports/preview
+   */
+  app.post("/api/agent/website-imports/preview", isAuthenticated, async (req: any, res) => {
+    try {
+      const { url } = req.body;
+
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ message: "URL é obrigatória" });
+      }
+
+      const validation = validateUrl(url);
+      if (!validation.valid) {
+        return res.status(400).json({ message: validation.error });
+      }
+
+      console.log(`[WebsiteImport] Preview de: ${validation.normalizedUrl}`);
+
+      // Fazer scraping
+      const result = await scrapeWebsite(validation.normalizedUrl!);
+
+      if (!result.success) {
+        return res.status(400).json({ 
+          success: false,
+          message: result.error || "Falha ao analisar o website" 
+        });
+      }
+
+      res.json({
+        success: true,
+        websiteUrl: result.websiteUrl,
+        websiteName: result.websiteName,
+        websiteDescription: result.websiteDescription,
+        products: result.products,
+        businessInfo: result.businessInfo,
+        formattedContext: result.formattedContext,
+        productsFound: result.productsFound,
+      });
+    } catch (error: any) {
+      console.error("[WebsiteImport] Error in preview:", error);
+      res.status(500).json({ message: `Erro ao analisar: ${error.message}` });
+    }
+  });
+
+  // ==========================================================================
+  // END WEBSITE IMPORT ROUTES
+  // ==========================================================================
+
   app.post("/api/agent/disable/:conversationId", isAuthenticated, async (req: any, res) => {
     try {
       const { conversationId } = req.params;
@@ -3284,7 +3581,12 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      await storage.disableAgentForConversation(conversationId);
+      // 🔧 FIX: Buscar config do usuário para obter timer de auto-reativação
+      const agentConfig = await storage.getAgentConfig(userId);
+      const autoReactivateMinutes = agentConfig?.autoReactivateMinutes ?? null;
+
+      await storage.disableAgentForConversation(conversationId, autoReactivateMinutes);
+      console.log(`🛑 [DISABLE API] IA desabilitada para ${conversationId}${autoReactivateMinutes ? ` (reativa em ${autoReactivateMinutes}min)` : ' (manual only)'}`);
       res.json({ success: true });
     } catch (error) {
       console.error("Error disabling agent:", error);
@@ -3340,7 +3642,12 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       }
 
       if (disable) {
-        await storage.disableAgentForConversation(conversationId);
+        // 🔧 FIX: Buscar config do usuário para obter timer de auto-reativação
+        const agentConfig = await storage.getAgentConfig(userId);
+        const autoReactivateMinutes = agentConfig?.autoReactivateMinutes ?? null;
+        
+        await storage.disableAgentForConversation(conversationId, autoReactivateMinutes);
+        console.log(`🛑 [TOGGLE] IA desabilitada para ${conversationId}${autoReactivateMinutes ? ` (reativa em ${autoReactivateMinutes}min)` : ' (manual only)'}`);
       } else {
         await storage.enableAgentForConversation(conversationId);
         
@@ -4941,7 +5248,8 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         paymentMethodId, 
         issuerId, 
         cardholderName, 
-        identificationNumber 
+        identificationNumber,
+        installments: requestedInstallments // Número de parcelas para planos de implementação
       } = req.body;
       
       if (!subscriptionId || !payerEmail) {
@@ -5057,12 +5365,18 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       const tokenParaPagamento = paymentToken || token;
       const tokenParaAssinatura = subscriptionToken || null;
       
+      // Determinar número de parcelas (apenas para planos de implementação)
+      // Validar: máximo 12 parcelas, mínimo 1
+      const installments = hasSetupFee && requestedInstallments ? 
+        Math.min(Math.max(1, parseInt(requestedInstallments) || 1), 12) : 1;
+      
       console.log("[MP Subscription] Creating subscription:", {
         subscriptionId,
         planName: plan.nome,
         valorMensal,
         valorPrimeiraCobranca: primeiraCobrancaValor,
         hasSetupFee,
+        installments,
         frequency,
         frequency_type,
         hasPaymentToken: !!tokenParaPagamento,
@@ -5092,13 +5406,13 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         console.log("[MP Subscription] Etapa 1: Cobrança imediata via /v1/payments");
         
         // ═══════════════════════════════════════════════════════════════════
-        // ETAPA 1: PAGAMENTO IMEDIATO via /v1/payments
+        // ETAPA 1: PAGAMENTO IMEDIATO via /v1/payments (com suporte a parcelamento)
         // ═══════════════════════════════════════════════════════════════════
         const paymentData = {
           token: tokenParaPagamento,
           transaction_amount: primeiraCobrancaValor,
-          description: `${plan.nome} - AgenteZap`,
-          installments: 1,
+          description: `${plan.nome} - AgenteZap${installments > 1 ? ` (${installments}x)` : ''}`,
+          installments: installments, // Número de parcelas (1 a 12)
           payment_method_id: paymentMethodId || "visa",
           statement_descriptor: "AGENTEZAP",
           external_reference: `sub_${subscriptionId}_first`,
@@ -5353,13 +5667,13 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         console.log("[MP Subscription] Etapa 2: Criar assinatura pendente para renovação futura");
         
         // ═══════════════════════════════════════════════════════════════════
-        // ETAPA 1: PAGAMENTO IMEDIATO via /v1/payments (usa o único token disponível)
+        // ETAPA 1: PAGAMENTO IMEDIATO via /v1/payments (com suporte a parcelamento)
         // ═══════════════════════════════════════════════════════════════════
         const paymentData = {
           token: tokenParaPagamento,
           transaction_amount: primeiraCobrancaValor,
-          description: `${plan.nome} - AgenteZap`,
-          installments: 1,
+          description: `${plan.nome} - AgenteZap${installments > 1 ? ` (${installments}x)` : ''}`,
+          installments: installments, // Número de parcelas (1 a 12)
           payment_method_id: paymentMethodId || "visa",
           statement_descriptor: "AGENTEZAP",
           external_reference: `sub_${subscriptionId}_single`,

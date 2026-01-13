@@ -10,6 +10,11 @@ import { seedDatabase } from "./seed";
 import path from "path";
 import fs from "fs";
 
+const BOOT_ID = new Date().toISOString();
+console.log(`🚀 [BOOT] Starting server (bootId=${BOOT_ID})`);
+console.log(`🚀 [BOOT] node=${process.version} env=${process.env.NODE_ENV || 'unknown'} port=${process.env.PORT || 'unknown'}`);
+console.log(`🚀 [BOOT] railwayCommit=${process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_GIT_COMMIT || 'unknown'}`);
+
 // 🛡️ MODO DESENVOLVIMENTO: Aviso de proteção de produção
 if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
   console.log('\n');

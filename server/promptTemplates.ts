@@ -385,7 +385,7 @@ export function generateSystemPrompt(
     : "Seja cordial sem necessariamente usar o nome do cliente";
   prompt = prompt.replace(/{{USAR_NOME_CLIENTE}}/g, useNameGuidance);
 
-  const variationGuidance = "Varie suas saudações (Olá, Oi, Bom dia, etc) e despedidas para soar natural";
+  const variationGuidance = "Mantenha consistência: evite variar saudações/despedidas ou trocar palavras apenas para parecer diferente";
   prompt = prompt.replace(/{{VARIAR_SAUDACOES}}/g, variationGuidance);
 
   const nextStepsGuidance = config.offerNextSteps

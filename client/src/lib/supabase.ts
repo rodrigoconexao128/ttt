@@ -52,3 +52,26 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   });
 }
 
+// 🔄 Função para forçar refresh da sessão
+export async function refreshSession(): Promise<boolean> {
+  try {
+    console.log('[SUPABASE] Tentando refresh da sessão...');
+    const { data, error } = await supabase.auth.refreshSession();
+    
+    if (error) {
+      console.error('[SUPABASE] Erro ao fazer refresh:', error.message);
+      return false;
+    }
+    
+    if (data.session) {
+      console.log('[SUPABASE] ✅ Sessão renovada com sucesso');
+      return true;
+    }
+    
+    console.log('[SUPABASE] ⚠️ Refresh sem erro mas sem sessão');
+    return false;
+  } catch (e) {
+    console.error('[SUPABASE] Exceção ao fazer refresh:', e);
+    return false;
+  }
+}

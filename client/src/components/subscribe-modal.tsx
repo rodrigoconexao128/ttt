@@ -97,6 +97,19 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
   const [error, setError] = useState<string | null>(null);
   const [cardBrand, setCardBrand] = useState<string | null>(null);
   
+  // Estado para parcelamento (apenas planos de implementação)
+  const [installments, setInstallments] = useState<number>(1);
+  const [installmentOptions, setInstallmentOptions] = useState<Array<{
+    installments: number;
+    installment_rate: number;
+    installment_amount: number;
+    total_amount: number;
+    recommended_message: string;
+    payment_method_option_id?: string;
+  }>>([]);
+  const [loadingInstallments, setLoadingInstallments] = useState(false);
+  const [currentBin, setCurrentBin] = useState<string>("");
+  
   // Estados para PIX
   const [pixData, setPixData] = useState<{
     qrCode: string;
@@ -110,6 +123,15 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
   
   const mpInstanceRef = useRef<any>(null);
   const pixPollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Resetar estados de parcelas quando o modal abre ou subscriptionId muda
+  useEffect(() => {
+    if (open) {
+      setCurrentBin(""); // Força nova busca de parcelas
+      setInstallmentOptions([]);
+      setInstallments(1);
+    }
+  }, [open, subscriptionId]);
 
   // Auto-preencher email do usuário logado
   useEffect(() => {
@@ -176,6 +198,85 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
     } else setCardBrand(null);
   }, [cardNumber]);
 
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // BUSCAR PARCELAS REAIS DA API DO MERCADO PAGO
+  // Usa mp.getInstallments() para obter opções com juros corretos
+  // ═══════════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const fetchInstallments = async () => {
+      const clean = cardNumber.replace(/\s/g, "");
+      // BIN são os primeiros 6-8 dígitos do cartão
+      const bin = clean.slice(0, 8);
+      
+      // Calcular o valor a cobrar - prioriza valorPrimeiraCobranca para planos de implementação
+      const planPrice = plan?.valor || plan?.price || "0";
+      const setupFee = plan?.valorPrimeiraCobranca ? parseFloat(plan.valorPrimeiraCobranca) : 0;
+      const monthlyPriceCalc = subscription?.couponPrice ? parseFloat(subscription.couponPrice) : parseFloat(planPrice);
+      
+      // Se tiver taxa de setup (implementação), usa ela, senão usa o preço mensal
+      const hasSetupFeeCalc = setupFee > 0 && setupFee !== monthlyPriceCalc;
+      const amountToCharge = hasSetupFeeCalc ? setupFee : monthlyPriceCalc;
+      
+      // Só buscar se: tiver MP, tiver pelo menos 6 dígitos do cartão, e tiver um valor válido
+      if (!mpInstanceRef.current || bin.length < 6 || !amountToCharge || amountToCharge < 1) {
+        return;
+      }
+      
+      // Criar chave única combinando BIN + valor para detectar mudanças de plano
+      const cacheKey = `${bin}_${amountToCharge.toFixed(2)}`;
+      
+      // Evitar buscas repetidas para o mesmo BIN + valor
+      if (cacheKey === currentBin) return;
+      
+      setLoadingInstallments(true);
+      setCurrentBin(cacheKey);
+      
+      try {
+        console.log("[Installments] Buscando parcelas para BIN:", bin, "Valor:", amountToCharge);
+        
+        const installmentsResponse = await mpInstanceRef.current.getInstallments({
+          amount: String(amountToCharge),
+          bin: bin,
+          paymentTypeId: 'credit_card'
+        });
+        
+        if (installmentsResponse && installmentsResponse.length > 0) {
+          const payerCosts = installmentsResponse[0].payer_costs || [];
+          console.log("[Installments] Opções recebidas:", payerCosts.length);
+          
+          // Mapear as opções de parcelas
+          const options = payerCosts.map((cost: any) => ({
+            installments: cost.installments,
+            installment_rate: cost.installment_rate,
+            installment_amount: cost.installment_amount,
+            total_amount: cost.total_amount,
+            recommended_message: cost.recommended_message,
+            payment_method_option_id: cost.payment_method_option_id,
+          }));
+          
+          setInstallmentOptions(options);
+          
+          // Resetar parcelas selecionadas para 1x se não houver opção válida
+          if (!options.find((o: any) => o.installments === installments)) {
+            setInstallments(1);
+          }
+        } else {
+          console.log("[Installments] Nenhuma opção disponível");
+          setInstallmentOptions([]);
+        }
+      } catch (err) {
+        console.error("[Installments] Erro ao buscar parcelas:", err);
+        setInstallmentOptions([]);
+      } finally {
+        setLoadingInstallments(false);
+      }
+    };
+    
+    // Debounce para evitar muitas chamadas durante digitação
+    const timeoutId = setTimeout(fetchInstallments, 500);
+    return () => clearTimeout(timeoutId);
+  }, [cardNumber, plan, subscription, mpReady]);
+
   // Formatters
   const formatCardNumber = (v: string) => v.replace(/\D/g, "").slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ").trim();
   const formatExpiryDate = (v: string) => {
@@ -198,7 +299,7 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
   };
 
   // Mutation para cartão - VERSÃO 2025: Dois tokens para cobrança imediata + assinatura recorrente
-  // Token 1 (paymentToken): Para cobrança IMEDIATA via /v1/payments
+  // Token 1 (paymentToken): Para cobrança IMEDIATA via /v1/payments (pode ser parcelado)
   // Token 2 (subscriptionToken): Para assinatura recorrente via /preapproval (começa no próximo mês)
   const createSubscription = useMutation({
     mutationFn: async (tokens: { paymentToken: string; subscriptionToken: string }) => {
@@ -216,6 +317,7 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
         cardholderName: cardHolder,
         identificationNumber: docNumber.replace(/\D/g, ""),
         identificationType: docType,
+        installments: installments, // Número de parcelas para o primeiro pagamento
       });
       
       if (!res.ok) {
@@ -501,6 +603,17 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
   const isAnnual = frequencyDays >= 360 || plan?.tipo === "anual";
   const periodLabel = isAnnual ? "ano" : "mês";
   const totalInitial = hasSetupFee ? setupFee : monthlyPrice;
+  
+  // Verificar se é plano de implementação elegível para parcelamento
+  // Permite parcelar se: tem valor de implementação >= R$100 ou é plano tipo implementacao
+  const isImplementationPlan = hasSetupFee || plan?.tipo === "implementacao" || plan?.tipo === "implementacao_mensal";
+  const canInstallment = isImplementationPlan && totalInitial >= 100;
+  
+  // Calcular valor da parcela baseado nas opções da API ou valor total
+  const selectedInstallmentOption = installmentOptions.find(o => o.installments === installments);
+  const installmentValue = selectedInstallmentOption 
+    ? selectedInstallmentOption.installment_amount 
+    : totalInitial;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -705,6 +818,49 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                     />
                   </div>
 
+                  {/* Seletor de Parcelas - usa dados REAIS da API do Mercado Pago */}
+                  {canInstallment && (
+                    <div className="p-4 bg-muted/40 border border-border rounded-lg">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Parcelamento da implementação
+                      </label>
+                      
+                      {loadingInstallments ? (
+                        <div className="flex items-center justify-center py-3 text-muted-foreground">
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          <span className="text-sm">Carregando opções de parcelas...</span>
+                        </div>
+                      ) : installmentOptions.length > 0 ? (
+                        <select
+                          value={installments}
+                          onChange={(e) => setInstallments(Number(e.target.value))}
+                          className="w-full h-12 rounded-md border border-input bg-background px-3 text-base font-medium"
+                        >
+                          {installmentOptions.map((option) => (
+                            <option key={option.installments} value={option.installments}>
+                              {option.recommended_message}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="text-center py-3">
+                          <p className="text-sm text-gray-600">
+                            {cardNumber.replace(/\s/g, "").length < 6 
+                              ? "Digite o número do cartão para ver as opções de parcelamento"
+                              : "À vista: R$ " + totalInitial.toFixed(2).replace(".", ",")}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Nota simples (sem taxa/alerta) */}
+                      {installmentOptions.length > 0 && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          A mensalidade de R$ {monthlyPrice.toFixed(2).replace(".", ",")}/{periodLabel} será cobrada somente a partir do mês seguinte à confirmação do pagamento da implementação.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {error && (
                     <div className="p-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs">
                       {error}
@@ -724,15 +880,17 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                         </div>
                         <span className="text-xs opacity-80">Aguarde, não clique novamente</span>
                       </div>
+                    ) : installments > 1 ? (
+                      `Assinar em ${installments}x de R$ ${installmentValue.toFixed(2).replace(".", ",")}`
                     ) : (
                       `Assinar por R$ ${totalInitial.toFixed(2).replace(".", ",")}`
                     )}
                   </Button>
                   
                   {(isProcessing || createSubscription.isPending) && (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm text-center">
-                      <p className="font-medium">⏳ Estamos processando seu pagamento</p>
-                      <p className="text-xs mt-1">Por favor, aguarde. Isso pode levar alguns segundos.</p>
+                    <div className="p-3 bg-muted/40 border border-border rounded-lg text-sm text-center text-foreground">
+                      <p className="font-medium">Estamos processando seu pagamento</p>
+                      <p className="text-xs mt-1 text-muted-foreground">Por favor, aguarde. Isso pode levar alguns segundos.</p>
                     </div>
                   )}
                 </form>

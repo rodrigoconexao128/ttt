@@ -87,9 +87,11 @@ export default function Register() {
         return;
       }
 
-      // Agora autenticado no cliente, atualiza cache e vai para o dashboard
+      // Agora autenticado no cliente, atualiza cache e vai para configurar IA
+      // 🚀 UX OTIMIZADO: Vai direto para configurar o agente IA 
+      // Menos passos = mais conversão (Eye-Tracking: foco na ação principal)
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      setLocation("/dashboard");
+      setLocation("/meu-agente-ia");
     } catch (error) {
       console.error("Erro ao criar conta:", error);
       toast({

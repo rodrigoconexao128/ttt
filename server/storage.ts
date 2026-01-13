@@ -2632,11 +2632,14 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     const { or } = await import("drizzle-orm");
     
     // Primeiro verificar se a lista de exclusão está ativa para o usuário
+    // IMPORTANTE: Se config não existe, assumir que está ATIVADA por padrão
     const config = await this.getExclusionConfig(userId);
-    if (!config?.isEnabled) {
-      console.log(`🚫 [EXCLUSION] Lista de exclusão desativada para usuário ${userId}`);
+    if (config && config.isEnabled === false) {
+      console.log(`🚫 [EXCLUSION] Lista de exclusão DESATIVADA explicitamente para usuário ${userId}`);
       return false;
     }
+    // Se config não existe ou isEnabled é true/undefined, continuar com a verificação
+    console.log(`🔍 [EXCLUSION] Verificando lista de exclusão para usuário ${userId} (config=${config ? 'exists' : 'default'}, isEnabled=${config?.isEnabled ?? 'default=true'})`);
 
     // Obter todas as variações possíveis do número para comparação
     const numberVariations = this.normalizePhoneForComparison(phoneNumber);
@@ -2670,11 +2673,23 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     const { or } = await import("drizzle-orm");
     
     // Verificar configuração global de follow-up
+    // IMPORTANTE: Se config não existe, assumir que está ATIVADA por padrão
     const config = await this.getExclusionConfig(userId);
-    if (!config?.isEnabled || !config?.followupExclusionEnabled) {
-      console.log(`🚫 [EXCLUSION] Exclusão de follow-up desativada para usuário ${userId}`);
+    
+    // Se config existe e isEnabled é explicitamente false, desativar
+    if (config && config.isEnabled === false) {
+      console.log(`🚫 [EXCLUSION] Lista de exclusão DESATIVADA explicitamente para usuário ${userId}`);
       return false;
     }
+    
+    // Se config existe e followupExclusionEnabled é explicitamente false, desativar follow-up exclusion
+    if (config && config.followupExclusionEnabled === false) {
+      console.log(`🚫 [EXCLUSION] Exclusão de follow-up DESATIVADA explicitamente para usuário ${userId}`);
+      return false;
+    }
+    
+    // Se config não existe ou ambas as flags são true/undefined, continuar com a verificação
+    console.log(`🔍 [EXCLUSION-FOLLOWUP] Verificando lista de exclusão para usuário ${userId} (config=${config ? 'exists' : 'default'}, isEnabled=${config?.isEnabled ?? 'default=true'}, followupExclusionEnabled=${config?.followupExclusionEnabled ?? 'default=true'})`);
 
     // Obter todas as variações possíveis do número para comparação
     const numberVariations = this.normalizePhoneForComparison(phoneNumber);

@@ -305,6 +305,72 @@ export const agentDisabledConversations = pgTable("agent_disabled_conversations"
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ============================================================================
+// 🌐 WEBSITE IMPORTS - Sistema de importação de dados de websites
+// Permite ao cliente alimentar o agente com produtos/preços/info de seu site
+// ============================================================================
+export const websiteImports = pgTable("website_imports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Informações do website
+  websiteUrl: text("website_url").notNull(),
+  websiteName: varchar("website_name", { length: 255 }),
+  websiteDescription: text("website_description"),
+  
+  // Conteúdo extraído
+  extractedHtml: text("extracted_html"), // HTML bruto (limitado)
+  extractedText: text("extracted_text"), // Texto limpo extraído
+  
+  // Dados estruturados extraídos pelo Mistral
+  extractedProducts: jsonb("extracted_products").$type<Array<{
+    name: string;
+    description?: string;
+    price?: string;
+    priceValue?: number;
+    currency?: string;
+    category?: string;
+    imageUrl?: string;
+    availability?: string;
+    features?: string[];
+  }>>().default([]),
+  
+  extractedInfo: jsonb("extracted_info").$type<{
+    businessName?: string;
+    businessDescription?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    address?: string;
+    workingHours?: string;
+    socialMedia?: Record<string, string>;
+    paymentMethods?: string[];
+    shippingInfo?: string;
+    returnPolicy?: string;
+    categories?: string[];
+  }>().default({}),
+  
+  // Contexto formatado para o agente (pronto para usar no prompt)
+  formattedContext: text("formatted_context"),
+  
+  // Status e controle
+  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, processing, completed, failed
+  errorMessage: text("error_message"),
+  pagesScraped: integer("pages_scraped").default(0),
+  productsFound: integer("products_found").default(0),
+  
+  // Se o contexto foi aplicado ao prompt do agente
+  appliedToPrompt: boolean("applied_to_prompt").default(false),
+  appliedAt: timestamp("applied_at"),
+  
+  // Metadata
+  lastScrapedAt: timestamp("last_scraped_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_website_imports_user_id").on(table.userId),
+  index("idx_website_imports_status").on(table.status),
+]);
+
 // Admins table
 export const admins = pgTable("admins", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -837,6 +903,15 @@ export const insertAgentDisabledConversationSchema = createInsertSchema(agentDis
 });
 export type InsertAgentDisabledConversation = z.infer<typeof insertAgentDisabledConversationSchema>;
 export type AgentDisabledConversation = typeof agentDisabledConversations.$inferSelect;
+
+// Website Imports schemas and types
+export const insertWebsiteImportSchema = createInsertSchema(websiteImports).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertWebsiteImport = z.infer<typeof insertWebsiteImportSchema>;
+export type WebsiteImport = typeof websiteImports.$inferSelect;
 
 // Admin schemas and types
 export const insertAdminSchema = createInsertSchema(admins).omit({
