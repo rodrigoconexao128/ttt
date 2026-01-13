@@ -289,6 +289,65 @@ export default function MassSendPage() {
     retry: false,
   });
 
+  // Função para fazer polling do progresso da campanha
+  const pollCampaignProgress = async (campaignId: string, totalContacts: number) => {
+    const maxAttempts = totalContacts * 20 + 30; // Espera até 20 segundos por contato + 30s margem
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      try {
+        const response = await apiRequest("GET", `/api/campaigns/${campaignId}`);
+        const campaign = await response.json();
+        
+        if (campaign) {
+          const sent = campaign.totalSent || 0;
+          const failed = campaign.totalFailed || 0;
+          
+          setSendProgress({
+            total: totalContacts,
+            sent,
+            failed,
+            status: campaign.status === 'completed' ? 'completed' : 
+                   campaign.status === 'error' ? 'error' : 'running'
+          });
+          
+          if (campaign.status === 'completed') {
+            setIsSending(false);
+            toast({
+              title: "Envio concluído!",
+              description: `${sent} mensagens enviadas com sucesso${failed > 0 ? `, ${failed} falharam` : ''}.`,
+            });
+            queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+            return;
+          }
+          
+          if (campaign.status === 'error') {
+            setIsSending(false);
+            toast({
+              title: "Erro no envio",
+              description: campaign.errorMessage || "Ocorreu um erro durante o envio.",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar progresso:', error);
+      }
+      
+      // Aguardar 1 segundo antes de verificar novamente
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+    }
+    
+    // Timeout - verificar status final
+    setIsSending(false);
+    toast({
+      title: "Envio em andamento",
+      description: "O envio está demorando mais que o esperado. Verifique o histórico.",
+    });
+  };
+
   // Mutation para envio em massa
   const sendBulkMutation = useMutation({
     mutationFn: async (data: { 
@@ -314,22 +373,34 @@ export default function MassSendPage() {
           batchInterval: data.batchInterval
         }
       });
-      return response.json();
+      const result = await response.json();
+      return { ...result, totalContacts: data.contacts.length };
     },
     onSuccess: (data) => {
+      // Backend retorna imediatamente - iniciar polling para acompanhar progresso
       setSendProgress({ 
-        total: data.total || 0, 
-        sent: data.sent || 0, 
-        failed: data.failed || 0, 
-        status: 'completed' 
+        total: data.total || data.totalContacts || 0, 
+        sent: 0, 
+        failed: 0, 
+        status: 'running' 
       });
-      setIsSending(false); // Liberar botão
+      
       toast({
-        title: "Envio concluído!",
-        description: `${data.sent || 0} mensagens enviadas com sucesso.`,
+        title: "Envio iniciado!",
+        description: "Enviando mensagens em background. Acompanhe o progresso abaixo.",
       });
-      // Atualizar histórico de campanhas
-      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      
+      // Se tiver campaignId, fazer polling do progresso
+      if (data.campaignId) {
+        pollCampaignProgress(data.campaignId, data.total || data.totalContacts || 0);
+      } else {
+        // Fallback: marcar como concluído após delay estimado
+        setTimeout(() => {
+          setSendProgress(prev => ({ ...prev, status: 'completed' }));
+          setIsSending(false);
+          queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+        }, (data.total || 1) * 10000);
+      }
     },
     onError: (error: Error) => {
       setSendProgress(prev => ({ ...prev, status: 'error' }));

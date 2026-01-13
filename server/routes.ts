@@ -610,6 +610,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // 🛡️ SAFE MODE: Modo Seguro Anti-Bloqueio para Clientes
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // Toggle Safe Mode para um usuário específico
+  // Quando ativado, ao reconectar via QR Code, o sistema limpa:
+  // 1. Fila de mensagens pendentes
+  // 2. Follow-ups programados
+  // 3. Começa do zero para evitar novo bloqueio
+  app.post("/api/admin/users/:userId/safe-mode", isAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { enabled } = req.body;
+      const adminSession = req.session as { admin?: { id: string; email: string } };
+      
+      console.log(`🛡️ [SAFE MODE] Admin ${adminSession.admin?.email} alterando safe mode para user ${userId}: ${enabled}`);
+      
+      // Verificar se usuário existe
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ success: false, message: "Usuário não encontrado" });
+      }
+      
+      // Buscar conexão do usuário
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(404).json({ success: false, message: "Conexão WhatsApp não encontrada para este usuário" });
+      }
+      
+      // Atualizar safe mode
+      const updatedConnection = await storage.updateConnection(connection.id, {
+        safeModeEnabled: enabled,
+        safeModeActivatedAt: enabled ? new Date() : null,
+        safeModeActivatedBy: enabled ? adminSession.admin?.id || 'admin' : null,
+      });
+      
+      console.log(`🛡️ [SAFE MODE] Safe mode ${enabled ? 'ATIVADO' : 'DESATIVADO'} para ${user.name || user.email}`);
+      
+      res.json({
+        success: true,
+        message: enabled 
+          ? `Modo seguro ATIVADO para ${user.name || user.email}. Na próxima reconexão via QR Code, todas as filas e follow-ups serão zerados.`
+          : `Modo seguro DESATIVADO para ${user.name || user.email}.`,
+        safeModeEnabled: updatedConnection.safeModeEnabled,
+        safeModeActivatedAt: updatedConnection.safeModeActivatedAt,
+        safeModeLastCleanupAt: updatedConnection.safeModeLastCleanupAt,
+      });
+    } catch (error: any) {
+      console.error(`🛡️ [SAFE MODE] Erro ao alterar safe mode:`, error);
+      res.status(500).json({ success: false, message: "Erro ao alterar modo seguro", error: error.message });
+    }
+  });
+
+  // GET: Obter status do Safe Mode de um usuário
+  app.get("/api/admin/users/:userId/safe-mode", isAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ success: false, message: "Usuário não encontrado" });
+      }
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(404).json({ 
+          success: false, 
+          message: "Conexão WhatsApp não encontrada",
+          safeModeEnabled: false
+        });
+      }
+      
+      res.json({
+        success: true,
+        userId,
+        userName: user.name,
+        userEmail: user.email,
+        safeModeEnabled: connection.safeModeEnabled,
+        safeModeActivatedAt: connection.safeModeActivatedAt,
+        safeModeActivatedBy: connection.safeModeActivatedBy,
+        safeModeLastCleanupAt: connection.safeModeLastCleanupAt,
+        isConnected: connection.isConnected,
+      });
+    } catch (error: any) {
+      console.error(`🛡️ [SAFE MODE] Erro ao buscar status:`, error);
+      res.status(500).json({ success: false, message: "Erro ao buscar status do modo seguro", error: error.message });
+    }
+  });
+
   // Reconnect all WhatsApp sessions (force)
   app.post("/api/admin/connections/reconnect-all", isAdmin, async (req, res) => {
     try {
@@ -6757,11 +6845,14 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         // Se assinatura está ativa mas não tem nenhum registro de pagamento, 
         // criar um registro inicial para assinaturas ativadas manualmente
         if (payments.length === 0 && subscription.status === "active") {
+          // Para clientes de revenda, usar o clientPrice. Para outros, usar coupon_price ou plan.valor
+          const paymentAmount = resellerInfo?.clientPrice || subscription.couponPrice || plan?.valor || "0";
+          
           const initialPayment = {
             id: "initial_" + subscription.id,
             subscriptionId: subscription.id,
             userId: userId,
-            amount: plan?.valor?.toString() || "0",
+            amount: paymentAmount.toString(),
             status: "approved",
             statusDetail: "manual_activation",
             paymentType: "initial_activation",
@@ -6824,7 +6915,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         plan,
         payments,
         stats: {
-          totalPaid: totalPaid > 0 ? totalPaid : (subscription.status === "active" ? parseFloat(plan?.valor || "0") : 0),
+          totalPaid: totalPaid > 0 ? totalPaid : (subscription.status === "active" ? parseFloat(resellerInfo?.clientPrice || plan?.valor || "0") : 0),
           totalPayments: payments.length || (subscription.status === "active" ? 1 : 0),
           approvedPayments: payments.filter((p: any) => p.status === "approved").length || (subscription.status === "active" ? 1 : 0),
           failedPayments: payments.filter((p: any) => p.status === "rejected").length,
@@ -7804,10 +7895,25 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         try {
           console.log(`[BULK SEND BACKGROUND] Executando campanha ${campaignId} em background`);
           
+          // 📊 Callback de progresso para atualizar campanha em tempo real
+          const onProgress = async (currentSent: number, currentFailed: number) => {
+            try {
+              await storage.updateCampaign?.(userId, campaignId, {
+                totalSent: currentSent,
+                totalFailed: currentFailed,
+                status: 'running',
+              });
+              console.log(`[BULK SEND PROGRESS] Campanha ${campaignId}: ${currentSent} enviados, ${currentFailed} falhas`);
+            } catch (e) {
+              console.error('[BULK SEND PROGRESS] Erro ao atualizar campanha:', e);
+            }
+          };
+          
           const result = await sendBulkMessagesAdvanced(userId, contactsWithNames, message, {
             delayMin: delayMin * 1000,
             delayMax: delayMax * 1000,
             useAI,
+            onProgress,
           });
           
           // Atualizar campanha com resultado final

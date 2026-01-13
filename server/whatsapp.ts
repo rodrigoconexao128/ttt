@@ -20,6 +20,87 @@ import { registerFollowUpCallback, registerScheduledContactCallback, followUpSer
 import { userFollowUpService } from "./userFollowUpService";
 import { supabase } from "./supabaseAuth";
 import { messageQueueService, applyMessageVariation } from "./messageQueueService";
+import { db } from "./db";
+import { conversations } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🛡️ SAFE MODE: Proteção Anti-Bloqueio para Clientes
+// ═══════════════════════════════════════════════════════════════════════
+// Esta funcionalidade é ativada pelo admin quando um cliente tomou bloqueio
+// do WhatsApp e está reconectando. Ao reconectar com Safe Mode ativo:
+// 1. Zera a fila de mensagens pendentes
+// 2. Desativa todos os follow-ups programados
+// 3. Começa do zero para evitar novo bloqueio
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Executa limpeza completa quando um cliente reconecta com Safe Mode ativo
+ * Chamado automaticamente quando conn === "open" e safeModeEnabled === true
+ */
+async function executeSafeModeCleanup(userId: string, connectionId: string): Promise<{
+  success: boolean;
+  messagesCleared: number;
+  followupsCleared: number;
+  error?: string;
+}> {
+  console.log(`\n🛡️ ═══════════════════════════════════════════════════════════════`);
+  console.log(`🛡️ [SAFE MODE] Iniciando limpeza para usuário ${userId.substring(0, 8)}...`);
+  console.log(`🛡️ ═══════════════════════════════════════════════════════════════\n`);
+
+  let messagesCleared = 0;
+  let followupsCleared = 0;
+
+  try {
+    // 1. Limpar fila de mensagens pendentes
+    const queueResult = messageQueueService.clearUserQueue(userId);
+    messagesCleared = queueResult.cleared;
+    console.log(`🛡️ [SAFE MODE] ✅ Fila de mensagens: ${messagesCleared} mensagens removidas`);
+
+    // 2. Desativar follow-ups de todas as conversas deste usuário
+    // Atualizar todas as conversas para: followupActive = false, nextFollowupAt = null
+    const followupResult = await db
+      .update(conversations)
+      .set({
+        followupActive: false,
+        nextFollowupAt: null,
+        followupStage: 0,
+        followupDisabledReason: 'Safe Mode - limpeza após bloqueio do WhatsApp',
+        updatedAt: new Date(),
+      })
+      .where(eq(conversations.connectionId, connectionId))
+      .returning({ id: conversations.id });
+
+    followupsCleared = followupResult.length;
+    console.log(`🛡️ [SAFE MODE] ✅ Follow-ups: ${followupsCleared} conversas com follow-up desativado`);
+
+    // 3. Registrar data/hora da última limpeza
+    await storage.updateConnection(connectionId, {
+      safeModeLastCleanupAt: new Date(),
+    });
+
+    console.log(`\n🛡️ [SAFE MODE] ✅ Limpeza concluída com sucesso!`);
+    console.log(`🛡️ [SAFE MODE] 📊 Resumo:`);
+    console.log(`🛡️   - Mensagens removidas da fila: ${messagesCleared}`);
+    console.log(`🛡️   - Follow-ups desativados: ${followupsCleared}`);
+    console.log(`🛡️   - Cliente pode usar o WhatsApp normalmente agora`);
+    console.log(`🛡️ ═══════════════════════════════════════════════════════════════\n`);
+
+    return {
+      success: true,
+      messagesCleared,
+      followupsCleared,
+    };
+  } catch (error: any) {
+    console.error(`🛡️ [SAFE MODE] ❌ Erro na limpeza:`, error);
+    return {
+      success: false,
+      messagesCleared,
+      followupsCleared,
+      error: error.message,
+    };
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🗂️ FUNÇÃO PARA UPLOAD DE MÍDIA NO SUPABASE STORAGE
@@ -1594,6 +1675,33 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         broadcastToUser(userId, { type: "connected", phoneNumber });
 
         // ======================================================================
+        // 🛡️ SAFE MODE: Verificar se o cliente está em modo seguro anti-bloqueio
+        // ======================================================================
+        // Se o admin ativou o Safe Mode para este cliente (pós-bloqueio),
+        // executar limpeza completa antes de permitir qualquer envio
+        try {
+          const currentConnection = await storage.getConnectionByUserId(userId);
+          if (currentConnection?.safeModeEnabled) {
+            console.log(`🛡️ [SAFE MODE] Cliente ${userId.substring(0, 8)}... está em modo seguro - executando limpeza!`);
+            
+            const cleanupResult = await executeSafeModeCleanup(userId, session.connectionId);
+            
+            if (cleanupResult.success) {
+              // Notificar o cliente sobre a limpeza
+              broadcastToUser(userId, { 
+                type: "safe_mode_cleanup",
+                messagesCleared: cleanupResult.messagesCleared,
+                followupsCleared: cleanupResult.followupsCleared,
+              });
+            } else {
+              console.error(`🛡️ [SAFE MODE] Erro na limpeza:`, cleanupResult.error);
+            }
+          }
+        } catch (safeModeError) {
+          console.error(`🛡️ [SAFE MODE] Erro ao verificar modo seguro:`, safeModeError);
+        }
+
+        // ======================================================================
         // FIX LID 2025 - WORKAROUND: Contatos serão populados ao receber mensagens
         // ======================================================================
         // Baileys 7.0.0-rc.6 não tem makeInMemoryStore e não emite contacts.upsert
@@ -1626,8 +1734,16 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         // ======================================================================
         // Quando o WhatsApp reconecta, os follow-ups que foram pausados por falta
         // de conexão devem ser reagendados para processar em breve
+        // ⚠️ IMPORTANTE: NÃO reativar se Safe Mode está ativo (cliente pós-bloqueio)
         setTimeout(async () => {
           try {
+            // Verificar se Safe Mode está ativo - se sim, NÃO reativar follow-ups
+            const connCheck = await storage.getConnectionByUserId(userId);
+            if (connCheck?.safeModeEnabled) {
+              console.log(`🛡️ [SAFE MODE] Pulando reativação de follow-ups - modo seguro ativo`);
+              return;
+            }
+            
             await userFollowUpService.clearConnectionWaitingStatus(session.connectionId);
             console.log(`✅ [FOLLOW-UP] Status de aguardo de conexão limpo para ${userId}`);
           } catch (error) {
@@ -3568,6 +3684,7 @@ export async function sendBulkMessagesAdvanced(
     delayMin?: number;
     delayMax?: number;
     useAI?: boolean;
+    onProgress?: (sent: number, failed: number) => Promise<void>;
   } = {}
 ): Promise<{ 
   sent: number; 
@@ -3586,6 +3703,7 @@ export async function sendBulkMessagesAdvanced(
   const delayMin = options.delayMin || 5000;
   const delayMax = options.delayMax || 15000;
   const useAI = options.useAI || false;
+  const onProgress = options.onProgress;
 
   let sent = 0;
   let failed = 0;
@@ -3754,6 +3872,15 @@ export async function sendBulkMessagesAdvanced(
           message: finalMessage,
         });
         console.log(`[BULK SEND ADVANCED] ✅ Enviado para ${contact.name || contact.phone}`);
+        
+        // 📊 Atualizar progresso em tempo real
+        if (onProgress) {
+          try {
+            await onProgress(sent, failed);
+          } catch (progressError) {
+            console.error('[BULK SEND] Erro ao atualizar progresso:', progressError);
+          }
+        }
       } else {
         failed++;
         const errorMsg = queueResult.error || 'Sem ID de mensagem retornado';
@@ -3765,6 +3892,15 @@ export async function sendBulkMessagesAdvanced(
           timestamp: new Date().toISOString(),
         });
         console.log(`[BULK SEND ADVANCED] ❌ Falha: ${contact.phone}`);
+        
+        // 📊 Atualizar progresso em tempo real (também para falhas)
+        if (onProgress) {
+          try {
+            await onProgress(sent, failed);
+          } catch (progressError) {
+            console.error('[BULK SEND] Erro ao atualizar progresso:', progressError);
+          }
+        }
       }
 
       // 🛡️ A fila já controla o delay de 5-10s - não precisa de delay extra aqui
@@ -3780,6 +3916,15 @@ export async function sendBulkMessagesAdvanced(
         timestamp: new Date().toISOString(),
       });
       console.log(`[BULK SEND ADVANCED] ❌ Erro: ${contact.phone} - ${errorMsg}`);
+      
+      // 📊 Atualizar progresso em tempo real (também para erros)
+      if (onProgress) {
+        try {
+          await onProgress(sent, failed);
+        } catch (progressError) {
+          console.error('[BULK SEND] Erro ao atualizar progresso:', progressError);
+        }
+      };
       
       // Delay extra em caso de erro
       await new Promise(resolve => setTimeout(resolve, 5000));
