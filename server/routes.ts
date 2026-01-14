@@ -12,6 +12,8 @@ import { eq, and, gte, desc, inArray } from "drizzle-orm";
 import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users, resellerInvoiceItems as resellerInvoiceItemsTable, resellerInvoices as resellerInvoicesTable, websiteImports } from "@shared/schema";
 import { resellerService } from "./resellerService";
 import { scrapeWebsite, validateUrl, formatContextForAgent, type WebsiteScrapingResult } from "./websiteScraperService";
+import { startBackgroundSync, getSyncStatus, getSyncedContactsFromDB, hasSyncedBefore } from "./contactSyncService";
+import { startFullContactSync, getFullSyncStatus, scheduleFullSyncForAllClients, startDailySyncCron, getQueueStats } from "./fullContactSyncService";
 
 // ============================================
 // CACHE PARA BUCKETS DE STORAGE
@@ -1871,6 +1873,550 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== CUSTOM FIELDS - CAMPOS PERSONALIZADOS ====================
+  // Similar ao Digisac: Nome, Empresa, Email, CPF/CNPJ, Endereço, etc.
+
+  // GET - Listar definições de campos personalizados do usuário
+  app.get("/api/custom-fields", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const { data: definitions, error } = await supabase
+        .from('custom_field_definitions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('position', { ascending: true });
+      
+      if (error) throw error;
+      
+      // Se não tem campos, cria os campos padrão
+      if (!definitions || definitions.length === 0) {
+        const defaultFields = [
+          { name: 'nome_responsavel', label: 'Nome do Responsável', field_type: 'text', position: 1, ai_extraction_prompt: 'Extraia o nome completo da pessoa que está conversando' },
+          { name: 'empresa', label: 'Empresa', field_type: 'text', position: 2, ai_extraction_prompt: 'Extraia o nome da empresa mencionada' },
+          { name: 'email', label: 'Email', field_type: 'email', position: 3, ai_extraction_prompt: 'Extraia o email mencionado na conversa' },
+          { name: 'cpf_cnpj', label: 'CPF/CNPJ', field_type: 'cpf_cnpj', position: 4, ai_extraction_prompt: 'Extraia o CPF ou CNPJ mencionado' },
+          { name: 'telefone_adicional', label: 'Telefone Adicional', field_type: 'phone', position: 5 },
+          { name: 'endereco', label: 'Endereço', field_type: 'textarea', position: 6, ai_extraction_prompt: 'Extraia o endereço completo mencionado' },
+        ];
+        
+        const { data: created, error: createError } = await supabase
+          .from('custom_field_definitions')
+          .insert(defaultFields.map(f => ({ ...f, user_id: userId })))
+          .select();
+        
+        if (createError) throw createError;
+        return res.json(created);
+      }
+      
+      res.json(definitions);
+    } catch (error) {
+      console.error("Error fetching custom field definitions:", error);
+      res.status(500).json({ message: "Failed to fetch custom field definitions" });
+    }
+  });
+
+  // POST - Criar nova definição de campo personalizado
+  app.post("/api/custom-fields", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, label, fieldType, options, required, placeholder, helpText, aiExtractionPrompt, aiExtractionEnabled, position } = req.body;
+      
+      if (!name || !label) {
+        return res.status(400).json({ message: "Nome e label são obrigatórios" });
+      }
+      
+      // Get max position
+      const { data: existingFields } = await supabase
+        .from('custom_field_definitions')
+        .select('position')
+        .eq('user_id', userId)
+        .order('position', { ascending: false })
+        .limit(1);
+      
+      const maxPosition = existingFields?.[0]?.position || 0;
+      
+      const { data: definition, error } = await supabase
+        .from('custom_field_definitions')
+        .insert({
+          user_id: userId,
+          name: name.toLowerCase().replace(/\s+/g, '_'),
+          label,
+          field_type: fieldType || 'text',
+          options: options || [],
+          required: required || false,
+          placeholder,
+          help_text: helpText,
+          ai_extraction_prompt: aiExtractionPrompt,
+          ai_extraction_enabled: aiExtractionEnabled !== false,
+          position: position ?? (maxPosition + 1),
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        if (error.code === '23505') {
+          return res.status(400).json({ message: "Já existe um campo com este nome" });
+        }
+        throw error;
+      }
+      
+      res.status(201).json(definition);
+    } catch (error) {
+      console.error("Error creating custom field definition:", error);
+      res.status(500).json({ message: "Failed to create custom field definition" });
+    }
+  });
+
+  // PUT - Atualizar definição de campo personalizado
+  app.put("/api/custom-fields/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { label, fieldType, options, required, placeholder, helpText, aiExtractionPrompt, aiExtractionEnabled, position, isActive } = req.body;
+      
+      // Verifica se pertence ao usuário
+      const { data: existing } = await supabase
+        .from('custom_field_definitions')
+        .select('id')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+      
+      if (!existing) {
+        return res.status(404).json({ message: "Campo não encontrado" });
+      }
+      
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (label !== undefined) updateData.label = label;
+      if (fieldType !== undefined) updateData.field_type = fieldType;
+      if (options !== undefined) updateData.options = options;
+      if (required !== undefined) updateData.required = required;
+      if (placeholder !== undefined) updateData.placeholder = placeholder;
+      if (helpText !== undefined) updateData.help_text = helpText;
+      if (aiExtractionPrompt !== undefined) updateData.ai_extraction_prompt = aiExtractionPrompt;
+      if (aiExtractionEnabled !== undefined) updateData.ai_extraction_enabled = aiExtractionEnabled;
+      if (position !== undefined) updateData.position = position;
+      if (isActive !== undefined) updateData.is_active = isActive;
+      
+      const { data: definition, error } = await supabase
+        .from('custom_field_definitions')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      res.json(definition);
+    } catch (error) {
+      console.error("Error updating custom field definition:", error);
+      res.status(500).json({ message: "Failed to update custom field definition" });
+    }
+  });
+
+  // DELETE - Deletar definição de campo personalizado
+  app.delete("/api/custom-fields/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { error } = await supabase
+        .from('custom_field_definitions')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting custom field definition:", error);
+      res.status(500).json({ message: "Failed to delete custom field definition" });
+    }
+  });
+
+  // PUT - Reordenar campos personalizados
+  app.put("/api/custom-fields/reorder", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { fieldIds } = req.body; // Array de IDs na nova ordem
+      
+      if (!Array.isArray(fieldIds)) {
+        return res.status(400).json({ message: "fieldIds deve ser um array" });
+      }
+      
+      // Atualiza as posições
+      for (let i = 0; i < fieldIds.length; i++) {
+        await supabase
+          .from('custom_field_definitions')
+          .update({ position: i + 1 })
+          .eq('id', fieldIds[i])
+          .eq('user_id', userId);
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error reordering custom fields:", error);
+      res.status(500).json({ message: "Failed to reorder custom fields" });
+    }
+  });
+
+  // GET - Obter valores dos campos personalizados de uma conversa
+  app.get("/api/conversations/:conversationId/custom-fields", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { conversationId } = req.params;
+      
+      // Verifica ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      // Busca definições do usuário
+      const { data: definitions, error: defError } = await supabase
+        .from('custom_field_definitions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('position', { ascending: true });
+      
+      if (defError) throw defError;
+      
+      // Busca valores existentes para esta conversa
+      const { data: values, error: valError } = await supabase
+        .from('custom_field_values')
+        .select('*')
+        .eq('conversation_id', conversationId);
+      
+      if (valError) throw valError;
+      
+      // Mescla definições com valores
+      const valuesMap = new Map((values || []).map(v => [v.field_definition_id, v]));
+      
+      const fieldsWithValues = (definitions || []).map(def => ({
+        definition: def,
+        value: valuesMap.get(def.id) || null,
+      }));
+      
+      res.json(fieldsWithValues);
+    } catch (error) {
+      console.error("Error fetching conversation custom fields:", error);
+      res.status(500).json({ message: "Failed to fetch conversation custom fields" });
+    }
+  });
+
+  // PUT - Salvar valores dos campos personalizados de uma conversa
+  app.put("/api/conversations/:conversationId/custom-fields", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { conversationId } = req.params;
+      const { fields } = req.body; // Array de { fieldDefinitionId, value }
+      
+      // Verifica ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      if (!Array.isArray(fields)) {
+        return res.status(400).json({ message: "fields deve ser um array" });
+      }
+      
+      // Upsert cada valor
+      for (const field of fields) {
+        const { fieldDefinitionId, value } = field;
+        
+        if (!fieldDefinitionId) continue;
+        
+        // Verifica se já existe
+        const { data: existing } = await supabase
+          .from('custom_field_values')
+          .select('id')
+          .eq('field_definition_id', fieldDefinitionId)
+          .eq('conversation_id', conversationId)
+          .single();
+        
+        if (existing) {
+          // Update
+          await supabase
+            .from('custom_field_values')
+            .update({
+              value: value || null,
+              last_edited_by: 'user',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+        } else if (value) {
+          // Insert
+          await supabase
+            .from('custom_field_values')
+            .insert({
+              field_definition_id: fieldDefinitionId,
+              conversation_id: conversationId,
+              value,
+              last_edited_by: 'user',
+            });
+        }
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving conversation custom fields:", error);
+      res.status(500).json({ message: "Failed to save conversation custom fields" });
+    }
+  });
+
+  // POST - Auto-extrair valores dos campos usando IA
+  app.post("/api/conversations/:conversationId/custom-fields/extract", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { conversationId } = req.params;
+      
+      // Verifica ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      // Busca mensagens da conversa
+      const messages = await storage.getMessagesByConversationId(conversationId);
+      if (!messages || messages.length === 0) {
+        return res.json({ extracted: 0, message: "Sem mensagens para análise" });
+      }
+      
+      // Busca definições com extração IA ativada
+      const { data: definitions, error: defError } = await supabase
+        .from('custom_field_definitions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .eq('ai_extraction_enabled', true)
+        .not('ai_extraction_prompt', 'is', null);
+      
+      if (defError) throw defError;
+      
+      if (!definitions || definitions.length === 0) {
+        return res.json({ extracted: 0, message: "Nenhum campo com extração IA ativada" });
+      }
+      
+      // Monta contexto da conversa (últimas 50 mensagens)
+      const conversationText = messages
+        .slice(-50)
+        .map(m => `${m.fromMe ? 'Atendente' : 'Cliente'}: ${m.text || '[mídia]'}`)
+        .join('\n');
+      
+      // Monta prompt para extração
+      const fieldsToExtract = definitions.map(d => ({
+        id: d.id,
+        name: d.name,
+        label: d.label,
+        prompt: d.ai_extraction_prompt,
+        fieldType: d.field_type,
+      }));
+      
+      const extractionPrompt = `Analise a seguinte conversa e extraia as informações solicitadas. Retorne APENAS um JSON válido com os campos preenchidos.
+
+CONVERSA:
+${conversationText}
+
+CAMPOS PARA EXTRAIR:
+${fieldsToExtract.map(f => `- [ID: ${f.id}] ${f.label}: ${f.prompt}`).join('\n')}
+
+FORMATO DE RESPOSTA (JSON):
+{
+  "extractions": [
+    { "fieldId": "cole-aqui-o-id-do-campo", "value": "valor_extraido", "confidence": 0.95, "source": "trecho_da_conversa" }
+  ]
+}
+
+IMPORTANTE: Use o ID (UUID) exato mostrado entre [ID: ...] para cada campo. Exemplo: se vir [ID: abc-123], use "fieldId": "abc-123".
+Se não encontrar um valor, retorne value como null. A confidence deve ser entre 0 e 1.`;
+
+      // Chama Mistral para extração
+      const { generateWithMistral } = await import("./mistralClient");
+      const response = await generateWithMistral(
+        "Você é um assistente especializado em extração de dados de conversas. Analise cuidadosamente e extraia as informações solicitadas.",
+        extractionPrompt,
+        { 
+          temperature: 0.1, // Baixa temperatura para respostas mais precisas
+          maxTokens: 1000 
+        }
+      );
+      
+      console.log("=== AI EXTRACTION RESPONSE ===");
+      console.log(response);
+      console.log("==============================");
+      
+      // Parse da resposta
+      let extractions: any[] = [];
+      try {
+        // Tenta extrair JSON da resposta
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          extractions = parsed.extractions || [];
+          console.log("=== PARSED EXTRACTIONS ===");
+          console.log(JSON.stringify(extractions, null, 2));
+          console.log("==========================");
+        }
+      } catch (parseError) {
+        console.error("Error parsing AI extraction response:", parseError);
+        console.error("Raw response:", response);
+        return res.json({ extracted: 0, message: "Erro ao processar resposta da IA" });
+      }
+      
+      // Salva os valores extraídos
+      let extractedCount = 0;
+      for (const extraction of extractions) {
+        console.log(`Processing extraction for field ${extraction.fieldId}:`, extraction);
+        
+        if (!extraction.value || extraction.value === 'null') {
+          console.log(`Skipping field ${extraction.fieldId} - no value`);
+          continue;
+        }
+        
+        // Verifica se já existe valor
+        const { data: existing } = await supabase
+          .from('custom_field_values')
+          .select('id, value')
+          .eq('field_definition_id', extraction.fieldId)
+          .eq('conversation_id', conversationId)
+          .single();
+        
+        console.log(`Existing value for field ${extraction.fieldId}:`, existing);
+        
+        if (existing && existing.value) {
+          // Já tem valor preenchido, não sobrescreve
+          console.log(`Skipping field ${extraction.fieldId} - already has value`);
+          continue;
+        }
+        
+        if (existing) {
+          // Update
+          console.log(`Updating field ${extraction.fieldId} with value:`, extraction.value);
+          const { error: updateError } = await supabase
+            .from('custom_field_values')
+            .update({
+              value: extraction.value,
+              auto_extracted: true,
+              extraction_source: extraction.source,
+              extraction_confidence: extraction.confidence,
+              last_edited_by: 'ai',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+          
+          if (updateError) {
+            console.error(`Error updating field ${extraction.fieldId}:`, updateError);
+          }
+        } else {
+          // Insert
+          console.log(`Inserting new value for field ${extraction.fieldId}:`, extraction.value);
+          const { error: insertError } = await supabase
+            .from('custom_field_values')
+            .insert({
+              field_definition_id: extraction.fieldId,
+              conversation_id: conversationId,
+              value: extraction.value,
+              auto_extracted: true,
+              extraction_source: extraction.source,
+              extraction_confidence: extraction.confidence,
+              last_edited_by: 'ai',
+            });
+          
+          if (insertError) {
+            console.error(`Error inserting field ${extraction.fieldId}:`, insertError);
+          }
+        }
+        extractedCount++;
+      }
+      
+      console.log(`=== EXTRACTION COMPLETE: ${extractedCount} fields extracted ===`);
+      
+      res.json({ 
+        extracted: extractedCount, 
+        total: definitions.length,
+        message: `${extractedCount} campo(s) preenchido(s) automaticamente`
+      });
+    } catch (error) {
+      console.error("Error extracting custom fields:", error);
+      res.status(500).json({ message: "Failed to extract custom fields" });
+    }
+  });
+
+  // GET - Obter mídias de uma conversa (galeria)
+  app.get("/api/conversations/:conversationId/media", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { conversationId } = req.params;
+      const { type } = req.query; // image, video, audio, document ou all
+      
+      // Verifica ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      // Busca todas as mensagens com mídia
+      const messages = await storage.getMessagesByConversationId(conversationId);
+      
+      let mediaMessages = messages.filter(m => m.mediaType && m.mediaUrl);
+      
+      // Filtra por tipo se especificado
+      if (type && type !== 'all') {
+        mediaMessages = mediaMessages.filter(m => m.mediaType === type);
+      }
+      
+      // Mapeia para formato de galeria
+      const gallery = mediaMessages.map(m => ({
+        id: m.id,
+        mediaType: m.mediaType,
+        mediaUrl: m.mediaUrl,
+        mediaMimeType: m.mediaMimeType,
+        mediaCaption: m.mediaCaption,
+        mediaDuration: m.mediaDuration,
+        timestamp: m.timestamp,
+        fromMe: m.fromMe,
+      }));
+      
+      // Conta por tipo
+      const counts = {
+        image: messages.filter(m => m.mediaType === 'image').length,
+        video: messages.filter(m => m.mediaType === 'video').length,
+        audio: messages.filter(m => m.mediaType === 'audio').length,
+        document: messages.filter(m => m.mediaType === 'document').length,
+        total: mediaMessages.length,
+      };
+      
+      res.json({ gallery, counts });
+    } catch (error) {
+      console.error("Error fetching conversation media:", error);
+      res.status(500).json({ message: "Failed to fetch conversation media" });
+    }
+  });
+
   // ==================== AUTO-TRANSCRIPTION ====================
   
   // POST - Auto-transcribe all untranscribed audios in a conversation
@@ -2639,11 +3185,12 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
-  // ============ EDITOR DE PROMPTS COM SEARCH/REPLACE ENGINE ============
+  // ============ EDITOR DE PROMPTS COM AUTO-CALIBRAÇÃO ============
+  // 🎯 Sistema de IA Cliente vs IA Agente para validar edições antes de aplicar
   app.post("/api/agent/edit-prompt", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const { currentPrompt, instruction } = req.body;
+      const { currentPrompt, instruction, skipCalibration = false } = req.body;
 
       if (!currentPrompt || !instruction) {
         return res.status(400).json({ message: "currentPrompt e instruction são obrigatórios" });
@@ -2683,6 +3230,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       // Usar novo serviço de edição via IA (Search/Replace com JSON)
       const { editarPromptViaIA } = await import("./promptEditService");
       const { salvarVersaoPrompt, salvarMensagemChat } = await import("./promptHistoryService");
+      const { calibrarPromptEditado } = await import("./promptCalibrationService");
       
       const result = await editarPromptViaIA(currentPrompt, instruction, mistralApiKey, "mistral");
       
@@ -2690,10 +3238,56 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       console.log(`📝 [Edit Prompt] Resposta IA: ${result.mensagemChat}`);
       
       // ==================================================================================
-      // 📝 CORREÇÃO CRÍTICA: SEMPRE SALVAR HISTÓRICO DO CHAT
+      // 🎯 AUTO-CALIBRAÇÃO: Validar edição com IA Cliente vs IA Agente
       // ==================================================================================
-      // Mesmo que o prompt não mude (ex: pergunta, dúvida, ou "nenhuma edição necessária"),
-      // devemos salvar a interação para que não suma ao dar refresh.
+      let calibrationResult = null;
+      let promptFinal = result.novoPrompt;
+      let calibrationMessage = "";
+      
+      // Só calibrar se houve mudança no prompt E calibração não foi pulada
+      if (result.success && result.novoPrompt !== currentPrompt && !skipCalibration) {
+        console.log(`🎯 [Calibração] Iniciando validação automática...`);
+        
+        try {
+          calibrationResult = await calibrarPromptEditado(
+            result.novoPrompt,
+            instruction,
+            mistralApiKey,
+            "mistral",
+            {
+              numeroCenarios: 2, // Balancear velocidade vs precisão
+              maxTentativasReparo: 2,
+              scoreMinimoAprovacao: 60
+            }
+          );
+          
+          console.log(`🎯 [Calibração] Score: ${calibrationResult.scoreGeral}/100`);
+          console.log(`🎯 [Calibração] Aprovados: ${calibrationResult.cenariosAprovados}/${calibrationResult.cenariosTotais}`);
+          console.log(`🎯 [Calibração] Reparos: ${calibrationResult.tentativasReparo}`);
+          
+          // Se calibração teve sucesso, usar o prompt calibrado (pode ter sido reparado)
+          if (calibrationResult.sucesso) {
+            promptFinal = calibrationResult.promptFinal;
+            
+            if (calibrationResult.tentativasReparo > 0) {
+              calibrationMessage = `\n\n✅ *Validação automática:* Edição testada e ajustada (${calibrationResult.tentativasReparo} ajuste${calibrationResult.tentativasReparo > 1 ? 's' : ''}) para garantir funcionamento correto.`;
+            } else {
+              calibrationMessage = `\n\n✅ *Validação automática:* Edição testada e aprovada! (Score: ${calibrationResult.scoreGeral}/100)`;
+            }
+          } else {
+            // Calibração falhou mesmo após reparos - avisar usuário mas aplicar mesmo assim
+            calibrationMessage = `\n\n⚠️ *Atenção:* A validação automática encontrou possíveis problemas (Score: ${calibrationResult.scoreGeral}/100). A edição foi aplicada, mas recomendamos testar no simulador.`;
+          }
+        } catch (calibError: any) {
+          console.error(`❌ [Calibração] Erro:`, calibError.message);
+          // Se calibração falhar, aplicar edição original mesmo assim
+          calibrationMessage = `\n\n⚠️ Não foi possível validar automaticamente. Teste no simulador para confirmar.`;
+        }
+      }
+      
+      // ==================================================================================
+      // 📝 SALVAR HISTÓRICO DO CHAT
+      // ==================================================================================
       
       // 1. Salvar mensagem do usuário (SEMPRE)
       await salvarMensagemChat({
@@ -2703,16 +3297,24 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         content: instruction
       });
       
-      // 2. Salvar resposta da IA (SEMPRE)
+      // 2. Salvar resposta da IA com feedback de calibração
+      const mensagemCompleta = result.mensagemChat + calibrationMessage;
       await salvarMensagemChat({
         userId,
         configType: 'ai_agent_config',
         role: 'assistant',
-        content: result.mensagemChat,
+        content: mensagemCompleta,
         metadata: {
           edicoes_aplicadas: result.edicoesAplicadas,
           edicoes_falharam: result.edicoesFalharam,
-          operacao: result.novoPrompt !== currentPrompt ? 'edicao' : 'chat'
+          operacao: result.novoPrompt !== currentPrompt ? 'edicao' : 'chat',
+          calibration: calibrationResult ? {
+            score: calibrationResult.scoreGeral,
+            aprovados: calibrationResult.cenariosAprovados,
+            total: calibrationResult.cenariosTotais,
+            reparos: calibrationResult.tentativasReparo,
+            sucesso: calibrationResult.sucesso
+          } : null
         }
       });
       
@@ -2723,40 +3325,115 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           await storage.incrementPromptEdits(userId);
         }
 
-        // 💾 CRÍTICO: Atualizar prompt na configuração principal (ai_agent_config)
-        // Isso garante que a UI e o Chatbot usem a versão mais recente imediatamente,
-        // sem depender exclusivamente do frontend enviar o update.
+        // 💾 CRÍTICO: Atualizar prompt na configuração principal (usar prompt calibrado)
         await storage.updateAgentConfig(userId, { 
-          prompt: result.novoPrompt 
+          prompt: promptFinal // Usar prompt calibrado/reparado
         });
-        console.log(`[Edit Prompt] ✅ Config principal atualizada com novo prompt`);
+        console.log(`[Edit Prompt] ✅ Config principal atualizada com prompt calibrado`);
         
-        // Salvar nova versão do prompt
+        // Salvar nova versão do prompt (com info de calibração)
         await salvarVersaoPrompt({
           userId,
           configType: 'ai_agent_config',
-          promptContent: result.novoPrompt,
+          promptContent: promptFinal,
           editSummary: instruction,
           editType: 'ia',
-          editDetails: result.detalhes
+          editDetails: {
+            ...result.detalhes,
+            calibration: calibrationResult ? {
+              score: calibrationResult.scoreGeral,
+              reparos: calibrationResult.tentativasReparo
+            } : null
+          }
         });
       }
       
       res.json({
         success: result.success,
-        newPrompt: result.novoPrompt,
+        newPrompt: promptFinal, // Retornar prompt calibrado
         changes: result.detalhes,
-        summary: result.mensagemChat,
-        feedbackMessage: result.mensagemChat,
-        method: "mistral-search-replace",
+        summary: mensagemCompleta,
+        feedbackMessage: mensagemCompleta,
+        method: "mistral-search-replace-with-calibration",
         stats: {
           aplicadas: result.edicoesAplicadas,
           falharam: result.edicoesFalharam
-        }
+        },
+        calibration: calibrationResult ? {
+          sucesso: calibrationResult.sucesso,
+          score: calibrationResult.scoreGeral,
+          cenariosAprovados: calibrationResult.cenariosAprovados,
+          cenariosTotais: calibrationResult.cenariosTotais,
+          tentativasReparo: calibrationResult.tentativasReparo,
+          tempoMs: calibrationResult.tempoMs,
+          resultados: calibrationResult.resultados.map(r => ({
+            cenarioId: r.cenarioId,
+            passou: r.passou,
+            score: r.score
+          }))
+        } : null
       });
     } catch (error: any) {
       console.error("Error editing prompt:", error);
       res.status(500).json({ message: error.message || "Failed to edit prompt" });
+    }
+  });
+
+  // ============ ENDPOINT DEDICADO PARA CALIBRAÇÃO MANUAL ============
+  // 🧪 Permite testar prompt antes de aplicar edições
+  app.post("/api/agent/calibrate", isAuthenticated, async (req: any, res) => {
+    try {
+      const { prompt, testScenarios, instruction } = req.body;
+
+      if (!prompt) {
+        return res.status(400).json({ message: "prompt é obrigatório" });
+      }
+
+      // Buscar chave Mistral
+      const mistralConfig = await storage.getSystemConfig('mistral_api_key');
+      const mistralApiKey = mistralConfig?.valor || process.env.MISTRAL_API_KEY || '';
+      
+      if (!mistralApiKey) {
+        return res.status(500).json({ 
+          success: false, 
+          message: "Chave de API Mistral não configurada" 
+        });
+      }
+
+      const { calibrarPromptEditado } = await import("./promptCalibrationService");
+      
+      console.log(`🧪 [Calibrate] Iniciando calibração manual...`);
+      
+      const calibrationResult = await calibrarPromptEditado(
+        prompt,
+        instruction || "Validar comportamento geral do agente",
+        mistralApiKey,
+        "mistral",
+        {
+          numeroCenarios: testScenarios?.length || 3,
+          maxTentativasReparo: 0, // Não reparar em teste manual
+          scoreMinimoAprovacao: 60
+        }
+      );
+      
+      res.json({
+        success: calibrationResult.sucesso,
+        score: calibrationResult.scoreGeral,
+        cenariosAprovados: calibrationResult.cenariosAprovados,
+        cenariosTotais: calibrationResult.cenariosTotais,
+        tempoMs: calibrationResult.tempoMs,
+        resultados: calibrationResult.resultados.map(r => ({
+          cenarioId: r.cenarioId,
+          perguntaCliente: r.perguntaCliente,
+          respostaAgente: r.respostaAgente,
+          passou: r.passou,
+          score: r.score,
+          motivo: r.motivo
+        }))
+      });
+    } catch (error: any) {
+      console.error("Error in calibration:", error);
+      res.status(500).json({ message: error.message || "Falha na calibração" });
     }
   });
 
@@ -6361,6 +7038,50 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
                    return res.json({ message: "Granular payment processed" });
                 }
 
+                // 🔥 FIX: Reseller Client Creation Payments (PIX aprovado para criação de cliente)
+                if (externalRef && externalRef.startsWith("reseller_client_")) {
+                   const paymentIdFromRef = externalRef.replace("reseller_client_", "");
+                   console.log("[MP Webhook] 🎯 Reseller client creation payment detected:", {
+                     mpPaymentId: payment.id,
+                     paymentIdFromRef,
+                     externalRef
+                   });
+                   
+                   try {
+                     const { resellerService } = await import("./resellerService");
+                     
+                     // Verificar se já foi processado (evitar duplicação)
+                     const existingPayment = await storage.getResellerPayment(paymentIdFromRef);
+                     if (existingPayment && existingPayment.status === "approved") {
+                       console.log("[MP Webhook] ⚠️ Pagamento já processado anteriormente:", paymentIdFromRef);
+                       return res.json({ message: "Payment already processed" });
+                     }
+                     
+                     // Processar criação do cliente
+                     const result = await resellerService.confirmPixPayment(paymentIdFromRef);
+                     
+                     if (result.success) {
+                       console.log("[MP Webhook] ✅ Cliente de revenda criado com sucesso:", {
+                         clientId: result.clientId,
+                         userId: result.userId,
+                         paymentId: paymentIdFromRef
+                       });
+                     } else {
+                       console.error("[MP Webhook] ❌ Erro ao criar cliente de revenda:", result.error);
+                     }
+                     
+                     return res.json({ 
+                       message: result.success ? "Reseller client created" : "Error creating client",
+                       success: result.success,
+                       error: result.error
+                     });
+                   } catch (resellerError: any) {
+                     console.error("[MP Webhook] ❌ Erro crítico ao processar cliente de revenda:", resellerError);
+                     // Não retornar erro 500 para evitar retry infinito
+                     return res.json({ message: "Error processing reseller client", error: resellerError.message });
+                   }
+                }
+
                 let subscriptionId: string | null = null;
                 
                 // Extrair ID da assinatura do external_reference
@@ -7940,6 +8661,149 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // Envio em massa COM MÍDIA (imagem, vídeo, áudio, documento)
+  app.post("/api/whatsapp/bulk-send-media", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { phones, message, contacts, media, settings } = req.body;
+
+      if (!phones || !Array.isArray(phones) || phones.length === 0) {
+        return res.status(400).json({ message: "Lista de telefones é obrigatória" });
+      }
+
+      if (!media || !media.type || !media.data) {
+        return res.status(400).json({ message: "Mídia é obrigatória (type e data)" });
+      }
+
+      // Validar tipo de mídia
+      const validTypes = ['audio', 'image', 'video', 'document'];
+      if (!validTypes.includes(media.type)) {
+        return res.status(400).json({ message: `Tipo de mídia inválido: ${media.type}. Use: ${validTypes.join(', ')}` });
+      }
+
+      // Verificar conexão WhatsApp
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || !connection.isConnected) {
+        return res.status(400).json({ message: "WhatsApp não está conectado" });
+      }
+
+      // Importar função de envio com mídia
+      const { sendBulkMediaMessages } = await import("./whatsapp");
+
+      // Preparar contatos com nomes
+      const contactsWithNames: { phone: string; name: string }[] = [];
+      for (let i = 0; i < phones.length; i++) {
+        const cleanPhone = String(phones[i]).replace(/\D/g, '');
+        if (cleanPhone.length >= 10 && cleanPhone.length <= 15) {
+          const contactData = contacts?.find((c: any) => 
+            String(c.phone).replace(/\D/g, '') === cleanPhone
+          );
+          contactsWithNames.push({
+            phone: cleanPhone,
+            name: contactData?.name || ''
+          });
+        }
+      }
+
+      if (contactsWithNames.length === 0) {
+        return res.status(400).json({ message: "Nenhum número válido encontrado" });
+      }
+
+      console.log(`[BULK MEDIA SEND] Iniciando envio de ${media.type} para ${contactsWithNames.length} números`);
+
+      // Configurações de delay (mais conservador para mídia)
+      const delayMin = settings?.delayMin || 8;
+      const delayMax = settings?.delayMax || 20;
+
+      // Criar campanha com status "running"
+      const campaignName = `Mídia ${media.type} ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+      const campaignId = `campaign_media_${Date.now()}`;
+
+      await storage.createCampaign?.({
+        id: campaignId,
+        userId,
+        name: campaignName,
+        message: message || `[${media.type.toUpperCase()}]`,
+        recipients: contactsWithNames.map(c => c.phone),
+        recipientNames: contactsWithNames.reduce((acc, c) => ({ ...acc, [c.phone]: c.name }), {}),
+        status: 'running',
+        totalSent: 0,
+        totalFailed: 0,
+        executedAt: new Date(),
+        createdAt: new Date(),
+        delayProfile: 'conservador', // Mídia sempre conservador
+        mediaType: media.type,
+      });
+
+      // Responder imediatamente
+      res.json({
+        success: true,
+        total: contactsWithNames.length,
+        sent: 0,
+        failed: 0,
+        campaignId,
+        progress: {
+          total: contactsWithNames.length,
+          sent: 0,
+          failed: 0,
+          status: 'running'
+        },
+        message: `Envio de ${media.type} iniciado em background.`
+      });
+
+      // Executar em background
+      setImmediate(async () => {
+        try {
+          console.log(`[BULK MEDIA SEND BACKGROUND] Executando campanha ${campaignId}`);
+
+          const onProgress = async (currentSent: number, currentFailed: number) => {
+            try {
+              await storage.updateCampaign?.(userId, campaignId, {
+                totalSent: currentSent,
+                totalFailed: currentFailed,
+                status: 'running',
+              });
+            } catch (e) {
+              console.error('[BULK MEDIA SEND PROGRESS] Erro:', e);
+            }
+          };
+
+          const result = await sendBulkMediaMessages(userId, contactsWithNames, message || '', {
+            type: media.type,
+            data: media.data,
+            mimetype: media.mimetype,
+            filename: media.filename,
+            caption: message,
+            ptt: media.ptt,
+          }, {
+            delayMin: delayMin * 1000,
+            delayMax: delayMax * 1000,
+            onProgress,
+          });
+
+          await storage.updateCampaign?.(userId, campaignId, {
+            status: 'completed',
+            totalSent: result.sent,
+            totalFailed: result.failed,
+            results: result.details,
+            completedAt: new Date(),
+          });
+
+          console.log(`[BULK MEDIA SEND BACKGROUND] Campanha ${campaignId} concluída: ${result.sent} enviados, ${result.failed} falharam`);
+        } catch (error: any) {
+          console.error(`[BULK MEDIA SEND BACKGROUND] Erro na campanha ${campaignId}:`, error);
+          await storage.updateCampaign?.(userId, campaignId, {
+            status: 'error',
+            errorMessage: error.message,
+          });
+        }
+      });
+    } catch (error: any) {
+      console.error("Error in bulk media send:", error);
+      res.status(500).json({ message: error.message || "Falha no envio de mídia em massa" });
+    }
+  });
+
   // ==================== GROUPS / ENVIO PARA GRUPOS ROUTES ====================
   
   // Buscar grupos que o usuário participa
@@ -8127,75 +8991,105 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
-  // Sincronizar contatos do WhatsApp
+  // ============================================
+  // 📱 SINCRONIZAÇÃO DE CONTATOS EM BACKGROUND
+  // Sistema de fila que processa gradualmente
+  // REGRA: Somente clientes que já conversaram
+  // ============================================
+
+  // Iniciar sincronização em background (fila gradual)
   app.post("/api/contacts/sync", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
       
       // Verificar conexão WhatsApp
       const connection = await storage.getConnectionByUserId(userId);
-      if (!connection || !connection.isConnected) {
-        return res.status(400).json({ message: "WhatsApp não está conectado" });
+      if (!connection) {
+        return res.status(400).json({ 
+          message: "Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro." 
+        });
       }
 
-      // Buscar conversas existentes
-      const conversations = await storage.getConversationsByConnectionId(connection.id);
+      // Iniciar sincronização em background (não bloqueia)
+      const result = await startBackgroundSync(userId, connection.id);
       
-      // Extrair contatos únicos (devagarinho para não derrubar o servidor)
-      const contacts = conversations
-        .filter(conv => conv.contactNumber && !conv.contactNumber.includes('@lid'))
-        .map(conv => ({
-          id: conv.id,
-          name: conv.contactName || conv.contactNumber || '',
-          phone: conv.contactNumber || '',
-          lastMessage: conv.lastMessageTime,
-        }))
-        .filter((contact, index, self) => 
-          index === self.findIndex(c => c.phone === contact.phone)
-        );
-
-      // Salvar contatos sincronizados (se a função existir)
-      if (storage.saveSyncedContacts) {
-        await storage.saveSyncedContacts(userId, contacts);
-      }
-
       res.json({ 
-        success: true, 
-        count: contacts.length,
-        contacts 
+        success: result.status !== 'error',
+        message: result.message,
+        status: result.status,
       });
     } catch (error) {
-      console.error("Error syncing contacts:", error);
-      res.status(500).json({ message: "Failed to sync contacts" });
+      console.error("Error starting sync:", error);
+      res.status(500).json({ message: "Erro ao iniciar sincronização" });
     }
   });
 
-  // Buscar contatos sincronizados
+  // Verificar status da sincronização
+  app.get("/api/contacts/sync/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const status = getSyncStatus(userId);
+      
+      res.json(status);
+    } catch (error) {
+      console.error("Error getting sync status:", error);
+      res.status(500).json({ message: "Erro ao verificar status" });
+    }
+  });
+
+  // Buscar contatos sincronizados - DIRETO DO BANCO DE DADOS
+  // Não processa nada em tempo real, apenas retorna dados do banco
+  // REGRA: Somente clientes que já conversaram (hasResponded = true)
   app.get("/api/contacts/synced", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
+      const returnAsArray = req.query.array === 'true' || req.query.format === 'array';
       
       // Buscar conexão do usuário
       const connection = await storage.getConnectionByUserId(userId);
       if (!connection) {
-        return res.json([]);
+        return res.json(returnAsArray ? [] : { contacts: [], total: 0 });
       }
 
-      // Buscar conversas e extrair contatos
-      const conversations = await storage.getConversationsByConnectionId(connection.id);
+      // Verificar se já tem contatos sincronizados no banco
+      const hasSynced = await hasSyncedBefore(connection.id);
       
-      const contacts = conversations
-        .filter(conv => conv.contactNumber)
-        .map(conv => ({
-          id: conv.id,
-          name: conv.contactName || '',
-          phone: conv.contactNumber || '',
-        }))
-        .filter((contact, index, self) => 
-          index === self.findIndex(c => c.phone === contact.phone)
-        );
+      // Se não tem contatos sincronizados, iniciar sincronização em background automaticamente
+      if (!hasSynced && connection.isConnected) {
+        console.log(`[SYNCED CONTACTS] Iniciando primeira sincronização para ${connection.id}`);
+        await startBackgroundSync(userId, connection.id);
+      }
 
-      res.json(contacts);
+      // Buscar contatos DIRETO DO BANCO (rápido, sem processar)
+      const { contacts, total } = await getSyncedContactsFromDB(connection.id);
+      
+      // Se pediu array (para Envio em Massa), retorna só o array
+      if (returnAsArray) {
+        console.log(`[SYNCED CONTACTS] Retornando ${total} contatos como array`);
+        return res.json(contacts);
+      }
+      
+      // Pegar status da sincronização para informar o frontend
+      const syncStatus = getSyncStatus(userId);
+      
+      console.log(`[SYNCED CONTACTS] Retornando ${total} contatos do banco (sync status: ${syncStatus.status})`);
+      
+      // Retornar com metadados de sincronização
+      res.json({
+        contacts,
+        total,
+        syncStatus: {
+          status: syncStatus.status,
+          progress: syncStatus.progress,
+          message: syncStatus.status === 'running' 
+            ? `Sincronizando... ${syncStatus.progress}%` 
+            : syncStatus.status === 'completed'
+            ? 'Sincronização concluída'
+            : syncStatus.status === 'error'
+            ? `Erro: ${syncStatus.error}`
+            : 'Aguardando sincronização',
+        },
+      });
     } catch (error) {
       console.error("Error fetching synced contacts:", error);
       res.status(500).json({ message: "Failed to fetch synced contacts" });
@@ -8218,6 +9112,141 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     } catch (error) {
       console.error("Error adding contacts to list:", error);
       res.status(500).json({ message: "Failed to add contacts to list" });
+    }
+  });
+
+  // ============================================
+  // 🔄 SINCRONIZAÇÃO COMPLETA DE CONTATOS
+  // Sistema de fila assíncrona global
+  // Sincroniza TODOS os contatos (WhatsApp + Conversas)
+  // ============================================
+
+  // Iniciar sincronização COMPLETA (agenda WhatsApp + conversas)
+  app.post("/api/contacts/full-sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { force } = req.body;  // force=true ignora rate limiting
+      
+      // Verificar conexão WhatsApp
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(400).json({ 
+          success: false,
+          message: "❌ Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro." 
+        });
+      }
+      
+      if (!connection.isConnected) {
+        return res.status(400).json({ 
+          success: false,
+          message: "❌ WhatsApp desconectado. Reconecte para sincronizar contatos." 
+        });
+      }
+
+      // Iniciar sincronização completa (fila assíncrona)
+      const result = await startFullContactSync(userId, connection.id, force === true);
+      
+      res.json({ 
+        success: result.status !== 'error' && result.status !== 'rate_limited',
+        message: result.message,
+        status: result.status,
+        queuePosition: result.queuePosition,
+      });
+    } catch (error) {
+      console.error("Error starting full sync:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "❌ Erro ao iniciar sincronização completa" 
+      });
+    }
+  });
+
+  // Verificar status da sincronização COMPLETA
+  app.get("/api/contacts/full-sync/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.json({
+          status: 'idle',
+          message: 'Nenhuma conexão WhatsApp',
+          progress: 0,
+        });
+      }
+
+      const status = getFullSyncStatus(connection.id);
+      
+      // Formatar mensagem amigável
+      let message = '';
+      switch (status.status) {
+        case 'idle':
+          message = 'Aguardando sincronização';
+          break;
+        case 'queued':
+          message = `Na fila (posição ${status.queuePosition})`;
+          break;
+        case 'running':
+          message = `Sincronizando... ${status.progress}%`;
+          break;
+        case 'completed':
+          message = `✅ Concluído! ${status.totalContacts} contatos`;
+          break;
+        case 'error':
+          message = `❌ Erro: ${status.error}`;
+          break;
+      }
+      
+      res.json({
+        ...status,
+        message,
+        lastSyncFormatted: status.lastSyncAt 
+          ? new Date(status.lastSyncAt).toLocaleString('pt-BR')
+          : null,
+        nextAutoSyncFormatted: status.nextAutoSyncAt
+          ? new Date(status.nextAutoSyncAt).toLocaleString('pt-BR')
+          : null,
+      });
+    } catch (error) {
+      console.error("Error getting full sync status:", error);
+      res.status(500).json({ message: "Erro ao verificar status" });
+    }
+  });
+
+  // Estatísticas da fila global (admin)
+  app.get("/api/contacts/full-sync/queue-stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const stats = getQueueStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error getting queue stats:", error);
+      res.status(500).json({ message: "Erro ao buscar estatísticas da fila" });
+    }
+  });
+
+  // Forçar sincronização de TODOS os clientes (admin only)
+  app.post("/api/admin/contacts/sync-all-clients", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Verificar se é admin
+      const user = await storage.getUser(userId);
+      if (!user || !user.isAdmin) {
+        return res.status(403).json({ message: "Apenas administradores podem executar esta ação" });
+      }
+      
+      console.log(`[ADMIN] 🔄 Admin ${userId} iniciou sincronização de todos os clientes`);
+      
+      const result = await scheduleFullSyncForAllClients();
+      
+      res.json({
+        success: true,
+        message: `✅ Sincronização agendada para ${result.scheduled} clientes (${result.skipped} pulados, ${result.errors} erros)`,
+        ...result,
+      });
+    } catch (error) {
+      console.error("Error scheduling sync for all clients:", error);
+      res.status(500).json({ message: "Erro ao agendar sincronização" });
     }
   });
 
@@ -8548,7 +9577,10 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       console.log(`🚀 Enviando áudio (PTT: ${messageContent.ptt})...`);
 
-      const result = await session.socket.sendMessage(jid, messageContent);
+      // 🛡️ ANTI-BLOQUEIO: Usar executeWithDelay para garantir try/finally
+      const result = await messageQueueService.executeWithDelay(userId, 'debug envio áudio', async () => {
+        return await session.socket.sendMessage(jid, messageContent);
+      });
 
       if (result?.key?.id) {
         console.log(`✅ Audio sent! MessageId: ${result.key.id}`);

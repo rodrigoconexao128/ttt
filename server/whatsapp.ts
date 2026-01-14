@@ -343,7 +343,27 @@ async function internalSendMessageRaw(
 messageQueueService.registerSendCallback(internalSendMessageRaw);
 
 // ═══════════════════════════════════════════════════════════════════════
-// �🔄 VERIFICAÇÃO DE MENSAGENS NÃO RESPONDIDAS AO RECONECTAR
+// 🛡️ WRAPPER UNIVERSAL PARA ENVIO COM DELAY ANTI-BLOQUEIO
+// ═══════════════════════════════════════════════════════════════════════
+// Esta função DEVE ser usada para TODOS os envios de mensagem!
+// Garante delay de 5-10s entre mensagens do MESMO WhatsApp.
+
+/**
+ * Envia qualquer tipo de mensagem respeitando a fila anti-bloqueio
+ * @param queueId - ID da fila (userId para usuários, "admin_" + adminId para admins)
+ * @param description - Descrição do envio para logs
+ * @param sendFn - Função que faz o envio real
+ */
+async function sendWithQueue<T>(
+  queueId: string,
+  description: string,
+  sendFn: () => Promise<T>
+): Promise<T> {
+  return messageQueueService.executeWithDelay(queueId, description, sendFn);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 VERIFICAÇÃO DE MENSAGENS NÃO RESPONDIDAS AO RECONECTAR
 // ═══════════════════════════════════════════════════════════════════════
 // Quando o WhatsApp reconecta (após desconexão/restart), verificamos se há
 // clientes que mandaram mensagem nas últimas 24h e não foram respondidos.
@@ -719,7 +739,10 @@ async function processAdminAccumulatedMessages(params: {
         await new Promise((r) => setTimeout(r, interval));
       }
 
-      await socket.sendMessage(pending.remoteJid, { text: parts[i] });
+      // 🛡️ ANTI-BLOQUEIO: Usar fila do Admin Agent
+      await sendWithQueue('ADMIN_AGENT', `admin resposta parte ${i+1}`, async () => {
+        await socket.sendMessage(pending.remoteJid, { text: parts[i] });
+      });
     }
 
     console.log(`✅ [ADMIN AGENT] Resposta enviada para ${pending.contactNumber}`);
@@ -754,7 +777,10 @@ async function processAdminAccumulatedMessages(params: {
       const ownerNumber = await getOwnerNotificationNumber();
       const ownerJid = `${ownerNumber}@s.whatsapp.net`;
       const notificationText = `💰 *NOTIFICAÇÃO DE PAGAMENTO*\n\n📱 Cliente: ${pending.contactNumber}\n⏰ ${new Date().toLocaleString("pt-BR")}\n\n⚠️ Verificar comprovante e liberar conta`;
-      await socket.sendMessage(ownerJid, { text: notificationText });
+      // 🛡️ ANTI-BLOQUEIO
+      await sendWithQueue('ADMIN_AGENT', 'notificação pagamento', async () => {
+        await socket.sendMessage(ownerJid, { text: notificationText });
+      });
       console.log(`📢 [ADMIN AGENT] Notificação enviada para ${ownerNumber}`);
     }
 
@@ -774,29 +800,41 @@ async function processAdminAccumulatedMessages(params: {
             if (mediaBuffer) {
               switch (media.mediaType) {
                 case 'image':
-                  await socket.sendMessage(pending.remoteJid, {
-                    image: mediaBuffer,
-                    caption: media.caption || undefined,
+                  // 🛡️ ANTI-BLOQUEIO
+                  await sendWithQueue('ADMIN_AGENT', 'mídia imagem', async () => {
+                    await socket.sendMessage(pending.remoteJid, {
+                      image: mediaBuffer,
+                      caption: media.caption || undefined,
+                    });
                   });
                   break;
                 case 'audio':
-                  await socket.sendMessage(pending.remoteJid, {
-                    audio: mediaBuffer,
-                    mimetype: media.mimeType || 'audio/ogg; codecs=opus',
-                    ptt: true, // Voice message
+                  // 🛡️ ANTI-BLOQUEIO
+                  await sendWithQueue('ADMIN_AGENT', 'mídia áudio', async () => {
+                    await socket.sendMessage(pending.remoteJid, {
+                      audio: mediaBuffer,
+                      mimetype: media.mimeType || 'audio/ogg; codecs=opus',
+                      ptt: true, // Voice message
+                    });
                   });
                   break;
                 case 'video':
-                  await socket.sendMessage(pending.remoteJid, {
-                    video: mediaBuffer,
-                    caption: media.caption || undefined,
+                  // 🛡️ ANTI-BLOQUEIO
+                  await sendWithQueue('ADMIN_AGENT', 'mídia vídeo', async () => {
+                    await socket.sendMessage(pending.remoteJid, {
+                      video: mediaBuffer,
+                      caption: media.caption || undefined,
+                    });
                   });
                   break;
                 case 'document':
-                  await socket.sendMessage(pending.remoteJid, {
-                    document: mediaBuffer,
-                    fileName: media.fileName || 'document',
-                    mimetype: media.mimeType || 'application/octet-stream',
+                  // 🛡️ ANTI-BLOQUEIO
+                  await sendWithQueue('ADMIN_AGENT', 'mídia documento', async () => {
+                    await socket.sendMessage(pending.remoteJid, {
+                      document: mediaBuffer,
+                      fileName: media.fileName || 'document',
+                      mimetype: media.mimeType || 'application/octet-stream',
+                    });
                   });
                   break;
               }
@@ -823,14 +861,23 @@ async function processAdminAccumulatedMessages(params: {
         if (clientSession?.userId) {
           console.log(`🔌 [ADMIN AGENT] Desconectando WhatsApp do usuário ${clientSession.userId}...`);
           await disconnectWhatsApp(clientSession.userId);
-          await socket.sendMessage(pending.remoteJid, { text: "Pronto! 🔌 Seu WhatsApp foi desconectado. Quando quiser reconectar, é só me avisar!" });
+          // 🛡️ ANTI-BLOQUEIO
+          await sendWithQueue('ADMIN_AGENT', 'desconexão confirmação', async () => {
+            await socket.sendMessage(pending.remoteJid, { text: "Pronto! 🔌 Seu WhatsApp foi desconectado. Quando quiser reconectar, é só me avisar!" });
+          });
           console.log(`✅ [ADMIN AGENT] WhatsApp desconectado para ${clientSession.userId}`);
         } else {
-          await socket.sendMessage(pending.remoteJid, { text: "Não encontrei uma conexão ativa para desconectar. Você já está desconectado!" });
+          // 🛡️ ANTI-BLOQUEIO
+          await sendWithQueue('ADMIN_AGENT', 'desconexão não encontrada', async () => {
+            await socket.sendMessage(pending.remoteJid, { text: "Não encontrei uma conexão ativa para desconectar. Você já está desconectado!" });
+          });
         }
       } catch (disconnectError) {
         console.error("❌ [ADMIN AGENT] Erro ao desconectar WhatsApp:", disconnectError);
-        await socket.sendMessage(pending.remoteJid, { text: "Tive um problema ao tentar desconectar. Pode tentar de novo?" });
+        // 🛡️ ANTI-BLOQUEIO
+        await sendWithQueue('ADMIN_AGENT', 'desconexão erro', async () => {
+          await socket.sendMessage(pending.remoteJid, { text: "Tive um problema ao tentar desconectar. Pode tentar de novo?" });
+        });
       }
     }
 
@@ -873,17 +920,26 @@ async function processAdminAccumulatedMessages(params: {
             contactNumber: pending.contactNumber,
             getConnectionByUserId: (userId) => storage.getConnectionByUserId(userId),
             requestPairingCode: requestClientPairingCode,
-            sendText: (text) => socket.sendMessage(pending.remoteJid, { text }).then(() => undefined),
+            // 🛡️ ANTI-BLOQUEIO: Enviar via fila
+            sendText: (text) => sendWithQueue('ADMIN_AGENT', 'pareamento código', async () => {
+              await socket.sendMessage(pending.remoteJid, { text });
+            }).then(() => undefined),
           });
         } else {
-          await socket.sendMessage(pending.remoteJid, { text: "Antes de conectar, preciso criar sua conta. Me passa seu email?" });
+          // 🛡️ ANTI-BLOQUEIO
+          await sendWithQueue('ADMIN_AGENT', 'pareamento email', async () => {
+            await socket.sendMessage(pending.remoteJid, { text: "Antes de conectar, preciso criar sua conta. Me passa seu email?" });
+          });
         }
       } catch (codeError) {
         console.error("❌ [ADMIN AGENT] Erro ao gerar código de pareamento:", codeError);
         const errorMsg = (codeError as Error).message || String(codeError);
         console.error("❌ [ADMIN AGENT] Detalhes do erro:", errorMsg);
-        await socket.sendMessage(pending.remoteJid, {
-          text: "Desculpa, tive um problema técnico ao gerar o código agora. Eu continuo tentando e te envio automaticamente assim que sair.\n\nSe preferir, também posso conectar por QR Code.",
+        // 🛡️ ANTI-BLOQUEIO
+        await sendWithQueue('ADMIN_AGENT', 'pareamento erro', async () => {
+          await socket.sendMessage(pending.remoteJid, {
+            text: "Desculpa, tive um problema técnico ao gerar o código agora. Eu continuo tentando e te envio automaticamente assim que sair.\n\nSe preferir, também posso conectar por QR Code.",
+          });
         });
       }
     }
@@ -926,17 +982,27 @@ async function processAdminAccumulatedMessages(params: {
             contactNumber: pending.contactNumber,
             getConnectionByUserId: (userId) => storage.getConnectionByUserId(userId),
             connectWhatsApp,
-            sendText: (text) => socket.sendMessage(pending.remoteJid, { text }).then(() => undefined),
-            sendImage: (image, caption) =>
-              socket.sendMessage(pending.remoteJid, { image, caption }).then(() => undefined),
+            // 🛡️ ANTI-BLOQUEIO: Enviar via fila
+            sendText: (text) => sendWithQueue('ADMIN_AGENT', 'QR código texto', async () => {
+              await socket.sendMessage(pending.remoteJid, { text });
+            }).then(() => undefined),
+            sendImage: (image, caption) => sendWithQueue('ADMIN_AGENT', 'QR código imagem', async () => {
+              await socket.sendMessage(pending.remoteJid, { image, caption });
+            }).then(() => undefined),
           });
         } else {
-          await socket.sendMessage(pending.remoteJid, { text: "Antes de conectar, preciso criar sua conta. Me passa seu email?" });
+          // 🛡️ ANTI-BLOQUEIO
+          await sendWithQueue('ADMIN_AGENT', 'QR email pedido', async () => {
+            await socket.sendMessage(pending.remoteJid, { text: "Antes de conectar, preciso criar sua conta. Me passa seu email?" });
+          });
         }
       } catch (qrError) {
         console.error("❌ [ADMIN AGENT] Erro ao enviar QR Code:", qrError);
-        await socket.sendMessage(pending.remoteJid, {
-          text: "Desculpa, tive um problema pra gerar o QR Code agora. Eu continuo tentando e te envio automaticamente assim que aparecer.\n\nSe preferir, também posso conectar pelo código de 8 dígitos.",
+        // 🛡️ ANTI-BLOQUEIO
+        await sendWithQueue('ADMIN_AGENT', 'QR erro', async () => {
+          await socket.sendMessage(pending.remoteJid, {
+            text: "Desculpa, tive um problema pra gerar o QR Code agora. Eu continuo tentando e te envio automaticamente assim que aparecer.\n\nSe preferir, também posso conectar pelo código de 8 dígitos.",
+          });
         });
       }
     }
@@ -1470,6 +1536,9 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       auth: state,
       logger: pino({ level: "silent" }),
       printQRInTerminal: false,
+      // FIX 2025: Habilitar sync completo de contatos e histórico
+      // Isso faz o Baileys emitir TODOS os contatos do WhatsApp via contacts.upsert
+      syncFullHistory: true,
     });
 
     const session: WhatsAppSession = {
@@ -2830,7 +2899,10 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         (aiResponse ? `🤖 *Resposta do agente:* "${aiResponse.substring(0, 200)}${aiResponse.length > 200 ? '...' : ''}"` : '');
       
       try {
-        await currentSession.socket.sendMessage(notifyJid, { text: notifyMessage });
+        // 🛡️ ANTI-BLOQUEIO: Usar fila do usuário para notificação
+        await sendWithQueue(userId, 'notificação NOTIFY', async () => {
+          await currentSession.socket.sendMessage(notifyJid, { text: notifyMessage });
+        });
         console.log(`🔔 [AI Agent] Notification sent to ${notifyNumber}`);
       } catch (error) {
         console.error(`❌ [AI Agent] Failed to send notification to ${notifyNumber}:`, error);
@@ -2893,7 +2965,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         // Só atualizar conversa na última parte
         if (isLast) {
           await storage.updateConversation(conversationId, {
-            lastMessageText: finalPart,
+            lastMessageText: part, // ✅ CORRIGIDO: usar 'part' em vez de 'finalPart' que não existe
             lastMessageTime: new Date(),
           });
 
@@ -3307,7 +3379,11 @@ export async function sendAdminConversationMessage(adminId: string, conversation
   }
 
   console.log(`[sendAdminConversationMessage] Sending to: ${jid} (Original: ${conversation.remoteJid})`);
-  const sentMessage = await session.socket.sendMessage(jid, { text });
+  
+  // 🛡️ ANTI-BLOQUEIO: Usar fila do admin
+  const sentMessage = await sendWithQueue(`admin_${adminId}`, 'admin conversa msg', async () => {
+    return await session.socket.sendMessage(jid, { text });
+  });
 
   // Salvar mensagem
   await storage.createAdminMessage({
@@ -3338,7 +3414,10 @@ export async function sendAdminDirectMessage(adminId: string, phoneNumber: strin
   
   console.log(`[sendAdminDirectMessage] Sending to: ${jid}`);
   
-  await session.socket.sendMessage(jid, { text });
+  // 🛡️ ANTI-BLOQUEIO: Usar fila do admin
+  await sendWithQueue(`admin_${adminId}`, 'admin msg direta', async () => {
+    await session.socket.sendMessage(jid, { text });
+  });
 }
 
 // ==================== ADMIN MEDIA MESSAGE ====================
@@ -3441,7 +3520,10 @@ export async function sendAdminMediaMessage(
       throw new Error(`Unsupported media type: ${media.type}`);
   }
 
-  const sentMessage = await session.socket.sendMessage(jid, messageContent);
+  // 🛡️ ANTI-BLOQUEIO: Usar fila do admin
+  const sentMessage = await sendWithQueue(`admin_${adminId}`, `admin mídia ${media.type}`, async () => {
+    return await session.socket.sendMessage(jid, messageContent);
+  });
 
   // Salvar mensagem no banco
   await storage.createAdminMessage({
@@ -3513,7 +3595,7 @@ export async function sendUserMediaMessage(
 
   console.log(`[sendUserMediaMessage] Sending ${media.type} to: ${jid}`);
 
-  // Converter base64 para buffer se necessário
+  // Converter base64 para buffer se necessário (ANTES da fila para não ocupar tempo na fila)
   let mediaBuffer: Buffer;
   if (media.data.startsWith('data:')) {
     const base64Data = media.data.split(',')[1];
@@ -3574,7 +3656,11 @@ export async function sendUserMediaMessage(
   }
 
   console.log(`[sendUserMediaMessage] 📤 Sending to WhatsApp...`);
-  const sentMessage = await session.socket.sendMessage(jid, messageContent);
+  
+  // 🛡️ ANTI-BLOQUEIO: Usar fila do usuário
+  const sentMessage = await sendWithQueue(userId, `usuário mídia ${media.type}`, async () => {
+    return await session.socket.sendMessage(jid, messageContent);
+  });
   console.log(`[sendUserMediaMessage] ✅ Message sent! ID: ${sentMessage?.key?.id}`);
 
   // Salvar mensagem no banco
@@ -3853,8 +3939,10 @@ export async function sendBulkMessagesAdvanced(
         finalMessage = await generateVariation(finalMessage, contactIndex);
       }
       
-      console.log(`[BULK SEND ADVANCED] Enviando para: ${contact.name || contact.phone} (${jid})`);
+      const sendStartTime = Date.now();
+      console.log(`[BULK SEND ADVANCED] [${contactIndex + 1}/${contacts.length}] Enviando para: ${contact.name || contact.phone} (${jid})`);
       console.log(`[BULK SEND ADVANCED] Mensagem: ${finalMessage.substring(0, 50)}...`);
+      console.log(`[BULK SEND ADVANCED] Timestamp início: ${new Date(sendStartTime).toISOString()}`);
       
       // 🛡️ ANTI-BLOQUEIO: Usar fila de mensagens com delay automático de 5-10s
       // ✅ Texto enviado EXATAMENTE como recebido (variação REMOVIDA do sistema)
@@ -3862,6 +3950,9 @@ export async function sendBulkMessagesAdvanced(
         isFromAgent: true,
         priority: 'low', // Bulk = prioridade baixa
       });
+      
+      const queueEndTime = Date.now();
+      console.log(`[BULK SEND ADVANCED] Queue processada em ${((queueEndTime - sendStartTime) / 1000).toFixed(2)}s`);
       
       if (queueResult.success) {
         sent++;
@@ -3903,7 +3994,15 @@ export async function sendBulkMessagesAdvanced(
         }
       }
 
-      // 🛡️ A fila já controla o delay de 5-10s - não precisa de delay extra aqui
+      // 🛡️ DELAY COMPLETO CONFIGURADO PELO USUÁRIO
+      // A fila tem delay base de 5-10s, MAS para envio em massa queremos o delay configurado COMPLETO
+      // Para garantir, aplicamos o delay configurado APÓS o enqueue retornar
+      // Isso garante que mesmo com variações da fila, teremos pelo menos o delay configurado
+      if (contactIndex < contacts.length - 1) {
+        const configuredDelay = delayMin + Math.random() * (delayMax - delayMin);
+        console.log(`🛡️ [BULK SEND] Delay configurado: ${(configuredDelay/1000).toFixed(1)}s (perfil: ${delayMin/1000}-${delayMax/1000}s)`);
+        await new Promise(resolve => setTimeout(resolve, configuredDelay));
+      }
       
     } catch (error: any) {
       failed++;
@@ -3934,6 +4033,197 @@ export async function sendBulkMessagesAdvanced(
 
   console.log(`[BULK SEND ADVANCED] Concluído: ${sent} enviados, ${failed} falharam`);
   
+  return { sent, failed, errors, details };
+}
+
+// ==================== BULK SEND WITH MEDIA / ENVIO EM MASSA COM MÍDIA ====================
+
+export interface BulkMediaPayload {
+  type: 'audio' | 'image' | 'video' | 'document';
+  data: string; // base64 data URL or URL
+  mimetype: string;
+  filename?: string;
+  caption?: string;
+  ptt?: boolean;
+}
+
+/**
+ * Envia mensagem com mídia em massa para múltiplos contatos
+ * Suporta: imagem, vídeo, áudio e documento
+ */
+export async function sendBulkMediaMessages(
+  userId: string,
+  contacts: { phone: string; name: string }[],
+  messageTemplate: string,
+  media: BulkMediaPayload,
+  options: {
+    delayMin?: number;
+    delayMax?: number;
+    onProgress?: (sent: number, failed: number) => Promise<void>;
+  } = {}
+): Promise<{
+  sent: number;
+  failed: number;
+  errors: string[];
+  details: {
+    sent: { phone: string; name?: string; timestamp: string }[];
+    failed: { phone: string; name?: string; error: string; timestamp: string }[];
+  };
+}> {
+  const session = sessions.get(userId);
+  if (!session?.socket) {
+    throw new Error("WhatsApp não conectado");
+  }
+
+  const delayMin = options.delayMin || 5000;
+  const delayMax = options.delayMax || 15000;
+  const { onProgress } = options;
+
+  let sent = 0;
+  let failed = 0;
+  const errors: string[] = [];
+  const details = {
+    sent: [] as { phone: string; name?: string; timestamp: string }[],
+    failed: [] as { phone: string; name?: string; error: string; timestamp: string }[],
+  };
+
+  console.log(`[BULK MEDIA SEND] 🖼️ Iniciando envio de ${media.type} para ${contacts.length} contatos`);
+  console.log(`[BULK MEDIA SEND] Delay: ${delayMin/1000}-${delayMax/1000}s`);
+
+  // Converter base64 para buffer UMA VEZ (performance)
+  let mediaBuffer: Buffer;
+  try {
+    if (media.data.startsWith('data:')) {
+      const base64Data = media.data.split(',')[1];
+      mediaBuffer = Buffer.from(base64Data, 'base64');
+    } else {
+      mediaBuffer = Buffer.from(media.data, 'base64');
+    }
+    console.log(`[BULK MEDIA SEND] 📦 Buffer preparado: ${mediaBuffer.length} bytes`);
+  } catch (bufferError: any) {
+    throw new Error(`Erro ao processar mídia: ${bufferError.message}`);
+  }
+
+  // Função para aplicar template [nome]
+  const applyTemplate = (template: string, name: string): string => {
+    if (!template) return '';
+    return template.replace(/\[nome\]/gi, name || 'Cliente');
+  };
+
+  let contactIndex = 0;
+  for (const contact of contacts) {
+    try {
+      // Formatar número para JID
+      const cleanPhone = contact.phone.replace(/\D/g, '');
+      let formattedPhone = cleanPhone;
+      if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+        formattedPhone = '55' + cleanPhone;
+      }
+      const jid = `${formattedPhone}@s.whatsapp.net`;
+
+      // Aplicar template na legenda
+      const finalCaption = applyTemplate(messageTemplate, contact.name);
+
+      console.log(`[BULK MEDIA SEND] [${contactIndex + 1}/${contacts.length}] Enviando ${media.type} para: ${contact.name || contact.phone}`);
+
+      // Preparar conteúdo de mídia
+      let messageContent: any;
+
+      switch (media.type) {
+        case 'audio':
+          messageContent = {
+            audio: mediaBuffer,
+            mimetype: media.mimetype || 'audio/ogg; codecs=opus',
+            ptt: media.ptt !== false,
+          };
+          break;
+
+        case 'image':
+          messageContent = {
+            image: mediaBuffer,
+            mimetype: media.mimetype || 'image/jpeg',
+            caption: finalCaption || undefined,
+          };
+          break;
+
+        case 'video':
+          messageContent = {
+            video: mediaBuffer,
+            mimetype: media.mimetype || 'video/mp4',
+            caption: finalCaption || undefined,
+          };
+          break;
+
+        case 'document':
+          messageContent = {
+            document: mediaBuffer,
+            mimetype: media.mimetype || 'application/pdf',
+            fileName: media.filename || 'document',
+            caption: finalCaption || undefined,
+          };
+          break;
+
+        default:
+          throw new Error(`Tipo de mídia não suportado: ${media.type}`);
+      }
+
+      // Enviar mídia via socket (não usar fila para mídia - enviamos diretamente)
+      const sendStartTime = Date.now();
+      const sentMessage = await session.socket.sendMessage(jid, messageContent);
+      const sendEndTime = Date.now();
+
+      console.log(`[BULK MEDIA SEND] ✅ Enviado para ${contact.name || contact.phone} em ${sendEndTime - sendStartTime}ms`);
+
+      sent++;
+      details.sent.push({
+        phone: contact.phone,
+        name: contact.name,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Atualizar progresso
+      if (onProgress) {
+        try {
+          await onProgress(sent, failed);
+        } catch (progressError) {
+          console.error('[BULK MEDIA SEND] Erro ao atualizar progresso:', progressError);
+        }
+      }
+
+      // Delay entre envios (mais conservador para mídia)
+      if (contactIndex < contacts.length - 1) {
+        const configuredDelay = delayMin + Math.random() * (delayMax - delayMin);
+        console.log(`🛡️ [BULK MEDIA SEND] Delay: ${(configuredDelay/1000).toFixed(1)}s`);
+        await new Promise(resolve => setTimeout(resolve, configuredDelay));
+      }
+
+    } catch (error: any) {
+      failed++;
+      const errorMsg = error.message || 'Erro desconhecido';
+      errors.push(`${contact.phone}: ${errorMsg}`);
+      details.failed.push({
+        phone: contact.phone,
+        name: contact.name,
+        error: errorMsg,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`[BULK MEDIA SEND] ❌ Erro: ${contact.phone} - ${errorMsg}`);
+
+      if (onProgress) {
+        try {
+          await onProgress(sent, failed);
+        } catch (progressError) {
+          console.error('[BULK MEDIA SEND] Erro ao atualizar progresso:', progressError);
+        }
+      }
+
+      // Delay extra em caso de erro
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    contactIndex++;
+  }
+
+  console.log(`[BULK MEDIA SEND] Concluído: ${sent} enviados, ${failed} falharam`);
   return { sent, failed, errors, details };
 }
 
@@ -4649,7 +4939,10 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
               const interval = randomBetween(cfg.messageIntervalMinMs, cfg.messageIntervalMaxMs);
               await new Promise(resolve => setTimeout(resolve, interval));
             }
-            await socket.sendMessage(realRemoteJid, { text: parts[i] });  // IMPORTANTE: Usar JID real
+            // 🛡️ ANTI-BLOQUEIO: Usar fila do Admin
+            await sendWithQueue('ADMIN_AGENT', `mídia resposta parte ${i+1}`, async () => {
+              await socket.sendMessage(realRemoteJid, { text: parts[i] });  // IMPORTANTE: Usar JID real
+            });
           }
           console.log(`✅ [ADMIN AGENT] Resposta enviada para ${contactNumber}`);
           
@@ -4683,16 +4976,22 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           const ownerJid = `${ownerNumber}@s.whatsapp.net`;
 
           const notificationText = `💰 *NOTIFICAÇÃO DE PAGAMENTO*\n\n📱 Cliente: ${contactNumber}\n⏰ ${new Date().toLocaleString("pt-BR")}\n\n⚠️ Verificar comprovante e liberar conta`;
-          await socket.sendMessage(ownerJid, { text: notificationText });
+          // 🛡️ ANTI-BLOQUEIO
+          await sendWithQueue('ADMIN_AGENT', 'notificação pagamento mídia', async () => {
+            await socket.sendMessage(ownerJid, { text: notificationText });
+          });
           console.log(`📢 [ADMIN AGENT] Notificação enviada para ${ownerNumber}`);
 
           if (mediaType === "image" && mediaUrl) {
             try {
               const base64Data = mediaUrl.split(",")[1];
               const buffer = Buffer.from(base64Data, "base64");
-              await socket.sendMessage(ownerJid, {
-                image: buffer,
-                caption: `📸 Comprovante do cliente ${contactNumber}`,
+              // 🛡️ ANTI-BLOQUEIO
+              await sendWithQueue('ADMIN_AGENT', 'comprovante imagem', async () => {
+                await socket.sendMessage(ownerJid, {
+                  image: buffer,
+                  caption: `📸 Comprovante do cliente ${contactNumber}`,
+                });
               });
             } catch (err) {
               console.error("[ADMIN AGENT] Erro ao encaminhar comprovante:", err);
@@ -4726,43 +5025,56 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
                   switch (media.mediaType) {
                     case 'image':
                       console.log(`📁 [ADMIN AGENT MEDIA] Enviando como IMAGEM...`);
-                      sendResult = await socket.sendMessage(realRemoteJid, {
-                        image: mediaBuffer,
-                        caption: media.caption || undefined,
+                      // 🛡️ ANTI-BLOQUEIO
+                      sendResult = await sendWithQueue('ADMIN_AGENT', 'mídia handler imagem', async () => {
+                        return await socket.sendMessage(realRemoteJid, {
+                          image: mediaBuffer,
+                          caption: media.caption || undefined,
+                        });
                       });
                       break;
                     case 'audio':
                       console.log(`📁 [ADMIN AGENT MEDIA] Enviando como ÁUDIO PTT...`);
-                      // Tentar enviar como áudio com diferentes formatos
+                      // 🛡️ ANTI-BLOQUEIO
                       try {
-                        sendResult = await socket.sendMessage(realRemoteJid, {
-                          audio: mediaBuffer,
-                          mimetype: media.mimeType || 'audio/ogg; codecs=opus',
-                          ptt: true,
+                        sendResult = await sendWithQueue('ADMIN_AGENT', 'mídia handler áudio', async () => {
+                          return await socket.sendMessage(realRemoteJid, {
+                            audio: mediaBuffer,
+                            mimetype: media.mimeType || 'audio/ogg; codecs=opus',
+                            ptt: true,
+                          });
                         });
                       } catch (audioErr: any) {
                         console.log(`⚠️ [ADMIN AGENT MEDIA] Erro ao enviar como PTT, tentando como audio normal...`);
                         console.log(`   Erro: ${audioErr.message}`);
-                        // Tentar sem PTT
-                        sendResult = await socket.sendMessage(realRemoteJid, {
-                          audio: mediaBuffer,
-                          mimetype: 'audio/mpeg',
+                        // 🛡️ ANTI-BLOQUEIO
+                        sendResult = await sendWithQueue('ADMIN_AGENT', 'mídia handler áudio fallback', async () => {
+                          return await socket.sendMessage(realRemoteJid, {
+                            audio: mediaBuffer,
+                            mimetype: 'audio/mpeg',
+                          });
                         });
                       }
                       break;
                     case 'video':
                       console.log(`📁 [ADMIN AGENT MEDIA] Enviando como VÍDEO...`);
-                      sendResult = await socket.sendMessage(realRemoteJid, {
-                        video: mediaBuffer,
-                        caption: media.caption || undefined,
+                      // 🛡️ ANTI-BLOQUEIO
+                      sendResult = await sendWithQueue('ADMIN_AGENT', 'mídia handler vídeo', async () => {
+                        return await socket.sendMessage(realRemoteJid, {
+                          video: mediaBuffer,
+                          caption: media.caption || undefined,
+                        });
                       });
                       break;
                     case 'document':
                       console.log(`📁 [ADMIN AGENT MEDIA] Enviando como DOCUMENTO...`);
-                      sendResult = await socket.sendMessage(realRemoteJid, {
-                        document: mediaBuffer,
-                        fileName: media.fileName || media.name || 'document',
-                        mimetype: media.mimeType || 'application/octet-stream',
+                      // 🛡️ ANTI-BLOQUEIO
+                      sendResult = await sendWithQueue('ADMIN_AGENT', 'mídia handler documento', async () => {
+                        return await socket.sendMessage(realRemoteJid, {
+                          document: mediaBuffer,
+                          fileName: media.fileName || media.name || 'document',
+                          mimetype: media.mimeType || 'application/octet-stream',
+                        });
                       });
                       break;
                     default:
@@ -4801,9 +5113,15 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             if (clientSession?.userId) {
               console.log(`🔌 [ADMIN AGENT MEDIA] Desconectando WhatsApp do usuário ${clientSession.userId}...`);
               await disconnectWhatsApp(clientSession.userId);
-              await socket.sendMessage(realRemoteJid, { text: "Pronto! 🔌 Seu WhatsApp foi desconectado. Quando quiser reconectar, é só me avisar!" });
+              // 🛡️ ANTI-BLOQUEIO
+              await sendWithQueue('ADMIN_AGENT', 'desconexão mídia', async () => {
+                await socket.sendMessage(realRemoteJid, { text: "Pronto! 🔌 Seu WhatsApp foi desconectado. Quando quiser reconectar, é só me avisar!" });
+              });
             } else {
-              await socket.sendMessage(realRemoteJid, { text: "Não encontrei uma conexão ativa para desconectar." });
+              // 🛡️ ANTI-BLOQUEIO
+              await sendWithQueue('ADMIN_AGENT', 'desconexão não encontrada mídia', async () => {
+                await socket.sendMessage(realRemoteJid, { text: "Não encontrei uma conexão ativa para desconectar." });
+              });
             }
           } catch (disconnectError) {
             console.error("❌ [ADMIN AGENT MEDIA] Erro ao desconectar WhatsApp:", disconnectError);
@@ -4977,9 +5295,11 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
     // Formatar nÃºmero para envio (remover + e adicionar @s.whatsapp.net)
     const formattedNumber = `${cleanContactNumber(userPhone) || userPhone.replace('+', '')}@${DEFAULT_JID_SUFFIX}`;
 
-    // Enviar mensagem
-    await adminSession.socket.sendMessage(formattedNumber, {
-      text: messageConfig.valor,
+    // 🛡️ ANTI-BLOQUEIO: Enviar via fila
+    await sendWithQueue('ADMIN_AGENT', 'credenciais welcome', async () => {
+      await adminSession!.socket!.sendMessage(formattedNumber, {
+        text: messageConfig.valor,
+      });
     });
 
     console.log(`[WELCOME] âœ… Mensagem de boas-vindas enviada com sucesso para ${userPhone}`);
@@ -5273,40 +5593,54 @@ export async function sendAdminMessage(
     const jid = `${cleanNumber}@${DEFAULT_JID_SUFFIX}`;
     
     if (media) {
-      // Enviar mídia
+      // Enviar mídia com delay anti-bloqueio
       switch (media.type) {
         case "image":
-          await adminSession.socket.sendMessage(jid, {
-            image: media.buffer,
-            caption: media.caption || text,
-            mimetype: media.mimetype,
+          // 🛡️ ANTI-BLOQUEIO
+          await sendWithQueue('ADMIN_AGENT', 'admin msg imagem', async () => {
+            await adminSession.socket!.sendMessage(jid, {
+              image: media.buffer,
+              caption: media.caption || text,
+              mimetype: media.mimetype,
+            });
           });
           break;
         case "audio":
-          await adminSession.socket.sendMessage(jid, {
-            audio: media.buffer,
-            mimetype: media.mimetype,
-            ptt: true, // Enviar como áudio de voz
+          // 🛡️ ANTI-BLOQUEIO
+          await sendWithQueue('ADMIN_AGENT', 'admin msg áudio', async () => {
+            await adminSession.socket!.sendMessage(jid, {
+              audio: media.buffer,
+              mimetype: media.mimetype,
+              ptt: true, // Enviar como áudio de voz
+            });
           });
           break;
         case "video":
-          await adminSession.socket.sendMessage(jid, {
-            video: media.buffer,
-            caption: media.caption || text,
-            mimetype: media.mimetype,
+          // 🛡️ ANTI-BLOQUEIO
+          await sendWithQueue('ADMIN_AGENT', 'admin msg vídeo', async () => {
+            await adminSession.socket!.sendMessage(jid, {
+              video: media.buffer,
+              caption: media.caption || text,
+              mimetype: media.mimetype,
+            });
           });
           break;
         case "document":
-          await adminSession.socket.sendMessage(jid, {
-            document: media.buffer,
-            fileName: media.filename || "documento",
-            mimetype: media.mimetype,
+          // 🛡️ ANTI-BLOQUEIO
+          await sendWithQueue('ADMIN_AGENT', 'admin msg documento', async () => {
+            await adminSession.socket!.sendMessage(jid, {
+              document: media.buffer,
+              fileName: media.filename || "documento",
+              mimetype: media.mimetype,
+            });
           });
           break;
       }
     } else {
-      // Enviar apenas texto
-      await adminSession.socket.sendMessage(jid, { text });
+      // 🛡️ ANTI-BLOQUEIO: Enviar apenas texto
+      await sendWithQueue('ADMIN_AGENT', 'admin msg texto', async () => {
+        await adminSession.socket!.sendMessage(jid, { text });
+      });
     }
     
     console.log(`✅ [ADMIN MSG] Mensagem enviada para ${cleanNumber}`);

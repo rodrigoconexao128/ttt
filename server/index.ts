@@ -6,6 +6,7 @@ import { restoreExistingSessions, restoreAdminSessions, startConnectionHealthChe
 import { followUpService } from "./followUpService";
 import { appointmentReminderService } from "./appointmentReminderService";
 import { startAutoReactivationService } from "./autoReactivateService";
+import { startDailySyncCron } from "./fullContactSyncService";
 import { seedDatabase } from "./seed";
 import path from "path";
 import fs from "fs";
@@ -186,5 +187,9 @@ app.use((req, res, next) => {
     // 🔄 Iniciar Health Check Monitor para reconexão automática
     // Verifica a cada 5 minutos se as conexões estão saudáveis
     startConnectionHealthCheck();
+    
+    // 📱 Iniciar Cron Job de Sincronização Diária de Contatos
+    // Sincroniza TODOS os contatos de TODOS os clientes 1x por dia às 03:00 BRT
+    startDailySyncCron();
   });
 })();

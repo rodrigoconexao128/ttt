@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Users, 
   RefreshCw, 
@@ -35,7 +38,9 @@ import {
   Zap,
   Calendar,
   MessageCircle,
-  Smartphone
+  Smartphone,
+  List,
+  Send
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -73,26 +78,61 @@ export default function SyncedContactsPage() {
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState('all');
 
-  // Buscar contatos
-  const { data: contacts = [], isLoading, refetch } = useQuery<Contact[]>({
-    queryKey: ['/api/contacts'],
+  // Estados do diálogo de criar lista
+  const [showCreateListDialog, setShowCreateListDialog] = useState(false);
+  const [newListName, setNewListName] = useState('');
+  const [newListDescription, setNewListDescription] = useState('');
+
+  // Buscar contatos sincronizados (do WhatsApp - via /api/contacts/synced)
+  // NOVO: API retorna { contacts, total, syncStatus }
+  const { data: syncedData, isLoading, refetch } = useQuery<{
+    contacts: Contact[];
+    total: number;
+    syncStatus?: {
+      status: string;
+      progress: number;
+      message: string;
+    };
+  } | Contact[]>({
+    queryKey: ['/api/contacts/synced'],
+    refetchInterval: (data) => {
+      // Se está sincronizando, atualizar a cada 5 segundos
+      if (data && 'syncStatus' in data && data.syncStatus?.status === 'running') {
+        return 5000;
+      }
+      return false;
+    },
   });
+
+  // Extrair contatos do formato antigo ou novo
+  const contacts = Array.isArray(syncedData) 
+    ? syncedData 
+    : (syncedData?.contacts || []);
+  
+  // Status da sincronização (se disponível)
+  const syncStatus = !Array.isArray(syncedData) ? syncedData?.syncStatus : undefined;
 
   // Buscar estatísticas de WhatsApp
   const { data: whatsappStatus } = useQuery<any>({
-    queryKey: ['/api/whatsapp/status'],
+    queryKey: ['/api/whatsapp/connection'],
   });
 
-  // Mutation para sincronizar contatos
+  // Mutation para sincronizar contatos (sincronização rápida - apenas conversas)
   const syncMutation = useMutation({
     mutationFn: async () => {
       return apiRequest('POST', '/api/contacts/sync');
     },
     onSuccess: (data: any) => {
       toast({ 
-        title: 'Sincronização concluída!', 
-        description: `${data.count || 0} contatos sincronizados`
+        title: data.message || 'Sincronização iniciada!', 
+        description: data.status === 'started' 
+          ? 'Os contatos aparecerão em até 10 minutos. Você pode continuar usando o sistema.'
+          : data.status === 'already_running'
+          ? 'Aguarde a sincronização atual terminar.'
+          : 'Sincronização em andamento...',
       });
+      // Atualizar a cada 5 segundos enquanto sincroniza
+      setTimeout(() => refetch(), 5000);
       queryClient.invalidateQueries({ queryKey: ['/api/contacts'] });
     },
     onError: (error: any) => {
@@ -101,6 +141,42 @@ export default function SyncedContactsPage() {
         description: error.message, 
         variant: 'destructive' 
       });
+    },
+  });
+
+  // Mutation para sincronização COMPLETA (agenda WhatsApp + conversas)
+  const fullSyncMutation = useMutation({
+    mutationFn: async (force: boolean = false) => {
+      return apiRequest('POST', '/api/contacts/full-sync', { force });
+    },
+    onSuccess: (data: any) => {
+      toast({ 
+        title: data.success ? '✅ Sincronização Completa' : '⏳ Aguarde', 
+        description: data.message,
+      });
+      // Atualizar a cada 5 segundos enquanto sincroniza
+      setTimeout(() => {
+        refetch();
+        refetchFullSyncStatus();
+      }, 3000);
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Erro na sincronização completa', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    },
+  });
+
+  // Query para status da sincronização completa
+  const { data: fullSyncStatusData, refetch: refetchFullSyncStatus } = useQuery<any>({
+    queryKey: ['/api/contacts/full-sync/status'],
+    refetchInterval: (data) => {
+      if (data && (data.status === 'running' || data.status === 'queued')) {
+        return 5000;
+      }
+      return false;
     },
   });
 
@@ -121,6 +197,47 @@ export default function SyncedContactsPage() {
       });
     },
   });
+
+  // Mutation para criar lista de contatos a partir da seleção
+  const createListMutation = useMutation({
+    mutationFn: async ({ name, description, contacts }: { name: string; description: string; contacts: Contact[] }) => {
+      const response = await apiRequest('POST', '/api/contacts/lists', { name, description, contacts });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setShowCreateListDialog(false);
+      setNewListName('');
+      setNewListDescription('');
+      setSelectedContacts(new Set());
+      queryClient.invalidateQueries({ queryKey: ['/api/contacts/lists'] });
+      toast({ 
+        title: 'Lista criada com sucesso!', 
+        description: `Lista "${data.name || newListName}" com ${selectedContacts.size} contatos.`
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Erro ao criar lista', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    },
+  });
+
+  // Handler para criar lista
+  const handleCreateList = () => {
+    if (!newListName.trim()) {
+      toast({ title: 'Digite um nome para a lista', variant: 'destructive' });
+      return;
+    }
+
+    const selectedContactsList = filteredContacts.filter(c => selectedContacts.has(c.phone));
+    createListMutation.mutate({
+      name: newListName,
+      description: newListDescription,
+      contacts: selectedContactsList
+    });
+  };
 
   // Calcular estatísticas
   const stats: SyncStats = {
@@ -243,6 +360,7 @@ export default function SyncedContactsPage() {
             Atualizar
           </Button>
           <Button 
+            variant="outline"
             onClick={() => syncMutation.mutate()}
             disabled={syncMutation.isPending || !whatsappStatus?.isConnected}
           >
@@ -254,12 +372,120 @@ export default function SyncedContactsPage() {
             ) : (
               <>
                 <Download className="h-4 w-4 mr-2" />
-                Sincronizar do WhatsApp
+                Sync Rápido
+              </>
+            )}
+          </Button>
+          <Button 
+            onClick={() => fullSyncMutation.mutate(false)}
+            disabled={fullSyncMutation.isPending || !whatsappStatus?.isConnected || fullSyncStatusData?.status === 'running' || fullSyncStatusData?.status === 'queued'}
+            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+          >
+            {fullSyncMutation.isPending || fullSyncStatusData?.status === 'running' ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Sincronizando TUDO...
+              </>
+            ) : fullSyncStatusData?.status === 'queued' ? (
+              <>
+                <Clock className="h-4 w-4 mr-2" />
+                Na fila ({fullSyncStatusData.queuePosition})
+              </>
+            ) : (
+              <>
+                <Zap className="h-4 w-4 mr-2" />
+                Sincronizar TODOS os Contatos
               </>
             )}
           </Button>
         </div>
       </div>
+
+      {/* Banner de Status de Sincronização */}
+      {syncStatus?.status === 'running' && (
+        <Card className="mb-6 bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <RefreshCw className="h-5 w-5 text-amber-600 animate-spin" />
+              <div className="flex-1">
+                <h3 className="font-medium text-amber-900">Sincronização Rápida em Andamento</h3>
+                <p className="text-sm text-amber-700 mt-1">
+                  {syncStatus.message} - Aguarde até 10 minutos para conclusão. 
+                  Você pode continuar usando o sistema normalmente.
+                </p>
+                <div className="mt-2 w-full bg-amber-200 rounded-full h-2">
+                  <div 
+                    className="bg-amber-500 h-2 rounded-full transition-all duration-500" 
+                    style={{ width: `${syncStatus.progress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Banner de Status de Sincronização COMPLETA */}
+      {(fullSyncStatusData?.status === 'running' || fullSyncStatusData?.status === 'queued') && (
+        <Card className="mb-6 bg-gradient-to-br from-green-50 to-emerald-50 border-green-300">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              {fullSyncStatusData.status === 'running' ? (
+                <RefreshCw className="h-5 w-5 text-green-600 animate-spin" />
+              ) : (
+                <Clock className="h-5 w-5 text-green-600" />
+              )}
+              <div className="flex-1">
+                <h3 className="font-medium text-green-900">
+                  {fullSyncStatusData.status === 'running' 
+                    ? '🔄 Sincronização COMPLETA em Andamento' 
+                    : `⏳ Na fila - Posição ${fullSyncStatusData.queuePosition}`}
+                </h3>
+                <p className="text-sm text-green-700 mt-1">
+                  {fullSyncStatusData.message}
+                </p>
+                {fullSyncStatusData.status === 'running' && (
+                  <>
+                    <div className="mt-2 w-full bg-green-200 rounded-full h-2">
+                      <div 
+                        className="bg-green-500 h-2 rounded-full transition-all duration-500" 
+                        style={{ width: `${fullSyncStatusData.progress}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 flex gap-4 text-xs text-green-600">
+                      <span>📱 WhatsApp: {fullSyncStatusData.contactsFromWhatsapp || 0}</span>
+                      <span>💬 Conversas: {fullSyncStatusData.contactsFromConversations || 0}</span>
+                      <span>📊 Total: {fullSyncStatusData.totalContacts || 0}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Banner de última sincronização concluída */}
+      {fullSyncStatusData?.status === 'completed' && fullSyncStatusData.lastSyncFormatted && (
+        <Card className="mb-6 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="h-5 w-5 text-emerald-600" />
+              <div className="flex-1">
+                <h3 className="font-medium text-emerald-900">✅ Sincronização Completa Concluída!</h3>
+                <p className="text-sm text-emerald-700 mt-1">
+                  {fullSyncStatusData.totalContacts} contatos sincronizados em {fullSyncStatusData.lastSyncFormatted}
+                </p>
+                {fullSyncStatusData.nextAutoSyncFormatted && (
+                  <p className="text-xs text-emerald-600 mt-1">
+                    📅 Próxima sincronização automática: {fullSyncStatusData.nextAutoSyncFormatted}
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Aviso sobre sincronização */}
       <Card className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
@@ -267,10 +493,13 @@ export default function SyncedContactsPage() {
           <div className="flex items-start gap-3">
             <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
             <div>
-              <h3 className="font-medium text-blue-900">Sincronização Inteligente Anti-Spam</h3>
-              <p className="text-sm text-blue-700 mt-1">
-                A sincronização traz apenas contatos que já interagiram com você (responderam mensagens). 
-                Isso é uma medida anti-spam que protege seu número e garante envios mais seguros para campanhas de marketing.
+              <h3 className="font-medium text-blue-900">Dois Tipos de Sincronização</h3>
+              <ul className="text-sm text-blue-700 mt-1 space-y-1">
+                <li><strong>🔹 Sync Rápido:</strong> Sincroniza apenas contatos que já conversaram (anti-spam).</li>
+                <li><strong>🔹 Sincronizar TODOS:</strong> Sincroniza TODOS os contatos do WhatsApp (agenda completa + conversas).</li>
+              </ul>
+              <p className="text-xs text-blue-600 mt-2">
+                💡 A sincronização completa roda automaticamente 1x por dia às 03:00 (BRT).
               </p>
             </div>
           </div>
@@ -407,7 +636,16 @@ export default function SyncedContactsPage() {
                 <CheckCircle className="h-5 w-5 text-blue-600" />
                 <span className="font-medium">{selectedContacts.size} contatos selecionados</span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={() => setShowCreateListDialog(true)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <List className="h-4 w-4 mr-1" />
+                  Criar Lista
+                </Button>
                 <Button variant="outline" size="sm" onClick={copySelected}>
                   <Copy className="h-4 w-4 mr-1" />
                   Copiar Números
@@ -559,6 +797,83 @@ export default function SyncedContactsPage() {
           <p>• Na página de <strong>Envio em Massa</strong>, você pode selecionar estes contatos diretamente</p>
         </CardContent>
       </Card>
+
+      {/* Diálogo para Criar Lista */}
+      <Dialog open={showCreateListDialog} onOpenChange={setShowCreateListDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <List className="h-5 w-5 text-green-600" />
+              Criar Nova Lista
+            </DialogTitle>
+            <DialogDescription>
+              Crie uma lista com os {selectedContacts.size} contatos selecionados para usar no Envio em Massa.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="list-name">Nome da Lista *</Label>
+              <Input
+                id="list-name"
+                placeholder="Ex: Clientes VIP, Leads Janeiro..."
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="list-description">Descrição (opcional)</Label>
+              <Textarea
+                id="list-description"
+                placeholder="Adicione uma descrição para identificar esta lista..."
+                value={newListDescription}
+                onChange={(e) => setNewListDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div className="p-3 rounded-lg bg-muted/50 space-y-1">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Users className="h-4 w-4 text-blue-500" />
+                Resumo
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {selectedContacts.size} contatos serão adicionados a esta lista.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Você poderá usar esta lista na página de Envio em Massa.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCreateListDialog(false)}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCreateList}
+              disabled={!newListName.trim() || createListMutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {createListMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Criando...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar Lista
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
