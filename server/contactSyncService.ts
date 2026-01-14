@@ -371,6 +371,9 @@ async function syncContactsForUser(userId: string, connectionId: string) {
 /**
  * Busca contatos sincronizados do banco de dados
  * RÁPIDO: Direto do banco, sem processar nada
+ * 
+ * FIX 2025: Agora busca TODOS os contatos e extrai número do contact_id
+ * quando phone_number não está preenchido (ex: "553199999999@s.whatsapp.net")
  */
 export async function getSyncedContactsFromDB(connectionId: string): Promise<{
   contacts: Array<{
@@ -386,10 +389,12 @@ export async function getSyncedContactsFromDB(connectionId: string): Promise<{
   total: number;
 }> {
   try {
-    // Query otimizada - apenas campos necessários
+    // Query otimizada - busca TODOS os contatos (não apenas com phone_number)
+    // O número pode ser extraído do contact_id no formato "numero@s.whatsapp.net"
     const dbContacts = await db
       .select({
         id: whatsappContacts.id,
+        contactId: whatsappContacts.contactId,
         phoneNumber: whatsappContacts.phoneNumber,
         name: whatsappContacts.name,
         lastSyncedAt: whatsappContacts.lastSyncedAt,
@@ -397,22 +402,54 @@ export async function getSyncedContactsFromDB(connectionId: string): Promise<{
       .from(whatsappContacts)
       .where(and(
         eq(whatsappContacts.connectionId, connectionId),
-        isNotNull(whatsappContacts.phoneNumber)
+        // Não filtrar por phone_number! Vamos extrair do contact_id
+        // Apenas ignorar grupos (@g.us) e contatos inválidos
+        sql`${whatsappContacts.contactId} NOT LIKE '%@g.us%'`,
+        sql`${whatsappContacts.contactId} LIKE '%@s.whatsapp.net' OR ${whatsappContacts.contactId} LIKE '%@c.us'`
       ))
       .orderBy(desc(whatsappContacts.lastSyncedAt))
       .limit(50000);  // Limite alto - frontend vai paginar
     
-    const contacts = dbContacts.map(c => ({
-      id: c.id,
-      name: c.name || '',
-      phone: c.phoneNumber || '',
-      pushName: c.name || undefined,
-      hasResponded: true,
-      conversationCount: 1,
-      isGroup: false,
-      lastSeen: c.lastSyncedAt || undefined,
-    }));
+    // Extrair número do contact_id quando phone_number é nulo
+    const contacts = dbContacts.map(c => {
+      // Tentar usar phoneNumber, se não tiver, extrair do contactId
+      let phone = c.phoneNumber || '';
+      
+      if (!phone && c.contactId) {
+        // Extrair número do formato "553199999999@s.whatsapp.net" ou "553199999999@c.us"
+        const match = c.contactId.match(/^(\d+)@/);
+        if (match) {
+          phone = match[1];
+        }
+      }
+      
+      // Pular contatos sem número válido
+      if (!phone || phone.length < 8) {
+        return null;
+      }
+      
+      return {
+        id: c.id,
+        name: c.name || '',
+        phone,
+        pushName: c.name || undefined,
+        hasResponded: true,
+        conversationCount: 1,
+        isGroup: false,
+        lastSeen: c.lastSyncedAt || undefined,
+      };
+    }).filter(Boolean) as Array<{
+      id: string;
+      name: string;
+      phone: string;
+      pushName?: string;
+      hasResponded: boolean;
+      conversationCount?: number;
+      isGroup: boolean;
+      lastSeen?: Date;
+    }>;
     
+    console.log(`[SYNC] Retornando ${contacts.length} contatos válidos de ${dbContacts.length} total`);
     return { contacts, total: contacts.length };
     
   } catch (error) {

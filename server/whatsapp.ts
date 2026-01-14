@@ -1587,14 +1587,23 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       console.log(`========================================\n`);
       
       for (const contact of contacts) {
-        // 🔍 DEBUG EXTREMO: Mostrar TUDO sobre o contato
+        // 🔍 DEBUG: Mostrar info do contato
         console.log(`\n🔍 [CONTACT DEBUG] Processando contato:`);
         console.log(`   - ID: ${contact.id}`);
         console.log(`   - LID: ${contact.lid || "N/A"}`);
         console.log(`   - phoneNumber: ${contact.phoneNumber || "N/A"}`);
         console.log(`   - name: ${contact.name || "N/A"}`);
-        console.log(`   - imgUrl: ${contact.imgUrl ? "Presente" : "N/A"}`);
-        console.log(`   - Raw contact object:`, JSON.stringify(contact, null, 2));
+        
+        // FIX 2025: Extrair número do contact.id quando phoneNumber não vem preenchido
+        // O contact.id vem no formato "553199999999@s.whatsapp.net" ou "553199999999@c.us"
+        let phoneNumber = contact.phoneNumber || null;
+        if (!phoneNumber && contact.id) {
+          const match = contact.id.match(/^(\d+)@/);
+          if (match) {
+            phoneNumber = match[1];
+            console.log(`   🔧 [FIX] phoneNumber extraído do contact.id: ${phoneNumber}`);
+          }
+        }
         
         // 1. Atualizar cache em memória (performance)
         contactsCache.set(contact.id, contact);
@@ -1609,13 +1618,12 @@ export async function connectWhatsApp(userId: string): Promise<void> {
             connectionId: connection.id,
             contactId: contact.id,
             lid: contact.lid || null,
-            phoneNumber: contact.phoneNumber || null,
+            phoneNumber: phoneNumber,  // Agora sempre preenchido!
             name: contact.name || null,
             imgUrl: contact.imgUrl || null,
           });
           
-          console.log(`   ✅ [DB SAVE] Salvo no Supabase com sucesso!`);
-          console.log(`   📊 Dados salvos:`, JSON.stringify(savedContact, null, 2));
+          console.log(`   ✅ [DB SAVE] Salvo no Supabase! phoneNumber: ${phoneNumber || "N/A"}`);
         } catch (error) {
           console.error(`[DB SAVE] ❌ Failed to save contact ${contact.id}:`, error);
         }
