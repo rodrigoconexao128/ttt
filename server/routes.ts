@@ -9096,6 +9096,107 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // ===== AGENDA LIVE - CONTATOS EM MEMÓRIA (SEM BANCO DE DADOS) =====
+  // Retorna contatos da agenda que estão em cache na memória
+  // Não acessa banco de dados, economiza Egress e Disk IO do Supabase
+  // Cache expira em 30 minutos - ideal para envio em massa sob demanda
+  app.get("/api/contacts/agenda-live", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { getAgendaContacts } = await import("./whatsapp");
+      
+      // Buscar do cache em memória
+      const cached = getAgendaContacts(userId);
+      
+      if (!cached) {
+        // Não tem cache - informar que precisa conectar ou aguardar sync
+        return res.json({
+          status: 'not_synced',
+          contacts: [],
+          total: 0,
+          message: '📱 Conecte seu WhatsApp para sincronizar a agenda. Os contatos aparecerão automaticamente após a conexão.',
+        });
+      }
+      
+      if (cached.status === 'syncing') {
+        return res.json({
+          status: 'syncing',
+          contacts: [],
+          total: 0,
+          message: '⏳ Sincronizando agenda do WhatsApp... Aguarde alguns segundos.',
+        });
+      }
+      
+      if (cached.status === 'error') {
+        return res.json({
+          status: 'error',
+          contacts: [],
+          total: 0,
+          message: `❌ Erro na sincronização: ${cached.error}`,
+        });
+      }
+      
+      // Status ready - retornar contatos
+      const contacts = cached.contacts || [];
+      const expiresIn = Math.max(0, Math.floor((cached.expiresAt.getTime() - Date.now()) / 1000 / 60));
+      
+      console.log(`📱 [AGENDA LIVE] Retornando ${contacts.length} contatos do cache para user ${userId} (expira em ${expiresIn}min)`);
+      
+      res.json({
+        status: 'ready',
+        contacts,
+        total: contacts.length,
+        syncedAt: cached.syncedAt,
+        expiresIn: `${expiresIn} minutos`,
+        message: `✅ ${contacts.length} contatos carregados da agenda`,
+      });
+    } catch (error) {
+      console.error("Error fetching agenda contacts:", error);
+      res.status(500).json({ 
+        status: 'error',
+        contacts: [],
+        total: 0,
+        message: "❌ Erro ao buscar contatos da agenda" 
+      });
+    }
+  });
+
+  // Forçar ressincronização da agenda (reconecta o WhatsApp para atualizar cache)
+  app.post("/api/contacts/agenda-live/refresh", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { markAgendaSyncing, getSession } = await import("./whatsapp");
+      
+      // Verificar se tem sessão ativa
+      const session = getSession(userId);
+      if (!session) {
+        return res.status(400).json({
+          success: false,
+          message: '❌ WhatsApp não está conectado. Conecte primeiro para sincronizar a agenda.',
+        });
+      }
+      
+      // Marcar como sincronizando
+      markAgendaSyncing(userId);
+      
+      console.log(`📱 [AGENDA REFRESH] Usuário ${userId} solicitou atualização da agenda`);
+      
+      // Informar que a sincronização acontecerá automaticamente quando o WhatsApp reconectar
+      // ou enviar evento contacts.upsert
+      res.json({
+        success: true,
+        message: '🔄 Solicitação de sincronização enviada. Os contatos serão atualizados em alguns segundos.',
+        tip: 'A agenda é carregada automaticamente quando o WhatsApp conecta. Se os contatos não aparecerem, tente reconectar.',
+      });
+    } catch (error) {
+      console.error("Error refreshing agenda:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "❌ Erro ao solicitar atualização da agenda" 
+      });
+    }
+  });
+
   // Adicionar contatos a uma lista
   app.post("/api/contacts/lists/:listId/contacts", isAuthenticated, async (req: any, res) => {
     try {

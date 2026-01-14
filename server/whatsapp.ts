@@ -226,6 +226,78 @@ const reconnectAttempts = new Map<string, ReconnectAttempt>();
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconexão
 
+// ═══════════════════════════════════════════════════════════════════════
+// 📱 CACHE DE AGENDA - OTIMIZAÇÃO PARA ENVIO EM MASSA
+// ═══════════════════════════════════════════════════════════════════════
+// Contatos do WhatsApp são armazenados APENAS em memória (não no banco)
+// Isso evita crescimento exponencial do Supabase e otimiza Egress/Disk IO
+// Cliente sincroniza sob demanda quando precisa usar Envio em Massa
+// ═══════════════════════════════════════════════════════════════════════
+interface AgendaContact {
+  id: string;
+  phoneNumber: string;
+  name: string;
+  lid?: string;
+}
+
+interface AgendaCacheEntry {
+  contacts: AgendaContact[];
+  syncedAt: Date;
+  expiresAt: Date;
+  status: 'syncing' | 'ready' | 'error';
+  error?: string;
+}
+
+// Cache global de contatos da agenda (expira em 30 minutos)
+const agendaContactsCache = new Map<string, AgendaCacheEntry>();
+const AGENDA_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos
+
+// Exportar função para obter contatos da agenda do cache
+export function getAgendaContacts(userId: string): AgendaCacheEntry | undefined {
+  const cached = agendaContactsCache.get(userId);
+  if (cached && cached.expiresAt > new Date()) {
+    return cached;
+  }
+  // Cache expirado, remover
+  if (cached) {
+    agendaContactsCache.delete(userId);
+  }
+  return undefined;
+}
+
+// Função para salvar contatos no cache (chamada quando contacts.upsert dispara)
+function saveAgendaToCache(userId: string, contacts: AgendaContact[]): void {
+  const now = new Date();
+  agendaContactsCache.set(userId, {
+    contacts,
+    syncedAt: now,
+    expiresAt: new Date(now.getTime() + AGENDA_CACHE_TTL_MS),
+    status: 'ready',
+  });
+  console.log(`📱 [AGENDA CACHE] Salvou ${contacts.length} contatos para user ${userId} (expira em 30min)`);
+}
+
+// Função para marcar sync como iniciado
+export function markAgendaSyncing(userId: string): void {
+  agendaContactsCache.set(userId, {
+    contacts: [],
+    syncedAt: new Date(),
+    expiresAt: new Date(Date.now() + AGENDA_CACHE_TTL_MS),
+    status: 'syncing',
+  });
+}
+
+// Função para marcar sync como erro
+export function markAgendaError(userId: string, error: string): void {
+  agendaContactsCache.set(userId, {
+    contacts: [],
+    syncedAt: new Date(),
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 min em caso de erro
+    status: 'error',
+    error,
+  });
+}
+
 // 🚫 MODO DESENVOLVIMENTO: Desabilita processamento de mensagens em localhost
 // Útil quando Railway está rodando em produção e você quer desenvolver sem conflitos
 // Defina DISABLE_WHATSAPP_PROCESSING=true no .env para ativar
@@ -1578,58 +1650,65 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     }
 
     // ======================================================================
-    // FIX LID 2025 - SALVAR CONTATOS NO DB SUPABASE (Híbrido: Cache + DB)
+    // 📱 CONTACTS SYNC - OTIMIZADO PARA CACHE EM MEMÓRIA
+    // ======================================================================
+    // IMPORTANTE: NÃO salva mais no banco de dados Supabase!
+    // Contatos são mantidos APENAS em memória para:
+    // 1. Resolver @lid → phoneNumber (cache local por sessão)
+    // 2. Envio em Massa (cache de agenda com TTL de 30min)
+    // Isso evita crescimento exponencial do banco e otimiza Egress/Disk IO
     // ======================================================================
     sock.ev.on("contacts.upsert", async (contacts) => {
       console.log(`\n========================================`);
       console.log(`[CONTACTS SYNC] ⚡ Baileys emitiu ${contacts.length} contatos`);
-      console.log(`[CONTACTS SYNC] Connection ID: ${connection.id}`);
+      console.log(`[CONTACTS SYNC] User ID: ${userId}`);
+      console.log(`[CONTACTS SYNC] 💡 Salvando em MEMÓRIA (não no banco)`);
       console.log(`========================================\n`);
       
+      // Array para salvar no cache de agenda (envio em massa)
+      const agendaContacts: AgendaContact[] = [];
+      
       for (const contact of contacts) {
-        // 🔍 DEBUG: Mostrar info do contato
-        console.log(`\n🔍 [CONTACT DEBUG] Processando contato:`);
-        console.log(`   - ID: ${contact.id}`);
-        console.log(`   - LID: ${contact.lid || "N/A"}`);
-        console.log(`   - phoneNumber: ${contact.phoneNumber || "N/A"}`);
-        console.log(`   - name: ${contact.name || "N/A"}`);
-        
-        // FIX 2025: Extrair número do contact.id quando phoneNumber não vem preenchido
-        // O contact.id vem no formato "553199999999@s.whatsapp.net" ou "553199999999@c.us"
+        // Extrair número do contact.id quando phoneNumber não vem preenchido
         let phoneNumber = contact.phoneNumber || null;
         if (!phoneNumber && contact.id) {
           const match = contact.id.match(/^(\d+)@/);
           if (match) {
             phoneNumber = match[1];
-            console.log(`   🔧 [FIX] phoneNumber extraído do contact.id: ${phoneNumber}`);
           }
         }
         
-        // 1. Atualizar cache em memória (performance)
+        // 1. Atualizar cache em memória da sessão (para resolver @lid)
         contactsCache.set(contact.id, contact);
         if (contact.lid) {
           contactsCache.set(contact.lid, contact);
-          console.log(`   ✅ Adicionado ao cache com LID: ${contact.lid}`);
         }
         
-        // 2. Salvar no banco Supabase (persistência)
-        try {
-          const savedContact = await storage.upsertContact({
-            connectionId: connection.id,
-            contactId: contact.id,
-            lid: contact.lid || null,
-            phoneNumber: phoneNumber,  // Agora sempre preenchido!
-            name: contact.name || null,
-            imgUrl: contact.imgUrl || null,
+        // 2. Adicionar ao array de agenda (se tiver número válido)
+        if (phoneNumber && phoneNumber.length >= 8) {
+          agendaContacts.push({
+            id: contact.id,
+            phoneNumber: phoneNumber,
+            name: contact.name || '',
+            lid: contact.lid,
           });
-          
-          console.log(`   ✅ [DB SAVE] Salvo no Supabase! phoneNumber: ${phoneNumber || "N/A"}`);
-        } catch (error) {
-          console.error(`[DB SAVE] ❌ Failed to save contact ${contact.id}:`, error);
         }
       }
       
-      console.log(`[CONTACTS SYNC] ✅ Processed ${contacts.length} contacts (cache + DB)`);
+      // 3. Salvar no cache de agenda (para Envio em Massa)
+      if (agendaContacts.length > 0) {
+        saveAgendaToCache(userId, agendaContacts);
+        
+        // Broadcast para o frontend informando que os contatos estão prontos
+        broadcastToUser(userId, { 
+          type: "agenda_synced",
+          count: agendaContacts.length,
+          status: "ready",
+          message: `✅ ${agendaContacts.length} contatos sincronizados!`
+        });
+      }
+      
+      console.log(`[CONTACTS SYNC] ✅ ${agendaContacts.length} contatos salvos em cache (memória)`);
     });
 
     sock.ev.on("creds.update", saveCreds);

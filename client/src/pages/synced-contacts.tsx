@@ -83,8 +83,28 @@ export default function SyncedContactsPage() {
   const [newListName, setNewListName] = useState('');
   const [newListDescription, setNewListDescription] = useState('');
 
-  // Buscar contatos sincronizados (do WhatsApp - via /api/contacts/synced)
-  // NOVO: API retorna { contacts, total, syncStatus }
+  // ===== NOVA API: Contatos da Agenda em Memória (sem banco de dados) =====
+  // Economiza Egress e Disk IO do Supabase - contatos ficam apenas em memória
+  const { data: agendaData, isLoading: isLoadingAgenda, refetch: refetchAgenda } = useQuery<{
+    status: 'ready' | 'syncing' | 'not_synced' | 'error';
+    contacts: Contact[];
+    total: number;
+    message: string;
+    syncedAt?: string;
+    expiresIn?: string;
+  }>({
+    queryKey: ['/api/contacts/agenda-live'],
+    refetchInterval: (data) => {
+      // Se está sincronizando, atualizar a cada 3 segundos
+      if (data && data.status === 'syncing') {
+        return 3000;
+      }
+      return false;
+    },
+  });
+
+  // Buscar contatos sincronizados do BANCO (fallback para histórico)
+  // APENAS se não tiver contatos na agenda-live
   const { data: syncedData, isLoading, refetch } = useQuery<{
     contacts: Contact[];
     total: number;
@@ -95,6 +115,7 @@ export default function SyncedContactsPage() {
     };
   } | Contact[]>({
     queryKey: ['/api/contacts/synced'],
+    enabled: agendaData?.status === 'not_synced' || agendaData?.status === 'error', // Só busca do DB se não tiver agenda
     refetchInterval: (data) => {
       // Se está sincronizando, atualizar a cada 5 segundos
       if (data && 'syncStatus' in data && data.syncStatus?.status === 'running') {
@@ -104,13 +125,21 @@ export default function SyncedContactsPage() {
     },
   });
 
-  // Extrair contatos do formato antigo ou novo
-  const contacts = Array.isArray(syncedData) 
-    ? syncedData 
-    : (syncedData?.contacts || []);
+  // ===== PRIORIDADE: Agenda-Live (memória) > DB (fallback) =====
+  // Se tiver contatos na agenda-live, usar eles (economiza banco)
+  // Senão, usar do banco como fallback (histórico)
+  const contacts = agendaData?.status === 'ready' && agendaData.contacts.length > 0
+    ? agendaData.contacts
+    : (Array.isArray(syncedData) ? syncedData : (syncedData?.contacts || []));
   
-  // Status da sincronização (se disponível)
-  const syncStatus = !Array.isArray(syncedData) ? syncedData?.syncStatus : undefined;
+  // Status da sincronização - combinar ambos
+  const syncStatus = agendaData?.status === 'syncing' 
+    ? { status: 'running', progress: 50, message: agendaData.message }
+    : (!Array.isArray(syncedData) ? syncedData?.syncStatus : undefined);
+
+  // Mostrar se está usando dados da agenda-live ou do banco
+  const isUsingAgendaLive = agendaData?.status === 'ready' && agendaData.contacts.length > 0;
+  const agendaMessage = agendaData?.message;
 
   // Buscar estatísticas de WhatsApp
   const { data: whatsappStatus } = useQuery<any>({
@@ -144,23 +173,25 @@ export default function SyncedContactsPage() {
     },
   });
 
-  // Mutation para sincronização da AGENDA WHATSAPP (força reconexão)
-  // Esta função força reconexão do WhatsApp que triggera o syncFullHistory
-  // e faz o Baileys emitir TODOS os contatos da agenda via contacts.upsert
+  // ===== NOVA API: Sincronização da Agenda em MEMÓRIA (sem banco) =====
+  // Solicita refresh dos contatos no cache do servidor
+  // Economiza Egress e Disk IO do Supabase
   const agendaSyncMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', '/api/contacts/sync-agenda');
+      return apiRequest('POST', '/api/contacts/agenda-live/refresh');
     },
     onSuccess: (data: any) => {
       toast({ 
-        title: data.success ? '📱 Sincronização Iniciada!' : '⚠️ Atenção', 
+        title: data.success ? '📱 Atualização Solicitada!' : '⚠️ Atenção', 
         description: data.message,
       });
-      // Aguardar reconexão e refetch
-      setTimeout(() => {
-        refetch();
-        refetchFullSyncStatus();
-      }, 10000);
+      // Refetch da agenda-live a cada 3 segundos por 30 segundos
+      let attempts = 0;
+      const interval = setInterval(() => {
+        refetchAgenda();
+        attempts++;
+        if (attempts >= 10) clearInterval(interval);
+      }, 3000);
     },
     onError: (error: any) => {
       toast({ 
@@ -429,22 +460,93 @@ export default function SyncedContactsPage() {
             onClick={() => agendaSyncMutation.mutate()}
             disabled={agendaSyncMutation.isPending || !whatsappStatus?.isConnected}
             className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
-            title="Força reconexão do WhatsApp para buscar TODA a agenda do celular"
+            title="Atualiza a agenda do celular em memória (sem salvar no banco)"
           >
             {agendaSyncMutation.isPending ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Reconectando...
+                Atualizando...
               </>
             ) : (
               <>
                 <Smartphone className="h-4 w-4 mr-2" />
-                📱 Sincronizar Agenda Celular
+                📱 Atualizar Agenda
               </>
             )}
           </Button>
         </div>
       </div>
+
+      {/* ===== NOVO: Banner de Agenda-Live (Memória) ===== */}
+      {isUsingAgendaLive && (
+        <Card className="mb-6 bg-gradient-to-br from-green-50 to-emerald-50 border-green-300">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <Zap className="h-5 w-5 text-green-600" />
+              <div className="flex-1">
+                <h3 className="font-medium text-green-900 flex items-center gap-2">
+                  ⚡ Agenda Live - {agendaData?.total} contatos
+                  <Badge variant="outline" className="bg-green-100 text-green-700 text-xs">
+                    Em Memória
+                  </Badge>
+                </h3>
+                <p className="text-sm text-green-700 mt-1">
+                  {agendaMessage} • Expira em: {agendaData?.expiresIn}
+                </p>
+              </div>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => refetchAgenda()}
+                className="text-green-700 border-green-300"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Banner quando está sincronizando a agenda-live */}
+      {agendaData?.status === 'syncing' && (
+        <Card className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <RefreshCw className="h-5 w-5 text-blue-600 animate-spin" />
+              <div className="flex-1">
+                <h3 className="font-medium text-blue-900">📱 Sincronizando Agenda...</h3>
+                <p className="text-sm text-blue-700 mt-1">
+                  {agendaData.message}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Banner quando não tem agenda sincronizada */}
+      {agendaData?.status === 'not_synced' && whatsappStatus?.isConnected && (
+        <Card className="mb-6 bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <Smartphone className="h-5 w-5 text-amber-600" />
+              <div className="flex-1">
+                <h3 className="font-medium text-amber-900">📱 Agenda não sincronizada</h3>
+                <p className="text-sm text-amber-700 mt-1">
+                  {agendaData.message}
+                </p>
+              </div>
+              <Button 
+                size="sm" 
+                onClick={() => agendaSyncMutation.mutate()}
+                className="bg-amber-500 hover:bg-amber-600"
+              >
+                Sincronizar Agora
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Banner de Status de Sincronização */}
       {syncStatus?.status === 'running' && (
@@ -542,11 +644,11 @@ export default function SyncedContactsPage() {
               <ul className="text-sm text-blue-700 mt-1 space-y-1">
                 <li><strong>🔹 Sync Rápido:</strong> Sincroniza apenas contatos que já conversaram (anti-spam).</li>
                 <li><strong>🔹 Sincronizar TODOS:</strong> Consolida todos os contatos já salvos no banco (WhatsApp + conversas).</li>
-                <li><strong>📱 Sincronizar Agenda Celular:</strong> <span className="text-indigo-600 font-medium">NOVO!</span> Força reconexão do WhatsApp para buscar TODA a agenda do celular - incluindo contatos que nunca enviaram mensagem!</li>
+                <li><strong>📱 Atualizar Agenda:</strong> <span className="text-green-600 font-medium">OTIMIZADO!</span> Carrega contatos em memória (sem salvar no banco) - economiza recursos!</li>
               </ul>
               <p className="text-xs text-blue-600 mt-2">
-                💡 Use "Sincronizar Agenda Celular" se você quer importar todos os contatos da sua lista telefônica do WhatsApp.
-                A sincronização completa automática roda 1x por dia às 03:00 (BRT).
+                💡 <strong>Agenda Live:</strong> Os contatos da agenda ficam em cache por 30 minutos. Use "Atualizar Agenda" para recarregar.
+                Não impacta Egress nem Disk IO do Supabase pois os dados ficam apenas em memória!
               </p>
             </div>
           </div>
