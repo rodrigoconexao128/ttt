@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,7 +45,13 @@ import {
   Calendar,
   ChevronLeft,
   ArrowLeft,
-  UsersRound
+  UsersRound,
+  Image,
+  Video,
+  Mic,
+  File,
+  Upload,
+  X
 } from "lucide-react";
 import {
   Dialog,
@@ -198,6 +204,12 @@ export default function MassSendPage() {
   const [manualContacts, setManualContacts] = useState<string>("");
   const [messageTemplate, setMessageTemplate] = useState<string>("");
   
+  // Estado para mídia (imagem, vídeo, áudio, documento)
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string>("");
+  const [mediaType, setMediaType] = useState<'none' | 'image' | 'video' | 'audio' | 'document'>('none');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   // Configurações de envio
   const [useAI, setUseAI] = useState(false);
   const [useHumanDelay, setUseHumanDelay] = useState(true);
@@ -264,7 +276,7 @@ export default function MassSendPage() {
 
   // Buscar contatos sincronizados (apenas que já responderam)
   const { data: syncedContacts = [], refetch: refetchContacts } = useQuery<Contact[]>({
-    queryKey: ["/api/contacts/synced"],
+    queryKey: ["/api/contacts/synced?array=true"],
     retry: false,
   });
 
@@ -508,6 +520,166 @@ export default function MassSendPage() {
     },
   });
 
+  // Mutation para envio em massa COM MÍDIA
+  const sendBulkMediaMutation = useMutation({
+    mutationFn: async (data: { 
+      contacts: { phone: string; name?: string }[]; 
+      message: string;
+      mediaFile: File;
+      mediaType: 'image' | 'video' | 'audio' | 'document';
+      useAI: boolean;
+      delayMin: number;
+      delayMax: number;
+      batchSize: number;
+      batchInterval: number;
+    }) => {
+      // Converter arquivo para base64
+      const toBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Remover o prefixo data:*/*;base64, para obter apenas o base64
+            const base64 = result.split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = error => reject(error);
+        });
+      };
+
+      const mediaBase64 = await toBase64(data.mediaFile);
+      const phones = data.contacts.map(c => c.phone);
+      
+      const response = await apiRequest("POST", "/api/whatsapp/bulk-send-media", { 
+        phones, 
+        message: data.message,
+        contacts: data.contacts,
+        media: {
+          type: data.mediaType,
+          data: mediaBase64,
+          filename: data.mediaFile.name,
+          mimetype: data.mediaFile.type
+        },
+        settings: {
+          useAI: data.useAI,
+          delayMin: data.delayMin,
+          delayMax: data.delayMax,
+          batchSize: data.batchSize,
+          batchInterval: data.batchInterval
+        }
+      });
+      const result = await response.json();
+      return { ...result, totalContacts: data.contacts.length };
+    },
+    onSuccess: (data) => {
+      setSendProgress({ 
+        total: data.total || data.totalContacts || 0, 
+        sent: 0, 
+        failed: 0, 
+        status: 'running' 
+      });
+      
+      toast({
+        title: "Envio de mídia iniciado!",
+        description: "Enviando mensagens com mídia em background. Acompanhe o progresso.",
+      });
+      
+      if (data.campaignId) {
+        pollCampaignProgress(data.campaignId, data.total || data.totalContacts || 0);
+      } else {
+        setTimeout(() => {
+          setSendProgress(prev => ({ ...prev, status: 'completed' }));
+          setIsSending(false);
+          queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+        }, (data.total || 1) * 15000); // Mais tempo para mídia
+      }
+    },
+    onError: (error: Error) => {
+      setSendProgress(prev => ({ ...prev, status: 'error' }));
+      setIsSending(false);
+      toast({
+        title: "Erro no envio de mídia",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Função para lidar com seleção de arquivo de mídia
+  const handleMediaFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Verificar tamanho (max 16MB para WhatsApp)
+    const maxSize = 16 * 1024 * 1024; // 16MB
+    if (file.size > maxSize) {
+      toast({
+        title: "Arquivo muito grande",
+        description: "O arquivo deve ter no máximo 16MB.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Determinar tipo de mídia
+    let type: 'image' | 'video' | 'audio' | 'document' = 'document';
+    if (file.type.startsWith('image/')) {
+      type = 'image';
+    } else if (file.type.startsWith('video/')) {
+      type = 'video';
+    } else if (file.type.startsWith('audio/')) {
+      type = 'audio';
+    }
+
+    setMediaFile(file);
+    setMediaType(type);
+
+    // Criar preview para imagens e vídeos
+    if (type === 'image' || type === 'video') {
+      const url = URL.createObjectURL(file);
+      setMediaPreview(url);
+    } else {
+      setMediaPreview('');
+    }
+  };
+
+  // Função para remover mídia
+  const handleRemoveMedia = () => {
+    setMediaFile(null);
+    setMediaType('none');
+    if (mediaPreview) {
+      URL.revokeObjectURL(mediaPreview);
+    }
+    setMediaPreview('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Função para abrir seletor de arquivo por tipo
+  const handleSelectMediaType = (type: 'image' | 'video' | 'audio' | 'document') => {
+    if (fileInputRef.current) {
+      let accept = '*/*';
+      switch (type) {
+        case 'image':
+          accept = 'image/*';
+          break;
+        case 'video':
+          accept = 'video/*';
+          break;
+        case 'audio':
+          accept = 'audio/*';
+          break;
+        case 'document':
+          accept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar';
+          break;
+      }
+      fileInputRef.current.accept = accept;
+      fileInputRef.current.click();
+    }
+  };
+
   // Parsear contatos do textarea (nome, número)
   const parseManualContacts = (text: string): { phone: string; name: string }[] => {
     const lines = text.split('\n').filter(line => line.trim());
@@ -632,8 +804,8 @@ export default function MassSendPage() {
       return;
     }
 
-    if (!messageTemplate.trim()) {
-      toast({ title: "Mensagem vazia", description: "Digite uma mensagem para enviar.", variant: "destructive" });
+    if (!messageTemplate.trim() && !mediaFile) {
+      toast({ title: "Mensagem vazia", description: "Digite uma mensagem ou anexe uma mídia para enviar.", variant: "destructive" });
       return;
     }
 
@@ -658,8 +830,21 @@ export default function MassSendPage() {
         delayMax,
         scheduledAt: scheduledAtStr,
       });
+    } else if (mediaFile && mediaType !== 'none') {
+      // Modo de envio com mídia
+      sendBulkMediaMutation.mutate({
+        contacts,
+        message: messageTemplate,
+        mediaFile: mediaFile,
+        mediaType: mediaType as 'image' | 'video' | 'audio' | 'document',
+        useAI,
+        delayMin,
+        delayMax,
+        batchSize,
+        batchInterval
+      });
     } else {
-      // Modo normal de contatos
+      // Modo normal de contatos (apenas texto)
       sendBulkMutation.mutate({
         contacts,
         message: messageTemplate,
@@ -1349,6 +1534,140 @@ Estou entrando em contato para...
                   className="min-h-[200px]"
                   disabled={sendProgress.status === 'running'}
                 />
+
+                {/* Seção de Upload de Mídia */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-base font-medium">Anexar Mídia (opcional)</Label>
+                    {mediaFile && (
+                      <Badge variant="secondary" className="text-xs">
+                        {mediaType === 'image' && <Image className="w-3 h-3 mr-1" />}
+                        {mediaType === 'video' && <Video className="w-3 h-3 mr-1" />}
+                        {mediaType === 'audio' && <Mic className="w-3 h-3 mr-1" />}
+                        {mediaType === 'document' && <File className="w-3 h-3 mr-1" />}
+                        {mediaType === 'image' ? 'Imagem' : mediaType === 'video' ? 'Vídeo' : mediaType === 'audio' ? 'Áudio' : 'Documento'}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Input file oculto */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleMediaFileSelect}
+                    className="hidden"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
+                  />
+
+                  {/* Botões para selecionar tipo de mídia */}
+                  {!mediaFile && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-24 flex flex-col gap-2 hover:bg-blue-50 hover:border-blue-300 dark:hover:bg-blue-950/30"
+                        onClick={() => handleSelectMediaType('image')}
+                        disabled={sendProgress.status === 'running'}
+                      >
+                        <Image className="w-8 h-8 text-blue-500" />
+                        <span className="text-sm">Imagem</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-24 flex flex-col gap-2 hover:bg-purple-50 hover:border-purple-300 dark:hover:bg-purple-950/30"
+                        onClick={() => handleSelectMediaType('video')}
+                        disabled={sendProgress.status === 'running'}
+                      >
+                        <Video className="w-8 h-8 text-purple-500" />
+                        <span className="text-sm">Vídeo</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-24 flex flex-col gap-2 hover:bg-green-50 hover:border-green-300 dark:hover:bg-green-950/30"
+                        onClick={() => handleSelectMediaType('audio')}
+                        disabled={sendProgress.status === 'running'}
+                      >
+                        <Mic className="w-8 h-8 text-green-500" />
+                        <span className="text-sm">Áudio</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-24 flex flex-col gap-2 hover:bg-orange-50 hover:border-orange-300 dark:hover:bg-orange-950/30"
+                        onClick={() => handleSelectMediaType('document')}
+                        disabled={sendProgress.status === 'running'}
+                      >
+                        <File className="w-8 h-8 text-orange-500" />
+                        <span className="text-sm">Documento</span>
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Preview da mídia selecionada */}
+                  {mediaFile && (
+                    <div className="relative border rounded-lg p-4 bg-muted/30">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 h-8 w-8 rounded-full bg-red-100 hover:bg-red-200 text-red-600"
+                        onClick={handleRemoveMedia}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+
+                      <div className="flex items-start gap-4">
+                        {/* Preview visual para imagens/vídeos */}
+                        {mediaType === 'image' && mediaPreview && (
+                          <img 
+                            src={mediaPreview} 
+                            alt="Preview" 
+                            className="w-32 h-32 object-cover rounded-lg border"
+                          />
+                        )}
+                        {mediaType === 'video' && mediaPreview && (
+                          <video 
+                            src={mediaPreview} 
+                            className="w-32 h-32 object-cover rounded-lg border"
+                            controls={false}
+                            muted
+                          />
+                        )}
+                        {mediaType === 'audio' && (
+                          <div className="w-32 h-32 flex items-center justify-center bg-green-100 dark:bg-green-950/50 rounded-lg border">
+                            <Mic className="w-12 h-12 text-green-500" />
+                          </div>
+                        )}
+                        {mediaType === 'document' && (
+                          <div className="w-32 h-32 flex items-center justify-center bg-orange-100 dark:bg-orange-950/50 rounded-lg border">
+                            <File className="w-12 h-12 text-orange-500" />
+                          </div>
+                        )}
+
+                        {/* Informações do arquivo */}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{mediaFile.name}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {(mediaFile.size / (1024 * 1024)).toFixed(2)} MB
+                          </p>
+                          <Badge variant="outline" className="mt-2">
+                            {mediaType === 'image' && 'Imagem'}
+                            {mediaType === 'video' && 'Vídeo'}
+                            {mediaType === 'audio' && 'Áudio'}
+                            {mediaType === 'document' && 'Documento'}
+                          </Badge>
+                          
+                          {/* Dica sobre legenda */}
+                          <p className="text-xs text-muted-foreground mt-3 bg-muted/50 p-2 rounded">
+                            💡 A mensagem acima será enviada como legenda junto com a mídia
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -1704,6 +2023,43 @@ Estou entrando em contato para...
                   <div className="p-4 bg-muted rounded-lg">
                     <p className="whitespace-pre-wrap text-sm">{previewMessage}</p>
                   </div>
+                  
+                  {/* Preview da mídia anexada */}
+                  {mediaFile && mediaType !== 'none' && (
+                    <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+                      <div className="flex-shrink-0">
+                        {mediaType === 'image' && mediaPreview && (
+                          <img src={mediaPreview} alt="Preview" className="w-16 h-16 object-cover rounded" />
+                        )}
+                        {mediaType === 'video' && (
+                          <div className="w-16 h-16 flex items-center justify-center bg-purple-100 dark:bg-purple-950/50 rounded">
+                            <Video className="w-8 h-8 text-purple-500" />
+                          </div>
+                        )}
+                        {mediaType === 'audio' && (
+                          <div className="w-16 h-16 flex items-center justify-center bg-green-100 dark:bg-green-950/50 rounded">
+                            <Mic className="w-8 h-8 text-green-500" />
+                          </div>
+                        )}
+                        {mediaType === 'document' && (
+                          <div className="w-16 h-16 flex items-center justify-center bg-orange-100 dark:bg-orange-950/50 rounded">
+                            <File className="w-8 h-8 text-orange-500" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{mediaFile.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {(mediaFile.size / (1024 * 1024)).toFixed(2)} MB • 
+                          {mediaType === 'image' ? ' Imagem' : mediaType === 'video' ? ' Vídeo' : mediaType === 'audio' ? ' Áudio' : ' Documento'}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="flex-shrink-0">
+                        <Upload className="w-3 h-3 mr-1" />
+                        Mídia anexada
+                      </Badge>
+                    </div>
+                  )}
                   
                   {/* Aviso sobre IA quando ativada */}
                   {useAI && (

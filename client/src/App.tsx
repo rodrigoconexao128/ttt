@@ -85,6 +85,7 @@ function Router() {
       <Route path="/notificador" component={Dashboard} />
       <Route path="/biblioteca-midias" component={Dashboard} />
       <Route path="/lista-exclusao" component={Dashboard} />
+      <Route path="/campos-personalizados" component={Dashboard} />
       {/* Rotas de Revenda com sub-navegação - URLs claras */}
       <Route path="/revenda" component={ResellerDashboard} />
       <Route path="/revenda/clientes" component={ResellerDashboard} />

@@ -144,6 +144,33 @@ export default function SyncedContactsPage() {
     },
   });
 
+  // Mutation para sincronização da AGENDA WHATSAPP (força reconexão)
+  // Esta função força reconexão do WhatsApp que triggera o syncFullHistory
+  // e faz o Baileys emitir TODOS os contatos da agenda via contacts.upsert
+  const agendaSyncMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/contacts/sync-agenda');
+    },
+    onSuccess: (data: any) => {
+      toast({ 
+        title: data.success ? '📱 Sincronização Iniciada!' : '⚠️ Atenção', 
+        description: data.message,
+      });
+      // Aguardar reconexão e refetch
+      setTimeout(() => {
+        refetch();
+        refetchFullSyncStatus();
+      }, 10000);
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Erro na sincronização da agenda', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    },
+  });
+
   // Mutation para sincronização COMPLETA (agenda WhatsApp + conversas)
   const fullSyncMutation = useMutation({
     mutationFn: async (force: boolean = false) => {
@@ -398,6 +425,24 @@ export default function SyncedContactsPage() {
               </>
             )}
           </Button>
+          <Button 
+            onClick={() => agendaSyncMutation.mutate()}
+            disabled={agendaSyncMutation.isPending || !whatsappStatus?.isConnected}
+            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
+            title="Força reconexão do WhatsApp para buscar TODA a agenda do celular"
+          >
+            {agendaSyncMutation.isPending ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Reconectando...
+              </>
+            ) : (
+              <>
+                <Smartphone className="h-4 w-4 mr-2" />
+                📱 Sincronizar Agenda Celular
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -493,13 +538,15 @@ export default function SyncedContactsPage() {
           <div className="flex items-start gap-3">
             <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
             <div>
-              <h3 className="font-medium text-blue-900">Dois Tipos de Sincronização</h3>
+              <h3 className="font-medium text-blue-900">Tipos de Sincronização</h3>
               <ul className="text-sm text-blue-700 mt-1 space-y-1">
                 <li><strong>🔹 Sync Rápido:</strong> Sincroniza apenas contatos que já conversaram (anti-spam).</li>
-                <li><strong>🔹 Sincronizar TODOS:</strong> Sincroniza TODOS os contatos do WhatsApp (agenda completa + conversas).</li>
+                <li><strong>🔹 Sincronizar TODOS:</strong> Consolida todos os contatos já salvos no banco (WhatsApp + conversas).</li>
+                <li><strong>📱 Sincronizar Agenda Celular:</strong> <span className="text-indigo-600 font-medium">NOVO!</span> Força reconexão do WhatsApp para buscar TODA a agenda do celular - incluindo contatos que nunca enviaram mensagem!</li>
               </ul>
               <p className="text-xs text-blue-600 mt-2">
-                💡 A sincronização completa roda automaticamente 1x por dia às 03:00 (BRT).
+                💡 Use "Sincronizar Agenda Celular" se você quer importar todos os contatos da sua lista telefônica do WhatsApp.
+                A sincronização completa automática roda 1x por dia às 03:00 (BRT).
               </p>
             </div>
           </div>

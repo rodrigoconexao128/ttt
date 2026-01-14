@@ -9121,6 +9121,59 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   // Sincroniza TODOS os contatos (WhatsApp + Conversas)
   // ============================================
 
+  // 📱 FORÇAR RECONEXÃO WHATSAPP - Sincroniza TODA a agenda do celular
+  // Esta função força reconexão do WhatsApp que triggera o syncFullHistory
+  // e faz o Baileys emitir TODOS os contatos da agenda via contacts.upsert
+  app.post("/api/contacts/sync-agenda", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      console.log(`\n[SYNC AGENDA] 📱 User ${userId} solicitou sincronização da agenda completa`);
+      
+      // Verificar conexão WhatsApp
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(400).json({ 
+          success: false,
+          message: "❌ Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro." 
+        });
+      }
+      
+      if (!connection.isConnected) {
+        return res.status(400).json({ 
+          success: false,
+          message: "❌ WhatsApp desconectado. Reconecte para sincronizar a agenda." 
+        });
+      }
+
+      // Contar contatos antes da reconexão
+      const contactsBefore = await storage.getContactsByConnectionId(connection.id);
+      const countBefore = contactsBefore.length;
+      console.log(`[SYNC AGENDA] 📊 Contatos antes da reconexão: ${countBefore}`);
+
+      // Forçar reconexão do WhatsApp (sem perder auth)
+      // Isso vai triggar o syncFullHistory: true e o Baileys vai emitir
+      // TODOS os contatos da agenda do celular via contacts.upsert
+      console.log(`[SYNC AGENDA] 🔄 Forçando reconexão do WhatsApp...`);
+      await forceReconnectWhatsApp(userId);
+      
+      // Aguardar um momento para iniciar a reconexão
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      res.json({ 
+        success: true,
+        message: `✅ WhatsApp está reconectando para sincronizar toda a agenda! Aguarde alguns minutos...`,
+        countBefore,
+        info: `O WhatsApp irá enviar todos os contatos da sua agenda. Isso pode levar alguns minutos dependendo do número de contatos.`
+      });
+    } catch (error) {
+      console.error("[SYNC AGENDA] Erro:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "❌ Erro ao iniciar sincronização da agenda" 
+      });
+    }
+  });
+
   // Iniciar sincronização COMPLETA (agenda WhatsApp + conversas)
   app.post("/api/contacts/full-sync", isAuthenticated, async (req: any, res) => {
     try {

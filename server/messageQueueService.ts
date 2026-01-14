@@ -126,10 +126,11 @@ class MessageQueueService {
       this.queues.set(userId, {
         queue: [],
         isProcessing: false,
-        lastSentAt: 0,
+        lastSentAt: Date.now(), // ✅ CORREÇÃO: Inicializar com tempo atual para garantir delay na primeira msg
         totalSent: 0,
         totalErrors: 0,
       });
+      console.log(`🛡️ [ANTI-BLOCK] Nova fila criada para ${userId.substring(0, 8)}... (lastSentAt = now para garantir delay)`);
     }
 
     const state = this.queues.get(userId)!;
@@ -201,12 +202,19 @@ class MessageQueueService {
       
       try {
         // Calcular delay necessário
-        const timeSinceLastSent = Date.now() - state.lastSentAt;
+        const now = Date.now();
+        const timeSinceLastSent = now - state.lastSentAt;
         const requiredDelay = this.getRandomDelay();
-        const remainingDelay = Math.max(0, requiredDelay - timeSinceLastSent);
+        
+        // 🛡️ PROTEÇÃO EXTRA: Se lastSentAt é muito antigo (> 1 min), ainda assim aplicar delay mínimo
+        // Isso previne envios instantâneos após reconexão ou reinício do servidor
+        const isFirstAfterLongGap = timeSinceLastSent > 60000; // > 1 minuto
+        const remainingDelay = isFirstAfterLongGap 
+          ? requiredDelay  // Aplicar delay completo se primeira msg após longa pausa
+          : Math.max(0, requiredDelay - timeSinceLastSent);
 
         if (remainingDelay > 0) {
-          console.log(`🛡️ [ANTI-BLOCK] Aguardando ${(remainingDelay/1000).toFixed(1)}s antes de enviar (userId: ${userId.substring(0, 8)}...)`);
+          console.log(`🛡️ [ANTI-BLOCK] Aguardando ${(remainingDelay/1000).toFixed(1)}s antes de enviar (userId: ${userId.substring(0, 8)}...)${isFirstAfterLongGap ? ' [PRIMEIRA MSG]' : ''}`);
           await this.sleep(remainingDelay);
         }
 
@@ -320,6 +328,32 @@ class MessageQueueService {
   }
 
   /**
+   * 🛡️ SAFE MODE: Limpa a fila de um usuário específico
+   * Usado quando o cliente tomou bloqueio e está reconectando
+   * Cancela todas as mensagens pendentes sem enviar
+   */
+  clearUserQueue(userId: string): { cleared: number; wasPending: boolean } {
+    const state = this.queues.get(userId);
+    if (!state) {
+      console.log(`🛡️ [SAFE MODE] Nenhuma fila encontrada para ${userId.substring(0, 8)}...`);
+      return { cleared: 0, wasPending: false };
+    }
+
+    const queueSize = state.queue.length;
+    const wasPending = state.isProcessing;
+
+    // Rejeitar todas as mensagens pendentes com erro específico
+    for (const msg of state.queue) {
+      msg.reject(new Error('Queue cleared by Safe Mode - anti-block protection'));
+    }
+    state.queue = [];
+    state.isProcessing = false;
+
+    console.log(`🛡️ [SAFE MODE] ✅ Fila do usuário ${userId.substring(0, 8)}... limpa: ${queueSize} mensagens removidas`);
+    return { cleared: queueSize, wasPending };
+  }
+
+  /**
    * Obtém tamanho da fila de um usuário específico
    */
   getQueueSize(userId: string): number {
@@ -343,6 +377,116 @@ class MessageQueueService {
       canSend: waitMs === 0 && state.queue.length === 0,
       waitMs,
     };
+  }
+
+  /**
+   * 🛡️ ANTI-BLOCK PARA MÍDIA E OUTROS ENVIOS
+   * Aguarda vez na fila e aplica delay entre mensagens
+   * Use ANTES de enviar mídia, áudio, etc. para evitar bloqueio
+   * 
+   * @param userId - ID do usuário/WhatsApp
+   * @param description - Descrição do envio (para logs)
+   * @returns Promise que resolve após aplicar delay necessário
+   */
+  async waitForTurn(userId: string, description: string = 'mídia'): Promise<void> {
+    // Obter ou criar estado da fila
+    let state = this.queues.get(userId);
+    if (!state) {
+      state = {
+        queue: [],
+        isProcessing: false,
+        lastSentAt: Date.now(), // 🛡️ Garantir delay na primeira msg
+        totalSent: 0,
+        totalErrors: 0,
+      };
+      this.queues.set(userId, state);
+      console.log(`🛡️ [ANTI-BLOCK] Nova fila criada para mídia: ${userId.substring(0, 8)}...`);
+    }
+
+    // Aguardar se há fila de texto sendo processada
+    while (state.isProcessing || state.queue.length > 0) {
+      console.log(`🛡️ [ANTI-BLOCK] ⏳ Aguardando fila de texto terminar antes de enviar ${description}...`);
+      await this.sleep(1000);
+      state = this.queues.get(userId)!;
+    }
+
+    // Calcular delay necessário
+    const now = Date.now();
+    const timeSinceLastSent = now - state.lastSentAt;
+    const requiredDelay = this.getRandomDelay();
+    
+    // Proteção para primeira msg após gap longo
+    const isFirstAfterLongGap = timeSinceLastSent > 60000;
+    const remainingDelay = isFirstAfterLongGap 
+      ? requiredDelay 
+      : Math.max(0, requiredDelay - timeSinceLastSent);
+
+    if (remainingDelay > 0) {
+      console.log(`🛡️ [ANTI-BLOCK] 🎵 Aguardando ${(remainingDelay/1000).toFixed(1)}s antes de enviar ${description} (userId: ${userId.substring(0, 8)}...)${isFirstAfterLongGap ? ' [PRIMEIRA]' : ''}`);
+      await this.sleep(remainingDelay);
+    }
+
+    // Atualizar lastSentAt após o delay
+    state.lastSentAt = Date.now();
+    state.totalSent++;
+    
+    console.log(`🛡️ [ANTI-BLOCK] ✅ Liberado para enviar ${description}`);
+  }
+
+  /**
+   * Notifica que um envio de mídia foi concluído
+   * Use APÓS enviar mídia para atualizar timestamp da fila
+   */
+  markMediaSent(userId: string): void {
+    const state = this.queues.get(userId);
+    if (state) {
+      state.lastSentAt = Date.now();
+    }
+  }
+
+  /**
+   * 🛡️ WRAPPER UNIVERSAL - Executa QUALQUER função de envio respeitando a fila
+   * 
+   * Use este método para enviar QUALQUER tipo de mensagem (texto, mídia, áudio, etc.)
+   * garantindo que o delay de 5-10s seja respeitado.
+   * 
+   * @param userId - ID do usuário/WhatsApp (para identificar a fila)
+   * @param description - Descrição do envio (para logs)
+   * @param sendFn - Função async que faz o envio real
+   * @returns Promise com o resultado do sendFn
+   * 
+   * @example
+   * // Enviar texto
+   * await messageQueueService.executeWithDelay(userId, 'texto', async () => {
+   *   return await socket.sendMessage(jid, { text: 'Olá!' });
+   * });
+   * 
+   * // Enviar mídia
+   * await messageQueueService.executeWithDelay(userId, 'imagem', async () => {
+   *   return await socket.sendMessage(jid, { image: buffer });
+   * });
+   */
+  async executeWithDelay<T>(
+    userId: string,
+    description: string,
+    sendFn: () => Promise<T>
+  ): Promise<T> {
+    // Aguardar vez na fila
+    await this.waitForTurn(userId, description);
+    
+    try {
+      // Executar envio real
+      const result = await sendFn();
+      
+      // Atualizar timestamp após envio bem-sucedido
+      this.markMediaSent(userId);
+      
+      return result;
+    } catch (error) {
+      // Em caso de erro, ainda atualizar timestamp para não travar fila
+      this.markMediaSent(userId);
+      throw error;
+    }
   }
 }
 

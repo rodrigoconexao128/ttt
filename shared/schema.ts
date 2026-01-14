@@ -60,6 +60,15 @@ export const whatsappConnections = pgTable("whatsapp_connections", {
   isConnected: boolean("is_connected").default(false).notNull(),
   qrCode: text("qr_code"),
   sessionData: jsonb("session_data"),
+  // 🛡️ SAFE MODE: Modo seguro anti-bloqueio
+  // Quando ativado pelo admin, ao reconectar via QR Code:
+  // 1. Zera todos os follow-ups pendentes
+  // 2. Zera a fila de mensagens em memória
+  // 3. Começa do zero para evitar novo bloqueio
+  safeModeEnabled: boolean("safe_mode_enabled").default(false).notNull(),
+  safeModeActivatedAt: timestamp("safe_mode_activated_at"),
+  safeModeActivatedBy: varchar("safe_mode_activated_by", { length: 255 }),
+  safeModeLastCleanupAt: timestamp("safe_mode_last_cleanup_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -128,6 +137,10 @@ export const conversations = pgTable("conversations", {
   followupDisabledReason: text("followup_disabled_reason"),
   // Token único para compartilhar conversa via URL
   shareToken: varchar("share_token", { length: 64 }).unique(),
+  // CRM Kanban
+  kanbanStageId: varchar("kanban_stage_id"),
+  kanbanNotes: text("kanban_notes"),
+  priority: varchar("priority").default("normal"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1158,7 +1171,7 @@ export const insertAgentMediaSchema = createInsertSchema(agentMediaLibrary).omit
 
 export const agentMediaSchema = z.object({
   userId: z.string(),
-  name: z.string().min(1, "Nome da mídia é obrigatório").max(100).regex(/^[A-Z0-9_]+$/, "Nome deve ser em MAIÚSCULAS com underscores (ex: AUDIO_PRECO)"),
+  name: z.string().min(1, "Nome da mídia é obrigatório").max(100),
   mediaType: z.enum(["audio", "image", "video", "document"]),
   storageUrl: z.string().min(1, "URL de armazenamento é obrigatória"),
   fileName: z.string().optional(),
@@ -1992,3 +2005,134 @@ export type InsertResellerInvoice = z.infer<typeof insertResellerInvoiceSchema>;
 export type ResellerInvoiceItem = typeof resellerInvoiceItems.$inferSelect;
 export type InsertResellerInvoiceItem = z.infer<typeof insertResellerInvoiceItemsSchema>;
 
+// =============================================================================
+// CUSTOM FIELDS - Campos Personalizados para Conversas
+// Similar ao Digisac: Nome do Responsável, Empresa, Email, CPF/CNPJ, etc.
+// =============================================================================
+
+// Definições de campos personalizados (estrutura do formulário)
+export const customFieldDefinitions = pgTable("custom_field_definitions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Identificação
+  name: varchar("name", { length: 100 }).notNull(), // Nome interno único
+  label: varchar("label", { length: 100 }).notNull(), // Label exibido no formulário
+  
+  // Tipo do campo
+  fieldType: varchar("field_type", { length: 50 }).default("text").notNull(),
+  // Tipos suportados: text, email, phone, cpf_cnpj, number, date, select, textarea
+  
+  // Opções para select
+  options: jsonb("options").$type<string[]>().default([]),
+  
+  // Validação e UX
+  required: boolean("required").default(false),
+  placeholder: varchar("placeholder", { length: 255 }),
+  helpText: text("help_text"),
+  
+  // Auto-extração IA
+  aiExtractionPrompt: text("ai_extraction_prompt"), // Prompt para IA extrair automaticamente
+  aiExtractionEnabled: boolean("ai_extraction_enabled").default(true),
+  
+  // Ordenação e status
+  position: integer("position").default(0),
+  isActive: boolean("is_active").default(true),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_custom_field_defs_user").on(table.userId),
+  uniqueIndex("idx_custom_field_defs_unique_name").on(table.userId, table.name),
+]);
+
+// Valores dos campos personalizados por conversa
+export const customFieldValues = pgTable("custom_field_values", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  fieldDefinitionId: varchar("field_definition_id").notNull().references(() => customFieldDefinitions.id, { onDelete: 'cascade' }),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+  
+  // Valor preenchido
+  value: text("value"),
+  
+  // Metadados de extração automática
+  autoExtracted: boolean("auto_extracted").default(false),
+  extractionSource: text("extraction_source"), // Trecho da conversa
+  extractionConfidence: decimal("extraction_confidence", { precision: 3, scale: 2 }), // 0.00 a 1.00
+  
+  // Auditoria
+  lastEditedBy: varchar("last_edited_by", { length: 50 }).default("user"), // user, ai, system
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_custom_field_vals_conv").on(table.conversationId),
+  index("idx_custom_field_vals_def").on(table.fieldDefinitionId),
+  uniqueIndex("idx_custom_field_vals_unique").on(table.fieldDefinitionId, table.conversationId),
+]);
+
+// Relations para Custom Fields
+export const customFieldDefinitionsRelations = relations(customFieldDefinitions, ({ one, many }) => ({
+  user: one(users, {
+    fields: [customFieldDefinitions.userId],
+    references: [users.id],
+  }),
+  values: many(customFieldValues),
+}));
+
+export const customFieldValuesRelations = relations(customFieldValues, ({ one }) => ({
+  definition: one(customFieldDefinitions, {
+    fields: [customFieldValues.fieldDefinitionId],
+    references: [customFieldDefinitions.id],
+  }),
+  conversation: one(conversations, {
+    fields: [customFieldValues.conversationId],
+    references: [conversations.id],
+  }),
+}));
+
+// Schemas Zod para Custom Fields
+export const insertCustomFieldDefinitionSchema = createInsertSchema(customFieldDefinitions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const customFieldDefinitionSchema = z.object({
+  name: z.string().min(1).max(100).regex(/^[a-z0-9_]+$/, "Use apenas letras minúsculas, números e underscore"),
+  label: z.string().min(1).max(100),
+  fieldType: z.enum(["text", "email", "phone", "cpf_cnpj", "number", "date", "select", "textarea"]).default("text"),
+  options: z.array(z.string()).default([]),
+  required: z.boolean().default(false),
+  placeholder: z.string().max(255).optional(),
+  helpText: z.string().optional(),
+  aiExtractionPrompt: z.string().optional(),
+  aiExtractionEnabled: z.boolean().default(true),
+  position: z.number().int().min(0).default(0),
+  isActive: z.boolean().default(true),
+});
+
+export const insertCustomFieldValueSchema = createInsertSchema(customFieldValues).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const customFieldValueSchema = z.object({
+  fieldDefinitionId: z.string(),
+  conversationId: z.string(),
+  value: z.string().optional().nullable(),
+  autoExtracted: z.boolean().default(false),
+  extractionSource: z.string().optional(),
+  extractionConfidence: z.string().or(z.number()).optional(),
+  lastEditedBy: z.enum(["user", "ai", "system"]).default("user"),
+});
+
+// Types para Custom Fields
+export type CustomFieldDefinition = typeof customFieldDefinitions.$inferSelect;
+export type InsertCustomFieldDefinition = z.infer<typeof insertCustomFieldDefinitionSchema>;
+export type CustomFieldDefinitionInput = z.infer<typeof customFieldDefinitionSchema>;
+export type CustomFieldValue = typeof customFieldValues.$inferSelect;
+export type InsertCustomFieldValue = z.infer<typeof insertCustomFieldValueSchema>;
+export type CustomFieldValueInput = z.infer<typeof customFieldValueSchema>;

@@ -861,7 +861,7 @@ export default function MySubscription() {
               const isOverdue = nextPayment && isPast(nextPayment);
               const monthlyValue = subscription.couponPrice 
                 ? parseFloat(subscription.couponPrice) 
-                : parseFloat(plan?.valor || "0");
+                : parseFloat(resellerInfo?.clientPrice || plan?.valor || "0");
               
               // Verificar se é assinatura com cartão (tem mpSubscriptionId)
               const hasCardSubscription = !!subscription.mpSubscriptionId;
@@ -958,12 +958,12 @@ export default function MySubscription() {
                   ? (
                     <span>
                       <span className="line-through text-sm text-gray-400 mr-2">
-                        {formatCurrency(parseFloat(plan?.valor || "0"))}
+                        {formatCurrency(parseFloat(resellerInfo?.clientPrice || plan?.valor || "0"))}
                       </span>
                       {formatCurrency(parseFloat(subscription.couponPrice))}
                     </span>
                   )
-                  : formatCurrency(parseFloat(plan?.valor || "0"))
+                  : formatCurrency(parseFloat(resellerInfo?.clientPrice || plan?.valor || "0"))
                 }
                 <span className="text-sm text-muted-foreground">/mês</span>
               </span>

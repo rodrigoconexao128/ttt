@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft, Mic } from "lucide-react";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft, Mic, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -41,9 +41,10 @@ interface ChatAreaProps {
   conversationId: string | null;
   connectionId?: string;
   onBack?: () => void;
+  onOpenContactPanel?: () => void;
 }
 
-export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps) {
+export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPanel }: ChatAreaProps) {
   const { toast } = useToast();
   const [messageText, setMessageText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -898,6 +899,29 @@ export function ChatArea({ conversationId, connectionId, onBack }: ChatAreaProps
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          
+          {/* Botão para abrir painel de detalhes do contato */}
+          {onOpenContactPanel && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1 h-7 px-2 hidden md:flex"
+                    onClick={onOpenContactPanel}
+                    data-testid="button-open-contact-panel"
+                  >
+                    <User className="w-3 h-3" />
+                    <span className="hidden lg:inline text-xs">Detalhes</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Abrir painel de detalhes do contato (campos personalizados, mídias, etiquetas)
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           
           <AlertDialog>
             <AlertDialogTrigger asChild>

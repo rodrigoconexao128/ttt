@@ -91,7 +91,7 @@ export default function ContactListsPage() {
 
   // Buscar contatos sincronizados
   const { data: syncedContacts = [] } = useQuery<Contact[]>({
-    queryKey: ["/api/contacts/synced"],
+    queryKey: ["/api/contacts/synced?array=true"],
   });
 
   // Mutation para criar lista

@@ -24,6 +24,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { getMistralClient } from "./mistralClient";
 import { getSessions } from "./whatsapp";
 import { storage } from "./storage";
+import { messageQueueService } from "./messageQueueService";
 
 // ============================================================================
 // CONFIGURAÇÕES
@@ -255,7 +256,11 @@ export class AppointmentReminderService {
       
       console.log(`📤 [APPOINTMENT-REMINDER] Enviando para ${jid}: ${reminderMessage.substring(0, 50)}...`);
       
-      const sentMessage = await session.socket.sendMessage(jid, { text: reminderMessage });
+      // 🛡️ ANTI-BLOQUEIO: Usar executeWithDelay para garantir try/finally
+      const userId = appointment.user_id;
+      const sentMessage = await messageQueueService.executeWithDelay(userId, 'lembrete de agendamento', async () => {
+        return await session.socket.sendMessage(jid, { text: reminderMessage });
+      });
 
       // 7. Registrar mensagem no histórico
       if (sentMessage?.key.id) {
@@ -492,7 +497,10 @@ export async function sendConfirmationToClientViaAI(
     
     console.log(`📤 [CONFIRMATION] Enviando para ${jid}: ${confirmationMessage.substring(0, 50)}...`);
     
-    const sentMessage = await session.socket.sendMessage(jid, { text: confirmationMessage });
+    // 🛡️ ANTI-BLOQUEIO: Usar executeWithDelay para garantir try/finally
+    const sentMessage = await messageQueueService.executeWithDelay(appointment.user_id, 'confirmação de agendamento', async () => {
+      return await session.socket.sendMessage(jid, { text: confirmationMessage });
+    });
 
     // 8. Registrar mensagem no histórico
     if (sentMessage?.key.id) {
@@ -672,7 +680,10 @@ export async function sendCancellationToClientViaAI(
     // 6. Enviar mensagem via WhatsApp
     const jid = conversation.remoteJid || `${clientPhone}@s.whatsapp.net`;
     
-    const sentMessage = await session.socket.sendMessage(jid, { text: cancellationMessage });
+    // 🛡️ ANTI-BLOQUEIO: Usar executeWithDelay para garantir try/finally
+    const sentMessage = await messageQueueService.executeWithDelay(userId, 'cancelamento de agendamento', async () => {
+      return await session.socket.sendMessage(jid, { text: cancellationMessage });
+    });
 
     // 7. Registrar mensagem no histórico
     if (sentMessage?.key.id) {

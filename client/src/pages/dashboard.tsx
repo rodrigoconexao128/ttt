@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useBranding } from "@/hooks/useBranding";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2 } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ConversationsList } from "@/components/conversations-list";
 import { ChatArea } from "@/components/chat-area";
+import { ContactDetailsPanel } from "@/components/contact-details-panel";
 import { ConnectionPanel } from "@/components/connection-panel";
 import { DashboardStats } from "@/components/dashboard-stats";
 import { LimitReachedTopBanner } from "@/components/usage-limit-banner";
@@ -52,9 +53,10 @@ import FollowupConfigPage from "@/pages/followup-config";
 import PaymentHistoryPage from "@/pages/payment-history";
 import MySubscriptionPage from "@/pages/my-subscription";
 import ExclusionListPage from "@/pages/exclusion-list";
+import CustomFieldsPage from "@/pages/custom-fields";
 import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation, useRoute } from "wouter";
-import type { WhatsappConnection, AiAgentConfig, Subscription, Plan } from "@shared/schema";
+import type { WhatsappConnection, AiAgentConfig, Subscription, Plan, Conversation } from "@shared/schema";
 import { supabase } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -91,6 +93,7 @@ export default function Dashboard() {
   const isReseller = resellerStatus?.hasResellerPlan || false;
   const [selectedView, setSelectedView] = useState<"conversations" | "connection" | "stats" | "agent">("conversations");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [showContactPanel, setShowContactPanel] = useState(false);
   const [location, setLocation] = useLocation();
   
   // 🔗 Extrair conversationId da URL se estiver na rota /conversas/:conversationId
@@ -128,6 +131,7 @@ export default function Dashboard() {
   const isPaymentHistoryRoute = location.startsWith("/payment-history") || location.startsWith("/historico-pagamentos");
   const isMySubscriptionRoute = location.startsWith("/minha-assinatura");
   const isExclusionListRoute = location.startsWith("/lista-exclusao");
+  const isCustomFieldsRoute = location.startsWith("/campos-personalizados");
   const isDashboardMode =
     !isConversasRoute &&
     !isConexaoRoute &&
@@ -152,7 +156,8 @@ export default function Dashboard() {
     !isFollowupRoute &&
     !isPaymentHistoryRoute &&
     !isMySubscriptionRoute &&
-    !isExclusionListRoute;
+    !isExclusionListRoute &&
+    !isCustomFieldsRoute;
   const isToolsRoute =
     isMassSendRoute ||
     isCampaignsRoute ||
@@ -168,7 +173,8 @@ export default function Dashboard() {
     isContactListsRoute ||
     isNotifierRoute ||
     isFollowupRoute ||
-    isExclusionListRoute;
+    isExclusionListRoute ||
+    isCustomFieldsRoute;
   
   // Rotas do menu Configurações
   const isConfigRoute =
@@ -282,6 +288,12 @@ export default function Dashboard() {
     queryKey: ["/api/agent/config"],
   });
 
+  // Query para buscar os dados da conversa selecionada (para o painel de detalhes)
+  const { data: selectedConversation } = useQuery<Conversation>({
+    queryKey: ["/api/conversation", selectedConversationId],
+    enabled: !!selectedConversationId,
+  });
+
 type ToolNavItem = {
   label: string;
   icon: LucideIcon;
@@ -314,6 +326,7 @@ const toolsNavigation: ToolNavItem[] = [
     { label: "Contatos", href: "/contatos", icon: Users, tooltip: "Contatos", isActive: isContactsRoute, testId: "button-nav-contacts" },
     { label: "Contatos Sincronizados", href: "/contatos-sincronizados", icon: Smartphone, tooltip: "Contatos do WhatsApp", isActive: isSyncedContactsRoute, testId: "button-nav-synced-contacts" },
     { label: "Etiquetas", href: "/etiquetas", icon: Tags, tooltip: "Etiquetas", isActive: isTagsRoute, testId: "button-nav-tags" },
+    { label: "Campos Personalizados", href: "/campos-personalizados", icon: FormInput, tooltip: "Campos personalizados de contatos", isActive: isCustomFieldsRoute, testId: "button-nav-custom-fields" },
     { label: "Funil", href: "/funil", icon: Filter, tooltip: "Funil de vendas", isActive: isFunnelRoute, testId: "button-nav-funnel" },
     { label: "Integrações", href: "/integracoes", icon: Plug, tooltip: "Integrações", isActive: isIntegrationsRoute, testId: "button-nav-integrations" },
     { label: "Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Agendamentos", isActive: isSchedulingRoute, testId: "button-nav-scheduling" },
@@ -793,6 +806,11 @@ const toolsNavigation: ToolNavItem[] = [
               <ExclusionListPage />
             </div>
           )}
+          {isCustomFieldsRoute && (
+            <div className="flex-1 overflow-auto">
+              <CustomFieldsPage />
+            </div>
+          )}
           
           {/* Dashboard Stats */}
           {isDashboardMode && selectedView === "stats" && (
@@ -827,7 +845,8 @@ const toolsNavigation: ToolNavItem[] = [
                 />
               </div>
               {/* Área do chat - esconde no mobile quando nenhuma conversa está selecionada */}
-              <div className={`flex-1 flex flex-col h-full overflow-hidden ${!selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
+              <div className={`flex-1 flex h-full overflow-hidden ${!selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
+                <div className="flex-1 flex flex-col overflow-hidden">
                 {false && (
                   <div className="p-4 space-y-3">
                     {!agentConfig && (
@@ -865,7 +884,19 @@ const toolsNavigation: ToolNavItem[] = [
                   conversationId={selectedConversationId} 
                   connectionId={connection?.id}
                   onBack={() => handleSelectConversation(null)}
+                  onOpenContactPanel={() => setShowContactPanel(true)}
                 />
+                </div>
+                {/* Painel de Detalhes do Contato - apenas desktop */}
+                {showContactPanel && selectedConversation && (
+                  <div className="hidden md:flex">
+                    <ContactDetailsPanel
+                      conversation={selectedConversation}
+                      connectionId={connection?.id}
+                      onClose={() => setShowContactPanel(false)}
+                    />
+                  </div>
+                )}
               </div>
             </>
           )}

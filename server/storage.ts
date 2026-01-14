@@ -1738,7 +1738,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     const campaigns = campaignsStore.get(userId) || [];
     const newCampaign = {
       ...campaign,
-      id: `campaign_${Date.now()}`,
+      id: campaign.id || `campaign_${Date.now()}`, // ✅ Usar ID fornecido ou gerar novo
       createdAt: new Date(),
       updatedAt: new Date(),
     };

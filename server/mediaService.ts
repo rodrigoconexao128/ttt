@@ -10,6 +10,7 @@ import { agentMediaLibrary, messages, type AgentMedia, type InsertAgentMedia, mi
 import { eq, and, asc, or, sql } from "drizzle-orm";
 import { transcribeAudioWithMistral } from "./mistralClient";
 import { registerAgentMessageId } from "./whatsapp";
+import { messageQueueService } from "./messageQueueService";
 
 // =============================================================================
 // MEDIA LIBRARY CRUD
@@ -230,68 +231,73 @@ export function generateMediaPromptBlock(mediaList: AgentMedia[]): string {
   let mediaBlock = `
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  🚨🚨🚨 SISTEMA DE MÍDIAS - PRIORIDADE MÁXIMA - LEIA COM ATENÇÃO 🚨🚨🚨      ║
+║  🚨🚨🚨 SISTEMA DE ENVIO DE ARQUIVOS - LEIA COM ATENÇÃO 🚨🚨🚨               ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-🔴 ATENÇÃO: ENVIAR MÍDIAS É OBRIGATÓRIO E TEM PRIORIDADE MÁXIMA!
-🔴 VOCÊ DEVE SEMPRE ENVIAR AS MÍDIAS QUANDO AS CONDIÇÕES CORRESPONDEM!
-🔴 NUNCA IGNORE ESTA SEÇÃO - É A PARTE MAIS IMPORTANTE DA SUA RESPOSTA!
+⚠️ REGRA CRÍTICA - VOCÊ DEVE INCLUIR A TAG EXATA PARA ENVIAR ARQUIVOS!
+⚠️ Sem a tag [MEDIA:NOME], o arquivo NÃO será enviado ao cliente!
+⚠️ Dizer "vou enviar" sem a tag = CLIENTE NÃO RECEBE NADA!
 
-📁 MÍDIAS DISPONÍVEIS (ENVIO OBRIGATÓRIO QUANDO CONDIÇÃO BATE):
+📁 ARQUIVOS DISPONÍVEIS PARA ENVIO:
 `;
 
-  // Lista cada mídia com seu gatilho - mais direto
+  // Lista cada mídia com gatilhos explícitos extraídos do whenToUse
   for (let i = 0; i < activeMedias.length; i++) {
     const media = activeMedias[i];
     const whenToUse = media.whenToUse || 'quando solicitado';
+    const mediaType = media.mediaType === 'audio' ? '🎤 ÁUDIO' :
+                      media.mediaType === 'video' ? '🎥 VÍDEO' :
+                      media.mediaType === 'image' ? '🖼️ IMAGEM' : '📄 DOCUMENTO/PDF';
+    
+    // Extrair palavras-chave do whenToUse para criar gatilhos explícitos
+    const keywords = whenToUse.toLowerCase()
+      .replace(/quando|se|ou|e|o|a|cliente|solicitar|pedir|enviar|quiser|falar|mencionar|perguntar|sobre/gi, '')
+      .split(/[,\s]+/)
+      .filter(k => k.length > 3)
+      .slice(0, 5);
     
     mediaBlock += `
-🎯 MÍDIA ${i + 1}: ${media.name}
-   📋 CONDIÇÃO DE ENVIO: ${whenToUse}
-   ✅ TAG OBRIGATÓRIA: [MEDIA:${media.name}]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${mediaType}: ${media.name}
+
+🎯 QUANDO ENVIAR: ${whenToUse}
+🔑 PALAVRAS-CHAVE: ${keywords.length > 0 ? keywords.join(', ') : media.name.toLowerCase().replace(/_/g, ', ')}
+
+✅ COMO ENVIAR (OBRIGATÓRIO - COPIE EXATAMENTE):
+   Sua resposta DEVE conter: [MEDIA:${media.name}]
+   
+   EXEMPLOS DE RESPOSTA CORRETA:
+   - "Claro! Vou te enviar agora. [MEDIA:${media.name}]"
+   - "Aqui está o que você pediu! [MEDIA:${media.name}]"
+   - "Segue o arquivo solicitado. [MEDIA:${media.name}]"
+
+❌ RESPOSTA ERRADA (arquivo NÃO será enviado):
+   - "Vou te enviar o arquivo" (SEM A TAG = NÃO FUNCIONA!)
+   - "Aqui está o documento" (SEM A TAG = CLIENTE NÃO RECEBE!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
   }
 
   mediaBlock += `
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  ⚡ REGRAS DE ENVIO DE MÍDIA - UMA DE CADA VEZ ⚡                             ║
+║  ⚠️ REGRAS OBRIGATÓRIAS DE ENVIO DE MÍDIA ⚠️                                 ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-🚨 REGRA #1 - ENVIAR UMA MÍDIA POR VEZ:
-   → Leia a condição de CADA mídia com atenção
-   → Envie SOMENTE a mídia que corresponde EXATAMENTE à pergunta/situação atual
-   → NÃO envie várias mídias de uma vez! Uma por resposta, máximo DUAS se muito relacionadas
+🔴 REGRA #1 - A TAG É OBRIGATÓRIA:
+   → Para enviar um arquivo, INCLUA a tag [MEDIA:NOME_DA_MIDIA] na sua resposta
+   → Sem a tag, o sistema NÃO consegue enviar o arquivo
+   → A tag pode ficar no final da sua mensagem
 
-🚨 REGRA #2 - PRIMEIRA MENSAGEM (oi, olá, bom dia):
-   → Cliente apenas cumprimentou? → ENVIE APENAS O ÁUDIO DE INÍCIO (se existir)
-   → NÃO envie vídeos, não envie demonstrações
-   → Pergunte sobre o negócio do cliente ANTES de enviar mais mídias
+🔴 REGRA #2 - UMA MÍDIA POR VEZ:
+   → Envie apenas uma mídia por resposta (máximo duas se muito relacionadas)
+   → Não bombardeie o cliente com vários arquivos de uma vez
 
-🚨 REGRA #3 - ENVIAR POR CONTEXTO:
-   → Cliente perguntou sobre ENVIO EM MASSA? → Envie APENAS mídia de ENVIO_EM_MASSA
-   → Cliente perguntou sobre FOLLOW-UP? → Envie APENAS mídia de FOLLOWUP
-   → Cliente quer VER o sistema? → Envie APENAS vídeo demonstrativo
-   → Cliente perguntou sobre CRM? → Envie APENAS mídia de CRM/KANBAN
-   → NUNCA misture mídias de funcionalidades diferentes!
+🔴 REGRA #3 - NÃO REPITA MÍDIAS JÁ ENVIADAS:
+   → Se já enviou uma mídia nesta conversa, não envie novamente
+   → Diga "já enviei acima" ou "você recebeu o arquivo?"
 
-🚨 REGRA #4 - NÃO REPETIR:
-   → Já enviou uma mídia nesta conversa? NÃO envie de novo
-   → Se cliente pedir de novo, diga "já enviei o vídeo acima"
+📌 LEMBRE-SE: Tag [MEDIA:NOME] = arquivo enviado. Sem tag = nada enviado!
 
-📌 EXEMPLO CORRETO:
-Cliente: "Oi, boa tarde!"
-Resposta: "Boa tarde! Como posso te ajudar? Qual é o seu ramo de negócio? [MEDIA:MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR]"
-
-📌 EXEMPLO CORRETO (pergunta específica):
-Cliente: "Vocês tem envio em massa?"
-Resposta: "Sim! Temos envio em massa com técnicas anti-bloqueio. Vou te mostrar: [MEDIA:ENVIO_EM_MASSA]"
-
-❌ EXEMPLO ERRADO (NUNCA FAÇA ISSO):
-Cliente: "Oi!"
-Resposta: "Oi! [MEDIA:AUDIO][MEDIA:VIDEO1][MEDIA:VIDEO2][MEDIA:VIDEO3]" ← ERRADO!
-
-╔══════════════════════════════════════════════════════════════════════════════╗
-║  LEMBRE-SE: UMA MÍDIA POR VEZ, CONTEXTUAL E RELEVANTE!                       ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 `;
 
@@ -469,15 +475,24 @@ export async function downloadMediaAsBuffer(url: string): Promise<Buffer> {
  * 
  * IMPORTANTE: Para áudio PTT, precisamos baixar o arquivo como Buffer
  * porque Baileys tem problemas com URLs para áudio PTT
+ * 
+ * 🛡️ ANTI-BLOQUEIO: Agora passa pelo sistema de fila para respeitar
+ * delay de 5-10s entre mensagens do mesmo WhatsApp
  */
 export async function sendMediaViaBaileys(
   socket: any, // WASocket do Baileys
   jid: string,
-  media: AgentMedia
+  media: AgentMedia,
+  userId?: string // Para aplicar delay anti-bloqueio
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     if (!socket) {
       return { success: false, error: 'Socket not connected' };
+    }
+
+    // 🛡️ ANTI-BLOQUEIO: Aguardar vez na fila antes de enviar mídia
+    if (userId) {
+      await messageQueueService.waitForTurn(userId, `mídia ${media.mediaType}: ${media.name}`);
     }
 
     console.log(`[MediaService] Sending ${media.mediaType} to ${jid} via Baileys`);
@@ -507,8 +522,16 @@ export async function sendMediaViaBaileys(
 
           // Tenta enviar com fallback inteligente (PTT -> sem PTT -> outros mimetypes)
           const audioResult = await sendAudioWithFallback(socket, jid, audioBuffer, media.storageUrl, mimeType, isPtt);
+          // 🛡️ ANTI-BLOQUEIO: Marcar como enviado após fallback de áudio
+          if (userId) {
+            messageQueueService.markMediaSent(userId);
+          }
           return audioResult;
         } catch (downloadError) {
+          // 🛡️ ANTI-BLOQUEIO: Marcar como enviado mesmo em erro
+          if (userId) {
+            messageQueueService.markMediaSent(userId);
+          }
           console.error(`[MediaService] ❌ Failed to download audio:`, downloadError);
           return { success: false, error: `Failed to download audio: ${String(downloadError)}` };
         }
@@ -580,6 +603,11 @@ export async function sendMediaViaBaileys(
     console.log(`[MediaService] Sending message to Baileys...`);
     let result = await socket.sendMessage(jid, messageContent);
 
+    // 🛡️ ANTI-BLOQUEIO: Marcar como enviado para liberar próximo
+    if (userId) {
+      messageQueueService.markMediaSent(userId);
+    }
+
     if (result?.key?.id) {
       console.log(`[MediaService] ✅ Media sent via Baileys. MessageId: ${result.key.id}`);
       return { success: true, messageId: result.key.id };
@@ -588,6 +616,10 @@ export async function sendMediaViaBaileys(
       return { success: false, error: 'No message ID returned' };
     }
   } catch (error) {
+    // 🛡️ ANTI-BLOQUEIO: Marcar como enviado mesmo em erro para liberar fila
+    if (userId) {
+      messageQueueService.markMediaSent(userId);
+    }
     console.error(`[MediaService] ❌ Error sending media via Baileys:`, error);
     return { success: false, error: String(error) };
   }
@@ -941,7 +973,7 @@ export async function executeMediaActions(
             isPtt: media.isPtt !== false, // PTT por padrão para áudio
           });
         } else if (socket) {
-          sendResult = await sendMediaViaBaileys(socket, jid, media);
+          sendResult = await sendMediaViaBaileys(socket, jid, media, userId);
         } else {
           console.error(`[MediaService] ❌ Nenhum transporte disponível para enviar mídia ${media.name}`);
           continue;

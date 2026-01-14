@@ -680,7 +680,7 @@ export function AgentStudioUnified() {
         setChatMessages(prev => [...prev, {
           id: `system-restore-${Date.now()}`,
           role: "system",
-          content: `🔄 Restaurado da v${data.restoredFrom} → Nova v${data.versionNumber} criada (ID único: ${data.versionId.substring(0, 8)}...)`,
+          content: `🔄 Restaurado da v${data.restoredFrom} → Nova v${data.versionNumber} criada (ID: ${data.versionId})`,
           timestamp: new Date()
         }]);
         
@@ -1526,7 +1526,7 @@ export function AgentStudioUnified() {
               </div>
               
               {/* Chat Input */}
-              <div className="border-t bg-muted/20">
+              <div className="border-t bg-background pb-2">
                 {/* 🔒 Banner de créditos estilo Lovable */}
                 {dailyLimits && !dailyLimits.hasActiveSubscription && (
                   <div className={cn(
@@ -1565,10 +1565,10 @@ export function AgentStudioUnified() {
                   </div>
                 )}
                 
-                <div className="p-3">
-                  <div className="flex gap-2">
+                <div className="p-3 md:p-4">
+                  <div className="flex gap-2 items-end">
                     <Textarea
-                      placeholder="Ex: Torne as respostas mais curtas..."
+                      placeholder="Descreva como deseja alterar seu agente..."
                       value={editInput}
                       onChange={(e) => setEditInput(e.target.value)}
                       onKeyDown={(e) => {
@@ -1577,30 +1577,30 @@ export function AgentStudioUnified() {
                           handleEditPrompt();
                         }
                       }}
-                      className="flex-1 min-h-[44px] max-h-[120px] resize-none rounded-xl bg-white dark:bg-zinc-800 border-2 border-input shadow-sm focus:border-primary focus:ring-1 focus:ring-primary"
-                      rows={1}
+                      className="flex-1 min-h-[80px] max-h-[200px] resize-none rounded-xl bg-muted/30 hover:bg-muted/50 focus:bg-background border-input shadow-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-base"
+                      rows={3}
                     />
                     <Button
                       onClick={handleEditPrompt}
                       disabled={isProcessing || !editInput.trim()}
                       size="icon"
-                      className="h-11 w-11 rounded-xl flex-shrink-0"
+                      className="h-10 w-10 md:h-12 md:w-12 rounded-xl flex-shrink-0 mb-1"
                     >
                       {isProcessing ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-5 h-5 animate-spin" />
                       ) : (
-                        <Send className="w-4 h-4" />
+                        <Send className="w-5 h-5" />
                       )}
                     </Button>
                   </div>
                   
                   {editInput === "" && chatMessages.length > 0 && (
-                    <div className="flex gap-1.5 mt-2 flex-wrap">
+                    <div className="flex gap-2 mt-3 flex-wrap">
                       {quickActions.map((action, i) => (
                         <button
                           key={i}
                           onClick={() => setEditInput(action.instruction)}
-                          className="text-[10px] px-2 py-1 rounded-full border border-border/50 bg-background hover:bg-muted transition-colors"
+                          className="text-xs px-3 py-1.5 rounded-full border border-border/50 bg-background hover:bg-muted/80 transition-all shadow-sm hover:shadow"
                         >
                           {action.label}
                         </button>

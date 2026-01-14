@@ -29,7 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import WelcomeMessageConfig from "@/components/welcome-message-config";
@@ -937,6 +937,75 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
     },
   });
 
+  // 🛡️ SAFE MODE: Estado e Mutation para modo seguro anti-bloqueio
+  const [safeModeDialogUser, setSafeModeDialogUser] = useState<User | null>(null);
+  const [safeModeStatus, setSafeModeStatus] = useState<{
+    enabled: boolean;
+    activatedAt: string | null;
+    lastCleanupAt: string | null;
+    loading: boolean;
+  }>({ enabled: false, activatedAt: null, lastCleanupAt: null, loading: false });
+
+  // Query: Buscar status do Safe Mode
+  const fetchSafeModeStatus = async (userId: string) => {
+    setSafeModeStatus(prev => ({ ...prev, loading: true }));
+    try {
+      const res = await apiRequest("GET", `/api/admin/users/${userId}/safe-mode`);
+      const data = await res.json();
+      if (data.success) {
+        setSafeModeStatus({
+          enabled: data.safeModeEnabled,
+          activatedAt: data.safeModeActivatedAt,
+          lastCleanupAt: data.safeModeLastCleanupAt,
+          loading: false,
+        });
+      }
+    } catch (error) {
+      setSafeModeStatus(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  // Mutation: Toggle Safe Mode
+  const safeModeToggleMutation = useMutation({
+    mutationFn: async ({ userId, enabled }: { userId: string; enabled: boolean }) => {
+      const res = await apiRequest("POST", `/api/admin/users/${userId}/safe-mode`, { enabled });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast({ 
+          title: data.safeModeEnabled ? "🛡️ Modo Seguro Ativado" : "⚠️ Modo Seguro Desativado",
+          description: data.message 
+        });
+        setSafeModeStatus({
+          enabled: data.safeModeEnabled,
+          activatedAt: data.safeModeActivatedAt,
+          lastCleanupAt: data.safeModeLastCleanupAt,
+          loading: false,
+        });
+      } else {
+        toast({ 
+          title: "❌ Erro", 
+          description: data.message,
+          variant: "destructive" 
+        });
+      }
+    },
+    onError: (error) => {
+      toast({ 
+        title: "❌ Erro", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Abrir diálogo de Safe Mode
+  const handleOpenSafeModeDialog = (user: User) => {
+    setSafeModeDialogUser(user);
+    fetchSafeModeStatus(user.id);
+  };
+
   const handleEditEmail = (user: User) => {
     setSelectedUser(user);
     setNewEmail(user.email || "");
@@ -1295,6 +1364,16 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
                   >
                     <Play className="h-4 w-4" />
                   </Button>
+                  {/* 🛡️ SAFE MODE: Botão para modo seguro anti-bloqueio */}
+                  <Button 
+                    size="sm" 
+                    variant="ghost"
+                    className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                    onClick={() => handleOpenSafeModeDialog(user)}
+                    title="Modo Seguro (Anti-Bloqueio)"
+                  >
+                    <ShieldAlert className="h-4 w-4" />
+                  </Button>
                   {isDeletable ? (
                     <Dialog open={confirmDeleteUser?.id === user.id} onOpenChange={(open) => !open && setConfirmDeleteUser(null)}>
                       <DialogTrigger asChild>
@@ -1615,6 +1694,108 @@ function UsersManager({ users, subscriptions }: { users: UserWithStatus[] | unde
                 <Trash2 className="h-4 w-4 mr-2" />
               )}
               Excluir {selectedUserIds.size} Usuários
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🛡️ SAFE MODE: Dialog para modo seguro anti-bloqueio */}
+      <Dialog open={safeModeDialogUser !== null} onOpenChange={(open) => !open && setSafeModeDialogUser(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-500" />
+              Modo Seguro Anti-Bloqueio
+            </DialogTitle>
+            <DialogDescription>
+              Configure o modo seguro para <strong>{safeModeDialogUser?.name || safeModeDialogUser?.email}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Explicação do recurso */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                <div className="space-y-2 text-sm">
+                  <p className="font-medium text-amber-800 dark:text-amber-200">
+                    O que este modo faz?
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-amber-700 dark:text-amber-300">
+                    <li>Quando o cliente reconectar via QR Code, o sistema automaticamente:</li>
+                    <li className="ml-4">✓ Zera a fila de mensagens pendentes</li>
+                    <li className="ml-4">✓ Desativa todos os follow-ups programados</li>
+                    <li className="ml-4">✓ Começa do zero para evitar novo bloqueio</li>
+                  </ul>
+                  <p className="text-amber-600 dark:text-amber-400 italic">
+                    Use quando o cliente tomou bloqueio e precisa reconectar com segurança.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Status atual */}
+            {safeModeStatus.loading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2">
+                    {safeModeStatus.enabled ? (
+                      <ShieldCheck className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <ShieldOff className="h-5 w-5 text-slate-400" />
+                    )}
+                    <span className="font-medium">
+                      Modo Seguro: {safeModeStatus.enabled ? "ATIVADO" : "Desativado"}
+                    </span>
+                  </div>
+                  <Switch
+                    checked={safeModeStatus.enabled}
+                    onCheckedChange={(checked) => {
+                      if (safeModeDialogUser) {
+                        safeModeToggleMutation.mutate({
+                          userId: safeModeDialogUser.id,
+                          enabled: checked,
+                        });
+                      }
+                    }}
+                    disabled={safeModeToggleMutation.isPending}
+                  />
+                </div>
+
+                {/* Informações de ativação */}
+                {safeModeStatus.enabled && safeModeStatus.activatedAt && (
+                  <div className="text-sm text-muted-foreground pl-2">
+                    <p>
+                      ⏰ Ativado em: {new Date(safeModeStatus.activatedAt).toLocaleString('pt-BR')}
+                    </p>
+                    {safeModeStatus.lastCleanupAt && (
+                      <p>
+                        🧹 Última limpeza: {new Date(safeModeStatus.lastCleanupAt).toLocaleString('pt-BR')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Aviso quando ativado */}
+                {safeModeStatus.enabled && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      ✅ Na próxima vez que este cliente escanear o QR Code para reconectar, 
+                      todas as filas e follow-ups serão automaticamente zerados.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSafeModeDialogUser(null)}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
