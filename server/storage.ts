@@ -603,6 +603,25 @@ export class DatabaseStorage implements IStorage {
     return result || null;
   }
 
+  // Atualizar mediaUrl de uma mensagem (usado para re-download de mídia)
+  async updateMessageMedia(messageId: string, newMediaUrl: string): Promise<void> {
+    await db
+      .update(messages)
+      .set({ mediaUrl: newMediaUrl })
+      .where(eq(messages.messageId, messageId));
+    
+    // Buscar conversa para invalidar cache
+    const [msg] = await db
+      .select({ conversationId: messages.conversationId })
+      .from(messages)
+      .where(eq(messages.messageId, messageId))
+      .limit(1);
+    
+    if (msg?.conversationId) {
+      memoryCache.invalidate(`messages:${msg.conversationId}`);
+    }
+  }
+
   // Versão completa com media_url - usar apenas quando REALMENTE necessário
   async getMessagesByConversationIdWithMedia(conversationId: string, limit: number = 50): Promise<Message[]> {
     return await db

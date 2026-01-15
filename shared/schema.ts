@@ -159,10 +159,14 @@ export const messages = pgTable("messages", {
   isFromAgent: boolean("is_from_agent").default(false).notNull(),
   // Media fields
   mediaType: varchar("media_type", { length: 50 }), // 'image', 'audio', 'video', 'document'
-  mediaUrl: text("media_url"), // URL or base64 data
+  mediaUrl: text("media_url"), // URL or base64 data (Supabase Storage)
   mediaMimeType: varchar("media_mime_type", { length: 100 }),
   mediaDuration: integer("media_duration"), // Duration in seconds for audio/video
   mediaCaption: text("media_caption"), // Caption for media
+  // Re-download metadata (para baixar mídia novamente do WhatsApp)
+  mediaKey: text("media_key"), // Chave de descriptografia (base64)
+  directPath: text("direct_path"), // Caminho direto no servidor WhatsApp
+  mediaUrlOriginal: text("media_url_original"), // URL original do WhatsApp
   createdAt: timestamp("created_at").defaultNow(),
 });
 

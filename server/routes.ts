@@ -2614,6 +2614,70 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
     }
   });
 
+  // ==================== RE-DOWNLOAD DE MÍDIA ====================
+  // Endpoint para tentar re-baixar mídia do WhatsApp usando metadados salvos
+  app.post("/api/messages/:messageId/redownload", isAuthenticated, async (req: any, res) => {
+    try {
+      const { messageId } = req.params;
+      const userId = getUserId(req);
+
+      // Buscar mensagem para verificar propriedade
+      const message = await storage.getMessageByMessageId(messageId);
+      if (!message) {
+        return res.status(404).json({ success: false, message: "Mensagem não encontrada" });
+      }
+
+      // Verificar propriedade via conversation -> connection
+      const conversation = await storage.getConversation(message.conversationId);
+      if (!conversation) {
+        return res.status(404).json({ success: false, message: "Conversa não encontrada" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ success: false, message: "Acesso negado" });
+      }
+
+      // Verificar se tem metadados para re-download
+      if (!message.mediaKey || !message.directPath) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Esta mídia não tem metadados para re-download. Mídias antigas não podem ser recuperadas." 
+        });
+      }
+
+      // Tentar re-baixar usando Baileys
+      const { redownloadMedia } = await import("./whatsapp");
+      const result = await redownloadMedia(
+        connection.id,
+        message.mediaKey,
+        message.directPath,
+        message.mediaUrlOriginal || undefined,
+        message.mediaType || "image",
+        message.mediaMimeType || "application/octet-stream"
+      );
+
+      if (result.success && result.mediaUrl) {
+        // Atualizar a mensagem com a nova URL
+        await storage.updateMessageMedia(messageId, result.mediaUrl);
+        
+        return res.json({ 
+          success: true, 
+          message: "Mídia re-baixada com sucesso!",
+          mediaUrl: result.mediaUrl 
+        });
+      } else {
+        return res.status(404).json({ 
+          success: false, 
+          message: result.error || "Mídia expirada ou não disponível no WhatsApp" 
+        });
+      }
+    } catch (error) {
+      console.error("Error redownloading media:", error);
+      res.status(500).json({ success: false, message: "Erro ao tentar re-baixar mídia" });
+    }
+  });
+
   app.post("/api/messages/send", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
