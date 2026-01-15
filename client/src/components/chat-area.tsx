@@ -242,10 +242,12 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
       const response = await apiRequest("POST", `/api/messages/${messageId}/redownload`);
       return response.json();
     },
-    onSuccess: (data: { success: boolean; message: string; mediaUrl?: string }) => {
+    onSuccess: async (data: { success: boolean; message: string; mediaUrl?: string }) => {
       setRedownloadingMessageId(null);
       if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+        // FORÇA RELOAD IMEDIATO DAS MENSAGENS PARA MOSTRAR O PLAYER
+        await queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+        await queryClient.refetchQueries({ queryKey: ["/api/messages", conversationId] });
         toast({
           title: "✅ Mídia recuperada!",
           description: "A mídia foi baixada novamente com sucesso.",
@@ -331,8 +333,10 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
       
       return { previousMessages };
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+    onSuccess: async (data: any) => {
+      // FORÇA RELOAD IMEDIATO PARA PEGAR mediaUrl DO SERVIDOR
+      await queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+      await queryClient.refetchQueries({ queryKey: ["/api/messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       
       // 🛑 AUTO-PAUSE: Se o agente foi pausado automaticamente, atualizar status e avisar
@@ -393,8 +397,10 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
       
       return { previousMessages };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+    onSuccess: async () => {
+      // FORÇA RELOAD IMEDIATO PARA PEGAR mediaUrl DO SERVIDOR
+      await queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+      await queryClient.refetchQueries({ queryKey: ["/api/messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
     },
@@ -468,13 +474,14 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
       
       return { previousMessages, previewUrl };
     },
-    onSuccess: (_data, _vars, context) => {
+    onSuccess: async (_data, _vars, context) => {
       // Limpar preview URL
       if (context?.previewUrl) {
         URL.revokeObjectURL(context.previewUrl);
       }
-      // Não precisa mais setar isSendingMedia pois não bloqueia UI
-      queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+      // FORÇA RELOAD IMEDIATO PARA PEGAR mediaUrl DO SERVIDOR
+      await queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+      await queryClient.refetchQueries({ queryKey: ["/api/messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
     },

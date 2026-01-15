@@ -1339,12 +1339,6 @@ export async function generateAIResponse(
       ✅ "Nosso plano é ilimitado" (se o prompt diz ilimitado)
       ✅ "Não tenho essa informação específica" (se não está no prompt)
   `;
-     
-     // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT
-     if (mediaPromptBlock) {
-       systemPrompt += mediaPromptBlock;
-       console.log(`📁 [AI Agent] Added media block to prompt (${mediaPromptBlock.length} chars)`);
-     }
 
      // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO SE CONFIGURADO
      if (businessConfig?.notificationEnabled && businessConfig?.notificationTrigger) {
@@ -1368,8 +1362,16 @@ export async function generateAIResponse(
        console.error(`📅 [AI Agent] Error loading scheduling config:`, schedError);
      }
 
-     // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA (CRÍTICO: DEVE SER O ÚLTIMO)
+     // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA
      systemPrompt += memoryContextBlock;
+     
+     // 📁 ADICIONAR BLOCO DE MÍDIAS AO PROMPT (PRIORIDADE MÁXIMA - DEVE SER O ÚLTIMO ANTES DAS MENSAGENS)
+     // Motivo: Instruções de mídia precisam estar "frescas" na memória do modelo
+     // Se ficarem no meio do prompt, são diluídas por outras regras
+     if (mediaPromptBlock) {
+       systemPrompt += '\n\n' + mediaPromptBlock;
+       console.log(`📁 [AI Agent] Added media block to prompt (${mediaPromptBlock.length} chars) - POSITIONED AT END FOR MAXIMUM PRIORITY`);
+     }
 
      console.log(`📝 [AI Agent] Using LEGACY prompt (${systemPrompt.length} chars) - DETERMINISTIC MODE`);
      

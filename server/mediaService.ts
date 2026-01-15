@@ -231,14 +231,21 @@ export function generateMediaPromptBlock(mediaList: AgentMedia[]): string {
   let mediaBlock = `
 
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  🚨🚨🚨 SISTEMA DE ENVIO DE ARQUIVOS - LEIA COM ATENÇÃO 🚨🚨🚨               ║
+║  🚨🚨🚨 PRIORIDADE MÁXIMA - SISTEMA DE MÍDIAS 🚨🚨🚨                         ║
+║  VOCÊ TEM ARQUIVOS DE ÁUDIO/VÍDEO/IMAGEM PARA ENVIAR!                        ║
+║  ENVIAR MÍDIAS É MAIS IMPORTANTE QUE TEXTO LONGO!                            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-⚠️ REGRA CRÍTICA - VOCÊ DEVE INCLUIR A TAG EXATA PARA ENVIAR ARQUIVOS!
-⚠️ Sem a tag [MEDIA:NOME], o arquivo NÃO será enviado ao cliente!
-⚠️ Dizer "vou enviar" sem a tag = CLIENTE NÃO RECEBE NADA!
+⚠️⚠️⚠️ INSTRUÇÃO CRÍTICA - LEIA E OBEDEÇA! ⚠️⚠️⚠️
 
-📁 ARQUIVOS DISPONÍVEIS PARA ENVIO:
+VOCÊ TEM ARQUIVOS PRONTOS PARA ENVIAR! Use-os SEMPRE que aplicável.
+Um áudio/vídeo vale mais que mil palavras de texto.
+
+🎯 QUANDO VER UM GATILHO ABAIXO, ENVIE A MÍDIA IMEDIATAMENTE!
+🎯 Não fique só falando - ENVIE o arquivo usando a tag!
+🎯 A tag DEVE estar na sua resposta: [MEDIA:NOME] ou [ENVIAR_MIDIA:NOME]
+
+📁 SEUS ARQUIVOS DISPONÍVEIS:
 `;
 
   // Lista cada mídia com gatilhos explícitos extraídos do whenToUse
@@ -250,53 +257,62 @@ export function generateMediaPromptBlock(mediaList: AgentMedia[]): string {
                       media.mediaType === 'image' ? '🖼️ IMAGEM' : '📄 DOCUMENTO/PDF';
     
     // Extrair palavras-chave do whenToUse para criar gatilhos explícitos
-    const keywords = whenToUse.toLowerCase()
-      .replace(/quando|se|ou|e|o|a|cliente|solicitar|pedir|enviar|quiser|falar|mencionar|perguntar|sobre/gi, '')
+    const keywordsRaw = whenToUse.toLowerCase()
+      .replace(/enviar apenas quando:|não enviar:|quando:/gi, '')
+      .replace(/quando|se|ou|e|o|a|cliente|solicitar|pedir|enviar|quiser|falar|mencionar|perguntar|sobre|apenas|somente/gi, ' ')
       .split(/[,\s]+/)
-      .filter(k => k.length > 3)
-      .slice(0, 5);
+      .filter(k => k.length > 3);
+    
+    const keywords = [...new Set(keywordsRaw)].slice(0, 8);
     
     mediaBlock += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${mediaType}: ${media.name}
-
-🎯 QUANDO ENVIAR: ${whenToUse}
-🔑 PALAVRAS-CHAVE: ${keywords.length > 0 ? keywords.join(', ') : media.name.toLowerCase().replace(/_/g, ', ')}
-
-✅ COMO ENVIAR (OBRIGATÓRIO - COPIE EXATAMENTE):
-   Sua resposta DEVE conter: [MEDIA:${media.name}]
-   
-   EXEMPLOS DE RESPOSTA CORRETA:
-   - "Claro! Vou te enviar agora. [MEDIA:${media.name}]"
-   - "Aqui está o que você pediu! [MEDIA:${media.name}]"
-   - "Segue o arquivo solicitado. [MEDIA:${media.name}]"
-
-❌ RESPOSTA ERRADA (arquivo NÃO será enviado):
-   - "Vou te enviar o arquivo" (SEM A TAG = NÃO FUNCIONA!)
-   - "Aqui está o documento" (SEM A TAG = CLIENTE NÃO RECEBE!)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ ${mediaType}: ${media.name.padEnd(58)}│
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 🎯 GATILHO: ${whenToUse.substring(0, 60).padEnd(60)}│
+│ 🔑 KEYWORDS: ${(keywords.length > 0 ? keywords.join(', ') : media.name.toLowerCase().replace(/_/g, ', ')).substring(0, 58).padEnd(58)}│
+│                                                                             │
+│ ✅ PARA ENVIAR ESTE ARQUIVO, INCLUA NA SUA RESPOSTA:                        │
+│    [MEDIA:${media.name}] ou [ENVIAR_MIDIA:${media.name}]${' '.repeat(Math.max(0, 30 - media.name.length))}│
+│                                                                             │
+│ 📝 EXEMPLO: "Vou te enviar agora! [MEDIA:${media.name}]"${' '.repeat(Math.max(0, 22 - media.name.length))}│
+└─────────────────────────────────────────────────────────────────────────────┘
 `;
   }
 
   mediaBlock += `
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  ⚠️ REGRAS OBRIGATÓRIAS DE ENVIO DE MÍDIA ⚠️                                 ║
+║  🔴🔴🔴 REGRAS OBRIGATÓRIAS - CUMPRA OU O CLIENTE NÃO RECEBE! 🔴🔴🔴        ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-🔴 REGRA #1 - A TAG É OBRIGATÓRIA:
-   → Para enviar um arquivo, INCLUA a tag [MEDIA:NOME_DA_MIDIA] na sua resposta
-   → Sem a tag, o sistema NÃO consegue enviar o arquivo
-   → A tag pode ficar no final da sua mensagem
+🔴 REGRA #1 - TAG É OBRIGATÓRIA PARA ENVIAR:
+   → Inclua [MEDIA:NOME] ou [ENVIAR_MIDIA:NOME] na sua resposta
+   → Sem a tag = arquivo NÃO é enviado = cliente não recebe nada!
+   → Dizer "vou enviar" sem a tag = MENTIRA (nada é enviado)
 
-🔴 REGRA #2 - UMA MÍDIA POR VEZ:
-   → Envie apenas uma mídia por resposta (máximo duas se muito relacionadas)
-   → Não bombardeie o cliente com vários arquivos de uma vez
+🔴 REGRA #2 - PRIORIZE ENVIAR MÍDIA SOBRE TEXTO:
+   → Se o gatilho for detectado, ENVIE A MÍDIA primeiro!
+   → Um áudio de 30s explica melhor que 5 parágrafos de texto
+   → Cliente prefere receber conteúdo visual/áudio do que ler texto longo
 
-🔴 REGRA #3 - NÃO REPITA MÍDIAS JÁ ENVIADAS:
-   → Se já enviou uma mídia nesta conversa, não envie novamente
-   → Diga "já enviei acima" ou "você recebeu o arquivo?"
+🔴 REGRA #3 - UMA MÍDIA POR VEZ:
+   → Envie 1 mídia por resposta (máx 2 se relacionadas)
+   → Não bombardeie com vários arquivos
 
-📌 LEMBRE-SE: Tag [MEDIA:NOME] = arquivo enviado. Sem tag = nada enviado!
+🔴 REGRA #4 - NÃO REPITA MÍDIAS JÁ ENVIADAS:
+   → Verifique se já enviou na conversa
+   → Se sim, diga "já enviei acima" ou pergunte se recebeu
+
+⚡ FORMATO ACEITO PARA TAGS:
+   [MEDIA:NOME_DA_MIDIA]  ← funciona
+   [ENVIAR_MIDIA:NOME]    ← funciona
+   [MIDIA:NOME]           ← funciona
+
+💡 EXEMPLO DE RESPOSTA CORRETA:
+   "Opa! Deixa eu te mostrar como funciona na prática! [MEDIA:VIDEO_DEMO]"
+
+❌ EXEMPLO DE RESPOSTA ERRADA (NÃO FUNCIONA):
+   "Vou te enviar um vídeo mostrando..." (FALTA A TAG! NADA É ENVIADO!)
 
 ╚══════════════════════════════════════════════════════════════════════════════╝
 `;
@@ -310,27 +326,44 @@ ${mediaType}: ${media.name}
 
 /**
  * Parseia a resposta do Mistral e extrai ações de mídia
- * NOVA ABORDAGEM: Detecta tags [ENVIAR_MIDIA:NOME] no texto
+ * 
+ * SUPORTA MÚLTIPLOS FORMATOS DE TAG:
+ * - [MEDIA:NOME] - formato simplificado
+ * - [ENVIAR_MIDIA:NOME] - formato legacy/antigo
+ * - [MIDIA:NOME] - formato alternativo
+ * 
+ * A IA pode usar qualquer um destes formatos e o sistema detectará corretamente.
  */
 export function parseMistralResponse(responseText: string): MistralResponse | null {
   try {
-    // Detectar tags [MEDIA:NOME] no texto (formato simplificado)
-    const mediaTagRegex = /\[MEDIA:([A-Z0-9_]+)\]/gi;
+    // 🔥 REGEX UNIFICADO: Aceita TODOS os formatos de tag de mídia
+    // [MEDIA:NOME], [ENVIAR_MIDIA:NOME], [MIDIA:NOME]
+    const mediaTagRegex = /\[(MEDIA|ENVIAR_MIDIA|MIDIA):([A-Z0-9_]+)\]/gi;
     
     const actions: MistralResponse['actions'] = [];
     let match: RegExpExecArray | null;
+    const detectedNames = new Set<string>(); // Evitar duplicatas
     
     while ((match = mediaTagRegex.exec(responseText)) !== null) {
-      const mediaName = match[1].toUpperCase();
-      actions.push({
-        type: 'send_media',
-        media_name: mediaName,
-      });
-      console.log(`📁 [MediaService] Tag de mídia detectada: ${mediaName}`);
+      const tagType = match[1].toUpperCase(); // MEDIA, ENVIAR_MIDIA ou MIDIA
+      const mediaName = match[2].toUpperCase();
+      
+      // Evitar adicionar a mesma mídia duas vezes
+      if (!detectedNames.has(mediaName)) {
+        detectedNames.add(mediaName);
+        actions.push({
+          type: 'send_media',
+          media_name: mediaName,
+        });
+        console.log(`📁 [MediaService] Tag de mídia detectada [${tagType}]: ${mediaName}`);
+      }
     }
     
-    // Remover as tags do texto final (o cliente não precisa ver)
-    const cleanText = responseText.replace(/\[MEDIA:[A-Z0-9_]+\]/gi, '').trim();
+    // 🧹 Remover TODAS as variantes de tags do texto final
+    const cleanText = responseText
+      .replace(/\[(MEDIA|ENVIAR_MIDIA|MIDIA):[A-Z0-9_]+\]/gi, '')
+      .replace(/\s{2,}/g, ' ') // Remover espaços duplicados
+      .trim();
     
     if (actions.length > 0) {
       console.log(`📁 [MediaService] Total de ${actions.length} mídia(s) para enviar: ${actions.map(a => a.media_name).join(', ')}`);
