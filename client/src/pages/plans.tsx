@@ -68,6 +68,14 @@ export default function PlansPage() {
     queryKey: ["/api/user/reseller-plan"],
   });
 
+  // Verificar se tem plano atribuído via link
+  const { data: assignedPlanData, isLoading: assignedPlanLoading } = useQuery<{
+    hasAssignedPlan: boolean;
+    plan?: Plan & { valorPrimeiraCobranca?: string };
+  }>({
+    queryKey: ["/api/user/assigned-plan"],
+  });
+
   const { data: plans, isLoading: plansLoading } = useQuery<Plan[]>({
     queryKey: ["/api/plans"],
   });
@@ -198,7 +206,7 @@ export default function PlansPage() {
     },
   });
 
-  if (plansLoading || subscriptionLoading || resellerPlanLoading) {
+  if (plansLoading || subscriptionLoading || resellerPlanLoading || assignedPlanLoading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[60vh]">
         <Loader2 className="h-8 w-8 animate-spin text-green-500" />
@@ -210,6 +218,9 @@ export default function PlansPage() {
   
   // Para clientes de revenda: verificar se tem status ativo no resellerPlan
   const isResellerClientActive = resellerPlan?.isResellerClient && resellerPlan.status === 'active';
+  
+  // Verificar se tem plano atribuído via link
+  const hasAssignedPlan = assignedPlanData?.hasAssignedPlan && assignedPlanData?.plan;
   
   // Detectar qual plano está ativo baseado no tipo
   const activePlanTipo = currentSubscription?.plan?.tipo;
@@ -325,6 +336,166 @@ export default function PlansPage() {
       answer: "Pagamento via PIX, instantâneo e seguro. O acesso é liberado imediatamente após a confirmação."
     }
   ];
+
+  // Se o usuário tem plano atribuído via link exclusivo, mostrar apenas esse plano
+  if (hasAssignedPlan && assignedPlanData?.plan) {
+    const assignedPlan = assignedPlanData.plan;
+    const planFeatures = [
+      "IA atendendo 24/7",
+      "Conversas ilimitadas",
+      "1 agente personalizado",
+      "Suporte via WhatsApp",
+      "Atualizações gratuitas",
+      "Cancelamento a qualquer momento"
+    ];
+    
+    return (
+      <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
+        <div className="max-w-2xl mx-auto px-4 py-6 md:py-12">
+          {/* Seção de código exclusivo no topo */}
+          <div className="mb-8 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 rounded-xl border border-purple-100 dark:border-purple-800">
+            <div className="text-center mb-4">
+              <Badge className="mb-2 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 border-0">
+                Código Exclusivo
+              </Badge>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Possui um código de plano exclusivo? Digite abaixo:
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto">
+              <Input
+                placeholder="Digite seu código"
+                value={customPlanCode}
+                onChange={(e) => setCustomPlanCode(e.target.value)}
+                className="flex-1"
+              />
+              <Button 
+                onClick={validateCustomPlanCode} 
+                disabled={!customPlanCode.trim() || isValidatingCustomPlan}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {isValidatingCustomPlan ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Aplicar"
+                )}
+              </Button>
+            </div>
+          </div>
+
+          <div className="text-center mb-8">
+            <Badge className="mb-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white border-0">
+              Seu Plano Exclusivo
+            </Badge>
+            <h1 className="text-xl md:text-3xl font-semibold text-gray-900 dark:text-white mb-2">
+              Bem-vindo ao AgenteZap
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400">
+              Assine agora e tenha acesso completo à plataforma
+            </p>
+          </div>
+
+          <Card className="border-2 border-green-500/50 shadow-lg">
+            <CardHeader className="text-center pb-4">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Crown className="h-6 w-6 text-green-500" />
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {assignedPlan.nome}
+                </h2>
+              </div>
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-4xl font-bold text-green-600">
+                  R$ {Number(assignedPlan.valor).toFixed(2).replace('.', ',')}
+                </span>
+                <span className="text-gray-500">
+                  {assignedPlan.tipo === 'implementacao' ? '/único' : '/mês'}
+                </span>
+              </div>
+              {appliedCoupon && (
+                <div className="mt-2 text-sm text-green-600 dark:text-green-400">
+                  🎉 Cupom aplicado: {appliedCoupon.code}
+                </div>
+              )}
+            </CardHeader>
+            
+            <CardContent className="pt-0">
+              <div className="space-y-3 py-4">
+                {planFeatures.map((feature, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span className="text-gray-600 dark:text-gray-300">{feature}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Seção de cupom de desconto */}
+              <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 text-center">
+                  Possui cupom de desconto?
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    placeholder="Digite seu cupom"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                    className="flex-1"
+                    disabled={!!appliedCoupon}
+                  />
+                  <Button 
+                    onClick={validateCoupon} 
+                    disabled={!couponCode.trim() || isValidatingCoupon || !!appliedCoupon}
+                    variant="outline"
+                    className="whitespace-nowrap"
+                  >
+                    {isValidatingCoupon ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : appliedCoupon ? (
+                      "Aplicado ✓"
+                    ) : (
+                      "Aplicar"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex flex-col gap-4 pt-4">
+              {isPlanActive(assignedPlan.tipo === 'padrao' ? 'mensal' : assignedPlan.tipo) ? (
+                <Button className="w-full bg-gray-100 dark:bg-gray-800 text-gray-500" disabled>
+                  Seu plano atual
+                </Button>
+              ) : (
+                <Button 
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-6 text-lg"
+                  onClick={() => handleSelectPlan(assignedPlan.tipo === 'padrao' ? 'mensal' : assignedPlan.tipo)}
+                  disabled={createSubscriptionMutation.isPending}
+                >
+                  {createSubscriptionMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  ) : null}
+                  Assinar Agora
+                </Button>
+              )}
+              
+              <p className="text-center text-xs text-gray-500">
+                7 dias de garantia total • Cancele quando quiser
+              </p>
+            </CardFooter>
+          </Card>
+        </div>
+
+        {/* Modal de subscribe */}
+        <SubscribeModal
+          isOpen={subscribeModalOpen}
+          onClose={() => {
+            setSubscribeModalOpen(false);
+            setPendingSubscriptionId(null);
+          }}
+          subscriptionId={pendingSubscriptionId || ""}
+        />
+      </div>
+    );
+  }
 
   // Se é cliente de revenda, sempre mostrar plano da revenda (com ou sem assinatura tradicional)
   if (resellerPlan?.isResellerClient && resellerPlan.plan) {

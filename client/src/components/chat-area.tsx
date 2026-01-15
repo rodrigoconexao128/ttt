@@ -1037,96 +1037,168 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                     fromMe={message.fromMe}
                   />
                 ) : message.mediaType === "image" && !message.mediaUrl ? (
-                  /* Imagem sem URL - mostrar placeholder */
-                  <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                  /* Imagem sem URL - mostrar placeholder COM descrição da IA se disponível */
+                  <div className={`space-y-2 p-3 rounded-lg ${
                     message.fromMe 
                       ? "bg-white/10" 
                       : "bg-gray-100"
                   }`}>
-                    <span className="text-2xl">🖼️</span>
-                    <div>
-                      <p className={`text-sm font-medium ${
-                        message.fromMe ? "text-white" : "text-gray-900"
-                      }`}>
-                        Imagem enviada
-                      </p>
-                      <p className={`text-xs ${
-                        message.fromMe ? "text-white/60" : "text-gray-500"
-                      }`}>
-                        {message.fromMe 
-                          ? "Enviado pelo WhatsApp - visualize no app" 
-                          : "Mídia não disponível"}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🖼️</span>
+                      <div>
+                        <p className={`text-sm font-medium ${
+                          message.fromMe ? "text-white" : "text-gray-900"
+                        }`}>
+                          Imagem {message.fromMe ? "enviada" : "recebida"}
+                        </p>
+                        <p className={`text-xs ${
+                          message.fromMe ? "text-white/60" : "text-gray-500"
+                        }`}>
+                          Mídia expirada
+                        </p>
+                      </div>
                     </div>
+                    {/* Mostrar descrição da IA ou caption se disponível */}
+                    {(message.text || message.mediaCaption) && (
+                      <div className={`border-l-2 pl-3 ${
+                        message.fromMe ? "border-white/30" : "border-gray-300"
+                      }`}>
+                        <p className={`text-xs font-medium mb-1 ${
+                          message.fromMe ? "text-white/70" : "text-gray-500"
+                        }`}>
+                          {message.mediaCaption ? "📝 Legenda:" : "👁️ Descrição da IA:"}
+                        </p>
+                        <p className={`text-sm whitespace-pre-wrap break-words italic ${
+                          message.fromMe ? "text-white/90" : "text-gray-700"
+                        }`}>
+                          "{message.mediaCaption || message.text}"
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : message.mediaType === "document" && !message.mediaUrl ? (
-                  /* Documento sem URL - mostrar placeholder */
-                  <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                  /* Documento sem URL - mostrar placeholder COM nome e legenda se disponível */
+                  <div className={`space-y-2 p-3 rounded-lg ${
                     message.fromMe 
                       ? "bg-white/10" 
                       : "bg-gray-100"
                   }`}>
-                    <span className="text-2xl">📄</span>
-                    <div>
-                      <p className={`text-sm font-medium ${
-                        message.fromMe ? "text-white" : "text-gray-900"
-                      }`}>
-                        {message.text?.replace(/^📄\s*/, '').replace(/^\[Documento.*\]\s*/, '') || "Documento enviado"}
-                      </p>
-                      <p className={`text-xs ${
-                        message.fromMe ? "text-white/60" : "text-gray-500"
-                      }`}>
-                        {message.fromMe 
-                          ? "Enviado pelo WhatsApp - visualize no app" 
-                          : "Mídia não disponível"}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">📄</span>
+                      <div>
+                        <p className={`text-sm font-medium ${
+                          message.fromMe ? "text-white" : "text-gray-900"
+                        }`}>
+                          {message.text?.replace(/^📄\s*/, '').replace(/^\[Documento.*\]\s*/, '') || "Documento"}
+                        </p>
+                        <p className={`text-xs ${
+                          message.fromMe ? "text-white/60" : "text-gray-500"
+                        }`}>
+                          {message.mediaMimeType?.split('/').pop()?.toUpperCase() || "DOC"} • Mídia expirada
+                        </p>
+                      </div>
                     </div>
+                    {/* Mostrar caption se disponível */}
+                    {message.mediaCaption && (
+                      <div className={`border-l-2 pl-3 ${
+                        message.fromMe ? "border-white/30" : "border-gray-300"
+                      }`}>
+                        <p className={`text-xs font-medium mb-1 ${
+                          message.fromMe ? "text-white/70" : "text-gray-500"
+                        }`}>
+                          📝 Descrição:
+                        </p>
+                        <p className={`text-sm whitespace-pre-wrap break-words italic ${
+                          message.fromMe ? "text-white/90" : "text-gray-700"
+                        }`}>
+                          "{message.mediaCaption}"
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : message.mediaType === "video" && !message.mediaUrl ? (
-                  /* Vídeo sem URL - mostrar placeholder */
-                  <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                  /* Vídeo sem URL - mostrar placeholder COM legenda se disponível */
+                  <div className={`space-y-2 p-3 rounded-lg ${
                     message.fromMe 
                       ? "bg-white/10" 
                       : "bg-gray-100"
                   }`}>
-                    <span className="text-2xl">🎥</span>
-                    <div>
-                      <p className={`text-sm font-medium ${
-                        message.fromMe ? "text-white" : "text-gray-900"
-                      }`}>
-                        Vídeo enviado
-                      </p>
-                      <p className={`text-xs ${
-                        message.fromMe ? "text-white/60" : "text-gray-500"
-                      }`}>
-                        {message.fromMe 
-                          ? "Enviado pelo WhatsApp - visualize no app" 
-                          : "Mídia não disponível"}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🎥</span>
+                      <div>
+                        <p className={`text-sm font-medium ${
+                          message.fromMe ? "text-white" : "text-gray-900"
+                        }`}>
+                          Vídeo {message.fromMe ? "enviado" : "recebido"}
+                        </p>
+                        <p className={`text-xs ${
+                          message.fromMe ? "text-white/60" : "text-gray-500"
+                        }`}>
+                          {message.mediaDuration 
+                            ? `${Math.floor(message.mediaDuration / 60)}:${(message.mediaDuration % 60).toString().padStart(2, '0')} • ` 
+                            : ""}Mídia expirada
+                        </p>
+                      </div>
                     </div>
+                    {/* Mostrar legenda ou texto se disponível */}
+                    {(message.mediaCaption || message.text) && (
+                      <div className={`border-l-2 pl-3 ${
+                        message.fromMe ? "border-white/30" : "border-gray-300"
+                      }`}>
+                        <p className={`text-xs font-medium mb-1 ${
+                          message.fromMe ? "text-white/70" : "text-gray-500"
+                        }`}>
+                          📝 Legenda:
+                        </p>
+                        <p className={`text-sm whitespace-pre-wrap break-words italic ${
+                          message.fromMe ? "text-white/90" : "text-gray-700"
+                        }`}>
+                          "{message.mediaCaption || message.text}"
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : message.mediaType === "audio" && !message.mediaUrl ? (
-                  /* Áudio sem URL - mostrar placeholder */
-                  <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                  /* Áudio sem URL - mostrar placeholder COM transcrição se disponível */
+                  <div className={`space-y-2 p-3 rounded-lg ${
                     message.fromMe 
                       ? "bg-white/10" 
                       : "bg-gray-100"
                   }`}>
-                    <span className="text-2xl">🎤</span>
-                    <div>
-                      <p className={`text-sm font-medium ${
-                        message.fromMe ? "text-white" : "text-gray-900"
-                      }`}>
-                        Áudio enviado
-                      </p>
-                      <p className={`text-xs ${
-                        message.fromMe ? "text-white/60" : "text-gray-500"
-                      }`}>
-                        {message.fromMe 
-                          ? "Enviado pelo WhatsApp - visualize no app" 
-                          : "Mídia não disponível"}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🎤</span>
+                      <div>
+                        <p className={`text-sm font-medium ${
+                          message.fromMe ? "text-white" : "text-gray-900"
+                        }`}>
+                          Áudio {message.fromMe ? "enviado" : "recebido"}
+                        </p>
+                        <p className={`text-xs ${
+                          message.fromMe ? "text-white/60" : "text-gray-500"
+                        }`}>
+                          {message.mediaDuration 
+                            ? `${Math.floor(message.mediaDuration / 60)}:${(message.mediaDuration % 60).toString().padStart(2, '0')}` 
+                            : "Mídia expirada"}
+                        </p>
+                      </div>
                     </div>
+                    {/* Mostrar transcrição do áudio se disponível */}
+                    {message.text && !message.text.startsWith('[Áudio') && !message.text.startsWith('🎵') && !message.text.startsWith('🎤') && (
+                      <div className={`border-l-2 pl-3 ${
+                        message.fromMe ? "border-white/30" : "border-gray-300"
+                      }`}>
+                        <p className={`text-xs font-medium mb-1 ${
+                          message.fromMe ? "text-white/70" : "text-gray-500"
+                        }`}>
+                          📝 Transcrição:
+                        </p>
+                        <p className={`text-sm whitespace-pre-wrap break-words italic ${
+                          message.fromMe ? "text-white/90" : "text-gray-700"
+                        }`}>
+                          "{message.text.replace(/^\[ÁUDIO ENVIADO PELO AGENTE\]:\s*/i, '')}"
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>

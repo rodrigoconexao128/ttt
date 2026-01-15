@@ -83,8 +83,11 @@ export default function SyncedContactsPage() {
   const [newListName, setNewListName] = useState('');
   const [newListDescription, setNewListDescription] = useState('');
 
-  // ===== NOVA API: Contatos da Agenda em Memória (sem banco de dados) =====
-  // Economiza Egress e Disk IO do Supabase - contatos ficam apenas em memória
+  // ===== AGENDA LIVE: Contatos em Memória (SEM BANCO) =====
+  // SEMPRE busca ao carregar para verificar se há cache no servidor
+  // Se não tiver cache, mostra mensagem para sincronizar
+  // O cache dura 2 horas e é mantido na memória do servidor
+  
   const { data: agendaData, isLoading: isLoadingAgenda, refetch: refetchAgenda } = useQuery<{
     status: 'ready' | 'syncing' | 'not_synced' | 'error';
     contacts: Contact[];
@@ -94,8 +97,12 @@ export default function SyncedContactsPage() {
     expiresIn?: string;
   }>({
     queryKey: ['/api/contacts/agenda-live'],
-    refetchInterval: (data) => {
+    enabled: true, // SEMPRE buscar ao carregar a página
+    staleTime: 30000, // Considerar dados frescos por 30 segundos
+    refetchOnWindowFocus: true, // Refetch ao voltar para a aba
+    refetchInterval: (query) => {
       // Se está sincronizando, atualizar a cada 3 segundos
+      const data = query.state.data;
       if (data && data.status === 'syncing') {
         return 3000;
       }
@@ -103,8 +110,8 @@ export default function SyncedContactsPage() {
     },
   });
 
-  // Buscar contatos sincronizados do BANCO (fallback para histórico)
-  // APENAS se não tiver contatos na agenda-live
+  // Buscar contatos do banco - DESABILITADO
+  // Agora usamos apenas agenda-live (memória) para economizar recursos
   const { data: syncedData, isLoading, refetch } = useQuery<{
     contacts: Contact[];
     total: number;
@@ -115,7 +122,7 @@ export default function SyncedContactsPage() {
     };
   } | Contact[]>({
     queryKey: ['/api/contacts/synced'],
-    enabled: agendaData?.status === 'not_synced' || agendaData?.status === 'error', // Só busca do DB se não tiver agenda
+    enabled: false, // DESABILITADO - não busca mais do banco automaticamente
     refetchInterval: (data) => {
       // Se está sincronizando, atualizar a cada 5 segundos
       if (data && 'syncStatus' in data && data.syncStatus?.status === 'running') {
@@ -173,25 +180,35 @@ export default function SyncedContactsPage() {
     },
   });
 
-  // ===== NOVA API: Sincronização da Agenda em MEMÓRIA (sem banco) =====
-  // Solicita refresh dos contatos no cache do servidor
-  // Economiza Egress e Disk IO do Supabase
+  // ===== SINCRONIZAÇÃO DA AGENDA EM MEMÓRIA (sem banco) =====
+  // Cliente pode sair da página - sync acontece em background no servidor
+  // Cache dura 2 HORAS - não deixa o site lento
   const agendaSyncMutation = useMutation({
     mutationFn: async () => {
       return apiRequest('POST', '/api/contacts/agenda-live/refresh');
     },
     onSuccess: (data: any) => {
-      toast({ 
-        title: data.success ? '📱 Atualização Solicitada!' : '⚠️ Atenção', 
-        description: data.message,
-      });
-      // Refetch da agenda-live a cada 3 segundos por 30 segundos
-      let attempts = 0;
-      const interval = setInterval(() => {
+      // Se já retornou contatos, mostra sucesso
+      if (data.count > 0) {
+        toast({ 
+          title: '✅ Agenda Sincronizada!', 
+          description: data.message,
+        });
+        // Refetch imediato para mostrar os contatos
         refetchAgenda();
-        attempts++;
-        if (attempts >= 10) clearInterval(interval);
-      }, 3000);
+      } else {
+        // Ainda sincronizando - polling a cada 2s por 20s
+        toast({ 
+          title: '📱 Sincronizando...', 
+          description: 'Você pode continuar usando o sistema. Os contatos aparecerão em alguns segundos.',
+        });
+        let attempts = 0;
+        const interval = setInterval(() => {
+          refetchAgenda();
+          attempts++;
+          if (attempts >= 10) clearInterval(interval);
+        }, 2000);
+      }
     },
     onError: (error: any) => {
       toast({ 
@@ -405,110 +422,63 @@ export default function SyncedContactsPage() {
             Contatos Sincronizados
           </h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie todos os contatos sincronizados do WhatsApp
+            Sincronize os contatos da sua agenda do WhatsApp
           </p>
         </div>
         <div className="flex gap-2">
+          {/* ÚNICO BOTÃO: Sincronizar Agenda */}
           <Button 
-            variant="outline" 
-            onClick={() => refetch()}
-            disabled={isLoading}
+            onClick={() => {
+              agendaSyncMutation.mutate();
+            }}
+            disabled={agendaSyncMutation.isPending || isLoadingAgenda || !whatsappStatus?.isConnected}
+            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6"
+            size="lg"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending || !whatsappStatus?.isConnected}
-          >
-            {syncMutation.isPending ? (
+            {agendaSyncMutation.isPending || isLoadingAgenda ? (
               <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
                 Sincronizando...
               </>
-            ) : (
+            ) : agendaData?.status === 'ready' ? (
               <>
-                <Download className="h-4 w-4 mr-2" />
-                Sync Rápido
-              </>
-            )}
-          </Button>
-          <Button 
-            onClick={() => fullSyncMutation.mutate(false)}
-            disabled={fullSyncMutation.isPending || !whatsappStatus?.isConnected || fullSyncStatusData?.status === 'running' || fullSyncStatusData?.status === 'queued'}
-            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
-          >
-            {fullSyncMutation.isPending || fullSyncStatusData?.status === 'running' ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Sincronizando TUDO...
-              </>
-            ) : fullSyncStatusData?.status === 'queued' ? (
-              <>
-                <Clock className="h-4 w-4 mr-2" />
-                Na fila ({fullSyncStatusData.queuePosition})
+                <RefreshCw className="h-5 w-5 mr-2" />
+                Atualizar Agenda
               </>
             ) : (
               <>
-                <Zap className="h-4 w-4 mr-2" />
-                Sincronizar TODOS os Contatos
-              </>
-            )}
-          </Button>
-          <Button 
-            onClick={() => agendaSyncMutation.mutate()}
-            disabled={agendaSyncMutation.isPending || !whatsappStatus?.isConnected}
-            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
-            title="Atualiza a agenda do celular em memória (sem salvar no banco)"
-          >
-            {agendaSyncMutation.isPending ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Atualizando...
-              </>
-            ) : (
-              <>
-                <Smartphone className="h-4 w-4 mr-2" />
-                📱 Atualizar Agenda
+                <Smartphone className="h-5 w-5 mr-2" />
+                📱 Sincronizar Agenda
               </>
             )}
           </Button>
         </div>
       </div>
 
-      {/* ===== NOVO: Banner de Agenda-Live (Memória) ===== */}
+      {/* Banner de Sucesso - Contatos Carregados */}
       {isUsingAgendaLive && (
         <Card className="mb-6 bg-gradient-to-br from-green-50 to-emerald-50 border-green-300">
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <Zap className="h-5 w-5 text-green-600" />
+              <CheckCircle className="h-6 w-6 text-green-600" />
               <div className="flex-1">
                 <h3 className="font-medium text-green-900 flex items-center gap-2">
-                  ⚡ Agenda Live - {agendaData?.total} contatos
+                  ✅ {agendaData?.total} contatos carregados
                   <Badge variant="outline" className="bg-green-100 text-green-700 text-xs">
                     Em Memória
                   </Badge>
                 </h3>
                 <p className="text-sm text-green-700 mt-1">
-                  {agendaMessage} • Expira em: {agendaData?.expiresIn}
+                  Cache expira em: {agendaData?.expiresIn} • Clique no botão para atualizar
                 </p>
               </div>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => refetchAgenda()}
-                className="text-green-700 border-green-300"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Banner quando está sincronizando a agenda-live */}
-      {agendaData?.status === 'syncing' && (
+      {/* Banner de Sincronizando */}
+      {(agendaSyncMutation.isPending || agendaData?.status === 'syncing') && (
         <Card className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300">
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
@@ -516,7 +486,7 @@ export default function SyncedContactsPage() {
               <div className="flex-1">
                 <h3 className="font-medium text-blue-900">📱 Sincronizando Agenda...</h3>
                 <p className="text-sm text-blue-700 mt-1">
-                  {agendaData.message}
+                  Aguarde enquanto carregamos os contatos do seu WhatsApp
                 </p>
               </div>
             </div>
@@ -524,138 +494,24 @@ export default function SyncedContactsPage() {
         </Card>
       )}
 
-      {/* Banner quando não tem agenda sincronizada */}
+      {/* Banner Inicial - Quando não tem cache */}
       {agendaData?.status === 'not_synced' && whatsappStatus?.isConnected && (
-        <Card className="mb-6 bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300">
+        <Card className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300">
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <Smartphone className="h-5 w-5 text-amber-600" />
+              <Smartphone className="h-6 w-6 text-blue-600" />
               <div className="flex-1">
-                <h3 className="font-medium text-amber-900">📱 Agenda não sincronizada</h3>
-                <p className="text-sm text-amber-700 mt-1">
-                  {agendaData.message}
+                <h3 className="font-medium text-blue-900">📱 Clique em "Sincronizar Agenda" para carregar seus contatos</h3>
+                <p className="text-sm text-blue-700 mt-1">
+                  Os contatos são carregados sob demanda para economizar recursos. Não salvamos no banco de dados.
                 </p>
-              </div>
-              <Button 
-                size="sm" 
-                onClick={() => agendaSyncMutation.mutate()}
-                className="bg-amber-500 hover:bg-amber-600"
-              >
-                Sincronizar Agora
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Banner de Status de Sincronização */}
-      {syncStatus?.status === 'running' && (
-        <Card className="mb-6 bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <RefreshCw className="h-5 w-5 text-amber-600 animate-spin" />
-              <div className="flex-1">
-                <h3 className="font-medium text-amber-900">Sincronização Rápida em Andamento</h3>
-                <p className="text-sm text-amber-700 mt-1">
-                  {syncStatus.message} - Aguarde até 10 minutos para conclusão. 
-                  Você pode continuar usando o sistema normalmente.
-                </p>
-                <div className="mt-2 w-full bg-amber-200 rounded-full h-2">
-                  <div 
-                    className="bg-amber-500 h-2 rounded-full transition-all duration-500" 
-                    style={{ width: `${syncStatus.progress}%` }}
-                  />
-                </div>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Banner de Status de Sincronização COMPLETA */}
-      {(fullSyncStatusData?.status === 'running' || fullSyncStatusData?.status === 'queued') && (
-        <Card className="mb-6 bg-gradient-to-br from-green-50 to-emerald-50 border-green-300">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              {fullSyncStatusData.status === 'running' ? (
-                <RefreshCw className="h-5 w-5 text-green-600 animate-spin" />
-              ) : (
-                <Clock className="h-5 w-5 text-green-600" />
-              )}
-              <div className="flex-1">
-                <h3 className="font-medium text-green-900">
-                  {fullSyncStatusData.status === 'running' 
-                    ? '🔄 Sincronização COMPLETA em Andamento' 
-                    : `⏳ Na fila - Posição ${fullSyncStatusData.queuePosition}`}
-                </h3>
-                <p className="text-sm text-green-700 mt-1">
-                  {fullSyncStatusData.message}
-                </p>
-                {fullSyncStatusData.status === 'running' && (
-                  <>
-                    <div className="mt-2 w-full bg-green-200 rounded-full h-2">
-                      <div 
-                        className="bg-green-500 h-2 rounded-full transition-all duration-500" 
-                        style={{ width: `${fullSyncStatusData.progress}%` }}
-                      />
-                    </div>
-                    <div className="mt-2 flex gap-4 text-xs text-green-600">
-                      <span>📱 WhatsApp: {fullSyncStatusData.contactsFromWhatsapp || 0}</span>
-                      <span>💬 Conversas: {fullSyncStatusData.contactsFromConversations || 0}</span>
-                      <span>📊 Total: {fullSyncStatusData.totalContacts || 0}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Banner de última sincronização concluída */}
-      {fullSyncStatusData?.status === 'completed' && fullSyncStatusData.lastSyncFormatted && (
-        <Card className="mb-6 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="h-5 w-5 text-emerald-600" />
-              <div className="flex-1">
-                <h3 className="font-medium text-emerald-900">✅ Sincronização Completa Concluída!</h3>
-                <p className="text-sm text-emerald-700 mt-1">
-                  {fullSyncStatusData.totalContacts} contatos sincronizados em {fullSyncStatusData.lastSyncFormatted}
-                </p>
-                {fullSyncStatusData.nextAutoSyncFormatted && (
-                  <p className="text-xs text-emerald-600 mt-1">
-                    📅 Próxima sincronização automática: {fullSyncStatusData.nextAutoSyncFormatted}
-                  </p>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Aviso sobre sincronização */}
-      <Card className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-        <CardContent className="pt-4">
-          <div className="flex items-start gap-3">
-            <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
-            <div>
-              <h3 className="font-medium text-blue-900">Tipos de Sincronização</h3>
-              <ul className="text-sm text-blue-700 mt-1 space-y-1">
-                <li><strong>🔹 Sync Rápido:</strong> Sincroniza apenas contatos que já conversaram (anti-spam).</li>
-                <li><strong>🔹 Sincronizar TODOS:</strong> Consolida todos os contatos já salvos no banco (WhatsApp + conversas).</li>
-                <li><strong>📱 Atualizar Agenda:</strong> <span className="text-green-600 font-medium">OTIMIZADO!</span> Carrega contatos em memória (sem salvar no banco) - economiza recursos!</li>
-              </ul>
-              <p className="text-xs text-blue-600 mt-2">
-                💡 <strong>Agenda Live:</strong> Os contatos da agenda ficam em cache por 30 minutos. Use "Atualizar Agenda" para recarregar.
-                Não impacta Egress nem Disk IO do Supabase pois os dados ficam apenas em memória!
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Status WhatsApp */}
+      {/* Status WhatsApp não conectado */}
       {!whatsappStatus?.isConnected && (
         <Card className="mb-6 bg-yellow-50 border-yellow-200">
           <CardContent className="pt-4">

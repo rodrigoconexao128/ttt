@@ -236,6 +236,7 @@ import {
   type AdminMedia,
 } from "./adminMediaStore";
 import { processAdminMessage } from "./adminAgentService";
+import { forceCleanup as forceMediaCleanup, getStorageStats } from "./mediaCleanupService";
 import { z } from "zod";
 
 // Helper to get userId from authenticated request
@@ -3178,7 +3179,77 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         generatedPrompt = generateLocalPrompt(businessType, businessName, description, additionalInfo, businessTypeLabel);
       }
 
-      res.json({ prompt: generatedPrompt });
+      // 🎯 AUTO-CALIBRAÇÃO NA CRIAÇÃO DO AGENTE
+      // Testar o prompt gerado com IA Cliente vs IA Agente antes de ativar
+      console.log(`\n🎯 [Generate Prompt] ════════════════════════════════════════`);
+      console.log(`🎯 [Generate Prompt] Iniciando auto-calibração do prompt criado...`);
+      console.log(`🎯 [Generate Prompt] Negócio: ${businessName} (${businessTypeLabel})`);
+      console.log(`🎯 [Generate Prompt] Prompt length: ${generatedPrompt.length} chars`);
+      
+      let calibrationResult: any = null;
+      let finalPrompt = generatedPrompt;
+      
+      try {
+        const { calibrarPromptEditado } = await import("./promptCalibrationService");
+        
+        // Usar MESMA configuração que a EDIÇÃO de prompts
+        // IA Cliente vs IA Agente - Calibração robusta
+        const contextoNegocio = description || `Negócio: ${businessName}. Tipo: ${businessTypeLabel}`;
+        const instrucaoCalibracao = `Criar agente de atendimento para: ${contextoNegocio}`;
+        
+        console.log(`🎯 [Generate Prompt] Executando calibração IA Cliente vs IA Agente...`);
+        console.log(`🎯 [Generate Prompt] Instrução: ${instrucaoCalibracao.substring(0, 100)}...`);
+        
+        // CHAMADA CORRETA - Mesmos parâmetros que a EDIÇÃO
+        calibrationResult = await calibrarPromptEditado(
+          generatedPrompt,
+          instrucaoCalibracao,
+          mistralApiKey || "",  // apiKey obrigatória
+          "mistral",            // modelo igual à edição
+          {
+            numeroCenarios: 2,        // Igual à edição
+            maxTentativasReparo: 2,   // Igual à edição
+            scoreMinimoAprovacao: 60  // Igual à edição
+          }
+        );
+        
+        console.log(`🎯 [Generate Prompt] ════════════════════════════════════════`);
+        console.log(`🎯 [Generate Prompt] RESULTADO CALIBRAÇÃO:`);
+        console.log(`   ✅ Sucesso: ${calibrationResult.sucesso}`);
+        console.log(`   📊 Score geral: ${calibrationResult.scoreGeral}/100`);
+        console.log(`   🎯 Cenários: ${calibrationResult.cenariosAprovados}/${calibrationResult.cenariosTotais} aprovados`);
+        console.log(`   🔧 Tentativas de reparo: ${calibrationResult.tentativasReparo}`);
+        console.log(`   ⏱️ Tempo: ${calibrationResult.tempoMs}ms`);
+        console.log(`🎯 [Generate Prompt] ════════════════════════════════════════`);
+        
+        if (calibrationResult.sucesso && calibrationResult.promptFinal) {
+          finalPrompt = calibrationResult.promptFinal;
+          console.log(`🎯 [Generate Prompt] ✅ Prompt CALIBRADO com sucesso! Usando versão otimizada.`);
+        } else {
+          console.log(`🎯 [Generate Prompt] ⚠️ Calibração não atingiu score mínimo (60%), usando prompt original`);
+        }
+      } catch (calibrationError) {
+        console.error(`🎯 [Generate Prompt] ❌ Erro na calibração:`, calibrationError);
+        // Continua com prompt original se calibração falhar
+      }
+      
+      console.log(`🎯 [Generate Prompt] ════════════════════════════════════════\n`);
+
+      res.json({ 
+        prompt: finalPrompt,
+        calibration: calibrationResult ? {
+          calibrated: true,
+          approved: calibrationResult.sucesso,       // CORRIGIDO: era "aprovado"
+          score: calibrationResult.scoreGeral,       // CORRIGIDO: era "scoreMedio"
+          repairs: calibrationResult.tentativasReparo,
+          scenarios: calibrationResult.cenariosTotais,
+          scenariosApproved: calibrationResult.cenariosAprovados,
+          timeMs: calibrationResult.tempoMs
+        } : {
+          calibrated: false,
+          reason: 'Calibração não executada'
+        }
+      });
     } catch (error) {
       console.error("Error generating prompt:", error);
       res.status(500).json({ message: "Failed to generate prompt" });
@@ -4986,6 +5057,141 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // ==================== PLAN LINK SYSTEM ====================
+  // Get plan by link slug (public) - used for plan-specific landing
+  app.get("/api/plans/by-slug/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const allPlans = await storage.getAllPlans();
+      const plan = allPlans.find(p => (p as any).linkSlug === slug && p.ativo);
+      
+      if (!plan) {
+        return res.status(404).json({ plan: null, message: "Plano não encontrado" });
+      }
+      
+      res.json({
+        plan: {
+          id: plan.id,
+          nome: plan.nome,
+          descricao: plan.descricao,
+          valor: plan.valor,
+          valorOriginal: (plan as any).valorOriginal,
+          valorPrimeiraCobranca: (plan as any).valorPrimeiraCobranca,
+          periodicidade: plan.periodicidade,
+          tipo: plan.tipo,
+          caracteristicas: plan.caracteristicas,
+          linkSlug: (plan as any).linkSlug,
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching plan by slug:", error);
+      res.status(500).json({ plan: null, message: "Erro ao buscar plano" });
+    }
+  });
+
+  // Store plan assignment in session before signup
+  app.post("/api/plans/assign-by-link", async (req: any, res) => {
+    try {
+      const { slug, planId } = req.body;
+      
+      let targetPlanId = planId;
+      
+      // If slug is provided, find the plan by slug
+      if (slug && !planId) {
+        const allPlans = await storage.getAllPlans();
+        const plan = allPlans.find(p => (p as any).linkSlug === slug && p.ativo);
+        if (plan) {
+          targetPlanId = plan.id;
+        }
+      }
+      
+      if (!targetPlanId) {
+        return res.status(400).json({ message: "Plano não encontrado" });
+      }
+      
+      // Validate plan exists
+      const plan = await storage.getPlan(targetPlanId);
+      if (!plan || !plan.ativo) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      
+      // Store in session
+      req.session.assignedPlanId = targetPlanId;
+      res.json({ success: true, planId: targetPlanId });
+    } catch (error) {
+      console.error("Error assigning plan:", error);
+      res.status(500).json({ message: "Erro ao atribuir plano" });
+    }
+  });
+
+  // Get assigned plan from session (for signup flow)
+  app.get("/api/plans/assigned", async (req: any, res) => {
+    try {
+      const assignedPlanId = req.session?.assignedPlanId;
+      if (!assignedPlanId) {
+        return res.json({ assigned: false });
+      }
+      
+      const plan = await storage.getPlan(assignedPlanId);
+      if (!plan || !plan.ativo) {
+        return res.json({ assigned: false });
+      }
+      
+      res.json({
+        assigned: true,
+        plan: {
+          id: plan.id,
+          nome: plan.nome,
+          descricao: plan.descricao,
+          valor: plan.valor,
+          valorOriginal: (plan as any).valorOriginal,
+          valorPrimeiraCobranca: (plan as any).valorPrimeiraCobranca,
+          periodicidade: plan.periodicidade,
+          tipo: plan.tipo,
+          caracteristicas: plan.caracteristicas,
+        }
+      });
+    } catch (error) {
+      console.error("Error getting assigned plan:", error);
+      res.status(500).json({ message: "Erro ao buscar plano atribuído" });
+    }
+  });
+
+  // Get user's assigned plan (for logged in users)
+  app.get("/api/user/assigned-plan", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      
+      if (!user || !(user as any).assignedPlanId) {
+        return res.json({ hasAssignedPlan: false });
+      }
+      
+      const plan = await storage.getPlan((user as any).assignedPlanId);
+      if (!plan || !plan.ativo) {
+        return res.json({ hasAssignedPlan: false });
+      }
+      
+      res.json({
+        hasAssignedPlan: true,
+        plan: {
+          id: plan.id,
+          nome: plan.nome,
+          descricao: plan.descricao,
+          valor: plan.valor,
+          valorOriginal: (plan as any).valorOriginal,
+          valorPrimeiraCobranca: (plan as any).valorPrimeiraCobranca,
+          periodicidade: plan.periodicidade,
+          tipo: plan.tipo,
+          caracteristicas: plan.caracteristicas,
+        }
+      });
+    } catch (error) {
+      console.error("Error getting user assigned plan:", error);
+      res.status(500).json({ message: "Erro ao buscar plano do usuário" });
+    }
+  });
+
   // ==================== SUBSCRIPTIONS ROUTES ====================
   // Get current user subscription
   app.get("/api/subscriptions/current", isAuthenticated, async (req: any, res) => {
@@ -5613,6 +5819,35 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     } catch (error) {
       console.error("Error updating config:", error);
       res.status(500).json({ message: "Failed to update config" });
+    }
+  });
+
+  // ==================== STORAGE CLEANUP ROUTES ====================
+  
+  // Get storage statistics (admin only)
+  app.get("/api/admin/storage/stats", isAdmin, async (_req, res) => {
+    try {
+      const stats = await getStorageStats();
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Error fetching storage stats:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Force cleanup of old media (admin only)
+  app.post("/api/admin/storage/cleanup", isAdmin, async (_req, res) => {
+    try {
+      console.log(`🗑️ [ADMIN] Limpeza de mídia forçada solicitada`);
+      const result = await forceMediaCleanup();
+      res.json({
+        success: true,
+        message: `Limpeza concluída: ${result.deletedFiles} arquivos deletados`,
+        ...result,
+      });
+    } catch (error: any) {
+      console.error("Error during storage cleanup:", error);
+      res.status(500).json({ message: error.message });
     }
   });
 
@@ -9099,22 +9334,34 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
   // ===== AGENDA LIVE - CONTATOS EM MEMÓRIA (SEM BANCO DE DADOS) =====
   // Retorna contatos da agenda que estão em cache na memória
   // Não acessa banco de dados, economiza Egress e Disk IO do Supabase
-  // Cache expira em 30 minutos - ideal para envio em massa sob demanda
+  // Cache expira em 2 HORAS - ideal para envio em massa sob demanda
   app.get("/api/contacts/agenda-live", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const { getAgendaContacts } = await import("./whatsapp");
+      const { getAgendaContacts, syncAgendaFromSessionCache, getSession } = await import("./whatsapp");
       
       // Buscar do cache em memória
-      const cached = getAgendaContacts(userId);
+      let cached = getAgendaContacts(userId);
+      
+      // Se não tem cache, tentar popular do cache da sessão
+      if (!cached) {
+        const session = getSession(userId);
+        if (session) {
+          const syncResult = syncAgendaFromSessionCache(userId);
+          if (syncResult.count > 0) {
+            // Recarregar cache após popular
+            cached = getAgendaContacts(userId);
+          }
+        }
+      }
       
       if (!cached) {
-        // Não tem cache - informar que precisa conectar ou aguardar sync
+        // Não tem cache e não tem sessão
         return res.json({
           status: 'not_synced',
           contacts: [],
           total: 0,
-          message: '📱 Conecte seu WhatsApp para sincronizar a agenda. Os contatos aparecerão automaticamente após a conexão.',
+          message: '📱 Clique em "Sincronizar Agenda" para carregar seus contatos do WhatsApp.',
         });
       }
       
@@ -9161,11 +9408,11 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
-  // Forçar ressincronização da agenda (reconecta o WhatsApp para atualizar cache)
+  // Forçar ressincronização da agenda (busca do cache da sessão ou aguarda evento)
   app.post("/api/contacts/agenda-live/refresh", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      const { markAgendaSyncing, getSession } = await import("./whatsapp");
+      const { syncAgendaFromSessionCache, getSession } = await import("./whatsapp");
       
       // Verificar se tem sessão ativa
       const session = getSession(userId);
@@ -9176,17 +9423,15 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         });
       }
       
-      // Marcar como sincronizando
-      markAgendaSyncing(userId);
+      // Tentar popular do cache da sessão
+      const result = syncAgendaFromSessionCache(userId);
       
-      console.log(`📱 [AGENDA REFRESH] Usuário ${userId} solicitou atualização da agenda`);
+      console.log(`📱 [AGENDA REFRESH] Usuário ${userId}: ${result.message}`);
       
-      // Informar que a sincronização acontecerá automaticamente quando o WhatsApp reconectar
-      // ou enviar evento contacts.upsert
       res.json({
-        success: true,
-        message: '🔄 Solicitação de sincronização enviada. Os contatos serão atualizados em alguns segundos.',
-        tip: 'A agenda é carregada automaticamente quando o WhatsApp conecta. Se os contatos não aparecerem, tente reconectar.',
+        success: result.success,
+        count: result.count,
+        message: result.message,
       });
     } catch (error) {
       console.error("Error refreshing agenda:", error);

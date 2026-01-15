@@ -7,6 +7,7 @@
   downloadMediaMessage,
   jidNormalizedUser,
   jidDecode,
+  makeCacheableSignalKeyStore,
 } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
 import pino from "pino";
@@ -23,9 +24,135 @@ import { messageQueueService, applyMessageVariation } from "./messageQueueServic
 import { db } from "./db";
 import { conversations } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { uploadMediaToStorage } from "./mediaStorageService";
 
 // ═══════════════════════════════════════════════════════════════════════
-// 🛡️ SAFE MODE: Proteção Anti-Bloqueio para Clientes
+// 🔄 SISTEMA DE CACHE DE MENSAGENS PARA RETRY (FIX "AGUARDANDO MENSAGEM")
+// ═══════════════════════════════════════════════════════════════════════
+// O WhatsApp mostra "Aguardando para carregar mensagem" quando:
+// 1. A mensagem falhou na decriptação
+// 2. O Baileys precisa reenviar a mensagem mas não tem o conteúdo original
+// 
+// SOLUÇÃO: Armazenar mensagens enviadas em cache para que o Baileys possa
+// recuperá-las via getMessage() quando precisar fazer retry.
+// 
+// Cache TTL: 24 horas (mensagens mais antigas são removidas automaticamente)
+// ═══════════════════════════════════════════════════════════════════════
+interface CachedMessage {
+  message: proto.IMessage;
+  timestamp: number;
+}
+
+// Cache global de mensagens por userId
+const messageCache = new Map<string, Map<string, CachedMessage>>();
+
+// TTL do cache: 24 horas
+const MESSAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// Função para obter o cache de um usuário específico
+function getUserMessageCache(userId: string): Map<string, CachedMessage> {
+  let cache = messageCache.get(userId);
+  if (!cache) {
+    cache = new Map<string, CachedMessage>();
+    messageCache.set(userId, cache);
+  }
+  return cache;
+}
+
+// Função para armazenar mensagem no cache
+function cacheMessage(userId: string, messageId: string, message: proto.IMessage): void {
+  const cache = getUserMessageCache(userId);
+  cache.set(messageId, {
+    message,
+    timestamp: Date.now(),
+  });
+  console.log(`📦 [MSG CACHE] Armazenada mensagem ${messageId} para user ${userId.substring(0, 8)}... (cache size: ${cache.size})`);
+}
+
+// Função para recuperar mensagem do cache
+function getCachedMessage(userId: string, messageId: string): proto.IMessage | undefined {
+  const cache = getUserMessageCache(userId);
+  const cached = cache.get(messageId);
+  
+  if (!cached) {
+    console.log(`⚠️ [MSG CACHE] Mensagem ${messageId} NÃO encontrada no cache para user ${userId.substring(0, 8)}...`);
+    return undefined;
+  }
+  
+  // Verificar se expirou
+  if (Date.now() - cached.timestamp > MESSAGE_CACHE_TTL_MS) {
+    cache.delete(messageId);
+    console.log(`⏰ [MSG CACHE] Mensagem ${messageId} expirada e removida do cache`);
+    return undefined;
+  }
+  
+  console.log(`✅ [MSG CACHE] Mensagem ${messageId} recuperada do cache para retry`);
+  return cached.message;
+}
+
+// Limpar mensagens expiradas do cache periodicamente (a cada 30 minutos)
+setInterval(() => {
+  const now = Date.now();
+  let totalCleaned = 0;
+  
+  for (const [userId, cache] of messageCache.entries()) {
+    for (const [msgId, cached] of cache.entries()) {
+      if (now - cached.timestamp > MESSAGE_CACHE_TTL_MS) {
+        cache.delete(msgId);
+        totalCleaned++;
+      }
+    }
+    // Remover caches vazios
+    if (cache.size === 0) {
+      messageCache.delete(userId);
+    }
+  }
+  
+  if (totalCleaned > 0) {
+    console.log(`🧹 [MSG CACHE] Limpeza periódica: ${totalCleaned} mensagens expiradas removidas`);
+  }
+}, 30 * 60 * 1000);
+
+// ═══════════════════════════════════════════════════════════════════════
+// � UPLOAD DE MÍDIA PARA STORAGE (Economia de Egress)
+// ═══════════════════════════════════════════════════════════════════════
+// Em vez de salvar base64 no banco (que consome muito egress),
+// fazemos upload para o Supabase Storage (usa cached egress via CDN).
+// 
+// Economia estimada: ~90% de redução no egress de mídia
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Faz upload de mídia para Storage ou cria URL base64 como fallback
+ * @param buffer Buffer da mídia
+ * @param mimeType Tipo MIME (ex: image/jpeg, audio/ogg)
+ * @param userId ID do usuário
+ * @param conversationId ID da conversa (opcional)
+ * @returns URL do storage ou data URL base64
+ */
+async function uploadMediaOrFallback(
+  buffer: Buffer,
+  mimeType: string,
+  userId: string,
+  conversationId?: string
+): Promise<string> {
+  try {
+    const result = await uploadMediaToStorage(buffer, mimeType, userId, conversationId);
+    if (result) {
+      console.log(`📤 [STORAGE] Mídia enviada para Storage: ${result.url.substring(0, 80)}...`);
+      return result.url;
+    }
+  } catch (error) {
+    console.error(`❌ [STORAGE] Erro ao enviar para Storage, usando base64:`, error);
+  }
+  
+  // Fallback: base64 se upload falhar
+  console.log(`⚠️ [STORAGE] Usando fallback base64 (${buffer.length} bytes)`);
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// �🛡️ SAFE MODE: Proteção Anti-Bloqueio para Clientes
 // ═══════════════════════════════════════════════════════════════════════
 // Esta funcionalidade é ativada pelo admin quando um cliente tomou bloqueio
 // do WhatsApp e está reconectando. Ao reconectar com Safe Mode ativo:
@@ -248,9 +375,11 @@ interface AgendaCacheEntry {
   error?: string;
 }
 
-// Cache global de contatos da agenda (expira em 30 minutos)
+// Cache global de contatos da agenda (expira em 2 HORAS)
+// Não deixa o site lento - é apenas um Map em memória
+// Impacto: ~1KB por 1000 contatos (muito leve)
 const agendaContactsCache = new Map<string, AgendaCacheEntry>();
-const AGENDA_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos
+const AGENDA_CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 HORAS (antes era 30 min)
 
 // Exportar função para obter contatos da agenda do cache
 export function getAgendaContacts(userId: string): AgendaCacheEntry | undefined {
@@ -274,7 +403,7 @@ function saveAgendaToCache(userId: string, contacts: AgendaContact[]): void {
     expiresAt: new Date(now.getTime() + AGENDA_CACHE_TTL_MS),
     status: 'ready',
   });
-  console.log(`📱 [AGENDA CACHE] Salvou ${contacts.length} contatos para user ${userId} (expira em 30min)`);
+  console.log(`📱 [AGENDA CACHE] Salvou ${contacts.length} contatos para user ${userId} (expira em 2 HORAS)`);
 }
 
 // Função para marcar sync como iniciado
@@ -296,6 +425,111 @@ export function markAgendaError(userId: string, error: string): void {
     status: 'error',
     error,
   });
+}
+
+// ===== NOVA: Função para popular agenda do cache da sessão =====
+// Chamada quando usuário clica em "Sincronizar Agenda" e não tem cache
+// Busca contatos do contactsCache da sessão (já carregados do WhatsApp)
+export function syncAgendaFromSessionCache(userId: string): { success: boolean; count: number; message: string } {
+  const session = sessions.get(userId);
+  
+  if (!session) {
+    return {
+      success: false,
+      count: 0,
+      message: '❌ WhatsApp não está conectado. Conecte primeiro para sincronizar a agenda.',
+    };
+  }
+  
+  if (!session.contactsCache || session.contactsCache.size === 0) {
+    // Cache vazio - salvar com 0 contatos e status ready
+    // Isso evita ficar eternamente em 'syncing'
+    saveAgendaToCache(userId, []);
+    console.log(`📱 [AGENDA SYNC] Cache da sessão está vazio - salvou cache com 0 contatos`);
+    return {
+      success: true,
+      count: 0,
+      message: '📱 Nenhum contato encontrado no momento. Os contatos serão carregados automaticamente quando chegarem do WhatsApp.',
+    };
+  }
+  
+  console.log(`📱 [AGENDA SYNC DEBUG] session.contactsCache tem ${session.contactsCache.size} entradas`);
+  
+  // Converter contactsCache para AgendaContact[]
+  const agendaContacts: AgendaContact[] = [];
+  const seenPhones = new Set<string>();
+  let skippedCount = 0;
+  
+  session.contactsCache.forEach((contact, key) => {
+    // Extrair phoneNumber do contact ou do key
+    let phoneNumber = contact.phoneNumber || null;
+    
+    // Se não tem phoneNumber, tentar extrair do contact.id
+    if (!phoneNumber && contact.id) {
+      // Tentar formato: 5511999887766@s.whatsapp.net
+      const match1 = contact.id.match(/^(\d{8,15})@s\.whatsapp\.net$/);
+      if (match1) {
+        phoneNumber = match1[1];
+      } else {
+        // Tentar formato genérico: números@qualquercoisa
+        const match2 = contact.id.match(/^(\d+)@/);
+        if (match2 && match2[1].length >= 8) {
+          phoneNumber = match2[1];
+        }
+      }
+    }
+    
+    // Se ainda não tem, tentar extrair da key do Map
+    if (!phoneNumber && key) {
+      const match1 = key.match(/^(\d{8,15})@s\.whatsapp\.net$/);
+      if (match1) {
+        phoneNumber = match1[1];
+      } else {
+        const match2 = key.match(/^(\d+)@/);
+        if (match2 && match2[1].length >= 8) {
+          phoneNumber = match2[1];
+        }
+      }
+    }
+    
+    // Evitar duplicatas e validar número
+    if (phoneNumber && phoneNumber.length >= 8 && !seenPhones.has(phoneNumber)) {
+      seenPhones.add(phoneNumber);
+      agendaContacts.push({
+        id: contact.id || key,
+        phoneNumber: phoneNumber,
+        name: contact.name || '',
+        lid: contact.lid,
+      });
+    } else {
+      skippedCount++;
+      if (skippedCount <= 5) {
+        console.log(`📱 [AGENDA SYNC DEBUG] Pulou contato - id: ${contact.id}, key: ${key}, phoneNumber: ${contact.phoneNumber}, name: ${contact.name}`);
+      }
+    }
+  });
+  
+  console.log(`📱 [AGENDA SYNC DEBUG] Processou ${agendaContacts.length} contatos, pulou ${skippedCount}`);
+  
+  // SEMPRE salvar no cache, mesmo que vazio - isso evita ficar preso em 'syncing'
+  saveAgendaToCache(userId, agendaContacts);
+  
+  if (agendaContacts.length > 0) {
+    console.log(`📱 [AGENDA SYNC] Populou cache com ${agendaContacts.length} contatos da sessão`);
+    return {
+      success: true,
+      count: agendaContacts.length,
+      message: `✅ ${agendaContacts.length} contatos carregados da agenda!`,
+    };
+  }
+  
+  // Se processou mas não encontrou nenhum, retornar ready com 0 contatos
+  console.log(`📱 [AGENDA SYNC] Nenhum contato encontrado no cache da sessão (size: ${session.contactsCache.size})`);
+  return {
+    success: true,
+    count: 0,
+    message: '📱 Nenhum contato encontrado. Os contatos serão carregados automaticamente quando chegarem do WhatsApp.',
+  };
 }
 
 // 🚫 MODO DESENVOLVIMENTO: Desabilita processamento de mensagens em localhost
@@ -386,7 +620,7 @@ const pendingAdminResponses = new Map<string, PendingAdminResponse>(); // key: c
 const checkedConversationsThisSession = new Set<string>();
 
 // ═══════════════════════════════════════════════════════════════════════
-// �️ SISTEMA ANTI-BLOQUEIO - Registro do Callback de Envio Real
+// 🔄 SISTEMA ANTI-BLOQUEIO - Registro do Callback de Envio Real
 // ═══════════════════════════════════════════════════════════════════════
 // Esta função é chamada pelo messageQueueService para enviar mensagens reais
 // O callback permite que a fila controle o timing entre mensagens
@@ -405,6 +639,19 @@ async function internalSendMessageRaw(
   
   if (sentMessage?.key.id) {
     agentMessageIds.add(sentMessage.key.id);
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔄 CACHEAR MENSAGEM PARA getMessage() - FIX "AGUARDANDO MENSAGEM"
+    // ═══════════════════════════════════════════════════════════════════════
+    // Armazenar mensagem no cache para que Baileys possa recuperar
+    // em caso de falha na decriptação e necessidade de retry
+    if (sentMessage.message) {
+      cacheMessage(userId, sentMessage.key.id, sentMessage.message);
+    } else {
+      // Se por algum motivo sentMessage.message estiver undefined, criar uma estrutura simples
+      cacheMessage(userId, sentMessage.key.id, { conversation: text });
+    }
+    
     console.log(`🛡️ [ANTI-BLOCK] ✅ Mensagem enviada - ID: ${sentMessage.key.id}`);
   }
 
@@ -1605,12 +1852,48 @@ export async function connectWhatsApp(userId: string): Promise<void> {
 
     console.log(`[CONNECT] Creating WASocket for ${userId}...`);
     const sock = makeWASocket({
-      auth: state,
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
+      },
       logger: pino({ level: "silent" }),
       printQRInTerminal: false,
       // FIX 2025: Habilitar sync completo de contatos e histórico
       // Isso faz o Baileys emitir TODOS os contatos do WhatsApp via contacts.upsert
       syncFullHistory: true,
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🔄 FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE)
+      // ═══════════════════════════════════════════════════════════════════════
+      // Esta função é chamada pelo Baileys quando precisa reenviar uma mensagem
+      // que falhou na decriptação. Sem ela, o WhatsApp mostra "Aguardando..."
+      // 
+      // Ref: https://github.com/WhiskeySockets/Baileys/issues/1767
+      // ═══════════════════════════════════════════════════════════════════════
+      getMessage: async (key) => {
+        if (!key.id) return undefined;
+        
+        console.log(`🔄 [getMessage] Baileys solicitou mensagem ${key.id} para retry`);
+        
+        // Tentar recuperar do cache em memória
+        const cached = getCachedMessage(userId, key.id);
+        if (cached) {
+          return cached;
+        }
+        
+        // Fallback: tentar buscar do banco de dados
+        try {
+          const dbMessage = await storage.getMessageByMessageId(key.id);
+          if (dbMessage && dbMessage.text) {
+            console.log(`📦 [getMessage] Mensagem ${key.id} recuperada do banco de dados`);
+            return { conversation: dbMessage.text };
+          }
+        } catch (err) {
+          console.error(`❌ [getMessage] Erro ao buscar mensagem do banco:`, err);
+        }
+        
+        console.log(`⚠️ [getMessage] Mensagem ${key.id} não encontrada em nenhum cache`);
+        return undefined;
+      },
     });
 
     const session: WhatsAppSession = {
@@ -1914,7 +2197,16 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       
       if (!message.message) return;
       
-      // � IMPORTANTE: Ignorar mensagens de sincronização/histórico
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🔄 CACHEAR TODAS AS MENSAGENS PARA getMessage() - FIX "AGUARDANDO MENSAGEM"
+      // ═══════════════════════════════════════════════════════════════════════
+      // Armazenar mensagem no cache assim que ela chegar, independente do tipo
+      // Isso permite que Baileys recupere a mensagem se precisar fazer retry
+      if (message.key.id && message.message) {
+        cacheMessage(userId, message.key.id, message.message);
+      }
+      
+      // 🚫 IMPORTANTE: Ignorar mensagens de sincronização/histórico
       // m.type === "notify" = mensagem NOVA (em tempo real)
       // m.type === "append" = sincronização de histórico (ao abrir conversa)
       // Só processar mensagens novas para evitar pausar IA ao entrar na conversa!
@@ -1923,7 +2215,7 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         return;
       }
       
-      // �🔄 NOVA LÓGICA: Capturar mensagens enviadas pelo próprio usuário (fromMe: true)
+      // 🔄 NOVA LÓGICA: Capturar mensagens enviadas pelo próprio usuário (fromMe: true)
       if (message.key.fromMe) {
         console.log(`📱 [FROM ME] Mensagem enviada pelo dono no WhatsApp detectada`);
         try {
@@ -2135,8 +2427,9 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
       console.log(`🎤 [FROM ME] mediaKey presente:`, !!msg.audioMessage.mediaKey);
       console.log(`🎤 [FROM ME] directPath presente:`, !!msg.audioMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`✅ [FROM ME] Áudio do dono baixado: ${buffer.length} bytes`);
+      // 📤 Upload para Storage em vez de base64 para economizar egress
+      mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, userId);
+      console.log(`✅ [FROM ME] Áudio do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
       console.error("❌ [FROM ME] Erro ao baixar áudio:", error?.message || error);
       mediaUrl = null;
@@ -2441,21 +2734,16 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     jidSuffix = "s.whatsapp.net";           // ✅ Suffix WhatsApp normal
     normalizedJid = realJid;                // ✅ Para enviar mensagens
     
-    // 💾 SALVAR NO DB: Mapeamento LID → número para cache persistente
-    // Isso garante que mesmo após restart, o número real será usado
-    try {
-      await storage.upsertContact({
-        connectionId: session.connectionId,
-        contactId: remoteJid,    // LID original (254635809968349@lid)
-        lid: remoteJid,          // Marcar como LID
-        phoneNumber: realJid,    // Número real (5517991956944@s.whatsapp.net)
-        name: waMessage.pushName || null,
-        imgUrl: null,
-      });
-      console.log(`💾 [DB] Mapeamento LID → phoneNumber salvo: ${remoteJid} → ${realJid}`);
-    } catch (error) {
-      console.error("❌ [DB] Erro ao salvar mapeamento LID:", error);
-    }
+    // 💾 SALVAR NO CACHE EM MEMÓRIA: Mapeamento LID → número
+    // NÃO salva mais no banco para economizar Egress/Disk IO
+    // O cache de sessão é suficiente para resolver @lid durante a sessão
+    session.contactsCache.set(remoteJid, {
+      id: remoteJid,
+      lid: remoteJid,
+      phoneNumber: realJid,
+      name: waMessage.pushName || undefined,
+    });
+    console.log(`💾 [CACHE] Mapeamento LID → phoneNumber salvo em memória: ${remoteJid} → ${realJid}`);
   } else {
     // Fallback: Contatos normais do WhatsApp (@s.whatsapp.net)
     const parsed = await parseRemoteJid(remoteJid, session.contactsCache, session.connectionId);
@@ -4612,9 +4900,29 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     }
 
     const socket = makeWASocket({
-      auth: state,
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
+      },
       printQRInTerminal: false,
       logger: pino({ level: "silent" }),
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🔄 FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE) - ADMIN
+      // ═══════════════════════════════════════════════════════════════════════
+      getMessage: async (key) => {
+        if (!key.id) return undefined;
+        
+        console.log(`🔄 [getMessage ADMIN] Baileys solicitou mensagem ${key.id} para retry`);
+        
+        // Tentar recuperar do cache em memória
+        const cached = getCachedMessage(`admin_${adminId}`, key.id);
+        if (cached) {
+          return cached;
+        }
+        
+        console.log(`⚠️ [getMessage ADMIN] Mensagem ${key.id} não encontrada no cache`);
+        return undefined;
+      },
     });
 
     adminSessions.set(adminId, {
@@ -4805,6 +5113,13 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       const message = m.messages[0];
       
       if (!message.message) return;
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🔄 CACHEAR MENSAGEM PARA getMessage() - FIX "AGUARDANDO MENSAGEM" ADMIN
+      // ═══════════════════════════════════════════════════════════════════════
+      if (message.key.id && message.message) {
+        cacheMessage(`admin_${adminId}`, message.key.id, message.message);
+      }
       
       // Ignorar mensagens enviadas pelo próprio admin (fromMe: true)
       if (message.key.fromMe) {
@@ -5531,9 +5846,40 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
     const { state, saveCreds } = await useMultiFileAuthState(userAuthPath);
     
     const sock = makeWASocket({
-      auth: state,
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
+      },
       printQRInTerminal: false,
       logger: pino({ level: "silent" }),
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🔄 FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE) - PAIRING
+      // ═══════════════════════════════════════════════════════════════════════
+      getMessage: async (key) => {
+        if (!key.id) return undefined;
+        
+        console.log(`🔄 [getMessage PAIRING] Baileys solicitou mensagem ${key.id} para retry`);
+        
+        // Tentar recuperar do cache em memória
+        const cached = getCachedMessage(userId, key.id);
+        if (cached) {
+          return cached;
+        }
+        
+        // Fallback: tentar buscar do banco de dados
+        try {
+          const dbMessage = await storage.getMessageByMessageId(key.id);
+          if (dbMessage && dbMessage.text) {
+            console.log(`📦 [getMessage PAIRING] Mensagem ${key.id} recuperada do banco de dados`);
+            return { conversation: dbMessage.text };
+          }
+        } catch (err) {
+          console.error(`❌ [getMessage PAIRING] Erro ao buscar mensagem do banco:`, err);
+        }
+        
+        console.log(`⚠️ [getMessage PAIRING] Mensagem ${key.id} não encontrada em nenhum cache`);
+        return undefined;
+      },
     });
     
     const contactsCache = new Map<string, Contact>();
@@ -5579,6 +5925,13 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
     sock.ev.on("messages.upsert", async (m) => {
       const message = m.messages[0];
       if (!message.message) return;
+      
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🔄 CACHEAR MENSAGEM PARA getMessage() - FIX "AGUARDANDO MENSAGEM" PAIRING
+      // ═══════════════════════════════════════════════════════════════════════
+      if (message.key.id && message.message) {
+        cacheMessage(userId, message.key.id, message.message);
+      }
       
       // 🚫 IMPORTANTE: Ignorar mensagens de sincronização/histórico
       // m.type === "notify" = mensagem NOVA (em tempo real)

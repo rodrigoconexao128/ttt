@@ -27,6 +27,8 @@ export const users = pgTable("users", {
   onboardingCompleted: boolean("onboarding_completed").default(false).notNull(),
   // Reseller reference - se este usuário é cliente de um revendedor
   resellerId: varchar("reseller_id"),
+  // Plano atribuído via link de cadastro - sempre mostra apenas este plano na página /plans
+  assignedPlanId: varchar("assigned_plan_id"),
   // Campos de suspensão por violação de políticas
   suspendedAt: timestamp("suspended_at"),
   suspensionReason: text("suspension_reason"),
@@ -503,6 +505,8 @@ export const plans = pgTable("plans", {
   isPersonalizado: boolean("is_personalizado").default(false), // Se é um plano personalizado
   frequenciaDias: integer("frequencia_dias").default(30), // Frequência de cobrança em dias
   trialDias: integer("trial_dias").default(0), // Dias de trial gratuito
+  // Link único para cadastro - quando cliente entra por este link, só vê este plano
+  linkSlug: varchar("link_slug", { length: 100 }).unique(), // Slug único para URL ex: plano-mensal-abc123
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

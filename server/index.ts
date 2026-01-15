@@ -7,6 +7,7 @@ import { followUpService } from "./followUpService";
 import { appointmentReminderService } from "./appointmentReminderService";
 import { startAutoReactivationService } from "./autoReactivateService";
 import { startDailySyncCron } from "./fullContactSyncService";
+import { startMediaCleanupService } from "./mediaCleanupService";
 import { seedDatabase } from "./seed";
 import path from "path";
 import fs from "fs";
@@ -191,5 +192,9 @@ app.use((req, res, next) => {
     // 📱 Iniciar Cron Job de Sincronização Diária de Contatos
     // Sincroniza TODOS os contatos de TODOS os clientes 1x por dia às 03:00 BRT
     startDailySyncCron();
+    
+    // 🗑️ Iniciar Serviço de Limpeza de Mídias
+    // Deleta mídias do Storage com mais de 1 hora para economizar Egress
+    startMediaCleanupService();
   });
 })();

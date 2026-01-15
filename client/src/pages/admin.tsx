@@ -1880,6 +1880,7 @@ function PlansManager({ plans }: { plans: Plan[] | undefined }) {
               <TableHead>Valor</TableHead>
               <TableHead>Periodicidade</TableHead>
               <TableHead>Código Personalizado</TableHead>
+              <TableHead>Link do Plano</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Ações</TableHead>
             </TableRow>
@@ -1924,6 +1925,30 @@ function PlansManager({ plans }: { plans: Plan[] | undefined }) {
                           toast({ title: "Código copiado!" });
                         }}
                         data-testid={`button-copy-code-${plan.id}`}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">-</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {(plan as any).linkSlug ? (
+                    <div className="flex items-center gap-2">
+                      <code className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded text-xs font-mono max-w-[150px] truncate">
+                        /p/{(plan as any).linkSlug}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => {
+                          const fullUrl = `${window.location.origin}/p/${(plan as any).linkSlug}`;
+                          navigator.clipboard.writeText(fullUrl);
+                          toast({ title: "Link copiado!", description: fullUrl });
+                        }}
+                        data-testid={`button-copy-link-${plan.id}`}
                       >
                         <Copy className="h-3 w-3" />
                       </Button>

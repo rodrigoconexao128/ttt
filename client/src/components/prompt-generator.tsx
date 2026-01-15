@@ -22,12 +22,30 @@ const SUGGESTIONS = [
   { label: "Clínica", text: "Clínica de Estética Bem Estar. Fazemos botox, limpeza de pele e massagem. O agente deve ser acolhedor e agendar avaliações." }
 ];
 
+const LOADING_MESSAGES = [
+  "Iniciando criação do seu avatar inteligente...",
+  "Definindo regras de negócio e comportamento...",
+  "Simulando atendimento com clientes virtuais...",
+  "Analisando métricas de satisfação e paciência...",
+  "Refinando respostas para maior naturalidade...",
+  "Validando conexão e estabilidade do sistema...",
+  "Finalizando calibração do seu agente...",
+  "Quase pronto! Ajustando últimos detalhes..."
+];
+
 export function PromptGenerator({ onPromptGenerated, onSkip }: PromptGeneratorProps) {
   const { toast } = useToast();
-  const [step, setStep] = useState<"input" | "generating" | "done">("input");
+  const [step, setStep] = useState<"input" | "generating" | "calibrating" | "done">("input");
   const [userInput, setUserInput] = useState("");
   const [generatedPrompt, setGeneratedPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const [calibrationInfo, setCalibrationInfo] = useState<{
+    calibrated: boolean;
+    approved?: boolean;
+    score?: number;
+    repairs?: number;
+  } | null>(null);
   
   // 🚀 UX OTIMIZADO: Auto-finaliza quando step="done" após delay curto
   // Isso elimina o botão "ATIVAR AGENTE AGORA" - menos fricção = mais conversão
@@ -39,6 +57,23 @@ export function PromptGenerator({ onPromptGenerated, onSkip }: PromptGeneratorPr
       return () => clearTimeout(timer);
     }
   }, [step, generatedPrompt, onPromptGenerated]);
+
+  // 🔄 Rotação de mensagens de loading para manter o usuário engajado
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (step === "generating") {
+      setLoadingMessageIndex(0); // Resetar ao iniciar
+      interval = setInterval(() => {
+        setLoadingMessageIndex((prev) => {
+          if (prev < LOADING_MESSAGES.length - 1) {
+            return prev + 1;
+          }
+          return prev; // Para na última mensagem
+        });
+      }, 4500); // 4.5 segundos - tempo ideal de leitura
+    }
+    return () => clearInterval(interval);
+  }, [step]);
 
   const handleGenerate = async () => {
     if (!userInput.trim() || userInput.length < 10) {
@@ -67,7 +102,19 @@ export function PromptGenerator({ onPromptGenerated, onSkip }: PromptGeneratorPr
       
       if (data.prompt) {
         setGeneratedPrompt(data.prompt);
-        setStep("done");
+        
+        // Mostra estado de calibração se houver
+        if (data.calibration) {
+          setCalibrationInfo(data.calibration);
+          if (data.calibration.calibrated && data.calibration.approved) {
+            setStep("calibrating"); // Mostra tela de calibração por 1.5s
+            setTimeout(() => setStep("done"), 1500);
+          } else {
+            setStep("done");
+          }
+        } else {
+          setStep("done");
+        }
       } else {
         throw new Error("Não foi possível criar as instruções");
       }
@@ -210,28 +257,75 @@ NÃO FAZER:
           </div>
         </div>
         
-        <div className="text-center space-y-3 max-w-md">
-          <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-600">
-            Criando seu funcionário digital...
+        <div className="text-center space-y-4 max-w-lg px-4">
+          <h3 className="text-2xl md:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-600 animate-pulse">
+            Criando seu Agente...
           </h3>
-          <p className="text-muted-foreground text-lg">
-            Analisando seu negócio e definindo a melhor estratégia de atendimento.
+          
+          <div className="h-20 flex items-center justify-center">
+            <p className="text-lg md:text-xl text-muted-foreground font-medium transition-all duration-500 animate-in fade-in slide-in-from-bottom-2 key={loadingMessageIndex}">
+              {LOADING_MESSAGES[loadingMessageIndex]}
+            </p>
+          </div>
+          
+          {/* Progress Indicator Dots */}
+          <div className="flex gap-2 justify-center mt-4">
+            {LOADING_MESSAGES.map((_, idx) => (
+              <div 
+                key={idx} 
+                className={`h-1.5 rounded-full transition-all duration-500 ${
+                  idx === loadingMessageIndex 
+                    ? "w-8 bg-primary" 
+                    : idx < loadingMessageIndex 
+                      ? "w-1.5 bg-primary/40" 
+                      : "w-1.5 bg-muted"
+                }`}
+              />
+            ))}
+          </div>
+
+          <p className="text-xs text-muted-foreground/50 mt-8">
+            Isso pode levar alguns segundos enquanto calibramos a IA para o seu negócio.
           </p>
           
-          <div className="flex flex-col gap-2 mt-6">
-            <div className="flex items-center gap-3 text-sm text-muted-foreground/80 bg-muted/30 px-4 py-2 rounded-full">
-              <CheckCircle2 className="w-4 h-4 text-green-500" />
-              Definindo personalidade
-            </div>
-            <div className="flex items-center gap-3 text-sm text-muted-foreground/80 bg-muted/30 px-4 py-2 rounded-full delay-150">
-              <CheckCircle2 className="w-4 h-4 text-green-500" />
-              Estruturando respostas
-            </div>
-            <div className="flex items-center gap-3 text-sm text-muted-foreground/80 bg-muted/30 px-4 py-2 rounded-full delay-300">
-              <CheckCircle2 className="w-4 h-4 text-green-500" />
-              Ajustando tom de voz
-            </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =================== STEP: CALIBRATING ===================
+  if (step === "calibrating") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] py-16 space-y-6 animate-in fade-in duration-500">
+        <div className="relative">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-2xl shadow-blue-500/30 animate-pulse">
+            <Zap className="w-10 h-10 text-white" />
           </div>
+          <div className="absolute -top-2 -right-2 bg-background rounded-full p-1 shadow-lg border border-border">
+            <CheckCircle2 className="w-5 h-5 text-green-500" />
+          </div>
+        </div>
+        
+        <div className="text-center space-y-2 max-w-md">
+          <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-cyan-600">
+            🎯 Calibração Aprovada!
+          </h3>
+          <p className="text-muted-foreground text-lg">
+            Testamos seu agente com clientes simulados
+          </p>
+          
+          {calibrationInfo && (
+            <div className="flex items-center justify-center gap-4 mt-4 text-sm">
+              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                Score: {calibrationInfo.score}/100
+              </Badge>
+              {calibrationInfo.repairs && calibrationInfo.repairs > 0 && (
+                <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30">
+                  {calibrationInfo.repairs} ajustes automáticos
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );

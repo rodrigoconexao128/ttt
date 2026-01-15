@@ -47,13 +47,14 @@ export function getSession() {
 }
 
 // Função para criar/atualizar usuário no banco de dados
-async function upsertUser(user: any, name?: string, phone?: string) {
+async function upsertUser(user: any, name?: string, phone?: string, assignedPlanId?: string) {
   await storage.upsertUser({
     id: user.id,
     email: user.email,
     name: name || user.user_metadata?.name || user.email?.split('@')[0] || '',
     phone: phone || user.user_metadata?.phone || '',
     profileImageUrl: user.user_metadata?.avatar_url || '',
+    assignedPlanId: assignedPlanId || undefined,
   });
 }
 
@@ -132,7 +133,7 @@ export async function setupAuth(app: Express) {
   });
 
   // Rota para registro de novo usuário
-  app.post("/api/auth/signup", async (req, res) => {
+  app.post("/api/auth/signup", async (req: any, res) => {
     try {
       const { email, password, name, phone } = req.body;
 
@@ -179,8 +180,14 @@ export async function setupAuth(app: Express) {
         return res.status(400).json({ message: "Falha ao criar usuário" });
       }
 
-      // Criar usuário no banco de dados
-      await upsertUser(data.user, name, formattedPhone);
+      // Pegar plano atribuído da sessão (se veio de um link de plano)
+      const assignedPlanId = req.session?.assignedPlanId;
+      if (assignedPlanId) {
+        console.log(`[SIGNUP] Usuário ${email} registrado via link de plano: ${assignedPlanId}`);
+      }
+
+      // Criar usuário no banco de dados com o plano atribuído
+      await upsertUser(data.user, name, formattedPhone, assignedPlanId);
 
       // Enviar mensagem de boas-vindas (não bloqueia o cadastro)
       try {

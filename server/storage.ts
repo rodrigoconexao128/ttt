@@ -553,14 +553,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Message operations - OTIMIZADO para reduzir egress do Supabase
-  // Por padrão NÃO retorna media_url que pode ser muito grande (base64)
+  // ⚡ CRÍTICO: NÃO retorna media_url para economizar egress massivamente!
+  // media_url pode ter 50KB-500KB de base64 por mensagem!
   async getMessagesByConversationId(conversationId: string): Promise<Message[]> {
     // Verificar cache primeiro
     const cacheKey = `messages:${conversationId}`;
     const cached = memoryCache.get<Message[]>(cacheKey);
     if (cached) return cached;
 
-    // Query completa incluindo media_url para renderizar mídias no chat
+    // ⚡ OTIMIZAÇÃO EGRESS: NÃO carregar media_url!
+    // Economia estimada: ~5GB de egress/mês
+    // Frontend deve usar getMessageMedia() para lazy loading de mídia
     const result = await db
       .select({
         id: messages.id,
@@ -572,7 +575,7 @@ export class DatabaseStorage implements IStorage {
         status: messages.status,
         isFromAgent: messages.isFromAgent,
         mediaType: messages.mediaType,
-        mediaUrl: messages.mediaUrl, // Incluir media_url para exibir mídias
+        // ❌ NÃO incluir mediaUrl aqui - usar getMessageMedia() quando necessário
         mediaMimeType: messages.mediaMimeType,
         mediaDuration: messages.mediaDuration,
         mediaCaption: messages.mediaCaption,
@@ -582,8 +585,8 @@ export class DatabaseStorage implements IStorage {
       .where(eq(messages.conversationId, conversationId))
       .orderBy(messages.timestamp);
 
-    // Cache por 30 segundos
-    memoryCache.set(cacheKey, result as Message[], 30000);
+    // Cache por 60 segundos (aumentado para reduzir queries)
+    memoryCache.set(cacheKey, result as Message[], 60000);
     return result as Message[];
   }
 
