@@ -654,57 +654,9 @@ export default function PlansPage() {
           )}
         </div>
 
-        {/* Seção de Plano Personalizado */}
-        <div className="max-w-sm mx-auto mb-8">
-          {customPlan?.valid && customPlan.plan ? (
-            /* Plano Personalizado Encontrado */
-            <div className="relative bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/40 dark:to-indigo-950/40 rounded-2xl p-4 border border-purple-200/60 dark:border-purple-700/40 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
-                    <Crown className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">Plano Exclusivo</p>
-                    <p className="font-bold text-gray-900 dark:text-white text-lg">{customPlan.plan.nome}</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={removeCustomPlan}
-                  className="text-xs text-gray-400 hover:text-red-500 transition-colors p-2"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="mt-3 pt-3 border-t border-purple-200/50 dark:border-purple-700/30">
-                {customPlan.plan.valorPrimeiraCobranca && (
-                  <div className="flex items-baseline justify-between mb-2">
-                    <span className="text-sm text-gray-500 dark:text-gray-400">1ª cobrança (implementação):</span>
-                    <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                      R$ {Number(customPlan.plan.valorPrimeiraCobranca).toFixed(2).replace('.', ',')}
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Mensalidade:</span>
-                  <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                    R$ {Number(customPlan.plan.valor).toFixed(2).replace('.', ',')}/mês
-                  </span>
-                </div>
-              </div>
-              <Button 
-                onClick={handleSelectCustomPlan}
-                disabled={createSubscriptionMutation.isPending}
-                className="w-full mt-4 h-12 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-medium shadow-sm"
-              >
-                {createSubscriptionMutation.isPending && selectedPlan === "personalizado" ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                Assinar Plano Exclusivo
-              </Button>
-            </div>
-          ) : (
-            /* Campo de Código Personalizado - Colapsável */
+        {/* Seção de Plano Personalizado ou Campo de Busca */}
+        {!customPlan?.valid && (
+          <div className="max-w-sm mx-auto mb-8">
             <details className="group">
               <summary className="cursor-pointer flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors py-2 select-none">
                 <Key className="w-4 h-4" />
@@ -735,11 +687,104 @@ export default function PlansPage() {
                 </div>
               </div>
             </details>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Mobile: Cards empilhados estilo Shopify */}
-        <div className="space-y-3 md:hidden mb-8">
+        {/* Plano Personalizado - Centralizado */}
+        {customPlan?.valid && customPlan.plan ? (
+          <div className="max-w-md mx-auto mb-12">
+            <Card className="relative flex flex-col border rounded-2xl transition-all duration-200 border-purple-200 dark:border-purple-800 hover:border-purple-400 dark:hover:border-purple-600 hover:shadow-md">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <Badge className="px-3 py-1 text-xs font-semibold rounded-full shadow-sm bg-purple-600 text-white">
+                  ✨ Personalizado para você
+                </Badge>
+              </div>
+              
+              <CardHeader className="pb-4 pt-8 px-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{customPlan.plan.nome}</h3>
+                  <button 
+                    onClick={removeCustomPlan}
+                    className="text-xs text-gray-400 hover:text-red-500 transition-colors p-2"
+                    title="Remover plano"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                {customPlan.plan.valorPrimeiraCobranca && (
+                  <div className="mb-2 p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">1ª cobrança (implementação)</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm text-gray-500 font-medium">R$</span>
+                      <span className="text-3xl font-bold text-purple-600 dark:text-purple-500 tracking-tight">
+                        {Number(customPlan.plan.valorPrimeiraCobranca).toFixed(2).replace('.', ',').split(',')[0]}
+                      </span>
+                      <span className="text-lg font-bold text-purple-600 dark:text-purple-500 tracking-tight">
+                        ,{Number(customPlan.plan.valorPrimeiraCobranca).toFixed(2).split('.')[1]}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm text-gray-500 font-medium">R$</span>
+                  <span className="text-5xl font-bold text-purple-600 dark:text-purple-500 tracking-tight">
+                    {Number(customPlan.plan.valor).toFixed(2).replace('.', ',').split(',')[0]}
+                  </span>
+                  <span className="text-2xl font-bold text-purple-600 dark:text-purple-500 tracking-tight">
+                    ,{Number(customPlan.plan.valor).toFixed(2).split('.')[1]}
+                  </span>
+                  <span className="text-gray-500 text-sm font-medium">/mês</span>
+                </div>
+                
+                <p className="text-sm text-purple-700 dark:text-purple-400 font-medium mt-3">
+                  Configurado especialmente para você
+                </p>
+              </CardHeader>
+
+              <CardContent className="flex-1 px-6 pb-4">
+                <ul className="space-y-4">
+                  {(customPlan.plan.features && Array.isArray(customPlan.plan.features) && customPlan.plan.features.length > 0
+                    ? customPlan.plan.features
+                    : [
+                        "IA atendendo 24/7",
+                        "Conversas ilimitadas",
+                        "1 agente IA personalizado",
+                        "Suporte via WhatsApp",
+                        "Atualizações gratuitas",
+                        "Cancele quando quiser"
+                      ]
+                  ).map((feature, i) => (
+                    <li key={i} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
+                      <div className="mt-0.5 p-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                        <Check className="w-3 h-3 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                      </div>
+                      <span className="font-medium">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+
+              <CardFooter className="px-6 pb-8 pt-2">
+                <Button
+                  className="w-full h-12 rounded-xl font-semibold text-base shadow-sm transition-all hover:scale-[1.02] bg-purple-600 hover:bg-purple-700 text-white"
+                  onClick={handleSelectCustomPlan}
+                  disabled={createSubscriptionMutation.isPending}
+                >
+                  {createSubscriptionMutation.isPending && selectedPlan === "personalizado" ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    "Assinar Plano Exclusivo"
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        ) : (
+          <>
+            {/* Mobile: Cards empilhados estilo Shopify */}
+            <div className="space-y-3 md:hidden mb-8">
           
           {/* PLANO MENSAL - Mobile Card */}
           <div 
@@ -1107,6 +1152,8 @@ export default function PlansPage() {
             </CardFooter>
           </Card>
         </div>
+          </>
+        )}
 
         {/* Garantias */}
         <div className="flex flex-col md:flex-row flex-wrap justify-center gap-3 md:gap-12 py-4 md:py-6 border-t border-b border-gray-200 dark:border-gray-800 mb-8 md:mb-12">
