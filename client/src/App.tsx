@@ -109,7 +109,7 @@ function Router() {
   );
 }
 
-function App() {
+function AppContent() {
   const { isAuthenticated } = useAuth();
 
   // Buscar assinatura atual do usuário
@@ -128,19 +128,25 @@ function App() {
   const isResellerClient = resellerPlan?.isResellerClient || false;
 
   return (
+    <TooltipProvider>
+      <Toaster />
+      <PromoBar 
+        hasActiveSubscription={hasActiveSubscription}
+        isResellerClient={isResellerClient}
+      />
+      <SubscriptionExpiringBanner />
+      <AccessBlocker>
+        <Router />
+      </AccessBlocker>
+      {isAuthenticated && <PlanButton />}
+    </TooltipProvider>
+  );
+}
+
+function App() {
+  return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <PromoBar 
-          hasActiveSubscription={hasActiveSubscription}
-          isResellerClient={isResellerClient}
-        />
-        <SubscriptionExpiringBanner />
-        <AccessBlocker>
-          <Router />
-        </AccessBlocker>
-        {isAuthenticated && <PlanButton />}
-      </TooltipProvider>
+      <AppContent />
     </QueryClientProvider>
   );
 }

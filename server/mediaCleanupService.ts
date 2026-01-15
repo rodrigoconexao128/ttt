@@ -110,10 +110,11 @@ export async function runCleanup(): Promise<CleanupStats> {
     const cutoffDate = new Date(Date.now() - MEDIA_TTL_MINUTES * 60 * 1000);
     console.log(`🗑️ [MEDIA CLEANUP] Deletando arquivos criados antes de: ${cutoffDate.toISOString()}`);
 
-    // Listar arquivos do bucket whatsapp-media
+    // 🔥 CRÍTICO: Listar arquivos dentro da pasta "whatsapp-media"
+    // Os arquivos estão em whatsapp-media/1768...ogg, não na raiz!
     const { data: files, error: listError } = await supabase.storage
       .from(BUCKET_NAME)
-      .list("", {
+      .list("whatsapp-media", { // ← CORRIGIDO: listar pasta whatsapp-media
         limit: 1000,
         sortBy: { column: "created_at", order: "asc" },
       });
@@ -147,8 +148,8 @@ export async function runCleanup(): Promise<CleanupStats> {
       return stats;
     }
 
-    // Deletar em lotes
-    const filePaths = oldFiles.map(f => f.name);
+    // 🔥 CRÍTICO: Adicionar prefixo "whatsapp-media/" ao caminho dos arquivos
+    const filePaths = oldFiles.map(f => `whatsapp-media/${f.name}`);
     
     for (let i = 0; i < filePaths.length; i += BATCH_SIZE) {
       const batch = filePaths.slice(i, i + BATCH_SIZE);
