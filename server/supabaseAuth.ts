@@ -135,7 +135,7 @@ export async function setupAuth(app: Express) {
   // Rota para registro de novo usuário
   app.post("/api/auth/signup", async (req: any, res) => {
     try {
-      const { email, password, name, phone } = req.body;
+      const { email, password, name, phone, planLinkSlug } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({ message: "Email e senha são obrigatórios" });
@@ -155,6 +155,20 @@ export async function setupAuth(app: Express) {
 
       if (!formattedPhone) {
         return res.status(400).json({ message: "Telefone inválido. Use formato: 11999999999 ou +5511999999999" });
+      }
+
+      // Se veio um planLinkSlug, buscar o plano correspondente
+      let assignedPlanIdFromSlug: string | undefined;
+      if (planLinkSlug) {
+        try {
+          const plan = await storage.getPlanBySlug(planLinkSlug);
+          if (plan) {
+            assignedPlanIdFromSlug = plan.id;
+            console.log(`[SIGNUP] Plano encontrado via slug ${planLinkSlug}: ${plan.nome} (${plan.id})`);
+          }
+        } catch (slugError) {
+          console.error("Erro ao buscar plano por slug:", slugError);
+        }
       }
 
       // Nota: Removida verificação de telefone duplicado - múltiplos usuários podem usar mesmo número
@@ -180,8 +194,8 @@ export async function setupAuth(app: Express) {
         return res.status(400).json({ message: "Falha ao criar usuário" });
       }
 
-      // Pegar plano atribuído da sessão (se veio de um link de plano)
-      const assignedPlanId = req.session?.assignedPlanId;
+      // Pegar plano atribuído: prioridade para slug do frontend, depois sessão
+      const assignedPlanId = assignedPlanIdFromSlug || req.session?.assignedPlanId;
       if (assignedPlanId) {
         console.log(`[SIGNUP] Usuário ${email} registrado via link de plano: ${assignedPlanId}`);
       }

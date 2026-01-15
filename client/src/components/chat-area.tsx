@@ -1080,7 +1080,22 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                       : "bg-gray-100"
                   }`}>
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">🖼️</span>
+                      {/* Botão de Play/Visualizar - clica para baixar e ver */}
+                      <button
+                        onClick={() => redownloadMediaMutation.mutate(message.messageId)}
+                        disabled={redownloadingMessageId === message.messageId}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                          message.fromMe 
+                            ? "bg-white/20 hover:bg-white/30" 
+                            : "bg-gray-200 hover:bg-gray-300"
+                        } ${redownloadingMessageId === message.messageId ? "animate-pulse" : ""}`}
+                      >
+                        {redownloadingMessageId === message.messageId ? (
+                          <Loader2 className={`h-5 w-5 animate-spin ${message.fromMe ? "text-white" : "text-gray-600"}`} />
+                        ) : (
+                          <span className="text-xl">🖼️</span>
+                        )}
+                      </button>
                       <div className="flex-1">
                         <p className={`text-sm font-medium ${
                           message.fromMe ? "text-white" : "text-gray-900"
@@ -1090,28 +1105,9 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                         <p className={`text-xs ${
                           message.fromMe ? "text-white/60" : "text-gray-500"
                         }`}>
-                          Mídia expirada
+                          Clique para baixar novamente
                         </p>
                       </div>
-                      {/* Botão de re-download - apenas se não for mensagem enviada (fromMe) */}
-                      {!message.fromMe && (
-                        <Button
-                          size="sm"
-                          variant={message.fromMe ? "secondary" : "outline"}
-                          onClick={() => redownloadMediaMutation.mutate(message.messageId)}
-                          disabled={redownloadingMessageId === message.messageId}
-                          className="text-xs"
-                        >
-                          {redownloadingMessageId === message.messageId ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              Baixando...
-                            </>
-                          ) : (
-                            "🔄 Baixar"
-                          )}
-                        </Button>
-                      )}
                     </div>
                     {/* Mostrar descrição da IA ou caption se disponível */}
                     {(message.text || message.mediaCaption) && (
@@ -1139,7 +1135,22 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                       : "bg-gray-100"
                   }`}>
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">📄</span>
+                      {/* Botão de Download - clica para baixar */}
+                      <button
+                        onClick={() => redownloadMediaMutation.mutate(message.messageId)}
+                        disabled={redownloadingMessageId === message.messageId}
+                        className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all ${
+                          message.fromMe 
+                            ? "bg-white/20 hover:bg-white/30" 
+                            : "bg-gray-200 hover:bg-gray-300"
+                        } ${redownloadingMessageId === message.messageId ? "animate-pulse" : ""}`}
+                      >
+                        {redownloadingMessageId === message.messageId ? (
+                          <Loader2 className={`h-5 w-5 animate-spin ${message.fromMe ? "text-white" : "text-gray-600"}`} />
+                        ) : (
+                          <span className="text-xl">📄</span>
+                        )}
+                      </button>
                       <div className="flex-1">
                         <p className={`text-sm font-medium ${
                           message.fromMe ? "text-white" : "text-gray-900"
@@ -1149,28 +1160,9 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                         <p className={`text-xs ${
                           message.fromMe ? "text-white/60" : "text-gray-500"
                         }`}>
-                          {message.mediaMimeType?.split('/').pop()?.toUpperCase() || "DOC"} • Mídia expirada
+                          {message.mediaMimeType?.split('/').pop()?.toUpperCase() || "DOC"} • Clique para baixar
                         </p>
                       </div>
-                      {/* Botão de re-download - apenas se não for mensagem enviada */}
-                      {!message.fromMe && (
-                        <Button
-                          size="sm"
-                          variant={message.fromMe ? "secondary" : "outline"}
-                          onClick={() => redownloadMediaMutation.mutate(message.messageId)}
-                          disabled={redownloadingMessageId === message.messageId}
-                          className="text-xs"
-                        >
-                          {redownloadingMessageId === message.messageId ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              Baixando...
-                            </>
-                          ) : (
-                            "🔄 Baixar"
-                          )}
-                        </Button>
-                      )}
                     </div>
                     {/* Mostrar caption se disponível */}
                     {message.mediaCaption && (
@@ -1198,7 +1190,22 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                       : "bg-gray-100"
                   }`}>
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">🎥</span>
+                      {/* Botão de Play - clica para baixar e ver */}
+                      <button
+                        onClick={() => redownloadMediaMutation.mutate(message.messageId)}
+                        disabled={redownloadingMessageId === message.messageId}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                          message.fromMe 
+                            ? "bg-white/20 hover:bg-white/30" 
+                            : "bg-gray-200 hover:bg-gray-300"
+                        } ${redownloadingMessageId === message.messageId ? "animate-pulse" : ""}`}
+                      >
+                        {redownloadingMessageId === message.messageId ? (
+                          <Loader2 className={`h-5 w-5 animate-spin ${message.fromMe ? "text-white" : "text-gray-600"}`} />
+                        ) : (
+                          <span className="text-xl">▶️</span>
+                        )}
+                      </button>
                       <div className="flex-1">
                         <p className={`text-sm font-medium ${
                           message.fromMe ? "text-white" : "text-gray-900"
@@ -1210,28 +1217,9 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                         }`}>
                           {message.mediaDuration 
                             ? `${Math.floor(message.mediaDuration / 60)}:${(message.mediaDuration % 60).toString().padStart(2, '0')} • ` 
-                            : ""}Mídia expirada
+                            : ""}Clique ▶️ para baixar
                         </p>
                       </div>
-                      {/* Botão de re-download - apenas se não for mensagem enviada */}
-                      {!message.fromMe && (
-                        <Button
-                          size="sm"
-                          variant={message.fromMe ? "secondary" : "outline"}
-                          onClick={() => redownloadMediaMutation.mutate(message.messageId)}
-                          disabled={redownloadingMessageId === message.messageId}
-                          className="text-xs"
-                        >
-                          {redownloadingMessageId === message.messageId ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              Baixando...
-                            </>
-                          ) : (
-                            "🔄 Baixar"
-                          )}
-                        </Button>
-                      )}
                     </div>
                     {/* Mostrar legenda ou texto se disponível */}
                     {(message.mediaCaption || message.text) && (
@@ -1252,14 +1240,29 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                     )}
                   </div>
                 ) : message.mediaType === "audio" && !message.mediaUrl ? (
-                  /* Áudio sem URL - mostrar placeholder COM transcrição se disponível */
+                  /* Áudio sem URL - mostrar placeholder COM transcrição e botão de play */
                   <div className={`space-y-2 p-3 rounded-lg ${
                     message.fromMe 
                       ? "bg-white/10" 
                       : "bg-gray-100"
                   }`}>
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">🎤</span>
+                      {/* Botão de Play - clica para baixar e ouvir */}
+                      <button
+                        onClick={() => redownloadMediaMutation.mutate(message.messageId)}
+                        disabled={redownloadingMessageId === message.messageId}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                          message.fromMe 
+                            ? "bg-white/20 hover:bg-white/30" 
+                            : "bg-gray-200 hover:bg-gray-300"
+                        } ${redownloadingMessageId === message.messageId ? "animate-pulse" : ""}`}
+                      >
+                        {redownloadingMessageId === message.messageId ? (
+                          <Loader2 className={`h-5 w-5 animate-spin ${message.fromMe ? "text-white" : "text-gray-600"}`} />
+                        ) : (
+                          <span className="text-xl">▶️</span>
+                        )}
+                      </button>
                       <div className="flex-1">
                         <p className={`text-sm font-medium ${
                           message.fromMe ? "text-white" : "text-gray-900"
@@ -1270,29 +1273,10 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                           message.fromMe ? "text-white/60" : "text-gray-500"
                         }`}>
                           {message.mediaDuration 
-                            ? `${Math.floor(message.mediaDuration / 60)}:${(message.mediaDuration % 60).toString().padStart(2, '0')}` 
-                            : "Mídia expirada"}
+                            ? `${Math.floor(message.mediaDuration / 60)}:${(message.mediaDuration % 60).toString().padStart(2, '0')} • ` 
+                            : ""}Clique ▶️ para baixar
                         </p>
                       </div>
-                      {/* Botão de re-download - apenas se não for mensagem enviada */}
-                      {!message.fromMe && (
-                        <Button
-                          size="sm"
-                          variant={message.fromMe ? "secondary" : "outline"}
-                          onClick={() => redownloadMediaMutation.mutate(message.messageId)}
-                          disabled={redownloadingMessageId === message.messageId}
-                          className="text-xs"
-                        >
-                          {redownloadingMessageId === message.messageId ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              Baixando...
-                            </>
-                          ) : (
-                            "🔄 Baixar"
-                          )}
-                        </Button>
-                      )}
                     </div>
                     {/* Mostrar transcrição do áudio se disponível */}
                     {message.text && !message.text.startsWith('[Áudio') && !message.text.startsWith('🎵') && !message.text.startsWith('🎤') && (

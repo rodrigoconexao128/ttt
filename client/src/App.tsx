@@ -22,6 +22,7 @@ import ResellerDashboard from "@/pages/reseller";
 import TermsOfServicePage from "@/pages/terms-of-service";
 import PlanLinkPage from "@/pages/plan-link";
 import { AccessBlocker, SubscriptionExpiringBanner } from "@/components/access-blocker";
+import { PromoBar } from "@/components/promo-bar";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
 
@@ -110,6 +111,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
+        <PromoBar />
         <SubscriptionExpiringBanner />
         <AccessBlocker>
           <Router />

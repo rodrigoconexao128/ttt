@@ -2329,6 +2329,12 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   let mediaType: string | null = null;
   let mediaUrl: string | null = null;
   let mediaMimeType: string | null = null;
+  
+  // 🔑 METADADOS PARA RE-DOWNLOAD DE MÍDIA (igual handleIncomingMessage)
+  // Esses campos permitem baixar a mídia novamente do WhatsApp
+  let mediaKey: string | null = null;
+  let directPath: string | null = null;
+  let mediaUrlOriginal: string | null = null;
 
   if (msg?.conversation) {
     messageText = msg.conversation;
@@ -2352,144 +2358,208 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     messageText = msg.imageMessage.caption;
     mediaType = "image";
     mediaMimeType = msg.imageMessage.mimetype || "image/jpeg";
-    // ??? IMAGEM DO DONO: Baixar para exibir no chat
+    
+    // 🔑 Extrair metadados para re-download posterior
+    if (msg.imageMessage.mediaKey) {
+      mediaKey = Buffer.from(msg.imageMessage.mediaKey).toString("base64");
+    }
+    directPath = msg.imageMessage.directPath || null;
+    mediaUrlOriginal = msg.imageMessage.url || null;
+    
+    // 🖼️ IMAGEM DO DONO: Baixar para exibir no chat
     try {
-      console.log(`??? [FROM ME] Baixando imagem do dono com caption...`);
-      console.log(`??? [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
-      console.log(`??? [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
+      console.log(`🖼️ [FROM ME] Baixando imagem do dono com caption...`);
+      console.log(`🖼️ [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
+      console.log(`🖼️ [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`? [FROM ME] Imagem do dono baixada: ${buffer.length} bytes`);
+      console.log(`✅ [FROM ME] Imagem do dono baixada: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("? [FROM ME] Erro ao baixar imagem:", error?.message || error);
+      console.error("❌ [FROM ME] Erro ao baixar imagem:", error?.message || error);
       mediaUrl = null;
     }
   } else if (msg?.imageMessage) {
     messageText = "[Imagem enviada]";
     mediaType = "image";
     mediaMimeType = msg.imageMessage.mimetype || "image/jpeg";
-    // ??? IMAGEM DO DONO: Baixar para exibir no chat
+    
+    // 🔑 Extrair metadados para re-download posterior
+    if (msg.imageMessage.mediaKey) {
+      mediaKey = Buffer.from(msg.imageMessage.mediaKey).toString("base64");
+    }
+    directPath = msg.imageMessage.directPath || null;
+    mediaUrlOriginal = msg.imageMessage.url || null;
+    
+    // 🖼️ IMAGEM DO DONO: Baixar para exibir no chat
     try {
-      console.log(`??? [FROM ME] Baixando imagem do dono sem caption...`);
-      console.log(`??? [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
-      console.log(`??? [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
+      console.log(`🖼️ [FROM ME] Baixando imagem do dono sem caption...`);
+      console.log(`🖼️ [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
+      console.log(`🖼️ [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`? [FROM ME] Imagem do dono baixada: ${buffer.length} bytes`);
+      console.log(`✅ [FROM ME] Imagem do dono baixada: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("? [FROM ME] Erro ao baixar imagem:", error?.message || error);
+      console.error("❌ [FROM ME] Erro ao baixar imagem:", error?.message || error);
       mediaUrl = null;
     }
   } else if (msg?.videoMessage?.caption) {
     messageText = msg.videoMessage.caption;
     mediaType = "video";
     mediaMimeType = msg.videoMessage.mimetype || "video/mp4";
-    // ?? V�DEO DO DONO: Baixar para exibir no chat
+    
+    // 🔑 Extrair metadados para re-download posterior
+    if (msg.videoMessage.mediaKey) {
+      mediaKey = Buffer.from(msg.videoMessage.mediaKey).toString("base64");
+    }
+    directPath = msg.videoMessage.directPath || null;
+    mediaUrlOriginal = msg.videoMessage.url || null;
+    
+    // 🎬 VÍDEO DO DONO: Baixar para exibir no chat
     try {
-      console.log(`?? [FROM ME] Baixando v�deo do dono com caption...`);
-      console.log(`?? [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
-      console.log(`?? [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
-      console.log(`?? [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
+      console.log(`🎬 [FROM ME] Baixando vídeo do dono com caption...`);
+      console.log(`🎬 [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
+      console.log(`🎬 [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
+      console.log(`🎬 [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`? [FROM ME] V�deo do dono baixado: ${buffer.length} bytes`);
+      console.log(`✅ [FROM ME] Vídeo do dono baixado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("? [FROM ME] Erro ao baixar v�deo:", error?.message || error);
-      console.error("? [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      console.error("❌ [FROM ME] Erro ao baixar vídeo:", error?.message || error);
+      console.error("❌ [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
       mediaUrl = null;
     }
   } else if (msg?.videoMessage) {
-    messageText = "[V�deo enviado]";
+    messageText = "[Vídeo enviado]";
     mediaType = "video";
     mediaMimeType = msg.videoMessage.mimetype || "video/mp4";
-    // ?? V�DEO DO DONO: Baixar para exibir no chat
+    
+    // 🔑 Extrair metadados para re-download posterior
+    if (msg.videoMessage.mediaKey) {
+      mediaKey = Buffer.from(msg.videoMessage.mediaKey).toString("base64");
+    }
+    directPath = msg.videoMessage.directPath || null;
+    mediaUrlOriginal = msg.videoMessage.url || null;
+    
+    // 🎬 VÍDEO DO DONO: Baixar para exibir no chat
     try {
-      console.log(`?? [FROM ME] Baixando v�deo do dono sem caption...`);
-      console.log(`?? [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
-      console.log(`?? [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
-      console.log(`?? [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
+      console.log(`🎬 [FROM ME] Baixando vídeo do dono sem caption...`);
+      console.log(`🎬 [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
+      console.log(`🎬 [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
+      console.log(`🎬 [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`? [FROM ME] V�deo do dono baixado: ${buffer.length} bytes`);
+      console.log(`✅ [FROM ME] Vídeo do dono baixado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("? [FROM ME] Erro ao baixar v�deo:", error?.message || error);
-      console.error("? [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      console.error("❌ [FROM ME] Erro ao baixar vídeo:", error?.message || error);
+      console.error("❌ [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
       mediaUrl = null;
     }
   } else if (msg?.audioMessage) {
-    // ?? �UDIO DO DONO: Baixar e preparar para transcri��o (igual cliente)
+    // 🎵 ÁUDIO DO DONO: Baixar e preparar para transcrição (igual cliente)
     mediaType = "audio";
     mediaMimeType = msg.audioMessage.mimetype || "audio/ogg; codecs=opus";
-    messageText = "[�udio enviado]"; // Texto placeholder, ser� substitu�do pela transcri��o
+    messageText = "[Áudio enviado]"; // Texto placeholder, será substituído pela transcrição
+    
+    // 🔑 Extrair metadados para re-download posterior
+    if (msg.audioMessage.mediaKey) {
+      mediaKey = Buffer.from(msg.audioMessage.mediaKey).toString("base64");
+    }
+    directPath = msg.audioMessage.directPath || null;
+    mediaUrlOriginal = msg.audioMessage.url || null;
     
     try {
-      console.log(`?? [FROM ME] Baixando �udio do dono para transcri��o...`);
-      console.log(`?? [FROM ME] mediaKey presente:`, !!msg.audioMessage.mediaKey);
-      console.log(`?? [FROM ME] directPath presente:`, !!msg.audioMessage.directPath);
+      console.log(`🎵 [FROM ME] Baixando áudio do dono para transcrição...`);
+      console.log(`🎵 [FROM ME] mediaKey presente:`, !!msg.audioMessage.mediaKey);
+      console.log(`🎵 [FROM ME] directPath presente:`, !!msg.audioMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      // ?? Upload para Storage em vez de base64 para economizar egress
-      mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, userId);
-      console.log(`? [FROM ME] �udio do dono processado: ${buffer.length} bytes`);
+      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      // ✅ FIX: Usar session.userId em vez de userId (que não existe neste escopo)
+      mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
+      console.log(`✅ [FROM ME] Áudio do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
       console.error("? [FROM ME] Erro ao baixar �udio:", error?.message || error);
       mediaUrl = null;
     }
   }
   // -----------------------------------------------------------------------
-  // ?? DOCUMENTO COM LEGENDA (documentWithCaptionMessage) - FROM ME
+  // 📄 DOCUMENTO COM LEGENDA (documentWithCaptionMessage) - FROM ME
   // -----------------------------------------------------------------------
   else if (msg?.documentWithCaptionMessage?.message?.documentMessage) {
     const docMsg = msg.documentWithCaptionMessage.message.documentMessage;
-    messageText = docMsg.caption || `?? ${docMsg.fileName || "Documento"}`;
+    messageText = docMsg.caption || `📄 ${docMsg.fileName || "Documento"}`;
     mediaType = "document";
     mediaMimeType = docMsg.mimetype || "application/octet-stream";
-    // ?? DOCUMENTO DO DONO (COM CAPTION): Baixar para exibir/download no chat
+    
+    // 🔑 Extrair metadados para re-download posterior
+    if (docMsg.mediaKey) {
+      mediaKey = Buffer.from(docMsg.mediaKey).toString("base64");
+    }
+    directPath = docMsg.directPath || null;
+    mediaUrlOriginal = docMsg.url || null;
+    
+    // 📄 DOCUMENTO DO DONO (COM CAPTION): Baixar para exibir/download no chat
     try {
-      console.log(`?? [FROM ME] Baixando documento do dono (com caption): ${docMsg.fileName}...`);
-      console.log(`?? [FROM ME] mediaKey presente:`, !!docMsg.mediaKey);
-      console.log(`?? [FROM ME] directPath presente:`, !!docMsg.directPath);
+      console.log(`📄 [FROM ME] Baixando documento do dono (com caption): ${docMsg.fileName}...`);
+      console.log(`📄 [FROM ME] mediaKey presente:`, !!docMsg.mediaKey);
+      console.log(`📄 [FROM ME] directPath presente:`, !!docMsg.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`? [FROM ME] Documento do dono (com caption) baixado: ${buffer.length} bytes`);
+      console.log(`✅ [FROM ME] Documento do dono (com caption) baixado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("? [FROM ME] Erro ao baixar documento (com caption):", error?.message || error);
+      console.error("❌ [FROM ME] Erro ao baixar documento (com caption):", error?.message || error);
       mediaUrl = null;
     }
   } else if (msg?.documentMessage?.caption) {
     messageText = msg.documentMessage.caption;
     mediaType = "document";
     mediaMimeType = msg.documentMessage.mimetype || "application/octet-stream";
-    // ?? DOCUMENTO DO DONO: Baixar para exibir/download no chat
+    
+    // 🔑 Extrair metadados para re-download posterior
+    if (msg.documentMessage.mediaKey) {
+      mediaKey = Buffer.from(msg.documentMessage.mediaKey).toString("base64");
+    }
+    directPath = msg.documentMessage.directPath || null;
+    mediaUrlOriginal = msg.documentMessage.url || null;
+    
+    // 📄 DOCUMENTO DO DONO: Baixar para exibir/download no chat
     try {
-      console.log(`?? [FROM ME] Baixando documento do dono com caption: ${msg.documentMessage.fileName}...`);
-      console.log(`?? [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
-      console.log(`?? [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
+      console.log(`📄 [FROM ME] Baixando documento do dono com caption: ${msg.documentMessage.fileName}...`);
+      console.log(`📄 [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
+      console.log(`📄 [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      messageText = `?? ${msg.documentMessage.fileName || "Documento"}`;
-      console.log(`? [FROM ME] Documento do dono baixado: ${buffer.length} bytes`);
+      messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
+      console.log(`✅ [FROM ME] Documento do dono baixado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("? [FROM ME] Erro ao baixar documento:", error?.message || error);
+      console.error("❌ [FROM ME] Erro ao baixar documento:", error?.message || error);
       mediaUrl = null;
     }
   } else if (msg?.documentMessage) {
-    messageText = `?? ${msg.documentMessage.fileName || "Documento"}`;
+    messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
     mediaType = "document";
     mediaMimeType = msg.documentMessage.mimetype || "application/octet-stream";
-    // ?? DOCUMENTO DO DONO: Baixar para exibir/download no chat
+    
+    // 🔑 Extrair metadados para re-download posterior
+    if (msg.documentMessage.mediaKey) {
+      mediaKey = Buffer.from(msg.documentMessage.mediaKey).toString("base64");
+    }
+    directPath = msg.documentMessage.directPath || null;
+    mediaUrlOriginal = msg.documentMessage.url || null;
+    
+    // 📄 DOCUMENTO DO DONO: Baixar para exibir/download no chat
     try {
-      console.log(`?? [FROM ME] Baixando documento do dono: ${msg.documentMessage.fileName}...`);
-      console.log(`?? [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
-      console.log(`?? [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
+      console.log(`📄 [FROM ME] Baixando documento do dono: ${msg.documentMessage.fileName}...`);
+      console.log(`📄 [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
+      console.log(`📄 [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`? [FROM ME] Documento do dono baixado: ${buffer.length} bytes`);
+      console.log(`✅ [FROM ME] Documento do dono baixado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("? [FROM ME] Erro ao baixar documento:", error?.message || error);
+      console.error("❌ [FROM ME] Erro ao baixar documento:", error?.message || error);
       mediaUrl = null;
     }
   } else {
-    console.log(`?? [FROM ME] Unsupported message type, skipping`);
+    console.log(`📭 [FROM ME] Unsupported message type, skipping`);
     return;
   }
 
@@ -2553,8 +2623,12 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
       timestamp: new Date(Number(waMessage.messageTimestamp) * 1000),
       isFromAgent: false,
       mediaType,
-      mediaUrl,        // ?? Incluir URL do �udio para transcri��o autom�tica
-      mediaMimeType,   // ?? Tipo MIME do �udio
+      mediaUrl,        // 🎵 Incluir URL do áudio para transcrição automática
+      mediaMimeType,   // 🎵 Tipo MIME do áudio
+      // 🔑 Metadados para re-download de mídia do WhatsApp (igual handleIncomingMessage)
+      mediaKey,
+      directPath,
+      mediaUrlOriginal,
     });
   } catch (createError: any) {
     // Se erro for de duplicata (constraint unique), verificar se � do agente

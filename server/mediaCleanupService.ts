@@ -21,12 +21,13 @@
 import { supabase } from "./supabaseAuth";
 import { db } from "./db";
 import { messages } from "@shared/schema";
-import { isNotNull, and, lt, like, or, eq } from "drizzle-orm";
+import { isNotNull, and, lt, like, or, eq, isNull } from "drizzle-orm";
+import { transcribeAudioWithMistral } from "./mistralClient";
 
 // Configuração
 const BUCKET_NAME = "whatsapp-media";
-const CLEANUP_INTERVAL_MS = 30 * 60 * 1000; // Rodar a cada 30 minutos
-const MEDIA_TTL_HOURS = 1; // Tempo de vida das mídias (1 hora)
+const CLEANUP_INTERVAL_MS = 15 * 60 * 1000; // Rodar a cada 15 minutos
+const MEDIA_TTL_MINUTES = 30; // Tempo de vida das mídias (30 minutos)
 const BATCH_SIZE = 100; // Quantos arquivos deletar por lote
 
 interface CleanupStats {
@@ -53,7 +54,7 @@ export function startMediaCleanupService(): void {
   console.log(`\n🗑️ ═══════════════════════════════════════════════════════════════`);
   console.log(`🗑️ [MEDIA CLEANUP] Iniciando serviço de limpeza automática`);
   console.log(`🗑️ [MEDIA CLEANUP] Intervalo: ${CLEANUP_INTERVAL_MS / 60000} minutos`);
-  console.log(`🗑️ [MEDIA CLEANUP] TTL das mídias: ${MEDIA_TTL_HOURS} hora(s)`);
+  console.log(`🗑️ [MEDIA CLEANUP] TTL das mídias: ${MEDIA_TTL_MINUTES} minutos`);
   console.log(`🗑️ ═══════════════════════════════════════════════════════════════\n`);
 
   // Executar primeira limpeza após 5 minutos (dar tempo do servidor estabilizar)
@@ -101,8 +102,11 @@ export async function runCleanup(): Promise<CleanupStats> {
   };
 
   try {
-    // Calcular cutoff (arquivos mais antigos que X horas)
-    const cutoffDate = new Date(Date.now() - MEDIA_TTL_HOURS * 60 * 60 * 1000);
+    // 🎤 CRÍTICO: Transcrever áudios pendentes ANTES de deletar arquivos
+    await transcribePendingAudios();
+    
+    // Calcular cutoff (arquivos mais antigos que X minutos)
+    const cutoffDate = new Date(Date.now() - MEDIA_TTL_MINUTES * 60 * 1000);
     console.log(`🗑️ [MEDIA CLEANUP] Deletando arquivos criados antes de: ${cutoffDate.toISOString()}`);
 
     // Listar arquivos do bucket whatsapp-media
@@ -135,7 +139,7 @@ export async function runCleanup(): Promise<CleanupStats> {
       return fileDate < cutoffDate;
     });
 
-    console.log(`🎯 [MEDIA CLEANUP] ${oldFiles.length} arquivos com mais de ${MEDIA_TTL_HOURS}h`);
+    console.log(`🎯 [MEDIA CLEANUP] ${oldFiles.length} arquivos com mais de ${MEDIA_TTL_MINUTES} minutos`);
 
     if (oldFiles.length === 0) {
       console.log(`✅ [MEDIA CLEANUP] Todos os arquivos são recentes, nada para limpar`);
@@ -328,7 +332,7 @@ export async function getStorageStats(): Promise<{
       return { totalFiles: 0, totalSize: "0 B", oldFiles: 0, oldSize: "0 B" };
     }
 
-    const cutoffDate = new Date(Date.now() - MEDIA_TTL_HOURS * 60 * 60 * 1000);
+    const cutoffDate = new Date(Date.now() - MEDIA_TTL_MINUTES * 60 * 1000);
     
     let totalSize = 0;
     let oldSize = 0;
@@ -365,4 +369,106 @@ function formatBytes(bytes: number): string {
   const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+/**
+ * 🎤 TRANSCRIÇÃO PREVENTIVA: Transcreve áudios que ainda não foram transcritos
+ * ANTES de expirar a mídia.
+ * 
+ * Isso garante que:
+ * 1. Áudios do CLIENTE são transcritos antes de deletar
+ * 2. Áudios do DONO (fromMe=true) também são transcritos
+ * 3. A transcrição fica salva mesmo depois da mídia expirar
+ */
+async function transcribePendingAudios(): Promise<void> {
+  try {
+    const cutoffDate = new Date(Date.now() - MEDIA_TTL_MINUTES * 60 * 1000);
+    
+    // Buscar áudios que:
+    // 1. Tem mediaUrl (ainda não expirou)
+    // 2. Não tem transcrição (text é emoji ou vazio)
+    // 3. São mais antigos que cutoff (vão ser deletados em breve)
+    const pendingAudios = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.mediaType, "audio"),
+          isNotNull(messages.mediaUrl),
+          // Mensagens que vão expirar em breve
+          lt(messages.createdAt, new Date(Date.now() - (MEDIA_TTL_MINUTES - 5) * 60 * 1000))
+        )
+      )
+      .limit(20); // Processar no máximo 20 por vez para não sobrecarregar
+
+    if (pendingAudios.length === 0) {
+      return;
+    }
+
+    console.log(`🎤 [MEDIA CLEANUP] ${pendingAudios.length} áudios pendentes de transcrição antes de expirar`);
+
+    for (const audio of pendingAudios) {
+      // Verificar se já tem transcrição real (não emoji)
+      const hasRealTranscription = audio.text && 
+        !audio.text.startsWith('🎵') && 
+        !audio.text.startsWith('🎤') &&
+        !audio.text.startsWith('[Áudio') &&
+        audio.text.length > 20; // Transcrições reais tem mais de 20 chars
+
+      if (hasRealTranscription) {
+        continue; // Já transcrito
+      }
+
+      if (!audio.mediaUrl) {
+        continue; // Sem URL
+      }
+
+      try {
+        console.log(`🎤 [MEDIA CLEANUP] Transcrevendo áudio ${audio.id} antes de expirar...`);
+        
+        let audioBuffer: Buffer | null = null;
+
+        // Baixar áudio da URL
+        if (audio.mediaUrl.startsWith("data:")) {
+          const base64Part = audio.mediaUrl.split(",")[1];
+          if (base64Part) {
+            audioBuffer = Buffer.from(base64Part, "base64");
+          }
+        } else if (audio.mediaUrl.startsWith("http")) {
+          const response = await fetch(audio.mediaUrl);
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            audioBuffer = Buffer.from(arrayBuffer);
+          }
+        }
+
+        if (!audioBuffer || audioBuffer.length === 0) {
+          console.log(`⚠️ [MEDIA CLEANUP] Não foi possível baixar áudio ${audio.id}`);
+          continue;
+        }
+
+        // Transcrever com Mistral
+        const transcription = await transcribeAudioWithMistral(audioBuffer, {
+          fileName: "whatsapp-audio.ogg",
+        });
+
+        if (transcription && transcription.length > 0) {
+          // Atualizar texto da mensagem com transcrição
+          await db
+            .update(messages)
+            .set({ text: transcription })
+            .where(eq(messages.id, audio.id));
+          
+          console.log(`✅ [MEDIA CLEANUP] Áudio ${audio.id} transcrito: "${transcription.substring(0, 50)}..."`);
+        }
+
+        // Delay entre transcrições para não sobrecarregar API
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+      } catch (error) {
+        console.error(`❌ [MEDIA CLEANUP] Erro ao transcrever áudio ${audio.id}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error(`❌ [MEDIA CLEANUP] Erro ao buscar áudios pendentes:`, error);
+  }
 }

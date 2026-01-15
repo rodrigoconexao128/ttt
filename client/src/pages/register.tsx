@@ -37,10 +37,19 @@ export default function Register() {
     setIsLoading(true);
 
     try {
+      // Captura o slug do plano salvo no sessionStorage (se veio de link /p/:slug)
+      const planLinkSlug = sessionStorage.getItem("plan_link_slug");
+      
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name, phone }),
+        body: JSON.stringify({ 
+          email, 
+          password, 
+          name, 
+          phone,
+          planLinkSlug // Envia o slug para associar ao plano
+        }),
       });
 
       const data = await response.json();
@@ -53,6 +62,9 @@ export default function Register() {
         });
         return;
       }
+
+      // Limpa o slug após usar
+      sessionStorage.removeItem("plan_link_slug");
 
       toast({
         title: "Conta criada com sucesso!",

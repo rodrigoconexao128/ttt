@@ -249,6 +249,7 @@ export interface IStorage {
   getAllPlans(): Promise<Plan[]>;
   getActivePlans(): Promise<Plan[]>;
   getPlan(id: string): Promise<Plan | undefined>;
+  getPlanBySlug(slug: string): Promise<Plan | undefined>;
   createPlan(plan: InsertPlan): Promise<Plan>;
   updatePlan(id: string, data: Partial<InsertPlan>): Promise<Plan>;
   deletePlan(id: string): Promise<void>;
@@ -1079,6 +1080,37 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
   async getPlan(id: string): Promise<Plan | undefined> {
     const [plan] = await db.select().from(plans).where(eq(plans.id, id));
     return plan;
+  }
+
+  async getPlanBySlug(slug: string): Promise<Plan | undefined> {
+    try {
+      const [plan] = await db.select().from(plans).where(eq(plans.linkSlug, slug));
+      return plan;
+    } catch (error) {
+      console.error("Error in getPlanBySlug:", error);
+      // Fallback to raw query
+      const { pool } = await import("./db");
+      const result = await pool.query(
+        "SELECT * FROM plans WHERE link_slug = $1",
+        [slug]
+      );
+      if (result.rows.length === 0) return undefined;
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        nome: row.nome,
+        valor: row.valor,
+        tipo: row.tipo,
+        features: row.features,
+        ativo: row.ativo,
+        ordem: row.ordem,
+        codigoPersonalizado: row.codigo_personalizado,
+        valorPrimeiraCobranca: row.valor_primeira_cobranca,
+        linkSlug: row.link_slug,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      } as Plan;
+    }
   }
 
   async createPlan(planData: InsertPlan): Promise<Plan> {
