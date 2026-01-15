@@ -87,7 +87,8 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages", conversationId],
     enabled: !!conversationId,
-    refetchInterval: 2000, // Poll every 2 seconds
+    refetchInterval: 30000, // Fallback polling - WebSocket é primário (economia de egress)
+    staleTime: 5000, // Considera dados frescos por 5s
   });
 
   const { data: agentConfig } = useQuery<AiAgentConfig | null>({

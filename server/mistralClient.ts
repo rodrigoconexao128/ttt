@@ -222,6 +222,171 @@ export async function analyzeImageForAdmin(
   }
 }
 
+// ==================== MEDIA CLASSIFICATION WITH AI ====================
+
+/**
+ * 🎯 CLASSIFICAÇÃO DE MÍDIA COM IA
+ * 
+ * Esta função usa uma chamada de IA DEDICADA para analisar:
+ * 1. A mensagem atual do cliente
+ * 2. O histórico recente da conversa
+ * 3. A biblioteca de mídias disponíveis (com descrições whenToUse)
+ * 
+ * E decide de forma INTELIGENTE se deve enviar mídia e qual.
+ * 
+ * FUNCIONA PARA QUALQUER CONTA - independente de keywords hardcoded!
+ */
+
+interface MediaClassificationInput {
+  clientMessage: string;
+  conversationHistory: Array<{ text?: string | null; fromMe?: boolean }>;
+  mediaLibrary: Array<{ 
+    name: string; 
+    type: string; 
+    whenToUse: string | null;
+    isActive?: boolean;
+  }>;
+  sentMedias?: string[];
+}
+
+interface MediaClassificationResult {
+  shouldSend: boolean;
+  mediaName: string | null;
+  confidence: number; // 0-100
+  reason: string;
+}
+
+export async function classifyMediaWithAI(
+  input: MediaClassificationInput
+): Promise<MediaClassificationResult> {
+  const startTime = Date.now();
+  
+  try {
+    console.log(`\n🤖 [MEDIA AI] ════════════════════════════════════════════════`);
+    console.log(`🤖 [MEDIA AI] Iniciando classificação de mídia com IA...`);
+    
+    const { clientMessage, conversationHistory, mediaLibrary, sentMedias = [] } = input;
+    
+    // Filtrar mídias já enviadas e inativas
+    const availableMedia = mediaLibrary.filter(m => {
+      const alreadySent = sentMedias.some(sent => sent.toUpperCase() === m.name.toUpperCase());
+      return !alreadySent && m.isActive !== false;
+    });
+    
+    if (availableMedia.length === 0) {
+      console.log(`🤖 [MEDIA AI] ❌ Nenhuma mídia disponível`);
+      return { shouldSend: false, mediaName: null, confidence: 0, reason: 'Nenhuma mídia disponível' };
+    }
+    
+    // Detectar se é primeira mensagem
+    const clientMsgCount = conversationHistory.filter(m => !m.fromMe).length;
+    const isFirstMessage = clientMsgCount <= 1;
+    
+    // Formatar histórico recente (últimas 5 mensagens)
+    const recentHistory = conversationHistory
+      .slice(-10)
+      .map(m => `${m.fromMe ? 'Agente' : 'Cliente'}: ${m.text || '(sem texto)'}`)
+      .join('\n');
+    
+    // Formatar biblioteca de mídia
+    const mediaListForAI = availableMedia
+      .map((m, i) => `${i + 1}. NOME: "${m.name}" | TIPO: ${m.type} | QUANDO USAR: ${m.whenToUse || 'não especificado'}`)
+      .join('\n');
+    
+    // Prompt de classificação
+    const systemPrompt = `Você é um sistema de classificação de mídia para um chatbot de WhatsApp.
+Sua tarefa é analisar a conversa e decidir SE e QUAL mídia deve ser enviada ao cliente.
+
+## REGRAS IMPORTANTES:
+1. Se for PRIMEIRA MENSAGEM do cliente (saudação como "oi", "olá", "bom dia"), procure por mídia de boas-vindas/início
+2. Apenas recomende mídia se for CLARAMENTE RELEVANTE para o contexto
+3. NÃO recomende mídia se o cliente estiver fazendo perguntas específicas que não precisam de mídia
+4. Leia o campo "QUANDO USAR" de cada mídia para entender quando é apropriado enviar
+5. Se nenhuma mídia for claramente apropriada, responda com NO_MEDIA
+6. Confiança deve ser entre 0-100 (apenas envie se > 60)
+
+## RESPONDA APENAS EM JSON:
+{"decision": "SEND" ou "NO_MEDIA", "mediaName": "NOME_EXATO_DA_MIDIA" ou null, "confidence": 0-100, "reason": "explicação breve"}`;
+
+    const userPrompt = `## CONTEXTO:
+É a primeira mensagem do cliente? ${isFirstMessage ? 'SIM' : 'NÃO'}
+Mensagem atual do cliente: "${clientMessage}"
+
+## HISTÓRICO RECENTE:
+${recentHistory || '(primeira interação)'}
+
+## MÍDIAS DISPONÍVEIS:
+${mediaListForAI}
+
+## MÍDIAS JÁ ENVIADAS (não repetir):
+${sentMedias.join(', ') || 'nenhuma'}
+
+Analise e decida se alguma mídia deve ser enviada. Responda APENAS o JSON.`;
+
+    const mistral = await getMistralClient();
+    
+    // Usar modelo rápido e barato para classificação
+    const response = await mistral.chat.complete({
+      model: "mistral-small-latest",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      maxTokens: 150,
+      temperature: 0.1, // Baixa para decisões mais consistentes
+    });
+    
+    const elapsedMs = Date.now() - startTime;
+    
+    if (!response || !response.choices || response.choices.length === 0) {
+      console.log(`🤖 [MEDIA AI] ❌ Sem resposta da API (${elapsedMs}ms)`);
+      return { shouldSend: false, mediaName: null, confidence: 0, reason: 'Sem resposta da API' };
+    }
+    
+    const rawResponse = response.choices[0].message.content as string;
+    console.log(`🤖 [MEDIA AI] 📥 Resposta bruta (${elapsedMs}ms): ${rawResponse}`);
+    
+    // Tentar extrair JSON
+    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.log(`🤖 [MEDIA AI] ⚠️ Não conseguiu extrair JSON`);
+      return { shouldSend: false, mediaName: null, confidence: 0, reason: 'Resposta não é JSON válido' };
+    }
+    
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      const result: MediaClassificationResult = {
+        shouldSend: parsed.decision === 'SEND' && parsed.confidence >= 60,
+        mediaName: parsed.mediaName || null,
+        confidence: parsed.confidence || 0,
+        reason: parsed.reason || 'Sem razão especificada'
+      };
+      
+      console.log(`🤖 [MEDIA AI] ════════════════════════════════════════════════`);
+      if (result.shouldSend) {
+        console.log(`🤖 [MEDIA AI] ✅ DECISÃO: ENVIAR "${result.mediaName}"`);
+      } else {
+        console.log(`🤖 [MEDIA AI] ❌ DECISÃO: NÃO ENVIAR`);
+      }
+      console.log(`🤖 [MEDIA AI] 📊 Confiança: ${result.confidence}%`);
+      console.log(`🤖 [MEDIA AI] 💡 Razão: ${result.reason}`);
+      console.log(`🤖 [MEDIA AI] ⏱️ Tempo: ${elapsedMs}ms`);
+      console.log(`🤖 [MEDIA AI] ════════════════════════════════════════════════\n`);
+      
+      return result;
+    } catch (parseError) {
+      console.log(`🤖 [MEDIA AI] ⚠️ Erro ao parsear JSON: ${parseError}`);
+      return { shouldSend: false, mediaName: null, confidence: 0, reason: 'Erro ao parsear resposta' };
+    }
+    
+  } catch (error: any) {
+    console.error(`🤖 [MEDIA AI] ❌ ERRO: ${error.message}`);
+    // Em caso de erro, retorna "não enviar" para não quebrar o fluxo
+    return { shouldSend: false, mediaName: null, confidence: 0, reason: `Erro: ${error.message}` };
+  }
+}
+
 // ==================== TEXT GENERATION ====================
 
 /**

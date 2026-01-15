@@ -81,7 +81,8 @@ export function ConversationsList({
       return response.json();
     },
     enabled: !!connectionId,
-    refetchInterval: 5000,
+    refetchInterval: 30000, // Fallback polling - WebSocket é primário (economia de egress)
+    staleTime: 5000, // Considera dados frescos por 5s
   });
   
   // Buscar tags disponíveis para filtro
@@ -96,6 +97,7 @@ export function ConversationsList({
 
     let websocket: WebSocket | null = null;
     let cancelled = false;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
 
     const connectWebSocket = async () => {
       try {
@@ -138,12 +140,20 @@ export function ConversationsList({
         };
 
         websocket.onclose = () => {
-          console.log("WebSocket desconectado");
+          console.log("WebSocket desconectado, reconectando em 3s...");
+          // Reconexão automática em 3 segundos
+          if (!cancelled) {
+            reconnectTimeout = setTimeout(connectWebSocket, 3000);
+          }
         };
 
         setWs(websocket);
       } catch (error) {
         console.error("Erro ao conectar WebSocket de conversas:", error);
+        // Tentar reconectar em caso de erro
+        if (!cancelled) {
+          reconnectTimeout = setTimeout(connectWebSocket, 3000);
+        }
       }
     };
 
@@ -151,6 +161,9 @@ export function ConversationsList({
 
     return () => {
       cancelled = true;
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
       if (websocket) {
         websocket.close();
       }

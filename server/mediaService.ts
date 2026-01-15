@@ -383,6 +383,119 @@ export function parseMistralResponse(responseText: string): MistralResponse | nu
 }
 
 // =============================================================================
+// 🚨 FORÇAR ENVIO DE MÍDIA - SISTEMA AUTOMÁTICO COM IA
+// =============================================================================
+// Este sistema usa uma CHAMADA DE IA DEDICADA para decidir qual mídia enviar.
+// Funciona para QUALQUER conta, independente de keywords hardcoded!
+// A IA analisa: mensagem, histórico, biblioteca de mídia e campo whenToUse.
+// =============================================================================
+
+import { classifyMediaWithAI } from "./mistralClient";
+
+interface ForceMediaResult {
+  shouldSendMedia: boolean;
+  mediaToSend: AgentMedia | null;
+  matchedKeywords: string[];
+  reason: string;
+}
+
+/**
+ * 🚨 FORÇA o envio de mídia baseado em classificação da IA
+ * 
+ * NOVA VERSÃO: Usa uma chamada de IA dedicada para decidir qual mídia enviar.
+ * 
+ * Esta função:
+ * 1. Recebe a mensagem do cliente e histórico
+ * 2. Chama a IA com a biblioteca de mídias e descrições whenToUse
+ * 3. A IA decide de forma INTELIGENTE se deve enviar mídia e qual
+ * 
+ * VANTAGENS:
+ * - Funciona para QUALQUER conta com QUALQUER biblioteca de mídia
+ * - Entende semântica, não apenas keywords
+ * - Não envia mídia aleatoriamente
+ * - Respeita o contexto da conversa
+ */
+export async function forceMediaDetection(
+  clientMessage: string,
+  conversationHistory: Array<{ text?: string | null; fromMe?: boolean }>,
+  mediaLibrary: AgentMedia[],
+  sentMedias: string[] = []
+): Promise<ForceMediaResult> {
+  console.log(`\n🚨 [FORCE MEDIA] ════════════════════════════════════════════════`);
+  console.log(`🚨 [FORCE MEDIA] Iniciando classificação com IA...`);
+  console.log(`🚨 [FORCE MEDIA] Mensagem: "${clientMessage.substring(0, 100)}..."`);
+  console.log(`🚨 [FORCE MEDIA] Mídias disponíveis: ${mediaLibrary.length}`);
+  console.log(`🚨 [FORCE MEDIA] Mídias já enviadas: ${sentMedias.join(', ') || 'nenhuma'}`);
+  
+  if (!mediaLibrary || mediaLibrary.length === 0) {
+    console.log(`🚨 [FORCE MEDIA] ❌ Nenhuma mídia disponível`);
+    return { shouldSendMedia: false, mediaToSend: null, matchedKeywords: [], reason: 'Nenhuma mídia disponível' };
+  }
+  
+  try {
+    // Chamar IA para classificação
+    const aiResult = await classifyMediaWithAI({
+      clientMessage,
+      conversationHistory,
+      mediaLibrary: mediaLibrary.map(m => ({
+        name: m.name,
+        type: m.type,
+        whenToUse: m.whenToUse,
+        isActive: m.isActive
+      })),
+      sentMedias
+    });
+    
+    if (aiResult.shouldSend && aiResult.mediaName) {
+      // Encontrar a mídia correspondente
+      const mediaToSend = mediaLibrary.find(m => 
+        m.name.toUpperCase() === aiResult.mediaName!.toUpperCase()
+      );
+      
+      if (mediaToSend) {
+        console.log(`🚨 [FORCE MEDIA] ════════════════════════════════════════════════`);
+        console.log(`🚨 [FORCE MEDIA] 🏆 IA DECIDIU ENVIAR: ${mediaToSend.name}`);
+        console.log(`🚨 [FORCE MEDIA] 📊 Confiança: ${aiResult.confidence}%`);
+        console.log(`🚨 [FORCE MEDIA] 💡 Razão: ${aiResult.reason}`);
+        console.log(`🚨 [FORCE MEDIA] ════════════════════════════════════════════════\n`);
+        
+        return {
+          shouldSendMedia: true,
+          mediaToSend,
+          matchedKeywords: ['IA_DECISION'],
+          reason: aiResult.reason
+        };
+      }
+    }
+    
+    console.log(`🚨 [FORCE MEDIA] ════════════════════════════════════════════════`);
+    console.log(`🚨 [FORCE MEDIA] ❌ IA decidiu NÃO enviar mídia`);
+    console.log(`🚨 [FORCE MEDIA] 💡 Razão: ${aiResult.reason}`);
+    console.log(`🚨 [FORCE MEDIA] ════════════════════════════════════════════════\n`);
+    
+    return { shouldSendMedia: false, mediaToSend: null, matchedKeywords: [], reason: aiResult.reason };
+    
+  } catch (error: any) {
+    console.error(`🚨 [FORCE MEDIA] ❌ ERRO na classificação: ${error.message}`);
+    // Em caso de erro, não enviar mídia (fail-safe)
+    return { shouldSendMedia: false, mediaToSend: null, matchedKeywords: [], reason: `Erro: ${error.message}` };
+  }
+}
+
+// Manter a versão sync para compatibilidade (usa a função async internamente via wrapper)
+// DEPRECATED: Use a versão async diretamente
+export function forceMediaDetectionSync(
+  clientMessage: string,
+  conversationHistory: Array<{ text?: string | null; fromMe?: boolean }>,
+  mediaLibrary: AgentMedia[],
+  sentMedias: string[] = []
+): ForceMediaResult {
+  console.warn(`⚠️ [FORCE MEDIA] forceMediaDetectionSync está DEPRECATED - use forceMediaDetection (async)`);
+  // Retorna resultado vazio para não quebrar código antigo
+  return { shouldSendMedia: false, mediaToSend: null, matchedKeywords: [], reason: 'Use async version' };
+}
+
+// =============================================================================
 // W-API MEDIA SENDING
 // =============================================================================
 

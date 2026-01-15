@@ -1,14 +1,34 @@
 import { useState, useEffect } from "react";
 import { X, Clock, Tag } from "lucide-react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import type { Plan } from "@shared/schema";
+
+interface AssignedPlanResponse {
+  hasAssignedPlan: boolean;
+  plan?: Plan & { valor?: number; valorOriginal?: number };
+}
 
 interface PromoBarProps {
   isAuthenticated: boolean;
 }
 
 export function PromoBar({ isAuthenticated }: PromoBarProps) {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const [isVisible, setIsVisible] = useState(true);
+  const { data: assignedPlanData } = useQuery<AssignedPlanResponse>({
+    queryKey: ["/api/user/assigned-plan"],
+    enabled: isAuthenticated,
+  });
+  
+  // Debug: Log do plano atribuído
+  useEffect(() => {
+    if (assignedPlanData) {
+      console.log('[PROMO-BAR DEBUG] assignedPlanData:', JSON.stringify(assignedPlanData, null, 2));
+    }
+  }, [assignedPlanData]);
+  
+  const assignedPlan = assignedPlanData?.plan;
   const [timeLeft, setTimeLeft] = useState(() => {
     const saved = localStorage.getItem("promo_bar_timer_end");
     if (saved) {
@@ -52,11 +72,24 @@ export function PromoBar({ isAuthenticated }: PromoBarProps) {
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
 
-  // Mostrar APENAS para usuários NÃO autenticados (landing page)
-  if (isAuthenticated) return null;
+  // Usar 'valor' do plano (campo correto da API)
+  const planName = assignedPlan?.nome || "Plano Ilimitado";
+  const rawValue = (assignedPlan as any)?.valor ?? (assignedPlan as any)?.preco;
+  const planValue = rawValue != null
+    ? `R$ ${Number(rawValue).toFixed(2).replace(".", ",")}`
+    : "R$ 99,99";
   
-  // Não mostrar em páginas específicas ou se fechada
-  if (!isVisible || location !== "/") return null;
+  // Debug do valor
+  console.log('[PROMO-BAR DEBUG] planName:', planName, 'rawValue:', rawValue, 'planValue:', planValue);
+
+  // Mostrar APENAS para usuários autenticados que vieram por link de plano
+  if (!isAuthenticated) return null;
+  
+  // Não mostrar se não tem plano atribuído (não veio por link)
+  if (!assignedPlanData?.hasAssignedPlan || !assignedPlan) return null;
+  
+  // Não mostrar se fechada
+  if (!isVisible) return null;
 
   return (
     <div className="bg-gray-900 text-white py-2 px-4 relative">
@@ -68,7 +101,7 @@ export function PromoBar({ isAuthenticated }: PromoBarProps) {
         </span>
         
         <span className="font-medium">
-          Plano Ilimitado por <span className="text-green-400 font-bold">R$ 99,99</span>/mês
+          {planName} por <span className="text-green-400 font-bold">{planValue}</span>/mês
         </span>
         
         <div className="flex items-center gap-1 bg-white/10 rounded px-2 py-0.5">

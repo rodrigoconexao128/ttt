@@ -178,20 +178,20 @@ async function uploadMediaOrFallback(
   mimeType: string,
   userId: string,
   conversationId?: string
-): Promise<string> {
+): Promise<string | null> {
   try {
     const result = await uploadMediaToStorage(buffer, mimeType, userId, conversationId);
     if (result) {
-      console.log(`?? [STORAGE] M�dia enviada para Storage: ${result.url.substring(0, 80)}...`);
+      console.log(`📤 [STORAGE] Mídia enviada para Storage: ${result.url.substring(0, 80)}...`);
       return result.url;
     }
   } catch (error) {
-    console.error(`? [STORAGE] Erro ao enviar para Storage, usando base64:`, error);
+    console.error(`❌ [STORAGE] Erro ao enviar para Storage:`, error);
   }
   
-  // Fallback: base64 se upload falhar
-  console.log(`?? [STORAGE] Usando fallback base64 (${buffer.length} bytes)`);
-  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+  // SEM fallback base64 para evitar egress excessivo!
+  console.warn(`⚠️ [STORAGE] Upload falhou, mídia não será salva (sem fallback base64)`);
+  return null;
 }
 
 // -----------------------------------------------------------------------
@@ -2530,14 +2530,15 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     directPath = msg.imageMessage.directPath || null;
     mediaUrlOriginal = msg.imageMessage.url || null;
     
-    // 🖼️ IMAGEM DO DONO: Baixar para exibir no chat
+    // 🖼️ IMAGEM DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
       console.log(`🖼️ [FROM ME] Baixando imagem do dono com caption...`);
       console.log(`🖼️ [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
       console.log(`🖼️ [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`✅ [FROM ME] Imagem do dono baixada: ${buffer.length} bytes`);
+      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
+      console.log(`✅ [FROM ME] Imagem do dono processada: ${buffer.length} bytes`);
     } catch (error: any) {
       console.error("❌ [FROM ME] Erro ao baixar imagem:", error?.message || error);
       mediaUrl = null;
@@ -2554,14 +2555,15 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     directPath = msg.imageMessage.directPath || null;
     mediaUrlOriginal = msg.imageMessage.url || null;
     
-    // 🖼️ IMAGEM DO DONO: Baixar para exibir no chat
+    // 🖼️ IMAGEM DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
       console.log(`🖼️ [FROM ME] Baixando imagem do dono sem caption...`);
       console.log(`🖼️ [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
       console.log(`🖼️ [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`✅ [FROM ME] Imagem do dono baixada: ${buffer.length} bytes`);
+      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
+      console.log(`✅ [FROM ME] Imagem do dono processada: ${buffer.length} bytes`);
     } catch (error: any) {
       console.error("❌ [FROM ME] Erro ao baixar imagem:", error?.message || error);
       mediaUrl = null;
@@ -2578,15 +2580,16 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     directPath = msg.videoMessage.directPath || null;
     mediaUrlOriginal = msg.videoMessage.url || null;
     
-    // 🎬 VÍDEO DO DONO: Baixar para exibir no chat
+    // 🎬 VÍDEO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
       console.log(`🎬 [FROM ME] Baixando vídeo do dono com caption...`);
       console.log(`🎬 [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
       console.log(`🎬 [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
       console.log(`🎬 [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`✅ [FROM ME] Vídeo do dono baixado: ${buffer.length} bytes`);
+      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
+      console.log(`✅ [FROM ME] Vídeo do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
       console.error("❌ [FROM ME] Erro ao baixar vídeo:", error?.message || error);
       console.error("❌ [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
@@ -2604,15 +2607,16 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     directPath = msg.videoMessage.directPath || null;
     mediaUrlOriginal = msg.videoMessage.url || null;
     
-    // 🎬 VÍDEO DO DONO: Baixar para exibir no chat
+    // 🎬 VÍDEO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
       console.log(`🎬 [FROM ME] Baixando vídeo do dono sem caption...`);
       console.log(`🎬 [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
       console.log(`🎬 [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
       console.log(`🎬 [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`✅ [FROM ME] Vídeo do dono baixado: ${buffer.length} bytes`);
+      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
+      console.log(`✅ [FROM ME] Vídeo do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
       console.error("❌ [FROM ME] Erro ao baixar vídeo:", error?.message || error);
       console.error("❌ [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
@@ -2661,14 +2665,15 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     directPath = docMsg.directPath || null;
     mediaUrlOriginal = docMsg.url || null;
     
-    // 📄 DOCUMENTO DO DONO (COM CAPTION): Baixar para exibir/download no chat
+    // 📄 DOCUMENTO DO DONO (COM CAPTION): Baixar e fazer upload para Storage (economiza egress!)
     try {
       console.log(`📄 [FROM ME] Baixando documento do dono (com caption): ${docMsg.fileName}...`);
       console.log(`📄 [FROM ME] mediaKey presente:`, !!docMsg.mediaKey);
       console.log(`📄 [FROM ME] directPath presente:`, !!docMsg.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`✅ [FROM ME] Documento do dono (com caption) baixado: ${buffer.length} bytes`);
+      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
+      console.log(`✅ [FROM ME] Documento do dono (com caption) processado: ${buffer.length} bytes`);
     } catch (error: any) {
       console.error("❌ [FROM ME] Erro ao baixar documento (com caption):", error?.message || error);
       mediaUrl = null;
@@ -2685,15 +2690,16 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     directPath = msg.documentMessage.directPath || null;
     mediaUrlOriginal = msg.documentMessage.url || null;
     
-    // 📄 DOCUMENTO DO DONO: Baixar para exibir/download no chat
+    // 📄 DOCUMENTO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
       console.log(`📄 [FROM ME] Baixando documento do dono com caption: ${msg.documentMessage.fileName}...`);
       console.log(`📄 [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
       console.log(`📄 [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
       messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
-      console.log(`✅ [FROM ME] Documento do dono baixado: ${buffer.length} bytes`);
+      console.log(`✅ [FROM ME] Documento do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
       console.error("❌ [FROM ME] Erro ao baixar documento:", error?.message || error);
       mediaUrl = null;
@@ -2710,14 +2716,15 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     directPath = msg.documentMessage.directPath || null;
     mediaUrlOriginal = msg.documentMessage.url || null;
     
-    // 📄 DOCUMENTO DO DONO: Baixar para exibir/download no chat
+    // 📄 DOCUMENTO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
       console.log(`📄 [FROM ME] Baixando documento do dono: ${msg.documentMessage.fileName}...`);
       console.log(`📄 [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
       console.log(`📄 [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-      console.log(`✅ [FROM ME] Documento do dono baixado: ${buffer.length} bytes`);
+      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
+      console.log(`✅ [FROM ME] Documento do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
       console.error("❌ [FROM ME] Erro ao baixar documento:", error?.message || error);
       mediaUrl = null;
@@ -3044,16 +3051,16 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     mediaUrlOriginal = msg.imageMessage.url || null;
     
     try {
-      console.log(`??? [CLIENT] Baixando imagem...`);
+      console.log(`📷 [CLIENT] Baixando imagem...`);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      console.log(`??? [CLIENT] Imagem baixada: ${buffer.length} bytes`);
-      // Upload para Supabase Storage ao inv�s de base64
+      console.log(`📷 [CLIENT] Imagem baixada: ${buffer.length} bytes`);
+      // Upload para Supabase Storage (SEM fallback base64 para evitar egress!)
       mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, "imagem");
-      if (!mediaUrl && buffer.length < 500000) {
-        mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      if (!mediaUrl) {
+        console.warn(`⚠️ [CLIENT] Falha no upload de imagem, não será salva`);
       }
     } catch (error) {
-      console.error("? [CLIENT] Erro ao baixar imagem:", error);
+      console.error("❌ [CLIENT] Erro ao baixar imagem:", error);
       mediaUrl = null;
     }
   }
@@ -3072,16 +3079,16 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     mediaUrlOriginal = msg.audioMessage.url || null;
     
     try {
-      console.log(`?? [CLIENT] Baixando �udio...`);
+      console.log(`🎙️ [CLIENT] Baixando áudio...`);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      console.log(`?? [CLIENT] �udio baixado: ${buffer.length} bytes`);
-      // Upload para Supabase Storage
+      console.log(`🎙️ [CLIENT] Áudio baixado: ${buffer.length} bytes`);
+      // Upload para Supabase Storage (SEM fallback base64 para evitar egress!)
       mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, "audio");
-      if (!mediaUrl && buffer.length < 1000000) {
-        mediaUrl = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
+      if (!mediaUrl) {
+        console.warn(`⚠️ [CLIENT] Falha no upload de áudio, não será salvo`);
       }
     } catch (error) {
-      console.error("? [CLIENT] Erro ao baixar �udio:", error);
+      console.error("❌ [CLIENT] Erro ao baixar áudio:", error);
       mediaUrl = null;
     }
   }
@@ -5467,24 +5474,38 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           messageText = msg.extendedTextMessage.text;
         } else if (msg?.imageMessage) {
           mediaType = "image";
-          messageText = msg.imageMessage.caption || "?? Imagem";
+          messageText = msg.imageMessage.caption || "📷 Imagem";
           try {
             const buffer = await downloadMediaMessage(message, "buffer", {});
-            mediaUrl = `data:${msg.imageMessage.mimetype || "image/jpeg"};base64,${buffer.toString("base64")}`;
+            const mimetype = msg.imageMessage.mimetype || "image/jpeg";
+            // 🚀 Usar Storage em vez de base64 para reduzir egress
+            const storageUrl = await uploadMediaToStorage(buffer, mimetype, "admin_image");
+            if (storageUrl) {
+              mediaUrl = storageUrl;
+              console.log(`✅ [ADMIN] Imagem salva no Storage: ${storageUrl}`);
+            } else {
+              console.warn(`⚠️ [ADMIN] Falha no upload, imagem não salva`);
+            }
           } catch (err) {
             console.error("[ADMIN] Erro ao baixar imagem:", err);
           }
         } else if (msg?.audioMessage) {
           mediaType = "audio";
-          messageText = "?? �udio"; // Texto inicial, ser� substitu�do pela transcri��o
-          // ?? Baixar �udio para transcri��o (ser� transcrito em createAdminMessage)
+          messageText = "🎤 Áudio"; // Texto inicial, será substituído pela transcrição
+          // 🎙️ Baixar áudio para transcrição (será transcrito em createAdminMessage)
           try {
             const buffer = await downloadMediaMessage(message, "buffer", {});
             const mimeType = msg.audioMessage.mimetype || "audio/ogg; codecs=opus";
-            mediaUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
-            console.log(`[ADMIN] �udio baixado: ${buffer.length} bytes (${mimeType})`);
+            // 🚀 Usar Storage em vez de base64 para reduzir egress
+            const storageUrl = await uploadMediaToStorage(buffer, mimeType, "admin_audio");
+            if (storageUrl) {
+              mediaUrl = storageUrl;
+              console.log(`✅ [ADMIN] Áudio salvo no Storage: ${buffer.length} bytes (${mimeType})`);
+            } else {
+              console.warn(`⚠️ [ADMIN] Falha no upload de áudio`);
+            }
           } catch (err) {
-            console.error("[ADMIN] Erro ao baixar �udio:", err);
+            console.error("[ADMIN] Erro ao baixar áudio:", err);
           }
         } else if (msg?.videoMessage) {
           mediaType = "video";
@@ -6659,11 +6680,8 @@ export async function redownloadMedia(
     const newMediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, filename);
 
     if (!newMediaUrl) {
-      // Fallback para base64 se falhar upload
-      if (buffer.length < 500000) {
-        const base64Url = `data:${mediaMimeType};base64,${buffer.toString("base64")}`;
-        return { success: true, mediaUrl: base64Url };
-      }
+      // SEM fallback para base64 - evitar egress!
+      console.warn(`⚠️ [REDOWNLOAD] Falha no upload, mídia não será salva`);
       return { success: false, error: "Erro ao fazer upload da mídia re-baixada" };
     }
 

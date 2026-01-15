@@ -138,6 +138,7 @@ import {
   generateMediaPromptBlock,
   parseMistralResponse,
   executeMediaActions,
+  forceMediaDetection,
 } from "./mediaService";
 import { processResponsePlaceholders } from "./textUtils";
 import {
@@ -2021,6 +2022,38 @@ Mensagem do cliente: ${newMessageText.trim()}`;
             console.log(`📁 [AI Agent] ${originalCount - mediaActions.length} mídia(s) removida(s) por já terem sido enviadas`);
           }
         }
+      }
+    }
+    
+    // 🚨🚨🚨 FORÇAR ENVIO DE MÍDIA - SISTEMA AUTOMÁTICO COM IA 🚨🚨🚨
+    // Se a IA NÃO incluiu tag de mídia na resposta, mas deveria ter,
+    // este sistema usa uma SEGUNDA CHAMADA DE IA para decidir qual mídia enviar.
+    // FUNCIONA PARA TODOS OS AGENTES - INDEPENDENTE DO PROMPT!
+    // A IA analisa: mensagem, histórico, biblioteca e campo whenToUse.
+    if (hasMedia && mediaActions.length === 0) {
+      console.log(`\n🚨 [AI Agent] IA principal não detectou mídia - CONSULTANDO IA DE CLASSIFICAÇÃO...`);
+      
+      const forceResult = await forceMediaDetection(
+        newMessageText,
+        conversationHistory,
+        mediaLibrary,
+        sentMedias
+      );
+      
+      if (forceResult.shouldSendMedia && forceResult.mediaToSend) {
+        console.log(`🚨 [AI Agent] 🎯 IA DECIDIU ENVIAR MÍDIA: ${forceResult.mediaToSend.name}`);
+        console.log(`🚨 [AI Agent] 💡 Razão: ${forceResult.reason}`);
+        
+        // Adicionar a mídia forçada às ações
+        mediaActions.push({
+          type: 'send_media',
+          media_name: forceResult.mediaToSend.name,
+        });
+        
+        console.log(`🚨 [AI Agent] ✅ Mídia ${forceResult.mediaToSend.name} ADICIONADA às ações!`);
+      } else {
+        console.log(`🚨 [AI Agent] ❌ IA de classificação decidiu NÃO enviar mídia`);
+        console.log(`🚨 [AI Agent] 💡 Razão: ${forceResult.reason}`);
       }
     }
     

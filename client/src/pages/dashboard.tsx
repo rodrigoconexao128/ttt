@@ -93,10 +93,16 @@ export default function Dashboard() {
   const isReseller = resellerStatus?.hasResellerPlan || false;
   
   // Buscar plano atribuído (se houver)
-  const { data: assignedPlanData } = useQuery<Plan | null>({
+  const { data: assignedPlanResponse } = useQuery<{ hasAssignedPlan: boolean; plan?: Plan & { valor?: number } }>({
     queryKey: ["/api/user/assigned-plan"],
     enabled: !!isAuthenticated,
   });
+  
+  // Extrair o plano da resposta
+  const assignedPlanData = assignedPlanResponse?.plan;
+  
+  // Debug
+  console.log('[DASHBOARD DEBUG] assignedPlanResponse:', assignedPlanResponse, 'assignedPlanData:', assignedPlanData);
 
   const [selectedView, setSelectedView] = useState<"conversations" | "connection" | "stats" | "agent">("conversations");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -577,10 +583,15 @@ const toolsNavigation: ToolNavItem[] = [
               
               // Se não tem plano ativo, mostra o botão principal
               if (!hasActiveSub) {
-                const planValue = assignedPlanData?.preco 
-                  ? `R$${assignedPlanData.preco.toFixed(2).replace('.', ',')}` 
+                // Usar 'valor' que é o campo correto da API (fallback para 'preco')
+                const rawValue = (assignedPlanData as any)?.valor ?? (assignedPlanData as any)?.preco;
+                const planValue = rawValue != null
+                  ? `R$${Number(rawValue).toFixed(2).replace('.', ',')}` 
                   : 'R$99,99';
                 const planName = assignedPlanData?.nome || 'Plano Ilimitado';
+                
+                // Debug
+                console.log('[DASHBOARD SIDEBAR DEBUG] assignedPlanData:', assignedPlanData, 'rawValue:', rawValue, 'planValue:', planValue);
                 
                 return (
                   <SidebarMenuItem>
