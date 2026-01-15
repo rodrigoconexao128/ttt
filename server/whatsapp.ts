@@ -6439,7 +6439,7 @@ export async function redownloadMedia(
     console.log(`🔄 [REDOWNLOAD] directPath: ${directPath?.substring(0, 50)}...`);
 
     // Encontrar a sessão ativa para esta conexão
-    const session = Array.from(activeSessions.values()).find(s => s.connectionId === connectionId);
+    const session = Array.from(sessions.values()).find(s => s.connectionId === connectionId);
     
     if (!session || !session.socket) {
       return { 
