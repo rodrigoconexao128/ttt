@@ -200,6 +200,16 @@ export default function PlansPage() {
     setCustomPlanCode("");
   };
 
+  // Auto-preencher customPlan quando usuário tem plano atribuído via link
+  useEffect(() => {
+    if (assignedPlanData?.hasAssignedPlan && assignedPlanData?.plan && !customPlan) {
+      setCustomPlan({
+        valid: true,
+        plan: assignedPlanData.plan
+      });
+    }
+  }, [assignedPlanData, customPlan]);
+
   const handleSelectCustomPlan = () => {
     if (customPlan?.plan) {
       setSelectedPlan("personalizado");
@@ -263,9 +273,6 @@ export default function PlansPage() {
   
   // Para clientes de revenda: verificar se tem status ativo no resellerPlan
   const isResellerClientActive = resellerPlan?.isResellerClient && resellerPlan.status === 'active';
-  
-  // Verificar se tem plano atribuído via link
-  const hasAssignedPlan = assignedPlanData?.hasAssignedPlan && assignedPlanData?.plan;
   
   // Detectar qual plano está ativo baseado no tipo
   const activePlanTipo = currentSubscription?.plan?.tipo;
@@ -381,208 +388,6 @@ export default function PlansPage() {
       answer: "Pagamento via PIX, instantâneo e seguro. O acesso é liberado imediatamente após a confirmação."
     }
   ];
-
-  // Se o usuário tem plano atribuído via link exclusivo, mostrar apenas esse plano
-  if (hasAssignedPlan && assignedPlanData?.plan) {
-    const assignedPlan = assignedPlanData.plan;
-    const planPrice = Number(assignedPlan.valor);
-    const originalPrice = planPrice * 2; // Preço "original" dobrado para criar urgência
-    const planFeatures = assignedPlan.features && Array.isArray(assignedPlan.features) && assignedPlan.features.length > 0
-      ? assignedPlan.features
-      : [
-        "IA atendendo 24/7",
-        "Conversas ilimitadas", 
-        "1 agente IA personalizado",
-        "Suporte via WhatsApp",
-        "Atualizações gratuitas",
-        "Cancele quando quiser"
-      ];
-    
-    return (
-      <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
-        <div className="max-w-5xl mx-auto px-4 py-6 md:py-12">
-          {/* Header com título */}
-          <div className="text-center mb-6 md:mb-8">
-            <h1 className="text-xl md:text-3xl font-semibold text-gray-900 dark:text-white mb-1 md:mb-2">
-              Escolha seu plano
-            </h1>
-          </div>
-
-          {/* Seção de cupom colapsável */}
-          <div className="max-w-sm mx-auto mb-6">
-            <details className="group">
-              <summary className="cursor-pointer flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors py-2 select-none">
-                <Tag className="w-4 h-4" />
-                <span>Tem um cupom de desconto?</span>
-                <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    placeholder="Digite o código"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    className="h-11 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 focus:border-green-500 uppercase font-medium text-center tracking-widest"
-                    onKeyDown={(e) => e.key === 'Enter' && validateCoupon()}
-                    disabled={!!appliedCoupon}
-                  />
-                  <Button 
-                    onClick={validateCoupon}
-                    disabled={isValidatingCoupon || !couponCode.trim() || !!appliedCoupon}
-                    className="h-11 px-6 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium"
-                  >
-                    {isValidatingCoupon ? <Loader2 className="h-4 w-4 animate-spin" /> : appliedCoupon ? "✓" : "Aplicar"}
-                  </Button>
-                </div>
-                {appliedCoupon && (
-                  <div className="mt-2 flex items-center justify-between bg-green-50 dark:bg-green-950/30 p-2 rounded-lg">
-                    <span className="text-sm text-green-700 dark:text-green-300">Cupom {appliedCoupon.code} aplicado!</span>
-                    <button onClick={removeCoupon} className="text-xs text-gray-400 hover:text-red-500">✕</button>
-                  </div>
-                )}
-              </div>
-            </details>
-          </div>
-
-          {/* Seção de código exclusivo colapsável */}
-          <div className="max-w-sm mx-auto mb-8">
-            <details className="group">
-              <summary className="cursor-pointer flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors py-2 select-none">
-                <Key className="w-4 h-4" />
-                <span>Tem um código de plano exclusivo?</span>
-                <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    placeholder="Digite o código do plano"
-                    value={customPlanCode}
-                    onChange={(e) => setCustomPlanCode(e.target.value.toUpperCase())}
-                    className="h-11 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 focus:border-purple-500 uppercase font-medium text-center tracking-widest"
-                    onKeyDown={(e) => e.key === 'Enter' && validateCustomPlanCode()}
-                  />
-                  <Button 
-                    onClick={validateCustomPlanCode}
-                    disabled={isValidatingCustomPlan || !customPlanCode.trim()}
-                    className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-medium"
-                  >
-                    {isValidatingCustomPlan ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
-                  </Button>
-                </div>
-              </div>
-            </details>
-          </div>
-
-          {/* Card do Plano Personalizado - Design igual ao segundo print */}
-          <div className="flex justify-center">
-            <Card className="w-full max-w-md border-2 border-purple-500 shadow-xl relative overflow-hidden">
-              {/* Badge Personalizada para você */}
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-                <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 px-4 py-1 shadow-lg">
-                  <Sparkles className="h-3 w-3 mr-1" />
-                  Personalizada para você
-                </Badge>
-              </div>
-              
-              <CardHeader className="text-center pt-14 pb-4">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-                  {assignedPlan.nome}
-                </h2>
-                
-                {/* Cronômetro de Escassez */}
-                <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-3 mb-4">
-                  <div className="flex items-center justify-center gap-3">
-                    <span className="text-sm text-red-600 dark:text-red-400 font-medium">⚡ Oferta expira em:</span>
-                    <ScarcityTimer />
-                  </div>
-                </div>
-
-                {/* Preço com desconto visual */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="text-lg text-gray-400 line-through">
-                      R$ {originalPrice.toFixed(2).replace('.', ',')}
-                    </span>
-                    <Badge className="bg-green-100 text-green-700 border-0 text-xs">-50%</Badge>
-                  </div>
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-sm text-gray-500">R$</span>
-                    <span className="text-5xl font-bold text-purple-600">
-                      {Math.floor(planPrice)}
-                    </span>
-                    <span className="text-2xl text-purple-600">
-                      ,{(planPrice % 1).toFixed(2).split('.')[1]}
-                    </span>
-                    <span className="text-gray-500 ml-1">
-                      {assignedPlan.tipo === 'implementacao' ? '/único' : '/mês'}
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-purple-600 dark:text-purple-400 font-medium mt-2">
-                  Configurado especialmente para você
-                </p>
-              </CardHeader>
-              
-              <CardContent className="pt-0 px-6">
-                <div className="space-y-3 py-4">
-                  {planFeatures.map((feature, index) => (
-                    <div key={index} className="flex items-center gap-3">
-                      <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center flex-shrink-0">
-                        <Check className="h-3 w-3 text-purple-600" />
-                      </div>
-                      <span className="text-gray-600 dark:text-gray-300">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-
-              <CardFooter className="flex flex-col gap-4 px-6 pb-6">
-                {isPlanActive(assignedPlan.tipo === 'padrao' ? 'mensal' : assignedPlan.tipo) ? (
-                  <Button className="w-full h-14 bg-gray-100 dark:bg-gray-800 text-gray-500" disabled>
-                    Seu plano atual
-                  </Button>
-                ) : (
-                  <Button 
-                    className="w-full h-14 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold text-lg shadow-lg"
-                    onClick={() => {
-                      setSelectedPlan(assignedPlan.tipo === 'padrao' ? 'mensal' : assignedPlan.tipo);
-                      createSubscriptionMutation.mutate({ 
-                        planId: assignedPlan.id, 
-                        couponCode: appliedCoupon?.code 
-                      });
-                    }}
-                    disabled={createSubscriptionMutation.isPending}
-                  >
-                    {createSubscriptionMutation.isPending ? (
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    ) : null}
-                    Assinar Agora
-                  </Button>
-                )}
-                
-                <p className="text-center text-xs text-gray-500">
-                  ✓ 7 dias de garantia • ✓ Cancele quando quiser • ✓ Suporte 24/7
-                </p>
-              </CardFooter>
-            </Card>
-          </div>
-        </div>
-
-        {/* Modal de subscribe */}
-        <SubscribeModal
-          isOpen={subscribeModalOpen}
-          onClose={() => {
-            setSubscribeModalOpen(false);
-            setPendingSubscriptionId(null);
-          }}
-          subscriptionId={pendingSubscriptionId || ""}
-        />
-      </div>
-    );
-  }
 
   // Se é cliente de revenda, sempre mostrar plano da revenda (com ou sem assinatura tradicional)
   if (resellerPlan?.isResellerClient && resellerPlan.plan) {
