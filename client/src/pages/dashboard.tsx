@@ -91,6 +91,13 @@ export default function Dashboard() {
     enabled: !!isAuthenticated,
   });
   const isReseller = resellerStatus?.hasResellerPlan || false;
+  
+  // Buscar plano atribuído (se houver)
+  const { data: assignedPlanData } = useQuery<Plan | null>({
+    queryKey: ["/api/user/assigned-plan"],
+    enabled: !!isAuthenticated,
+  });
+
   const [selectedView, setSelectedView] = useState<"conversations" | "connection" | "stats" | "agent">("conversations");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [showContactPanel, setShowContactPanel] = useState(false);
@@ -570,16 +577,21 @@ const toolsNavigation: ToolNavItem[] = [
               
               // Se não tem plano ativo, mostra o botão principal
               if (!hasActiveSub) {
+                const planValue = assignedPlanData?.preco 
+                  ? `R$${assignedPlanData.preco.toFixed(2).replace('.', ',')}` 
+                  : 'R$99,99';
+                const planName = assignedPlanData?.nome || 'Plano Ilimitado';
+                
                 return (
                   <SidebarMenuItem>
                     <SidebarMenuButton 
                       asChild 
-                      tooltip="Assinar Plano Ilimitado" 
+                      tooltip={`Assinar ${planName}`}
                       className="mt-2 bg-gradient-to-r from-blue-600 to-violet-600 text-white hover:from-blue-700 hover:to-violet-700 hover:text-white transition-all duration-300 shadow-md"
                     >
                       <a href="https://agentezap.online/plans" rel="noopener noreferrer" className="flex items-center gap-2 font-bold justify-center">
                         <Rocket className="w-4 h-4 animate-pulse" />
-                        <span>Plano Ilimitado R$99</span>
+                        <span>{planName} {planValue}</span>
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

@@ -109,12 +109,55 @@ setInterval(() => {
   }
   
   if (totalCleaned > 0) {
-    console.log(`?? [MSG CACHE] Limpeza peri�dica: ${totalCleaned} mensagens expiradas removidas`);
+    console.log(`📦 [MSG CACHE] Limpeza periódica: ${totalCleaned} mensagens expiradas removidas`);
   }
 }, 30 * 60 * 1000);
 
 // -----------------------------------------------------------------------
-// ? UPLOAD DE M�DIA PARA STORAGE (Economia de Egress)
+// 🔄 SISTEMA DE VERIFICAÇÃO DE MENSAGENS NÃO PROCESSADAS
+// -----------------------------------------------------------------------
+// NOTA: A implementação real está mais abaixo no arquivo, após as declarações
+// de pendingResponses, conversationsBeingProcessed, etc.
+// -----------------------------------------------------------------------
+
+// Map para rastrear última verificação por userId (evita spam)
+const lastMissedMessageCheck = new Map<string, number>();
+
+// Map para rastrear mensagens já detectadas como faltantes (evita reprocessar)
+const detectedMissedMessages = new Set<string>(); // key: conversationId_messageId
+
+// Placeholder - será substituído pela função real mais abaixo
+let checkForMissedMessages: (session: WhatsAppSession) => Promise<void> = async () => {};
+
+// Flag para controlar se o polling foi iniciado
+let missedMessagePollingStarted = false;
+
+// Função para iniciar o polling (será chamada depois que sessions for declarado)
+function startMissedMessagePolling() {
+  if (missedMessagePollingStarted) return;
+  missedMessagePollingStarted = true;
+  
+  // Iniciar polling de mensagens não processadas a cada 45 segundos
+  setInterval(async () => {
+    // Verificar se sessions está disponível
+    if (typeof sessions === 'undefined') return;
+    
+    for (const [userId, session] of sessions.entries()) {
+      if (session.isConnected && session.socket) {
+        try {
+          await checkForMissedMessages(session);
+        } catch (error) {
+          // Silenciar erros individuais
+        }
+      }
+    }
+  }, 45 * 1000);
+  
+  console.log(`🔄 [MISSED MSG] Polling de mensagens não processadas iniciado (a cada 45s)`);
+}
+
+// -----------------------------------------------------------------------
+// ✅ UPLOAD DE MÍDIA PARA STORAGE (Economia de Egress)
 // -----------------------------------------------------------------------
 // Em vez de salvar base64 no banco (que consome muito egress),
 // fazemos upload para o Supabase Storage (usa cached egress via CDN).
@@ -351,10 +394,14 @@ interface ReconnectAttempt {
 }
 const reconnectAttempts = new Map<string, ReconnectAttempt>();
 const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconex�o
+const RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconexão
+
+// 🔄 Iniciar polling de mensagens não processadas
+// (variáveis necessárias já foram declaradas acima)
+startMissedMessagePolling();
 
 // -----------------------------------------------------------------------
-// ?? CACHE DE AGENDA - OTIMIZA��O PARA ENVIO EM MASSA
+// 📇 CACHE DE AGENDA - OTIMIZAÇÃO PARA ENVIO EM MASSA
 // -----------------------------------------------------------------------
 // Contatos do WhatsApp s�o armazenados APENAS em mem�ria (n�o no banco)
 // Isso evita crescimento exponencial do Supabase e otimiza Egress/Disk IO
@@ -559,11 +606,128 @@ interface PendingResponse {
 }
 const pendingResponses = new Map<string, PendingResponse>(); // key: conversationId
 
-// ?? ANTI-DUPLICA��O: Set para rastrear conversas em processamento
-// Evita que m�ltiplos timeouts processem a mesma conversa simultaneamente
+// 🔴 ANTI-DUPLICAÇÃO: Set para rastrear conversas em processamento
+// Evita que múltiplos timeouts processem a mesma conversa simultaneamente
 const conversationsBeingProcessed = new Set<string>();
 
-// ?? ANTI-DUPLICA��O: Cache de mensagens recentes enviadas (�ltimos 5 minutos)
+// -----------------------------------------------------------------------
+// 🔄 IMPLEMENTAÇÃO REAL: checkForMissedMessages
+// -----------------------------------------------------------------------
+// Agora que pendingResponses e conversationsBeingProcessed foram declarados,
+// podemos implementar a função real.
+// -----------------------------------------------------------------------
+checkForMissedMessages = async function(session: WhatsAppSession): Promise<void> {
+  if (!session.socket || !session.isConnected) return;
+  
+  const { userId, connectionId } = session;
+  
+  // Rate limit: verificar apenas a cada 45 segundos por sessão
+  const lastCheck = lastMissedMessageCheck.get(userId) || 0;
+  if (Date.now() - lastCheck < 45000) return;
+  lastMissedMessageCheck.set(userId, Date.now());
+  
+  try {
+    // 1. Buscar conversas com mensagens recentes (últimos 5 minutos)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    
+    const { pool } = await import("./db");
+    const result = await pool.query(`
+      SELECT 
+        c.id as conversation_id,
+        c.contact_number,
+        c.jid_suffix,
+        m.id as message_id,
+        m.text,
+        m.timestamp,
+        m.from_me
+      FROM conversations c
+      JOIN messages m ON m.conversation_id = c.id
+      WHERE c.connection_id = $1
+        AND m.timestamp > $2
+        AND m.from_me = false
+        AND NOT EXISTS (
+          SELECT 1 FROM messages m2 
+          WHERE m2.conversation_id = c.id 
+            AND m2.from_me = true 
+            AND m2.timestamp > m.timestamp
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM agent_disabled_conversations adc
+          WHERE adc.conversation_id = c.id
+        )
+      ORDER BY m.timestamp DESC
+      LIMIT 10
+    `, [connectionId, fiveMinutesAgo.toISOString()]);
+    
+    if (result.rows.length === 0) return;
+    
+    // 2. Verificar config do agente
+    const agentConfig = await storage.getAgentConfig(userId);
+    if (!agentConfig?.isActive) return;
+    
+    // 3. Processar mensagens não respondidas
+    for (const row of result.rows) {
+      const cacheKey = `${row.conversation_id}_${row.message_id}`;
+      
+      // Evitar reprocessar mensagens já detectadas
+      if (detectedMissedMessages.has(cacheKey)) continue;
+      detectedMissedMessages.add(cacheKey);
+      
+      // Limpar cache antigo (manter últimas 1000 entradas)
+      if (detectedMissedMessages.size > 1000) {
+        const entries = Array.from(detectedMissedMessages);
+        entries.slice(0, 500).forEach(e => detectedMissedMessages.delete(e));
+      }
+      
+      // Verificar se já tem resposta pendente
+      if (pendingResponses.has(row.conversation_id)) {
+        console.log(`🔄 [MISSED MSG] ${row.contact_number} - Já tem resposta pendente`);
+        continue;
+      }
+      
+      // Verificar se está sendo processada
+      if (conversationsBeingProcessed.has(row.conversation_id)) {
+        console.log(`🔄 [MISSED MSG] ${row.contact_number} - Em processamento`);
+        continue;
+      }
+      
+      console.log(`\n🚨 [MISSED MSG] MENSAGEM NÃO PROCESSADA DETECTADA!`);
+      console.log(`   📱 Contato: ${row.contact_number}`);
+      console.log(`   💬 Mensagem: "${(row.text || '[mídia]').substring(0, 50)}..."`);
+      console.log(`   ⏰ Enviada em: ${row.timestamp}`);
+      console.log(`   🔄 Triggando resposta da IA...`);
+      
+      // Agendar resposta com delay
+      const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
+      
+      const pending: PendingResponse = {
+        timeout: null as any,
+        messages: [row.text || '[mídia recebida]'],
+        conversationId: row.conversation_id,
+        userId,
+        contactNumber: row.contact_number,
+        jidSuffix: row.jid_suffix || DEFAULT_JID_SUFFIX,
+        startTime: Date.now(),
+      };
+      
+      pending.timeout = setTimeout(async () => {
+        console.log(`🚀 [MISSED MSG] Processando resposta para ${row.contact_number}`);
+        await processAccumulatedMessages(pending);
+      }, responseDelaySeconds * 1000);
+      
+      pendingResponses.set(row.conversation_id, pending);
+      console.log(`   ✅ Resposta agendada em ${responseDelaySeconds}s\n`);
+    }
+    
+  } catch (error) {
+    // Silenciar erros para não poluir logs
+    if ((error as any).code !== 'ECONNREFUSED') {
+      console.error(`❌ [MISSED MSG] Erro na verificação:`, error);
+    }
+  }
+};
+
+// 🔴 ANTI-DUPLICAÇÃO: Cache de mensagens recentes enviadas (últimos 5 minutos)
 // Evita enviar mensagens id�nticas em sequ�ncia
 const recentlySentMessages = new Map<string, { text: string; timestamp: number }[]>();
 
@@ -6489,9 +6653,10 @@ export async function redownloadMedia(
       return { success: false, error: "Mídia vazia - pode ter expirado no WhatsApp" };
     }
 
-    // Upload para Supabase Storage
-    const { uploadMediaToStorage } = await import("./whatsapp");
-    const newMediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, mediaType);
+    // Upload para Supabase Storage (função já está definida no topo deste arquivo)
+    // A função uploadMediaToStorage recebe: (buffer, mimeType, originalFileName?)
+    const filename = `redownloaded_${Date.now()}.${mediaType}`;
+    const newMediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, filename);
 
     if (!newMediaUrl) {
       // Fallback para base64 se falhar upload

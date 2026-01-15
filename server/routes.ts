@@ -7692,6 +7692,24 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     }
   });
 
+  // GET - Buscar plano atribuído do usuário
+  app.get("/api/user/assigned-plan", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUserById(userId);
+      
+      if (!user?.assignedPlanId) {
+        return res.json(null);
+      }
+      
+      const plan = await storage.getPlan(user.assignedPlanId);
+      res.json(plan || null);
+    } catch (error) {
+      console.error("Error fetching assigned plan:", error);
+      res.status(500).json({ message: "Erro ao buscar plano atribuído" });
+    }
+  });
+
   // GET - Admin: Listar usuários suspensos
   app.get("/api/admin/suspended-users", isAdmin, async (_req, res) => {
     try {

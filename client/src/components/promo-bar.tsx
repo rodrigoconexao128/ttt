@@ -3,11 +3,10 @@ import { X, Clock, Tag } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface PromoBarProps {
-  hasActiveSubscription?: boolean;
-  isResellerClient?: boolean;
+  isAuthenticated: boolean;
 }
 
-export function PromoBar({ hasActiveSubscription, isResellerClient }: PromoBarProps) {
+export function PromoBar({ isAuthenticated }: PromoBarProps) {
   const [location, setLocation] = useLocation();
   const [isVisible, setIsVisible] = useState(true);
   const [timeLeft, setTimeLeft] = useState(() => {
@@ -53,11 +52,11 @@ export function PromoBar({ hasActiveSubscription, isResellerClient }: PromoBarPr
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
 
-  // Não mostrar se tem assinatura ativa ou é cliente de revenda
-  if (hasActiveSubscription || isResellerClient) return null;
+  // Mostrar APENAS para usuários NÃO autenticados (landing page)
+  if (isAuthenticated) return null;
   
   // Não mostrar em páginas específicas ou se fechada
-  if (!isVisible || location === "/plans" || location.startsWith("/admin")) return null;
+  if (!isVisible || location !== "/") return null;
 
   return (
     <div className="bg-gray-900 text-white py-2 px-4 relative">
