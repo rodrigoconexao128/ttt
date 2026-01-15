@@ -57,10 +57,11 @@ export function startMediaCleanupService(): void {
   console.log(`🗑️ [MEDIA CLEANUP] TTL das mídias: ${MEDIA_TTL_MINUTES} minutos`);
   console.log(`🗑️ ═══════════════════════════════════════════════════════════════\n`);
 
-  // Executar primeira limpeza após 5 minutos (dar tempo do servidor estabilizar)
+  // 🔥 CRÍTICO: Executar primeira limpeza IMEDIATAMENTE (após 30 segundos)
   setTimeout(() => {
+    console.log(`🚀 [MEDIA CLEANUP] Executando primeira limpeza...`);
     void runCleanup();
-  }, 5 * 60 * 1000);
+  }, 30 * 1000); // 30 segundos ao invés de 5 minutos
 
   // Agendar limpezas periódicas
   cleanupInterval = setInterval(() => {
@@ -471,4 +472,12 @@ async function transcribePendingAudios(): Promise<void> {
   } catch (error) {
     console.error(`❌ [MEDIA CLEANUP] Erro ao buscar áudios pendentes:`, error);
   }
+}
+
+/**
+ * Força execução imediata de limpeza (usado por endpoint admin)
+ */
+export async function forceMediaCleanup(): Promise<CleanupStats> {
+  console.log(`🚀 [MEDIA CLEANUP] Limpeza FORÇADA iniciada pelo admin`);
+  return await runCleanup();
 }

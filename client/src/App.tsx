@@ -23,8 +23,11 @@ import TermsOfServicePage from "@/pages/terms-of-service";
 import PlanLinkPage from "@/pages/plan-link";
 import { AccessBlocker, SubscriptionExpiringBanner } from "@/components/access-blocker";
 import { PromoBar } from "@/components/promo-bar";
+import { PlanButton } from "@/components/plan-button";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import type { Subscription, Plan } from "@db/schema";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -107,15 +110,36 @@ function Router() {
 }
 
 function App() {
+  const { isAuthenticated } = useAuth();
+
+  // Buscar assinatura atual do usuário
+  const { data: currentSubscription } = useQuery<(Subscription & { plan: Plan }) | null>({
+    queryKey: ["/api/subscriptions/current"],
+    enabled: isAuthenticated,
+  });
+
+  // Buscar status de cliente revendedor
+  const { data: resellerPlan } = useQuery<{ isResellerClient: boolean; }>({
+    queryKey: ["/api/user/reseller-plan"],
+    enabled: isAuthenticated,
+  });
+
+  const hasActiveSubscription = currentSubscription?.status === "active";
+  const isResellerClient = resellerPlan?.isResellerClient || false;
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <PromoBar />
+        <PromoBar 
+          hasActiveSubscription={hasActiveSubscription}
+          isResellerClient={isResellerClient}
+        />
         <SubscriptionExpiringBanner />
         <AccessBlocker>
           <Router />
         </AccessBlocker>
+        {isAuthenticated && <PlanButton />}
       </TooltipProvider>
     </QueryClientProvider>
   );

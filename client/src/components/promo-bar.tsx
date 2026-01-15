@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import { X, Clock, Tag } from "lucide-react";
 import { useLocation } from "wouter";
 
-export function PromoBar() {
+interface PromoBarProps {
+  hasActiveSubscription?: boolean;
+  isResellerClient?: boolean;
+}
+
+export function PromoBar({ hasActiveSubscription, isResellerClient }: PromoBarProps) {
   const [location, setLocation] = useLocation();
   const [isVisible, setIsVisible] = useState(true);
   const [timeLeft, setTimeLeft] = useState(() => {
@@ -48,6 +53,9 @@ export function PromoBar() {
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
 
+  // Não mostrar se tem assinatura ativa ou é cliente de revenda
+  if (hasActiveSubscription || isResellerClient) return null;
+  
   // Não mostrar em páginas específicas ou se fechada
   if (!isVisible || location === "/plans" || location.startsWith("/admin")) return null;
 
@@ -75,7 +83,7 @@ export function PromoBar() {
           onClick={() => setLocation("/plans")}
           className="bg-green-500 text-white px-3 py-1 rounded text-xs font-medium hover:bg-green-600 transition-colors"
         >
-          Ver planos
+          Assinar
         </button>
         
         <button 
