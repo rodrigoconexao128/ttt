@@ -2638,7 +2638,17 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
         return res.status(403).json({ success: false, message: "Acesso negado" });
       }
 
-      // Verificar se tem metadados para re-download
+      // ✅ CASO 1: Já tem mediaUrl válido - retornar diretamente sem redownload
+      if (message.mediaUrl && message.mediaUrl.length > 10) {
+        console.log(`✅ [REDOWNLOAD] Mensagem ${messageId} já tem mediaUrl, retornando direto`);
+        return res.json({ 
+          success: true, 
+          message: "Mídia já disponível!",
+          mediaUrl: message.mediaUrl 
+        });
+      }
+
+      // ✅ CASO 2: Verificar se tem metadados para re-download
       if (!message.mediaKey || !message.directPath) {
         return res.status(400).json({ 
           success: false, 
