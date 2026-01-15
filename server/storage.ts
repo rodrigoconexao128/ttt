@@ -562,9 +562,8 @@ export class DatabaseStorage implements IStorage {
     const cached = memoryCache.get<Message[]>(cacheKey);
     if (cached) return cached;
 
-    // ⚡ OTIMIZAÇÃO EGRESS: NÃO carregar media_url!
-    // Economia estimada: ~5GB de egress/mês
-    // Frontend deve usar getMessageMedia() para lazy loading de mídia
+    // ✅ INCLUIR mediaUrl PARA FUNCIONALIDADE CORRETA
+    // Frontend precisa do mediaUrl para decidir entre mostrar player ou botão de recuperação
     const result = await db
       .select({
         id: messages.id,
@@ -576,7 +575,9 @@ export class DatabaseStorage implements IStorage {
         status: messages.status,
         isFromAgent: messages.isFromAgent,
         mediaType: messages.mediaType,
-        // ❌ NÃO incluir mediaUrl aqui - usar getMessageMedia() quando necessário
+        mediaUrl: messages.mediaUrl, // ✅ NECESSÁRIO para mostrar player
+        mediaKey: messages.mediaKey,
+        directPath: messages.directPath,
         mediaMimeType: messages.mediaMimeType,
         mediaDuration: messages.mediaDuration,
         mediaCaption: messages.mediaCaption,
