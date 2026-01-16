@@ -1093,6 +1093,13 @@ ${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).j
       return;
     }
 
+    // 🔧 FIX BUG REATIVAÇÃO: Se foi DESATIVADO MANUALMENTE pelo usuário, NÃO reativar automaticamente
+    // Isso evita que o sistema reative follow-up quando o dono envia uma mensagem
+    if (conversation.followupDisabledReason && conversation.followupDisabledReason.includes('Desativado pelo usuário')) {
+      console.log(`🛑 [USER-FOLLOW-UP] Follow-up foi DESATIVADO MANUALMENTE para ${conversationId}. Motivo: ${conversation.followupDisabledReason}. NÃO reativando automaticamente.`);
+      return;
+    }
+
     const userId = conversation.connection.userId;
     const config = await this.getFollowupConfig(userId);
     
@@ -1136,10 +1143,17 @@ ${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).j
       return;
     }
 
-    // 🔧 FIX: Só resetar se follow-up estava ativo
-    // Se estava desativado pelo usuário, não ativar automaticamente
+    // 🔧 FIX CRÍTICO: NÃO reativar se foi desativado MANUALMENTE pelo usuário
+    // Checar tanto followupActive quanto followupDisabledReason
     if (!conversation.followupActive) {
       console.log(`ℹ️ [USER-FOLLOW-UP] Follow-up estava desativado para ${conversationId}, não resetando automaticamente`);
+      return;
+    }
+
+    // 🔧 FIX BUG REATIVAÇÃO: Se existe motivo de desativação, significa que foi desativado MANUALMENTE
+    // NUNCA reativar automaticamente quando foi desativado pelo usuário
+    if (conversation.followupDisabledReason && conversation.followupDisabledReason.includes('Desativado pelo usuário')) {
+      console.log(`🛑 [USER-FOLLOW-UP] Follow-up foi DESATIVADO MANUALMENTE para ${conversationId}. Motivo: ${conversation.followupDisabledReason}. NÃO reativando automaticamente.`);
       return;
     }
 
