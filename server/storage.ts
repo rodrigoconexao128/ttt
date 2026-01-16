@@ -919,12 +919,38 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       .where(eq(businessAgentConfigs.userId, userId));
   }
 
+  /**
+   * 🔧 FIX BUG CRÍTICO: Verificar se IA está desativada para uma conversa
+   * AGORA verifica DUAS condições:
+   * 1. agent_disabled_conversations (pausa temporária quando dono responde)
+   * 2. conversations.followup_disabled_reason = "Desativado pelo usuário" (desativação manual)
+   * 
+   * Se qualquer uma das condições for true, a IA NÃO deve responder.
+   */
   async isAgentDisabledForConversation(conversationId: string): Promise<boolean> {
+    // 1. Verificar tabela de pausas temporárias
     const [disabled] = await db
       .select()
       .from(agentDisabledConversations)
       .where(eq(agentDisabledConversations.conversationId, conversationId));
-    return !!disabled;
+    
+    if (disabled) {
+      return true;
+    }
+    
+    // 2. 🔧 FIX: Verificar se foi DESATIVADO MANUALMENTE pelo usuário
+    const [conversation] = await db
+      .select({ followupDisabledReason: conversations.followupDisabledReason })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId));
+    
+    // Se followupDisabledReason contém "Desativado pelo usuário", IA está desativada
+    if (conversation?.followupDisabledReason?.includes('Desativado pelo usuário')) {
+      console.log(`🛑 [STORAGE] IA desativada MANUALMENTE para conversa ${conversationId}`);
+      return true;
+    }
+    
+    return false;
   }
 
   async disableAgentForConversation(conversationId: string, autoReactivateAfterMinutes?: number | null): Promise<void> {
