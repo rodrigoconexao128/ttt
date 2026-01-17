@@ -115,6 +115,9 @@ export async function generateAudioForResponse(
 
 /**
  * Envia áudio como mensagem de voz (PTT) via WhatsApp
+ * FLUXO OTIMIZADO: Gerar → Salvar temp → Enviar → APAGAR IMEDIATAMENTE
+ * Arquivos são sempre apagados, mesmo em caso de erro
+ * 
  * @param userId - ID do usuário
  * @param jid - JID do destinatário
  * @param audioBuffer - Buffer do áudio MP3
@@ -126,14 +129,17 @@ export async function sendAudioAsVoiceMessage(
   audioBuffer: Buffer,
   socket: any
 ): Promise<boolean> {
+  let tmpFile: string | null = null;
+  
   try {
     await ensureTmpDir();
     
-    // Salvar temporariamente
-    const tmpFile = path.join(TMP_DIR, `tts-${Date.now()}-${Math.random().toString(36).substring(7)}.mp3`);
+    // Salvar temporariamente - APENAS no sistema de arquivos local (Railway)
+    // NÃO usa Supabase Storage para evitar acúmulo de arquivos
+    tmpFile = path.join(TMP_DIR, `tts-${Date.now()}-${Math.random().toString(36).substring(7)}.mp3`);
     await fs.writeFile(tmpFile, audioBuffer);
 
-    console.log(`📤 [TTS-RESPONSE] Enviando áudio como mensagem de voz para ${jid}`);
+    console.log(`📤 [TTS-RESPONSE] Enviando áudio como mensagem de voz para ${jid} (arquivo: ${tmpFile})`);
 
     // Enviar como PTT (Push to Talk / Mensagem de voz)
     await socket.sendMessage(jid, {
@@ -146,14 +152,23 @@ export async function sendAudioAsVoiceMessage(
     const counterResult = await storage.incrementAudioMessageCounter(userId);
     console.log(`📊 [TTS-RESPONSE] Contador atualizado: ${counterResult.count}/${counterResult.limit}`);
 
-    // Limpar arquivo temporário
-    await fs.unlink(tmpFile).catch(() => {});
-
     console.log(`✅ [TTS-RESPONSE] Áudio enviado com sucesso!`);
     return true;
   } catch (error) {
     console.error("[TTS-RESPONSE] Erro ao enviar áudio:", error);
     return false;
+  } finally {
+    // SEMPRE apagar arquivo temporário, mesmo em caso de erro
+    // Isso garante que não fique acumulando arquivos no servidor
+    if (tmpFile) {
+      try {
+        await fs.unlink(tmpFile);
+        console.log(`🗑️ [TTS-RESPONSE] Arquivo temporário apagado: ${tmpFile}`);
+      } catch (unlinkError) {
+        // Ignorar erro ao apagar (arquivo pode já não existir)
+        console.warn(`⚠️ [TTS-RESPONSE] Erro ao apagar arquivo temporário:`, unlinkError);
+      }
+    }
   }
 }
 
@@ -207,6 +222,8 @@ export async function processAudioResponseForAgent(
 }
 
 // Limpar arquivos temporários antigos (executar periodicamente)
+// OTIMIZAÇÃO: Limpa a cada 5 minutos, remove arquivos > 5 minutos
+// Isso garante que não fique acumulando arquivos no Railway
 export async function cleanupOldTTSFiles(): Promise<number> {
   try {
     await ensureTmpDir();
@@ -216,13 +233,17 @@ export async function cleanupOldTTSFiles(): Promise<number> {
 
     for (const file of files) {
       const filePath = path.join(TMP_DIR, file);
-      const stats = await fs.stat(filePath);
-      const ageMinutes = (now - stats.mtime.getTime()) / 1000 / 60;
+      try {
+        const stats = await fs.stat(filePath);
+        const ageMinutes = (now - stats.mtime.getTime()) / 1000 / 60;
 
-      // Remover arquivos mais antigos que 30 minutos
-      if (ageMinutes > 30) {
-        await fs.unlink(filePath).catch(() => {});
-        cleaned++;
+        // Remover arquivos mais antigos que 5 minutos (bem mais agressivo)
+        if (ageMinutes > 5) {
+          await fs.unlink(filePath);
+          cleaned++;
+        }
+      } catch (e) {
+        // Arquivo pode ter sido removido por outro processo
       }
     }
 
@@ -236,5 +257,8 @@ export async function cleanupOldTTSFiles(): Promise<number> {
   }
 }
 
-// Agendar limpeza a cada 15 minutos
-setInterval(cleanupOldTTSFiles, 15 * 60 * 1000);
+// Agendar limpeza a cada 5 minutos (mais frequente para não acumular)
+setInterval(cleanupOldTTSFiles, 5 * 60 * 1000);
+
+// Executar limpeza imediatamente ao iniciar
+cleanupOldTTSFiles();

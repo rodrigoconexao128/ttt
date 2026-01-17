@@ -4079,11 +4079,12 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
 
   /**
    * Criar configuração de áudio padrão
+   * NOTA: Por padrão, TTS começa DESATIVADO - usuário precisa ativar manualmente via toggle
    */
   async createAudioConfig(userId: string): Promise<AudioConfig> {
     const [config] = await db.insert(audioConfig).values({
       userId,
-      isEnabled: true,
+      isEnabled: false, // DESATIVADO por padrão - ativar via toggle
       voiceType: "female",
       speed: "1.00",
     }).returning();
@@ -4097,10 +4098,10 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     const existing = await this.getAudioConfig(userId);
     
     if (!existing) {
-      // Criar se não existe
+      // Criar se não existe - DESATIVADO por padrão, a menos que explicitamente ativado
       const [config] = await db.insert(audioConfig).values({
         userId,
-        isEnabled: data.isEnabled ?? true,
+        isEnabled: data.isEnabled ?? false, // DESATIVADO por padrão
         voiceType: data.voiceType ?? "female",
         speed: data.speed ?? "1.00",
       }).returning();

@@ -2986,10 +2986,14 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
         .single();
       
       if (error && error.code === 'PGRST116') {
-        // Não existe, cria com valores padrão
+        // Não existe, cria com valores padrão - DESATIVADO por padrão
         const { data: newConfig, error: insertError } = await supabase
           .from('products_config')
-          .insert({ user_id: userId })
+          .insert({ 
+            user_id: userId,
+            is_active: false, // DESATIVADO por padrão - ativar via toggle
+            send_to_ai: true
+          })
           .select()
           .single();
         
