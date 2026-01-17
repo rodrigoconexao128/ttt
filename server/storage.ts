@@ -984,9 +984,22 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
   }
 
   async enableAgentForConversation(conversationId: string): Promise<void> {
+    // 1. Remover da tabela de pausas temporárias
     await db
       .delete(agentDisabledConversations)
       .where(eq(agentDisabledConversations.conversationId, conversationId));
+    
+    // 2. 🔧 FIX BUG: Limpar também o campo followup_disabled_reason
+    // Isso é CRÍTICO porque isAgentDisabledForConversation() verifica este campo
+    await db
+      .update(conversations)
+      .set({ 
+        followupDisabledReason: null,
+        followupActive: true
+      })
+      .where(eq(conversations.id, conversationId));
+    
+    console.log(`✅ [STORAGE] IA reativada para conversa ${conversationId} - limpou agent_disabled_conversations E followup_disabled_reason`);
   }
 
   async updateDisabledConversationOwnerReply(conversationId: string): Promise<void> {
