@@ -3,17 +3,21 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, MessageCircle, Smartphone, X, Tags, Filter } from "lucide-react";
+import { Search, MessageCircle, Smartphone, X, Tags, Filter, Check, CheckCheck, Circle, Mail, MailOpen, MessageSquarePlus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@shared/schema";
 import { useState, useEffect } from "react";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { getAuthToken } from "@/lib/supabase";
 import {
   Dialog,
   DialogContent,
   DialogClose,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -23,7 +27,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
 import { TagBadges, ConversationTagsModal } from "./conversation-tags";
+import { useToast } from "@/hooks/use-toast";
 
 // Tag interface
 interface Tag {
@@ -51,11 +58,21 @@ export function ConversationsList({
   selectedConversationId,
   onSelectConversation,
 }: ConversationsListProps) {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   const [avatarModalImage, setAvatarModalImage] = useState<string | null>(null);
   const [avatarModalName, setAvatarModalName] = useState<string>("");
+  
+  // Status filter: "all" | "unread" | "replied" | "unreplied"
+  const [statusFilter, setStatusFilter] = useState<"all" | "unread" | "replied" | "unreplied">("all");
+  
+  // New contact dialog
+  const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
+  const [newContactNumber, setNewContactNumber] = useState("");
+  const [newContactName, setNewContactName] = useState("");
+  const [creatingContact, setCreatingContact] = useState(false);
   
   // Tag filter states
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
@@ -67,7 +84,11 @@ export function ConversationsList({
   const { data: conversationsWithTags = [], isLoading } = useQuery<ConversationWithTags[]>({
     queryKey: ["/api/conversations-with-tags", selectedTagFilter],
     queryFn: async () => {
-      const token = await getAuthToken();
+      // Prioridade para token de membro
+      const memberToken = localStorage.getItem("memberToken");
+      const supabaseToken = await getAuthToken();
+      const token = memberToken || supabaseToken;
+      
       const url = selectedTagFilter 
         ? `/api/conversations-with-tags?tagId=${selectedTagFilter}`
         : "/api/conversations-with-tags";
@@ -192,6 +213,62 @@ export function ConversationsList({
     );
   });
 
+  // Apply status filter
+  const statusFilteredConversations = filteredConversations.filter((conv) => {
+    switch (statusFilter) {
+      case "unread":
+        // Não lidas: unreadCount > 0
+        return (conv.unreadCount || 0) > 0;
+      case "replied":
+        // Respondidas: conversa já foi respondida alguma vez (hasReplied = true)
+        return conv.hasReplied === true;
+      case "unreplied":
+        // Pendentes: conversa NUNCA foi respondida (hasReplied = false)
+        return !conv.hasReplied;
+      default:
+        return true;
+    }
+  });
+
+  // Handle creating new contact
+  const handleCreateNewContact = async () => {
+    if (!newContactNumber.trim()) {
+      toast({
+        title: "Número obrigatório",
+        description: "Digite o número do contato",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingContact(true);
+    try {
+      const response = await apiRequest("POST", "/api/conversations/new-contact", {
+        phoneNumber: newContactNumber.replace(/\D/g, ""),
+        contactName: newContactName.trim() || undefined,
+      });
+      
+      const data = await response.json();
+      
+      if (data.conversationId) {
+        toast({ title: "Conversa criada!" });
+        queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
+        onSelectConversation(data.conversationId);
+        setNewContactDialogOpen(false);
+        setNewContactNumber("");
+        setNewContactName("");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar conversa",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingContact(false);
+    }
+  };
+
   const openTagModal = (conv: ConversationWithTags, e: React.MouseEvent) => {
     e.stopPropagation();
     setTagModalConversationId(conv.id);
@@ -210,51 +287,84 @@ export function ConversationsList({
       <div className="p-3 md:p-4 border-b space-y-3 flex-shrink-0">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-lg">Conversas</h2>
-          {/* Dropdown de filtro por tag */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant={selectedTagFilter ? "default" : "ghost"} 
-                size="icon" 
-                className="h-8 w-8"
-                style={activeFilterTag ? {
-                  backgroundColor: activeFilterTag.color,
-                  borderColor: activeFilterTag.color,
-                } : undefined}
-              >
-                <Filter className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Filtrar por Etiqueta</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={selectedTagFilter === null}
-                onCheckedChange={() => setSelectedTagFilter(null)}
-              >
-                <span className="font-medium">Todas as conversas</span>
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator />
-              {availableTags.map(tag => (
-                <DropdownMenuCheckboxItem
-                  key={tag.id}
-                  checked={selectedTagFilter === tag.id}
-                  onCheckedChange={() => setSelectedTagFilter(
-                    selectedTagFilter === tag.id ? null : tag.id
-                  )}
+          <div className="flex items-center gap-2">
+            {/* Botão novo contato */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setNewContactDialogOpen(true)}
+              title="Nova conversa"
+            >
+              <MessageSquarePlus className="w-4 h-4" />
+            </Button>
+            {/* Dropdown de filtro por tag */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant={selectedTagFilter ? "default" : "ghost"} 
+                  size="icon" 
+                  className="h-8 w-8"
+                  style={activeFilterTag ? {
+                    backgroundColor: activeFilterTag.color,
+                    borderColor: activeFilterTag.color,
+                  } : undefined}
                 >
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: tag.color }}
-                    />
-                    <span>{tag.name}</span>
-                  </div>
+                  <Filter className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Filtrar por Etiqueta</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={selectedTagFilter === null}
+                  onCheckedChange={() => setSelectedTagFilter(null)}
+                >
+                  <span className="font-medium">Todas as conversas</span>
                 </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuSeparator />
+                {availableTags.map(tag => (
+                  <DropdownMenuCheckboxItem
+                    key={tag.id}
+                    checked={selectedTagFilter === tag.id}
+                    onCheckedChange={() => setSelectedTagFilter(
+                      selectedTagFilter === tag.id ? null : tag.id
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      <span>{tag.name}</span>
+                    </div>
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
+        
+        {/* Filtros de status estilo WhatsApp */}
+        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="w-full">
+          <TabsList className="w-full grid grid-cols-4 h-8">
+            <TabsTrigger value="all" className="text-xs px-2 py-1">
+              Todas
+            </TabsTrigger>
+            <TabsTrigger value="unread" className="text-xs px-2 py-1">
+              <Circle className="w-3 h-3 mr-1 fill-green-500 text-green-500" />
+              Não lidas
+            </TabsTrigger>
+            <TabsTrigger value="replied" className="text-xs px-2 py-1">
+              <CheckCheck className="w-3 h-3 mr-1 text-blue-500" />
+              Respondidas
+            </TabsTrigger>
+            <TabsTrigger value="unreplied" className="text-xs px-2 py-1">
+              <Mail className="w-3 h-3 mr-1" />
+              Pendentes
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
         
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -318,33 +428,38 @@ export function ConversationsList({
           <div className="flex items-center justify-center h-32">
             <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : filteredConversations.length === 0 ? (
+        ) : statusFilteredConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <MessageCircle className="w-12 h-12 text-muted-foreground mb-4" />
             <h3 className="font-medium text-sm mb-2">
-              {searchQuery || selectedTagFilter ? "Nenhuma conversa encontrada" : "Nenhuma conversa"}
+              {searchQuery || selectedTagFilter || statusFilter !== "all" ? "Nenhuma conversa encontrada" : "Nenhuma conversa"}
             </h3>
             <p className="text-xs text-muted-foreground max-w-xs">
               {searchQuery 
                 ? "Tente buscar por outro termo"
                 : selectedTagFilter 
                   ? "Nenhuma conversa com esta etiqueta"
-                  : "As conversas aparecerão aqui quando você receber mensagens"}
+                  : statusFilter !== "all"
+                    ? `Nenhuma conversa ${statusFilter === "unread" ? "não lida" : statusFilter === "replied" ? "respondida" : "pendente"}`
+                    : "As conversas aparecerão aqui quando você receber mensagens"}
             </p>
-            {selectedTagFilter && (
+            {(selectedTagFilter || statusFilter !== "all") && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="mt-2"
-                onClick={() => setSelectedTagFilter(null)}
+                onClick={() => {
+                  setSelectedTagFilter(null);
+                  setStatusFilter("all");
+                }}
               >
-                Limpar filtro
+                Limpar filtros
               </Button>
             )}
           </div>
         ) : (
           <div className="divide-y" data-testid="list-conversations">
-            {filteredConversations.map((conversation) => {
+            {statusFilteredConversations.map((conversation) => {
               const displayNumber =
                 conversation.contactNumber ||
                 (conversation.remoteJid || "").split("@")[0].split(":")[0] ||
@@ -472,6 +587,65 @@ export function ConversationsList({
         currentTags={tagModalCurrentTags}
         onTagsUpdated={handleTagsUpdated}
       />
+      
+      {/* Dialog de novo contato */}
+      <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquarePlus className="h-5 w-5" />
+              Nova Conversa
+            </DialogTitle>
+            <DialogDescription>
+              Inicie uma conversa com um novo contato
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="newContactNumber">Número do WhatsApp *</Label>
+              <Input
+                id="newContactNumber"
+                placeholder="5511999999999"
+                value={newContactNumber}
+                onChange={(e) => setNewContactNumber(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Digite com código do país (ex: 55 para Brasil)
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newContactName">Nome (opcional)</Label>
+              <Input
+                id="newContactName"
+                placeholder="Nome do contato"
+                value={newContactName}
+                onChange={(e) => setNewContactName(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setNewContactDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateNewContact}
+              disabled={creatingContact || !newContactNumber.trim()}
+            >
+              {creatingContact ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Criando...
+                </>
+              ) : (
+                "Iniciar Conversa"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

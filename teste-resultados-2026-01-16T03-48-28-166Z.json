@@ -1,0 +1,357 @@
+[
+  {
+    "id": 1,
+    "perfil": "Cliente Direto R$49",
+    "pergunta": "Vi o anúncio de 49 reais",
+    "resposta": "Pra você testar grátis e já começar a usar o plano ilimitado por R$49/mês, crie sua conta aqui: https://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"máximo 2 linhas\"",
+      "Faltou: \"sem mencionar cupom\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"https://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 2,
+    "perfil": "Cliente Curioso",
+    "pergunta": "Como funciona essa IA?",
+    "resposta": "A IA da AgenteZap atende seus clientes no WhatsApp 24h: tira dúvidas, envia catálogos, agenda horários e até fecha vendas. Tudo automático, sem você precisar mexer um dedo. Ela aprende seu jeito de vender e envia mídias (áudios, vídeos, PDFs) na ordem que você configurar. Quer testar grátis pra ver como funciona?",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"sem textão\"",
+      "Faltou: \"sem lista numerada\"",
+      "Faltou: \"link https://agentezap.online/\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 3,
+    "perfil": "Cliente Queimado",
+    "pergunta": "Já usei bot antes e fui enganado, prometeram ilimitado mas tinha limite escondido",
+    "resposta": "Entendo total. Infelizmente tem muita ferramenta que promete ilimitado mas tem limites ocultos ou cobra tokens depois. Aqui eu vou ser transparente: no **teste grátis** tem limite (só pra você conhecer). No **plano pago**, é ILIMITADO MESMO. Sem crédito, sem token, sem pegadinha. R$99/mês e usa quanto quiser. Prefiro ser honesto do que prometer algo que não vou cumprir.",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"teste tem limite\"",
+      "Faltou: \"plano é ilimitado REAL\"",
+      "Faltou: \"transparência\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 4,
+    "perfil": "Cliente Técnico - Mídias Sequenciais",
+    "pergunta": "Consigo enviar uma sequência tipo: imagem do produto, depois PDF com info, depois áudio explicativo e por último um vídeo?",
+    "resposta": "Sim, você consegue! A gente envia mídias na ordem exata que você configurar. Imagem, PDF, áudio e vídeo, tudo automático. Quer testar grátis pra ver como funciona?",
+    "aprovado": true,
+    "erros": [],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"Sim\"",
+      "Incluiu: \"ordem exata\"",
+      "Incluiu: \"automático\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 5,
+    "perfil": "Cliente Sem Tempo",
+    "pergunta": "Vocês fazem tudo pra mim? Tô sem tempo",
+    "resposta": "Sim, a gente faz tudo pra você! Por R$199 (pagamento único), nossa equipe configura sua conta: cadastra produtos, treina a IA, deixa tudo rodando. É ideal pra quem tá sem tempo. Quer que eu te ajude a começar?",
+    "aprovado": true,
+    "erros": [],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"R$199\"",
+      "Incluiu: \"pagamento único\"",
+      "Incluiu: \"equipe configura\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 6,
+    "perfil": "Cliente Comparador",
+    "pergunta": "Qual a diferença de vocês pro Watidy?",
+    "resposta": "A gente é 100% nuvem, então não precisa computador ligado 24h como o Watidy. Além disso, a gente é ILIMITADO de verdade (sem créditos, sem tokens, sem pegadinhas). E a gente envia mídias em sequência automática (imagem, PDF, áudio, vídeo...). Quer testar grátis pra ver a diferença?",
+    "aprovado": false,
+    "erros": [
+      "ERRO: Mencionou \"precisa computador ligado\" quando NÃO deveria"
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"100% nuvem\"",
+      "Incluiu: \"ilimitado\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 7,
+    "perfil": "Cliente Preocupado com Bloqueio",
+    "pergunta": "O WhatsApp não vai bloquear minha conta?",
+    "resposta": "Boa pergunta! A gente tem proteções anti-bloqueio: modo seguro ao reconectar, delays inteligentes, variação de mensagens. Mas lembra: o WhatsApp é da Meta. A gente faz o máximo pra proteger, mas você precisa usar com bom senso também (não sair mandando 1000 mensagens de uma vez).",
+    "aprovado": true,
+    "erros": [],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"proteções\"",
+      "Incluiu: \"delays\"",
+      "Incluiu: \"bom senso\"",
+      "Incluiu: \"WhatsApp é da Meta\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 8,
+    "perfil": "Assistência Técnica",
+    "pergunta": "Preciso atender clientes de madrugada e fim de semana, a IA funciona 24h?",
+    "resposta": "Sim, a IA atende 24h, 7 dias por semana. Ela tira dúvidas, envia catálogos, agenda horários e até fecha vendas enquanto você descansa. Quer testar grátis pra ver como funciona?",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"atende sempre\"",
+      "Faltou: \"dicas\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"24h\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 9,
+    "perfil": "Confuso com Créditos",
+    "pergunta": "Tô no teste e diz que tenho só 4 créditos restantes, depois acaba?",
+    "resposta": "Sim, no teste grátis tem limite de mensagens (só pra você conhecer a plataforma). Quando você assina o plano (R$49 ou R$99), é ILIMITADO MESMO. Sem créditos, sem limite de mensagens, sem surpresas. Quer testar mais um pouco ou já ver os planos?",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"teste tem limite\"",
+      "Faltou: \"plano ilimitado\"",
+      "Faltou: \"sem créditos no plano pago\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 10,
+    "perfil": "Pergunta Preço Geral",
+    "pergunta": "Quanto custa?",
+    "resposta": "A gente tem um plano promocional por R$49/mês (ilimitado de verdade) ou o plano padrão por R$99/mês. Quer testar grátis pra ver se faz sentido?",
+    "aprovado": false,
+    "erros": [
+      "ERRO: Mencionou \"r$49\" quando NÃO deveria"
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"R$99\"",
+      "Incluiu: \"ilimitado\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 11,
+    "perfil": "Implementação Mensal?",
+    "pergunta": "Essa implementação de 199 é todo mês?",
+    "resposta": "Não, é pagamento ÚNICO! Nossa equipe configura tudo pra você (cadastra produtos, treina IA, deixa rodando). É R$199 uma vez só. Ideal se você tá sem tempo ou quer começar rápido.",
+    "aprovado": true,
+    "erros": [],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"pagamento único\"",
+      "Incluiu: \"R$199\"",
+      "Correto: NÃO mencionou \"é mensal\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 12,
+    "perfil": "Vou Pensar",
+    "pergunta": "Vou pensar e te retorno",
+    "resposta": "Tranquilo! Mas deixa eu te fazer uma pergunta: quantos clientes você perdeu essa semana por não responder rápido? A conta grátis tá liberada, você pode testar agora sem compromisso. Aí você decide na prática, sem precisar \"achar\". Quer testar?",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"quantos clientes perdeu\"",
+      "Faltou: \"teste grátis\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"sem compromisso\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 13,
+    "perfil": "Acha Caro",
+    "pergunta": "99 reais por mês tá caro",
+    "resposta": "Entendo. Mas pensa: por R$99/mês você tem um funcionário que trabalha 24h, nunca falta, não precisa férias, 13º, FGTS. Um funcionário real custa no mínimo R$1.500/mês. Aqui é R$99 total, sem surpresas. Quer testar grátis pra ver o valor?",
+    "aprovado": false,
+    "erros": [
+      "Usou lista numerada (1. 2. 3.)",
+      "Faltou: \"sem férias\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Links sem markdown",
+      "Incluiu: \"funcionário\"",
+      "Incluiu: \"R$1.500\"",
+      "Incluiu: \"24h\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 14,
+    "perfil": "Quer Link R$49 Direto",
+    "pergunta": "Me manda o link do plano de 49?",
+    "resposta": "Pra você testar grátis e já começar a usar o plano ilimitado por R$49/mês, crie sua conta aqui: https://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"1 linha apenas\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"https://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 15,
+    "perfil": "Envio em Massa",
+    "pergunta": "Consigo agendar envio em massa pra 500 contatos em horários diferentes?",
+    "resposta": "Sim, você pode agendar envios em massa para até 500 contatos em horários diferentes. Basta criar múltiplos agendamentos (ex: dia 30 às 9h, dia 31 às 15h, etc.). Funciona pra contatos individuais e grupos. Quer ver como configura?",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"agendamento múltiplo\"",
+      "Faltou: \"sistema anti-bloqueio\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"Sim\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 16,
+    "perfil": "Follow-up",
+    "pergunta": "Se o cliente não responder, a IA insiste?",
+    "resposta": "Sim! A gente tem o **follow-up automático**. Você configura os intervalos (10min, 30min, 1 dia, 2 dias...) e a IA insiste até o cliente responder. Isso aumenta muito o fechamento de vendas!",
+    "aprovado": true,
+    "erros": [],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"follow-up automático\"",
+      "Incluiu: \"10min, 30min, 1 dia\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 17,
+    "perfil": "Gerar Áudios",
+    "pergunta": "A IA consegue gerar áudios sozinha com voz natural?",
+    "resposta": "Hoje a IA não gera áudios sozinha. Você grava os áudios e a IA envia quando necessário. Mas a gente tá trabalhando pra incluir essa funcionalidade em breve! Quer testar o que a gente já tem? É grátis: https://agentezap.online/",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"hoje você grava\"",
+      "Faltou: \"em desenvolvimento\"",
+      "Faltou: \"honesto\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 18,
+    "perfil": "Calibração Persona",
+    "pergunta": "A IA consegue falar com a cara da minha empresa?",
+    "resposta": "Sim, a IA da AgenteZap aprende o jeito da sua empresa. Você treina ela com suas informações (produtos, preços, políticas) e ela responde no estilo que você quiser: formal, informal, consultivo... É como se fosse um vendedor seu, só que 24h! Quer testar grátis pra ver como fica?",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"seu jeito\"",
+      "Faltou: \"personalização\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"treina\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 19,
+    "perfil": "Diferença Teste vs Plano",
+    "pergunta": "Qual a diferença entre criar conta grátis e assinar o plano?",
+    "resposta": "A conta grátis é pra você testar a plataforma sem compromisso, mas tem limite de mensagens. Quando você assina o plano (R$49 ou R$99), vira **ILIMITADO MESMO**: sem créditos, sem tokens, sem pegadinha. Você usa quanto quiser. Quer testar grátis pra ver na prática?",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"teste limitado\"",
+      "Faltou: \"plano ilimitado\"",
+      "Faltou: \"clareza\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 20,
+    "perfil": "Notificador",
+    "pergunta": "Como eu sei quando o cliente realmente quer comprar?",
+    "resposta": "A AgenteZap tem um **notificador inteligente** que avisa quando o cliente demonstra interesse em comprar. Por exemplo, se ele perguntar \"qual o preço?\", \"como compro?\", ou \"quero levar\", o sistema te avisa na hora. Assim você fecha a venda sem perder tempo. Quer testar pra ver como funciona?",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"intenção de compra\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Incluiu: \"notificador\"",
+      "Incluiu: \"avisa\""
+    ],
+    "tamanhoLinhas": 1
+  }
+]

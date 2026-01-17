@@ -771,6 +771,17 @@ export function AgentStudioUnified() {
         
         // 🔄 Refetch limites diários após calibração bem-sucedida
         refetchDailyLimits();
+      } else if (data.conflictDetected) {
+        // 🚨 CONFLITO COM MÓDULO ATIVO (Delivery/Catálogo)
+        const conflictMessage: ChatMessage = {
+          id: `conflict-${Date.now()}`,
+          role: "assistant",
+          content: data.feedbackMessage || data.message,
+          timestamp: new Date()
+        };
+        setChatMessages(prev => [...prev, conflictMessage]);
+        
+        // Não conta como calibração (não consumiu)
       } else {
         const warningMessage: ChatMessage = {
           id: `warning-${Date.now()}`,

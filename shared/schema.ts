@@ -29,6 +29,9 @@ export const users = pgTable("users", {
   resellerId: varchar("reseller_id"),
   // Plano atribuído via link de cadastro - sempre mostra apenas este plano na página /plans
   assignedPlanId: varchar("assigned_plan_id"),
+  // Assinatura de mensagens (nome/apelido que aparece em negrito no WhatsApp)
+  signature: varchar("signature", { length: 100 }),
+  signatureEnabled: boolean("signature_enabled").default(false),
   // Campos de suspensão por violação de políticas
   suspendedAt: timestamp("suspended_at"),
   suspensionReason: text("suspension_reason"),
@@ -53,6 +56,74 @@ export const policyViolations = pgTable("policy_violations", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// =============================================================================
+// TEAM MEMBERS - Sistema de Membros/Funcionários
+// Permite ao dono da conta cadastrar funcionários que podem responder clientes
+// =============================================================================
+
+export const teamMembers = pgTable("team_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Dono da conta (usuário principal do SaaS)
+  ownerId: varchar("owner_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Informações do membro
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  passwordHash: text("password_hash").notNull(),
+  
+  // Cargo/Função (ex: vendedor, atendente, suporte)
+  role: varchar("role", { length: 100 }).default("atendente").notNull(),
+  
+  // Permissões
+  permissions: jsonb("permissions").$type<{
+    canViewConversations: boolean;
+    canSendMessages: boolean;
+    canUseQuickReplies: boolean;
+    canMoveKanban: boolean;
+    canViewDashboard: boolean;
+    canEditContacts: boolean;
+  }>().default({
+    canViewConversations: true,
+    canSendMessages: true,
+    canUseQuickReplies: true,
+    canMoveKanban: true,
+    canViewDashboard: false,
+    canEditContacts: false,
+  }),
+  
+  // Status
+  isActive: boolean("is_active").default(true).notNull(),
+  lastLoginAt: timestamp("last_login_at"),
+  
+  // Avatar/Foto
+  avatarUrl: text("avatar_url"),
+  
+  // Assinatura de mensagens (nome/apelido que aparece em negrito no WhatsApp)
+  signature: varchar("signature", { length: 100 }),
+  signatureEnabled: boolean("signature_enabled").default(false),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_team_members_owner").on(table.ownerId),
+  index("idx_team_members_email").on(table.email),
+  uniqueIndex("idx_team_members_unique_email_owner").on(table.ownerId, table.email),
+]);
+
+// Sessões de membros da equipe (login separado)
+export const teamMemberSessions = pgTable("team_member_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  memberId: varchar("member_id").notNull().references(() => teamMembers.id, { onDelete: 'cascade' }),
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  userAgent: text("user_agent"),
+  ipAddress: varchar("ip_address", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_team_member_sessions_member").on(table.memberId),
+  index("idx_team_member_sessions_token").on(table.token),
+]);
 
 // WhatsApp connections table
 export const whatsappConnections = pgTable("whatsapp_connections", {
@@ -131,7 +202,10 @@ export const conversations = pgTable("conversations", {
   contactAvatar: text("contact_avatar"),
   lastMessageText: text("last_message_text"),
   lastMessageTime: timestamp("last_message_time"),
+  lastMessageFromMe: boolean("last_message_from_me"),
   unreadCount: integer("unread_count").default(0).notNull(),
+  // Flag para rastrear se a conversa já foi respondida alguma vez pelo atendente
+  hasReplied: boolean("has_replied").default(false).notNull(),
   // Follow-up Inteligente
   followupActive: boolean("followup_active").default(true).notNull(),
   followupStage: integer("followup_stage").default(0).notNull(),
@@ -1610,6 +1684,17 @@ export const schedulingConfig = pgTable("scheduling_config", {
   googleCalendarId: varchar("google_calendar_id", { length: 255 }),
   googleSyncMode: varchar("google_sync_mode", { length: 50 }).default("two_way"),
   
+  // Serviços e Profissionais
+  useServices: boolean("use_services").default(false),
+  useProfessionals: boolean("use_professionals").default(false),
+  aiSchedulingEnabled: boolean("ai_scheduling_enabled").default(true),
+  aiCanSuggestService: boolean("ai_can_suggest_service").default(true),
+  aiCanSuggestProfessional: boolean("ai_can_suggest_professional").default(true),
+  
+  // Link público de agendamento
+  publicBookingEnabled: boolean("public_booking_enabled").default(false),
+  bookingLinkSlug: varchar("booking_link_slug", { length: 100 }),
+  
   // Mensagens personalizadas
   confirmationMessage: text("confirmation_message").default("Seu agendamento foi confirmado! 📅"),
   reminderMessage: text("reminder_message").default("Lembrete: Você tem um agendamento amanhã!"),
@@ -1637,6 +1722,11 @@ export const appointments = pgTable("appointments", {
   startTime: varchar("start_time", { length: 10 }).notNull(), // HH:mm
   endTime: varchar("end_time", { length: 10 }).notNull(), // HH:mm
   durationMinutes: integer("duration_minutes").default(60),
+  
+  // Serviço e Profissional
+  serviceId: varchar("service_id").references(() => schedulingServices.id, { onDelete: 'set null' }),
+  professionalId: varchar("professional_id").references(() => schedulingProfessionals.id, { onDelete: 'set null' }),
+  professionalName: varchar("professional_name", { length: 255 }),
   
   // Local
   location: varchar("location", { length: 500 }),
@@ -1716,6 +1806,105 @@ export const schedulingExceptions = pgTable("scheduling_exceptions", {
   index("idx_scheduling_exceptions_user_date").on(table.userId, table.exceptionDate),
 ]);
 
+// ==================== SERVIÇOS DE AGENDAMENTO ====================
+
+// Serviços oferecidos (ex: Corte, Escova, Manicure, Consulta)
+export const schedulingServices = pgTable("scheduling_services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Informações do serviço
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  durationMinutes: integer("duration_minutes").notNull().default(60),
+  price: numeric("price", { precision: 10, scale: 2 }),
+  
+  // Configurações
+  isActive: boolean("is_active").default(true),
+  allowOnline: boolean("allow_online").default(true),
+  allowPresencial: boolean("allow_presencial").default(true),
+  requiresConfirmation: boolean("requires_confirmation").default(true),
+  bufferBeforeMinutes: integer("buffer_before_minutes").default(0),
+  bufferAfterMinutes: integer("buffer_after_minutes").default(15),
+  maxPerDay: integer("max_per_day"), // limite por dia (null = ilimitado)
+  
+  // Visual
+  color: varchar("color", { length: 20 }).default("#3b82f6"),
+  icon: varchar("icon", { length: 50 }),
+  
+  // Ordenação
+  displayOrder: integer("display_order").default(0),
+  
+  // Metadados
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_scheduling_services_user").on(table.userId),
+  index("idx_scheduling_services_active").on(table.userId, table.isActive),
+]);
+
+// ==================== PROFISSIONAIS ====================
+
+// Profissionais que realizam os serviços
+export const schedulingProfessionals = pgTable("scheduling_professionals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Informações do profissional
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
+  avatarUrl: text("avatar_url"),
+  bio: text("bio"),
+  
+  // Horários de trabalho por dia da semana
+  // Ex: {"1": {"start": "09:00", "end": "18:00", "break_start": "12:00", "break_end": "13:00"}}
+  workSchedule: jsonb("work_schedule").default({}),
+  
+  // Google Calendar individual do profissional
+  googleCalendarEnabled: boolean("google_calendar_enabled").default(false),
+  googleCalendarId: varchar("google_calendar_id", { length: 255 }),
+  googleTokensId: varchar("google_tokens_id", { length: 255 }),
+  
+  // Configurações
+  isActive: boolean("is_active").default(true),
+  isDefault: boolean("is_default").default(false), // Profissional padrão quando não especificado
+  acceptsOnline: boolean("accepts_online").default(true),
+  acceptsPresencial: boolean("accepts_presencial").default(true),
+  maxAppointmentsPerDay: integer("max_appointments_per_day").default(10),
+  
+  // Ordenação
+  displayOrder: integer("display_order").default(0),
+  
+  // Metadados
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_scheduling_professionals_user").on(table.userId),
+  index("idx_scheduling_professionals_active").on(table.userId, table.isActive),
+]);
+
+// ==================== RELAÇÃO PROFISSIONAL-SERVIÇO ====================
+
+// Define quais profissionais fazem quais serviços
+export const professionalServices = pgTable("professional_services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  professionalId: varchar("professional_id").notNull().references(() => schedulingProfessionals.id, { onDelete: 'cascade' }),
+  serviceId: varchar("service_id").notNull().references(() => schedulingServices.id, { onDelete: 'cascade' }),
+  
+  // Configurações específicas (override do serviço)
+  customDurationMinutes: integer("custom_duration_minutes"),
+  customPrice: numeric("custom_price", { precision: 10, scale: 2 }),
+  
+  // Ordenação
+  displayOrder: integer("display_order").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_professional_services_professional").on(table.professionalId),
+  index("idx_professional_services_service").on(table.serviceId),
+]);
+
 // Relations
 export const schedulingConfigRelations = relations(schedulingConfig, ({ one }) => ({
   user: one(users, { fields: [schedulingConfig.userId], references: [users.id] }),
@@ -1724,6 +1913,21 @@ export const schedulingConfigRelations = relations(schedulingConfig, ({ one }) =
 export const appointmentsRelations = relations(appointments, ({ one }) => ({
   user: one(users, { fields: [appointments.userId], references: [users.id] }),
   conversation: one(conversations, { fields: [appointments.conversationId], references: [conversations.id] }),
+}));
+
+export const schedulingServicesRelations = relations(schedulingServices, ({ one, many }) => ({
+  user: one(users, { fields: [schedulingServices.userId], references: [users.id] }),
+  professionals: many(professionalServices),
+}));
+
+export const schedulingProfessionalsRelations = relations(schedulingProfessionals, ({ one, many }) => ({
+  user: one(users, { fields: [schedulingProfessionals.userId], references: [users.id] }),
+  services: many(professionalServices),
+}));
+
+export const professionalServicesRelations = relations(professionalServices, ({ one }) => ({
+  professional: one(schedulingProfessionals, { fields: [professionalServices.professionalId], references: [schedulingProfessionals.id] }),
+  service: one(schedulingServices, { fields: [professionalServices.serviceId], references: [schedulingServices.id] }),
 }));
 
 // Schemas Zod para validação de Agendamentos
@@ -1744,12 +1948,39 @@ export const insertSchedulingExceptionSchema = createInsertSchema(schedulingExce
   createdAt: true,
 });
 
+// Schemas Zod para Serviços e Profissionais
+export const insertSchedulingServiceSchema = createInsertSchema(schedulingServices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSchedulingProfessionalSchema = createInsertSchema(schedulingProfessionals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProfessionalServiceSchema = createInsertSchema(professionalServices).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types de Agendamentos
 export type SchedulingConfig = typeof schedulingConfig.$inferSelect;
 export type InsertSchedulingConfig = z.infer<typeof insertSchedulingConfigSchema>;
 export type Appointment = typeof appointments.$inferSelect;
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type SchedulingException = typeof schedulingExceptions.$inferSelect;
+export type InsertSchedulingException = z.infer<typeof insertSchedulingExceptionSchema>;
+
+// Types de Serviços e Profissionais
+export type SchedulingService = typeof schedulingServices.$inferSelect;
+export type InsertSchedulingService = z.infer<typeof insertSchedulingServiceSchema>;
+export type SchedulingProfessional = typeof schedulingProfessionals.$inferSelect;
+export type InsertSchedulingProfessional = z.infer<typeof insertSchedulingProfessionalSchema>;
+export type ProfessionalService = typeof professionalServices.$inferSelect;
+export type InsertProfessionalService = z.infer<typeof insertProfessionalServiceSchema>;
 export type InsertSchedulingException = z.infer<typeof insertSchedulingExceptionSchema>;
 export type GoogleCalendarToken = typeof googleCalendarTokens.$inferSelect;
 
@@ -2144,3 +2375,446 @@ export type CustomFieldDefinitionInput = z.infer<typeof customFieldDefinitionSch
 export type CustomFieldValue = typeof customFieldValues.$inferSelect;
 export type InsertCustomFieldValue = z.infer<typeof insertCustomFieldValueSchema>;
 export type CustomFieldValueInput = z.infer<typeof customFieldValueSchema>;
+
+// ======================================
+// TABELAS DE PRODUTOS (Catálogo)
+// ======================================
+
+// Tabela de produtos do cliente
+export const products = pgTable("products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  price: numeric("price", { precision: 12, scale: 2 }),
+  stock: integer("stock").default(0),
+  description: text("description"),
+  category: text("category"),
+  link: text("link"),
+  sku: text("sku"),
+  unit: text("unit").default("un"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Configuração do módulo de produtos por usuário
+export const productsConfig = pgTable("products_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  isActive: boolean("is_active").default(false),
+  sendToAi: boolean("send_to_ai").default(true),
+  aiInstructions: text("ai_instructions").default("Use esta lista de produtos para responder perguntas sobre disponibilidade, preços e detalhes dos produtos. Seja preciso com valores e quantidades."),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Relations para Products
+export const productsRelations = relations(products, ({ one }) => ({
+  user: one(users, {
+    fields: [products.userId],
+    references: [users.id],
+  }),
+}));
+
+export const productsConfigRelations = relations(productsConfig, ({ one }) => ({
+  user: one(users, {
+    fields: [productsConfig.userId],
+    references: [users.id],
+  }),
+}));
+
+// Schemas Zod para Products
+export const insertProductSchema = createInsertSchema(products).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const productSchema = z.object({
+  name: z.string().min(1, "Nome do produto é obrigatório").max(500),
+  price: z.string().or(z.number()).optional().nullable(),
+  stock: z.number().int().min(0).optional().default(0),
+  description: z.string().max(5000).optional().nullable(),
+  category: z.string().max(200).optional().nullable(),
+  link: z.string().url().max(1000).optional().nullable().or(z.literal("")),
+  sku: z.string().max(100).optional().nullable(),
+  unit: z.string().max(50).optional().default("un"),
+  isActive: z.boolean().default(true),
+});
+
+export const insertProductsConfigSchema = createInsertSchema(productsConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const productsConfigSchema = z.object({
+  isActive: z.boolean().default(false),
+  sendToAi: z.boolean().default(true),
+  aiInstructions: z.string().max(2000).optional(),
+});
+
+// Types para Products
+export type Product = typeof products.$inferSelect;
+export type InsertProduct = z.infer<typeof insertProductSchema>;
+export type ProductInput = z.infer<typeof productSchema>;
+export type ProductsConfig = typeof productsConfig.$inferSelect;
+export type InsertProductsConfig = z.infer<typeof insertProductsConfigSchema>;
+export type ProductsConfigInput = z.infer<typeof productsConfigSchema>;
+
+// =============================================================================
+// SISTEMA DE DELIVERY / CARDÁPIO DIGITAL
+// =============================================================================
+
+// Configuração do módulo de delivery por usuário
+export const deliveryConfig = pgTable("delivery_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  isActive: boolean("is_active").default(false),
+  sendToAi: boolean("send_to_ai").default(true),
+  businessName: varchar("business_name", { length: 200 }),
+  businessType: varchar("business_type", { length: 50 }).default("restaurante"),
+  deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }).default("0"),
+  minOrderValue: numeric("min_order_value", { precision: 10, scale: 2 }).default("0"),
+  estimatedDeliveryTime: integer("estimated_delivery_time").default(45),
+  deliveryRadiusKm: numeric("delivery_radius_km", { precision: 5, scale: 2 }).default("10"),
+  paymentMethods: jsonb("payment_methods").default(['dinheiro', 'cartao', 'pix']),
+  acceptsDelivery: boolean("accepts_delivery").default(true),
+  acceptsPickup: boolean("accepts_pickup").default(true),
+  openingHours: jsonb("opening_hours").default({}),
+  aiInstructions: text("ai_instructions").default("Você é um atendente de delivery. Seja simpático, ajude o cliente a escolher, anote os pedidos corretamente com todos os detalhes e sempre confirme antes de finalizar."),
+  whatsappOrderNumber: varchar("whatsapp_order_number", { length: 20 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Categorias do cardápio
+export const menuCategories = pgTable("menu_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  displayOrder: integer("display_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Itens do cardápio
+export const menuItems = pgTable("menu_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  categoryId: varchar("category_id").references(() => menuCategories.id, { onDelete: 'set null' }),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+  promotionalPrice: numeric("promotional_price", { precision: 10, scale: 2 }),
+  imageUrl: text("image_url"),
+  preparationTime: integer("preparation_time").default(30),
+  isAvailable: boolean("is_available").default(true),
+  isFeatured: boolean("is_featured").default(false),
+  options: jsonb("options").default([]),
+  ingredients: text("ingredients"),
+  allergens: text("allergens"),
+  serves: integer("serves").default(1),
+  displayOrder: integer("display_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Pedidos de delivery
+export const deliveryOrders = pgTable("delivery_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: 'set null' }),
+  orderNumber: serial("order_number"),
+  customerName: varchar("customer_name", { length: 200 }),
+  customerPhone: varchar("customer_phone", { length: 50 }),
+  customerAddress: text("customer_address"),
+  customerComplement: text("customer_complement"),
+  customerReference: text("customer_reference"),
+  deliveryType: varchar("delivery_type", { length: 20 }).default("delivery"),
+  status: varchar("status", { length: 30 }).default("pending"),
+  paymentMethod: varchar("payment_method", { length: 30 }),
+  paymentStatus: varchar("payment_status", { length: 20 }).default("pending"),
+  subtotal: numeric("subtotal", { precision: 10, scale: 2 }).default("0"),
+  deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }).default("0"),
+  discount: numeric("discount", { precision: 10, scale: 2 }).default("0"),
+  total: numeric("total", { precision: 10, scale: 2 }).default("0"),
+  notes: text("notes"),
+  estimatedTime: integer("estimated_time"),
+  confirmedAt: timestamp("confirmed_at"),
+  readyAt: timestamp("ready_at"),
+  deliveredAt: timestamp("delivered_at"),
+  cancelledAt: timestamp("cancelled_at"),
+  cancellationReason: text("cancellation_reason"),
+  createdByAi: boolean("created_by_ai").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Itens do pedido
+export const orderItems = pgTable("order_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull().references(() => deliveryOrders.id, { onDelete: 'cascade' }),
+  menuItemId: varchar("menu_item_id").references(() => menuItems.id, { onDelete: 'set null' }),
+  itemName: varchar("item_name", { length: 200 }).notNull(),
+  quantity: integer("quantity").default(1),
+  unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
+  totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
+  optionsSelected: jsonb("options_selected").default([]),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Carrinho de compras (sessão por conversa)
+export const deliveryCarts = pgTable("delivery_carts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  conversationId: varchar("conversation_id").notNull(),
+  items: jsonb("items").default([]),
+  customerName: varchar("customer_name", { length: 200 }),
+  customerPhone: varchar("customer_phone", { length: 50 }),
+  customerAddress: text("customer_address"),
+  deliveryType: varchar("delivery_type", { length: 20 }).default("delivery"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Relations para Delivery
+export const deliveryConfigRelations = relations(deliveryConfig, ({ one }) => ({
+  user: one(users, { fields: [deliveryConfig.userId], references: [users.id] }),
+}));
+
+export const menuCategoriesRelations = relations(menuCategories, ({ one, many }) => ({
+  user: one(users, { fields: [menuCategories.userId], references: [users.id] }),
+  items: many(menuItems),
+}));
+
+export const menuItemsRelations = relations(menuItems, ({ one }) => ({
+  user: one(users, { fields: [menuItems.userId], references: [users.id] }),
+  category: one(menuCategories, { fields: [menuItems.categoryId], references: [menuCategories.id] }),
+}));
+
+export const deliveryOrdersRelations = relations(deliveryOrders, ({ one, many }) => ({
+  user: one(users, { fields: [deliveryOrders.userId], references: [users.id] }),
+  conversation: one(conversations, { fields: [deliveryOrders.conversationId], references: [conversations.id] }),
+  items: many(orderItems),
+}));
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+  order: one(deliveryOrders, { fields: [orderItems.orderId], references: [deliveryOrders.id] }),
+  menuItem: one(menuItems, { fields: [orderItems.menuItemId], references: [menuItems.id] }),
+}));
+
+// Schemas Zod para Delivery
+export const deliveryConfigSchema = z.object({
+  isActive: z.boolean().default(false),
+  sendToAi: z.boolean().default(true),
+  businessName: z.string().max(200).optional().nullable(),
+  businessType: z.enum(['pizzaria', 'lanchonete', 'restaurante', 'hamburgueria', 'acai', 'japonesa', 'outros']).default('restaurante'),
+  deliveryFee: z.string().or(z.number()).optional().default("0"),
+  minOrderValue: z.string().or(z.number()).optional().default("0"),
+  estimatedDeliveryTime: z.number().min(5).max(180).default(45),
+  deliveryRadiusKm: z.string().or(z.number()).optional().default("10"),
+  paymentMethods: z.array(z.string()).default(['dinheiro', 'cartao', 'pix']),
+  acceptsDelivery: z.boolean().default(true),
+  acceptsPickup: z.boolean().default(true),
+  openingHours: z.record(z.any()).optional(),
+  aiInstructions: z.string().max(2000).optional(),
+  whatsappOrderNumber: z.string().max(20).optional().nullable(),
+});
+
+export const menuCategorySchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(100),
+  description: z.string().max(500).optional().nullable(),
+  imageUrl: z.string().url().optional().nullable().or(z.literal("")),
+  displayOrder: z.number().int().min(0).default(0),
+  isActive: z.boolean().default(true),
+});
+
+export const menuItemSchema = z.object({
+  categoryId: z.string().optional().nullable(),
+  name: z.string().min(1, "Nome é obrigatório").max(200),
+  description: z.string().max(1000).optional().nullable(),
+  price: z.string().or(z.number()),
+  promotionalPrice: z.string().or(z.number()).optional().nullable(),
+  imageUrl: z.string().url().optional().nullable().or(z.literal("")),
+  preparationTime: z.number().int().min(1).max(180).default(30),
+  isAvailable: z.boolean().default(true),
+  isFeatured: z.boolean().default(false),
+  options: z.array(z.object({
+    name: z.string(),
+    type: z.enum(['single', 'multiple']),
+    required: z.boolean().default(false),
+    items: z.array(z.object({
+      name: z.string(),
+      price: z.number().default(0),
+    })),
+  })).default([]),
+  ingredients: z.string().max(500).optional().nullable(),
+  allergens: z.string().max(200).optional().nullable(),
+  serves: z.number().int().min(1).max(20).default(1),
+  displayOrder: z.number().int().min(0).default(0),
+});
+
+export const deliveryOrderSchema = z.object({
+  customerName: z.string().max(200).optional(),
+  customerPhone: z.string().max(50).optional(),
+  customerAddress: z.string().max(500).optional(),
+  customerComplement: z.string().max(200).optional(),
+  customerReference: z.string().max(200).optional(),
+  deliveryType: z.enum(['delivery', 'pickup']).default('delivery'),
+  paymentMethod: z.string().max(30).optional(),
+  notes: z.string().max(500).optional(),
+});
+
+// Types para Delivery
+export type DeliveryConfig = typeof deliveryConfig.$inferSelect;
+export type InsertDeliveryConfig = typeof deliveryConfig.$inferInsert;
+export type DeliveryConfigInput = z.infer<typeof deliveryConfigSchema>;
+
+export type MenuCategory = typeof menuCategories.$inferSelect;
+export type InsertMenuCategory = typeof menuCategories.$inferInsert;
+export type MenuCategoryInput = z.infer<typeof menuCategorySchema>;
+
+export type MenuItem = typeof menuItems.$inferSelect;
+export type InsertMenuItem = typeof menuItems.$inferInsert;
+export type MenuItemInput = z.infer<typeof menuItemSchema>;
+
+export type DeliveryOrder = typeof deliveryOrders.$inferSelect;
+export type InsertDeliveryOrder = typeof deliveryOrders.$inferInsert;
+export type DeliveryOrderInput = z.infer<typeof deliveryOrderSchema>;
+
+export type OrderItem = typeof orderItems.$inferSelect;
+export type InsertOrderItem = typeof orderItems.$inferInsert;
+
+export type DeliveryCart = typeof deliveryCarts.$inferSelect;
+export type InsertDeliveryCart = typeof deliveryCarts.$inferInsert;
+
+// =============================================================================
+// TEAM MEMBERS - Schemas e Types
+// =============================================================================
+
+// Relations para Team Members
+export const teamMembersRelations = relations(teamMembers, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [teamMembers.ownerId],
+    references: [users.id],
+  }),
+  sessions: many(teamMemberSessions),
+}));
+
+export const teamMemberSessionsRelations = relations(teamMemberSessions, ({ one }) => ({
+  member: one(teamMembers, {
+    fields: [teamMemberSessions.memberId],
+    references: [teamMembers.id],
+  }),
+}));
+
+// Schemas Zod para Team Members
+export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  passwordHash: true,
+  lastLoginAt: true,
+});
+
+export const teamMemberSchema = z.object({
+  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres").max(255),
+  email: z.string().email("Email inválido"),
+  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres").optional(),
+  role: z.string().max(100).default("atendente"),
+  permissions: z.object({
+    canViewConversations: z.boolean().default(true),
+    canSendMessages: z.boolean().default(true),
+    canUseQuickReplies: z.boolean().default(true),
+    canMoveKanban: z.boolean().default(true),
+    canViewDashboard: z.boolean().default(false),
+    canEditContacts: z.boolean().default(false),
+  }).default({
+    canViewConversations: true,
+    canSendMessages: true,
+    canUseQuickReplies: true,
+    canMoveKanban: true,
+    canViewDashboard: false,
+    canEditContacts: false,
+  }),
+  isActive: z.boolean().default(true),
+  avatarUrl: z.string().url().optional().nullable(),
+});
+
+export const teamMemberLoginSchema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  ownerId: z.string().optional(), // ID do dono da conta (para identificar a qual conta o membro pertence)
+});
+
+// Types para Team Members
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
+export type TeamMemberInput = z.infer<typeof teamMemberSchema>;
+export type TeamMemberLogin = z.infer<typeof teamMemberLoginSchema>;
+export type TeamMemberSession = typeof teamMemberSessions.$inferSelect;
+
+// =====================================================
+// AUDIO CONFIG - Configuração de Áudio TTS para Respostas IA
+// Usa tabelas existentes: audio_config e audio_message_counter
+// =====================================================
+
+export const audioConfig = pgTable("audio_config", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id", { length: 255 }).notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  isEnabled: boolean("is_enabled").default(true).notNull(),
+  voiceType: text("voice_type").default("female").notNull(), // "female" ou "male"
+  speed: numeric("speed", { precision: 3, scale: 2 }).default("1.00").notNull(), // 0.5 a 2.0
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const audioMessageCounter = pgTable("audio_message_counter", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id", { length: 255 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  date: date("date").defaultNow().notNull(),
+  count: integer("count").default(0).notNull(),
+  dailyLimit: integer("daily_limit").default(30).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Relations para Audio Config
+export const audioConfigRelations = relations(audioConfig, ({ one }) => ({
+  user: one(users, {
+    fields: [audioConfig.userId],
+    references: [users.id],
+  }),
+}));
+
+export const audioMessageCounterRelations = relations(audioMessageCounter, ({ one }) => ({
+  user: one(users, {
+    fields: [audioMessageCounter.userId],
+    references: [users.id],
+  }),
+}));
+
+// Schema Zod para Audio Config
+export const insertAudioConfigSchema = createInsertSchema(audioConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateAudioConfigSchema = z.object({
+  isEnabled: z.boolean().optional(),
+  voiceType: z.enum(["female", "male"]).optional(),
+  speed: z.string().optional(), // String porque é numeric no DB
+});
+
+// Types para Audio Config
+export type AudioConfig = typeof audioConfig.$inferSelect;
+export type InsertAudioConfig = z.infer<typeof insertAudioConfigSchema>;
+export type UpdateAudioConfig = z.infer<typeof updateAudioConfigSchema>;
+export type AudioMessageCounter = typeof audioMessageCounter.$inferSelect;

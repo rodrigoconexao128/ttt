@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -56,6 +57,8 @@ import {
   Check,
   RefreshCw,
   ExternalLink,
+  Bot,
+  BotOff,
 } from "lucide-react";
 import type { Conversation, Tag } from "@shared/schema";
 
@@ -103,6 +106,21 @@ interface MediaGallery {
     document: number;
     total: number;
   };
+}
+
+interface KanbanStage {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string;
+  color: string;
+  position: number;
+  is_default?: boolean;
+}
+
+interface AgentDisabledStatus {
+  isDisabled: boolean;
+  disabledAt?: string;
 }
 
 // Ícone por tipo de campo
@@ -175,6 +193,22 @@ export function ContactDetailsPanel({ conversation, connectionId, onClose }: Con
     enabled: !!conversationId,
   });
 
+  // Query: Estágios do Kanban
+  const { data: kanbanStages = [] } = useQuery<KanbanStage[]>({
+    queryKey: ["/api/kanban/stages"],
+    enabled: !!conversationId,
+  });
+
+  // Query: Status da IA para a conversa
+  const { data: agentStatus } = useQuery<AgentDisabledStatus>({
+    queryKey: ["/api/agent/status", conversationId],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/agent/status/${conversationId}`);
+      return res.json();
+    },
+    enabled: !!conversationId,
+  });
+
   // Inicializa valores dos campos quando carrega
   useEffect(() => {
     if (customFields.length > 0) {
@@ -240,6 +274,42 @@ export function ContactDetailsPanel({ conversation, connectionId, onClose }: Con
     },
   });
 
+  // Mutation: Mover conversa no Kanban
+  const moveKanbanMutation = useMutation({
+    mutationFn: async (stageId: string) => {
+      const res = await apiRequest("PUT", `/api/kanban/conversations/${conversationId}/move`, { stageId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kanban"] });
+      // 🔧 FIX: Invalidar a conversa específica para atualizar o kanbanStageId no seletor
+      queryClient.invalidateQueries({ queryKey: ["/api/conversation", conversationId] });
+      toast({ title: "Movido no Kanban!" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao mover no Kanban", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation: Toggle IA da conversa
+  const toggleAgentMutation = useMutation({
+    mutationFn: async (disable: boolean) => {
+      const res = await apiRequest("POST", `/api/agent/toggle/${conversationId}`, { disable });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      toast({ 
+        title: data.isDisabled ? "IA desativada para este contato" : "IA ativada para este contato" 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao alterar IA", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleFieldChange = (fieldId: string, value: string) => {
     setCustomFieldValues(prev => ({ ...prev, [fieldId]: value }));
     setHasChanges(true);
@@ -280,6 +350,63 @@ export function ContactDetailsPanel({ conversation, connectionId, onClose }: Con
         </Avatar>
         <h4 className="font-semibold">{conversation.contactName || displayNumber}</h4>
         <p className="text-sm text-muted-foreground font-mono">{displayNumber}</p>
+        
+        {/* Toggle IA para esta conversa */}
+        <div className="mt-3 w-full p-3 bg-muted/50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {agentStatus?.isDisabled ? (
+                <BotOff className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Bot className="h-4 w-4 text-green-500" />
+              )}
+              <span className="text-sm font-medium">
+                {agentStatus?.isDisabled ? "IA Desativada" : "IA Ativada"}
+              </span>
+            </div>
+            <Switch
+              checked={!agentStatus?.isDisabled}
+              onCheckedChange={(checked) => toggleAgentMutation.mutate(!checked)}
+              disabled={toggleAgentMutation.isPending}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 text-left">
+            {agentStatus?.isDisabled 
+              ? "A IA não responderá mensagens deste contato" 
+              : "A IA responderá automaticamente este contato"}
+          </p>
+        </div>
+
+        {/* Seletor de Kanban */}
+        {kanbanStages.length > 0 && (
+          <div className="mt-3 w-full">
+            <Label className="text-xs flex items-center gap-1.5 mb-2">
+              <Kanban className="h-3 w-3" />
+              Estágio do Kanban
+            </Label>
+            <Select
+              value={conversation.kanbanStageId || ""}
+              onValueChange={(value) => moveKanbanMutation.mutate(value)}
+              disabled={moveKanbanMutation.isPending}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Selecionar estágio..." />
+              </SelectTrigger>
+              <SelectContent>
+                {kanbanStages.map(stage => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className={`w-2 h-2 rounded-full ${stage.color}`}
+                      />
+                      {stage.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

@@ -1,368 +1,412 @@
-import { Mistral } from "@mistralai/mistralai";
+/**
+ * TESTE SIMPLIFICADO - IA AGENTE (RITA)
+ * 
+ * Testa o novo prompt com cenários específicos
+ */
 
-// Criar cliente standalone (sem dependências do servidor)
-const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || "EMZSjwivLJLrPlJqPuWrTwAAOgp93lhF";
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
-const mistral = new Mistral({
-  apiKey: MISTRAL_API_KEY,
-});
+// Configuração
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-interface TestScenario {
-  title: string;
-  context: string;
-  agentIdentity: {
-    name: string;
-    company: string;
-    role: string;
-    products: string[];
-  };
-  conversationHistory: Array<{
-    sender: string;
-    message: string;
-  }>;
-  expectedDecision: "ENVIAR" | "ESPERAR" | "ABORTAR";
-  expectedReasons: string[];
+const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || '';
+
+// Carregar o novo prompt
+const PROMPT_PATH = path.join(__dirname, 'PROMPT_ROBERTO_OLIV_NOVO.md');
+const PROMPT_RITA = fs.readFileSync(PROMPT_PATH, 'utf-8');
+
+interface TestCase {
+  id: number;
+  nome: string;
+  mensagemCliente: string;
+  criteriosEsperados: string[];
 }
 
-// 🧪 Cenários de teste baseados em casos REAIS
-const testScenarios: TestScenario[] = [
+const TESTES: TestCase[] = [
   {
-    title: "✋ Cliente Interessado mas Ocupado",
-    context:
-      "Cliente demonstrou interesse mas disse que está ocupado. NÃO deve enviar imediatamente.",
-    agentIdentity: {
-      name: "Rodrigo",
-      company: "AgentZap",
-      role: "Consultor de Vendas",
-      products: ["Plano Básico (R$ 99/mês)", "Plano Pro (R$ 199/mês)"],
-    },
-    conversationHistory: [
-      { sender: "agent", message: "Oi! Sou Rodrigo da AgentZap. Posso te mostrar como automatizar seu WhatsApp?" },
-      { sender: "client", message: "Interessante! Mas estou no meio de uma reunião agora" },
-      { sender: "agent", message: "Sem problema! Quando tiver um tempinho, posso te mandar um vídeo rápido de 2min?" },
-      { sender: "client", message: "Depois eu vejo" },
-    ],
-    expectedDecision: "ESPERAR",
-    expectedReasons: [
-      "Cliente está ocupado (em reunião)",
-      "Já oferecemos vídeo",
-      "Precisa aguardar cliente ter disponibilidade",
-    ],
+    id: 1,
+    nome: 'Cliente perguntando valor de implante',
+    mensagemCliente: 'Oi, quanto custa um implante?',
+    criteriosEsperados: [
+      'NÃO informou valor específico',
+      'Explicou que valores só após avaliação',
+      'Mencionou questões éticas ou segurança',
+      'Ofereceu agendar avaliação'
+    ]
   },
-
   {
-    title: "🚫 Cliente Reclamou de Repetição",
-    context:
-      "Cliente reclamou que já respondeu. NUNCA repetir a mesma pergunta.",
-    agentIdentity: {
-      name: "Rodrigo",
-      company: "AgentZap",
-      role: "Consultor de Vendas",
-      products: ["Plano Básico (R$ 99/mês)", "Plano Pro (R$ 199/mês)"],
-    },
-    conversationHistory: [
-      { sender: "agent", message: "Oi! Posso te mostrar nosso sistema?" },
-      { sender: "client", message: "Já disse que não tenho interesse agora" },
-      { sender: "agent", message: "Entendido! Posso te adicionar para futuras novidades?" },
-      { sender: "client", message: "Não precisa, já falei" },
-    ],
-    expectedDecision: "ABORTAR",
-    expectedReasons: [
-      "Cliente demonstrou desinteresse claro",
-      "Cliente se irritou com repetição",
-      "Não insistir mais",
-    ],
+    id: 2,
+    nome: 'Cliente querendo agendar sábado',
+    mensagemCliente: 'Quero marcar consulta para sábado de manhã',
+    criteriosEsperados: [
+      'Apresentou diferença entre paciente modelo e particular',
+      'Mencionou que sábado/domingo = paciente modelo',
+      'Mencionou que segunda-sexta = particular',
+      'NÃO disse que não trabalha sábado'
+    ]
   },
-
   {
-    title: "📅 Cliente Marcou Data Específica",
-    context:
-      "Cliente pediu para retornar em data específica. Respeitar o agendamento.",
-    agentIdentity: {
-      name: "Rodrigo",
-      company: "AgentZap",
-      role: "Consultor de Vendas",
-      products: ["Plano Básico (R$ 99/mês)", "Plano Pro (R$ 199/mês)"],
-    },
-    conversationHistory: [
-      { sender: "agent", message: "Oi! Gostaria de conhecer nosso sistema de automação?" },
-      { sender: "client", message: "Interessante! Mas só posso conversar semana que vem" },
-      { sender: "agent", message: "Perfeito! Te chamo na segunda-feira então?" },
-      { sender: "client", message: "Pode ser, segunda eu estou livre" },
-    ],
-    expectedDecision: "ESPERAR",
-    expectedReasons: [
-      "Data agendada (segunda-feira)",
-      "Cliente pediu para esperar",
-      "Não enviar antes do combinado",
-    ],
+    id: 3,
+    nome: 'Primeiro contato (menu)',
+    mensagemCliente: 'Olá!',
+    criteriosEsperados: [
+      'Apresentou menu com opções numeradas',
+      'Incluiu opção de cursos',
+      'Incluiu opção de paciente modelo',
+      'Incluiu opção de atendimento clínico',
+      'Incluiu opção de trabalho ou RH'
+    ]
   },
-
   {
-    title: "🎯 Cliente Muito Interessado - CONTINUAR",
-    context:
-      "Cliente demonstrou alto interesse e pediu próximo passo. Enviar continuação.",
-    agentIdentity: {
-      name: "Rodrigo",
-      company: "AgentZap",
-      role: "Consultor de Vendas",
-      products: ["Plano Básico (R$ 99/mês)", "Plano Pro (R$ 199/mês)"],
-    },
-    conversationHistory: [
-      { sender: "agent", message: "Oi! Gostaria de conhecer nosso sistema?" },
-      { sender: "client", message: "Sim! Parece exatamente o que preciso" },
-      { sender: "agent", message: "Ótimo! Posso te mandar um vídeo demonstrativo?" },
-      { sender: "client", message: "Pode sim! E como faço para contratar?" },
-    ],
-    expectedDecision: "ENVIAR",
-    expectedReasons: [
-      "Alto interesse",
-      "Cliente perguntou sobre contratação",
-      "Precisa continuar a venda",
-    ],
+    id: 4,
+    nome: 'Cliente quer enviar currículo',
+    mensagemCliente: 'Vocês estão contratando? Tenho experiência como recepcionista',
+    criteriosEsperados: [
+      'NÃO disse que não está contratando',
+      'Aceitou receber currículo',
+      'Mencionou encaminhar para RH',
+      'Foi receptiva'
+    ]
   },
-
   {
-    title: "❓ Cliente Aguardando Resposta",
-    context:
-      "Cliente pediu informação e ainda não recebeu. Enviar resposta com a informação.",
-    agentIdentity: {
-      name: "Rodrigo",
-      company: "AgentZap",
-      role: "Consultor de Vendas",
-      products: ["Plano Básico (R$ 99/mês)", "Plano Pro (R$ 199/mês)"],
-    },
-    conversationHistory: [
-      { sender: "client", message: "Olá! Vocês têm integração com Mercado Livre?" },
-      { sender: "agent", message: "Deixa eu verificar com nosso time técnico e já te retorno!" },
-      { sender: "client", message: "Ok, aguardo" },
-    ],
-    expectedDecision: "ENVIAR",
-    expectedReasons: [
-      "Cliente aguardando resposta",
-      "Prometemos retornar",
-      "Tempo passou, precisa responder",
-    ],
+    id: 5,
+    nome: 'Cliente quer ser paciente modelo',
+    mensagemCliente: 'Quero ser paciente modelo',
+    criteriosEsperados: [
+      'Explicou o que é paciente modelo',
+      'Mencionou finais de semana',
+      'Mencionou alunos supervisionados',
+      'Solicitou dados (nome, CPF, telefone)',
+      'NÃO informou valores sem avaliação'
+    ]
   },
+  {
+    id: 6,
+    nome: 'Cliente tentando marcar horário direto',
+    mensagemCliente: 'Quero marcar para terça-feira às 14h',
+    criteriosEsperados: [
+      'NÃO confirmou horário direto',
+      'Solicitou dados completos',
+      'Mencionou verificar agenda',
+      'Disse que profissional entrará em contato'
+    ]
+  },
+  {
+    id: 7,
+    nome: 'Cliente confunde curso com tratamento',
+    mensagemCliente: 'Vi que vocês têm ortodontia, quanto custa pra colocar aparelho?',
+    criteriosEsperados: [
+      'Identificou possível confusão',
+      'Perguntou ou apresentou opções',
+      'NÃO informou valor de tratamento',
+      'Direcionou corretamente'
+    ]
+  },
+  {
+    id: 8,
+    nome: 'Cliente insistente com valores',
+    mensagemCliente: 'Meu amigo fez aí e pagou 200 reais, é esse valor mesmo?',
+    criteriosEsperados: [
+      'NÃO confirmou valor',
+      'Manteve postura ética',
+      'Explicou novamente motivo de não informar',
+      'Continuou educada'
+    ]
+  },
+  {
+    id: 9,
+    nome: 'Cliente interessado em curso',
+    mensagemCliente: 'Sou dentista, quero saber sobre o curso de Endodontia',
+    criteriosEsperados: [
+      'Forneceu informações sobre o curso',
+      'PODE informar valores de curso (diferente de tratamento)',
+      'Ofereceu mais detalhes ou cronograma',
+      'Foi profissional'
+    ]
+  },
+  {
+    id: 10,
+    nome: 'Cliente com dúvida sobre horários',
+    mensagemCliente: 'Vocês atendem no domingo?',
+    criteriosEsperados: [
+      'Explicou que domingo tem cursos (paciente modelo)',
+      'Diferenciou dias úteis de finais de semana',
+      'NÃO disse que não trabalha domingo',
+      'Foi clara na explicação'
+    ]
+  }
 ];
 
-// Função para construir o prompt da IA (igual ao sistema real)
-function buildFollowUpPrompt(scenario: TestScenario): string {
-  const { agentIdentity, conversationHistory } = scenario;
-
-  const historyText = conversationHistory
-    .map((msg) => `${msg.sender === "agent" ? "Você" : "Cliente"}: ${msg.message}`)
-    .join("\n");
-
-  return `## 🎯 SUA IDENTIDADE (MEMORIZE!)
-- Você é: ${agentIdentity.name}
-- Empresa: ${agentIdentity.company}
-- Seu cargo: ${agentIdentity.role}
-
-PRODUTOS/SERVIÇOS:
-${agentIdentity.products.map((p) => `- ${p}`).join("\n")}
-
-## 📚 TÉCNICAS DE FOLLOW-UP PROFISSIONAL
-
-1. **CONTINUAR A CONVERSA:** Sua mensagem deve ser CONTINUAÇÃO NATURAL do que já foi falado
-2. **AGREGAR VALOR NOVO:** Traga informação que ainda não mencionamos
-3. **NÃO INSISTIR:** Se cliente ocupado/desinteressado, ESPERAR ou ABORTAR
-4. **PERSONALIZAR:** Use referências da conversa anterior
-5. **SER ÚTIL:** Ajuda genuína, não só empurrar venda
-
-## ❌ COMPORTAMENTOS PROIBIDOS:
-
-- ❌ Repetir mesma frase/pergunta anterior
-- ❌ Ignorar último comentário do cliente
-- ❌ Usar colchetes [], barras / ou símbolos especiais
-- ❌ Enviar mensagem se respondemos há menos de 2 horas
-- ❌ Mensagens genéricas tipo "Oi, tudo bem?"
-- ❌ Começar conversa do zero como se não conhecesse o cliente
-
-## ✅ COMPORTAMENTOS OBRIGATÓRIOS:
-
-- ✅ LEIA TODO histórico e CONTINUE de onde parou
-- ✅ Se cliente fez pergunta, RESPONDA
-- ✅ Se oferecemos algo e cliente aceitou, CONCRETIZE
-- ✅ Mensagem CURTA (2-3 frases no máximo)
-- ✅ Tom profissional mas humano
-
-## 🔍 ANÁLISE DO CONTEXTO ATUAL:
-
-**Histórico da Conversa:**
-${historyText}
-
-**Última mensagem do cliente:**
-${conversationHistory[conversationHistory.length - 1]?.message || "Sem mensagens"}
-
-## 🎯 SUA DECISÃO:
-
-Analise profundamente o contexto e responda em JSON:
-
-{
-  "decision": "ENVIAR" | "ESPERAR" | "ABORTAR",
-  "message": "Mensagem de follow-up (se ENVIAR) ou null",
-  "reasoning": "Explique sua decisão em 2-3 frases"
-}
-
-REGRAS:
-- ENVIAR: Quando faz sentido continuar conversa de forma natural (cliente interessado, aguardando resposta)
-- ESPERAR: Cliente ocupado, pediu pra esperar, ou conversa muito recente (menos de 2h)
-- ABORTAR: Recusa clara, cliente irritado, ou não há mais o que oferecer`;
-}
-
-// Função para testar um cenário
-async function testScenario(scenario: TestScenario, index: number) {
-  console.log("\n" + "=".repeat(80));
-  console.log(`🧪 TESTE ${index + 1}/5: ${scenario.title}`);
-  console.log("=".repeat(80));
-  console.log(`\n📝 ${scenario.context}\n`);
-
-  console.log("💬 Histórico da Conversa:");
-  scenario.conversationHistory.forEach((msg) => {
-    const emoji = msg.sender === "agent" ? "🤖" : "👤";
-    const label = msg.sender === "agent" ? "Agente" : "Cliente";
-    console.log(`  ${emoji} ${label}: "${msg.message}"`);
-  });
-
-  console.log("\n🤖 Enviando para IA Mistral...");
-
-  const prompt = buildFollowUpPrompt(scenario);
-
+async function testarComMistral(prompt: string, mensagem: string): Promise<string> {
   try {
-    const response = await mistral.chat.complete({
-      model: "mistral-small-latest",
-      temperature: 0.7,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${MISTRAL_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'mistral-large-latest',
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: mensagem }
+        ],
+        max_tokens: 1024,
+        temperature: 0.7
+      })
     });
 
-    const aiResponse = response.choices?.[0]?.message?.content || "";
-    
-    // Tentar extrair JSON da resposta
-    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const decision = JSON.parse(jsonMatch[0]);
-
-      console.log("\n📊 DECISÃO DA IA:");
-      console.log(`   ⚡ Ação: ${decision.decision}`);
-      console.log(`   💭 Raciocínio: ${decision.reasoning}`);
-      if (decision.message) {
-        console.log(`   💬 Mensagem gerada: "${decision.message}"`);
-      }
-
-      // Validação
-      const decisionCorrect = decision.decision === scenario.expectedDecision;
-      const statusEmoji = decisionCorrect ? "✅" : "❌";
-      
-      console.log("\n🎯 VALIDAÇÃO:");
-      console.log(`   ${statusEmoji} Decisão ${decisionCorrect ? "CORRETA" : "INCORRETA"}`);
-      console.log(`   📌 Esperado: ${scenario.expectedDecision} | Obtido: ${decision.decision}`);
-
-      // Verificar se não está repetindo mensagem
-      if (decision.message) {
-        const lastAgentMsg = scenario.conversationHistory
-          .filter(m => m.sender === "agent")
-          .pop()?.message || "";
-        
-        const similarity = calculateSimilarity(decision.message, lastAgentMsg);
-        const isRepetitive = similarity > 40;
-
-        console.log(`   🔍 Similaridade com última msg: ${similarity.toFixed(1)}%`);
-        console.log(`   ${isRepetitive ? "❌ REPETIÇÃO DETECTADA" : "✅ Mensagem única"}`);
-      }
-
-      return {
-        scenario: scenario.title,
-        expected: scenario.expectedDecision,
-        actual: decision.decision,
-        correct: decisionCorrect,
-        message: decision.message,
-        reasoning: decision.reasoning,
-      };
-    } else {
-      console.error("❌ Não foi possível extrair JSON da resposta da IA");
-      console.log("Resposta completa:", aiResponse);
-      return null;
+    if (!response.ok) {
+      throw new Error(`Mistral API error: ${response.statusText}`);
     }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
   } catch (error: any) {
-    console.error("❌ Erro ao processar cenário:", error.message);
-    return null;
+    console.error('Erro ao chamar Mistral:', error.message);
+    return 'Erro na resposta';
   }
 }
 
-// Função simples para calcular similaridade
-function calculateSimilarity(str1: string, str2: string): number {
-  const words1 = str1.toLowerCase().split(/\s+/);
-  const words2 = str2.toLowerCase().split(/\s+/);
-  
-  const set1 = new Set(words1);
-  const set2 = new Set(words2);
-  
-  const intersection = new Set([...set1].filter(x => set2.has(x)));
-  const union = new Set([...set1, ...set2]);
-  
-  return (intersection.size / union.size) * 100;
-}
+async function avaliarResposta(
+  resposta: string,
+  criterios: string[]
+): Promise<{ pontuacao: number; feedback: string[] }> {
+  const feedback: string[] = [];
+  let pontuacao = 0;
 
-// Executar todos os testes
-async function runAllTests() {
-  console.log("\n");
-  console.log("🚀".repeat(40));
-  console.log("🚀 TESTE COMPLETO DO SISTEMA DE FOLLOW-UP COM IA");
-  console.log("🚀".repeat(40));
-  console.log("\n📋 Total de cenários a testar: " + testScenarios.length);
-  console.log("🎯 Objetivo: Validar se a IA toma decisões corretas para cada situação");
-  console.log("\n⏳ Iniciando testes...\n");
+  // Avaliação manual baseada em palavras-chave
+  criterios.forEach((criterio, index) => {
+    const numero = index + 1;
+    let atendeu = false;
 
-  const results = [];
-
-  for (let i = 0; i < testScenarios.length; i++) {
-    const result = await testScenario(testScenarios[i], i);
-    if (result) results.push(result);
-
-    // Aguardar entre chamadas para não sobrecarregar API
-    if (i < testScenarios.length - 1) {
-      console.log("\n⏳ Aguardando 2 segundos antes do próximo teste...");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    if (criterio.includes('NÃO informou valor') || criterio.includes('NÃO confirmou valor')) {
+      // Verificar se NÃO tem valores específicos (R$, reais, etc)
+      const temValor = /R\$\s*\d+|reais|R\s*\d+/i.test(resposta);
+      atendeu = !temValor;
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio} ${atendeu ? '' : '(Detectado valor na resposta)'}`);
     }
-  }
-
-  // Resumo final
-  console.log("\n" + "=".repeat(80));
-  console.log("📊 RESUMO FINAL DOS TESTES");
-  console.log("=".repeat(80));
-
-  const correctCount = results.filter((r) => r.correct).length;
-  const totalCount = results.length;
-  const successRate = ((correctCount / totalCount) * 100).toFixed(1);
-
-  console.log(`\n✅ Acertos: ${correctCount}/${totalCount} (${successRate}%)`);
-
-  console.log("\n📋 Detalhamento por teste:");
-  results.forEach((result, i) => {
-    const status = result.correct ? "✅" : "❌";
-    console.log(`\n   ${status} ${i + 1}. ${result.scenario}`);
-    console.log(`      🎯 Esperado: ${result.expected} | Obtido: ${result.actual}`);
-    console.log(`      💭 "${result.reasoning}"`);
-    if (result.message) {
-      console.log(`      💬 Mensagem: "${result.message.substring(0, 80)}${result.message.length > 80 ? '...' : ''}"`);
+    else if (criterio.includes('Apresentou menu') || criterio.includes('opções numeradas')) {
+      atendeu = /1️⃣|2️⃣|3️⃣|opção|digite.*número/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
     }
+    else if (criterio.includes('Explicou que valores só após avaliação')) {
+      atendeu = /avaliação|avaliacao|após|depois.*consulta|presencial/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Mencionou questões éticas')) {
+      atendeu = /ética|etica|segurança|seguranca|norma/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Ofereceu agendar')) {
+      atendeu = /agendar|marcar|avaliacao|horário|horario/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('paciente modelo') && criterio.includes('particular')) {
+      atendeu = /paciente modelo/i.test(resposta) && /particular/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('sábado') || criterio.includes('domingo') || criterio.includes('finais de semana')) {
+      atendeu = /sábado|sabado|domingo|final.*semana|fim.*semana/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('segunda') || criterio.includes('dias úteis')) {
+      atendeu = /segunda|terça|terca|quarta|quinta|sexta|dia.*útil|dia.*util/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('NÃO disse que não trabalha')) {
+      const naoTrabalha = /não.*trabalha.*sábado|nao.*trabalha.*sabado|não.*atend.*sábado|nao.*atend.*sabado/i.test(resposta);
+      atendeu = !naoTrabalha;
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Solicitou dados')) {
+      atendeu = /nome.*completo|CPF|telefone|seus dados|suas informações/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('NÃO confirmou horário')) {
+      const confirmou = /confirmado|agendado para|marcado para.*terça|está marcado/i.test(resposta);
+      atendeu = !confirmou;
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('verificar agenda')) {
+      atendeu = /verificar.*agenda|consultar.*agenda|checar.*disponibilidade/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('profissional entrará em contato')) {
+      atendeu = /entrar.*contato|retornar|retorno|entrará.*contato/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('NÃO disse que não está contratando')) {
+      const rejeitou = /não.*contratando|nao.*contratando|não.*precisa|nao.*precisa.*momento/i.test(resposta);
+      atendeu = !rejeitou;
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Aceitou receber currículo')) {
+      const aceitou = /enviar.*currículo|enviar.*curriculo|encaminh|enviado.*RH|setor.*RH/i.test(resposta);
+      atendeu = aceitou;
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Mencionou encaminhar para RH')) {
+      atendeu = /RH|recursos humanos|encaminh|enviado.*setor/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Foi receptiva')) {
+      atendeu = /legal|feliz|ótimo|bom|interesse/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Explicou o que é paciente modelo')) {
+      atendeu = /aluno|supervisionado|curso.*pós|pos.*graduação|graduacao/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('PODE informar valores de curso')) {
+      // Neste caso, pode ter valores
+      atendeu = true; // Por padrão considera OK
+      feedback.push(`${numero}. ⚪ ${criterio} (Critério de permissão)`);
+    }
+    else if (criterio.includes('Foi profissional')) {
+      atendeu = /informações|detalhes|curso|cronograma|content|pedagógica/i.test(resposta) || resposta.length > 100;
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Foi clara')) {
+      atendeu = /entendi|simples|domingo|sábado|finais.*semana|segunda.*sexta/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Manteve postura ética')) {
+      atendeu = /ética|etica|não posso|nao posso|segurança|seguranca|garantir.*atendimento|questões.*éticas|questoes.*eticas/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Continuou educada')) {
+      atendeu = /😊|entendo|posso.*ajudar|agendar|avaliation/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Identificou')) {
+      atendeu = /confusão|dúvida|curso.*ortodontia|tratamento.*ortodontico|aparelho|opções|qual.*opção/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Perguntou ou apresentou opções')) {
+      atendeu = /opção|opções|prefere|interessa|gostaria|qual/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else if (criterio.includes('Direcionou corretamente')) {
+      atendeu = /agendar|avaliation|dados|nome.*CPF|verificar|particular|paciente modelo/i.test(resposta);
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+    else {
+      // Critério genérico
+      const palavrasChave = criterio.toLowerCase().split(' ').filter(p => p.length > 4);
+      const contemPalavras = palavrasChave.some(palavra => 
+        resposta.toLowerCase().includes(palavra)
+      );
+      atendeu = contemPalavras;
+      feedback.push(`${numero}. ${atendeu ? '✅' : '❌'} ${criterio}`);
+    }
+
+    if (atendeu) pontuacao++;
   });
 
-  console.log("\n" + "=".repeat(80));
-  if (successRate === "100.0") {
-    console.log("🎉 PERFEITO! Todos os testes passaram!");
-    console.log("✅ A IA está tomando decisões corretas em todos os cenários");
-  } else {
-    console.log(`⚠️ ${totalCount - correctCount} teste(s) falharam. Revisar lógica da IA.`);
-  }
-  console.log("=".repeat(80) + "\n");
+  return { pontuacao, feedback };
 }
 
-// Executar
-runAllTests().catch(console.error);
+async function executarTeste(teste: TestCase) {
+  console.log('\n' + '='.repeat(80));
+  console.log(`🧪 TESTE ${teste.id}: ${teste.nome}`);
+  console.log('='.repeat(80));
+
+  console.log(`\n👤 Cliente: ${teste.mensagemCliente}`);
+  
+  const resposta = await testarComMistral(PROMPT_RITA, teste.mensagemCliente);
+  
+  console.log(`\n🤖 Rita: ${resposta}`);
+  console.log('\n' + '-'.repeat(80));
+  console.log('📊 AVALIAÇÃO');
+  console.log('-'.repeat(80));
+
+  const { pontuacao, feedback } = await avaliarResposta(resposta, teste.criteriosEsperados);
+  
+  feedback.forEach(f => console.log(f));
+
+  const percentual = (pontuacao / teste.criteriosEsperados.length) * 100;
+  console.log(`\n✅ Pontuação: ${pontuacao}/${teste.criteriosEsperados.length}`);
+  console.log(`🎯 Percentual: ${percentual.toFixed(1)}%`);
+
+  if (percentual === 100) {
+    console.log('✅ TESTE APROVADO! 🎉');
+  } else if (percentual >= 80) {
+    console.log('⚠️ TESTE QUASE APROVADO - Pequenos ajustes necessários');
+  } else {
+    console.log('❌ TESTE REPROVADO - Ajustes significativos necessários');
+  }
+
+  return { id: teste.id, nome: teste.nome, pontuacao, maxima: teste.criteriosEsperados.length, percentual };
+}
+
+async function main() {
+  if (!MISTRAL_API_KEY) {
+    console.error('❌ ERRO: MISTRAL_API_KEY não configurada!');
+    console.error('Configure a variável de ambiente MISTRAL_API_KEY');
+    process.exit(1);
+  }
+
+  console.log('\n🚀 INICIANDO TESTES DO PROMPT - RITA (IGNOA/FACOP)');
+  console.log('📝 Total de testes: ' + TESTES.length);
+  console.log('🎯 Objetivo: 100% de acerto em todos os testes\n');
+
+  const resultados = [];
+
+  for (const teste of TESTES) {
+    const resultado = await executarTeste(teste);
+    resultados.push(resultado);
+    
+    // Delay entre testes
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+
+  // Relatório final
+  console.log('\n' + '='.repeat(80));
+  console.log('📊 RELATÓRIO FINAL');
+  console.log('='.repeat(80));
+
+  let totalPontos = 0;
+  let totalMaximo = 0;
+
+  resultados.forEach(r => {
+    totalPontos += r.pontuacao;
+    totalMaximo += r.maxima;
+    const status = r.percentual === 100 ? '✅' : r.percentual >= 80 ? '⚠️' : '❌';
+    console.log(`${status} Teste ${r.id}: ${r.nome.substring(0, 40).padEnd(40)} - ${r.pontuacao}/${r.maxima} (${r.percentual.toFixed(1)}%)`);
+  });
+
+  const percentualGeral = (totalPontos / totalMaximo) * 100;
+  console.log('\n' + '='.repeat(80));
+  console.log(`🎯 RESULTADO GERAL: ${totalPontos}/${totalMaximo} (${percentualGeral.toFixed(1)}%)`);
+  console.log('='.repeat(80));
+
+  if (percentualGeral === 100) {
+    console.log('\n🎉 TODOS OS TESTES APROVADOS! PROMPT PRONTO PARA PRODUÇÃO! 🎉\n');
+  } else if (percentualGeral >= 80) {
+    console.log('\n⚠️ PROMPT BOM MAS PRECISA DE PEQUENOS AJUSTES\n');
+  } else {
+    console.log('\n❌ PROMPT PRECISA DE AJUSTES SIGNIFICATIVOS\n');
+  }
+
+  // Salvar relatório
+  const relatorio = {
+    data: new Date().toISOString(),
+    resultados,
+    pontuacaoTotal: totalPontos,
+    pontuacaoMaxima: totalMaximo,
+    percentualGeral
+  };
+
+  fs.writeFileSync(
+    path.join(__dirname, 'relatorio-testes.json'),
+    JSON.stringify(relatorio, null, 2)
+  );
+
+  console.log('📄 Relatório salvo em: relatorio-testes.json\n');
+}
+
+main().catch(console.error);

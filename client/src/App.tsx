@@ -21,6 +21,7 @@ import Subscribe from "@/pages/subscribe";
 import ResellerDashboard from "@/pages/reseller";
 import TermsOfServicePage from "@/pages/terms-of-service";
 import PlanLinkPage from "@/pages/plan-link";
+import MemberLogin from "@/pages/member-login";
 import { AccessBlocker, SubscriptionExpiringBanner } from "@/components/access-blocker";
 import { PromoBar } from "@/components/promo-bar";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
@@ -31,7 +32,7 @@ function Router() {
   const [location] = useLocation();
 
   // Lista de rotas que não precisam esperar o carregamento da autenticação
-  const publicRoutes = ["/", "/login", "/cadastro", "/admin-simulator", "/model-tester", "/test", "/testar", "/termos-de-uso", "/p"];
+  const publicRoutes = ["/", "/login", "/cadastro", "/admin-simulator", "/model-tester", "/test", "/testar", "/termos-de-uso", "/p", "/membro-login"];
   const isPublicRoute = publicRoutes.some(route => location === route || location.startsWith(route + "/"));
 
   // Se está carregando e não é rota pública, mostrar loading
@@ -51,6 +52,7 @@ function Router() {
       <Route path="/admin-login" component={AdminLogin} />
       <Route path="/admin" component={AdminPanel} />
       <Route path="/login" component={Login} />
+      <Route path="/membro-login" component={MemberLogin} />
       <Route path="/cadastro" component={Register} />
       <Route path="/termos-de-uso" component={TermsOfServicePage} />
       <Route path="/p/:slug" component={PlanLinkPage} />
@@ -89,6 +91,9 @@ function Router() {
       <Route path="/biblioteca-midias" component={Dashboard} />
       <Route path="/lista-exclusao" component={Dashboard} />
       <Route path="/campos-personalizados" component={Dashboard} />
+      <Route path="/produtos" component={Dashboard} />
+      <Route path="/delivery-cardapio" component={Dashboard} />
+      <Route path="/delivery-pedidos" component={Dashboard} />
       {/* Rotas de Revenda com sub-navegação - URLs claras */}
       <Route path="/revenda" component={ResellerDashboard} />
       <Route path="/revenda/clientes" component={ResellerDashboard} />

@@ -1,14 +1,64 @@
 import { Request, Response, NextFunction } from "express";
 import { db, withRetry } from "./db";
-import { admins } from "@shared/schema";
+import { admins, teamMemberSessions, teamMembers, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
-export function isAuthenticated(req: Request, res: Response, next: NextFunction) {
-  if (!req.user) {
+export async function isAuthenticated(req: Request, res: Response, next: NextFunction) {
+  try {
+    // Verificar se já tem req.user (autenticação Supabase padrão)
+    if (req.user) {
+      return next();
+    }
+
+    // Verificar autenticação de membro da equipe via Bearer token
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      
+      // Buscar sessão do membro
+      const [session] = await db
+        .select()
+        .from(teamMemberSessions)
+        .where(eq(teamMemberSessions.token, token))
+        .limit(1);
+      
+      if (session && new Date(session.expiresAt) > new Date()) {
+        // Sessão válida - buscar membro e owner
+        const [member] = await db
+          .select()
+          .from(teamMembers)
+          .where(eq(teamMembers.id, session.memberId))
+          .limit(1);
+        
+        if (member && member.isActive) {
+          // Buscar dados do owner
+          const [owner] = await db
+            .select()
+            .from(users)
+            .where(eq(users.id, member.ownerId))
+            .limit(1);
+          
+          if (owner) {
+            // Simular req.user com dados do owner + marcação de membro
+            (req as any).user = {
+              id: owner.id, // ID do owner (para que todas as queries funcionem)
+              ...owner,
+              isMember: true,
+              memberData: member,
+            };
+            return next();
+          }
+        }
+      }
+    }
+
+    // Nenhuma autenticação válida encontrada
     return res.status(401).json({ message: "Unauthorized" });
+  } catch (error) {
+    console.error("Error in isAuthenticated middleware:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
-  next();
 }
 
 export async function isAdmin(req: Request, res: Response, next: NextFunction) {

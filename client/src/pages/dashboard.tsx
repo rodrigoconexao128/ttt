@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useBranding } from "@/hooks/useBranding";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput, Package, UtensilsCrossed, ClipboardList } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,9 @@ import PaymentHistoryPage from "@/pages/payment-history";
 import MySubscriptionPage from "@/pages/my-subscription";
 import ExclusionListPage from "@/pages/exclusion-list";
 import CustomFieldsPage from "@/pages/custom-fields";
+import ProductsPage from "@/pages/products";
+import DeliveryMenuPage from "@/pages/delivery-menu";
+import DeliveryOrdersPage from "@/pages/delivery-orders";
 import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation, useRoute } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan, Conversation } from "@shared/schema";
@@ -72,7 +75,10 @@ interface SuspensionStatus {
 }
 export default function Dashboard() {
   const { toast } = useToast();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const isMember = (user as any)?.isMember;
+  const permissions = (user as any)?.memberData?.permissions || {};
+  
   const { branding } = useBranding(); // Get white-label branding
   const { data: subscription } = useQuery<Subscription & { plan: Plan } | null>({
     queryKey: ["/api/subscriptions/current"],
@@ -145,6 +151,9 @@ export default function Dashboard() {
   const isMySubscriptionRoute = location.startsWith("/minha-assinatura");
   const isExclusionListRoute = location.startsWith("/lista-exclusao");
   const isCustomFieldsRoute = location.startsWith("/campos-personalizados");
+  const isProductsRoute = location.startsWith("/produtos");
+  const isDeliveryMenuRoute = location.startsWith("/delivery-cardapio");
+  const isDeliveryOrdersRoute = location.startsWith("/delivery-pedidos");
   const isDashboardMode =
     !isConversasRoute &&
     !isConexaoRoute &&
@@ -170,7 +179,10 @@ export default function Dashboard() {
     !isPaymentHistoryRoute &&
     !isMySubscriptionRoute &&
     !isExclusionListRoute &&
-    !isCustomFieldsRoute;
+    !isCustomFieldsRoute &&
+    !isProductsRoute &&
+    !isDeliveryMenuRoute &&
+    !isDeliveryOrdersRoute;
   const isToolsRoute =
     isMassSendRoute ||
     isCampaignsRoute ||
@@ -187,7 +199,10 @@ export default function Dashboard() {
     isNotifierRoute ||
     isFollowupRoute ||
     isExclusionListRoute ||
-    isCustomFieldsRoute;
+    isCustomFieldsRoute ||
+    isProductsRoute ||
+    isDeliveryMenuRoute ||
+    isDeliveryOrdersRoute;
   
   // Rotas do menu Configurações
   const isConfigRoute =
@@ -248,27 +263,56 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     try {
-      // Limpa a sessÃ£o local do Supabase (token)
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error("Erro ao sair (supabase):", err);
+      // Verificar se é membro da equipe
+      const memberToken = localStorage.getItem("memberToken");
+      
+      if (memberToken) {
+        // Logout de membro
+        try {
+          await fetch("/api/team-members/logout", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${memberToken}`,
+            },
+            credentials: "include",
+          });
+        } catch (err) {
+          console.warn("Falha ao chamar /api/team-members/logout:", err);
+        }
+        
+        // Limpar localStorage de membro
+        localStorage.removeItem("memberToken");
+        localStorage.removeItem("memberData");
+      } else {
+        // Logout de usuário normal
+        try {
+          // Limpa a sessão local do Supabase (token)
+          await supabase.auth.signOut();
+        } catch (err) {
+          console.error("Erro ao sair (supabase):", err);
+        }
+
+        try {
+          // Limpa a sessão de servidor (se existir)
+          await fetch("/api/logout", { credentials: "include" });
+        } catch (err) {
+          console.warn("Falha ao chamar /api/logout:", err);
+        }
+      }
+
+      try {
+        // Limpa cache de consultas relacionadas a auth
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        await queryClient.clear();
+      } catch {}
+
+      // Redireciona para tela de login apropriada
+      setLocation(memberToken ? "/membro-login" : "/login");
+    } catch (error) {
+      console.error("Erro durante logout:", error);
+      // Forçar redirecionamento mesmo se houver erro
+      setLocation("/login");
     }
-
-    try {
-      // Limpa a sessÃ£o de servidor (se existir)
-      await fetch("/api/logout", { credentials: "include" });
-    } catch (err) {
-      console.warn("Falha ao chamar /api/logout:", err);
-    }
-
-    try {
-      // Limpa cache de consultas relacionadas a auth
-      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      await queryClient.clear();
-    } catch {}
-
-    // Redireciona para tela de login
-    setLocation("/login");
   };
 
   useEffect(() => {
@@ -315,6 +359,7 @@ type ToolNavItem = {
   testId: string;
   href?: string;
   action?: () => void;
+  subItems?: ToolNavItem[];
 };
 
 const toolsNavigation: ToolNavItem[] = [
@@ -340,18 +385,63 @@ const toolsNavigation: ToolNavItem[] = [
     { label: "Contatos Sincronizados", href: "/contatos-sincronizados", icon: Smartphone, tooltip: "Contatos do WhatsApp", isActive: isSyncedContactsRoute, testId: "button-nav-synced-contacts" },
     { label: "Etiquetas", href: "/etiquetas", icon: Tags, tooltip: "Etiquetas", isActive: isTagsRoute, testId: "button-nav-tags" },
     { label: "Campos Personalizados", href: "/campos-personalizados", icon: FormInput, tooltip: "Campos personalizados de contatos", isActive: isCustomFieldsRoute, testId: "button-nav-custom-fields" },
+    { label: "Catálogo de Produtos", href: "/produtos", icon: Package, tooltip: "Lista de produtos e preços", isActive: isProductsRoute, testId: "button-nav-products" },
+    { 
+      label: "🍕 Delivery", 
+      icon: UtensilsCrossed, 
+      tooltip: "Sistema de Delivery", 
+      isActive: isDeliveryMenuRoute || isDeliveryOrdersRoute, 
+      testId: "button-nav-delivery",
+      subItems: [
+        { label: "Cardápio", href: "/delivery-cardapio", icon: UtensilsCrossed, tooltip: "Cardápio para pedidos delivery", isActive: isDeliveryMenuRoute, testId: "button-nav-delivery-menu" },
+        { label: "Pedidos", href: "/delivery-pedidos", icon: ClipboardList, tooltip: "Painel de pedidos delivery (PDV)", isActive: isDeliveryOrdersRoute, testId: "button-nav-delivery-orders" },
+      ]
+    },
     { label: "Funil", href: "/funil", icon: Filter, tooltip: "Funil de vendas", isActive: isFunnelRoute, testId: "button-nav-funnel" },
     { label: "Integrações", href: "/integracoes", icon: Plug, tooltip: "Integrações", isActive: isIntegrationsRoute, testId: "button-nav-integrations" },
     { label: "Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Agendamentos", isActive: isSchedulingRoute, testId: "button-nav-scheduling" },
     { label: "Reservas", href: "/reservas", icon: BedDouble, tooltip: "Reservas", isActive: isReservationsRoute, testId: "button-nav-reservations" },
+    { label: "Minha Assinatura", href: "/minha-assinatura", icon: Receipt, tooltip: "Ver minha assinatura e pagamentos", isActive: isMySubscriptionRoute, testId: "button-nav-my-subscription" },
   ];
 
   // Menu de Configurações separado do Ferramentas
   const configNavigation: ToolNavItem[] = [
     { label: "Configurações", href: "/settings", icon: Settings, tooltip: "Configurações da conta", isActive: isSettingsRoute, testId: "button-settings" },
-    { label: "Minha Assinatura", href: "/minha-assinatura", icon: Receipt, tooltip: "Ver minha assinatura e pagamentos", isActive: isMySubscriptionRoute, testId: "button-nav-my-subscription" },
+    { label: "Membros", href: "/settings", icon: Users, tooltip: "Gerenciar equipe", isActive: false, testId: "button-nav-team" },
     { label: "Planos", href: "/plans", icon: CreditCard, tooltip: "Ver planos disponíveis", isActive: isPlansRoute || isSubscribeRoute, testId: "button-nav-plans" },
   ];
+
+  const filteredToolsNavigation = toolsNavigation.filter(item => {
+    if (!isMember) return true;
+    
+    // Regras de bloqueio explícito para membros
+    const blockedForMembers = [
+      "Minha Assinatura", 
+      "Inteligência Artificial",
+      "Lista de Exclusão",
+      "Notificador Inteligente",
+      "Qualificação de Lead",
+      "Integrações",
+      "Campos Personalizados",
+      "Catálogo de Produtos",
+      "Membros"
+    ];
+    if (blockedForMembers.includes(item.label)) return false;
+
+    // Regras baseadas em permissão
+    if (item.label === "Kanban") return permissions.canMoveKanban;
+    if (item.label === "Listas de Contatos" || item.label === "Contatos") return permissions.canEditContacts;
+    if (item.label === "Campanhas" || item.label === "Envio em Massa") return permissions.canSendMessages;
+    
+    // Por padrão permite ferramentas operacionais (Agendamentos, Reservas, etc)
+    return true;
+  });
+
+  const filteredConfigNavigation = configNavigation.filter(item => {
+    if (!isMember) return true;
+    // Membros não acessam configurações de conta/planos
+    return false;
+  });
 
   if (isLoading) {
     return (
@@ -397,17 +487,20 @@ const toolsNavigation: ToolNavItem[] = [
           <SidebarGroup>
             <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
             <SidebarMenu>
+              {(!isMember || permissions.canViewDashboard) && (
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => goToSection("stats")}
                   isActive={isDashboardMode && selectedView === "stats"}
-                  tooltip="VisÃ£o geral"
+                  tooltip="Visão geral"
                   data-testid="button-nav-stats"
                 >
                   <LayoutDashboard className="w-4 h-4" />
                   <span>Dashboard</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              )}
+              {(!isMember || permissions.canViewConversations) && (
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => goToSection("conversations")}
@@ -419,6 +512,8 @@ const toolsNavigation: ToolNavItem[] = [
                   <span>Conversas</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              )}
+              {/* Conexão: Membros podem ver para conectar WhatsApp (solicitado pelo usuário) */}
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => goToSection("connection")}
@@ -430,6 +525,9 @@ const toolsNavigation: ToolNavItem[] = [
                   <span>Conexão</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              
+              {/* Meu Agente IA: Apenas dono pode configurar */}
+              {!isMember && (
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => goToSection("agent")}
@@ -441,8 +539,10 @@ const toolsNavigation: ToolNavItem[] = [
                   <span>Meu Agente IA</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {/* Menu de Revenda - visível apenas para revendedores */}
-              {isReseller && (
+              )}
+
+              {/* Menu de Revenda - visível apenas para revendedores (nunca para membros) */}
+              {isReseller && !isMember && (
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
@@ -476,9 +576,48 @@ const toolsNavigation: ToolNavItem[] = [
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-1 pt-1">
-                    {toolsNavigation.map((item) => (
+                    {filteredToolsNavigation.map((item) => (
                       <div key={item.label} className="pl-4">
-                        {item.href ? (
+                        {item.subItems ? (
+                          // Item com subitens (submenu)
+                          <Collapsible defaultOpen={item.isActive} className="w-full">
+                            <CollapsibleTrigger asChild>
+                              <SidebarMenuButton
+                                size="sm"
+                                className="text-xs w-full"
+                                tooltip={item.tooltip}
+                                isActive={item.isActive}
+                                data-testid={item.testId}
+                              >
+                                <span className="flex items-center gap-2 w-full">
+                                  <item.icon className="w-3.5 h-3.5" />
+                                  <span>{item.label}</span>
+                                  <ChevronDown className="ml-auto h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
+                                </span>
+                              </SidebarMenuButton>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="space-y-0.5 pt-0.5 pl-4">
+                              {item.subItems.map((subItem) => (
+                                <SidebarMenuButton
+                                  key={subItem.label}
+                                  asChild
+                                  size="sm"
+                                  className="text-xs"
+                                  tooltip={subItem.tooltip}
+                                  isActive={subItem.isActive}
+                                  data-testid={subItem.testId}
+                                >
+                                  <Link href={subItem.href!}>
+                                    <span className="flex items-center gap-2">
+                                      <subItem.icon className="w-3 h-3" />
+                                      <span>{subItem.label}</span>
+                                    </span>
+                                  </Link>
+                                </SidebarMenuButton>
+                              ))}
+                            </CollapsibleContent>
+                          </Collapsible>
+                        ) : item.href ? (
                           <SidebarMenuButton
                             asChild
                             size="sm"
@@ -536,7 +675,7 @@ const toolsNavigation: ToolNavItem[] = [
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-1 pt-1">
-                    {configNavigation.map((item) => (
+                    {filteredConfigNavigation.map((item) => (
                       <div key={item.label} className="pl-4">
                         <SidebarMenuButton
                           asChild
@@ -834,6 +973,21 @@ const toolsNavigation: ToolNavItem[] = [
               <CustomFieldsPage />
             </div>
           )}
+          {isProductsRoute && (
+            <div className="flex-1 overflow-auto">
+              <ProductsPage />
+            </div>
+          )}
+          {isDeliveryMenuRoute && (
+            <div className="flex-1 overflow-auto">
+              <DeliveryMenuPage />
+            </div>
+          )}
+          {isDeliveryOrdersRoute && (
+            <div className="flex-1 overflow-auto">
+              <DeliveryOrdersPage />
+            </div>
+          )}
           
           {/* Dashboard Stats */}
           {isDashboardMode && selectedView === "stats" && (
@@ -926,7 +1080,7 @@ const toolsNavigation: ToolNavItem[] = [
         </div>
         {/* Mobile bottom navigation */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom)]">
-          <div className="grid grid-cols-5 text-[10px]">
+          <div className={`grid ${isMember ? 'grid-cols-4' : 'grid-cols-5'} text-[10px]`}>
             <button
               className={`flex flex-col items-center py-2.5 gap-0.5 ${isDashboardMode && selectedView === "stats" ? "text-primary font-medium" : "text-muted-foreground"}`}
               onClick={() => goToSection("stats")}
@@ -948,6 +1102,8 @@ const toolsNavigation: ToolNavItem[] = [
               <Smartphone className="w-5 h-5" />
               <span>Conexão</span>
             </button>
+            
+            {!isMember && (
             <button
               className={`flex flex-col items-center py-2.5 gap-0.5 ${isDashboardMode && selectedView === "agent" || isMeuAgenteRoute ? "text-primary font-medium" : "text-muted-foreground"}`}
               onClick={() => goToSection("agent")}
@@ -955,6 +1111,8 @@ const toolsNavigation: ToolNavItem[] = [
               <Bot className="w-5 h-5" />
               <span>Agente</span>
             </button>
+            )}
+
             <button
               className={`flex flex-col items-center py-2.5 gap-0.5 ${isToolsRoute ? "text-primary font-medium" : "text-muted-foreground"}`}
               onClick={() => setToolsPickerOpen(true)}
@@ -988,7 +1146,7 @@ const toolsNavigation: ToolNavItem[] = [
             
             <div className="px-4 pb-4 overflow-y-auto max-h-[55vh]">
               <div className="grid grid-cols-3 gap-2.5">
-                {toolsNavigation.map((item) => (
+                {filteredToolsNavigation.map((item) => (
                   <button
                     key={item.testId}
                     className={cn(

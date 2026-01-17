@@ -13,6 +13,7 @@ import QRCode from "qrcode";
 import pino from "pino";
 import path from "path";
 import fs from "fs/promises";
+import { registerWhatsAppSession, unregisterWhatsAppSession } from "./whatsappSender";
 import { storage } from "./storage";
 import WebSocket from "ws";
 import { generateAIResponse, type AIResponseResult, type AIResponseOptions } from "./aiAgent";
@@ -181,9 +182,11 @@ async function uploadMediaOrFallback(
 ): Promise<string | null> {
   try {
     const result = await uploadMediaToStorage(buffer, mimeType, userId, conversationId);
-    if (result) {
+    if (result && result.url) {
       console.log(`📤 [STORAGE] Mídia enviada para Storage: ${result.url.substring(0, 80)}...`);
       return result.url;
+    } else {
+      console.warn(`⚠️ [STORAGE] Upload retornou resultado inválido:`, result);
     }
   } catch (error) {
     console.error(`❌ [STORAGE] Erro ao enviar para Storage:`, error);
@@ -273,60 +276,27 @@ async function executeSafeModeCleanup(userId: string, connectionId: string): Pro
 }
 
 // -----------------------------------------------------------------------
-// ??? FUN��O PARA UPLOAD DE M�DIA NO SUPABASE STORAGE
-// Ao inv�s de salvar base64 no banco (limite ~1MB), faz upload no Storage
+// 🔄 WRAPPER: uploadMediaSimple - Compatibilidade com código legado
+// A função importada uploadMediaToStorage de mediaStorageService.ts retorna 
+// { url, path, size } e precisa de (buffer, mimeType, userId, conversationId?)
+// Esta wrapper aceita (buffer, mimeType, fileName) e retorna apenas a URL
 // -----------------------------------------------------------------------
-// Cache para evitar chamadas repetidas de createBucket
-let whatsappMediaBucketChecked = false;
-
-async function uploadMediaToStorage(
+async function uploadMediaSimple(
   buffer: Buffer, 
   mimeType: string, 
-  originalFileName?: string
+  fileName?: string
 ): Promise<string | null> {
   try {
-    const timestamp = Date.now();
-    const extension = mimeType.split('/')[1]?.split(';')[0] || 'bin';
-    const safeFileName = originalFileName 
-      ? originalFileName.replace(/[^a-zA-Z0-9.-]/g, '_')
-      : `media_${timestamp}`;
-    const storagePath = `whatsapp-media/${timestamp}_${safeFileName}.${extension}`;
-
-    // Verificar bucket apenas uma vez por sess�o do servidor
-    if (!whatsappMediaBucketChecked) {
-      const { error: bucketError } = await supabase.storage.createBucket('whatsapp-media', {
-        public: true,
-        fileSizeLimit: 104857600 // 100MB
-      });
-      
-      if (bucketError && !bucketError.message?.includes('already exists')) {
-        console.log(`?? [STORAGE] Bucket info: ${bucketError.message}`);
-      }
-      whatsappMediaBucketChecked = true;
+    // Usar "system" como userId genérico para uploads sem contexto de usuário
+    const result = await uploadMediaToStorage(buffer, mimeType, "system");
+    if (result && result.url) {
+      console.log(`✅ [STORAGE] Upload concluído: ${result.url.substring(0, 80)}...`);
+      return result.url;
     }
-
-    // Upload do arquivo
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('whatsapp-media')
-      .upload(storagePath, buffer, {
-        contentType: mimeType,
-        upsert: true
-      });
-
-    if (uploadError) {
-      console.error("? [STORAGE] Erro no upload:", uploadError);
-      return null;
-    }
-
-    // Obter URL p�blica
-    const { data: urlData } = supabase.storage
-      .from('whatsapp-media')
-      .getPublicUrl(storagePath);
-
-    console.log(`? [STORAGE] Upload conclu�do: ${urlData.publicUrl}`);
-    return urlData.publicUrl;
+    console.warn(`⚠️ [STORAGE] Upload retornou sem URL`);
+    return null;
   } catch (error) {
-    console.error("? [STORAGE] Erro ao fazer upload:", error);
+    console.error(`❌ [STORAGE] Erro no upload:`, error);
     return null;
   }
 }
@@ -1864,8 +1834,16 @@ async function clearAuthFiles(authPath: string): Promise<void> {
   }
 }
 
-// For�a reconex�o limpando sess�o existente na mem�ria (sem apagar arquivos de auth)
+// Força reconexão limpando sessão existente na memória (sem apagar arquivos de auth)
 export async function forceReconnectWhatsApp(userId: string): Promise<void> {
+  // 🛡️ MODO DESENVOLVIMENTO: Bloquear reconexões para evitar conflito com produção
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log(`\n🛡️ [DEV MODE] forceReconnectWhatsApp bloqueado para user ${userId}`);
+    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+  }
+  
   console.log(`[FORCE RECONNECT] Starting force reconnection for user ${userId}...`);
   
   // Limpar sess�o existente na mem�ria (se houver)
@@ -1879,6 +1857,7 @@ export async function forceReconnectWhatsApp(userId: string): Promise<void> {
       console.log(`[FORCE RECONNECT] Error closing existing socket (ignoring):`, e);
     }
     sessions.delete(userId);
+    unregisterWhatsAppSession(userId);
   }
   
   // Limpar pending connections e tentativas de reconex�o
@@ -1889,8 +1868,16 @@ export async function forceReconnectWhatsApp(userId: string): Promise<void> {
   await connectWhatsApp(userId);
 }
 
-// For�a reset COMPLETO - apaga arquivos de autentica��o (for�a novo QR Code)
+// Força reset COMPLETO - apaga arquivos de autenticação (força novo QR Code)
 export async function forceResetWhatsApp(userId: string): Promise<void> {
+  // 🛡️ MODO DESENVOLVIMENTO: Bloquear reset para evitar conflito com produção
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log(`\n🛡️ [DEV MODE] forceResetWhatsApp bloqueado para user ${userId}`);
+    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+  }
+  
   console.log(`[FORCE RESET] Starting complete reset for user ${userId}...`);
   
   // Limpar sess�o existente na mem�ria (se houver)
@@ -1903,6 +1890,7 @@ export async function forceResetWhatsApp(userId: string): Promise<void> {
       console.log(`[FORCE RESET] Error closing existing socket (ignoring):`, e);
     }
     sessions.delete(userId);
+    unregisterWhatsAppSession(userId);
   }
   
   // Limpar pending connections e tentativas de reconex�o
@@ -2068,6 +2056,9 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     };
 
     sessions.set(userId, session);
+    
+    // 📲 Registrar sessão no serviço de envio para notificações do sistema (delivery, etc)
+    registerWhatsAppSession(userId, sock);
 
     // ======================================================================
     // FIX LID 2025 - CACHE WARMING (Carregar contatos do DB para mem�ria)
@@ -2751,6 +2742,7 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
       contactAvatar: null,
       lastMessageText: messageText,
       lastMessageTime: new Date(),
+      lastMessageFromMe: false,
       unreadCount: 0,
     });
   }
@@ -2779,6 +2771,7 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     await storage.updateConversation(conversation.id, {
       lastMessageText: messageText,
       lastMessageTime: new Date(),
+      lastMessageFromMe: false,
       unreadCount: 0,
     });
     return;
@@ -2822,7 +2815,9 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   await storage.updateConversation(conversation.id, {
     lastMessageText: messageText,
     lastMessageTime: new Date(),
-    unreadCount: 0, // Mensagens do dono n�o geram unread
+    lastMessageFromMe: true, // Mensagem enviada pelo usuário
+    hasReplied: true, // Marca como respondida
+    unreadCount: 0, // Mensagens do dono não geram unread
   });
 
   // ?? FOLLOW-UP: Se admin enviou mensagem, agendar follow-up inicial
@@ -3055,7 +3050,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       console.log(`📷 [CLIENT] Imagem baixada: ${buffer.length} bytes`);
       // Upload para Supabase Storage (SEM fallback base64 para evitar egress!)
-      mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, "imagem");
+      mediaUrl = await uploadMediaSimple(buffer, mediaMimeType, "imagem");
       if (!mediaUrl) {
         console.warn(`⚠️ [CLIENT] Falha no upload de imagem, não será salva`);
       }
@@ -3083,7 +3078,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       console.log(`🎙️ [CLIENT] Áudio baixado: ${buffer.length} bytes`);
       // Upload para Supabase Storage (SEM fallback base64 para evitar egress!)
-      mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, "audio");
+      mediaUrl = await uploadMediaSimple(buffer, mediaMimeType, "audio");
       if (!mediaUrl) {
         console.warn(`⚠️ [CLIENT] Falha no upload de áudio, não será salvo`);
       }
@@ -3112,7 +3107,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       console.log(`?? [CLIENT] V�deo baixado: ${buffer.length} bytes`);
       // Upload para Supabase Storage (v�deos s�o sempre grandes)
-      mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, "video");
+      mediaUrl = await uploadMediaSimple(buffer, mediaMimeType, "video");
     } catch (error) {
       console.error("? [CLIENT] Erro ao baixar v�deo:", error);
       mediaUrl = null;
@@ -3145,7 +3140,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       console.log(`?? [CLIENT] Documento baixado: ${buffer.length} bytes, fazendo upload...`);
       // Upload para Supabase Storage
-      mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, fileName);
+      mediaUrl = await uploadMediaSimple(buffer, mediaMimeType, fileName);
       console.log(`? [CLIENT] Documento (com caption) processado: ${mediaUrl ? 'URL gerada' : 'falhou'}`);
     } catch (error) {
       console.error("? [CLIENT] Erro ao baixar documento (com caption):", error);
@@ -3177,7 +3172,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
       console.log(`?? [CLIENT] Documento baixado: ${buffer.length} bytes, fazendo upload...`);
       // Upload para Supabase Storage
-      mediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, fileName);
+      mediaUrl = await uploadMediaSimple(buffer, mediaMimeType, fileName);
       console.log(`? [CLIENT] Documento processado: ${mediaUrl ? 'URL gerada' : 'falhou'}`);
     } catch (error) {
       console.error("? [CLIENT] Erro ao baixar documento:", error);
@@ -3221,6 +3216,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       contactAvatar, // ??? Foto de perfil
       lastMessageText: messageText,
       lastMessageTime: new Date(),
+      lastMessageFromMe: false,
       unreadCount: 1,
     });
   } else {
@@ -3229,6 +3225,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       jidSuffix,
       lastMessageText: messageText,
       lastMessageTime: new Date(),
+      lastMessageFromMe: false,
       unreadCount: (conversation.unreadCount || 0) + 1,
       contactName: waMessage.pushName || conversation.contactName,
       contactAvatar: contactAvatar || conversation.contactAvatar, // Atualizar foto se dispon�vel
@@ -3483,6 +3480,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         contactName, // ? Nome do cliente para personaliza��o
         contactPhone: contactNumber, // ? Telefone do cliente para agendamento
         sentMedias,  // ? M�dias j� enviadas para evitar repeti��o
+        conversationId, // 🍕 ID da conversa para vincular pedidos de delivery
       }
     );
 
@@ -3996,6 +3994,8 @@ export async function sendMessage(
   await storage.updateConversation(conversationId, {
     lastMessageText: text,
     lastMessageTime: new Date(),
+    lastMessageFromMe: true,
+    hasReplied: true,
     unreadCount: 0,
   });
 
@@ -5095,12 +5095,20 @@ export async function sendMessageToGroups(
   return { sent, failed, errors, details };
 }
 
-// Fun��o auxiliar para obter sess�es (usado em rotas de debug)
+// Função auxiliar para obter sessões (usado em rotas de debug)
 export function getSessions(): Map<string, WhatsAppSession> {
   return sessions;
 }
 
 export async function disconnectWhatsApp(userId: string): Promise<void> {
+  // 🛡️ MODO DESENVOLVIMENTO: Bloquear desconexões para evitar conflito com produção
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log(`\n🛡️ [DEV MODE] disconnectWhatsApp bloqueado para user ${userId}`);
+    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+  }
+  
   const session = sessions.get(userId);
   if (session?.socket) {
     await session.socket.logout();
@@ -5263,7 +5271,141 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     socket.ev.on("creds.update", saveCreds);
 
     // -----------------------------------------------------------------------
-    // ??? HANDLER DE PRESEN�A (TYPING/PAUSED) - DETEC��O DE DIGITA��O
+    // 🎤 FUNÇÃO: Processar mensagens enviadas pelo ADMIN no WhatsApp
+    // -----------------------------------------------------------------------
+    // Quando o admin responde direto no WhatsApp (fromMe: true),
+    // precisamos salvar essa mensagem no sistema E transcrever áudios
+    // -----------------------------------------------------------------------
+    async function handleAdminOutgoingMessage(adminId: string, waMessage: WAMessage) {
+      const remoteJid = waMessage.key.remoteJid;
+      if (!remoteJid) return;
+      
+      // Filtrar grupos e status
+      if (remoteJid.includes("@g.us") || remoteJid.includes("@broadcast")) {
+        console.log(`📤 [ADMIN FROM ME] Ignorando mensagem de grupo/status`);
+        return;
+      }
+      
+      // Resolver contactNumber
+      let contactNumber: string;
+      let realRemoteJid = remoteJid;
+      
+      if (remoteJid.includes("@lid") && (waMessage.key as any).remoteJidAlt) {
+        const realJid = (waMessage.key as any).remoteJidAlt;
+        contactNumber = cleanContactNumber(realJid);
+        realRemoteJid = realJid;
+        console.log(`📤 [ADMIN FROM ME] LID resolvido: ${remoteJid} → ${realJid}`);
+      } else {
+        contactNumber = cleanContactNumber(remoteJid);
+      }
+      
+      if (!contactNumber) {
+        console.log(`⚠️ [ADMIN FROM ME] Não foi possível extrair número de: ${remoteJid}`);
+        return;
+      }
+      
+      // Extrair texto e mídia
+      let messageText = "";
+      let mediaType: string | undefined;
+      let mediaUrl: string | undefined;
+      let mediaMimeType: string | undefined;
+      
+      const msg = waMessage.message;
+      
+      if (msg?.conversation) {
+        messageText = msg.conversation;
+      } else if (msg?.extendedTextMessage?.text) {
+        messageText = msg.extendedTextMessage.text;
+      } else if (msg?.imageMessage) {
+        mediaType = "image";
+        messageText = msg.imageMessage.caption || "📷 Imagem";
+        try {
+          const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+          const mimetype = msg.imageMessage.mimetype || "image/jpeg";
+          const result = await uploadMediaToStorage(buffer, mimetype, adminId);
+          if (result?.url) {
+            mediaUrl = result.url;
+            console.log(`✅ [ADMIN FROM ME] Imagem salva: ${result.url}`);
+          }
+        } catch (err) {
+          console.error("❌ [ADMIN FROM ME] Erro ao baixar imagem:", err);
+        }
+      } else if (msg?.audioMessage) {
+        mediaType = "audio";
+        messageText = "🎤 Áudio"; // Será substituído pela transcrição
+        try {
+          const buffer = await downloadMediaMessage(waMessage, "buffer", {});
+          const mimeType = msg.audioMessage.mimetype || "audio/ogg; codecs=opus";
+          const result = await uploadMediaToStorage(buffer, mimeType, adminId);
+          if (result?.url) {
+            mediaUrl = result.url;
+            mediaMimeType = mimeType;
+            console.log(`✅ [ADMIN FROM ME] Áudio salvo: ${buffer.length} bytes (${mimeType})`);
+          }
+        } catch (err) {
+          console.error("❌ [ADMIN FROM ME] Erro ao baixar áudio:", err);
+        }
+      } else if (msg?.videoMessage) {
+        mediaType = "video";
+        messageText = msg.videoMessage.caption || "🎬 Vídeo";
+      } else if (msg?.documentMessage) {
+        mediaType = "document";
+        messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
+      } else {
+        // Tipo não suportado
+        const msgTypes = Object.keys(msg || {});
+        if (!msgTypes.includes("protocolMessage")) {
+          console.log(`⚠️ [ADMIN FROM ME] Tipo de mensagem não suportado:`, msgTypes);
+        }
+        return;
+      }
+      
+      console.log(`📤 [ADMIN FROM ME] Salvando mensagem do admin: ${messageText.substring(0, 50)}...`);
+      
+      // Buscar/criar conversa
+      let conversation;
+      try {
+        conversation = await storage.getOrCreateAdminConversation(
+          adminId,
+          contactNumber,
+          realRemoteJid,
+          waMessage.pushName || undefined
+        );
+        
+        // Salvar mensagem (transcrição de áudio acontece automaticamente em createAdminMessage)
+        const savedMessage = await storage.createAdminMessage({
+          conversationId: conversation.id,
+          messageId: waMessage.key.id || `msg_${Date.now()}`,
+          fromMe: true,
+          text: messageText,
+          timestamp: new Date(Number(waMessage.messageTimestamp) * 1000),
+          status: "sent",
+          isFromAgent: false,
+          mediaType,
+          mediaUrl,
+          mediaMimeType,
+        });
+        
+        // Se foi áudio e temos transcrição, usar o texto transcrito
+        if (savedMessage?.text && savedMessage.text !== messageText) {
+          console.log(`🎤 [ADMIN FROM ME] Texto atualizado com transcrição: ${savedMessage.text.substring(0, 100)}...`);
+          messageText = savedMessage.text;
+        }
+        
+        // Atualizar última mensagem da conversa
+        await storage.updateAdminConversation(conversation.id, {
+          lastMessageText: messageText.substring(0, 255),
+          lastMessageTime: new Date(),
+        });
+        
+        console.log(`✅ [ADMIN FROM ME] Mensagem salva na conversa ${conversation.id}`);
+      } catch (error) {
+        console.error(`❌ [ADMIN FROM ME] Erro ao salvar mensagem:`, error);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 👁️ HANDLER DE PRESENÇA (TYPING/PAUSED) - DETECÇÃO DE DIGITAÇÃO
     // -----------------------------------------------------------------------
     socket.ev.on("presence.update", async (update) => {
       const { id, presences } = update;
@@ -5411,10 +5553,16 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         cacheMessage(`admin_${adminId}`, message.key.id, message.message);
       }
       
-      // Ignorar mensagens enviadas pelo pr�prio admin (fromMe: true)
+      // 🎤 FIX TRANSCRIÇÃO: Capturar mensagens enviadas pelo próprio admin (fromMe: true)
+      // para salvar no banco e transcrever áudios
       if (message.key.fromMe) {
-        console.log(`?? [ADMIN] Mensagem enviada pelo admin, ignorando processamento autom�tico`);
-        return;
+        console.log(`📤 [ADMIN] Mensagem enviada pelo admin detectada`);
+        try {
+          await handleAdminOutgoingMessage(adminId, message);
+        } catch (err) {
+          console.error("❌ [ADMIN] Erro ao processar mensagem do admin:", err);
+        }
+        return; // Não processar como mensagem recebida
       }
       
       const remoteJid = message.key.remoteJid;
@@ -5479,10 +5627,10 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             const buffer = await downloadMediaMessage(message, "buffer", {});
             const mimetype = msg.imageMessage.mimetype || "image/jpeg";
             // 🚀 Usar Storage em vez de base64 para reduzir egress
-            const storageUrl = await uploadMediaToStorage(buffer, mimetype, "admin_image");
-            if (storageUrl) {
-              mediaUrl = storageUrl;
-              console.log(`✅ [ADMIN] Imagem salva no Storage: ${storageUrl}`);
+            const result = await uploadMediaToStorage(buffer, mimetype, adminId);
+            if (result?.url) {
+              mediaUrl = result.url;
+              console.log(`✅ [ADMIN] Imagem salva no Storage: ${result.url}`);
             } else {
               console.warn(`⚠️ [ADMIN] Falha no upload, imagem não salva`);
             }
@@ -5497,9 +5645,9 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             const buffer = await downloadMediaMessage(message, "buffer", {});
             const mimeType = msg.audioMessage.mimetype || "audio/ogg; codecs=opus";
             // 🚀 Usar Storage em vez de base64 para reduzir egress
-            const storageUrl = await uploadMediaToStorage(buffer, mimeType, "admin_audio");
-            if (storageUrl) {
-              mediaUrl = storageUrl;
+            const result = await uploadMediaToStorage(buffer, mimeType, adminId);
+            if (result?.url) {
+              mediaUrl = result.url;
               console.log(`✅ [ADMIN] Áudio salvo no Storage: ${buffer.length} bytes (${mimeType})`);
             } else {
               console.warn(`⚠️ [ADMIN] Falha no upload de áudio`);
@@ -5913,6 +6061,14 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
 }
 
 export async function disconnectAdminWhatsApp(adminId: string): Promise<void> {
+  // 🛡️ MODO DESENVOLVIMENTO: Bloquear desconexões para evitar conflito com produção
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log(`\n🛡️ [DEV MODE] disconnectAdminWhatsApp bloqueado para admin ${adminId}`);
+    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
+    throw new Error('WhatsApp Admin desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+  }
+  
   const session = adminSessions.get(adminId);
   if (session?.socket) {
     await session.socket.logout();
@@ -6105,7 +6261,15 @@ export async function restoreAdminSessions(): Promise<void> {
 // -----------------------------------------------------------------------
 
 export async function requestClientPairingCode(userId: string, phoneNumber: string): Promise<string | null> {
-  // Verificar se j� h� uma solicita��o em andamento para este usu�rio
+  // 🛡️ MODO DESENVOLVIMENTO: Bloquear pairing para evitar conflito com produção
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log(`\n🛡️ [DEV MODE] requestClientPairingCode bloqueado para user ${userId}`);
+    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+  }
+  
+  // Verificar se já há uma solicitação em andamento para este usuário
   const existingRequest = pendingPairingRequests.get(userId);
   if (existingRequest) {
     console.log(`? [PAIRING] J� existe solicita��o em andamento para ${userId}, aguardando...`);
@@ -6675,9 +6839,9 @@ export async function redownloadMedia(
     }
 
     // Upload para Supabase Storage (função já está definida no topo deste arquivo)
-    // A função uploadMediaToStorage recebe: (buffer, mimeType, originalFileName?)
+    // A função uploadMediaSimple recebe: (buffer, mimeType, originalFileName?)
     const filename = `redownloaded_${Date.now()}.${mediaType}`;
-    const newMediaUrl = await uploadMediaToStorage(buffer, mediaMimeType, filename);
+    const newMediaUrl = await uploadMediaSimple(buffer, mediaMimeType, filename);
 
     if (!newMediaUrl) {
       // SEM fallback para base64 - evitar egress!

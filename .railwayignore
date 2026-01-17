@@ -34,6 +34,12 @@ scripts/
 # set SESSIONS_DIR to persist these in production instead of baking into image.
 auth_*/
 auth_admin_*/
+auth_info_baileys/
+session-*.json
+sender-key-*.json
+pre-key-*.json
+tctoken-*.json
+lid-mapping-*.json
 
 # Documentation and test files - ROOT LEVEL ONLY
 *.md
@@ -67,6 +73,7 @@ auth_admin_*/
 
 # Media and data files
 *.txt
+!requirements.txt
 *.png
 *.jpg
 *.jpeg

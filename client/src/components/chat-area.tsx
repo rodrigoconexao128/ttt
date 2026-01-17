@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft, Mic, User } from "lucide-react";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft, Mic, User, Forward, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -64,15 +64,87 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
   // Estado para auto-transcrição
   const [isAutoTranscribing, setIsAutoTranscribing] = useState(false);
   
+  // Estado para encaminhar mensagem
+  const [forwardDialogOpen, setForwardDialogOpen] = useState(false);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+  const [forwardTargetNumber, setForwardTargetNumber] = useState("");
+  const [forwarding, setForwarding] = useState(false);
+  const [forwardContactSearch, setForwardContactSearch] = useState("");
+  
   // Detectar se é mobile
   const isMobile = typeof window !== 'undefined' && (
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     window.innerWidth < 768
   );
 
+  // Query: Lista de conversas para encaminhar mensagem
+  const { data: forwardContacts = [] } = useQuery<Conversation[]>({
+    queryKey: ["/api/conversations-with-tags"],
+    enabled: forwardDialogOpen,
+  });
+
+  // Filtrar contatos para encaminhar (excluir conversa atual)
+  const filteredForwardContacts = forwardContacts
+    .filter(c => c.id !== conversationId)
+    .filter(c => {
+      if (!forwardContactSearch.trim()) return true;
+      const search = forwardContactSearch.toLowerCase();
+      return (
+        (c.contactName || "").toLowerCase().includes(search) ||
+        (c.contactNumber || "").includes(search)
+      );
+    });
+
+  // Função de encaminhar mensagem
+  const handleForwardMessage = async (targetNumber?: string) => {
+    const numberToUse = targetNumber || forwardTargetNumber.trim();
+    if (!forwardingMessage || !numberToUse) {
+      toast({
+        title: "Contato obrigatório",
+        description: "Selecione um contato para encaminhar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setForwarding(true);
+    try {
+      const response = await apiRequest("POST", `/api/conversations/${conversationId}/forward-message`, {
+        messageId: forwardingMessage.id,
+        targetNumber: numberToUse.replace(/\D/g, ""),
+      });
+      
+      const data = await response.json();
+      
+      toast({ title: "Mensagem encaminhada!" });
+      setForwardDialogOpen(false);
+      setForwardingMessage(null);
+      setForwardTargetNumber("");
+      setForwardContactSearch("");
+    } catch (error: any) {
+      toast({
+        title: "Erro ao encaminhar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setForwarding(false);
+    }
+  };
+
   const { data: conversation } = useQuery<Conversation>({
     queryKey: ["/api/conversation", conversationId],
     enabled: !!conversationId,
+  });
+
+  // Query para buscar dados do usuário logado (inclui assinatura)
+  const { data: currentUser } = useQuery<{
+    id: string;
+    name?: string;
+    signature?: string;
+    signatureEnabled?: boolean;
+  }>({
+    queryKey: ["/api/auth/user"],
   });
 
   // 🔧 FIX: Quando conversa é carregada (marcada como lida no backend), atualizar lista de conversas
@@ -521,17 +593,51 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
 
   // Handler para selecionar resposta rápida
   const handleQuickReplySelect = useCallback((content: string) => {
-    setMessageText(content);
-  }, []);
+    // Substituir variáveis como {nome}, {NOME}, {{nome}}
+    let processedContent = content;
+    const contactName = conversation?.contactName;
+    
+    if (contactName) {
+      // Substituir {nome}, {NOME}, {{nome}}, {{NOME}}
+      processedContent = processedContent
+        .replace(/\{\{?nome\}?\}/gi, contactName)
+        .replace(/\{\{?NOME\}?\}/gi, contactName)
+        .replace(/\{\{?name\}?\}/gi, contactName)
+        .replace(/\{\{?NAME\}?\}/gi, contactName);
+    } else {
+      // Se não tem nome, remover a variável ou substituir por "você"
+      processedContent = processedContent
+        .replace(/\{\{?nome\}?\}/gi, "")
+        .replace(/\{\{?NOME\}?\}/gi, "")
+        .replace(/\{\{?name\}?\}/gi, "")
+        .replace(/\{\{?NAME\}?\}/gi, "")
+        // Limpar espaços duplos que possam surgir
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+    
+    setMessageText(processedContent);
+  }, [conversation?.contactName]);
 
   // Handler para gerar mensagem com IA
   const handleAIGenerate = useCallback((message: string) => {
     setMessageText(message);
   }, []);
 
+  // Função helper para adicionar assinatura à mensagem
+  const applySignature = useCallback((text: string): string => {
+    if (currentUser?.signatureEnabled && currentUser?.signature) {
+      // Formata como negrito no WhatsApp: *nome:* mensagem
+      return `*${currentUser.signature}:* ${text}`;
+    }
+    return text;
+  }, [currentUser?.signatureEnabled, currentUser?.signature]);
+
   const handleSend = () => {
     if (!messageText.trim() || !conversationId) return;
-    sendMutation.mutate(messageText);
+    // Aplica assinatura se estiver habilitada
+    const messageWithSignature = applySignature(messageText.trim());
+    sendMutation.mutate(messageWithSignature);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1028,7 +1134,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
             .map((message) => (
             <div
               key={message.id}
-              className={`flex ${message.fromMe ? "justify-end" : "justify-start"}`}
+              className={`flex group ${message.fromMe ? "justify-end" : "justify-start"}`}
               data-testid={`message-${message.id}`}
             >
               <div
@@ -1305,16 +1411,41 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+                  <p className="text-sm whitespace-pre-wrap break-words">
+                    {message.text.match(/^\*([^*]+)\*:\s*(.*)/s) ? (
+                      <>
+                        <span className="font-bold">{message.text.match(/^\*([^*]+)\*:/)![1]}:</span>
+                        {" " + message.text.replace(/^\*([^*]+)\*:\s*/, "")}
+                      </>
+                    ) : (
+                      message.text
+                    )}
+                  </p>
                 )}
                 
-                <p
-                  className={`text-xs mt-1 ${
-                    message.fromMe ? "text-primary-foreground/70" : "text-muted-foreground"
-                  }`}
-                >
-                  {format(new Date(message.timestamp), "HH:mm", { locale: ptBR })}
-                </p>
+                {/* Footer da mensagem com horário e botão encaminhar */}
+                <div className="flex items-center justify-between mt-1 gap-2">
+                  <p
+                    className={`text-xs ${
+                      message.fromMe ? "text-primary-foreground/70" : "text-muted-foreground"
+                    }`}
+                  >
+                    {format(new Date(message.timestamp), "HH:mm", { locale: ptBR })}
+                  </p>
+                  {/* Botão encaminhar */}
+                  <button
+                    onClick={() => {
+                      setForwardingMessage(message);
+                      setForwardDialogOpen(true);
+                    }}
+                    className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-black/10 ${
+                      message.fromMe ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="Encaminhar mensagem"
+                  >
+                    <Share2 className="w-3 h-3" />
+                  </button>
+                </div>
               </div>
             </div>
           ))
@@ -1571,6 +1702,124 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
                   Agendar
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de encaminhar mensagem */}
+      <Dialog open={forwardDialogOpen} onOpenChange={(open) => {
+        setForwardDialogOpen(open);
+        if (!open) {
+          setForwardContactSearch("");
+          setForwardTargetNumber("");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="h-5 w-5" />
+              Encaminhar Mensagem
+            </DialogTitle>
+            <DialogDescription>
+              Selecione um contato para encaminhar
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Preview da mensagem */}
+            {forwardingMessage && (
+              <div className="bg-muted p-3 rounded-lg text-sm max-h-24 overflow-auto">
+                {forwardingMessage.mediaType === "image" && "🖼️ Imagem"}
+                {forwardingMessage.mediaType === "video" && "🎬 Vídeo"}
+                {forwardingMessage.mediaType === "audio" && "🎵 Áudio"}
+                {forwardingMessage.mediaType === "document" && "📄 Documento"}
+                {forwardingMessage.text && (
+                  <p className="text-muted-foreground mt-1 line-clamp-2">
+                    {forwardingMessage.text}
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {/* Busca de contatos */}
+            <div className="space-y-2">
+              <Label>Buscar contato</Label>
+              <Input
+                placeholder="Buscar por nome ou número..."
+                value={forwardContactSearch}
+                onChange={(e) => setForwardContactSearch(e.target.value)}
+              />
+            </div>
+
+            {/* Lista de contatos */}
+            <div className="max-h-60 overflow-auto border rounded-lg">
+              {filteredForwardContacts.length === 0 ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  {forwardContacts.length === 0 
+                    ? "Nenhum contato disponível" 
+                    : "Nenhum contato encontrado"}
+                </div>
+              ) : (
+                filteredForwardContacts.map((contact) => (
+                  <button
+                    key={contact.id}
+                    className="w-full p-3 flex items-center gap-3 hover:bg-muted transition-colors text-left border-b last:border-b-0"
+                    onClick={() => handleForwardMessage(contact.contactNumber)}
+                    disabled={forwarding}
+                  >
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                        {(contact.contactName || contact.contactNumber || "?").substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">
+                        {contact.contactName || contact.contactNumber}
+                      </p>
+                      {contact.contactName && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {contact.contactNumber}
+                        </p>
+                      )}
+                    </div>
+                    {forwarding && (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+
+            {/* Campo manual para número */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-xs text-muted-foreground">Ou digite um número</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="5511999999999"
+                  value={forwardTargetNumber}
+                  onChange={(e) => setForwardTargetNumber(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => handleForwardMessage()}
+                  disabled={forwarding || !forwardTargetNumber.trim()}
+                >
+                  {forwarding ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Share2 className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setForwardDialogOpen(false)}
+            >
+              Cancelar
             </Button>
           </DialogFooter>
         </DialogContent>

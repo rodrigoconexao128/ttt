@@ -24,6 +24,10 @@ import {
   resellerClients,
   resellerPayments,
   resellerInvoices,
+  teamMembers,
+  teamMemberSessions,
+  audioConfig,
+  audioMessageCounter,
   type User,
   type UpsertUser,
   type WhatsappConnection,
@@ -69,6 +73,11 @@ import {
   resellerInvoiceItems,
   type ResellerInvoiceItem,
   type InsertResellerInvoiceItem,
+  type TeamMember,
+  type InsertTeamMember,
+  type TeamMemberSession,
+  type AudioConfig,
+  type AudioMessageCounter,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray, lte, isNotNull } from "drizzle-orm";
@@ -3941,6 +3950,226 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     `);
 
     console.log(`✅ [SUSPENSION] Suspensão removida do usuário ${userId}`);
+  }
+
+  // ==================== TEAM MEMBERS ====================
+
+  /**
+   * Buscar todos os membros de um dono
+   */
+  async getTeamMembers(ownerId: string): Promise<TeamMember[]> {
+    return await db.select().from(teamMembers).where(eq(teamMembers.ownerId, ownerId)).orderBy(desc(teamMembers.createdAt));
+  }
+
+  /**
+   * Buscar membro por ID
+   */
+  async getTeamMember(id: string): Promise<TeamMember | undefined> {
+    const [member] = await db.select().from(teamMembers).where(eq(teamMembers.id, id));
+    return member;
+  }
+
+  /**
+   * Buscar membro por email (dentro do mesmo dono)
+   */
+  async getTeamMemberByEmail(ownerId: string, email: string): Promise<TeamMember | undefined> {
+    const [member] = await db.select().from(teamMembers)
+      .where(and(eq(teamMembers.ownerId, ownerId), eq(teamMembers.email, email)));
+    return member;
+  }
+
+  /**
+   * Buscar membro por email (global - para login)
+   */
+  async getTeamMemberByEmailGlobal(email: string): Promise<TeamMember | undefined> {
+    const [member] = await db.select().from(teamMembers).where(eq(teamMembers.email, email));
+    return member;
+  }
+
+  /**
+   * Criar novo membro
+   */
+  async createTeamMember(data: Omit<TeamMember, 'id' | 'createdAt' | 'updatedAt' | 'lastLoginAt'>): Promise<TeamMember> {
+    const [member] = await db.insert(teamMembers).values({
+      ...data,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }).returning();
+    return member;
+  }
+
+  /**
+   * Atualizar membro
+   */
+  async updateTeamMember(id: string, data: Partial<TeamMember>): Promise<TeamMember> {
+    const [member] = await db.update(teamMembers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(teamMembers.id, id))
+      .returning();
+    return member;
+  }
+
+  /**
+   * Excluir membro
+   */
+  async deleteTeamMember(id: string): Promise<void> {
+    // Deletar sessões primeiro
+    await db.delete(teamMemberSessions).where(eq(teamMemberSessions.memberId, id));
+    // Deletar membro
+    await db.delete(teamMembers).where(eq(teamMembers.id, id));
+  }
+
+  // ==================== TEAM MEMBER SESSIONS ====================
+
+  /**
+   * Criar sessão de membro
+   */
+  async createTeamMemberSession(data: { memberId: string; token: string; expiresAt: Date; userAgent?: string | null; ipAddress?: string | null }): Promise<TeamMemberSession> {
+    const [session] = await db.insert(teamMemberSessions).values({
+      ...data,
+      createdAt: new Date(),
+    }).returning();
+    return session;
+  }
+
+  /**
+   * Buscar sessão por token
+   */
+  async getTeamMemberSession(token: string): Promise<TeamMemberSession | undefined> {
+    const [session] = await db.select().from(teamMemberSessions).where(eq(teamMemberSessions.token, token));
+    return session;
+  }
+
+  /**
+   * Deletar sessão por token
+   */
+  async deleteTeamMemberSession(token: string): Promise<void> {
+    await db.delete(teamMemberSessions).where(eq(teamMemberSessions.token, token));
+  }
+
+  /**
+   * Limpar sessões expiradas
+   */
+  async cleanExpiredTeamMemberSessions(): Promise<void> {
+    await db.delete(teamMemberSessions).where(lte(teamMemberSessions.expiresAt, new Date()));
+  }
+
+  // ==================== AUDIO CONFIG (TTS) ====================
+
+  /**
+   * Buscar configuração de áudio do usuário
+   */
+  async getAudioConfig(userId: string): Promise<AudioConfig | undefined> {
+    const [config] = await db.select().from(audioConfig).where(eq(audioConfig.userId, userId));
+    return config;
+  }
+
+  /**
+   * Criar configuração de áudio padrão
+   */
+  async createAudioConfig(userId: string): Promise<AudioConfig> {
+    const [config] = await db.insert(audioConfig).values({
+      userId,
+      isEnabled: true,
+      voiceType: "female",
+      speed: "1.00",
+    }).returning();
+    return config;
+  }
+
+  /**
+   * Atualizar configuração de áudio
+   */
+  async updateAudioConfig(userId: string, data: Partial<{ isEnabled: boolean; voiceType: string; speed: string }>): Promise<AudioConfig> {
+    const existing = await this.getAudioConfig(userId);
+    
+    if (!existing) {
+      // Criar se não existe
+      const [config] = await db.insert(audioConfig).values({
+        userId,
+        isEnabled: data.isEnabled ?? true,
+        voiceType: data.voiceType ?? "female",
+        speed: data.speed ?? "1.00",
+      }).returning();
+      return config;
+    }
+    
+    const [config] = await db.update(audioConfig)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(audioConfig.userId, userId))
+      .returning();
+    return config;
+  }
+
+  /**
+   * Buscar contador de mensagens de áudio do dia
+   */
+  async getAudioMessageCounter(userId: string): Promise<AudioMessageCounter | undefined> {
+    const today = new Date().toISOString().split('T')[0];
+    const [counter] = await db.select().from(audioMessageCounter)
+      .where(and(eq(audioMessageCounter.userId, userId), eq(audioMessageCounter.date, today)));
+    return counter;
+  }
+
+  /**
+   * Incrementar contador de mensagens de áudio
+   * Retorna o novo contador ou undefined se limite atingido
+   */
+  async incrementAudioMessageCounter(userId: string): Promise<{ count: number; limit: number; canSend: boolean }> {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Buscar contador existente
+    let counter = await this.getAudioMessageCounter(userId);
+    
+    if (!counter) {
+      // Criar contador para hoje
+      const [newCounter] = await db.insert(audioMessageCounter).values({
+        userId,
+        date: today,
+        count: 1,
+        dailyLimit: 30,
+      }).returning();
+      return { count: 1, limit: 30, canSend: true };
+    }
+    
+    // Verificar se pode enviar mais
+    if (counter.count >= counter.dailyLimit) {
+      return { count: counter.count, limit: counter.dailyLimit, canSend: false };
+    }
+    
+    // Incrementar contador
+    const [updated] = await db.update(audioMessageCounter)
+      .set({ count: counter.count + 1, updatedAt: new Date() })
+      .where(eq(audioMessageCounter.id, counter.id))
+      .returning();
+    
+    return { count: updated.count, limit: updated.dailyLimit, canSend: true };
+  }
+
+  /**
+   * Verificar se usuário pode enviar mais áudios hoje
+   */
+  async canSendAudio(userId: string): Promise<{ canSend: boolean; remaining: number; limit: number }> {
+    const config = await this.getAudioConfig(userId);
+    
+    // Se não tem config, criar uma padrão
+    if (!config) {
+      await this.createAudioConfig(userId);
+    }
+    
+    // Se TTS está desabilitado
+    if (config && !config.isEnabled) {
+      return { canSend: false, remaining: 0, limit: 30 };
+    }
+    
+    const counter = await this.getAudioMessageCounter(userId);
+    
+    if (!counter) {
+      return { canSend: true, remaining: 30, limit: 30 };
+    }
+    
+    const remaining = Math.max(0, counter.dailyLimit - counter.count);
+    return { canSend: remaining > 0, remaining, limit: counter.dailyLimit };
   }
 }
 

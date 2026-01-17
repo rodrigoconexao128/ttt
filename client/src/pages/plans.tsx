@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { SubscribeModal } from "@/components/subscribe-modal";
 
 // Componente de Cronômetro de Escassez
-function ScarcityTimer({ onExpire }: { onExpire?: () => void }) {
+function ScarcityTimer({ onExpire, className }: { onExpire?: () => void; className?: string }) {
   const [timeLeft, setTimeLeft] = useState(() => {
     // Recuperar tempo restante do localStorage ou iniciar com 10 minutos
     const saved = localStorage.getItem("scarcity_timer_end");
@@ -48,7 +48,7 @@ function ScarcityTimer({ onExpire }: { onExpire?: () => void }) {
   const seconds = timeLeft % 60;
 
   return (
-    <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+    <div className={cn("flex items-center gap-2 text-emerald-600 dark:text-emerald-400", className)}>
       <Clock className="h-4 w-4 animate-pulse" />
       <span className="font-mono font-bold">
         {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
@@ -289,6 +289,10 @@ export default function PlansPage() {
     return false;
   };
 
+  const showAssignedPlan = assignedPlanData?.hasAssignedPlan && assignedPlanData?.plan;
+  const showOnlyMensal = !showAssignedPlan;
+  const showCouponSection = false;
+
   // Preço a exibir (com ou sem cupom)
   const getDisplayPrice = () => {
     if (appliedCoupon?.finalPrice) {
@@ -372,10 +376,6 @@ export default function PlansPage() {
       answer: "Todos os planos incluem: IA atendendo 24/7, conversas ilimitadas, 1 agente personalizado, suporte via WhatsApp e atualizações gratuitas."
     },
     {
-      question: "Como funciona o cupom de desconto?",
-      answer: "Se você tem um cupom promocional, digite no campo de cupom e clique em 'Aplicar'. O desconto será aplicado automaticamente no preço mensal."
-    },
-    {
       question: "O que é a Implementação Completa?",
       answer: "É um serviço onde nossa equipe configura toda a IA para você: personaliza o agente, treina com suas informações e acompanha por 30 dias com reuniões semanais. Após o primeiro mês, continua apenas R$ 99,99/mês."
     },
@@ -387,7 +387,7 @@ export default function PlansPage() {
       question: "Como funciona o pagamento?",
       answer: "Pagamento via PIX, instantâneo e seguro. O acesso é liberado imediatamente após a confirmação."
     }
-  ];
+  ].filter(item => showCouponSection || item.question !== "Como funciona o cupom de desconto?");
 
   // Se é cliente de revenda, sempre mostrar plano da revenda (com ou sem assinatura tradicional)
   if (resellerPlan?.isResellerClient && resellerPlan.plan) {
@@ -588,71 +588,70 @@ export default function PlansPage() {
           )}
         </div>
 
-        {/* Seção de Cupom de Desconto - Design Minimalista */}
-        <div className="max-w-sm mx-auto mb-8">
-          {appliedCoupon ? (
-            /* Cupom Aplicado - Feedback Visual Claro */
-            <div className="relative bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 rounded-2xl p-4 border border-green-200/60 dark:border-green-700/40 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
-                    <Check className="w-5 h-5 text-green-600" />
+        {showCouponSection && (
+          <div className="max-w-sm mx-auto mb-8">
+            {appliedCoupon ? (
+              <div className="relative bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 rounded-2xl p-4 border border-green-200/60 dark:border-green-700/40 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                      <Check className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-green-600 dark:text-green-400 font-medium">Cupom aplicado</p>
+                      <p className="font-bold text-gray-900 dark:text-white text-lg tracking-wide">{appliedCoupon.code}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-green-600 dark:text-green-400 font-medium">Cupom aplicado</p>
-                    <p className="font-bold text-gray-900 dark:text-white text-lg tracking-wide">{appliedCoupon.code}</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={removeCoupon}
-                  className="text-xs text-gray-400 hover:text-red-500 transition-colors p-2"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="mt-3 pt-3 border-t border-green-200/50 dark:border-green-700/30">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Novo valor mensal:</span>
-                  <span className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    R$ {getDisplayPrice()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* Campo de Cupom - Colapsável e Discreto */
-            <details className="group">
-              <summary className="cursor-pointer flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors py-2 select-none">
-                <Tag className="w-4 h-4" />
-                <span>Tem um cupom de desconto?</span>
-                <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    placeholder="Digite o código"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    className="h-11 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 focus:border-green-500 focus:ring-green-500/20 uppercase font-medium text-center tracking-widest transition-all"
-                    onKeyDown={(e) => e.key === 'Enter' && validateCoupon()}
-                  />
-                  <Button 
-                    onClick={validateCoupon}
-                    disabled={isValidatingCoupon || !couponCode.trim()}
-                    className="h-11 px-6 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+                  <button 
+                    onClick={removeCoupon}
+                    className="text-xs text-gray-400 hover:text-red-500 transition-colors p-2"
                   >
-                    {isValidatingCoupon ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Aplicar"
-                    )}
-                  </Button>
+                    ✕
+                  </button>
+                </div>
+                <div className="mt-3 pt-3 border-t border-green-200/50 dark:border-green-700/30">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Novo valor mensal:</span>
+                    <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      R$ {getDisplayPrice()}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </details>
-          )}
-        </div>
+            ) : (
+              <details className="group">
+                <summary className="cursor-pointer flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors py-2 select-none">
+                  <Tag className="w-4 h-4" />
+                  <span>Tem um cupom de desconto?</span>
+                  <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Digite o código"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      className="h-11 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 focus:border-green-500 focus:ring-green-500/20 uppercase font-medium text-center tracking-widest transition-all"
+                      onKeyDown={(e) => e.key === 'Enter' && validateCoupon()}
+                    />
+                    <Button 
+                      onClick={validateCoupon}
+                      disabled={isValidatingCoupon || !couponCode.trim()}
+                      className="h-11 px-6 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+                    >
+                      {isValidatingCoupon ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Aplicar"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </details>
+            )}
+          </div>
+        )}
 
         {/* Seção de Plano Personalizado ou Campo de Busca */}
         {!customPlan?.valid && (
@@ -692,11 +691,22 @@ export default function PlansPage() {
 
         {/* Plano Personalizado - Centralizado */}
         {customPlan?.valid && customPlan.plan ? (
+          (() => {
+            const isAssignedPlan = showAssignedPlan && assignedPlanData?.plan?.id === customPlan.plan.id;
+            return (
           <div className="max-w-md mx-auto mb-12">
-            <Card className="relative flex flex-col border rounded-2xl transition-all duration-200 border-purple-200 dark:border-purple-800 hover:border-purple-400 dark:hover:border-purple-600 hover:shadow-md">
+            <Card className={cn(
+              "relative flex flex-col border rounded-2xl transition-all duration-200 hover:shadow-md",
+              isAssignedPlan
+                ? "border-emerald-200 dark:border-emerald-800 hover:border-emerald-300 dark:hover:border-emerald-700"
+                : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700"
+            )}>
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <Badge className="px-3 py-1 text-xs font-semibold rounded-full shadow-sm bg-purple-600 text-white">
-                  ✨ Personalizado para você
+                <Badge className={cn(
+                  "px-3 py-1 text-xs font-semibold rounded-full shadow-sm",
+                  isAssignedPlan ? "bg-emerald-600 text-white" : "bg-gray-900 text-white"
+                )}>
+                  {isAssignedPlan ? "Oferta exclusiva" : "Plano personalizado"}
                 </Badge>
               </div>
               
@@ -713,33 +723,61 @@ export default function PlansPage() {
                 </div>
                 
                 {customPlan.plan.valorPrimeiraCobranca && (
-                  <div className="mb-2 p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
-                    <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">1ª cobrança (implementação)</p>
+                  <div className={cn(
+                    "mb-3 p-3 rounded-lg border",
+                    isAssignedPlan
+                      ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+                      : "bg-gray-50 dark:bg-gray-900/40 border-gray-200 dark:border-gray-800"
+                  )}>
+                    <p className={cn(
+                      "text-xs mb-1",
+                      isAssignedPlan ? "text-emerald-600 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"
+                    )}>1ª cobrança (implementação)</p>
                     <div className="flex items-baseline gap-1">
                       <span className="text-sm text-gray-500 font-medium">R$</span>
-                      <span className="text-3xl font-bold text-purple-600 dark:text-purple-500 tracking-tight">
+                      <span className={cn(
+                        "text-3xl font-bold tracking-tight",
+                        isAssignedPlan ? "text-emerald-600 dark:text-emerald-500" : "text-gray-900 dark:text-white"
+                      )}>
                         {Number(customPlan.plan.valorPrimeiraCobranca).toFixed(2).replace('.', ',').split(',')[0]}
                       </span>
-                      <span className="text-lg font-bold text-purple-600 dark:text-purple-500 tracking-tight">
+                      <span className={cn(
+                        "text-lg font-bold tracking-tight",
+                        isAssignedPlan ? "text-emerald-600 dark:text-emerald-500" : "text-gray-900 dark:text-white"
+                      )}>
                         ,{Number(customPlan.plan.valorPrimeiraCobranca).toFixed(2).split('.')[1]}
                       </span>
                     </div>
                   </div>
                 )}
                 
-                <div className="flex items-baseline gap-1">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-baseline gap-1">
                   <span className="text-sm text-gray-500 font-medium">R$</span>
-                  <span className="text-5xl font-bold text-purple-600 dark:text-purple-500 tracking-tight">
+                  <span className={cn(
+                    "text-5xl font-bold tracking-tight",
+                    isAssignedPlan ? "text-emerald-600 dark:text-emerald-500" : "text-gray-900 dark:text-white"
+                  )}>
                     {Number(customPlan.plan.valor).toFixed(2).replace('.', ',').split(',')[0]}
                   </span>
-                  <span className="text-2xl font-bold text-purple-600 dark:text-purple-500 tracking-tight">
+                  <span className={cn(
+                    "text-2xl font-bold tracking-tight",
+                    isAssignedPlan ? "text-emerald-600 dark:text-emerald-500" : "text-gray-900 dark:text-white"
+                  )}>
                     ,{Number(customPlan.plan.valor).toFixed(2).split('.')[1]}
                   </span>
                   <span className="text-gray-500 text-sm font-medium">/mês</span>
+                  </div>
+                  {isAssignedPlan && (
+                    <ScarcityTimer className="text-xs md:text-sm" />
+                  )}
                 </div>
                 
-                <p className="text-sm text-purple-700 dark:text-purple-400 font-medium mt-3">
-                  Configurado especialmente para você
+                <p className={cn(
+                  "text-sm font-medium mt-3",
+                  isAssignedPlan ? "text-emerald-700 dark:text-emerald-400" : "text-gray-600 dark:text-gray-400"
+                )}>
+                  {isAssignedPlan ? "Oferta exclusiva do seu link" : "Plano configurado para você"}
                 </p>
               </CardHeader>
 
@@ -757,8 +795,14 @@ export default function PlansPage() {
                       ]
                   ).map((feature, i) => (
                     <li key={i} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
-                      <div className="mt-0.5 p-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30">
-                        <Check className="w-3 h-3 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                      <div className={cn(
+                        "mt-0.5 p-0.5 rounded-full",
+                        isAssignedPlan ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-gray-100 dark:bg-gray-800/60"
+                      )}>
+                        <Check className={cn(
+                          "w-3 h-3 flex-shrink-0",
+                          isAssignedPlan ? "text-emerald-600 dark:text-emerald-400" : "text-gray-600 dark:text-gray-300"
+                        )} />
                       </div>
                       <span className="font-medium">{feature}</span>
                     </li>
@@ -768,19 +812,24 @@ export default function PlansPage() {
 
               <CardFooter className="px-6 pb-8 pt-2">
                 <Button
-                  className="w-full h-12 rounded-xl font-semibold text-base shadow-sm transition-all hover:scale-[1.02] bg-purple-600 hover:bg-purple-700 text-white"
+                  className={cn(
+                    "w-full h-12 rounded-xl font-semibold text-base shadow-sm transition-all hover:scale-[1.02]",
+                    isAssignedPlan ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-gray-900 hover:bg-gray-800 text-white"
+                  )}
                   onClick={handleSelectCustomPlan}
                   disabled={createSubscriptionMutation.isPending}
                 >
                   {createSubscriptionMutation.isPending && selectedPlan === "personalizado" ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    "Assinar Plano Exclusivo"
+                    isAssignedPlan ? "Assinar Plano Promo" : "Assinar Plano"
                   )}
                 </Button>
               </CardFooter>
             </Card>
           </div>
+            );
+          })()
         ) : (
           <>
             {/* Mobile: Cards empilhados estilo Shopify */}
@@ -839,104 +888,109 @@ export default function PlansPage() {
             )}
           </div>
 
-          {/* PLANO IMPLEMENTAÇÃO - Mobile Card */}
-          <div 
-            className={cn(
-              "relative border rounded-2xl p-4 transition-all",
-              isPlanActive("implementacao") 
-                ? "border-purple-400 bg-purple-50/50 dark:bg-purple-950/20" 
-                : "border-purple-200 dark:border-purple-800"
-            )}
-          >
-            <Badge className="absolute -top-2.5 left-4 bg-purple-600 text-white text-[10px] font-semibold px-2.5 py-0.5">
-              ✨ PERSONALIZADA
-            </Badge>
-            <div className="flex items-start justify-between mt-1">
-              <div className="flex-1">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Implementação</h3>
-                <p className="text-xs text-purple-700 dark:text-purple-400 font-medium">Nós configuramos tudo para você</p>
+          {!showOnlyMensal && (
+            <div 
+              className={cn(
+                "relative border rounded-2xl p-4 transition-all",
+                isPlanActive("implementacao") 
+                  ? "border-purple-400 bg-purple-50/50 dark:bg-purple-950/20" 
+                  : "border-purple-200 dark:border-purple-800"
+              )}
+            >
+              <Badge className="absolute -top-2.5 left-4 bg-purple-600 text-white text-[10px] font-semibold px-2.5 py-0.5">
+                ✨ PERSONALIZADA
+              </Badge>
+              <div className="flex items-start justify-between mt-1">
+                <div className="flex-1">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Implementação</h3>
+                  <p className="text-xs text-purple-700 dark:text-purple-400 font-medium">Nós configuramos tudo para você</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-purple-600">R$ 700</span>
+                  <p className="text-[10px] text-gray-500">único</p>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-2xl font-bold text-purple-600">R$ 700</span>
-                <p className="text-[10px] text-gray-500">único</p>
+              <ul className="mt-3 space-y-1.5">
+                {["Configuração 100% personalizada", "30 dias de acompanhamento", "Reuniões semanais de ajuste"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                    <Check className="w-3.5 h-3.5 text-purple-600" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 p-2 bg-purple-50 dark:bg-purple-950/30 rounded-lg text-center border border-purple-100 dark:border-purple-800/50">
+                <p className="text-xs text-purple-700 dark:text-purple-300">
+                  Você receberá a IA <span className="font-bold">pronta e funcionando</span>
+                </p>
               </div>
+              {!isPlanActive("implementacao") && (
+                <Button
+                  className="w-full mt-3 h-11 rounded-xl font-semibold bg-purple-600 hover:bg-purple-700 text-white"
+                  onClick={() => handleSelectPlan("implementacao")}
+                  disabled={createSubscriptionMutation.isPending}
+                >
+                  {createSubscriptionMutation.isPending && selectedPlan === "implementacao" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Contratar Implementação"
+                  )}
+                </Button>
+              )}
             </div>
-            <ul className="mt-3 space-y-1.5">
-              {["Configuração 100% personalizada", "30 dias de acompanhamento", "Reuniões semanais de ajuste"].map((feature, i) => (
-                <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                  <Check className="w-3.5 h-3.5 text-purple-600" />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-3 p-2 bg-purple-50 dark:bg-purple-950/30 rounded-lg text-center border border-purple-100 dark:border-purple-800/50">
-              <p className="text-xs text-purple-700 dark:text-purple-300">
-                Você receberá a IA <span className="font-bold">pronta e funcionando</span>
-              </p>
-            </div>
-            {!isPlanActive("implementacao") && (
-              <Button
-                className="w-full mt-3 h-11 rounded-xl font-semibold bg-purple-600 hover:bg-purple-700 text-white"
-                onClick={() => handleSelectPlan("implementacao")}
-                disabled={createSubscriptionMutation.isPending}
-              >
-                {createSubscriptionMutation.isPending && selectedPlan === "implementacao" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Contratar Implementação"
-                )}
-              </Button>
-            )}
-          </div>
+          )}
 
-          {/* PLANO IMPLEMENTAÇÃO MENSAL - Mobile Card */}
-          <div 
-            className={cn(
-              "relative border rounded-2xl p-4 transition-all mt-3",
-              isPlanActive("implementacao_mensal") 
-                ? "border-purple-400 bg-purple-50/50 dark:bg-purple-950/20" 
-                : "border-purple-200 dark:border-purple-800"
-            )}
-          >
-            <Badge className="absolute -top-2.5 left-4 bg-purple-600 text-white text-[10px] font-semibold px-2.5 py-0.5">
-              NOVO
-            </Badge>
-            <div className="flex items-start justify-between mt-1">
-              <div className="flex-1">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Implementação Mensal</h3>
-                <p className="text-xs text-purple-700 dark:text-purple-400 font-medium">Diluído na mensalidade</p>
+          {!showOnlyMensal && (
+            <div 
+              className={cn(
+                "relative border rounded-2xl p-4 transition-all mt-3",
+                isPlanActive("implementacao_mensal") 
+                  ? "border-purple-400 bg-purple-50/50 dark:bg-purple-950/20" 
+                  : "border-purple-200 dark:border-purple-800"
+              )}
+            >
+              <Badge className="absolute -top-2.5 left-4 bg-purple-600 text-white text-[10px] font-semibold px-2.5 py-0.5">
+                NOVO
+              </Badge>
+              <div className="flex items-start justify-between mt-1">
+                <div className="flex-1">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Implementação Mensal</h3>
+                  <p className="text-xs text-purple-700 dark:text-purple-400 font-medium">Diluído na mensalidade</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-bold text-purple-600">R$ 199,99</span>
+                  <p className="text-[10px] text-gray-500">/mês</p>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-2xl font-bold text-purple-600">R$ 199,99</span>
-                <p className="text-[10px] text-gray-500">/mês</p>
-              </div>
+              <ul className="mt-3 space-y-1.5">
+                {["Configuração completa da IA", "Personalização do agente", "Suporte prioritário"].map((feature, i) => (
+                  <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                    <Check className="w-3.5 h-3.5 text-purple-600" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              {!isPlanActive("implementacao_mensal") && (
+                <Button
+                  className="w-full mt-3 h-11 rounded-xl font-semibold bg-purple-600 hover:bg-purple-700 text-white"
+                  onClick={() => handleSelectPlan("implementacao_mensal")}
+                  disabled={createSubscriptionMutation.isPending}
+                >
+                  {createSubscriptionMutation.isPending && selectedPlan === "implementacao_mensal" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Contratar Implementação"
+                  )}
+                </Button>
+              )}
             </div>
-            <ul className="mt-3 space-y-1.5">
-              {["Configuração completa da IA", "Personalização do agente", "Suporte prioritário"].map((feature, i) => (
-                <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                  <Check className="w-3.5 h-3.5 text-purple-600" />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-            {!isPlanActive("implementacao_mensal") && (
-              <Button
-                className="w-full mt-3 h-11 rounded-xl font-semibold bg-purple-600 hover:bg-purple-700 text-white"
-                onClick={() => handleSelectPlan("implementacao_mensal")}
-                disabled={createSubscriptionMutation.isPending}
-              >
-                {createSubscriptionMutation.isPending && selectedPlan === "implementacao_mensal" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Contratar Implementação"
-                )}
-              </Button>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Desktop: Grid original */}
-        <div className="hidden md:grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3 mb-12">
+        <div className={cn(
+          "hidden md:grid gap-4 md:gap-6 mb-12",
+          showOnlyMensal ? "grid-cols-1 max-w-md mx-auto" : "grid-cols-1 md:grid-cols-3"
+        )}>
           
           {/* PLANO MENSAL */}
           <Card className={cn(
@@ -1003,6 +1057,8 @@ export default function PlansPage() {
             </CardFooter>
           </Card>
 
+          {!showOnlyMensal && (
+          <>
           {/* PLANO IMPLEMENTAÇÃO */}
           <Card className={cn(
             "relative flex flex-col border rounded-2xl transition-all duration-200",
@@ -1151,6 +1207,8 @@ export default function PlansPage() {
               </Button>
             </CardFooter>
           </Card>
+          </>
+          )}
         </div>
           </>
         )}

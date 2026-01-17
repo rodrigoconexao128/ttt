@@ -21,12 +21,7 @@ export function PromoBar({ isAuthenticated }: PromoBarProps) {
     enabled: isAuthenticated,
   });
   
-  // Debug: Log do plano atribuído
-  useEffect(() => {
-    if (assignedPlanData) {
-      console.log('[PROMO-BAR DEBUG] assignedPlanData:', JSON.stringify(assignedPlanData, null, 2));
-    }
-  }, [assignedPlanData]);
+  // Debug: Log do plano atribuído (REMOVED - causing performance issues)
   
   const assignedPlan = assignedPlanData?.plan;
   const [timeLeft, setTimeLeft] = useState(() => {
@@ -78,9 +73,6 @@ export function PromoBar({ isAuthenticated }: PromoBarProps) {
   const planValue = rawValue != null
     ? `R$ ${Number(rawValue).toFixed(2).replace(".", ",")}`
     : "R$ 99,99";
-  
-  // Debug do valor
-  console.log('[PROMO-BAR DEBUG] planName:', planName, 'rawValue:', rawValue, 'planValue:', planValue);
 
   // Mostrar APENAS para usuários autenticados que vieram por link de plano
   if (!isAuthenticated) return null;

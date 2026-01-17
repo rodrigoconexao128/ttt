@@ -114,20 +114,32 @@ export function UserQuickReplies({ onSelect, disabled }: UserQuickRepliesProps) 
   };
 
   const handleEdit = (reply: UserQuickReply) => {
-    setEditingReply(reply);
-    setFormData({
-      title: reply.title,
-      content: reply.content,
-      shortcut: reply.shortcut || "",
-      category: reply.category || "",
-    });
-    setDialogOpen(true);
+    // Fechar popover primeiro
+    setIsOpen(false);
+    
+    // Aguardar um pouco e então abrir o dialog de edição
+    setTimeout(() => {
+      setEditingReply(reply);
+      setFormData({
+        title: reply.title,
+        content: reply.content,
+        shortcut: reply.shortcut || "",
+        category: reply.category || "",
+      });
+      setDialogOpen(true);
+    }, 100);
   };
 
   const handleCreate = () => {
-    setEditingReply(null);
-    setFormData({ title: "", content: "", shortcut: "", category: "" });
-    setDialogOpen(true);
+    // Fechar popover primeiro
+    setIsOpen(false);
+    
+    // Aguardar um pouco e então abrir o dialog de criação
+    setTimeout(() => {
+      setEditingReply(null);
+      setFormData({ title: "", content: "", shortcut: "", category: "" });
+      setDialogOpen(true);
+    }, 100);
   };
 
   const handleSubmit = () => {
@@ -326,6 +338,9 @@ export function UserQuickReplies({ onSelect, disabled }: UserQuickRepliesProps) 
                 onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
                 rows={4}
               />
+              <p className="text-xs text-muted-foreground">
+                💡 Use <code className="bg-muted px-1 rounded">{'{nome}'}</code> para inserir automaticamente o nome do cliente
+              </p>
             </div>
             
             <div className="grid grid-cols-2 gap-4">

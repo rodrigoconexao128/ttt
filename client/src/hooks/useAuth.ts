@@ -34,8 +34,65 @@ async function cleanInvalidSession() {
   }
 }
 
+// Função para verificar se é login de membro
+function isMemberSession(): boolean {
+  return !!localStorage.getItem("memberToken");
+}
+
+// Função para buscar dados do membro autenticado
+async function fetchMemberUser(): Promise<User | null> {
+  try {
+    const memberToken = localStorage.getItem("memberToken");
+    if (!memberToken) {
+      return null;
+    }
+
+    const response = await fetch("/api/team-members/session", {
+      headers: {
+        "Authorization": `Bearer ${memberToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        // Token inválido - limpar localStorage
+        localStorage.removeItem("memberToken");
+        localStorage.removeItem("memberData");
+        return null;
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.authenticated) {
+      localStorage.removeItem("memberToken");
+      localStorage.removeItem("memberData");
+      return null;
+    }
+
+    // Retornar dados do owner como se fosse o user (membro acessa com permissões do owner)
+    // Mas marcar que é um membro para controle de permissões
+    return {
+      ...data.owner,
+      isMember: true,
+      memberData: data.member,
+    } as any;
+  } catch (error) {
+    console.error("Erro ao buscar dados do membro:", error);
+    localStorage.removeItem("memberToken");
+    localStorage.removeItem("memberData");
+    return null;
+  }
+}
+
 async function fetchUser(): Promise<User | null> {
   try {
+    // Verificar se é login de membro primeiro
+    if (isMemberSession()) {
+      return await fetchMemberUser();
+    }
+
     const token = await getAuthToken();
     
     if (!token) {

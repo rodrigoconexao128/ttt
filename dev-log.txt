@@ -1,0 +1,507 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index.ts
+
+[DB] Modo de conexão: Supabase Pooler (PgBouncer)
+🛡️ [ANTI-BLOCK] MessageQueueService iniciado (com IA Mistral para humanização)
+🔄 [MISSED MSG] Polling de mensagens não processadas iniciado (a cada 45s)
+🛡️ [ANTI-BLOCK] Callback de envio registrado
+[WHATSAPP] Using SESSIONS_DIR=/data/whatsapp-sessions
+📲 [FOLLOW-UP] Callback registrado
+📲 [AGENDAMENTO] Callback registrado
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+🚀 [BOOT] Starting server (bootId=2026-01-16T16:02:05.385Z)
+🚀 [BOOT] node=v22.20.0 env=development port=5000
+🚀 [BOOT] railwayCommit=unknown
+✅ [FOLLOW-UP] Rotas registradas
+🚀 [USER-FOLLOW-UP] Serviço iniciado
+📲 [USER-FOLLOW-UP] Callback registrado
+✅ [DEV] Rotas de teste habilitadas: /api/test/*
+1:02:05 PM [express] serving on port 5000
+🔗 [DB Pool] Nova conexão estabelecida
+✅ [DB] Conexão inicial com o banco de dados OK
+🌱 Seeding database...
+Query: select "id", "email", "password_hash", "role", "created_at", "updated_at" from "admins" where "admins"."email" = $1 limit $2 -- params: ["rodrigoconexao128@gmail.com", 1]
+ℹ️ Admin owner already exists
+Query: select "id", "chave", "valor", "created_at", "updated_at" from "system_config" where "system_config"."chave" = $1 limit $2 -- params: ["mistral_api_key", 1]
+ℹ️ Mistral API Key already exists
+Query: select "id", "chave", "valor", "created_at", "updated_at" from "system_config" where "system_config"."chave" = $1 limit $2 -- params: ["zai_api_key", 1]
+ℹ️ Z.AI API Key already exists
+Query: select "id", "chave", "valor", "created_at", "updated_at" from "system_config" where "system_config"."chave" = $1 limit $2 -- params: ["pix_key", 1]
+ℹ️ PIX key already exists
+Query: select "id", "chave", "valor", "created_at", "updated_at" from "system_config" where "system_config"."chave" = $1 limit $2 -- params: ["admin_agent_enabled", 1]
+ℹ️ Admin auto-atendimento enabled already exists
+Query: select "id", "chave", "valor", "created_at", "updated_at" from "system_config" where "system_config"."chave" = $1 limit $2 -- params: ["owner_notification_number", 1]
+ℹ️ Owner notification number already exists
+Query: select "id", "chave", "valor", "created_at", "updated_at" from "system_config" where "system_config"."chave" = $1 limit $2 -- params: ["admin_agent_prompt", 1]
+ℹ️ Admin auto-atendimento prompt already exists
+Query: select "id", "nome", "descricao", "valor", "valor_original", "periodicidade", "tipo", "desconto_percent", "badge", "destaque", "ordem", "limite_conversas", "limite_agentes", "caracteristicas", "ativo", "mp_plan_id", "valor_primeira_cobranca", "codigo_personalizado", "is_personalizado", "frequencia_dias", "trial_dias", "link_slug", "created_at", "updated_at" from "plans" limit $1 -- params: [1]
+ℹ️ Plans already exist
+Query: select "id", "email", "name", "phone", "profile_image_url", "role", "whatsapp_number", "onboarding_completed", "reseller_id", "assigned_plan_id", "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount", "created_at", "updated_at" from "users" where "users"."email" = $1 limit $2 -- params: ["rodrigoconexao128@gmail.com", 1]
+Query: update "users" set "role" = $1 where "users"."email" = $2 -- params: ["owner", "rodrigoconexao128@gmail.com"]
+ℹ️ Admin user role updated to owner
+🎉 Database seeded successfully
+Checking for existing WhatsApp connections...
+Checking for existing admin WhatsApp connections...
+🚀 [FOLLOW-UP] Serviço iniciado
+📅 [APPOINTMENT-REMINDER] Serviço de lembretes iniciado
+⏰ [AUTO-REACTIVATE] Iniciando serviço otimizado (intervalo inicial: 300s)
+
+?? [HEALTH CHECK] Iniciando monitor de conex�es...
+   ?? Intervalo: 5 minutos
+? [HEALTH CHECK] Monitor iniciado com sucesso!
+
+
+🕐 [CRON] Iniciando cron job de sincronização diária (6:00 UTC / 03:00 BRT)
+[CRON] ✅ Cron job iniciado com sucesso
+
+🗑️ ═══════════════════════════════════════════════════════════════
+🗑️ [MEDIA CLEANUP] Iniciando serviço de limpeza automática
+🗑️ [MEDIA CLEANUP] Intervalo: 15 minutos
+🗑️ [MEDIA CLEANUP] TTL das mídias: 30 minutos
+🗑️ ═══════════════════════════════════════════════════════════════
+
+Query: select "id", "user_id", "phone_number", "is_connected", "qr_code", "session_data", "safe_mode_enabled", "safe_mode_activated_at", "safe_mode_activated_by", "safe_mode_last_cleanup_at", "created_at", "updated_at" from "whatsapp_connections" order by "whatsapp_connections"."created_at" desc
+Query: select "id", "email", "password_hash", "role", "created_at", "updated_at" from "admins"
+Session restoration complete
+🔗 [DB Pool] Nova conexão estabelecida
+Query: select "id", "admin_id", "phone_number", "is_connected", "qr_code", "session_data", "created_at", "updated_at" from "admin_whatsapp_connection" where "admin_whatsapp_connection"."admin_id" = $1 -- params: ["81fc109f-31f9-4d13-87f9-bdd8c870b213"]
+Query: select "id", "admin_id", "phone_number", "is_connected", "qr_code", "session_data", "created_at", "updated_at" from "admin_whatsapp_connection" where "admin_whatsapp_connection"."admin_id" = $1 -- params: ["41e87d25-8ae9-46ac-9645-27f69cb799e6"]
+Admin session restoration complete
+⏰ [AUTO-REACTIVATE] Intervalo ajustado: 300s → 30s (19 timers ativos)
+🔌 [DB Pool] Conexão removida do pool
+🔌 [DB Pool] Conexão removida do pool
+Query: select "id", "admin_id", "contact_number", "remote_jid", "contact_name", "contact_avatar", "last_message_text", "last_message_time", "unread_count", "is_agent_enabled", "followup_active", "followup_stage", "next_followup_at", "created_at", "updated_at" from "admin_conversations" "adminConversations" where ("adminConversations"."followup_active" = $1 and "adminConversations"."next_followup_at" <= $2) -- params: [true, "2026-01-16T16:02:41.297Z"]
+
+?? [HEALTH CHECK] -------------------------------------------
+?? [HEALTH CHECK] Iniciando verifica��o de conex�es...
+?? [HEALTH CHECK] Timestamp: 2026-01-16T16:02:41.308Z
+Query: select "id", "user_id", "phone_number", "is_connected", "qr_code", "session_data", "safe_mode_enabled", "safe_mode_activated_at", "safe_mode_activated_by", "safe_mode_last_cleanup_at", "created_at", "updated_at" from "whatsapp_connections" order by "whatsapp_connections"."created_at" desc
+🚀 [MEDIA CLEANUP] Executando primeira limpeza...
+
+🗑️ [MEDIA CLEANUP] Iniciando limpeza de mídias antigas...
+Query: select "id", "conversation_id", "message_id", "from_me", "text", "timestamp", "status", "is_from_agent", "media_type", "media_url", "media_mime_type", "media_duration", "media_caption", "media_key", "direct_path", "media_url_original", "created_at" from "messages" where ("messages"."media_type" = $1 and "messages"."media_url" is not null and "messages"."created_at" < $2) limit $3 -- params: ["audio", "2026-01-16T15:37:41.313Z", 20]
+🔗 [DB Pool] Nova conexão estabelecida
+🔗 [DB Pool] Nova conexão estabelecida
+🔗 [DB Pool] Nova conexão estabelecida
+🎤 [MEDIA CLEANUP] 20 áudios pendentes de transcrição antes de expirar
+🎤 [MEDIA CLEANUP] Transcrevendo áudio 6c5fff63-26bb-458d-a0f7-e8fade1b0d1a antes de expirar...
+⚠️ [MEDIA CLEANUP] Não foi possível baixar áudio 6c5fff63-26bb-458d-a0f7-e8fade1b0d1a
+🎤 [MEDIA CLEANUP] Transcrevendo áudio 129ff1a7-8eb5-4d8d-8774-89e699e46fb6 antes de expirar...
+⚠️ [MEDIA CLEANUP] Não foi possível baixar áudio 129ff1a7-8eb5-4d8d-8774-89e699e46fb6
+🎤 [MEDIA CLEANUP] Transcrevendo áudio d1ffaf91-81af-48ae-a764-6756c9b8c19a antes de expirar...
+⚠️ [MEDIA CLEANUP] Não foi possível baixar áudio d1ffaf91-81af-48ae-a764-6756c9b8c19a
+🗑️ [MEDIA CLEANUP] Deletando arquivos criados antes de: 2026-01-16T15:32:41.579Z
+Query: select "id", "email", "password_hash", "role", "created_at", "updated_at" from "admins"
+Query: select "id", "admin_id", "phone_number", "is_connected", "qr_code", "session_data", "created_at", "updated_at" from "admin_whatsapp_connection" where "admin_whatsapp_connection"."admin_id" = $1 -- params: ["81fc109f-31f9-4d13-87f9-bdd8c870b213"]
+Query: select "id", "admin_id", "phone_number", "is_connected", "qr_code", "session_data", "created_at", "updated_at" from "admin_whatsapp_connection" where "admin_whatsapp_connection"."admin_id" = $1 -- params: ["41e87d25-8ae9-46ac-9645-27f69cb799e6"]
+
+?? [HEALTH CHECK] Resumo:
+   ?? Usu�rios: 0 saud�veis, 0 reconectados, 0 desconectados
+   ?? Admins: 0 saud�veis, 0 reconectados
+?? [HEALTH CHECK] -------------------------------------------
+
+✅ [MEDIA CLEANUP] Nenhum arquivo para limpar
+
+✅ [MEDIA CLEANUP] Limpeza concluída!
+📊 [MEDIA CLEANUP] Estatísticas:
+   - Arquivos verificados: 0
+   - Arquivos deletados: 0
+   - Espaço liberado: 0 B
+   - Erros: 0
+   - Duração: 452ms
+
+🔌 [DB Pool] Conexão removida do pool
+🔌 [DB Pool] Conexão removida do pool
+🔌 [DB Pool] Conexão removida do pool
+Query: select "conversations"."id", "conversations"."connection_id", "conversations"."contact_number", "conversations"."remote_jid", "conversations"."jid_suffix", "conversations"."contact_name", "conversations"."contact_avatar", "conversations"."last_message_text", "conversations"."last_message_time", "conversations"."unread_count", "conversations"."followup_active", "conversations"."followup_stage", "conversations"."next_followup_at", "conversations"."followup_disabled_reason", "conversations"."share_token", "conversations"."kanban_stage_id", "conversations"."kanban_notes", "conversations"."priority", "conversations"."created_at", "conversations"."updated_at", "conversations_connection"."data" as "connection" from "conversations" left join lateral (select json_build_array("conversations_connection"."id", "conversations_connection"."user_id", "conversations_connection"."phone_number", "conversations_connection"."is_connected", "conversations_connection"."qr_code", "conversations_connection"."session_data", "conversations_connection"."safe_mode_enabled", "conversations_connection"."safe_mode_activated_at", "conversations_connection"."safe_mode_activated_by", "conversations_connection"."safe_mode_last_cleanup_at", "conversations_connection"."created_at", "conversations_connection"."updated_at", "conversations_connection_user"."data") as "data" from (select * from "whatsapp_connections" "conversations_connection" where "conversations_connection"."id" = "conversations"."connection_id" limit $1) "conversations_connection" left join lateral (select json_build_array("conversations_connection_user"."id", "conversations_connection_user"."email", "conversations_connection_user"."name", "conversations_connection_user"."phone", "conversations_connection_user"."profile_image_url", "conversations_connection_user"."role", "conversations_connection_user"."whatsapp_number", "conversations_connection_user"."onboarding_completed", "conversations_connection_user"."reseller_id", "conversations_connection_user"."assigned_plan_id", "conversations_connection_user"."suspended_at", "conversations_connection_user"."suspension_reason", "conversations_connection_user"."suspension_type", "conversations_connection_user"."refunded_at", "conversations_connection_user"."refund_amount", "conversations_connection_user"."created_at", "conversations_connection_user"."updated_at") as "data" from (select * from "users" "conversations_connection_user" where "conversations_connection_user"."id" = "conversations_connection"."user_id" limit $2) "conversations_connection_user") "conversations_connection_user" on true) "conversations_connection" on true where ("conversations"."followup_active" = $3 and "conversations"."next_followup_at" is not null and "conversations"."next_followup_at" <= $4) -- params: [1, 1, true, "2026-01-16T16:03:05.434Z"]
+🔗 [DB Pool] Nova conexão estabelecida
+🔍 [USER-FOLLOW-UP] Encontradas 189 conversas para processar
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["7d5b1ba4-c5ec-4986-8911-419ad82ce68c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:46.745Z", "🔄 Aguardando conexão WhatsApp...", "fbc3447f-0201-45a5-b1ad-0b11b21d730d"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:20.775Z", "🔄 Aguardando conexão WhatsApp...", "28653e71-d17b-46b5-bb7f-362b7ecdb5e5"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:46.804Z", "🔄 Aguardando conexão WhatsApp...", "bceb0896-8843-4171-aff3-4861fd7f2bf4"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:34.835Z", "🔄 Aguardando conexão WhatsApp...", "32605410-c7b8-45c8-9a7e-c5ab0fe9ac04"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:14.863Z", "🔄 Aguardando conexão WhatsApp...", "45b2cdab-6ad7-422e-97a6-5d11a23d26f1"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:12.890Z", "🔄 Aguardando conexão WhatsApp...", "ff6a929d-87f2-495e-96b6-5a5377d5b25a"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:17.917Z", "🔄 Aguardando conexão WhatsApp...", "1824c618-933d-4a02-a9fa-6bd9d5649d4c"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:11.950Z", "🔄 Aguardando conexão WhatsApp...", "aeca0d87-9bf4-4f75-b5e3-78d87a960290"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:22.978Z", "🔄 Aguardando conexão WhatsApp...", "1d971bd7-62ef-4cd7-aef3-b34dd537f2af"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:18.005Z", "🔄 Aguardando conexão WhatsApp...", "6fc3874a-6341-4bc9-9e1b-ab95bed15fa7"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:26.039Z", "🔄 Aguardando conexão WhatsApp...", "365ff4fb-ee71-4e08-9e53-792f2470c017"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:53.066Z", "🔄 Aguardando conexão WhatsApp...", "8004c641-41f2-48c9-a477-4fe4ebf84a52"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["7d5b1ba4-c5ec-4986-8911-419ad82ce68c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:54.100Z", "🔄 Aguardando conexão WhatsApp...", "5eaa7019-1a08-41a5-bd22-e215da7a7b0c"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9ed708e8-b7cb-46c3-bad8-c25b74181d41"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:24.130Z", "🔄 Aguardando conexão WhatsApp...", "0f5cef61-6ffa-4f76-aa8b-d9e3fac3bccf"]
+⏸️ [USER-FOLLOW-UP] Usuário 9ed708e8-b7cb-46c3-bad8-c25b74181d41 sem conexão ativa - reagendando 554999812260
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:13.158Z", "🔄 Aguardando conexão WhatsApp...", "8ed6d0e5-2821-4c5a-9890-b96334d437e6"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:27.185Z", "🔄 Aguardando conexão WhatsApp...", "a4f6a3d8-2cca-4cef-a73b-c1b9a8c1a93d"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9ed708e8-b7cb-46c3-bad8-c25b74181d41"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:53.224Z", "🔄 Aguardando conexão WhatsApp...", "35116cc2-91b2-4b71-879e-2f4a91e98800"]
+⏸️ [USER-FOLLOW-UP] Usuário 9ed708e8-b7cb-46c3-bad8-c25b74181d41 sem conexão ativa - reagendando 5511949409780
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:44.273Z", "🔄 Aguardando conexão WhatsApp...", "83455dab-9718-45bb-b6c7-036476d6c35a"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["a6c9f7e0-5930-47c9-884b-5f12bee58ad0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:15.308Z", "🔄 Aguardando conexão WhatsApp...", "b50c7257-4e78-4b27-a250-9596f97a0300"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:19.336Z", "🔄 Aguardando conexão WhatsApp...", "a4cf6bde-cc3d-4a5f-b96b-ab51ad1df463"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:50.363Z", "🔄 Aguardando conexão WhatsApp...", "55af2b22-cc8b-4b4a-8b3c-adebcb602156"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:30.393Z", "🔄 Aguardando conexão WhatsApp...", "8c6c119c-e307-4622-a8a0-3c96219f2c9a"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:48.420Z", "🔄 Aguardando conexão WhatsApp...", "d2d38c21-7e89-4c93-ad93-bbbf9fdfbabe"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:19.449Z", "🔄 Aguardando conexão WhatsApp...", "bbe270ec-bcde-4514-9757-863a40dc5370"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:30.478Z", "🔄 Aguardando conexão WhatsApp...", "a86cfc81-6e7a-44c3-8fbd-138aa7c6cc98"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:43.504Z", "🔄 Aguardando conexão WhatsApp...", "eb1109ae-cbbd-4318-8e75-1ca6dc146844"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:38.565Z", "🔄 Aguardando conexão WhatsApp...", "e252d665-15a5-46ec-97f3-8fc92378a8db"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:43.593Z", "🔄 Aguardando conexão WhatsApp...", "c03ecf44-96b0-40d3-805f-d388385b04b3"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:27.620Z", "🔄 Aguardando conexão WhatsApp...", "8dac7308-c6b1-4598-a488-1c9d308e2e03"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:17.649Z", "🔄 Aguardando conexão WhatsApp...", "5bbe3d73-5d61-4579-b0a1-39126c3dd3b6"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:30.677Z", "🔄 Aguardando conexão WhatsApp...", "8be78bc6-81e5-405e-9449-9d2e70d19d65"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:24.704Z", "🔄 Aguardando conexão WhatsApp...", "177b8ca5-c43d-4c5a-b143-609cbfebf2d3"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:30.731Z", "🔄 Aguardando conexão WhatsApp...", "02782340-1055-4717-82de-a0c2b16e9aa1"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:21.758Z", "🔄 Aguardando conexão WhatsApp...", "dbdf1b3e-c1a3-4cc2-8ade-0a53ec755e76"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:30.786Z", "🔄 Aguardando conexão WhatsApp...", "78c8ed87-9319-45f5-b574-3413d7b83f63"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:33.815Z", "🔄 Aguardando conexão WhatsApp...", "70a4623c-eaa7-4988-af35-23d9c6a8a995"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:38.841Z", "🔄 Aguardando conexão WhatsApp...", "df29ae61-df41-4dc3-aded-f5772dd31fba"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:54.871Z", "🔄 Aguardando conexão WhatsApp...", "fa1080e7-556a-4f50-8a2d-eebad865123d"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:42.898Z", "🔄 Aguardando conexão WhatsApp...", "3db9bd73-97e7-4fdd-9cc6-8758795cc145"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:54.930Z", "🔄 Aguardando conexão WhatsApp...", "e6e4b203-532f-400e-a7f8-bb0dc90d9687"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9ed708e8-b7cb-46c3-bad8-c25b74181d41"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:43.958Z", "🔄 Aguardando conexão WhatsApp...", "7108dda6-4274-4f82-b25b-1d0795921428"]
+⏸️ [USER-FOLLOW-UP] Usuário 9ed708e8-b7cb-46c3-bad8-c25b74181d41 sem conexão ativa - reagendando 558391843706
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:49.988Z", "🔄 Aguardando conexão WhatsApp...", "d7d9461f-5984-46e9-b653-7f951166212a"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:55.016Z", "🔄 Aguardando conexão WhatsApp...", "5216e78e-e23b-42b5-9a01-d2b14bd64297"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:51.052Z", "🔄 Aguardando conexão WhatsApp...", "91f191a9-bc9d-434a-bfc2-e93948f54fe4"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:28.105Z", "🔄 Aguardando conexão WhatsApp...", "4a1e51a8-5efe-4dc8-b7d5-b047d1211938"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:32.135Z", "🔄 Aguardando conexão WhatsApp...", "ecc8bc69-f4f3-4fdf-a0db-0509ee0d7097"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:43.164Z", "🔄 Aguardando conexão WhatsApp...", "7869bfe4-ebd0-4e4c-8d1c-06b2232d5849"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:20.193Z", "🔄 Aguardando conexão WhatsApp...", "0dfa862b-8c6f-46c3-a5bc-a87eb77957d9"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:23.221Z", "🔄 Aguardando conexão WhatsApp...", "4a5dfebc-b7ad-4dc7-afae-88f8b8502812"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:19.250Z", "🔄 Aguardando conexão WhatsApp...", "4a33b3c4-8f2e-4bb8-a0e2-0bf4ce7ebed6"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9ed708e8-b7cb-46c3-bad8-c25b74181d41"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:22.278Z", "🔄 Aguardando conexão WhatsApp...", "c2c11cf2-7529-44de-ba06-e9dc20764b0c"]
+⏸️ [USER-FOLLOW-UP] Usuário 9ed708e8-b7cb-46c3-bad8-c25b74181d41 sem conexão ativa - reagendando 5521989581311
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["a6c9f7e0-5930-47c9-884b-5f12bee58ad0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:55.308Z", "🔄 Aguardando conexão WhatsApp...", "92ff022a-ae0f-4bca-a9f8-b2ee2c474e25"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:26.337Z", "🔄 Aguardando conexão WhatsApp...", "68e47b7e-be75-447b-9e35-a2c765ec3b69"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:39.366Z", "🔄 Aguardando conexão WhatsApp...", "b1fd4b54-f611-42a7-954d-6df15fa06a76"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:16.393Z", "🔄 Aguardando conexão WhatsApp...", "e7c02e7e-4446-4863-b437-9ddc19e9b543"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:54.422Z", "🔄 Aguardando conexão WhatsApp...", "66012fc9-87d3-498c-b5a9-1a5d3b308671"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9ed708e8-b7cb-46c3-bad8-c25b74181d41"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:31.450Z", "🔄 Aguardando conexão WhatsApp...", "43d3c681-ffe7-432d-a9e6-5b9f79ecc52c"]
+⏸️ [USER-FOLLOW-UP] Usuário 9ed708e8-b7cb-46c3-bad8-c25b74181d41 sem conexão ativa - reagendando 556281627918
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:52.477Z", "🔄 Aguardando conexão WhatsApp...", "308409f7-7cd3-4c9b-85dd-f81f29d90145"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:46.508Z", "🔄 Aguardando conexão WhatsApp...", "09d61c80-4e8a-4c08-bcf7-61fe2ee592e0"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["073aa185-c845-4678-8494-219a284e730d"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:27.540Z", "🔄 Aguardando conexão WhatsApp...", "a63c64fb-8cc8-498c-b568-70e5357ccf8b"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:54.569Z", "🔄 Aguardando conexão WhatsApp...", "6eb13e0b-8961-4ec1-a33a-801a4c861af0"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:40.599Z", "🔄 Aguardando conexão WhatsApp...", "ca9bb2f5-5e7c-4519-b8f3-69d0491052c5"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:42.628Z", "🔄 Aguardando conexão WhatsApp...", "21020438-bb9f-4dea-afed-9a4df5a3cae1"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:40.656Z", "🔄 Aguardando conexão WhatsApp...", "8ae0d499-2988-40d1-9d96-1dd265356291"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:14.688Z", "🔄 Aguardando conexão WhatsApp...", "b3a7d032-8fbe-43bc-9b35-b02770d0bae2"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:55.716Z", "🔄 Aguardando conexão WhatsApp...", "ad6480dd-2f80-4ae1-a50a-985f0447de44"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:40.747Z", "🔄 Aguardando conexão WhatsApp...", "8ec2ca1e-b1c2-44ad-ab4b-cc8723f832a2"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:29.789Z", "🔄 Aguardando conexão WhatsApp...", "67da80ae-4cd3-45dc-a952-75c671f2c053"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9ed708e8-b7cb-46c3-bad8-c25b74181d41"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:44.822Z", "🔄 Aguardando conexão WhatsApp...", "dfbe90c8-2c23-402a-bbff-6b8761d2a9df"]
+⏸️ [USER-FOLLOW-UP] Usuário 9ed708e8-b7cb-46c3-bad8-c25b74181d41 sem conexão ativa - reagendando 5511914878723
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:20.855Z", "🔄 Aguardando conexão WhatsApp...", "3ed7f562-6192-4beb-83cf-487c74f67cd4"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:14.882Z", "🔄 Aguardando conexão WhatsApp...", "8245fe01-3228-4dad-8572-959ac1812de6"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:42.917Z", "🔄 Aguardando conexão WhatsApp...", "1a4654bf-f2f0-4e2f-9d15-b516cf1e04f6"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:17.944Z", "🔄 Aguardando conexão WhatsApp...", "2061790b-47d7-4932-8e88-5a41b91f2dcb"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:51.972Z", "🔄 Aguardando conexão WhatsApp...", "0b23ee54-ae87-4a5b-96b8-f54ea191a9fc"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:56.021Z", "🔄 Aguardando conexão WhatsApp...", "4c1c3c47-8fa0-4b31-9f9f-2156f16c13f5"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:22.057Z", "🔄 Aguardando conexão WhatsApp...", "e5fa7105-f25c-41d9-a23e-334358c27113"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:46.104Z", "🔄 Aguardando conexão WhatsApp...", "524928a8-6ddf-4aa2-af82-d917a23bcd6c"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9ed708e8-b7cb-46c3-bad8-c25b74181d41"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:43.136Z", "🔄 Aguardando conexão WhatsApp...", "225eca54-eac1-4d59-a194-104cc366c995"]
+⏸️ [USER-FOLLOW-UP] Usuário 9ed708e8-b7cb-46c3-bad8-c25b74181d41 sem conexão ativa - reagendando 559392138735
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:43.172Z", "🔄 Aguardando conexão WhatsApp...", "161523b1-911b-4114-8f00-dab11d5998ee"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9ed708e8-b7cb-46c3-bad8-c25b74181d41"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:27.202Z", "🔄 Aguardando conexão WhatsApp...", "8e27059b-86ab-4fff-abaf-2a72c732b6a4"]
+⏸️ [USER-FOLLOW-UP] Usuário 9ed708e8-b7cb-46c3-bad8-c25b74181d41 sem conexão ativa - reagendando 5521979451727
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:45.232Z", "🔄 Aguardando conexão WhatsApp...", "b191a014-aa66-4a61-84ef-26d8707f6019"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:27.259Z", "🔄 Aguardando conexão WhatsApp...", "2f1c7374-89cc-4fc2-8c9d-f39e37bbb6b3"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:26.294Z", "🔄 Aguardando conexão WhatsApp...", "ed08385b-4d3c-438f-8da1-0bf918c554a3"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:13.326Z", "🔄 Aguardando conexão WhatsApp...", "f39483ec-6004-4344-9cbc-06fd1827f5b0"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:32.354Z", "🔄 Aguardando conexão WhatsApp...", "15d254e8-7035-4c13-8585-8231abfcd7a5"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:48.383Z", "🔄 Aguardando conexão WhatsApp...", "53edf169-1c42-415e-a422-9440b5079c26"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:23.417Z", "🔄 Aguardando conexão WhatsApp...", "0dd843f7-efe4-4878-8176-bf44be7ebe7b"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:35.444Z", "🔄 Aguardando conexão WhatsApp...", "b8333976-5b22-4bbb-884f-2d990390219c"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:45.474Z", "🔄 Aguardando conexão WhatsApp...", "3c30fed7-cf25-4c35-b575-f4a5c9df5257"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:40.501Z", "🔄 Aguardando conexão WhatsApp...", "be16754b-fce3-4eb2-9814-f23dd7b52986"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:56.534Z", "🔄 Aguardando conexão WhatsApp...", "21d03401-52b7-4514-8153-d3a9b40a065f"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:23.561Z", "🔄 Aguardando conexão WhatsApp...", "f5be16a4-6240-43ef-b22c-0d0e46dfedd5"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:31.589Z", "🔄 Aguardando conexão WhatsApp...", "eb0151eb-fe18-4e01-98c1-c055de11d761"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:40.620Z", "🔄 Aguardando conexão WhatsApp...", "26c441ca-803c-41b1-a20a-47854bd3af89"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:28.647Z", "🔄 Aguardando conexão WhatsApp...", "d7531ff5-d4ce-4052-8022-2e87c423951f"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:57.673Z", "🔄 Aguardando conexão WhatsApp...", "9ba405af-db55-44f4-9978-a2f96caf6889"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:29.701Z", "🔄 Aguardando conexão WhatsApp...", "f5b6c3aa-e314-4415-95d2-027feded0faf"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:23.730Z", "🔄 Aguardando conexão WhatsApp...", "b4c9505d-83d4-411e-b404-250c01019166"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:52.762Z", "🔄 Aguardando conexão WhatsApp...", "765eaba2-cdd9-4e38-93be-f52d20f5a1db"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:17.789Z", "🔄 Aguardando conexão WhatsApp...", "e27f4dba-9a35-49e2-9930-ebb5b78eab02"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:50.817Z", "🔄 Aguardando conexão WhatsApp...", "49f50685-d714-4953-a823-5a8aa474cf09"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:31.845Z", "🔄 Aguardando conexão WhatsApp...", "a7f9accf-d6a1-4a1c-a560-a63499e1e68c"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:27.877Z", "🔄 Aguardando conexão WhatsApp...", "b2f9a3b6-d100-4611-a8c8-acf8ccc92a13"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["2c78c114-a71e-4e63-a468-f2825bf64136"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:54.921Z", "🔄 Aguardando conexão WhatsApp...", "2f6eb114-07eb-45ca-8d3b-a908f951cd19"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["2c78c114-a71e-4e63-a468-f2825bf64136"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:40.949Z", "🔄 Aguardando conexão WhatsApp...", "b2c0c26b-0397-4bff-a7af-d3be192f4a03"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:54.987Z", "🔄 Aguardando conexão WhatsApp...", "92b83440-98dc-4086-882c-e456a91a11ab"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:33.037Z", "🔄 Aguardando conexão WhatsApp...", "bef2d986-8ec4-4e4a-bb84-2a15be882048"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:57.071Z", "🔄 Aguardando conexão WhatsApp...", "3968e3e8-0493-4535-b5b7-04f72a058e86"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:57.101Z", "🔄 Aguardando conexão WhatsApp...", "28636399-b6b1-4cfa-aa25-39e86d3099ca"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:31.134Z", "🔄 Aguardando conexão WhatsApp...", "f05ac115-a65f-454e-a1d6-2db61bbac3d6"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:49.166Z", "🔄 Aguardando conexão WhatsApp...", "dcba57bb-8d9f-48b2-8e5d-c4fbdf268fa6"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:18.195Z", "🔄 Aguardando conexão WhatsApp...", "40ad3c16-8c88-4a4f-873c-e1575ee263c6"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:43.226Z", "🔄 Aguardando conexão WhatsApp...", "94808531-da0a-42bc-a9e1-064faa213f73"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:50.270Z", "🔄 Aguardando conexão WhatsApp...", "446f0cec-986e-44dd-b37d-163a33072d77"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:32.299Z", "🔄 Aguardando conexão WhatsApp...", "1e4edadf-e218-4f14-8150-cbc77155e602"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["2c78c114-a71e-4e63-a468-f2825bf64136"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:51.330Z", "🔄 Aguardando conexão WhatsApp...", "fe0365b3-4192-4b61-9541-5354ac23d098"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:14.360Z", "🔄 Aguardando conexão WhatsApp...", "2293a5c5-ba9b-4efb-8de2-eff8391658f5"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:53.389Z", "🔄 Aguardando conexão WhatsApp...", "424c7951-e9c7-4f74-8794-f008f5dc0b13"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:18.421Z", "🔄 Aguardando conexão WhatsApp...", "169365a1-d0ad-414f-8262-de10bbee7b76"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:15.448Z", "🔄 Aguardando conexão WhatsApp...", "d53f07d5-bffc-4c29-9222-730b6cd5115c"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:15.477Z", "🔄 Aguardando conexão WhatsApp...", "477e1d86-da5d-4172-987e-fd1a58a5a2b0"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:32.504Z", "🔄 Aguardando conexão WhatsApp...", "4e2136de-b157-4e90-b3a0-ebcb53f9af58"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:58.534Z", "🔄 Aguardando conexão WhatsApp...", "0d9e48ca-66e3-4805-84b4-69b2c1bf022f"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["a6c9f7e0-5930-47c9-884b-5f12bee58ad0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:26.571Z", "🔄 Aguardando conexão WhatsApp...", "e16a75fc-5d78-4f81-a45c-d30e052d577b"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["409aba85-0b8f-4bde-a9b1-9423685ec881"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:51.605Z", "🔄 Aguardando conexão WhatsApp...", "1f9c9f2a-8231-44e9-bc9f-50b37b5f7a42"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:15.637Z", "🔄 Aguardando conexão WhatsApp...", "30e59197-3413-4582-a3f5-a01dfda6ad30"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:55.687Z", "🔄 Aguardando conexão WhatsApp...", "a61ca4ed-6d3d-4719-81a8-cd7ebc24f01e"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:27.720Z", "🔄 Aguardando conexão WhatsApp...", "b6cdb731-4bbd-42a8-8b2f-4af74fa27cf2"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:24.754Z", "🔄 Aguardando conexão WhatsApp...", "a76dbd1d-c038-41c6-b33c-34f612ab598e"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:39.794Z", "🔄 Aguardando conexão WhatsApp...", "cfde3654-6592-4070-8ca9-621373515711"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["2c78c114-a71e-4e63-a468-f2825bf64136"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:32.836Z", "🔄 Aguardando conexão WhatsApp...", "791bd218-bb12-41b1-aaa7-5c67f1569a47"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:32.869Z", "🔄 Aguardando conexão WhatsApp...", "0b9a9f5d-ff30-47e0-ab31-9ffa385c91d7"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:14.899Z", "🔄 Aguardando conexão WhatsApp...", "5a6ee476-f692-43a3-9744-8253548ff239"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["a6c9f7e0-5930-47c9-884b-5f12bee58ad0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:26.931Z", "🔄 Aguardando conexão WhatsApp...", "f4208905-06e2-4003-9370-a39bae31cdd7"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:25.960Z", "🔄 Aguardando conexão WhatsApp...", "15291bc1-060b-4654-bdab-90dfa22cc388"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:40.994Z", "🔄 Aguardando conexão WhatsApp...", "91da1de8-89ef-4403-88f4-10ba103864ff"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["841c32ed-95fe-4267-a37a-9262e2fcd993"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:26.021Z", "🔄 Aguardando conexão WhatsApp...", "860f2501-f2ea-4597-9484-cabd4dc0d180"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:44.049Z", "🔄 Aguardando conexão WhatsApp...", "5ee50c01-72a3-41b1-a265-978eeefeb2ed"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:21.076Z", "🔄 Aguardando conexão WhatsApp...", "b2c5485a-642e-42d7-89b0-fe14891d3e9e"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:15.104Z", "🔄 Aguardando conexão WhatsApp...", "bb578a88-44d1-461d-9d0e-5bd0fdfb9494"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:18.133Z", "🔄 Aguardando conexão WhatsApp...", "801b5e75-0e91-4077-b731-66ba684ce387"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:29.161Z", "🔄 Aguardando conexão WhatsApp...", "66747e22-9fda-4a3e-af95-1b9f64a98c49"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:39.188Z", "🔄 Aguardando conexão WhatsApp...", "260c4380-0627-4aa7-9d65-a7530280a20d"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["841c32ed-95fe-4267-a37a-9262e2fcd993"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:51.216Z", "🔄 Aguardando conexão WhatsApp...", "d8b38802-8d96-42c5-9e4e-d03acc5af1da"]
+⏸️ [USER-FOLLOW-UP] Usuário 841c32ed-95fe-4267-a37a-9262e2fcd993 sem conexão ativa - reagendando 555185176719
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:18.243Z", "🔄 Aguardando conexão WhatsApp...", "30835cad-3356-455f-90e7-7bf273d05604"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:49.274Z", "🔄 Aguardando conexão WhatsApp...", "e5430546-8287-43c4-b9b1-2ce9c634375b"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["a6c9f7e0-5930-47c9-884b-5f12bee58ad0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:29.312Z", "🔄 Aguardando conexão WhatsApp...", "63521c1a-d283-4728-b8c7-1a531ad3ad69"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:15.354Z", "🔄 Aguardando conexão WhatsApp...", "0fe01833-d803-4e77-b782-50e864b1bd8b"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:38.385Z", "🔄 Aguardando conexão WhatsApp...", "ed0ce0d2-0e9e-4533-9d44-72eaf65b2ef4"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:24.416Z", "🔄 Aguardando conexão WhatsApp...", "54d51cd9-28d9-4835-9390-4ecfd37a3050"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:21.456Z", "🔄 Aguardando conexão WhatsApp...", "143fabce-2bef-46a1-b92e-132f19604f78"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:48.487Z", "🔄 Aguardando conexão WhatsApp...", "477609d5-2ea4-4fed-a06b-19b50b013ff8"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:43.519Z", "🔄 Aguardando conexão WhatsApp...", "8466f176-b06c-4073-8019-966ca7d569ce"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:28.553Z", "🔄 Aguardando conexão WhatsApp...", "65cba447-b8af-409f-baa2-9c513effc2be"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:20.584Z", "🔄 Aguardando conexão WhatsApp...", "41e1e47b-da22-47fc-a397-28f09142ec33"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:38.613Z", "🔄 Aguardando conexão WhatsApp...", "d2ac44b5-b693-44cd-b186-6146882b9141"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["fbfe22da-eff3-41fd-b576-43cceb16a3b0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:34.650Z", "🔄 Aguardando conexão WhatsApp...", "c01d1149-65e8-45f9-8111-da3937d44309"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["2c78c114-a71e-4e63-a468-f2825bf64136"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:36.678Z", "🔄 Aguardando conexão WhatsApp...", "e3ec6c33-c6a1-434a-adde-5a39f7080a78"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:50.707Z", "🔄 Aguardando conexão WhatsApp...", "48202dfc-6d1f-4008-bc50-bd06f896cdba"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:31.736Z", "🔄 Aguardando conexão WhatsApp...", "8d2b1770-1733-4860-bca2-1a89ca977b78"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:43.772Z", "🔄 Aguardando conexão WhatsApp...", "d7a1ed86-b79d-4418-8518-050ab8d1c88f"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:17.840Z", "🔄 Aguardando conexão WhatsApp...", "470bc21d-4694-432f-9237-b195d0fab90f"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:39.867Z", "🔄 Aguardando conexão WhatsApp...", "25f90688-1af8-4147-8b46-870976c7e5e6"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:23.894Z", "🔄 Aguardando conexão WhatsApp...", "5746f2eb-a330-4941-a40d-6d3fecd560fe"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["a6c9f7e0-5930-47c9-884b-5f12bee58ad0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:26.921Z", "🔄 Aguardando conexão WhatsApp...", "37c54d77-2fff-4b34-9750-18a8251df6a2"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:31.953Z", "🔄 Aguardando conexão WhatsApp...", "23921f6b-6d6e-44cb-95ff-0b108ba02455"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:39.981Z", "🔄 Aguardando conexão WhatsApp...", "3a319cb5-0d0e-4e34-8403-2a78b9b480c2"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:46.012Z", "🔄 Aguardando conexão WhatsApp...", "39843557-cacb-40b2-8adf-46672f349748"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:35.039Z", "🔄 Aguardando conexão WhatsApp...", "cbab5c41-f4f4-4ebf-9bb2-f4a39a811832"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["2c78c114-a71e-4e63-a468-f2825bf64136"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:35.069Z", "🔄 Aguardando conexão WhatsApp...", "0ae2c584-3d63-4a68-b3fb-54f75d89c103"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:26.098Z", "🔄 Aguardando conexão WhatsApp...", "383965dd-c86d-41a1-b3ef-f35843c2b181"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["804b0121-af8b-4dab-b0ee-931e8a35b675"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:47.125Z", "🔄 Aguardando conexão WhatsApp...", "020b9240-9188-4674-ba9f-ce84370c9c69"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:56.152Z", "🔄 Aguardando conexão WhatsApp...", "38c20cfb-5568-4bb3-b3a6-599a823e94b4"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:25.183Z", "🔄 Aguardando conexão WhatsApp...", "9c90c2b4-0e08-4c1b-ab27-a6f2f967b053"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:19.209Z", "🔄 Aguardando conexão WhatsApp...", "a444a7ce-5ce6-412b-ad6f-81ec95c05de6"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["2c78c114-a71e-4e63-a468-f2825bf64136"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:30.238Z", "🔄 Aguardando conexão WhatsApp...", "7d295d63-e64a-44d7-8204-7ab4c7fa05fa"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:34.265Z", "🔄 Aguardando conexão WhatsApp...", "2a0aaea4-f83b-4f39-85dd-514ae42bf696"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:42.301Z", "🔄 Aguardando conexão WhatsApp...", "5f42eb32-cc8f-4271-8840-ba6ce98560c4"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["db005c23-21d2-43aa-86ca-f27ca98be6dd"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:27.330Z", "🔄 Aguardando conexão WhatsApp...", "50dab4f9-a3ed-41e1-af63-f79122b6d6fa"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["a6c9f7e0-5930-47c9-884b-5f12bee58ad0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:20.357Z", "🔄 Aguardando conexão WhatsApp...", "7959fbd6-b057-4a66-93e9-1f98c2744738"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["85d3d9c4-9917-4d3b-8356-764bfa3cca92"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:25.387Z", "🔄 Aguardando conexão WhatsApp...", "aaa7094c-9954-42ec-bbca-378e1891edd7"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["4a964772-3779-4ebf-af2d-a834fbedb38c"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:47.414Z", "🔄 Aguardando conexão WhatsApp...", "21377099-3dd1-4978-85eb-b943795e54ab"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:48.441Z", "🔄 Aguardando conexão WhatsApp...", "daa1db87-091e-4f1f-996b-4384abc1cd69"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:29.468Z", "🔄 Aguardando conexão WhatsApp...", "be9c4589-665d-425c-9288-b603d0a26cdb"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:33.494Z", "🔄 Aguardando conexão WhatsApp...", "ad4ca34f-594b-4564-863d-61867431a150"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["9c867445-66c4-441e-9d33-852c8a609b6f"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:39.521Z", "🔄 Aguardando conexão WhatsApp...", "070d46bb-7d76-4800-821b-e862b63618bd"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["a6c9f7e0-5930-47c9-884b-5f12bee58ad0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:18.548Z", "🔄 Aguardando conexão WhatsApp...", "2b863292-b4b9-43d4-93f3-095c68ce0ecf"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["a6c9f7e0-5930-47c9-884b-5f12bee58ad0"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:34.579Z", "🔄 Aguardando conexão WhatsApp...", "c72d850c-c436-4870-914a-d0a17e3501a4"]
+Query: select "suspended_at", "suspension_reason", "suspension_type", "refunded_at", "refund_amount" from "users" where "users"."id" = $1 -- params: ["89b9027f-cc64-470a-9473-b8b8546d8b94"]
+Query: update "conversations" set "next_followup_at" = $1, "followup_disabled_reason" = $2 where "conversations"."id" = $3 -- params: ["2026-01-16T16:08:59.606Z", "🔄 Aguardando conexão WhatsApp...", "394a9dd7-4956-490a-a164-4f35c7c6de78"]
+🔌 [DB Pool] Conexão removida do pool

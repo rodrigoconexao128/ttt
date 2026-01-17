@@ -14,7 +14,9 @@ export async function apiRequest(
   data?: unknown | undefined,
   retryCount = 0,
 ): Promise<Response> {
-  const token = await getAuthToken();
+  // Verificar se tem token de membro primeiro
+  const memberToken = localStorage.getItem("memberToken");
+  const token = memberToken || await getAuthToken();
 
   const headers: Record<string, string> = {
     ...(data ? { "Content-Type": "application/json" } : {}),
@@ -32,7 +34,8 @@ export async function apiRequest(
   });
 
   // 🔄 RETRY: Se receber 401 e ainda não tentou refresh, tenta novamente
-  if (res.status === 401 && retryCount === 0) {
+  // (mas apenas para usuários normais, não para membros)
+  if (res.status === 401 && retryCount === 0 && !memberToken) {
     console.log('🔄 [API] Sessão expirou, fazendo refresh e retry...');
     
     // Tenta refresh da sessão
@@ -57,7 +60,9 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const token = await getAuthToken();
+    // Verificar se tem token de membro primeiro
+    const memberToken = localStorage.getItem("memberToken");
+    const token = memberToken || await getAuthToken();
 
     const headers: Record<string, string> = {};
     if (token) {

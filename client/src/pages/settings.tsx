@@ -5,9 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Lock, Eye, EyeOff } from "lucide-react";
+import { Loader2, User, Lock, Eye, EyeOff, PenLine } from "lucide-react";
 import type { User as UserType } from "@shared/schema";
+import TeamMembersManager from "@/components/team-members-manager";
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -26,10 +28,16 @@ export default function SettingsPage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
 
+  // Estado para assinatura de mensagens
+  const [signature, setSignature] = useState("");
+  const [signatureEnabled, setSignatureEnabled] = useState(false);
+
   useEffect(() => {
     if (user) {
       setEmail(user.email || "");
       setName(user.name || "");
+      setSignature((user as any).signature || "");
+      setSignatureEnabled((user as any).signatureEnabled || false);
     }
   }, [user]);
 
@@ -45,6 +53,24 @@ export default function SettingsPage() {
     onError: (error: Error) => {
       toast({ 
         title: "Erro ao atualizar perfil", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const updateSignatureMutation = useMutation({
+    mutationFn: async (data: { signature: string; signatureEnabled: boolean }) => {
+      const response = await apiRequest("PUT", "/api/user/signature", data);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({ title: "Assinatura atualizada com sucesso!" });
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Erro ao atualizar assinatura", 
         description: error.message,
         variant: "destructive" 
       });
@@ -74,6 +100,11 @@ export default function SettingsPage() {
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     updateProfileMutation.mutate({ email, name });
+  };
+
+  const handleSignatureSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSignatureMutation.mutate({ signature, signatureEnabled });
   };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
@@ -239,6 +270,71 @@ export default function SettingsPage() {
             </form>
           </CardContent>
         </Card>
+
+        {/* Assinatura de Mensagens */}
+        <Card data-testid="card-signature-settings">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <PenLine className="h-5 w-5" />
+              Assinatura de Mensagens
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
+              Adicione seu nome ou apelido em negrito no início das mensagens
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSignatureSubmit} className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm">Ativar Assinatura</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Quando ativado, sua assinatura aparecerá antes de cada mensagem
+                  </p>
+                </div>
+                <Switch
+                  checked={signatureEnabled}
+                  onCheckedChange={setSignatureEnabled}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="signature" className="text-sm">Sua Assinatura</Label>
+                <Input
+                  id="signature"
+                  value={signature}
+                  onChange={(e) => setSignature(e.target.value)}
+                  placeholder="Ex: Rodrigo, Atendimento, Suporte..."
+                  maxLength={50}
+                  className="h-11"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Máximo 50 caracteres. Aparecerá como: <strong>*{signature || "Nome"}:*</strong> sua mensagem
+                </p>
+              </div>
+
+              {signatureEnabled && signature && (
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-1">Prévia:</p>
+                  <p className="text-sm">
+                    <strong>*{signature}:*</strong> Olá, como posso ajudar?
+                  </p>
+                </div>
+              )}
+
+              <Button 
+                type="submit" 
+                disabled={updateSignatureMutation.isPending}
+                className="w-full md:w-auto h-11"
+              >
+                {updateSignatureMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar Assinatura
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Gerenciador de Membros da Equipe */}
+        <TeamMembersManager />
       </div>
     </div>
   );

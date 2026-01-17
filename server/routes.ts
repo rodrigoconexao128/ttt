@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
+import * as XLSX from "xlsx";
 import { storage, dbCircuitBreaker, memoryCache } from "./storage";
 import { followUpService } from "./followUpService";
 import { userFollowUpService } from "./userFollowUpService";
@@ -242,6 +243,67 @@ import { z } from "zod";
 // Helper to get userId from authenticated request
 function getUserId(req: any): string {
   return req.user.claims.sub;
+}
+
+// Helper para mapear colunas automaticamente na importação de produtos
+function autoMapColumns(headers: string[]): Record<string, number | null> {
+  const mapping: Record<string, number | null> = {
+    name: null,
+    price: null,
+    stock: null,
+    description: null,
+    category: null,
+    link: null,
+    sku: null,
+    unit: null,
+    is_active: null,
+  };
+  
+  const patterns: Record<string, RegExp[]> = {
+    name: [/nome|name|produto|product|descri[cç][aã]o|item|artigo/i],
+    price: [/pre[cç]o|price|valor|value|venda|custo|cost/i],
+    stock: [/estoque|stock|qtd|quantidade|qty|inventory|saldo/i],
+    description: [/descri[cç][aã]o.*completa|detalhes?|details?|obs|observa/i],
+    category: [/categor|tipo|type|grupo|group|classe|class|fam[ií]lia/i],
+    link: [/link|url|site|website|web|imagem|image|foto|photo/i],
+    sku: [/sku|c[oó]digo|code|ref|referencia|ean|barcode|id.*produto/i],
+    unit: [/unid|unit|medida|measure|un\b|kg|g\b|ml|l\b/i],
+    is_active: [/ativo|active|status|ativar|disponivel|visible/i],
+  };
+  
+  headers.forEach((header, index) => {
+    const normalizedHeader = String(header).toLowerCase().trim();
+    
+    for (const [field, regexps] of Object.entries(patterns)) {
+      if (mapping[field] !== null) continue; // Já mapeado
+      
+      for (const regex of regexps) {
+        if (regex.test(normalizedHeader)) {
+          mapping[field] = index;
+          break;
+        }
+      }
+    }
+  });
+  
+  // Se não encontrou nome, assume que é a primeira coluna com texto
+  if (mapping.name === null && headers.length > 0) {
+    mapping.name = 0;
+  }
+  
+  // Se tem coluna de nome mas não tem preço, tenta a segunda coluna numérica
+  if (mapping.price === null && headers.length > 1) {
+    // Procura por coluna que parece ser preço (começa ou termina com número)
+    for (let i = 1; i < headers.length; i++) {
+      const h = String(headers[i]).toLowerCase();
+      if (/\d|r\$|valor|preço|price/.test(h)) {
+        mapping.price = i;
+        break;
+      }
+    }
+  }
+  
+  return mapping;
 }
 
 // ============ FUNÇÃO DE GERAÇÃO LOCAL DE PROMPTS - VERSÃO CONCISA ============
@@ -1206,6 +1268,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating profile:", error);
       res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // Update user signature
+  app.put("/api/user/signature", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { signature, signatureEnabled } = req.body;
+
+      await storage.updateUser(userId, {
+        signature: signature || null,
+        signatureEnabled: signatureEnabled || false,
+      });
+
+      const updatedUser = await storage.getUser(userId);
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating signature:", error);
+      res.status(500).json({ message: "Failed to update signature" });
     }
   });
 
@@ -2362,7 +2443,1591 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
     }
   });
 
-  // GET - Obter mídias de uma conversa (galeria)
+  // =============================================
+  // ROTAS DE PRODUTOS (CATÁLOGO)
+  // =============================================
+
+  // GET - Listar produtos do usuário
+  app.get("/api/products", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { category, isActive, search, page = 1, limit = 50 } = req.query;
+      
+      let query = supabase
+        .from('products')
+        .select('*', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('name', { ascending: true });
+      
+      if (category) {
+        query = query.eq('category', category);
+      }
+      
+      if (isActive !== undefined) {
+        query = query.eq('is_active', isActive === 'true');
+      }
+      
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`);
+      }
+      
+      // Paginação
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      query = query.range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
+      
+      const { data, error, count } = await query;
+      
+      if (error) throw error;
+      
+      res.json({
+        products: data || [],
+        total: count || 0,
+        page: pageNum,
+        totalPages: Math.ceil((count || 0) / limitNum)
+      });
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
+  // GET - Obter produto específico
+  app.get("/api/products/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return res.status(404).json({ message: "Product not found" });
+        }
+        throw error;
+      }
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      res.status(500).json({ message: "Failed to fetch product" });
+    }
+  });
+
+  // POST - Criar novo produto
+  app.post("/api/products", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, price, stock, description, category, link, sku, unit, isActive } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ message: "Nome do produto é obrigatório" });
+      }
+      
+      const { data, error } = await supabase
+        .from('products')
+        .insert({
+          user_id: userId,
+          name,
+          price: price ? parseFloat(price) : null,
+          stock: stock || 0,
+          description,
+          category,
+          link,
+          sku,
+          unit: unit || 'un',
+          is_active: isActive !== false,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      res.status(201).json(data);
+    } catch (error) {
+      console.error("Error creating product:", error);
+      res.status(500).json({ message: "Failed to create product" });
+    }
+  });
+
+  // PUT - Atualizar produto
+  app.put("/api/products/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { name, price, stock, description, category, link, sku, unit, isActive } = req.body;
+      
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+      
+      if (name !== undefined) updateData.name = name;
+      if (price !== undefined) updateData.price = price ? parseFloat(price) : null;
+      if (stock !== undefined) updateData.stock = stock;
+      if (description !== undefined) updateData.description = description;
+      if (category !== undefined) updateData.category = category;
+      if (link !== undefined) updateData.link = link;
+      if (sku !== undefined) updateData.sku = sku;
+      if (unit !== undefined) updateData.unit = unit;
+      if (isActive !== undefined) updateData.is_active = isActive;
+      
+      const { data, error } = await supabase
+        .from('products')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return res.status(404).json({ message: "Product not found" });
+        }
+        throw error;
+      }
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error updating product:", error);
+      res.status(500).json({ message: "Failed to update product" });
+    }
+  });
+
+  // DELETE - Remover produto
+  app.delete("/api/products/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      res.status(500).json({ message: "Failed to delete product" });
+    }
+  });
+
+  // DELETE - Remover vários produtos
+  app.delete("/api/products", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { ids } = req.body;
+      
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: "IDs de produtos são obrigatórios" });
+      }
+      
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .in('id', ids)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+      
+      res.json({ success: true, deleted: ids.length });
+    } catch (error) {
+      console.error("Error deleting products:", error);
+      res.status(500).json({ message: "Failed to delete products" });
+    }
+  });
+
+  // POST - Importar produtos de Excel/CSV (com mapeamento de colunas)
+  app.post("/api/products/import", isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const file = req.file;
+      const columnMapping = JSON.parse(req.body.columnMapping || '{}');
+      
+      if (!file) {
+        return res.status(400).json({ message: "Arquivo é obrigatório" });
+      }
+      
+      // Importa xlsx dinamicamente
+      const XLSX = await import('xlsx');
+      
+      // Lê o arquivo
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // Converte para JSON
+      const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      
+      if (rawData.length < 2) {
+        return res.status(400).json({ message: "Arquivo vazio ou sem dados válidos" });
+      }
+      
+      // Primeira linha são os headers
+      const headers = rawData[0] as string[];
+      const dataRows = rawData.slice(1);
+      
+      // Se não tiver mapeamento, tenta mapear automaticamente
+      let mapping = columnMapping;
+      if (Object.keys(mapping).length === 0) {
+        mapping = autoMapColumns(headers);
+      }
+      
+      // Processa as linhas
+      const products = [];
+      const errors: string[] = [];
+      
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i] as any[];
+        const rowNum = i + 2; // +2 porque excel é 1-indexed e pulamos o header
+        
+        try {
+          const product: any = {
+            user_id: userId,
+            is_active: true,
+            unit: 'un',
+          };
+          
+          // Aplica o mapeamento
+          for (const [targetField, sourceIndex] of Object.entries(mapping)) {
+            if (sourceIndex !== null && sourceIndex !== undefined && sourceIndex !== -1) {
+              let value = row[sourceIndex as number];
+              
+              if (value !== undefined && value !== null && value !== '') {
+                // Tratamento específico por campo
+                if (targetField === 'price') {
+                  // Remove R$, pontos de milhar, substitui vírgula por ponto
+                  value = String(value)
+                    .replace(/R\$\s*/gi, '')
+                    .replace(/\./g, '')
+                    .replace(',', '.')
+                    .trim();
+                  product[targetField] = parseFloat(value) || null;
+                } else if (targetField === 'stock') {
+                  product[targetField] = parseInt(String(value).replace(/\D/g, '')) || 0;
+                } else if (targetField === 'is_active') {
+                  product[targetField] = ['sim', 'yes', 'true', '1', 'ativo'].includes(
+                    String(value).toLowerCase().trim()
+                  );
+                } else {
+                  product[targetField] = String(value).trim();
+                }
+              }
+            }
+          }
+          
+          // Valida que tem pelo menos nome
+          if (!product.name) {
+            // Tenta usar o primeiro valor não vazio como nome
+            const firstValue = row.find(v => v !== undefined && v !== null && String(v).trim() !== '');
+            if (firstValue) {
+              product.name = String(firstValue).trim();
+            } else {
+              errors.push(`Linha ${rowNum}: Nome do produto é obrigatório`);
+              continue;
+            }
+          }
+          
+          products.push(product);
+        } catch (rowError) {
+          errors.push(`Linha ${rowNum}: Erro ao processar - ${rowError}`);
+        }
+      }
+      
+      if (products.length === 0) {
+        return res.status(400).json({ 
+          message: "Nenhum produto válido encontrado",
+          errors
+        });
+      }
+      
+      // =============================================
+      // UPSERT OTIMIZADO: Batch lookup para melhor performance
+      // Em vez de 2 queries por produto (~3090 queries), faz:
+      // - 1 query para buscar todos produtos do usuário
+      // - Matching in-memory
+      // - Batch insert/update
+      // =============================================
+      let inserted = 0;
+      let updated = 0;
+      
+      // 🚀 OTIMIZAÇÃO: Busca TODOS os produtos do usuário de uma vez só
+      const { data: existingProducts } = await supabase
+        .from('products')
+        .select('id, sku, name')
+        .eq('user_id', userId);
+      
+      // Cria maps para lookup rápido O(1) em vez de O(n) por produto
+      const productsBySKU = new Map<string, { id: number }>();
+      const productsByName = new Map<string, { id: number }>();
+      
+      if (existingProducts) {
+        for (const existing of existingProducts) {
+          if (existing.sku) {
+            productsBySKU.set(existing.sku.toLowerCase().trim(), { id: existing.id });
+          }
+          if (existing.name) {
+            productsByName.set(existing.name.toLowerCase().trim(), { id: existing.id });
+          }
+        }
+      }
+      
+      // Separa produtos em inserções e atualizações
+      const toInsert: any[] = [];
+      const toUpdate: { id: number; data: any }[] = [];
+      
+      for (const product of products) {
+        let existingProduct = null;
+        
+        // Lookup in-memory - muito mais rápido que query
+        if (product.sku) {
+          existingProduct = productsBySKU.get(product.sku.toLowerCase().trim());
+        }
+        
+        if (!existingProduct && product.name) {
+          existingProduct = productsByName.get(product.name.toLowerCase().trim());
+        }
+        
+        if (existingProduct) {
+          // Atualiza existente
+          const updateData = { ...product };
+          delete updateData.user_id;
+          updateData.updated_at = new Date().toISOString();
+          toUpdate.push({ id: existingProduct.id, data: updateData });
+        } else {
+          // Insere novo
+          toInsert.push(product);
+        }
+      }
+      
+      // 🚀 Executa inserções em batch (se tiver)
+      if (toInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('products')
+          .insert(toInsert);
+        
+        if (!insertError) {
+          inserted = toInsert.length;
+        } else {
+          errors.push(`Erro ao inserir produtos em batch: ${insertError.message}`);
+        }
+      }
+      
+      // 🚀 Executa atualizações (infelizmente Supabase não tem batch update, faz um por um)
+      for (const { id, data } of toUpdate) {
+        const { error: updateError } = await supabase
+          .from('products')
+          .update(data)
+          .eq('id', id);
+        
+        if (!updateError) {
+          updated++;
+        } else {
+          errors.push(`Erro ao atualizar produto ${data.name}: ${updateError.message}`);
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        inserted,
+        updated,
+        total: dataRows.length,
+        errors: errors.length > 0 ? errors : undefined,
+        message: `${inserted} produto(s) criado(s), ${updated} produto(s) atualizado(s)`
+      });
+    } catch (error) {
+      console.error("Error importing products:", error);
+      res.status(500).json({ message: "Failed to import products" });
+    }
+  });
+
+  // GET - Preview do arquivo de importação (headers e primeiras linhas)
+  app.post("/api/products/import/preview", isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const file = req.file;
+      
+      if (!file) {
+        return res.status(400).json({ message: "Arquivo é obrigatório" });
+      }
+      
+      // Importa xlsx dinamicamente
+      const XLSX = await import('xlsx');
+      
+      // Lê o arquivo
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // Converte para JSON
+      const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      
+      if (rawData.length < 1) {
+        return res.status(400).json({ message: "Arquivo vazio" });
+      }
+      
+      const headers = rawData[0] as string[];
+      const sampleRows = rawData.slice(1, 6); // Primeiras 5 linhas de dados
+      
+      // Tenta detectar mapeamento automático
+      const suggestedMapping = autoMapColumns(headers);
+      
+      res.json({
+        headers,
+        sampleRows,
+        totalRows: rawData.length - 1,
+        suggestedMapping
+      });
+    } catch (error) {
+      console.error("Error previewing import:", error);
+      res.status(500).json({ message: "Failed to preview import" });
+    }
+  });
+
+  // POST - Importar produtos de URL (Scraping com AI)
+  app.post("/api/products/import-url", isAuthenticated, async (req: any, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ message: "URL é obrigatória" });
+      }
+      
+      const validation = validateUrl(url);
+      if (!validation.valid) {
+        return res.status(400).json({ message: validation.error });
+      }
+      
+      console.log(`[ProductsImport] Scraping de URL: ${validation.normalizedUrl}`);
+      
+      // Usa o serviço existente de scrape
+      const result = await scrapeWebsite(validation.normalizedUrl!);
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: result.error || "Falha ao analisar o website. Verifique se a URL está acessível." 
+        });
+      }
+      
+      // Mapeia o resultado para o formato esperado pelo frontend de produtos
+      const products = result.products.map(p => ({
+        name: p.name,
+        price: p.priceValue || 0,
+        description: p.description || "",
+        image: p.imageUrl || null,
+        link: validation.normalizedUrl,
+        category: p.category || "Importados",
+        sku: "",
+        unit: "un"
+      }));
+      
+      res.json({
+        success: true,
+        products,
+        total: products.length,
+        websiteInfo: {
+          name: result.websiteName,
+          description: result.websiteDescription
+        }
+      });
+      
+    } catch (error: any) {
+      console.error("[ProductsImport] Erro ao importar de URL:", error);
+      res.status(500).json({ message: "Erro interno ao processar URL. Tente novamente." });
+    }
+  });
+
+  // GET - Obter categorias únicas dos produtos do usuário
+  app.get("/api/products/categories", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const { data, error } = await supabase
+        .from('products')
+        .select('category')
+        .eq('user_id', userId)
+        .not('category', 'is', null);
+      
+      if (error) throw error;
+      
+      // Extrai categorias únicas
+      const categories = [...new Set((data || []).map(p => p.category).filter(Boolean))];
+      
+      res.json(categories);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      res.status(500).json({ message: "Failed to fetch categories" });
+    }
+  });
+
+  // =============================================
+  // ROTAS DE CONFIGURAÇÃO DE PRODUTOS
+  // =============================================
+
+  // GET - Obter configuração de produtos do usuário
+  app.get("/api/products-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      let { data, error } = await supabase
+        .from('products_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error && error.code === 'PGRST116') {
+        // Não existe, cria com valores padrão
+        const { data: newConfig, error: insertError } = await supabase
+          .from('products_config')
+          .insert({ user_id: userId })
+          .select()
+          .single();
+        
+        if (insertError) throw insertError;
+        data = newConfig;
+      } else if (error) {
+        throw error;
+      }
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching products config:", error);
+      res.status(500).json({ message: "Failed to fetch products config" });
+    }
+  });
+
+  // PUT - Atualizar configuração de produtos
+  app.put("/api/products-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { isActive, sendToAi, aiInstructions, is_active, send_to_ai, ai_instructions } = req.body;
+      
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Aceita tanto camelCase quanto snake_case
+      if (isActive !== undefined) updateData.is_active = isActive;
+      if (is_active !== undefined) updateData.is_active = is_active;
+      if (sendToAi !== undefined) updateData.send_to_ai = sendToAi;
+      if (send_to_ai !== undefined) updateData.send_to_ai = send_to_ai;
+      if (aiInstructions !== undefined) updateData.ai_instructions = aiInstructions;
+      if (ai_instructions !== undefined) updateData.ai_instructions = ai_instructions;
+      
+      // Tenta update primeiro
+      const { data: existing } = await supabase
+        .from('products_config')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+      
+      let data;
+      if (existing) {
+        const { data: updated, error } = await supabase
+          .from('products_config')
+          .update(updateData)
+          .eq('user_id', userId)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        data = updated;
+      } else {
+        const { data: created, error } = await supabase
+          .from('products_config')
+          .insert({ user_id: userId, ...updateData })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        data = created;
+      }
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error updating products config:", error);
+      res.status(500).json({ message: "Failed to update products config" });
+    }
+  });
+
+  // GET - Obter produtos formatados para a IA
+  app.get("/api/products/for-ai", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Verifica se o módulo está ativo
+      const { data: config } = await supabase
+        .from('products_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!config || !config.is_active || !config.send_to_ai) {
+        return res.json({ 
+          active: false,
+          products: [],
+          instructions: null 
+        });
+      }
+      
+      // Busca produtos ativos
+      const { data: products, error } = await supabase
+        .from('products')
+        .select('name, price, stock, description, category, link, sku, unit')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      
+      if (error) throw error;
+      
+      res.json({
+        active: true,
+        instructions: config.ai_instructions,
+        products: products || [],
+        count: products?.length || 0
+      });
+    } catch (error) {
+      console.error("Error fetching products for AI:", error);
+      res.status(500).json({ message: "Failed to fetch products for AI" });
+    }
+  });
+
+  // =============================================
+  // ROTAS DE DELIVERY (CARDÁPIO DIGITAL)
+  // =============================================
+
+  // --- DELIVERY CONFIG ---
+
+  // GET - Obter configuração de delivery
+  app.get("/api/delivery-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const { data, error } = await supabase
+        .from('delivery_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      // Retorna config padrão se não existir
+      if (!data) {
+        return res.json({
+          id: null,
+          user_id: userId,
+          is_active: false,
+          send_to_ai: true,
+          business_name: null,
+          business_type: 'restaurante',
+          delivery_fee: 0,
+          min_order_value: 0,
+          estimated_delivery_time: 45,
+          delivery_radius_km: 10,
+          payment_methods: ['dinheiro', 'cartao', 'pix'],
+          accepts_delivery: true,
+          accepts_pickup: true,
+          opening_hours: {},
+          ai_instructions: 'Você é um atendente de delivery. Seja simpático, ajude o cliente a escolher, anote os pedidos corretamente com todos os detalhes e sempre confirme antes de finalizar.',
+          whatsapp_order_number: null,
+        });
+      }
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching delivery config:", error);
+      res.status(500).json({ message: "Failed to fetch delivery config" });
+    }
+  });
+
+  // PUT - Atualizar configuração de delivery
+  app.put("/api/delivery-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const body = req.body;
+      
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Mapear campos (aceita camelCase e snake_case)
+      const fieldMappings: Record<string, string> = {
+        isActive: 'is_active', is_active: 'is_active',
+        sendToAi: 'send_to_ai', send_to_ai: 'send_to_ai',
+        businessName: 'business_name', business_name: 'business_name',
+        businessType: 'business_type', business_type: 'business_type',
+        deliveryFee: 'delivery_fee', delivery_fee: 'delivery_fee',
+        minOrderValue: 'min_order_value', min_order_value: 'min_order_value',
+        estimatedDeliveryTime: 'estimated_delivery_time', estimated_delivery_time: 'estimated_delivery_time',
+        deliveryRadiusKm: 'delivery_radius_km', delivery_radius_km: 'delivery_radius_km',
+        paymentMethods: 'payment_methods', payment_methods: 'payment_methods',
+        acceptsDelivery: 'accepts_delivery', accepts_delivery: 'accepts_delivery',
+        acceptsPickup: 'accepts_pickup', accepts_pickup: 'accepts_pickup',
+        openingHours: 'opening_hours', opening_hours: 'opening_hours',
+        aiInstructions: 'ai_instructions', ai_instructions: 'ai_instructions',
+        whatsappOrderNumber: 'whatsapp_order_number', whatsapp_order_number: 'whatsapp_order_number',
+      };
+      
+      for (const [key, value] of Object.entries(body)) {
+        const dbField = fieldMappings[key];
+        if (dbField && value !== undefined) {
+          // Converter números se necessário
+          if (['delivery_fee', 'min_order_value', 'delivery_radius_km'].includes(dbField)) {
+            updateData[dbField] = value ? parseFloat(String(value)) : 0;
+          } else if (['estimated_delivery_time'].includes(dbField)) {
+            updateData[dbField] = value ? parseInt(String(value)) : 45;
+          } else {
+            updateData[dbField] = value;
+          }
+        }
+      }
+      
+      // Tenta update primeiro, depois insert
+      const { data: existing } = await supabase
+        .from('delivery_config')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+      
+      let data;
+      if (existing) {
+        const { data: updated, error } = await supabase
+          .from('delivery_config')
+          .update(updateData)
+          .eq('user_id', userId)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        data = updated;
+      } else {
+        const { data: created, error } = await supabase
+          .from('delivery_config')
+          .insert({ user_id: userId, ...updateData })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        data = created;
+      }
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error updating delivery config:", error);
+      res.status(500).json({ message: "Failed to update delivery config" });
+    }
+  });
+
+  // --- MENU CATEGORIES ---
+
+  // GET - Listar categorias do cardápio
+  app.get("/api/delivery/categories", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const { data, error } = await supabase
+        .from('menu_categories')
+        .select('*')
+        .eq('user_id', userId)
+        .order('display_order', { ascending: true })
+        .order('name', { ascending: true });
+      
+      if (error) throw error;
+      
+      res.json(data || []);
+    } catch (error) {
+      console.error("Error fetching menu categories:", error);
+      res.status(500).json({ message: "Failed to fetch menu categories" });
+    }
+  });
+
+  // POST - Criar categoria
+  app.post("/api/delivery/categories", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, description, imageUrl, displayOrder, isActive } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ message: "Nome da categoria é obrigatório" });
+      }
+      
+      const { data, error } = await supabase
+        .from('menu_categories')
+        .insert({
+          user_id: userId,
+          name,
+          description,
+          image_url: imageUrl || null,
+          display_order: displayOrder || 0,
+          is_active: isActive !== false,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      res.status(201).json(data);
+    } catch (error) {
+      console.error("Error creating menu category:", error);
+      res.status(500).json({ message: "Failed to create menu category" });
+    }
+  });
+
+  // PUT - Atualizar categoria
+  app.put("/api/delivery/categories/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { name, description, imageUrl, displayOrder, isActive } = req.body;
+      
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (imageUrl !== undefined) updateData.image_url = imageUrl;
+      if (displayOrder !== undefined) updateData.display_order = displayOrder;
+      if (isActive !== undefined) updateData.is_active = isActive;
+      
+      const { data, error } = await supabase
+        .from('menu_categories')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error updating menu category:", error);
+      res.status(500).json({ message: "Failed to update menu category" });
+    }
+  });
+
+  // DELETE - Remover categoria
+  app.delete("/api/delivery/categories/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { error } = await supabase
+        .from('menu_categories')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting menu category:", error);
+      res.status(500).json({ message: "Failed to delete menu category" });
+    }
+  });
+
+  // --- MENU ITEMS ---
+
+  // GET - Listar itens do cardápio
+  app.get("/api/delivery/items", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { categoryId, isAvailable, search, page = 1, limit = 50 } = req.query;
+      
+      let query = supabase
+        .from('menu_items')
+        .select('*, menu_categories(id, name)', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('display_order', { ascending: true })
+        .order('name', { ascending: true });
+      
+      if (categoryId) {
+        query = query.eq('category_id', categoryId);
+      }
+      
+      if (isAvailable !== undefined) {
+        query = query.eq('is_available', isAvailable === 'true');
+      }
+      
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+      }
+      
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      query = query.range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
+      
+      const { data, error, count } = await query;
+      
+      if (error) throw error;
+      
+      res.json({
+        items: data || [],
+        total: count || 0,
+        page: pageNum,
+        totalPages: Math.ceil((count || 0) / limitNum)
+      });
+    } catch (error) {
+      console.error("Error fetching menu items:", error);
+      res.status(500).json({ message: "Failed to fetch menu items" });
+    }
+  });
+
+  // GET - Item específico
+  app.get("/api/delivery/items/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('*, menu_categories(id, name)')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return res.status(404).json({ message: "Item not found" });
+        }
+        throw error;
+      }
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching menu item:", error);
+      res.status(500).json({ message: "Failed to fetch menu item" });
+    }
+  });
+
+  // POST - Criar item do cardápio
+  app.post("/api/delivery/items", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { 
+        categoryId, name, description, price, promotionalPrice,
+        imageUrl, preparationTime, isAvailable, isFeatured,
+        options, ingredients, allergens, serves, displayOrder
+      } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ message: "Nome do item é obrigatório" });
+      }
+      if (!price) {
+        return res.status(400).json({ message: "Preço é obrigatório" });
+      }
+      
+      const { data, error } = await supabase
+        .from('menu_items')
+        .insert({
+          user_id: userId,
+          category_id: categoryId || null,
+          name,
+          description,
+          price: parseFloat(String(price)),
+          promotional_price: promotionalPrice ? parseFloat(String(promotionalPrice)) : null,
+          image_url: imageUrl || null,
+          preparation_time: preparationTime || 30,
+          is_available: isAvailable !== false,
+          is_featured: isFeatured === true,
+          options: options || [],
+          ingredients,
+          allergens,
+          serves: serves || 1,
+          display_order: displayOrder || 0,
+        })
+        .select('*, menu_categories(id, name)')
+        .single();
+      
+      if (error) throw error;
+      
+      res.status(201).json(data);
+    } catch (error) {
+      console.error("Error creating menu item:", error);
+      res.status(500).json({ message: "Failed to create menu item" });
+    }
+  });
+
+  // PUT - Atualizar item do cardápio
+  app.put("/api/delivery/items/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const body = req.body;
+      
+      const updateData: any = { updated_at: new Date().toISOString() };
+      
+      const fieldMappings: Record<string, string> = {
+        categoryId: 'category_id', name: 'name', description: 'description',
+        price: 'price', promotionalPrice: 'promotional_price',
+        imageUrl: 'image_url', preparationTime: 'preparation_time',
+        isAvailable: 'is_available', isFeatured: 'is_featured',
+        options: 'options', ingredients: 'ingredients',
+        allergens: 'allergens', serves: 'serves', displayOrder: 'display_order',
+      };
+      
+      for (const [key, dbField] of Object.entries(fieldMappings)) {
+        if (body[key] !== undefined) {
+          if (['price', 'promotional_price'].includes(dbField)) {
+            updateData[dbField] = body[key] ? parseFloat(String(body[key])) : null;
+          } else if (['preparation_time', 'serves', 'display_order'].includes(dbField)) {
+            updateData[dbField] = parseInt(String(body[key])) || 0;
+          } else {
+            updateData[dbField] = body[key];
+          }
+        }
+      }
+      
+      const { data, error } = await supabase
+        .from('menu_items')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select('*, menu_categories(id, name)')
+        .single();
+      
+      if (error) throw error;
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error updating menu item:", error);
+      res.status(500).json({ message: "Failed to update menu item" });
+    }
+  });
+
+  // DELETE - Remover item
+  app.delete("/api/delivery/items/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { error } = await supabase
+        .from('menu_items')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting menu item:", error);
+      res.status(500).json({ message: "Failed to delete menu item" });
+    }
+  });
+
+  // DELETE - Remover múltiplos itens
+  app.delete("/api/delivery/items", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { ids } = req.body;
+      
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: "IDs são obrigatórios" });
+      }
+      
+      const { error } = await supabase
+        .from('menu_items')
+        .delete()
+        .eq('user_id', userId)
+        .in('id', ids);
+      
+      if (error) throw error;
+      
+      res.json({ success: true, deleted: ids.length });
+    } catch (error) {
+      console.error("Error deleting menu items:", error);
+      res.status(500).json({ message: "Failed to delete menu items" });
+    }
+  });
+
+  // --- DELIVERY ORDERS ---
+
+  // GET - Listar pedidos
+  app.get("/api/delivery/orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { status, startDate, endDate, page = 1, limit = 50 } = req.query;
+      
+      let query = supabase
+        .from('delivery_orders')
+        .select('*, order_items(*)', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      
+      if (status) {
+        if (status === 'active') {
+          query = query.in('status', ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery']);
+        } else {
+          query = query.eq('status', status);
+        }
+      }
+      
+      if (startDate) {
+        query = query.gte('created_at', startDate);
+      }
+      if (endDate) {
+        query = query.lte('created_at', endDate);
+      }
+      
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      query = query.range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
+      
+      const { data, error, count } = await query;
+      
+      if (error) throw error;
+      
+      res.json({
+        orders: data || [],
+        total: count || 0,
+        page: pageNum,
+        totalPages: Math.ceil((count || 0) / limitNum)
+      });
+    } catch (error) {
+      console.error("Error fetching delivery orders:", error);
+      res.status(500).json({ message: "Failed to fetch delivery orders" });
+    }
+  });
+
+  // GET - Pedido específico
+  app.get("/api/delivery/orders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { data, error } = await supabase
+        .from('delivery_orders')
+        .select('*, order_items(*)')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return res.status(404).json({ message: "Order not found" });
+        }
+        throw error;
+      }
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching delivery order:", error);
+      res.status(500).json({ message: "Failed to fetch delivery order" });
+    }
+  });
+
+  // POST - Criar pedido (manual ou via IA)
+  app.post("/api/delivery/orders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const {
+        conversationId, customerName, customerPhone, customerAddress,
+        customerComplement, customerReference, deliveryType, paymentMethod,
+        notes, items, deliveryFee, discount, createdByAi
+      } = req.body;
+      
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "Itens são obrigatórios" });
+      }
+      
+      // Calcular totais
+      let subtotal = 0;
+      for (const item of items) {
+        subtotal += (item.quantity || 1) * parseFloat(String(item.unitPrice || 0));
+      }
+      const total = subtotal + parseFloat(String(deliveryFee || 0)) - parseFloat(String(discount || 0));
+      
+      // Buscar configuração para tempo estimado
+      const { data: config } = await supabase
+        .from('delivery_config')
+        .select('estimated_delivery_time')
+        .eq('user_id', userId)
+        .single();
+      
+      // Criar pedido
+      const { data: order, error: orderError } = await supabase
+        .from('delivery_orders')
+        .insert({
+          user_id: userId,
+          conversation_id: conversationId || null,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          customer_address: customerAddress,
+          customer_complement: customerComplement,
+          customer_reference: customerReference,
+          delivery_type: deliveryType || 'delivery',
+          status: 'pending',
+          payment_method: paymentMethod,
+          payment_status: 'pending',
+          subtotal,
+          delivery_fee: deliveryFee || 0,
+          discount: discount || 0,
+          total,
+          notes,
+          estimated_time: config?.estimated_delivery_time || 45,
+          created_by_ai: createdByAi === true,
+        })
+        .select()
+        .single();
+      
+      if (orderError) throw orderError;
+      
+      // Criar itens do pedido
+      const orderItems = items.map((item: any) => ({
+        order_id: order.id,
+        menu_item_id: item.menuItemId || null,
+        item_name: item.name || item.itemName,
+        quantity: item.quantity || 1,
+        unit_price: parseFloat(String(item.unitPrice)),
+        total_price: (item.quantity || 1) * parseFloat(String(item.unitPrice)),
+        options_selected: item.optionsSelected || item.options || [],
+        notes: item.notes,
+      }));
+      
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+      
+      if (itemsError) throw itemsError;
+      
+      // Buscar pedido completo
+      const { data: fullOrder, error: fullError } = await supabase
+        .from('delivery_orders')
+        .select('*, order_items(*)')
+        .eq('id', order.id)
+        .single();
+      
+      if (fullError) throw fullError;
+      
+      // 🔔 ENVIAR NOTIFICAÇÃO WHATSAPP PARA O DONO DO ESTABELECIMENTO
+      try {
+        const { data: deliveryConfig } = await supabase
+          .from('delivery_config')
+          .select('whatsapp_order_number, business_name')
+          .eq('user_id', userId)
+          .single();
+        
+        if (deliveryConfig?.whatsapp_order_number) {
+          const notifyNumber = deliveryConfig.whatsapp_order_number.replace(/\D/g, '');
+          
+          // Formatar preço
+          const formatPrice = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+          
+          // Montar mensagem de notificação
+          const itemsList = items.map((i: any) => 
+            `• ${i.quantity || 1}x ${i.name || i.itemName} - ${formatPrice((i.quantity || 1) * parseFloat(String(i.unitPrice)))}`
+          ).join('\n');
+          
+          const orderNotification = `🛵 *NOVO PEDIDO #${fullOrder.order_number}*\n\n` +
+            `👤 *Cliente:* ${customerName || 'Não informado'}\n` +
+            `📞 *Telefone:* ${customerPhone || 'Não informado'}\n` +
+            `📍 *${deliveryType === 'pickup' ? 'RETIRADA NO LOCAL' : `Entrega: ${customerAddress || 'Não informado'}`}*\n` +
+            `${customerComplement ? `    _${customerComplement}_\n` : ''}` +
+            `\n📦 *Itens:*\n${itemsList}\n\n` +
+            `💵 Subtotal: ${formatPrice(subtotal)}\n` +
+            `${parseFloat(String(deliveryFee || 0)) > 0 ? `🚚 Taxa entrega: ${formatPrice(parseFloat(String(deliveryFee)))}\n` : ''}` +
+            `${parseFloat(String(discount || 0)) > 0 ? `🏷️ Desconto: -${formatPrice(parseFloat(String(discount)))}\n` : ''}` +
+            `💰 *TOTAL: ${formatPrice(total)}*\n\n` +
+            `💳 *Pagamento:* ${paymentMethod || 'Não informado'}\n` +
+            `${notes ? `📝 Obs: ${notes}\n` : ''}\n` +
+            `⏰ Acesse o painel para confirmar o pedido!`;
+          
+          // Verificar se tem sessão WhatsApp ativa e enviar
+          const { sendWhatsAppMessageFromUser } = await import('./whatsappSender');
+          await sendWhatsAppMessageFromUser(userId, notifyNumber, orderNotification);
+          console.log(`🔔 [Delivery] Notificação enviada para ${notifyNumber} - Pedido #${fullOrder.order_number}`);
+        }
+      } catch (notifyError) {
+        console.error(`⚠️ [Delivery] Erro ao enviar notificação WhatsApp:`, notifyError);
+        // Não falha a criação do pedido por erro de notificação
+      }
+      
+      res.status(201).json(fullOrder);
+    } catch (error) {
+      console.error("Error creating delivery order:", error);
+      res.status(500).json({ message: "Failed to create delivery order" });
+    }
+  });
+
+  // PUT - Atualizar status do pedido
+  app.put("/api/delivery/orders/:id/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { status, cancellationReason } = req.body;
+      
+      const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ message: "Status inválido" });
+      }
+      
+      const updateData: any = {
+        status,
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Timestamps por status
+      if (status === 'confirmed') updateData.confirmed_at = new Date().toISOString();
+      if (status === 'ready') updateData.ready_at = new Date().toISOString();
+      if (status === 'out_for_delivery') updateData.out_for_delivery_at = new Date().toISOString();
+      if (status === 'delivered') updateData.delivered_at = new Date().toISOString();
+      if (status === 'cancelled') {
+        updateData.cancelled_at = new Date().toISOString();
+        updateData.cancellation_reason = cancellationReason || null;
+      }
+      
+      const { data, error } = await supabase
+        .from('delivery_orders')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select('*, order_items(*)')
+        .single();
+      
+      if (error) throw error;
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      res.status(500).json({ message: "Failed to update order status" });
+    }
+  });
+
+  // PUT - Atualizar pedido completo
+  app.put("/api/delivery/orders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const body = req.body;
+      
+      const updateData: any = { updated_at: new Date().toISOString() };
+      
+      const fieldMappings: Record<string, string> = {
+        customerName: 'customer_name', customerPhone: 'customer_phone',
+        customerAddress: 'customer_address', customerComplement: 'customer_complement',
+        customerReference: 'customer_reference', deliveryType: 'delivery_type',
+        paymentMethod: 'payment_method', paymentStatus: 'payment_status',
+        notes: 'notes', estimatedTime: 'estimated_time',
+      };
+      
+      for (const [key, dbField] of Object.entries(fieldMappings)) {
+        if (body[key] !== undefined) {
+          updateData[dbField] = body[key];
+        }
+      }
+      
+      const { data, error } = await supabase
+        .from('delivery_orders')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select('*, order_items(*)')
+        .single();
+      
+      if (error) throw error;
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error updating delivery order:", error);
+      res.status(500).json({ message: "Failed to update delivery order" });
+    }
+  });
+
+  // GET - Cardápio completo formatado para IA
+  app.get("/api/delivery/menu-for-ai", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Verifica se o módulo está ativo
+      const { data: config } = await supabase
+        .from('delivery_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!config || !config.is_active || !config.send_to_ai) {
+        return res.json({ 
+          active: false,
+          menu: [],
+          config: null,
+          instructions: null 
+        });
+      }
+      
+      // Busca categorias e itens
+      const { data: categories } = await supabase
+        .from('menu_categories')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+      
+      const { data: items } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_available', true)
+        .order('display_order', { ascending: true });
+      
+      // Organiza por categoria
+      const menu = (categories || []).map(cat => ({
+        category: cat.name,
+        description: cat.description,
+        items: (items || [])
+          .filter(item => item.category_id === cat.id)
+          .map(item => ({
+            name: item.name,
+            description: item.description,
+            price: parseFloat(item.price),
+            promotionalPrice: item.promotional_price ? parseFloat(item.promotional_price) : null,
+            preparationTime: item.preparation_time,
+            serves: item.serves,
+            options: item.options,
+          }))
+      }));
+      
+      // Itens sem categoria
+      const uncategorizedItems = (items || [])
+        .filter(item => !item.category_id)
+        .map(item => ({
+          name: item.name,
+          description: item.description,
+          price: parseFloat(item.price),
+          promotionalPrice: item.promotional_price ? parseFloat(item.promotional_price) : null,
+          preparationTime: item.preparation_time,
+          serves: item.serves,
+          options: item.options,
+        }));
+      
+      if (uncategorizedItems.length > 0) {
+        menu.push({
+          category: 'Outros',
+          description: null,
+          items: uncategorizedItems,
+        });
+      }
+      
+      res.json({
+        active: true,
+        config: {
+          businessName: config.business_name,
+          businessType: config.business_type,
+          deliveryFee: config.delivery_fee,
+          minOrderValue: config.min_order_value,
+          estimatedDeliveryTime: config.estimated_delivery_time,
+          paymentMethods: config.payment_methods,
+          acceptsDelivery: config.accepts_delivery,
+          acceptsPickup: config.accepts_pickup,
+          openingHours: config.opening_hours,
+        },
+        instructions: config.ai_instructions,
+        menu,
+        totalItems: items?.length || 0,
+      });
+    } catch (error) {
+      console.error("Error fetching menu for AI:", error);
+      res.status(500).json({ message: "Failed to fetch menu for AI" });
+    }
+  });
+
+  // GET - Dashboard/estatísticas de pedidos
+  app.get("/api/delivery/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      // Calcular início de hoje e da semana
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+      
+      // Início da semana (domingo)
+      const dayOfWeek = now.getDay();
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek).toISOString();
+      
+      // Buscar pedidos de hoje
+      const { data: todayOrders, error: todayError } = await supabase
+        .from('delivery_orders')
+        .select('status, total, created_at')
+        .eq('user_id', userId)
+        .gte('created_at', todayStart)
+        .lte('created_at', todayEnd);
+      
+      if (todayError) throw todayError;
+      
+      // Buscar pedidos da semana
+      const { data: weekOrders, error: weekError } = await supabase
+        .from('delivery_orders')
+        .select('status, total, created_at')
+        .eq('user_id', userId)
+        .gte('created_at', weekStart);
+      
+      if (weekError) throw weekError;
+      
+      // Calcular estatísticas de hoje
+      const todayStats = {
+        total: todayOrders?.length || 0,
+        revenue: todayOrders?.filter(o => o.status === 'delivered').reduce((sum, o) => sum + parseFloat(o.total || '0'), 0) || 0,
+        pending: todayOrders?.filter(o => o.status === 'pending').length || 0,
+        confirmed: todayOrders?.filter(o => o.status === 'confirmed').length || 0,
+        preparing: todayOrders?.filter(o => o.status === 'preparing').length || 0,
+        ready: todayOrders?.filter(o => o.status === 'ready').length || 0,
+        out_for_delivery: todayOrders?.filter(o => o.status === 'out_for_delivery').length || 0,
+        delivered: todayOrders?.filter(o => o.status === 'delivered').length || 0,
+        cancelled: todayOrders?.filter(o => o.status === 'cancelled').length || 0,
+      };
+      
+      // Calcular estatísticas da semana
+      const weekStats = {
+        total: weekOrders?.length || 0,
+        revenue: weekOrders?.filter(o => o.status === 'delivered').reduce((sum, o) => sum + parseFloat(o.total || '0'), 0) || 0,
+      };
+      
+      res.json({
+        today: todayStats,
+        week: weekStats,
+      });
+    } catch (error) {
+      console.error("Error fetching delivery stats:", error);
+      res.status(500).json({ message: "Failed to fetch delivery stats" });
+    }
+  });
+
+  // --- IMAGENS GENÉRICAS ---
+  
+  // GET - Buscar imagem genérica de comida (usando Loremflickr como alternativa gratuita)
+  app.get("/api/delivery/food-image", isAuthenticated, async (req: any, res) => {
+    try {
+      const { query } = req.query;
+      
+      if (!query) {
+        return res.status(400).json({ message: "Query é obrigatória" });
+      }
+      
+      // Usar Loremflickr (gratuito, sem API key) - alternativa ao Unsplash Source descontinuado
+      // Formato: https://loremflickr.com/WIDTH/HEIGHT/KEYWORD
+      const imageUrl = `https://loremflickr.com/800/600/${encodeURIComponent(query)},food`;
+      
+      res.json({ 
+        imageUrl: imageUrl,
+        source: 'loremflickr',
+        query 
+      });
+    } catch (error) {
+      console.error("Error fetching food image:", error);
+      // Fallback para placeholder
+      res.json({ 
+        imageUrl: `https://placehold.co/800x600/f97316/white?text=${encodeURIComponent(req.query.query || 'Comida')}`,
+        source: 'placeholder',
+        query: req.query.query 
+      });
+    }
+  });
   app.get("/api/conversations/:conversationId/media", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -2711,6 +4376,22 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
       }
 
       const { conversationId, text } = result.data;
+      let finalText = text;
+
+      // Prepend signature if enabled
+      try {
+        const user = await storage.getUser(userId);
+        if (user && user.signatureEnabled && user.signature) {
+          const signaturePrefix = `*${user.signature}:* `;
+          // Only prepend if not already present and text is not empty
+          if (finalText && finalText.trim().length > 0 && !finalText.startsWith(signaturePrefix)) {
+            finalText = `${signaturePrefix}${finalText}`;
+          }
+        }
+      } catch (error) {
+        console.error("Error appending signature:", error);
+        // Continue with original text if signature append fails
+      }
 
       // Verify ownership before sending
       const conversation = await storage.getConversation(conversationId);
@@ -2723,7 +4404,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      await whatsappSendMessage(userId, conversationId, text);
+      await whatsappSendMessage(userId, conversationId, finalText);
       
       // 🛑 AUTO-PAUSE IA: Quando o dono envia mensagem pelo sistema, PAUSA a IA
       try {
@@ -3339,6 +5020,67 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       if (!currentPrompt || !instruction) {
         return res.status(400).json({ message: "currentPrompt e instruction são obrigatórios" });
+      }
+
+      // ==================================================================================
+      // 🎯 SISTEMA DE DETECÇÃO DE CONTEXTO INTELIGENTE
+      // Detecta se a instrução do usuário se refere a módulos específicos (delivery, catálogo)
+      // para evitar duplicação no prompt principal
+      // ==================================================================================
+      const instructionLower = instruction.toLowerCase();
+      
+      // Palavras-chave para módulos específicos
+      const deliveryKeywords = ['cardápio', 'cardapio', 'delivery', 'menu', 'pedido', 'entrega', 'retirada', 'listar itens', 'listar produtos do delivery', 'mostrar cardápio', 'enviar cardápio'];
+      const catalogKeywords = ['catálogo', 'catalogo', 'produtos', 'estoque', 'listar produtos', 'mostrar produtos', 'lista de produtos'];
+      
+      const isDeliveryRelated = deliveryKeywords.some(kw => instructionLower.includes(kw));
+      const isCatalogRelated = catalogKeywords.some(kw => instructionLower.includes(kw));
+      
+      // Verificar módulos ativos
+      let deliveryActive = false;
+      let catalogActive = false;
+      
+      try {
+        const { data: deliveryConfig } = await supabase
+          .from('delivery_config')
+          .select('is_active, send_to_ai')
+          .eq('user_id', userId)
+          .single();
+        deliveryActive = deliveryConfig?.is_active && deliveryConfig?.send_to_ai;
+        
+        const { data: productsConfig } = await supabase
+          .from('products_config')
+          .select('is_active, send_to_ai')
+          .eq('user_id', userId)
+          .single();
+        catalogActive = productsConfig?.is_active && productsConfig?.send_to_ai;
+      } catch (e) {
+        // Módulos não configurados
+      }
+      
+      // 🚨 AVISO SE USUÁRIO ESTÁ EDITANDO ALGO QUE É GERENCIADO AUTOMATICAMENTE
+      if (isDeliveryRelated && deliveryActive) {
+        console.log(`⚠️ [Edit Prompt] Instrução sobre DELIVERY detectada, mas módulo está ATIVO!`);
+        return res.json({
+          success: false,
+          conflictDetected: true,
+          conflictType: 'delivery',
+          message: `⚠️ Percebi que você quer modificar como o **cardápio/delivery** é exibido. Como você tem o módulo de Delivery **ATIVO**, a formatação do cardápio é gerenciada automaticamente pelo sistema.\n\n🔧 **O que você pode fazer:**\n1. Ir em **Delivery > Cardápio** para editar os itens e categorias\n2. Editar as **Instruções de Atendimento** nas configurações do Delivery\n3. Se quiser controle total, desative "Enviar para IA" nas configurações do Delivery\n\n💡 Isso evita que o cardápio fique duplicado ou conflitante no seu agente.`,
+          feedbackMessage: `⚠️ Percebi que você quer modificar como o **cardápio/delivery** é exibido.\n\nComo você tem o módulo de Delivery **ATIVO**, a formatação do cardápio é gerenciada automaticamente pelo sistema em **Delivery > Cardápio**.\n\n💡 Isso evita duplicação e conflitos no prompt do agente.`,
+          suggestion: 'Edite o cardápio em Delivery > Cardápio'
+        });
+      }
+      
+      if (isCatalogRelated && catalogActive) {
+        console.log(`⚠️ [Edit Prompt] Instrução sobre CATÁLOGO detectada, mas módulo está ATIVO!`);
+        return res.json({
+          success: false,
+          conflictDetected: true,
+          conflictType: 'catalog',
+          message: `⚠️ Percebi que você quer modificar como o **catálogo de produtos** é exibido. Como você tem o módulo de Produtos **ATIVO**, a listagem é gerenciada automaticamente pelo sistema.\n\n🔧 **O que você pode fazer:**\n1. Ir em **Produtos** para editar os itens e categorias\n2. Editar as **Instruções de IA** nas configurações de Produtos\n3. Se quiser controle total, desative "Enviar para IA" nas configurações de Produtos\n\n💡 Isso evita que os produtos fiquem duplicados no seu agente.`,
+          feedbackMessage: `⚠️ Percebi que você quer modificar como o **catálogo de produtos** é exibido.\n\nComo você tem o módulo de Produtos **ATIVO**, a listagem é gerenciada automaticamente pelo sistema em **Produtos**.\n\n💡 Isso evita duplicação e conflitos no prompt do agente.`,
+          suggestion: 'Edite os produtos em Produtos'
+        });
       }
 
       // 🔒 CHECK DAILY CALIBRATION LIMIT FOR FREE USERS
@@ -4531,6 +6273,36 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     } catch (error) {
       console.error("Error enabling agent:", error);
       res.status(500).json({ message: "Failed to enable agent" });
+    }
+  });
+
+  // Status da IA para uma conversa específica
+  app.get("/api/agent/status/:conversationId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const userId = getUserId(req);
+
+      // Verify ownership
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Check if agent is disabled for this conversation
+      const isDisabled = await storage.isAgentDisabledForConversation(conversationId);
+      
+      res.json({ 
+        isDisabled,
+        conversationId 
+      });
+    } catch (error) {
+      console.error("Error getting agent status:", error);
+      res.status(500).json({ message: "Failed to get agent status" });
     }
   });
 
@@ -13878,22 +15650,49 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       const userId = getUserId(req);
       const appointmentData = req.body;
       
-      // Verificar disponibilidade do slot
+      // Buscar configuração para verificar se Google Calendar está habilitado
+      const { data: config } = await supabase
+        .from('scheduling_config')
+        .select('google_calendar_enabled, slot_duration, service_name')
+        .eq('user_id', userId)
+        .single();
+      
+      const appointmentDate = appointmentData.appointmentDate || appointmentData.appointment_date;
+      const startTime = appointmentData.startTime || appointmentData.start_time;
+      const endTime = appointmentData.endTime || appointmentData.end_time;
+      
+      // Verificar disponibilidade do slot no banco local
       const { data: existing, error: existingError } = await supabase
         .from('appointments')
         .select('id')
         .eq('user_id', userId)
-        .eq('appointment_date', appointmentData.appointmentDate || appointmentData.appointment_date)
-        .eq('start_time', appointmentData.startTime || appointmentData.start_time)
+        .eq('appointment_date', appointmentDate)
+        .eq('start_time', startTime)
         .in('status', ['pending', 'confirmed']);
       
       if (existingError) throw existingError;
       
       if (existing && existing.length > 0) {
         return res.status(409).json({ 
-          message: "Horário já está ocupado",
+          message: "Horário já está ocupado no sistema",
           code: "SLOT_TAKEN"
         });
+      }
+      
+      // Verificar conflito no Google Calendar se estiver conectado
+      if (config?.google_calendar_enabled) {
+        const startDateTime = `${appointmentDate}T${startTime}:00`;
+        const endDateTime = `${appointmentDate}T${endTime}:00`;
+        
+        const availability = await checkCalendarAvailability(userId, startDateTime, endDateTime);
+        
+        if (!availability.available) {
+          return res.status(409).json({
+            message: `Horário conflita com evento no Google Calendar: ${availability.conflictEvent}`,
+            code: "GOOGLE_CALENDAR_CONFLICT",
+            conflictEvent: availability.conflictEvent
+          });
+        }
       }
       
       // Criar agendamento
@@ -13905,9 +15704,12 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
           client_phone: appointmentData.clientPhone || appointmentData.client_phone,
           client_email: appointmentData.clientEmail || appointmentData.client_email,
           service_name: appointmentData.serviceName || appointmentData.service_name,
-          appointment_date: appointmentData.appointmentDate || appointmentData.appointment_date,
-          start_time: appointmentData.startTime || appointmentData.start_time,
-          end_time: appointmentData.endTime || appointmentData.end_time,
+          service_id: appointmentData.serviceId || appointmentData.service_id,
+          professional_id: appointmentData.professionalId || appointmentData.professional_id,
+          professional_name: appointmentData.professionalName || appointmentData.professional_name,
+          appointment_date: appointmentDate,
+          start_time: startTime,
+          end_time: endTime,
           duration_minutes: appointmentData.durationMinutes || appointmentData.duration_minutes || 60,
           location: appointmentData.location,
           location_type: appointmentData.locationType || appointmentData.location_type || 'presencial',
@@ -13923,6 +15725,35 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       if (error) throw error;
       
       console.log(`📅 [SCHEDULING] Novo agendamento criado: ${data.id} para ${appointmentData.clientName || appointmentData.client_name}`);
+      
+      // Sincronizar automaticamente com Google Calendar se habilitado
+      if (config?.google_calendar_enabled) {
+        const syncResult = await syncAppointmentToCalendar(userId, {
+          id: data.id,
+          clientName: data.client_name,
+          clientPhone: data.client_phone,
+          appointmentDate: data.appointment_date,
+          appointmentTime: data.start_time,
+          serviceName: data.service_name || config.service_name,
+          notes: data.client_notes,
+        }, data.duration_minutes || config.slot_duration || 60);
+        
+        if (syncResult.success && syncResult.eventId) {
+          // Salvar Google Event ID no agendamento
+          await supabase
+            .from('appointments')
+            .update({ 
+              google_event_id: syncResult.eventId,
+              google_calendar_synced: true 
+            })
+            .eq('id', data.id);
+          
+          console.log(`🔄 [GOOGLE CALENDAR] Agendamento ${data.id} sincronizado: ${syncResult.eventId}`);
+        } else {
+          console.warn(`⚠️ [GOOGLE CALENDAR] Falha ao sincronizar agendamento ${data.id}: ${syncResult.error}`);
+        }
+      }
+      
       res.status(201).json(data);
     } catch (error: any) {
       console.error("Error creating appointment:", error);
@@ -14629,6 +16460,656 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     } catch (error: any) {
       console.error("Error creating AI appointment:", error);
       res.status(500).json({ message: "Failed to create appointment" });
+    }
+  });
+
+  // =====================================================================
+  // SCHEDULING SERVICES ROUTES (Gestão de Serviços)
+  // =====================================================================
+
+  /**
+   * Listar serviços do usuário
+   * GET /api/scheduling/services
+   */
+  app.get("/api/scheduling/services", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { activeOnly } = req.query;
+      
+      let query = supabase
+        .from('scheduling_services')
+        .select('*')
+        .eq('user_id', userId)
+        .order('display_order', { ascending: true });
+      
+      if (activeOnly === 'true') {
+        query = query.eq('is_active', true);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      res.json(data || []);
+    } catch (error: any) {
+      console.error("Error fetching services:", error);
+      res.status(500).json({ message: "Falha ao buscar serviços" });
+    }
+  });
+
+  /**
+   * Criar novo serviço
+   * POST /api/scheduling/services
+   */
+  app.post("/api/scheduling/services", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, description, durationMinutes, price, isActive, allowOnline, allowPresencial, requiresConfirmation, bufferBeforeMinutes, bufferAfterMinutes, maxPerDay, color, icon, displayOrder } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ message: "Nome do serviço é obrigatório" });
+      }
+      
+      const { data, error } = await supabase
+        .from('scheduling_services')
+        .insert({
+          user_id: userId,
+          name,
+          description,
+          duration_minutes: durationMinutes || 60,
+          price: price || null,
+          is_active: isActive !== false,
+          allow_online: allowOnline !== false,
+          allow_presencial: allowPresencial !== false,
+          requires_confirmation: requiresConfirmation !== false,
+          buffer_before_minutes: bufferBeforeMinutes || 0,
+          buffer_after_minutes: bufferAfterMinutes || 15,
+          max_per_day: maxPerDay || null,
+          color: color || '#3b82f6',
+          icon: icon || null,
+          display_order: displayOrder || 0,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      res.status(201).json(data);
+    } catch (error: any) {
+      console.error("Error creating service:", error);
+      res.status(500).json({ message: "Falha ao criar serviço" });
+    }
+  });
+
+  /**
+   * Atualizar serviço
+   * PUT /api/scheduling/services/:id
+   */
+  app.put("/api/scheduling/services/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const updates = req.body;
+      
+      // Converter camelCase para snake_case
+      const dbUpdates: any = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.durationMinutes !== undefined) dbUpdates.duration_minutes = updates.durationMinutes;
+      if (updates.price !== undefined) dbUpdates.price = updates.price;
+      if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+      if (updates.allowOnline !== undefined) dbUpdates.allow_online = updates.allowOnline;
+      if (updates.allowPresencial !== undefined) dbUpdates.allow_presencial = updates.allowPresencial;
+      if (updates.requiresConfirmation !== undefined) dbUpdates.requires_confirmation = updates.requiresConfirmation;
+      if (updates.bufferBeforeMinutes !== undefined) dbUpdates.buffer_before_minutes = updates.bufferBeforeMinutes;
+      if (updates.bufferAfterMinutes !== undefined) dbUpdates.buffer_after_minutes = updates.bufferAfterMinutes;
+      if (updates.maxPerDay !== undefined) dbUpdates.max_per_day = updates.maxPerDay;
+      if (updates.color !== undefined) dbUpdates.color = updates.color;
+      if (updates.icon !== undefined) dbUpdates.icon = updates.icon;
+      if (updates.displayOrder !== undefined) dbUpdates.display_order = updates.displayOrder;
+      dbUpdates.updated_at = new Date().toISOString();
+      
+      const { data, error } = await supabase
+        .from('scheduling_services')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      if (!data) {
+        return res.status(404).json({ message: "Serviço não encontrado" });
+      }
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error updating service:", error);
+      res.status(500).json({ message: "Falha ao atualizar serviço" });
+    }
+  });
+
+  /**
+   * Excluir serviço
+   * DELETE /api/scheduling/services/:id
+   */
+  app.delete("/api/scheduling/services/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { error } = await supabase
+        .from('scheduling_services')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+      res.json({ message: "Serviço excluído com sucesso" });
+    } catch (error: any) {
+      console.error("Error deleting service:", error);
+      res.status(500).json({ message: "Falha ao excluir serviço" });
+    }
+  });
+
+  // =====================================================================
+  // SCHEDULING PROFESSIONALS ROUTES (Gestão de Profissionais)
+  // =====================================================================
+
+  /**
+   * Listar profissionais do usuário
+   * GET /api/scheduling/professionals
+   */
+  app.get("/api/scheduling/professionals", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { activeOnly, withServices } = req.query;
+      
+      let query = supabase
+        .from('scheduling_professionals')
+        .select('*')
+        .eq('user_id', userId)
+        .order('display_order', { ascending: true });
+      
+      if (activeOnly === 'true') {
+        query = query.eq('is_active', true);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      // Se pediu com serviços, buscar a relação
+      if (withServices === 'true' && data) {
+        const profIds = data.map(p => p.id);
+        const { data: relations } = await supabase
+          .from('professional_services')
+          .select('*, service:scheduling_services(*)')
+          .in('professional_id', profIds);
+        
+        // Mapear serviços para cada profissional
+        const professionalsWithServices = data.map(prof => ({
+          ...prof,
+          services: (relations || [])
+            .filter(r => r.professional_id === prof.id)
+            .map(r => ({ ...r.service, customDurationMinutes: r.custom_duration_minutes, customPrice: r.custom_price }))
+        }));
+        
+        return res.json(professionalsWithServices);
+      }
+      
+      res.json(data || []);
+    } catch (error: any) {
+      console.error("Error fetching professionals:", error);
+      res.status(500).json({ message: "Falha ao buscar profissionais" });
+    }
+  });
+
+  /**
+   * Criar novo profissional
+   * POST /api/scheduling/professionals
+   */
+  app.post("/api/scheduling/professionals", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, email, phone, avatarUrl, bio, workSchedule, isActive, isDefault, acceptsOnline, acceptsPresencial, maxAppointmentsPerDay, displayOrder, serviceIds } = req.body;
+      
+      if (!name) {
+        return res.status(400).json({ message: "Nome do profissional é obrigatório" });
+      }
+      
+      // Se marcou como padrão, desmarcar outros
+      if (isDefault) {
+        await supabase
+          .from('scheduling_professionals')
+          .update({ is_default: false })
+          .eq('user_id', userId);
+      }
+      
+      const { data, error } = await supabase
+        .from('scheduling_professionals')
+        .insert({
+          user_id: userId,
+          name,
+          email,
+          phone,
+          avatar_url: avatarUrl,
+          bio,
+          work_schedule: workSchedule || {},
+          is_active: isActive !== false,
+          is_default: isDefault || false,
+          accepts_online: acceptsOnline !== false,
+          accepts_presencial: acceptsPresencial !== false,
+          max_appointments_per_day: maxAppointmentsPerDay || 10,
+          display_order: displayOrder || 0,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      // Se passou serviceIds, criar as relações
+      if (serviceIds && serviceIds.length > 0 && data) {
+        const relations = serviceIds.map((serviceId: string, index: number) => ({
+          professional_id: data.id,
+          service_id: serviceId,
+          display_order: index,
+        }));
+        
+        await supabase.from('professional_services').insert(relations);
+      }
+      
+      res.status(201).json(data);
+    } catch (error: any) {
+      console.error("Error creating professional:", error);
+      res.status(500).json({ message: "Falha ao criar profissional" });
+    }
+  });
+
+  /**
+   * Atualizar profissional
+   * PUT /api/scheduling/professionals/:id
+   */
+  app.put("/api/scheduling/professionals/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const updates = req.body;
+      
+      // Converter camelCase para snake_case
+      const dbUpdates: any = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.email !== undefined) dbUpdates.email = updates.email;
+      if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+      if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
+      if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
+      if (updates.workSchedule !== undefined) dbUpdates.work_schedule = updates.workSchedule;
+      if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+      if (updates.isDefault !== undefined) {
+        dbUpdates.is_default = updates.isDefault;
+        // Se marcou como padrão, desmarcar outros
+        if (updates.isDefault) {
+          await supabase
+            .from('scheduling_professionals')
+            .update({ is_default: false })
+            .eq('user_id', userId)
+            .neq('id', id);
+        }
+      }
+      if (updates.acceptsOnline !== undefined) dbUpdates.accepts_online = updates.acceptsOnline;
+      if (updates.acceptsPresencial !== undefined) dbUpdates.accepts_presencial = updates.acceptsPresencial;
+      if (updates.maxAppointmentsPerDay !== undefined) dbUpdates.max_appointments_per_day = updates.maxAppointmentsPerDay;
+      if (updates.displayOrder !== undefined) dbUpdates.display_order = updates.displayOrder;
+      dbUpdates.updated_at = new Date().toISOString();
+      
+      const { data, error } = await supabase
+        .from('scheduling_professionals')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      if (!data) {
+        return res.status(404).json({ message: "Profissional não encontrado" });
+      }
+      
+      // Se passou serviceIds, atualizar as relações
+      if (updates.serviceIds !== undefined) {
+        // Remover relações antigas
+        await supabase
+          .from('professional_services')
+          .delete()
+          .eq('professional_id', id);
+        
+        // Criar novas relações
+        if (updates.serviceIds.length > 0) {
+          const relations = updates.serviceIds.map((serviceId: string, index: number) => ({
+            professional_id: id,
+            service_id: serviceId,
+            display_order: index,
+          }));
+          
+          await supabase.from('professional_services').insert(relations);
+        }
+      }
+      
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error updating professional:", error);
+      res.status(500).json({ message: "Falha ao atualizar profissional" });
+    }
+  });
+
+  /**
+   * Excluir profissional
+   * DELETE /api/scheduling/professionals/:id
+   */
+  app.delete("/api/scheduling/professionals/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      
+      const { error } = await supabase
+        .from('scheduling_professionals')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+      res.json({ message: "Profissional excluído com sucesso" });
+    } catch (error: any) {
+      console.error("Error deleting professional:", error);
+      res.status(500).json({ message: "Falha ao excluir profissional" });
+    }
+  });
+
+  /**
+   * Atribuir serviços a um profissional
+   * POST /api/scheduling/professionals/:id/services
+   */
+  app.post("/api/scheduling/professionals/:id/services", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { serviceIds } = req.body;
+      
+      // Verificar se profissional pertence ao usuário
+      const { data: prof } = await supabase
+        .from('scheduling_professionals')
+        .select('id')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single();
+      
+      if (!prof) {
+        return res.status(404).json({ message: "Profissional não encontrado" });
+      }
+      
+      // Remover relações antigas
+      await supabase
+        .from('professional_services')
+        .delete()
+        .eq('professional_id', id);
+      
+      // Criar novas relações
+      if (serviceIds && serviceIds.length > 0) {
+        const relations = serviceIds.map((serviceId: string, index: number) => ({
+          professional_id: id,
+          service_id: serviceId,
+          display_order: index,
+        }));
+        
+        await supabase.from('professional_services').insert(relations);
+      }
+      
+      res.json({ message: "Serviços atualizados com sucesso" });
+    } catch (error: any) {
+      console.error("Error assigning services:", error);
+      res.status(500).json({ message: "Falha ao atribuir serviços" });
+    }
+  });
+
+  /**
+   * Buscar slots disponíveis considerando serviço e profissional
+   * GET /api/scheduling/available-slots-advanced?date=2025-01-10&serviceId=...&professionalId=...
+   */
+  app.get("/api/scheduling/available-slots-advanced", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { date, serviceId, professionalId } = req.query;
+      
+      if (!date) {
+        return res.status(400).json({ message: "Data é obrigatória" });
+      }
+      
+      // Buscar configuração
+      const { data: config } = await supabase
+        .from('scheduling_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!config || !config.is_enabled) {
+        return res.json({ slots: [], message: "Sistema de agendamento desativado" });
+      }
+      
+      // Buscar serviço se especificado
+      let serviceDuration = config.slot_duration || 60;
+      let bufferAfter = config.buffer_between_appointments || 15;
+      
+      if (serviceId) {
+        const { data: service } = await supabase
+          .from('scheduling_services')
+          .select('*')
+          .eq('id', serviceId)
+          .eq('user_id', userId)
+          .single();
+        
+        if (service) {
+          serviceDuration = service.duration_minutes;
+          bufferAfter = service.buffer_after_minutes || 15;
+        }
+      }
+      
+      // Buscar profissional se especificado
+      let workStartTime = config.work_start_time || '09:00:00';
+      let workEndTime = config.work_end_time || '18:00:00';
+      let breakStartTime = config.break_start_time || '12:00:00';
+      let breakEndTime = config.break_end_time || '13:00:00';
+      let hasBreak = config.has_break;
+      
+      if (professionalId) {
+        const { data: professional } = await supabase
+          .from('scheduling_professionals')
+          .select('*')
+          .eq('id', professionalId)
+          .eq('user_id', userId)
+          .single();
+        
+        if (professional && professional.work_schedule) {
+          const dayOfWeek = new Date(date as string).getDay();
+          const daySchedule = (professional.work_schedule as any)[dayOfWeek.toString()];
+          
+          if (daySchedule) {
+            workStartTime = daySchedule.start || workStartTime;
+            workEndTime = daySchedule.end || workEndTime;
+            if (daySchedule.break_start && daySchedule.break_end) {
+              breakStartTime = daySchedule.break_start;
+              breakEndTime = daySchedule.break_end;
+              hasBreak = true;
+            }
+          }
+        }
+      }
+      
+      // Buscar agendamentos existentes
+      let appointmentsQuery = supabase
+        .from('appointments')
+        .select('start_time, end_time')
+        .eq('user_id', userId)
+        .eq('appointment_date', date)
+        .in('status', ['pending', 'confirmed']);
+      
+      if (professionalId) {
+        appointmentsQuery = appointmentsQuery.eq('professional_id', professionalId);
+      }
+      
+      const { data: existingAppointments } = await appointmentsQuery;
+      
+      // Gerar slots disponíveis
+      const slots: { time: string; available: boolean }[] = [];
+      
+      const parseTime = (time: string) => {
+        const [h, m] = time.split(':').map(Number);
+        return h * 60 + m;
+      };
+      
+      const formatTime = (minutes: number) => {
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      };
+      
+      const startMinutes = parseTime(workStartTime);
+      const endMinutes = parseTime(workEndTime);
+      const breakStart = hasBreak ? parseTime(breakStartTime) : 0;
+      const breakEnd = hasBreak ? parseTime(breakEndTime) : 0;
+      
+      for (let time = startMinutes; time + serviceDuration <= endMinutes; time += serviceDuration + bufferAfter) {
+        // Pular horário de almoço
+        if (hasBreak && time < breakEnd && time + serviceDuration > breakStart) {
+          time = breakEnd - serviceDuration - bufferAfter;
+          continue;
+        }
+        
+        const slotTime = formatTime(time);
+        const slotEnd = formatTime(time + serviceDuration);
+        
+        // Verificar conflito com agendamentos existentes
+        const hasConflict = (existingAppointments || []).some(apt => {
+          const aptStart = parseTime(apt.start_time);
+          const aptEnd = parseTime(apt.end_time);
+          return time < aptEnd && time + serviceDuration > aptStart;
+        });
+        
+        slots.push({ time: slotTime, available: !hasConflict });
+      }
+      
+      res.json({ slots, serviceDuration, date });
+    } catch (error: any) {
+      console.error("Error fetching available slots:", error);
+      res.status(500).json({ message: "Falha ao buscar horários disponíveis" });
+    }
+  });
+
+  /**
+   * Habilitar múltiplos serviços/profissionais na config
+   * PUT /api/scheduling/config/advanced
+   */
+  app.put("/api/scheduling/config/advanced", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { 
+        useServices, useProfessionals, aiSchedulingEnabled, 
+        aiCanSuggestProfessional, aiCanSuggestService, 
+        bookingLinkSlug, publicBookingEnabled, googleCalendarEnabled,
+        use_services, use_professionals, ai_scheduling_enabled,
+        google_calendar_enabled
+      } = req.body;
+      
+      const updates: any = { updated_at: new Date().toISOString() };
+      
+      // Support both camelCase and snake_case
+      if (useServices !== undefined || use_services !== undefined) 
+        updates.use_services = useServices ?? use_services;
+      if (useProfessionals !== undefined || use_professionals !== undefined) 
+        updates.use_professionals = useProfessionals ?? use_professionals;
+      if (aiSchedulingEnabled !== undefined || ai_scheduling_enabled !== undefined) 
+        updates.ai_scheduling_enabled = aiSchedulingEnabled ?? ai_scheduling_enabled;
+      if (aiCanSuggestProfessional !== undefined) 
+        updates.ai_can_suggest_professional = aiCanSuggestProfessional;
+      if (aiCanSuggestService !== undefined) 
+        updates.ai_can_suggest_service = aiCanSuggestService;
+      if (bookingLinkSlug !== undefined) 
+        updates.booking_link_slug = bookingLinkSlug;
+      if (publicBookingEnabled !== undefined) 
+        updates.public_booking_enabled = publicBookingEnabled;
+      if (googleCalendarEnabled !== undefined || google_calendar_enabled !== undefined) 
+        updates.google_calendar_enabled = googleCalendarEnabled ?? google_calendar_enabled;
+      
+      const { data, error } = await supabase
+        .from('scheduling_config')
+        .update(updates)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error updating advanced config:", error);
+      res.status(500).json({ message: "Falha ao atualizar configurações avançadas" });
+    }
+  });
+
+  /**
+   * Obter URL de conexão do Google Calendar para Scheduling
+   * GET /api/scheduling/google-calendar/connect
+   */
+  app.get("/api/scheduling/google-calendar/connect", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      if (!isGoogleCalendarConfigured()) {
+        return res.status(400).json({ 
+          message: "Google Calendar não está configurado no servidor." 
+        });
+      }
+      
+      const authUrl = getGoogleAuthUrl(userId);
+      res.json({ authUrl });
+    } catch (error: any) {
+      console.error("Error getting Google auth URL:", error);
+      res.status(500).json({ message: "Falha ao obter URL de autenticação" });
+    }
+  });
+
+  /**
+   * Desconectar Google Calendar do Scheduling
+   * POST /api/scheduling/google-calendar/disconnect
+   */
+  app.post("/api/scheduling/google-calendar/disconnect", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const result = await disconnectGoogleCalendar(userId);
+      
+      if (result.success) {
+        // Também atualizar config
+        await supabase
+          .from('scheduling_config')
+          .update({ google_calendar_enabled: false })
+          .eq('user_id', userId);
+        
+        res.json({ message: "Google Calendar desconectado com sucesso" });
+      } else {
+        res.status(400).json({ message: result.error });
+      }
+    } catch (error: any) {
+      console.error("Error disconnecting Google Calendar:", error);
+      res.status(500).json({ message: "Falha ao desconectar" });
+    }
+  });
+
+  /**
+   * Obter status do Google Calendar para Scheduling
+   * GET /api/scheduling/google-calendar/status
+   */
+  app.get("/api/scheduling/google-calendar/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const status = await getGoogleCalendarStatus(userId);
+      res.json(status);
+    } catch (error: any) {
+      console.error("Error getting Google Calendar status:", error);
+      res.status(500).json({ message: "Falha ao obter status" });
     }
   });
 
@@ -16840,6 +19321,432 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     } catch (error: any) {
       console.error("Error marking invoice as paid:", error);
       res.status(500).json({ message: "Erro ao marcar fatura como paga" });
+    }
+  });
+
+  // ==================== TEAM MEMBERS - Sistema de Membros/Funcionários ====================
+  
+  // GET - Listar membros da equipe do usuário
+  app.get("/api/team-members", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const members = await storage.getTeamMembers(userId);
+      // Remover passwordHash dos resultados
+      const safeMemebers = members.map(({ passwordHash, ...rest }) => rest);
+      res.json(safeMemebers);
+    } catch (error) {
+      console.error("Error fetching team members:", error);
+      res.status(500).json({ message: "Erro ao buscar membros da equipe" });
+    }
+  });
+
+  // POST - Criar novo membro da equipe
+  app.post("/api/team-members", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, email, password, role, permissions, avatarUrl, signature, signatureEnabled } = req.body;
+
+      if (!name || !email) {
+        return res.status(400).json({ message: "Nome e email são obrigatórios" });
+      }
+
+      // Verificar se email já existe para este dono
+      const existing = await storage.getTeamMemberByEmail(userId, email);
+      if (existing) {
+        return res.status(400).json({ message: "Já existe um membro com este email" });
+      }
+
+      // Gerar senha aleatória se não fornecida
+      const finalPassword = password || generateRandomPassword();
+      const bcrypt = await import("bcryptjs");
+      const passwordHash = await bcrypt.hash(finalPassword, 10);
+
+      const member = await storage.createTeamMember({
+        ownerId: userId,
+        name,
+        email,
+        passwordHash,
+        role: role || "atendente",
+        permissions: permissions || {
+          canViewConversations: true,
+          canSendMessages: true,
+          canUseQuickReplies: true,
+          canMoveKanban: true,
+          canViewDashboard: false,
+          canEditContacts: false,
+        },
+        avatarUrl: avatarUrl || null,
+        signature: signature || null,
+        signatureEnabled: signatureEnabled || false,
+        isActive: true,
+      });
+
+      // Retornar sem passwordHash, mas incluir a senha gerada (só na criação)
+      const { passwordHash: _, ...safeData } = member;
+      res.json({ 
+        ...safeData, 
+        generatedPassword: finalPassword,
+        message: "Membro criado com sucesso" 
+      });
+    } catch (error) {
+      console.error("Error creating team member:", error);
+      res.status(500).json({ message: "Erro ao criar membro da equipe" });
+    }
+  });
+
+  // PUT - Atualizar membro da equipe
+  app.put("/api/team-members/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { name, email, password, role, permissions, avatarUrl, isActive, signature, signatureEnabled } = req.body;
+
+      // Verificar propriedade
+      const existing = await storage.getTeamMember(id);
+      if (!existing || existing.ownerId !== userId) {
+        return res.status(404).json({ message: "Membro não encontrado" });
+      }
+
+      const updateData: any = {
+        name,
+        email,
+        role,
+        permissions,
+        avatarUrl,
+        isActive,
+        signature,
+        signatureEnabled,
+        updatedAt: new Date(),
+      };
+
+      // Se nova senha fornecida, hash
+      if (password) {
+        const bcrypt = await import("bcryptjs");
+        updateData.passwordHash = await bcrypt.hash(password, 10);
+      }
+
+      const member = await storage.updateTeamMember(id, updateData);
+      const { passwordHash: _, ...safeData } = member;
+      res.json(safeData);
+    } catch (error) {
+      console.error("Error updating team member:", error);
+      res.status(500).json({ message: "Erro ao atualizar membro da equipe" });
+    }
+  });
+
+  // DELETE - Excluir membro da equipe
+  app.delete("/api/team-members/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      // Verificar propriedade
+      const existing = await storage.getTeamMember(id);
+      if (!existing || existing.ownerId !== userId) {
+        return res.status(404).json({ message: "Membro não encontrado" });
+      }
+
+      await storage.deleteTeamMember(id);
+      res.json({ success: true, message: "Membro excluído com sucesso" });
+    } catch (error) {
+      console.error("Error deleting team member:", error);
+      res.status(500).json({ message: "Erro ao excluir membro da equipe" });
+    }
+  });
+
+  // POST - Resetar senha do membro
+  app.post("/api/team-members/:id/reset-password", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      // Verificar propriedade
+      const existing = await storage.getTeamMember(id);
+      if (!existing || existing.ownerId !== userId) {
+        return res.status(404).json({ message: "Membro não encontrado" });
+      }
+
+      const newPassword = generateRandomPassword();
+      const bcrypt = await import("bcryptjs");
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+
+      await storage.updateTeamMember(id, { passwordHash, updatedAt: new Date() });
+      res.json({ newPassword, message: "Senha resetada com sucesso" });
+    } catch (error) {
+      console.error("Error resetting team member password:", error);
+      res.status(500).json({ message: "Erro ao resetar senha" });
+    }
+  });
+
+  // POST - Login de membro da equipe (rota separada)
+  app.post("/api/team-members/login", async (req: any, res) => {
+    try {
+      const { email, password, ownerId } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email e senha são obrigatórios" });
+      }
+
+      // Buscar membro pelo email (global ou por ownerId se fornecido)
+      const member = await storage.getTeamMemberByEmailGlobal(email);
+      if (!member) {
+        return res.status(401).json({ message: "Credenciais inválidas" });
+      }
+
+      // Verificar se está ativo
+      if (!member.isActive) {
+        return res.status(403).json({ message: "Conta desativada. Contate o administrador." });
+      }
+
+      // Verificar senha
+      const bcrypt = await import("bcryptjs");
+      const valid = await bcrypt.compare(password, member.passwordHash);
+      if (!valid) {
+        return res.status(401).json({ message: "Credenciais inválidas" });
+      }
+
+      // Gerar token de sessão
+      const crypto = await import("crypto");
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 dias
+
+      await storage.createTeamMemberSession({
+        memberId: member.id,
+        token,
+        expiresAt,
+        userAgent: req.headers['user-agent'] || null,
+        ipAddress: req.ip || null,
+      });
+
+      // Atualizar último login
+      await storage.updateTeamMember(member.id, { lastLoginAt: new Date() });
+
+      // Buscar dados do dono
+      const owner = await storage.getUser(member.ownerId);
+
+      const { passwordHash: _, ...safeMember } = member;
+      res.json({
+        member: safeMember,
+        owner: owner ? { id: owner.id, name: owner.name, email: owner.email } : null,
+        token,
+        expiresAt,
+      });
+    } catch (error) {
+      console.error("Error logging in team member:", error);
+      res.status(500).json({ message: "Erro ao fazer login" });
+    }
+  });
+
+  // GET - Verificar sessão do membro
+  app.get("/api/team-members/session", async (req: any, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ authenticated: false });
+      }
+
+      const token = authHeader.substring(7);
+      const session = await storage.getTeamMemberSession(token);
+      
+      if (!session || new Date(session.expiresAt) < new Date()) {
+        return res.status(401).json({ authenticated: false });
+      }
+
+      const member = await storage.getTeamMember(session.memberId);
+      if (!member || !member.isActive) {
+        return res.status(401).json({ authenticated: false });
+      }
+
+      const owner = await storage.getUser(member.ownerId);
+      const { passwordHash: _, ...safeMember } = member;
+
+      res.json({
+        authenticated: true,
+        member: safeMember,
+        owner: owner ? { id: owner.id, name: owner.name, email: owner.email } : null,
+      });
+    } catch (error) {
+      console.error("Error checking team member session:", error);
+      res.status(500).json({ authenticated: false });
+    }
+  });
+
+  // POST - Logout de membro
+  app.post("/api/team-members/logout", async (req: any, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        await storage.deleteTeamMemberSession(token);
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error logging out team member:", error);
+      res.status(500).json({ message: "Erro ao fazer logout" });
+    }
+  });
+
+  // ==================== SUBSCRIPTION MANAGEMENT ====================
+
+  // POST - Ativar/Desativar assinatura do usuário na conversa
+  app.post("/api/conversations/:id/toggle-subscription", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { active } = req.body;
+
+      // Buscar conversa
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      // Verificar propriedade
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Buscar usuário alvo pelo número de contato
+      // Isso é para admin controlar assinatura de clientes
+      // TODO: Implementar lógica de buscar user por phoneNumber
+
+      res.json({ success: true, message: active ? "Assinatura ativada" : "Assinatura desativada" });
+    } catch (error) {
+      console.error("Error toggling subscription:", error);
+      res.status(500).json({ message: "Erro ao alterar assinatura" });
+    }
+  });
+
+  // ==================== FORWARD MESSAGE ====================
+
+  // POST - Encaminhar mensagem para outro contato
+  app.post("/api/conversations/:id/forward-message", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { messageId, targetNumber, targetConversationId } = req.body;
+
+      if (!messageId) {
+        return res.status(400).json({ message: "ID da mensagem é obrigatório" });
+      }
+
+      if (!targetNumber && !targetConversationId) {
+        return res.status(400).json({ message: "Número ou conversa de destino é obrigatório" });
+      }
+
+      // Verificar propriedade da conversa origem
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Buscar mensagem original
+      const messages = await storage.getMessages(id);
+      const originalMessage = messages.find(m => m.id === messageId);
+      if (!originalMessage) {
+        return res.status(404).json({ message: "Mensagem não encontrada" });
+      }
+
+      // Determinar destino
+      let targetJid: string;
+      if (targetConversationId) {
+        const targetConv = await storage.getConversation(targetConversationId);
+        if (!targetConv || targetConv.connectionId !== connection.id) {
+          return res.status(404).json({ message: "Conversa de destino não encontrada" });
+        }
+        targetJid = targetConv.remoteJid || `${targetConv.contactNumber}@s.whatsapp.net`;
+      } else {
+        // Limpar número e formatar JID
+        const cleanNumber = targetNumber.replace(/\D/g, '');
+        targetJid = `${cleanNumber}@s.whatsapp.net`;
+      }
+
+      // Encaminhar mensagem via WhatsApp
+      if (originalMessage.mediaType && originalMessage.mediaUrl) {
+        // Encaminhar mídia
+        await whatsappSendMessage(
+          userId,
+          targetJid,
+          originalMessage.mediaCaption || originalMessage.text || "",
+          {
+            mediaType: originalMessage.mediaType as any,
+            mediaUrl: originalMessage.mediaUrl,
+          }
+        );
+      } else if (originalMessage.text) {
+        // Encaminhar texto
+        await whatsappSendMessage(
+          userId,
+          targetJid,
+          `_Mensagem encaminhada:_\n\n${originalMessage.text}`
+        );
+      } else {
+        return res.status(400).json({ message: "Mensagem não pode ser encaminhada" });
+      }
+
+      res.json({ success: true, message: "Mensagem encaminhada com sucesso" });
+    } catch (error) {
+      console.error("Error forwarding message:", error);
+      res.status(500).json({ message: "Erro ao encaminhar mensagem" });
+    }
+  });
+
+  // ==================== NEW CONTACT ====================
+
+  // POST - Iniciar nova conversa com contato
+  app.post("/api/conversations/new-contact", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { phoneNumber, name, message } = req.body;
+
+      if (!phoneNumber) {
+        return res.status(400).json({ message: "Número de telefone é obrigatório" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || !connection.isConnected) {
+        return res.status(400).json({ message: "WhatsApp não conectado" });
+      }
+
+      // Limpar e formatar número
+      const cleanNumber = phoneNumber.replace(/\D/g, '');
+      const jid = `${cleanNumber}@s.whatsapp.net`;
+
+      // Verificar se já existe conversa
+      let conversation = await storage.getConversationByRemoteJid(connection.id, jid);
+      
+      if (!conversation) {
+        // Criar nova conversa
+        conversation = await storage.createConversation({
+          connectionId: connection.id,
+          contactNumber: cleanNumber,
+          remoteJid: jid,
+          contactName: name || cleanNumber,
+          lastMessageText: null,
+          lastMessageTime: null,
+          unreadCount: 0,
+        });
+      }
+
+      // Se mensagem inicial fornecida, enviar
+      if (message) {
+        await whatsappSendMessage(userId, jid, message);
+      }
+
+      res.json({ 
+        success: true, 
+        conversation,
+        message: "Conversa criada com sucesso" 
+      });
+    } catch (error) {
+      console.error("Error creating new contact conversation:", error);
+      res.status(500).json({ message: "Erro ao criar conversa" });
     }
   });
 

@@ -1,6 +1,7 @@
 import { storage } from "./storage";
 import type { Message, MistralResponse } from "@shared/schema";
 import { getMistralClient } from "./mistralClient";
+import { supabase } from "./supabaseAuth";
 // NOTA: generateSystemPrompt, detectJailbreak, detectOffTopic foram removidos
 // pois o sistema ADVANCED foi desativado para garantir determinismo nas respostas
 import crypto from "crypto";
@@ -148,6 +149,428 @@ import {
   getNextAvailableSlots,
   formatAvailableSlotsForAI,
 } from "./schedulingService";
+import {
+  processDeliveryOrderTags,
+} from "./deliveryService";
+
+// ═══════════════════════════════════════════════════════════════════════
+// � SISTEMA DE CATÁLOGO DE PRODUTOS - INTEGRAÇÃO COM IA
+// ═══════════════════════════════════════════════════════════════════════
+interface ProductForAI {
+  name: string;
+  price: string | null;
+  stock: number;
+  description: string | null;
+  category: string | null;
+  link: string | null;
+  sku: string | null;
+  unit: string;
+}
+
+interface ProductsForAIResponse {
+  active: boolean;
+  instructions: string | null;
+  products: ProductForAI[];
+  count: number;
+}
+
+async function getProductsForAI(userId: string): Promise<ProductsForAIResponse | null> {
+  try {
+    // Verifica se o módulo está ativo
+    const { data: config, error: configError } = await supabase
+      .from('products_config')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (configError && configError.code !== 'PGRST116') {
+      console.error(`📦 [Products] Error fetching config:`, configError);
+      return null;
+    }
+    
+    if (!config || !config.is_active || !config.send_to_ai) {
+      return null;
+    }
+    
+    // Busca produtos ativos
+    const { data: products, error } = await supabase
+      .from('products')
+      .select('name, price, stock, description, category, link, sku, unit')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('name', { ascending: true });
+    
+    if (error) {
+      console.error(`📦 [Products] Error fetching products:`, error);
+      return null;
+    }
+    
+    if (!products || products.length === 0) {
+      return null;
+    }
+    
+    console.log(`📦 [Products] Found ${products.length} active products for user ${userId}`);
+    
+    return {
+      active: true,
+      instructions: config.ai_instructions,
+      products: products as ProductForAI[],
+      count: products.length
+    };
+  } catch (error) {
+    console.error(`📦 [Products] Unexpected error:`, error);
+    return null;
+  }
+}
+
+function generateProductsPromptBlock(productsData: ProductsForAIResponse): string {
+  if (!productsData || !productsData.products || productsData.products.length === 0) {
+    return '';
+  }
+  
+  // Formata preço em BRL
+  const formatPrice = (price: string | null): string => {
+    if (!price) return 'Consultar';
+    const num = parseFloat(price);
+    if (isNaN(num)) return price;
+    return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+  
+  // Agrupa por categoria se houver categorias
+  const byCategory = new Map<string, ProductForAI[]>();
+  const uncategorized: ProductForAI[] = [];
+  
+  for (const product of productsData.products) {
+    if (product.category) {
+      const list = byCategory.get(product.category) || [];
+      list.push(product);
+      byCategory.set(product.category, list);
+    } else {
+      uncategorized.push(product);
+    }
+  }
+  
+  let productsList = '';
+  
+  // Lista produtos por categoria
+  for (const [category, products] of byCategory) {
+    productsList += `\n📁 *${category}*:\n`;
+    for (const p of products) {
+      productsList += `  • ${p.name} - ${formatPrice(p.price)}`;
+      if (p.stock > 0) productsList += ` (${p.stock} ${p.unit} em estoque)`;
+      productsList += '\n';
+    }
+  }
+  
+  // Lista produtos sem categoria
+  if (uncategorized.length > 0) {
+    if (byCategory.size > 0) productsList += '\n📁 *Outros*:\n';
+    for (const p of uncategorized) {
+      productsList += `  • ${p.name} - ${formatPrice(p.price)}`;
+      if (p.stock > 0) productsList += ` (${p.stock} ${p.unit} em estoque)`;
+      productsList += '\n';
+    }
+  }
+  
+  // Instruções customizadas do usuário
+  const customInstructions = productsData.instructions 
+    ? `\n**INSTRUÇÕES ESPECIAIS DO ADMINISTRADOR:**\n${productsData.instructions}\n` 
+    : '';
+  
+  return `
+═══════════════════════════════════════════════════════════════════════
+📦 CATÁLOGO DE PRODUTOS/SERVIÇOS (${productsData.count} itens)
+═══════════════════════════════════════════════════════════════════════
+
+${productsList}
+${customInstructions}
+
+**INSTRUÇÕES PARA USO DO CATÁLOGO:**
+1. Use APENAS os produtos listados acima ao responder sobre preços, disponibilidade e detalhes
+2. Se o cliente perguntar algo que não está na lista, diga que não tem essa informação
+3. Informe preços exatamente como estão listados
+4. Se o estoque estiver zerado ou não informado, diga "consultar disponibilidade"
+5. NUNCA invente produtos, preços ou informações que não estão na lista
+6. Se houver link do produto, pode mencionar que "pode enviar o link" se relevante
+
+═══════════════════════════════════════════════════════════════════════
+`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🍕 SISTEMA DE DELIVERY - INTEGRAÇÃO COM IA PARA PEDIDOS
+// ═══════════════════════════════════════════════════════════════════════
+interface MenuItemForAI {
+  id: string;
+  name: string;
+  description: string | null;
+  price: string;
+  promotional_price: string | null;
+  category_name: string | null;
+  preparation_time: number;
+  ingredients: string | null;
+  serves: number;
+  is_featured: boolean;
+}
+
+interface DeliveryMenuForAIResponse {
+  active: boolean;
+  business_name: string | null;
+  business_type: string;
+  delivery_fee: number;
+  min_order_value: number;
+  estimated_delivery_time: number;
+  accepts_delivery: boolean;
+  accepts_pickup: boolean;
+  payment_methods: string[];
+  categories: { name: string; items: MenuItemForAI[] }[];
+  total_items: number;
+}
+
+async function getDeliveryMenuForAI(userId: string): Promise<DeliveryMenuForAIResponse | null> {
+  try {
+    // Verifica se o módulo de delivery está ativo
+    const { data: config, error: configError } = await supabase
+      .from('delivery_config')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (configError && configError.code !== 'PGRST116') {
+      console.error(`🍕 [Delivery] Error fetching config:`, configError);
+      return null;
+    }
+    
+    if (!config || !config.is_active || !config.send_to_ai) {
+      return null;
+    }
+    
+    // Busca categorias ativas
+    const { data: categories, error: catError } = await supabase
+      .from('menu_categories')
+      .select('id, name')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true });
+    
+    if (catError) {
+      console.error(`🍕 [Delivery] Error fetching categories:`, catError);
+    }
+    
+    // Busca itens do cardápio disponíveis
+    const { data: items, error: itemsError } = await supabase
+      .from('menu_items')
+      .select(`
+        id, name, description, price, promotional_price, 
+        category_id, preparation_time, ingredients, serves, is_featured,
+        menu_categories(name)
+      `)
+      .eq('user_id', userId)
+      .eq('is_available', true)
+      .order('display_order', { ascending: true });
+    
+    if (itemsError) {
+      console.error(`🍕 [Delivery] Error fetching items:`, itemsError);
+      return null;
+    }
+    
+    if (!items || items.length === 0) {
+      return null;
+    }
+    
+    // Agrupa itens por categoria
+    const categoriesMap = new Map<string, MenuItemForAI[]>();
+    
+    for (const item of items) {
+      const menuItem: MenuItemForAI = {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        price: item.price,
+        promotional_price: item.promotional_price,
+        category_name: (item.menu_categories as any)?.name || null,
+        preparation_time: item.preparation_time,
+        ingredients: item.ingredients,
+        serves: item.serves,
+        is_featured: item.is_featured,
+      };
+      
+      const categoryName = (item.menu_categories as any)?.name || 'Outros';
+      const list = categoriesMap.get(categoryName) || [];
+      list.push(menuItem);
+      categoriesMap.set(categoryName, list);
+    }
+    
+    // Converte para array de categorias ordenado
+    const categoryList = Array.from(categoriesMap.entries()).map(([name, items]) => ({
+      name,
+      items
+    }));
+    
+    console.log(`🍕 [Delivery] Found ${items.length} menu items for user ${userId}`);
+    
+    return {
+      active: true,
+      business_name: config.business_name,
+      business_type: config.business_type,
+      delivery_fee: parseFloat(config.delivery_fee) || 0,
+      min_order_value: parseFloat(config.min_order_value) || 0,
+      estimated_delivery_time: config.estimated_delivery_time || 45,
+      accepts_delivery: config.accepts_delivery ?? true,
+      accepts_pickup: config.accepts_pickup ?? true,
+      payment_methods: config.payment_methods || ['Dinheiro', 'Cartão', 'Pix'],
+      categories: categoryList,
+      total_items: items.length
+    };
+  } catch (error) {
+    console.error(`🍕 [Delivery] Unexpected error:`, error);
+    return null;
+  }
+}
+
+function generateDeliveryPromptBlock(deliveryData: DeliveryMenuForAIResponse): string {
+  if (!deliveryData || !deliveryData.categories || deliveryData.categories.length === 0) {
+    return '';
+  }
+  
+  // Formata preço em BRL
+  const formatPrice = (price: string | null): string => {
+    if (!price) return 'Consultar';
+    const num = parseFloat(price);
+    if (isNaN(num)) return price;
+    return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+  
+  // Tipos de negócio com emoji
+  const businessTypeEmoji: Record<string, string> = {
+    'pizzaria': '🍕',
+    'hamburgueria': '🍔',
+    'lanchonete': '🥪',
+    'restaurante': '🍽️',
+    'acai': '🍨',
+    'japonesa': '🍣',
+    'outros': '🍴'
+  };
+  
+  const emoji = businessTypeEmoji[deliveryData.business_type] || '🍴';
+  const businessName = deliveryData.business_name || 'Nosso Delivery';
+  
+  // Monta o cardápio
+  let menuText = '';
+  
+  for (const category of deliveryData.categories) {
+    menuText += `\n📁 *${category.name}*:\n`;
+    for (const item of category.items) {
+      const price = item.promotional_price 
+        ? `~${formatPrice(item.price)}~ ${formatPrice(item.promotional_price)} (PROMO!)` 
+        : formatPrice(item.price);
+      
+      menuText += `  ${item.is_featured ? '⭐ ' : '• '}${item.name} - ${price}`;
+      if (item.serves > 1) menuText += ` (serve ${item.serves})`;
+      menuText += '\n';
+      
+      if (item.description) {
+        menuText += `    _${item.description}_\n`;
+      }
+    }
+  }
+  
+  // Formas de pagamento
+  const paymentMethods = deliveryData.payment_methods.join(', ');
+
+  return `
+═══════════════════════════════════════════════════════════════════════
+${emoji} CARDÁPIO - ${businessName.toUpperCase()} (${deliveryData.total_items} itens)
+═══════════════════════════════════════════════════════════════════════
+
+${menuText}
+
+📋 *INFORMAÇÕES DO DELIVERY:*
+${deliveryData.accepts_delivery ? `• Entrega: Taxa de ${formatPrice(String(deliveryData.delivery_fee))} | Tempo estimado: ~${deliveryData.estimated_delivery_time} min` : ''}
+${deliveryData.accepts_pickup ? '• Retirada no local: GRÁTIS' : ''}
+${deliveryData.min_order_value > 0 ? `• Pedido mínimo: ${formatPrice(String(deliveryData.min_order_value))}` : ''}
+• Formas de pagamento: ${paymentMethods}
+
+**🚨 REGRA CRÍTICA - ENVIAR CARDÁPIO COMPLETO:**
+Quando o cliente pedir o CARDÁPIO, MENU, LISTA DE PRODUTOS, ou perguntar "O QUE VOCÊS TÊM?":
+- Você DEVE ENVIAR TODO O CARDÁPIO COMPLETO ACIMA com TODOS os itens e preços
+- NÃO resuma, NÃO omita itens, NÃO diga "entre outros"
+- Copie e cole o cardápio EXATAMENTE como está formatado acima
+- Inclua TODAS as categorias e TODOS os itens com seus preços
+
+**INSTRUÇÕES PARA ATENDIMENTO DE PEDIDOS:**
+1. Seja SIMPÁTICO e NATURAL como um atendente humano de ${deliveryData.business_type}
+2. **QUANDO O CLIENTE PEDIR CARDÁPIO/MENU:** Envie o cardápio COMPLETO formatado acima
+3. Quando o cliente quiser fazer pedido, pergunte DE FORMA CONVERSACIONAL:
+   - O que deseja pedir (pode sugerir destaques ⭐)
+   - Quantidade de cada item
+   - Alguma observação (ex: "sem cebola", "bem passado")
+4. SEMPRE confirme o pedido completo antes de finalizar:
+   - Liste todos os itens com quantidades e preços
+   - Mostre o subtotal e taxa de entrega
+   - Mostre o TOTAL FINAL
+5. Para FINALIZAR o pedido, peça:
+   - Nome completo
+   - Endereço de entrega OU "vou retirar"
+   - Forma de pagamento
+6. Use emojis de comida de forma moderada para deixar a conversa agradável
+7. Se o cliente perguntar sobre item que não existe, sugira algo similar do cardápio
+8. Seja PROATIVO: "Gostaria de adicionar uma bebida?" ou "Temos promoção de X!"
+9. NUNCA invente preços ou itens que não estão no cardápio
+
+**🚨 AÇÃO OBRIGATÓRIA - CRIAR PEDIDO NO SISTEMA:**
+Quando o cliente CONFIRMAR o pedido (após você listar os itens e ele aprovar), você DEVE incluir a seguinte tag NO FINAL da sua mensagem para registrar o pedido automaticamente:
+
+[PEDIDO_DELIVERY: CLIENTE=Nome do Cliente, ENDERECO=Endereço completo, TIPO=delivery, PAGAMENTO=forma de pagamento, ITENS=1x Nome do Item;2x Outro Item]
+
+REGRAS DA TAG:
+- CLIENTE: Nome completo do cliente (obrigatório)
+- ENDERECO: Endereço de entrega (obrigatório se TIPO=delivery, deixar vazio se retirada)
+- TIPO: "delivery" para entrega ou "retirada" para retirar no local (obrigatório)
+- PAGAMENTO: PIX, Dinheiro, Cartão de Crédito, Cartão de Débito (obrigatório)
+- ITENS: Lista de itens no formato "QTDx Nome do Item" separados por ponto-e-vírgula (obrigatório)
+         Se tiver observação: "1x Pizza Calabresa (sem cebola);2x Coca-Cola"
+- OBS: Observações gerais do pedido (opcional)
+
+EXEMPLO 1 - Delivery:
+"Perfeito! Seu pedido está confirmado 🛵
+
+📋 *Resumo:*
+• 1x Pizza Calabresa Grande - R$45,00
+• 2x Coca-Cola Lata - R$10,00
+• Subtotal: R$55,00
+• Taxa de entrega: R$5,00
+• *Total: R$60,00*
+
+Tempo estimado: ~40 minutos
+Pagamento: PIX
+
+Em breve você receberá atualizações! 🍕
+
+[PEDIDO_DELIVERY: CLIENTE=João Silva, ENDERECO=Rua das Flores 123 Apto 45, TIPO=delivery, PAGAMENTO=PIX, ITENS=1x Pizza Calabresa Grande;2x Coca-Cola Lata]"
+
+EXEMPLO 2 - Retirada:
+"Pedido confirmado para retirada! 🍕
+
+📋 *Resumo:*
+• 2x X-Burguer (sem cebola) - R$36,00
+• *Total: R$36,00*
+
+Estará pronto em ~20 minutos
+Pagamento: Cartão na retirada
+
+[PEDIDO_DELIVERY: CLIENTE=Maria Santos, ENDERECO=, TIPO=retirada, PAGAMENTO=Cartão de Crédito, ITENS=2x X-Burguer (sem cebola)]"
+
+IMPORTANTE:
+- A tag deve ficar NO FINAL da mensagem e será removida automaticamente
+- NUNCA mostre a tag ao cliente ou mencione que ela existe
+- Use EXATAMENTE o nome dos itens como estão no cardápio
+- Só inclua a tag APÓS o cliente CONFIRMAR o pedido
+- Se o cliente ainda está escolhendo, NÃO inclua a tag
+
+═══════════════════════════════════════════════════════════════════════
+`;
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🚫 VERIFICAÇÃO DE SUSPENSÃO POR VIOLAÇÃO DE POLÍTICAS
@@ -868,6 +1291,7 @@ export interface AIResponseResult {
     reason: string;
   };
   appointmentCreated?: any;
+  deliveryOrderCreated?: any;
 }
 
 // 📝 Converter formatação Markdown para WhatsApp
@@ -895,6 +1319,7 @@ export interface AIResponseOptions {
   contactName?: string;  // Nome do cliente (pushName do WhatsApp)
   contactPhone?: string; // Telefone do cliente (para agendamento)
   sentMedias?: string[]; // Lista de mídias já enviadas nesta conversa
+  conversationId?: string; // ID da conversa (para vincular pedidos de delivery)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1363,6 +1788,30 @@ export async function generateAIResponse(
        console.error(`📅 [AI Agent] Error loading scheduling config:`, schedError);
      }
 
+     // 📦 INJETAR CATÁLOGO DE PRODUTOS (se ativo)
+     try {
+       const productsData = await getProductsForAI(userId);
+       if (productsData && productsData.active && productsData.count > 0) {
+         const productsPromptBlock = generateProductsPromptBlock(productsData);
+         systemPrompt += '\n\n' + productsPromptBlock;
+         console.log(`📦 [AI Agent] Products catalog ACTIVE - ${productsData.count} products injected into prompt`);
+       }
+     } catch (prodError) {
+       console.error(`📦 [AI Agent] Error loading products:`, prodError);
+     }
+
+     // 🍕 INJETAR CARDÁPIO DE DELIVERY (se ativo)
+     try {
+       const deliveryData = await getDeliveryMenuForAI(userId);
+       if (deliveryData && deliveryData.active && deliveryData.total_items > 0) {
+         const deliveryPromptBlock = generateDeliveryPromptBlock(deliveryData);
+         systemPrompt += '\n\n' + deliveryPromptBlock;
+         console.log(`🍕 [AI Agent] Delivery menu ACTIVE - ${deliveryData.total_items} items injected into prompt`);
+       }
+     } catch (deliveryError) {
+       console.error(`🍕 [AI Agent] Error loading delivery menu:`, deliveryError);
+     }
+
      // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA
      systemPrompt += memoryContextBlock;
      
@@ -1801,7 +2250,8 @@ Mensagem do cliente: ${newMessageText.trim()}`;
     // Base generosa para permitir respostas completas
     // 1 token ≈ 3-4 caracteres em português
     // 2000 tokens ≈ 6000-8000 chars (mensagens bem longas)
-    const baseMaxTokens = questionLength < 20 ? 600 : questionLength < 50 ? 1000 : 2000;
+    // 🔧 FIX: Aumentado mínimo de 600 para 1200 tokens para evitar corte de respostas sobre preços/planos
+    const baseMaxTokens = questionLength < 20 ? 1200 : questionLength < 50 ? 1500 : 2000;
     
     // 🆕 Se usar sistema avançado, respeitar maxResponseLength configurado
     // Usar MAX ao invés de MIN para garantir que resposta não seja cortada
@@ -1913,11 +2363,11 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       responseText = cleanInstructionLeaks(responseText);
       
       // 1. Detectar se tem texto que parece ser do prompt (padrões de instrução)
-      const hasPromptLeak = responseText.includes('online/cadastro)') ||
-                           responseText.includes('Depois de logado, no menu') ||
-                           responseText.includes('clica em Ilimitado') ||
-                           responseText.match(/\[MEDIA:[^\]]+\]\s*\[MEDIA:/) || // Múltiplas tags seguidas
-                           responseText.match(/^#{1,3}\s.*\n#{1,3}\s/m); // Múltiplos headers seguidos
+      // 🔧 FIX 2025-01: DESABILITADA lógica agressiva de prompt leak
+      // Essa lógica estava cortando respostas legítimas sobre preços/planos
+      // Ex: "1. R$49,99/mês por número (total de R$199,96/mês) 2." era cortada incorretamente
+      // A função cleanInstructionLeaks já faz a limpeza necessária sem cortar conteúdo válido
+      const hasPromptLeak = false; // Desabilitado - era muito agressivo
       
       if (hasPromptLeak) {
         console.log(`⚠️ [AI Agent] Detectado vazamento de prompt! Limpando...`);
@@ -2077,6 +2527,26 @@ Mensagem do cliente: ${newMessageText.trim()}`;
         console.error(`📅 [AI Agent] Error processing scheduling tags:`, schedError);
       }
     }
+
+    // 🍕 PROCESSAR TAGS DE PEDIDO DE DELIVERY [PEDIDO_DELIVERY: ...]
+    let deliveryOrderCreated: any = undefined;
+    if (responseText && options?.contactPhone) {
+      try {
+        const deliveryResult = await processDeliveryOrderTags(
+          responseText, 
+          userId, 
+          options.contactPhone,
+          options.conversationId
+        );
+        responseText = deliveryResult.text;
+        if (deliveryResult.orderCreated) {
+          deliveryOrderCreated = deliveryResult.orderCreated;
+          console.log(`🍕 [AI Agent] Delivery order created: #${deliveryOrderCreated.id} for ${deliveryOrderCreated.customer_name}`);
+        }
+      } catch (deliveryError) {
+        console.error(`🍕 [AI Agent] Error processing delivery order tags:`, deliveryError);
+      }
+    }
     
     // 🔄 VERIFICAÇÃO ANTI-LOOP - Não enviar mesma resposta repetidamente
     if (responseText) {
@@ -2093,6 +2563,7 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       mediaActions,
       notification,
       appointmentCreated,
+      deliveryOrderCreated,
     };
   } catch (error: any) {
     console.error("Error generating AI response:", error);
@@ -2134,7 +2605,7 @@ export async function testAgentResponse(
   conversationHistory?: Message[],
   sentMedias?: string[],
   contactName: string = "Visitante"
-): Promise<{ text: string | null; mediaActions: MistralResponse['actions']; appointmentCreated?: any }> {
+): Promise<{ text: string | null; mediaActions: MistralResponse['actions']; appointmentCreated?: any; deliveryOrderCreated?: any }> {
   try {
     console.log(`\n🧪 ═══════════════════════════════════════════════════════════════`);
     console.log(`🧪 [SIMULADOR UNIFICADO] Usando MESMO fluxo do WhatsApp`);
@@ -2162,6 +2633,7 @@ export async function testAgentResponse(
     // - Placeholders são processados
     // - Mídias são detectadas e não repetidas
     // - Agendamentos podem ser criados (com telefone simulado)
+    // - 🍕 Pedidos de delivery podem ser criados
     
     const result = await generateAIResponse(
       userId,
@@ -2183,7 +2655,7 @@ export async function testAgentResponse(
     
     if (!result) {
       console.log(`🧪 [SIMULADOR] ⚠️ Sem resposta do generateAIResponse`);
-      return { text: null, mediaActions: [], appointmentCreated: undefined };
+      return { text: null, mediaActions: [], appointmentCreated: undefined, deliveryOrderCreated: undefined };
     }
     
     console.log(`🧪 [SIMULADOR] ✅ Resposta gerada: ${result.text?.substring(0, 80)}...`);
@@ -2191,12 +2663,16 @@ export async function testAgentResponse(
     if (result.appointmentCreated) {
       console.log(`🧪 [SIMULADOR] 📅 Agendamento criado: ${result.appointmentCreated.id}`);
     }
+    if (result.deliveryOrderCreated) {
+      console.log(`🧪 [SIMULADOR] 🍕 Pedido de delivery criado: #${result.deliveryOrderCreated.id}`);
+    }
     console.log(`🧪 ═══════════════════════════════════════════════════════════════\n`);
     
     return { 
       text: result.text, 
       mediaActions: result.mediaActions || [],
-      appointmentCreated: result.appointmentCreated
+      appointmentCreated: result.appointmentCreated,
+      deliveryOrderCreated: result.deliveryOrderCreated
     };
   } catch (error) {
     console.error("🧪 [SIMULADOR] Error:", error);
