@@ -30,6 +30,41 @@ async function ensureTmpDir(): Promise<void> {
 }
 
 /**
+ * Remove URLs do texto antes de converter em áudio
+ * Evita que o TTS fale links longos e sem sentido
+ * 
+ * Exemplos removidos:
+ * - https://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e
+ * - http://example.com
+ * - www.site.com.br
+ * 
+ * @param text - Texto original
+ * @returns Texto sem URLs
+ */
+function removeUrlsFromText(text: string): string {
+  if (!text) return text;
+
+  // Regex para detectar URLs completas (http/https/www)
+  // Match: http://, https://, www.
+  const urlRegex = /(?:https?:\/\/|www\.)[^\s]+/gi;
+  
+  // Remover URLs e espaços duplos resultantes
+  const cleanedText = text
+    .replace(urlRegex, '') // Remove URLs
+    .replace(/\s{2,}/g, ' ') // Remove espaços duplos
+    .trim(); // Remove espaços nas bordas
+
+  // Log para debug
+  if (text !== cleanedText) {
+    console.log(`🔗 [TTS-RESPONSE] URLs removidas do texto para áudio`);
+    console.log(`   Original: "${text.substring(0, 100)}..."`);
+    console.log(`   Limpo: "${cleanedText.substring(0, 100)}..."`);
+  }
+
+  return cleanedText;
+}
+
+/**
  * Verifica se deve gerar áudio TTS para a resposta da IA
  * @param userId - ID do usuário
  * @returns Configuração de áudio ou null se desabilitado/sem cota
@@ -79,6 +114,7 @@ export async function shouldGenerateAudioResponse(userId: string): Promise<{
 
 /**
  * Gera áudio TTS da resposta da IA
+ * IMPORTANTE: Remove URLs do texto antes de converter
  * @param text - Texto para converter em áudio
  * @param voice - Voz do Edge TTS
  * @param rate - Taxa de velocidade (ex: "+0%", "-20%")
@@ -90,14 +126,23 @@ export async function generateAudioForResponse(
   rate: string
 ): Promise<Buffer | null> {
   try {
-    // Limitar texto muito longo (evitar áudios muito longos)
+    // 1. REMOVER URLs do texto (SEMPRE antes de gerar áudio)
+    const textWithoutUrls = removeUrlsFromText(text);
+
+    if (!textWithoutUrls || textWithoutUrls.trim().length === 0) {
+      console.log(`⚠️ [TTS-RESPONSE] Texto vazio após remover URLs, pulando geração de áudio`);
+      return null;
+    }
+
+    // 2. Limitar texto muito longo (evitar áudios muito longos)
     const maxLength = 500;
-    const trimmedText = text.length > maxLength 
-      ? text.substring(0, maxLength) + "..." 
-      : text;
+    const trimmedText = textWithoutUrls.length > maxLength 
+      ? textWithoutUrls.substring(0, maxLength) + "..." 
+      : textWithoutUrls;
 
     console.log(`🎙️ [TTS-RESPONSE] Gerando áudio para: "${trimmedText.substring(0, 50)}..."`);
 
+    // 3. Gerar áudio com Edge TTS
     const audioBuffer = await generateWithEdgeTTS(trimmedText, voice, rate);
 
     if (!audioBuffer || audioBuffer.length < 1000) {
