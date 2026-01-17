@@ -542,8 +542,13 @@ export function formatMenuForCustomer(deliveryData: DeliveryMenuForAIResponse): 
   let menuText = `${emoji} *${businessName.toUpperCase()}*\n`;
   menuText += `━━━━━━━━━━━━━━━━━━━━\n\n`;
   
+  const MAX_SECTION_CHARS = 350; // Limite para evitar seções muito grandes (margem de segurança)
+  
   for (const category of deliveryData.categories) {
     menuText += `📁 *${category.name}*\n\n`;
+    
+    let currentSection = '';
+    let itemCount = 0;
     
     for (const item of category.items) {
       const price = item.promotional_price 
@@ -552,15 +557,36 @@ export function formatMenuForCustomer(deliveryData: DeliveryMenuForAIResponse): 
       
       // Cada produto em uma linha bem formatada
       const itemLine = `${item.is_featured ? '⭐ ' : '▪️ '}${item.name}`;
-      menuText += `${itemLine}\n`;
+      let itemText = `${itemLine}\n`;
       
       if (item.description) {
-        menuText += `   _${item.description}_\n`;
+        itemText += `   _${item.description}_\n`;
       }
       
-      menuText += `   💰 ${price}`;
-      if (item.serves > 1) menuText += ` • Serve ${item.serves}`;
-      menuText += '\n\n';
+      itemText += `   💰 ${price}`;
+      if (item.serves > 1) itemText += ` • Serve ${item.serves}`;
+      itemText += '\n\n';
+      
+      // Se adicionar este item ultrapassar o limite, fecha a seção atual
+      if (currentSection.length + itemText.length > MAX_SECTION_CHARS && currentSection.length > 0) {
+        menuText += currentSection;
+        menuText += '\n'; // Quebra dupla para separar sub-seções da mesma categoria
+        currentSection = itemText;
+      } else {
+        currentSection += itemText;
+      }
+      
+      itemCount++;
+    }
+    
+    // Adiciona o restante da seção
+    if (currentSection) {
+      menuText += currentSection;
+    }
+    
+    // Quebra dupla entre categorias
+    if (deliveryData.categories.indexOf(category) < deliveryData.categories.length - 1) {
+      menuText += '\n';
     }
   }
   
@@ -2449,6 +2475,38 @@ Mensagem do cliente: ${newMessageText.trim()}`;
     const model = useAdvancedSystem && businessConfig?.model 
       ? businessConfig.model 
       : agentConfig.model;
+    
+    // ════════════════════════════════════════════════════════════════════════════
+    // 🎯 CACHE DE RESPOSTAS: Garante que mesma pergunta = mesma resposta SEMPRE
+    // O Mistral API tem variação mesmo com temperature=0, então usamos cache
+    // para garantir determinismo absoluto entre Simulador e WhatsApp
+    // ════════════════════════════════════════════════════════════════════════════
+    
+    // Gerar hash do prompt para validar cache (se prompt mudar, cache é invalidado)
+    const promptHash = crypto.createHash('md5')
+      .update((agentConfig?.prompt || '').substring(0, 500))
+      .digest('hex')
+      .substring(0, 8);
+    
+    // ⚠️ CACHE DESATIVADO TEMPORARIAMENTE
+    // Motivo: O cache estava causando problemas porque a resposta precisa considerar
+    // o contexto da conversa (histórico), não apenas a mensagem atual.
+    // Uma mesma mensagem "oi" pode ter respostas diferentes dependendo do histórico.
+    // TODO: Implementar cache mais inteligente que considere o contexto
+    /*
+    // Verificar se temos resposta cacheada para esta pergunta
+    const cachedResponse = getCachedResponse(userId, newMessageText, promptHash);
+    if (cachedResponse) {
+      console.log(`✅ [CACHE HIT] Usando resposta cacheada para evitar variação do Mistral`);
+      // Retornar resposta cacheada diretamente (pular chamada do Mistral)
+      const processedCached = processResponsePlaceholders(cachedResponse, contactName, contactPhone);
+      return {
+        text: processedCached,
+        mediaActions: [],
+        notification: undefined,
+      };
+    }
+    */
     
     // 🔄 CHAMADA COM RETRY AUTOMÁTICO PARA ERROS DE API (rate limit, timeout, etc)
     // 🎯 TEMPERATURE 0.0 + SEED FIXO: Respostas 100% DETERMINÍSTICAS
