@@ -5,7 +5,7 @@
 
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
-import { isAuthenticated, getSession } from "./supabaseAuth";
+import { isAuthenticated, getUserId } from "./supabaseAuth";
 import { generateTTS, generateWithEdgeTTS } from "./ttsService";
 import fs from "fs";
 import path from "path";
@@ -25,20 +25,17 @@ export function registerAudioConfigRoutes(app: Express): void {
    */
   app.get("/api/audio-config", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const session = await getSession(req);
-      if (!session?.user?.id) {
-        return res.status(401).json({ message: "Não autenticado" });
-      }
+      const userId = getUserId(req);
 
-      let config = await storage.getAudioConfig(session.user.id);
+      let config = await storage.getAudioConfig(userId);
       
       // Se não existe, criar configuração padrão
       if (!config) {
-        config = await storage.createAudioConfig(session.user.id);
+        config = await storage.createAudioConfig(userId);
       }
 
       // Buscar uso do dia
-      const usage = await storage.canSendAudio(session.user.id);
+      const usage = await storage.canSendAudio(userId);
 
       res.json({
         config: {
@@ -65,10 +62,7 @@ export function registerAudioConfigRoutes(app: Express): void {
    */
   app.put("/api/audio-config", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const session = await getSession(req);
-      if (!session?.user?.id) {
-        return res.status(401).json({ message: "Não autenticado" });
-      }
+      const userId = getUserId(req);
 
       const { isEnabled, voiceType, speed } = req.body;
 
@@ -85,7 +79,7 @@ export function registerAudioConfigRoutes(app: Express): void {
         return res.status(400).json({ message: "Tipo de voz inválido. Use 'female' ou 'male'" });
       }
 
-      const config = await storage.updateAudioConfig(session.user.id, {
+      const config = await storage.updateAudioConfig(userId, {
         isEnabled: isEnabled !== undefined ? isEnabled : undefined,
         voiceType: voiceType || undefined,
         speed: speed !== undefined ? String(speed) : undefined,
@@ -111,12 +105,9 @@ export function registerAudioConfigRoutes(app: Express): void {
    */
   app.get("/api/audio-config/usage", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const session = await getSession(req);
-      if (!session?.user?.id) {
-        return res.status(401).json({ message: "Não autenticado" });
-      }
+      const userId = getUserId(req);
 
-      const usage = await storage.canSendAudio(session.user.id);
+      const usage = await storage.canSendAudio(userId);
 
       res.json({
         used: usage.limit - usage.remaining,
@@ -137,18 +128,15 @@ export function registerAudioConfigRoutes(app: Express): void {
    */
   app.post("/api/audio-config/test", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const session = await getSession(req);
-      if (!session?.user?.id) {
-        return res.status(401).json({ message: "Não autenticado" });
-      }
+      const userId = getUserId(req);
 
       const { text, speed: overrideSpeed } = req.body;
       const testText = text || "Olá! Este é um teste da configuração de voz para o seu agente de atendimento.";
 
       // Buscar config do usuário
-      let config = await storage.getAudioConfig(session.user.id);
+      let config = await storage.getAudioConfig(userId);
       if (!config) {
-        config = await storage.createAudioConfig(session.user.id);
+        config = await storage.createAudioConfig(userId);
       }
 
       // Determinar velocidade (pode ser sobrescrita para teste)
@@ -190,10 +178,7 @@ export function registerAudioConfigRoutes(app: Express): void {
    */
   app.post("/api/audio-config/preview", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const session = await getSession(req);
-      if (!session?.user?.id) {
-        return res.status(401).json({ message: "Não autenticado" });
-      }
+      const userId = getUserId(req);
 
       const { speed, voiceType } = req.body;
 
