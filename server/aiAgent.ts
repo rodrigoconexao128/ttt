@@ -2681,16 +2681,24 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       
       const deliveryMenu = await getDeliveryMenuForAI(userId);
       if (deliveryMenu && deliveryMenu.active) {
+        console.log(`🍕 [AI Agent] Cardápio obtido: ${deliveryMenu.total_items} itens, ${deliveryMenu.categories.length} categorias`);
+        deliveryMenu.categories.forEach(cat => {
+          console.log(`   - ${cat.name}: ${cat.items.length} itens`);
+        });
+        
         const formattedMenu = formatMenuForCustomer(deliveryMenu);
         
         // Substituir a tag pelo cardápio formatado
         responseText = responseText.replace(/\[ENVIAR_CARDAPIO_COMPLETO\]/g, formattedMenu);
         console.log(`🍕 [AI Agent] ✅ Cardápio formatado inserido (${formattedMenu.length} chars)`);
+        console.log(`🍕 [AI Agent] Preview: ${formattedMenu.substring(0, 200)}...`);
       } else {
         // Se não tem cardápio ativo, remover a tag e deixar a mensagem da IA
         responseText = responseText.replace(/\[ENVIAR_CARDAPIO_COMPLETO\]/g, '');
         console.log(`⚠️ [AI Agent] Cardápio não disponível - tag removida`);
       }
+    } else {
+      console.log(`⚠️ [AI Agent] TAG NÃO DETECTADA! Response: ${responseText?.substring(0, 300)}`);
     }
     
     // 📁 PROCESSAR MÍDIAS: Detectar tags [ENVIAR_MIDIA:NOME] na resposta
