@@ -5,7 +5,7 @@
 
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
-import { isAuthenticated, getUserId } from "./supabaseAuth";
+import { isAuthenticated } from "./supabaseAuth";
 import { generateTTS, generateWithEdgeTTS } from "./ttsService";
 import fs from "fs";
 import path from "path";
@@ -25,7 +25,7 @@ export function registerAudioConfigRoutes(app: Express): void {
    */
   app.get("/api/audio-config", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = getUserId(req);
+      const userId = (req as any).user.claims.sub;
 
       let config = await storage.getAudioConfig(userId);
       
@@ -62,7 +62,7 @@ export function registerAudioConfigRoutes(app: Express): void {
    */
   app.put("/api/audio-config", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = getUserId(req);
+      const userId = (req as any).user.claims.sub;
 
       const { isEnabled, voiceType, speed } = req.body;
 
@@ -105,7 +105,7 @@ export function registerAudioConfigRoutes(app: Express): void {
    */
   app.get("/api/audio-config/usage", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = getUserId(req);
+      const userId = (req as any).user.claims.sub;
 
       const usage = await storage.canSendAudio(userId);
 
@@ -128,7 +128,7 @@ export function registerAudioConfigRoutes(app: Express): void {
    */
   app.post("/api/audio-config/test", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = getUserId(req);
+      const userId = (req as any).user.claims.sub;
 
       const { text, speed: overrideSpeed } = req.body;
       const testText = text || "Olá! Este é um teste da configuração de voz para o seu agente de atendimento.";
@@ -178,7 +178,7 @@ export function registerAudioConfigRoutes(app: Express): void {
    */
   app.post("/api/audio-config/preview", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = getUserId(req);
+      const userId = (req as any).user.claims.sub;
 
       const { speed, voiceType } = req.body;
 
