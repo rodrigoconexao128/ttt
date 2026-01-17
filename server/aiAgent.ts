@@ -2693,9 +2693,11 @@ Mensagem do cliente: ${newMessageText.trim()}`;
     
     // 🍕 PROCESSAR TAG DE CARDÁPIO: [ENVIAR_CARDAPIO_COMPLETO]
     if (responseText && responseText.includes('[ENVIAR_CARDAPIO_COMPLETO]')) {
-      console.log(`🍕 [AI Agent] Tag [ENVIAR_CARDAPIO_COMPLETO] detectada! Buscando cardápio...`);
+      console.log(`🍕 [AI Agent] Tag [ENVIAR_CARDAPIO_COMPLETO] detectada! Buscando cardápio para userId=${userId}...`);
       
       const deliveryMenu = await getDeliveryMenuForAI(userId);
+      console.log(`🍕 [AI Agent] DEBUG getDeliveryMenuForAI retornou: ${deliveryMenu ? `active=${deliveryMenu.active}, items=${deliveryMenu.total_items}` : 'NULL'}`);
+      
       if (deliveryMenu && deliveryMenu.active) {
         console.log(`🍕 [AI Agent] Cardápio obtido: ${deliveryMenu.total_items} itens, ${deliveryMenu.categories.length} categorias`);
         deliveryMenu.categories.forEach(cat => {
@@ -2703,6 +2705,7 @@ Mensagem do cliente: ${newMessageText.trim()}`;
         });
         
         const formattedMenu = formatMenuForCustomer(deliveryMenu);
+        console.log(`🍕 [AI Agent] DEBUG formattedMenu length=${formattedMenu.length}`);
         
         // Substituir a tag pelo cardápio formatado
         responseText = responseText.replace(/\[ENVIAR_CARDAPIO_COMPLETO\]/g, formattedMenu);
@@ -2711,7 +2714,7 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       } else {
         // Se não tem cardápio ativo, remover a tag e deixar a mensagem da IA
         responseText = responseText.replace(/\[ENVIAR_CARDAPIO_COMPLETO\]/g, '');
-        console.log(`⚠️ [AI Agent] Cardápio não disponível - tag removida`);
+        console.log(`⚠️ [AI Agent] Cardápio não disponível - tag removida. deliveryMenu=${JSON.stringify(deliveryMenu)?.substring(0, 200)}`);
       }
     } else {
       console.log(`⚠️ [AI Agent] TAG NÃO DETECTADA! Response: ${responseText?.substring(0, 300)}`);
