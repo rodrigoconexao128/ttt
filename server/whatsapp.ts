@@ -26,6 +26,7 @@ import { db } from "./db";
 import { conversations } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { uploadMediaToStorage } from "./mediaStorageService";
+import { processAudioResponseForAgent } from "./audioResponseService";
 
 // -----------------------------------------------------------------------
 // ?? SISTEMA DE CACHE DE MENSAGENS PARA RETRY (FIX "AGUARDANDO MENSAGEM")
@@ -3642,9 +3643,25 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         console.log(`[AI Agent] Part ${i+1}/${messageParts.length} SENT to WhatsApp ${contactNumber}`);
       }
       
-      // ?? EXECUTAR A��ES DE M�DIA (enviar �udios, imagens, v�deos)
+      // 🎤 TTS: Gerar e enviar áudio da resposta (se configurado)
+      try {
+        const audioSent = await processAudioResponseForAgent(
+          userId,
+          jid,
+          aiResponse,
+          currentSession.socket
+        );
+        if (audioSent) {
+          console.log(`🎤 [AI Agent] Áudio TTS enviado junto com a resposta`);
+        }
+      } catch (audioError) {
+        console.error(`⚠️ [AI Agent] Erro ao processar áudio TTS (não crítico):`, audioError);
+        // Continuar mesmo se falhar - o texto já foi enviado
+      }
+      
+      // 🎬 EXECUTAR AÇÕES DE MÍDIA (enviar áudios, imagens, vídeos)
       if (mediaActions.length > 0) {
-        console.log(`?? [AI Agent] Executando ${mediaActions.length} a��es de m�dia...`);
+        console.log(`🎬 [AI Agent] Executando ${mediaActions.length} ações de mídia...`);
         
         const conversationDataForMedia = await storage.getConversation(conversationId);
         const mediaJid = conversationDataForMedia

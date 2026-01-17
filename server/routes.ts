@@ -7,6 +7,7 @@ import { storage, dbCircuitBreaker, memoryCache } from "./storage";
 import { followUpService } from "./followUpService";
 import { userFollowUpService } from "./userFollowUpService";
 import { registerFollowUpRoutes } from "./routes_user_followup";
+import { registerAudioConfigRoutes } from "./routes_audio_config";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 import { withRetry, db } from "./db";
 import { eq, and, gte, desc, inArray } from "drizzle-orm";
@@ -448,6 +449,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== FOLLOW-UP INTELIGENTE ROUTES ====================
   registerFollowUpRoutes(app);
+  
+  // ==================== AUDIO CONFIG (TTS) ROUTES ====================
+  registerAudioConfigRoutes(app);
   
   // Iniciar serviço de follow-up dos usuários
   userFollowUpService.start();
@@ -5022,23 +5026,30 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
         return res.status(400).json({ message: "currentPrompt e instruction são obrigatórios" });
       }
 
+      // Buscar chave Mistral logo no início (necessário para análise de intenção)
+      const mistralConfig = await storage.getSystemConfig('mistral_api_key');
+      const mistralApiKey = mistralConfig?.valor || process.env.MISTRAL_API_KEY || '';
+      
+      console.log(`🔑 [Edit Prompt] Key from DB: ${mistralConfig?.valor ? `EXISTS (${mistralConfig.valor.substring(0, 10)}...)` : 'NOT FOUND'}`);
+      console.log(`🔑 [Edit Prompt] Key from ENV: ${process.env.MISTRAL_API_KEY ? `EXISTS` : 'NOT FOUND'}`);
+      
+      if (!mistralApiKey) {
+        return res.status(500).json({ 
+          message: "Chave API Mistral não configurada. Configure em Configurações > Sistema." 
+        });
+      }
+
       // ==================================================================================
-      // 🎯 SISTEMA DE DETECÇÃO DE CONTEXTO INTELIGENTE
-      // Detecta se a instrução do usuário se refere a módulos específicos (delivery, catálogo)
-      // para evitar duplicação no prompt principal
+      // 🎯 SISTEMA INTELIGENTE DE DETECÇÃO DE INTENÇÃO (usando IA)
+      // Analisa se o usuário quer editar LISTAGEM/FORMATAÇÃO de módulos ativos
+      // vs apenas COMPORTAMENTO/ATENDIMENTO
       // ==================================================================================
-      const instructionLower = instruction.toLowerCase();
       
-      // Palavras-chave para módulos específicos
-      const deliveryKeywords = ['cardápio', 'cardapio', 'delivery', 'menu', 'pedido', 'entrega', 'retirada', 'listar itens', 'listar produtos do delivery', 'mostrar cardápio', 'enviar cardápio'];
-      const catalogKeywords = ['catálogo', 'catalogo', 'produtos', 'estoque', 'listar produtos', 'mostrar produtos', 'lista de produtos'];
-      
-      const isDeliveryRelated = deliveryKeywords.some(kw => instructionLower.includes(kw));
-      const isCatalogRelated = catalogKeywords.some(kw => instructionLower.includes(kw));
-      
-      // Verificar módulos ativos
+      // Verificar módulos ativos primeiro
       let deliveryActive = false;
       let catalogActive = false;
+      let deliveryItemNames: string[] = [];
+      let productNames: string[] = [];
       
       try {
         const { data: deliveryConfig } = await supabase
@@ -5048,39 +5059,140 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           .single();
         deliveryActive = deliveryConfig?.is_active && deliveryConfig?.send_to_ai;
         
+        // Se delivery ativo, buscar nomes dos itens para detecção
+        if (deliveryActive) {
+          const { data: items } = await supabase
+            .from('menu_items')
+            .select('name')
+            .eq('user_id', userId)
+            .eq('is_available', true)
+            .limit(50);
+          deliveryItemNames = items?.map(i => i.name.toLowerCase()) || [];
+        }
+        
         const { data: productsConfig } = await supabase
           .from('products_config')
           .select('is_active, send_to_ai')
           .eq('user_id', userId)
           .single();
         catalogActive = productsConfig?.is_active && productsConfig?.send_to_ai;
+        
+        // Se catálogo ativo, buscar nomes dos produtos para detecção
+        if (catalogActive) {
+          const { data: products } = await supabase
+            .from('products')
+            .select('name')
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .limit(50);
+          productNames = products?.map(p => p.name.toLowerCase()) || [];
+        }
       } catch (e) {
         // Módulos não configurados
       }
       
-      // 🚨 AVISO SE USUÁRIO ESTÁ EDITANDO ALGO QUE É GERENCIADO AUTOMATICAMENTE
-      if (isDeliveryRelated && deliveryActive) {
-        console.log(`⚠️ [Edit Prompt] Instrução sobre DELIVERY detectada, mas módulo está ATIVO!`);
-        return res.json({
-          success: false,
-          conflictDetected: true,
-          conflictType: 'delivery',
-          message: `⚠️ Percebi que você quer modificar como o **cardápio/delivery** é exibido. Como você tem o módulo de Delivery **ATIVO**, a formatação do cardápio é gerenciada automaticamente pelo sistema.\n\n🔧 **O que você pode fazer:**\n1. Ir em **Delivery > Cardápio** para editar os itens e categorias\n2. Editar as **Instruções de Atendimento** nas configurações do Delivery\n3. Se quiser controle total, desative "Enviar para IA" nas configurações do Delivery\n\n💡 Isso evita que o cardápio fique duplicado ou conflitante no seu agente.`,
-          feedbackMessage: `⚠️ Percebi que você quer modificar como o **cardápio/delivery** é exibido.\n\nComo você tem o módulo de Delivery **ATIVO**, a formatação do cardápio é gerenciada automaticamente pelo sistema em **Delivery > Cardápio**.\n\n💡 Isso evita duplicação e conflitos no prompt do agente.`,
-          suggestion: 'Edite o cardápio em Delivery > Cardápio'
-        });
-      }
-      
-      if (isCatalogRelated && catalogActive) {
-        console.log(`⚠️ [Edit Prompt] Instrução sobre CATÁLOGO detectada, mas módulo está ATIVO!`);
-        return res.json({
-          success: false,
-          conflictDetected: true,
-          conflictType: 'catalog',
-          message: `⚠️ Percebi que você quer modificar como o **catálogo de produtos** é exibido. Como você tem o módulo de Produtos **ATIVO**, a listagem é gerenciada automaticamente pelo sistema.\n\n🔧 **O que você pode fazer:**\n1. Ir em **Produtos** para editar os itens e categorias\n2. Editar as **Instruções de IA** nas configurações de Produtos\n3. Se quiser controle total, desative "Enviar para IA" nas configurações de Produtos\n\n💡 Isso evita que os produtos fiquem duplicados no seu agente.`,
-          feedbackMessage: `⚠️ Percebi que você quer modificar como o **catálogo de produtos** é exibido.\n\nComo você tem o módulo de Produtos **ATIVO**, a listagem é gerenciada automaticamente pelo sistema em **Produtos**.\n\n💡 Isso evita duplicação e conflitos no prompt do agente.`,
-          suggestion: 'Edite os produtos em Produtos'
-        });
+      // Se nenhum módulo ativo, prosseguir normalmente
+      if (!deliveryActive && !catalogActive) {
+        console.log(`✅ [Edit Prompt] Nenhum módulo ativo - edição livre`);
+      } else {
+        // 🧠 ANÁLISE DE INTENÇÃO USANDO IA (Mistral)
+        console.log(`🧠 [Intent Detection] Analisando intenção da instrução com IA...`);
+        
+        const intentAnalysisPrompt = `Você é um analisador de intenções. Analise a seguinte instrução de edição de prompt e determine se o usuário quer editar a FORMATAÇÃO/LISTAGEM de itens OU apenas o COMPORTAMENTO/ATENDIMENTO.
+
+CONTEXTO:
+${deliveryActive ? `- Módulo DELIVERY está ATIVO (cardápio com ${deliveryItemNames.length} itens)` : ''}
+${catalogActive ? `- Módulo CATÁLOGO está ATIVO (produtos com ${productNames.length} itens)` : ''}
+
+INSTRUÇÃO DO USUÁRIO:
+"${instruction}"
+
+ANÁLISE - Responda APENAS com um JSON válido no seguinte formato:
+{
+  "quer_editar_listagem": true/false,
+  "modulo_afetado": "delivery" ou "catalog" ou "none",
+  "confianca": 0-100,
+  "razao": "breve explicação"
+}
+
+REGRAS:
+1. Se menciona como LISTAR, MOSTRAR, FORMATAR, ENVIAR itens/cardápio/produtos → quer_editar_listagem = true
+2. Se menciona nome específico de item (ex: "${deliveryItemNames[0] || 'Pizza Calabresa'}") → quer_editar_listagem = true
+3. Se menciona apenas COMPORTAMENTO (como atender, reagir, responder) → quer_editar_listagem = false
+4. Se diz "quando pedir cardápio, faça X" (contexto de REAÇÃO) → quer_editar_listagem = false
+5. Se diz "mude o cardápio para..." (contexto de EDIÇÃO) → quer_editar_listagem = true
+
+Responda APENAS com o JSON, sem texto adicional.`;
+
+        try {
+          const intentResponse = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${mistralApiKey}`
+            },
+            body: JSON.stringify({
+              model: 'mistral-small-latest',
+              messages: [{ role: 'user', content: intentAnalysisPrompt }],
+              temperature: 0.1,
+              max_tokens: 200
+            })
+          });
+
+          if (!intentResponse.ok) {
+            throw new Error(`Mistral API error: ${intentResponse.status}`);
+          }
+
+          const intentData = await intentResponse.json();
+          const intentText = intentData.choices[0]?.message?.content?.trim() || '{}';
+          
+          // Parse JSON da resposta
+          let intentAnalysis;
+          try {
+            // Extrair JSON se vier com markdown
+            const jsonMatch = intentText.match(/\{[\s\S]*\}/);
+            intentAnalysis = JSON.parse(jsonMatch ? jsonMatch[0] : intentText);
+          } catch (e) {
+            console.error(`❌ [Intent Detection] Erro ao parsear JSON:`, intentText);
+            intentAnalysis = { quer_editar_listagem: false, modulo_afetado: 'none', confianca: 0 };
+          }
+
+          console.log(`🧠 [Intent Detection] Resultado:`, intentAnalysis);
+
+          // 🚨 SE DETECTOU INTENÇÃO DE EDITAR LISTAGEM DE MÓDULO ATIVO
+          if (intentAnalysis.quer_editar_listagem && intentAnalysis.confianca >= 60) {
+            if (intentAnalysis.modulo_afetado === 'delivery' && deliveryActive) {
+              console.log(`⚠️ [Edit Prompt] BLOQUEIO: Usuário quer editar LISTAGEM do delivery (confiança ${intentAnalysis.confianca}%)`);
+              return res.json({
+                success: false,
+                conflictDetected: true,
+                conflictType: 'delivery',
+                intentAnalysis,
+                message: `⚠️ Percebi que você quer modificar **como os itens do cardápio são listados/formatados**.\n\n📋 **Por que foi bloqueado:**\n${intentAnalysis.razao}\n\n🔧 **O que você pode fazer:**\n1. Ir em **Delivery > Cardápio** para editar itens, preços e descrições\n2. Editar as **Instruções de Atendimento** nas configurações do Delivery (comportamento, não formatação)\n3. Se quiser controle total da formatação, desative "Enviar para IA" nas configurações do Delivery\n\n💡 **Dica:** Se sua intenção era apenas mudar o COMPORTAMENTO (como reagir a perguntas), tente reformular a instrução de forma mais clara.`,
+                feedbackMessage: `⚠️ Percebi que você quer modificar **como os itens do cardápio são listados**.\n\nComo você tem o módulo de Delivery **ATIVO**, a formatação do cardápio é gerenciada automaticamente em **Delivery > Cardápio**.\n\n💡 **${intentAnalysis.razao}**`,
+                suggestion: 'Edite o cardápio em Delivery > Cardápio'
+              });
+            }
+            
+            if (intentAnalysis.modulo_afetado === 'catalog' && catalogActive) {
+              console.log(`⚠️ [Edit Prompt] BLOQUEIO: Usuário quer editar LISTAGEM do catálogo (confiança ${intentAnalysis.confianca}%)`);
+              return res.json({
+                success: false,
+                conflictDetected: true,
+                conflictType: 'catalog',
+                intentAnalysis,
+                message: `⚠️ Percebi que você quer modificar **como os produtos são listados/formatados**.\n\n📋 **Por que foi bloqueado:**\n${intentAnalysis.razao}\n\n🔧 **O que você pode fazer:**\n1. Ir em **Produtos** para editar itens, preços e descrições\n2. Editar as **Instruções de IA** nas configurações de Produtos (comportamento, não formatação)\n3. Se quiser controle total da formatação, desative "Enviar para IA" nas configurações de Produtos\n\n💡 **Dica:** Se sua intenção era apenas mudar o COMPORTAMENTO (como reagir a perguntas), tente reformular a instrução de forma mais clara.`,
+                feedbackMessage: `⚠️ Percebi que você quer modificar **como os produtos são listados**.\n\nComo você tem o módulo de Produtos **ATIVO**, a formatação do catálogo é gerenciada automaticamente em **Produtos**.\n\n💡 **${intentAnalysis.razao}**`,
+                suggestion: 'Edite os produtos em Produtos'
+              });
+            }
+          } else {
+            console.log(`✅ [Intent Detection] Instrução é sobre COMPORTAMENTO (confiança ${intentAnalysis.confianca}%) - permitindo edição`);
+          }
+        } catch (intentError: any) {
+          console.error(`❌ [Intent Detection] Erro na análise:`, intentError.message);
+          // Em caso de erro na análise, permitir edição (fail-safe)
+        }
       }
 
       // 🔒 CHECK DAILY CALIBRATION LIMIT FOR FREE USERS
@@ -5098,20 +5210,6 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
             limit: FREE_DAILY_CALIBRATION_LIMIT,
           });
         }
-      }
-
-      // Buscar chave Mistral do banco de dados
-      const mistralConfig = await storage.getSystemConfig('mistral_api_key');
-      const mistralApiKey = mistralConfig?.valor || process.env.MISTRAL_API_KEY || '';
-      
-      console.log(`🔑 [Edit Prompt] Key from DB: ${mistralConfig?.valor ? `EXISTS (${mistralConfig.valor.substring(0, 10)}...)` : 'NOT FOUND'}`);
-      console.log(`🔑 [Edit Prompt] Key from ENV: ${process.env.MISTRAL_API_KEY ? `EXISTS` : 'NOT FOUND'}`);
-      
-      if (!mistralApiKey) {
-        return res.status(500).json({ 
-          success: false, 
-          message: "Chave de API Mistral não configurada" 
-        });
       }
 
       // Usar novo serviço de edição via IA (Search/Replace com JSON)

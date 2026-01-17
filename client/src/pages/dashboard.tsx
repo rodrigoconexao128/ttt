@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useBranding } from "@/hooks/useBranding";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput, Package, UtensilsCrossed, ClipboardList } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput, Package, UtensilsCrossed, ClipboardList, Mic } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,7 @@ import CustomFieldsPage from "@/pages/custom-fields";
 import ProductsPage from "@/pages/products";
 import DeliveryMenuPage from "@/pages/delivery-menu";
 import DeliveryOrdersPage from "@/pages/delivery-orders";
+import AudioConfigPage from "@/pages/audio-config";
 import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation, useRoute } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan, Conversation } from "@shared/schema";
@@ -154,6 +155,7 @@ export default function Dashboard() {
   const isProductsRoute = location.startsWith("/produtos");
   const isDeliveryMenuRoute = location.startsWith("/delivery-cardapio");
   const isDeliveryOrdersRoute = location.startsWith("/delivery-pedidos");
+  const isAudioConfigRoute = location.startsWith("/falar-por-audio");
   const isDashboardMode =
     !isConversasRoute &&
     !isConexaoRoute &&
@@ -182,7 +184,8 @@ export default function Dashboard() {
     !isCustomFieldsRoute &&
     !isProductsRoute &&
     !isDeliveryMenuRoute &&
-    !isDeliveryOrdersRoute;
+    !isDeliveryOrdersRoute &&
+    !isAudioConfigRoute;
   const isToolsRoute =
     isMassSendRoute ||
     isCampaignsRoute ||
@@ -202,7 +205,8 @@ export default function Dashboard() {
     isCustomFieldsRoute ||
     isProductsRoute ||
     isDeliveryMenuRoute ||
-    isDeliveryOrdersRoute;
+    isDeliveryOrdersRoute ||
+    isAudioConfigRoute;
   
   // Rotas do menu Configurações
   const isConfigRoute =
@@ -374,6 +378,7 @@ const toolsNavigation: ToolNavItem[] = [
   },
   { label: "Follow-up Inteligente", href: "/followup", icon: Sparkles, tooltip: "Mensagens automáticas para recuperar conversas", isActive: isFollowupRoute, testId: "button-nav-followup" },
   { label: "Lista de Exclusão", href: "/lista-exclusao", icon: Ban, tooltip: "Números que a IA não deve responder", isActive: isExclusionListRoute, testId: "button-nav-exclusion-list" },
+  { label: "Falar por Áudio", href: "/falar-por-audio", icon: Mic, tooltip: "Respostas em áudio com TTS", isActive: isAudioConfigRoute, testId: "button-nav-audio-config" },
   { label: "Notificador Inteligente", href: "/notificador", icon: Bell, tooltip: "Notificações automáticas", isActive: isNotifierRoute, testId: "button-nav-notifier" },
   { label: "Biblioteca de Mídias", href: "/biblioteca-midias", icon: Upload, tooltip: "Áudios, imagens e vídeos do agente", isActive: isMediaLibraryRoute, testId: "button-nav-media-library" },
   { label: "Qualificação de Lead", href: "/qualificacao", icon: Brain, tooltip: "Análise por IA das conversas", isActive: isLeadQualificationRoute, testId: "button-nav-lead-qualification" },
@@ -986,6 +991,11 @@ const toolsNavigation: ToolNavItem[] = [
           {isDeliveryOrdersRoute && (
             <div className="flex-1 overflow-auto">
               <DeliveryOrdersPage />
+            </div>
+          )}
+          {isAudioConfigRoute && (
+            <div className="flex-1 overflow-auto">
+              <AudioConfigPage />
             </div>
           )}
           
