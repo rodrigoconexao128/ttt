@@ -52,14 +52,27 @@ export async function generateWithEdgeTTS(
     const tmpFile = path.join(tmpDir, `tts-${Date.now()}.mp3`);
     
     // Escapa o texto para linha de comando
-    const escapedText = text.replace(/"/g, '\\"');
+    const escapedText = text.replace(/"/g, '\\"').replace(/'/g, "\\'");
     
-    // Chama edge-tts CLI via Python
-    const command = `edge-tts --voice "${voice}" --rate="${rate}" --pitch="${pitch}" --text "${escapedText}" --write-media "${tmpFile}"`;
+    // 🔧 ESTRATÉGIA 1: Tentar usar edge-tts CLI direto
+    let command = `edge-tts --voice "${voice}" --rate="${rate}" --pitch="${pitch}" --text "${escapedText}" --write-media "${tmpFile}"`;
     
-    console.log('🔧 [EDGE-TTS] Executando:', command);
+    console.log('🔧 [EDGE-TTS] Tentando CLI direto...');
     
-    await execPromise(command);
+    try {
+      await execPromise(command);
+      console.log('✅ [EDGE-TTS] CLI funcionou!');
+    } catch (cliError: any) {
+      // Se CLI falhar, tentar usar o script Python wrapper
+      console.log('⚠️ [EDGE-TTS] CLI falhou, tentando script Python wrapper...');
+      
+      const scriptPath = path.join(process.cwd(), 'server', 'edge-tts-generator.py');
+      command = `python3 "${scriptPath}" "${escapedText}" "${voice}" "${rate}" "${pitch}" "${tmpFile}"`;
+      
+      console.log('🔧 [EDGE-TTS] Executando:', command);
+      await execPromise(command);
+      console.log('✅ [EDGE-TTS] Script Python funcionou!');
+    }
     
     // Lê o arquivo gerado
     const buffer = await fs.readFile(tmpFile);
@@ -71,7 +84,7 @@ export async function generateWithEdgeTTS(
     return buffer;
     
   } catch (error: any) {
-    console.error('❌ [EDGE-TTS] Erro:', error.message);
+    console.error('❌ [EDGE-TTS] Erro final:', error.message);
     throw new Error(`Edge TTS falhou: ${error.message}`);
   }
 }
