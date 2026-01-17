@@ -12,7 +12,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { randomUUID } from 'crypto';
 import say from 'say';
 import * as googleTTS from 'google-tts-api';
 
@@ -42,60 +41,63 @@ export async function generateWithEdgeTTS(
   rate: string = '+0%',
   pitch: string = '+0Hz'
 ): Promise<Buffer> {
-  console.log('🎙️ [EDGE-TTS] Gerando áudio com Microsoft Edge TTS...');
+  console.log('🎙️ [EDGE-TTS] Gerando áudio com Microsoft Edge TTS (CLI Python)...');
   console.log('📝 Texto:', text.substring(0, 80) + (text.length > 80 ? '...' : ''));
   console.log('🔊 Voz:', voice, '| Rate:', rate, '| Pitch:', pitch);
   
   try {
-    // ESTRATÉGIA: Usar API HTTP da Microsoft diretamente
-    // Edge TTS usa a API do Azure Speech Services (gratuita para uso limitado)
-    const { default: fetch } = await import('node-fetch');
+    // Criar diretório temporário
+    const tmpDir = path.join(process.cwd(), 'tmp');
+    await fs.mkdir(tmpDir, { recursive: true });
+    const tmpFile = path.join(tmpDir, `tts-${Date.now()}.mp3`);
     
-    // Converter rate (+0%) para formato correto
-    const rateMultiplier = parseFloat(rate.replace(/[+%]/g, '')) / 100 + 1;
+    // Escapar texto para shell (remover aspas e caracteres especiais)
+    const escapedText = text
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/'/g, "'\\''")
+      .replace(/\$/g, '\\$')
+      .replace(/`/g, '\\`');
     
-    // Gerar SSML para controlar pitch e rate
-    const ssml = `
-      <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="pt-BR">
-        <voice name="${voice}">
-          <prosody rate="${rateMultiplier}" pitch="${pitch}">
-            ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-          </prosody>
-        </voice>
-      </speak>
-    `.trim();
+    // Comando edge-tts via Python
+    const command = `python3 -m edge_tts --voice "${voice}" --rate="${rate}" --pitch="${pitch}" --text "${escapedText}" --write-media "${tmpFile}"`;
     
-    // Edge TTS endpoint (API pública)
-    const url = 'https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1';
+    console.log('🔧 [EDGE-TTS] Executando comando Python...');
+    console.log('📦 Comando:', command.substring(0, 150) + '...');
     
-    const params = new URLSearchParams({
-      'trustedclienttoken': '6A5AA1D4EAFF4E9FB37E23D68491D6F4',
-      'RequestId': randomUUID(),
+    // Executar comando com timeout de 30 segundos
+    const { stdout, stderr } = await execPromise(command, {
+      timeout: 30000,
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer
     });
     
-    const response = await fetch(`${url}?${params}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/ssml+xml',
-        'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-      body: ssml,
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Edge TTS API error: ${response.status} - ${errorText}`);
+    if (stderr && !stderr.includes('INFO')) {
+      console.warn('⚠️ [EDGE-TTS] STDERR:', stderr);
     }
     
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Verificar se o arquivo foi criado
+    try {
+      await fs.access(tmpFile);
+    } catch {
+      throw new Error('Arquivo de áudio não foi gerado');
+    }
     
-    console.log(`✅ [EDGE-TTS] Áudio gerado: ${buffer.length} bytes`);
+    // Ler o arquivo gerado
+    const buffer = await fs.readFile(tmpFile);
+    
+    // Validar buffer
+    if (!buffer || buffer.length < 1000) {
+      throw new Error(`Áudio gerado muito pequeno: ${buffer?.length || 0} bytes`);
+    }
+    
+    // Remover arquivo temporário
+    await fs.unlink(tmpFile).catch(() => {});
+    
+    console.log(`✅ [EDGE-TTS] Áudio gerado com sucesso: ${buffer.length} bytes`);
     return buffer;
     
   } catch (error: any) {
-    console.error('❌ [EDGE-TTS] Erro:', error.message);
+    console.error('❌ [EDGE-TTS] Erro completo:', error);
     throw new Error(`Edge TTS falhou: ${error.message}`);
   }
 }
@@ -406,11 +408,9 @@ export async function generateTTS(options: TTSOptions): Promise<TTSResult> {
     return { audio, provider: 'Puter (ElevenLabs)', format: 'mp3' };
   }
   
-  // Modo automático: Edge TTS primeiro (gratuito e melhor qualidade), depois Google, depois Windows
+  // Modo automático: APENAS Edge TTS (gratuito, ilimitado e melhor qualidade)
   const providers = [
     { name: 'Edge TTS (Francisca Neural)', fn: () => generateWithEdgeTTS(text, 'pt-BR-FranciscaNeural'), format: 'mp3' },
-    { name: 'Google TTS', fn: () => generateWithGoogleTTS(text, lang), format: 'mp3' },
-    { name: 'Windows TTS', fn: () => generateWithWindowsTTS(text, speed), format: 'wav' },
   ];
   
   let lastError: Error | null = null;
