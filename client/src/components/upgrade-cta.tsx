@@ -14,13 +14,6 @@ export function UpgradeBanner() {
     queryKey: ["/api/user/assigned-plan"],
   });
   
-  // Debug
-  useEffect(() => {
-    if (assignedPlanData) {
-      console.log('[UPGRADE-BANNER DEBUG] assignedPlanData:', JSON.stringify(assignedPlanData, null, 2));
-    }
-  }, [assignedPlanData]);
-  
   const plan = assignedPlanData?.plan;
   const planName = plan?.nome || "Plano Ilimitado";
   const rawValue = (plan as any)?.valor ?? (plan as any)?.preco;
@@ -47,13 +40,6 @@ export function UpgradeSidebarButton() {
   const { data: assignedPlanData } = useQuery<AssignedPlanResponse>({
     queryKey: ["/api/user/assigned-plan"],
   });
-  
-  // Debug
-  useEffect(() => {
-    if (assignedPlanData) {
-      console.log('[UPGRADE-SIDEBAR DEBUG] assignedPlanData:', JSON.stringify(assignedPlanData, null, 2));
-    }
-  }, [assignedPlanData]);
   
   const plan = assignedPlanData?.plan;
   const planName = plan?.nome || "Plano Ilimitado";

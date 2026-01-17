@@ -107,9 +107,6 @@ export default function Dashboard() {
   
   // Extrair o plano da resposta
   const assignedPlanData = assignedPlanResponse?.plan;
-  
-  // Debug
-  console.log('[DASHBOARD DEBUG] assignedPlanResponse:', assignedPlanResponse, 'assignedPlanData:', assignedPlanData);
 
   const [selectedView, setSelectedView] = useState<"conversations" | "connection" | "stats" | "agent">("conversations");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -733,9 +730,6 @@ const toolsNavigation: ToolNavItem[] = [
                   ? `R$${Number(rawValue).toFixed(2).replace('.', ',')}` 
                   : 'R$99,99';
                 const planName = assignedPlanData?.nome || 'Plano Ilimitado';
-                
-                // Debug
-                console.log('[DASHBOARD SIDEBAR DEBUG] assignedPlanData:', assignedPlanData, 'rawValue:', rawValue, 'planValue:', planValue);
                 
                 return (
                   <SidebarMenuItem>
