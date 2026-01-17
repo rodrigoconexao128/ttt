@@ -2366,7 +2366,8 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
         model: configuredModel,
         messages: messages,
         maxTokens: maxTokens,
-        temperature: 0.85,
+        temperature: 0.0, // ZERO para determinismo - igual ao aiAgent.ts
+        randomSeed: 42,   // Seed fixo para garantir consistência
       });
     } catch (err: any) {
       // Fallback para modelo menor em caso de erro de capacidade (429) ou modelo não encontrado
@@ -2377,7 +2378,8 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
             model: "mistral-small-latest",
             messages: messages,
             maxTokens: maxTokens,
-            temperature: 0.85,
+            temperature: 0.0, // ZERO para determinismo
+            randomSeed: 42,   // Seed fixo
           });
         } catch (fallbackErr) {
            console.error(`❌ [SALES] Erro também no fallback:`, fallbackErr);

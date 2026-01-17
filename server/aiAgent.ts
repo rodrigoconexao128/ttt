@@ -678,28 +678,32 @@ ${deliveryData.min_order_value > 0 ? `• Pedido mínimo: ${formatPrice(String(d
 
 ${deliveryData.displayInstructions ? `**📝 FORMATO DE APRESENTAÇÃO DO CARDÁPIO:**\n${deliveryData.displayInstructions}\n` : ''}
 
-**🚨 REGRA CRÍTICA - ENVIAR CARDÁPIO COMPLETO:**
-Quando o cliente pedir o CARDÁPIO, MENU, LISTA DE PRODUTOS, ou perguntar "O QUE VOCÊS TÊM?", "TEM O QUE?", "QUAIS OS PRODUTOS?":
+═══════════════════════════════════════════════════════════════════════
+🚨🚨🚨 REGRA ABSOLUTAMENTE CRÍTICA E OBRIGATÓRIA 🚨🚨🚨
+═══════════════════════════════════════════════════════════════════════
 
-1️⃣ VOCÊ DEVE USAR ESTA TAG ESPECIAL:
+QUANDO O CLIENTE PERGUNTAR SOBRE CARDÁPIO, MENU OU PRODUTOS:
+- "Qual o cardápio?" / "O que tem?" / "Me manda o menu" / "Quais produtos?" / etc.
+
+⚠️ VOCÊ É OBRIGADO A RESPONDER COM ESTA TAG NO INÍCIO:
 [ENVIAR_CARDAPIO_COMPLETO]
 
-2️⃣ O sistema enviará automaticamente o cardápio formatado bonitinho ao cliente
-3️⃣ DEPOIS da tag, você pode adicionar uma mensagem amigável como:
-   "Aqui está nosso cardápio completo! 😊"
-   "Dá uma olhada nas nossas delícias! 🍕"
+EXEMPLO CORRETO (COPIE ESTE FORMATO):
+---
+[ENVIAR_CARDAPIO_COMPLETO]
 
-⚠️ NUNCA tente escrever o cardápio você mesmo - use APENAS a tag [ENVIAR_CARDAPIO_COMPLETO]
-⚠️ A tag será substituída pelo cardápio formatado automaticamente
-⚠️ O cardápio será dividido em mensagens se for muito grande, SEM quebrar produtos no meio
+Aqui está nosso cardápio completo! Me avise se quiser fazer um pedido 😊
+---
 
-EXEMPLO DE USO:
-Cliente: "Qual o cardápio?"
-Você: "[ENVIAR_CARDAPIO_COMPLETO]\n\nAqui está! Temos várias delícias hoje 😋\n\nQuer fazer um pedido?"
+⛔ PROIBIDO: Listar itens/preços manualmente. O sistema inserirá o cardápio completo automaticamente.
+⛔ PROIBIDO: Inventar ou resumir o cardápio. Use APENAS a tag.
+⛔ PROIBIDO: Citar bebidas, pizzas ou qualquer item sem usar a tag primeiro.
+
+✅ A TAG [ENVIAR_CARDAPIO_COMPLETO] será substituída pelo cardápio formatado bonitinho automaticamente.
 
 **INSTRUÇÕES PARA ATENDIMENTO DE PEDIDOS:**
 1. Seja SIMPÁTICO e NATURAL como um atendente humano de ${deliveryData.business_type}
-2. **QUANDO O CLIENTE PEDIR CARDÁPIO/MENU:** Use a tag [ENVIAR_CARDAPIO_COMPLETO]
+2. **QUANDO O CLIENTE PEDIR CARDÁPIO/MENU:** Use a tag [ENVIAR_CARDAPIO_COMPLETO] OBRIGATORIAMENTE
 3. Quando o cliente quiser fazer pedido, pergunte DE FORMA CONVERSACIONAL:
    - O que deseja pedir (pode sugerir destaques ⭐)
    - Quantidade de cada item
@@ -715,7 +719,7 @@ Você: "[ENVIAR_CARDAPIO_COMPLETO]\n\nAqui está! Temos várias delícias hoje �
 6. Use emojis de comida de forma moderada para deixar a conversa agradável
 7. Se o cliente perguntar sobre item que não existe, sugira algo similar do cardápio
 8. Seja PROATIVO: "Gostaria de adicionar uma bebida?" ou "Temos promoção de X!"
-9. NUNCA invente preços ou itens que não estão no cardápio
+9. NUNCA invente preços ou itens que não estão no cardápio - USE O CARDÁPIO ACIMA
 
 **🚨 AÇÃO OBRIGATÓRIA - CRIAR PEDIDO NO SISTEMA:**
 Quando o cliente CONFIRMAR o pedido (após você listar os itens e ele aprovar), você DEVE incluir a seguinte tag NO FINAL da sua mensagem para registrar o pedido automaticamente:
@@ -1970,6 +1974,18 @@ export async function generateAIResponse(
     - EXEMPLOS DE RESPOSTAS CORRETAS:
       ✅ "Nosso plano é ilimitado" (se o prompt diz ilimitado)
       ✅ "Não tenho essa informação específica" (se não está no prompt)
+
+  6. 🍕 REGRA CRÍTICA PARA CARDÁPIO/MENU (MÁXIMA PRIORIDADE):
+    - Quando o cliente pedir CARDÁPIO, MENU, LISTA DE PRODUTOS, ou perguntar "O QUE VOCÊS TÊM?", "TEM O QUE?", "QUAIS OS PRODUTOS?", "QUERO VER O MENU":
+      → Você DEVE usar OBRIGATORIAMENTE a tag especial: [ENVIAR_CARDAPIO_COMPLETO]
+      → O sistema substituirá automaticamente essa tag pelo cardápio formatado
+      → NUNCA, JAMAIS tente escrever ou inventar o cardápio você mesmo
+      → PROIBIDO listar produtos/preços manualmente - USE APENAS A TAG
+    - FORMATO CORRETO de resposta quando pedirem cardápio:
+      "[ENVIAR_CARDAPIO_COMPLETO]
+
+      Aqui está nosso cardápio! 😊 Me avise se quiser fazer um pedido!"
+    - Se você escrever preços/itens manualmente ao invés de usar a tag, estará ERRADO
   `;
 
      // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO SE CONFIGURADO
@@ -2699,6 +2715,22 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       }
     } else {
       console.log(`⚠️ [AI Agent] TAG NÃO DETECTADA! Response: ${responseText?.substring(0, 300)}`);
+      
+      // 🛡️ FALLBACK: Se a pergunta do cliente pediu cardápio/menu mas a IA não usou a tag,
+      // verificar se devemos injetar o cardápio mesmo assim
+      const perguntaPediuCardapio = /cardápio|cardapio|menu|o que tem|oque tem|quais produto|quais os produto|me manda o menu|mostra o menu|ver o cardápio|ver cardápio/i.test(newMessageText || '');
+      const respostaTemPrecos = /R\$\s*\d+|reais|\d+,\d{2}/i.test(responseText || '');
+      
+      if (perguntaPediuCardapio && respostaTemPrecos) {
+        console.log(`🛡️ [AI Agent] FALLBACK: Cliente pediu cardápio mas IA listou preços manualmente! Substituindo...`);
+        const deliveryMenu = await getDeliveryMenuForAI(userId);
+        if (deliveryMenu && deliveryMenu.active && deliveryMenu.total_items > 0) {
+          const formattedMenu = formatMenuForCustomer(deliveryMenu);
+          // Substituir a resposta inteira pelo cardápio formatado + mensagem amigável
+          responseText = `${formattedMenu}\n\nAqui está nosso cardápio completo! 😊 Quer fazer um pedido?`;
+          console.log(`🛡️ [AI Agent] ✅ FALLBACK aplicado - cardápio completo injetado (${formattedMenu.length} chars)`);
+        }
+      }
     }
     
     // 📁 PROCESSAR MÍDIAS: Detectar tags [ENVIAR_MIDIA:NOME] na resposta

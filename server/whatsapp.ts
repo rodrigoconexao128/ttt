@@ -21,7 +21,7 @@ import { executeMediaActions, downloadMediaAsBuffer } from "./mediaService";
 import { registerFollowUpCallback, registerScheduledContactCallback, followUpService } from "./followUpService";
 import { userFollowUpService } from "./userFollowUpService";
 import { supabase } from "./supabaseAuth";
-import { messageQueueService, applyMessageVariation } from "./messageQueueService";
+import { messageQueueService } from "./messageQueueService";
 import { db } from "./db";
 import { conversations } from "@shared/schema";
 import { eq } from "drizzle-orm";
