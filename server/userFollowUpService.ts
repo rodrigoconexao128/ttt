@@ -380,7 +380,16 @@ export class UserFollowUpService {
 
       // 4. Gerar mensagem de follow-up
       if (decision.action === 'send' && decision.message) {
-        // 🔒 ANTI-DUPLICAÇÃO: Verificar se mensagem similar já foi enviada recentemente
+        // � VERIFICAÇÃO CRÍTICA: Se IA está desativada, NÃO enviar follow-up
+        // Follow-up só deve funcionar quando IA está ativa
+        const isAgentEnabled = await storage.isAgentEnabledForConversation(conversation.id);
+        if (!isAgentEnabled) {
+          console.log(`🛑 [USER-FOLLOW-UP] IA desativada para ${conversation.contactNumber} - cancelando follow-up`);
+          await this.disableFollowUp(conversation.id, "IA desativada pelo usuário");
+          return;
+        }
+        
+        // �🔒 ANTI-DUPLICAÇÃO: Verificar se mensagem similar já foi enviada recentemente
         if (wasMessageRecentlySent(conversation.id, decision.message)) {
           console.warn(`🔒 [USER-FOLLOW-UP] Mensagem DUPLICADA detectada para ${conversation.contactNumber} - NÃO enviando`);
           const nextDate = addRandomSeconds(new Date(Date.now() + 60 * 60 * 1000)); // 1 hora
@@ -425,10 +434,22 @@ export class UserFollowUpService {
             );
             await this.advanceToNextStage(conversation, config);
             
-            // 🔄 REATIVAR IA: Quando follow-up é enviado, reativar IA para capturar resposta do cliente
+            // 🔄 REATIVAR IA: Quando follow-up é enviado, reativar IA SOMENTE se follow-up ainda estiver ativo
+            // Isso evita reativar IA se o usuário desativou o follow-up enquanto processava
             try {
-              await storage.enableAgentForConversation(conversation.id);
-              console.log(`🤖 [USER-FOLLOW-UP] IA reativada para ${conversation.contactNumber} após follow-up`);
+              // Buscar estado atualizado da conversa
+              const [currentConv] = await db.select()
+                .from(conversations)
+                .where(eq(conversations.id, conversation.id))
+                .limit(1);
+              
+              // Só reativa se follow-up ainda estiver ativo
+              if (currentConv?.followupActive) {
+                await storage.enableAgentForConversation(conversation.id);
+                console.log(`🤖 [USER-FOLLOW-UP] IA reativada para ${conversation.contactNumber} após follow-up`);
+              } else {
+                console.log(`⏭️ [USER-FOLLOW-UP] IA NÃO reativada - follow-up foi desativado para ${conversation.contactNumber}`);
+              }
             } catch (reactivateError) {
               console.warn(`⚠️ [USER-FOLLOW-UP] Erro ao reativar IA para ${conversation.contactNumber}:`, reactivateError);
             }
@@ -1093,7 +1114,21 @@ ${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).j
       return;
     }
 
-    // 🔧 FIX BUG REATIVAÇÃO: Se foi DESATIVADO MANUALMENTE pelo usuário, NÃO reativar automaticamente
+    // � VERIFICAÇÃO CRÍTICA: Se a IA está desativada, NÃO ativar follow-up
+    // Follow-up só funciona quando IA está ativa
+    const isAgentEnabled = await storage.isAgentEnabledForConversation(conversationId);
+    if (!isAgentEnabled) {
+      console.log(`🛑 [USER-FOLLOW-UP] IA está desativada para ${conversationId}. Follow-up NÃO pode ser ativado.`);
+      await db.update(conversations)
+        .set({ 
+          followupActive: false,
+          followupDisabledReason: "IA desativada - ative a IA primeiro"
+        })
+        .where(eq(conversations.id, conversationId));
+      return;
+    }
+
+    // �🔧 FIX BUG REATIVAÇÃO: Se foi DESATIVADO MANUALMENTE pelo usuário, NÃO reativar automaticamente
     // Isso evita que o sistema reative follow-up quando o dono envia uma mensagem
     if (conversation.followupDisabledReason && conversation.followupDisabledReason.includes('Desativado pelo usuário')) {
       console.log(`🛑 [USER-FOLLOW-UP] Follow-up foi DESATIVADO MANUALMENTE para ${conversationId}. Motivo: ${conversation.followupDisabledReason}. NÃO reativando automaticamente.`);

@@ -126,6 +126,81 @@ function isDuplicateResponse(conversationKey: string, responseText: string): boo
   
   return false;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎯 CACHE DE RESPOSTAS POR PERGUNTA - GARANTE DETERMINISMO
+// ═══════════════════════════════════════════════════════════════════════
+// O Mistral API pode ter pequenas variações mesmo com temperature=0
+// Este cache garante que a MESMA pergunta sempre retorne a MESMA resposta
+// TTL: 30 minutos - suficiente para conversas ativas, limpa memória depois
+// ═══════════════════════════════════════════════════════════════════════
+interface CachedResponse {
+  response: string;
+  timestamp: number;
+  promptHash: string; // Hash do prompt + mensagem para invalidar se prompt mudar
+}
+
+const questionResponseCache = new Map<string, CachedResponse>();
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos
+
+function getCachedResponse(userId: string, messageText: string, promptHash: string): string | null {
+  // Gerar chave de cache: userId + hash da mensagem normalizada
+  const normalizedMessage = messageText.toLowerCase().trim().replace(/\s+/g, ' ');
+  const messageHash = crypto.createHash('md5').update(normalizedMessage).digest('hex');
+  const cacheKey = `${userId}:${messageHash}`;
+  
+  const cached = questionResponseCache.get(cacheKey);
+  
+  if (cached) {
+    // Verificar se não expirou
+    if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+      questionResponseCache.delete(cacheKey);
+      console.log(`🗑️ [Response Cache] Cache expirado para key ${cacheKey.substring(0, 30)}...`);
+      return null;
+    }
+    
+    // Verificar se o prompt mudou (invalidar cache se mudou)
+    if (cached.promptHash !== promptHash) {
+      questionResponseCache.delete(cacheKey);
+      console.log(`🔄 [Response Cache] Prompt mudou, invalidando cache para key ${cacheKey.substring(0, 30)}...`);
+      return null;
+    }
+    
+    console.log(`✅ [Response Cache] HIT! Retornando resposta cacheada para "${normalizedMessage.substring(0, 40)}..."`);
+    return cached.response;
+  }
+  
+  return null;
+}
+
+function setCachedResponse(userId: string, messageText: string, promptHash: string, response: string): void {
+  // Não cachear respostas muito curtas (podem ser erros)
+  if (response.length < 20) return;
+  
+  const normalizedMessage = messageText.toLowerCase().trim().replace(/\s+/g, ' ');
+  const messageHash = crypto.createHash('md5').update(normalizedMessage).digest('hex');
+  const cacheKey = `${userId}:${messageHash}`;
+  
+  questionResponseCache.set(cacheKey, {
+    response,
+    timestamp: Date.now(),
+    promptHash,
+  });
+  
+  console.log(`💾 [Response Cache] Resposta salva no cache para "${normalizedMessage.substring(0, 40)}..." (${response.length} chars)`);
+  
+  // Limpar cache antigo periodicamente
+  if (questionResponseCache.size > 500) {
+    const now = Date.now();
+    for (const [key, val] of questionResponseCache.entries()) {
+      if (now - val.timestamp > CACHE_TTL_MS) {
+        questionResponseCache.delete(key);
+      }
+    }
+    console.log(`🧹 [Response Cache] Limpeza executada, ${questionResponseCache.size} entradas restantes`);
+  }
+}
+
 // ⚠️ HUMANIZAÇÃO REMOVIDA - Estava corrompendo respostas do agente
 // Imports comentados - não usar mais:
 // import {
@@ -321,7 +396,7 @@ interface MenuItemForAI {
   is_featured: boolean;
 }
 
-interface DeliveryMenuForAIResponse {
+export interface DeliveryMenuForAIResponse {
   active: boolean;
   business_name: string | null;
   business_type: string;
@@ -438,6 +513,80 @@ async function getDeliveryMenuForAI(userId: string): Promise<DeliveryMenuForAIRe
   }
 }
 
+// 🎨 FUNÇÃO AUXILIAR: Formata cardápio bonito para envio ao cliente
+export function formatMenuForCustomer(deliveryData: DeliveryMenuForAIResponse): string {
+  if (!deliveryData || !deliveryData.categories || deliveryData.categories.length === 0) {
+    return '';
+  }
+  
+  const formatPrice = (price: string | null): string => {
+    if (!price) return 'Consultar';
+    const num = parseFloat(price);
+    if (isNaN(num)) return price;
+    return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+  
+  const businessTypeEmoji: Record<string, string> = {
+    'pizzaria': '🍕',
+    'hamburgueria': '🍔',
+    'lanchonete': '🥪',
+    'restaurante': '🍽️',
+    'acai': '🍨',
+    'japonesa': '🍣',
+    'outros': '🍴'
+  };
+  
+  const emoji = businessTypeEmoji[deliveryData.business_type] || '🍴';
+  const businessName = deliveryData.business_name || 'Nosso Delivery';
+  
+  let menuText = `${emoji} *${businessName.toUpperCase()}*\n`;
+  menuText += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+  
+  for (const category of deliveryData.categories) {
+    menuText += `📁 *${category.name}*\n\n`;
+    
+    for (const item of category.items) {
+      const price = item.promotional_price 
+        ? `~${formatPrice(item.price)}~ *${formatPrice(item.promotional_price)}* 🔥` 
+        : `*${formatPrice(item.price)}*`;
+      
+      // Cada produto em uma linha bem formatada
+      const itemLine = `${item.is_featured ? '⭐ ' : '▪️ '}${item.name}`;
+      menuText += `${itemLine}\n`;
+      
+      if (item.description) {
+        menuText += `   _${item.description}_\n`;
+      }
+      
+      menuText += `   💰 ${price}`;
+      if (item.serves > 1) menuText += ` • Serve ${item.serves}`;
+      menuText += '\n\n';
+    }
+  }
+  
+  // Informações de entrega
+  const paymentMethods = deliveryData.payment_methods.join(', ');
+  menuText += `━━━━━━━━━━━━━━━━━━━━\n`;
+  menuText += `📋 *INFORMAÇÕES*\n\n`;
+  
+  if (deliveryData.accepts_delivery) {
+    menuText += `🛵 Entrega: ${formatPrice(String(deliveryData.delivery_fee))}\n`;
+    menuText += `⏱️ Tempo estimado: ${deliveryData.estimated_delivery_time} min\n`;
+  }
+  
+  if (deliveryData.accepts_pickup) {
+    menuText += `🏪 Retirada: GRÁTIS\n`;
+  }
+  
+  if (deliveryData.min_order_value > 0) {
+    menuText += `📦 Pedido mínimo: ${formatPrice(String(deliveryData.min_order_value))}\n`;
+  }
+  
+  menuText += `💳 Pagamento: ${paymentMethods}`;
+  
+  return menuText;
+}
+
 function generateDeliveryPromptBlock(deliveryData: DeliveryMenuForAIResponse): string {
   if (!deliveryData || !deliveryData.categories || deliveryData.categories.length === 0) {
     return '';
@@ -465,7 +614,7 @@ function generateDeliveryPromptBlock(deliveryData: DeliveryMenuForAIResponse): s
   const emoji = businessTypeEmoji[deliveryData.business_type] || '🍴';
   const businessName = deliveryData.business_name || 'Nosso Delivery';
   
-  // Monta o cardápio
+  // Monta o cardápio para o prompt da IA (formato compacto)
   let menuText = '';
   
   for (const category of deliveryData.categories) {
@@ -504,15 +653,27 @@ ${deliveryData.min_order_value > 0 ? `• Pedido mínimo: ${formatPrice(String(d
 ${deliveryData.displayInstructions ? `**📝 FORMATO DE APRESENTAÇÃO DO CARDÁPIO:**\n${deliveryData.displayInstructions}\n` : ''}
 
 **🚨 REGRA CRÍTICA - ENVIAR CARDÁPIO COMPLETO:**
-Quando o cliente pedir o CARDÁPIO, MENU, LISTA DE PRODUTOS, ou perguntar "O QUE VOCÊS TÊM?":
-- Você DEVE ENVIAR TODO O CARDÁPIO COMPLETO ACIMA com TODOS os itens e preços
-- NÃO resuma, NÃO omita itens, NÃO diga "entre outros"
-- Copie e cole o cardápio EXATAMENTE como está formatado acima
-- Inclua TODAS as categorias e TODOS os itens com seus preços
+Quando o cliente pedir o CARDÁPIO, MENU, LISTA DE PRODUTOS, ou perguntar "O QUE VOCÊS TÊM?", "TEM O QUE?", "QUAIS OS PRODUTOS?":
+
+1️⃣ VOCÊ DEVE USAR ESTA TAG ESPECIAL:
+[ENVIAR_CARDAPIO_COMPLETO]
+
+2️⃣ O sistema enviará automaticamente o cardápio formatado bonitinho ao cliente
+3️⃣ DEPOIS da tag, você pode adicionar uma mensagem amigável como:
+   "Aqui está nosso cardápio completo! 😊"
+   "Dá uma olhada nas nossas delícias! 🍕"
+
+⚠️ NUNCA tente escrever o cardápio você mesmo - use APENAS a tag [ENVIAR_CARDAPIO_COMPLETO]
+⚠️ A tag será substituída pelo cardápio formatado automaticamente
+⚠️ O cardápio será dividido em mensagens se for muito grande, SEM quebrar produtos no meio
+
+EXEMPLO DE USO:
+Cliente: "Qual o cardápio?"
+Você: "[ENVIAR_CARDAPIO_COMPLETO]\n\nAqui está! Temos várias delícias hoje 😋\n\nQuer fazer um pedido?"
 
 **INSTRUÇÕES PARA ATENDIMENTO DE PEDIDOS:**
 1. Seja SIMPÁTICO e NATURAL como um atendente humano de ${deliveryData.business_type}
-2. **QUANDO O CLIENTE PEDIR CARDÁPIO/MENU:** Envie o cardápio COMPLETO formatado acima
+2. **QUANDO O CLIENTE PEDIR CARDÁPIO/MENU:** Use a tag [ENVIAR_CARDAPIO_COMPLETO]
 3. Quando o cliente quiser fazer pedido, pergunte DE FORMA CONVERSACIONAL:
    - O que deseja pedir (pode sugerir destaques ⭐)
    - Quantidade de cada item
@@ -1042,7 +1203,10 @@ VOCÊ JÁ SABE O QUE FAZER. EXECUTE A AÇÃO ABAIXO IMEDIATAMENTE:
 // NÃO IMPOR REGRAS - apenas INFORMAR contexto.
 // ═══════════════════════════════════════════════════════════════════════
 function generateDynamicContextBlock(contactName?: string, sentMedias?: string[], conversationHistory?: Array<{ fromMe?: boolean; text?: string | null; timestamp?: Date | null }>): string {
-  const { greeting, period } = getBrazilGreeting();
+  // 🔧 FIX DETERMINISM v2: REMOVIDO getBrazilGreeting() completamente
+  // A hora do dia NÃO deve afetar a resposta da IA para garantir determinismo
+  // O cliente pode escolher usar saudações no prompt dele se quiser
+  
   const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
     ? contactName.trim() 
     : "";
@@ -1051,8 +1215,9 @@ function generateDynamicContextBlock(contactName?: string, sentMedias?: string[]
     ? sentMedias.join(", ") 
     : "nenhuma ainda";
   
-  const brazilTime = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
-  const brazilToday = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  // 🔧 FIX DETERMINISM v2: REMOVIDO hora e data completamente do contexto
+  // Essas variáveis causavam variação nas respostas entre chamadas
+  // A IA não precisa saber a hora exata para responder bem
   
   // 🔄 DETECTAR SE JÁ HOUVE CONVERSA HOJE
   // Se já temos histórico de conversa hoje, a IA NÃO deve cumprimentar novamente
@@ -1084,13 +1249,16 @@ function generateDynamicContextBlock(contactName?: string, sentMedias?: string[]
     }
   }
   
+  // 🔧 FIX DETERMINISM v3: REMOVIDO period/hora completamente
+  // A hora do dia causava variação nas respostas - removido para garantir determinismo
+  
   // CONTEXTO SIMPLES - IA interpreta conforme prompt do cliente
+  // 🔧 FIX DETERMINISM v3: SEM hora, data ou período - garantir determinismo absoluto
   let contextBlock = `
 ═══════════════════════════════════════════════════════════════════════════════
 📋 INFORMAÇÕES DO CLIENTE (use conforme seu prompt)
 ═══════════════════════════════════════════════════════════════════════════════
 
-🕐 Horário Brasil: ${brazilTime} (${period}) | Data: ${brazilToday}
 👤 Nome do cliente: ${formattedName || "(não identificado - use 'você' se precisar)"}
 📁 Mídias já enviadas nesta conversa: ${sentMediasList}
 
@@ -2449,6 +2617,24 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       console.log(`✅ [AI Agent] Resposta gerada: ${responseText.substring(0, 100)}...`);
     }
     
+    // 🍕 PROCESSAR TAG DE CARDÁPIO: [ENVIAR_CARDAPIO_COMPLETO]
+    if (responseText && responseText.includes('[ENVIAR_CARDAPIO_COMPLETO]')) {
+      console.log(`🍕 [AI Agent] Tag [ENVIAR_CARDAPIO_COMPLETO] detectada! Buscando cardápio...`);
+      
+      const deliveryMenu = await getDeliveryMenuForAI(userId);
+      if (deliveryMenu && deliveryMenu.active) {
+        const formattedMenu = formatMenuForCustomer(deliveryMenu);
+        
+        // Substituir a tag pelo cardápio formatado
+        responseText = responseText.replace(/\[ENVIAR_CARDAPIO_COMPLETO\]/g, formattedMenu);
+        console.log(`🍕 [AI Agent] ✅ Cardápio formatado inserido (${formattedMenu.length} chars)`);
+      } else {
+        // Se não tem cardápio ativo, remover a tag e deixar a mensagem da IA
+        responseText = responseText.replace(/\[ENVIAR_CARDAPIO_COMPLETO\]/g, '');
+        console.log(`⚠️ [AI Agent] Cardápio não disponível - tag removida`);
+      }
+    }
+    
     // 📁 PROCESSAR MÍDIAS: Detectar tags [ENVIAR_MIDIA:NOME] na resposta
     let mediaActions: MistralResponse['actions'] = [];
     
@@ -2475,7 +2661,7 @@ Mensagem do cliente: ${newMessageText.trim()}`;
             const mediaName = action.media_name?.toUpperCase();
             const alreadySent = sentMedias.some(sent => sent.toUpperCase() === mediaName);
             if (alreadySent) {
-              console.log(`⚠️ [AI Agent] Mídia ${mediaName} já foi enviada - REMOVIDA para evitar duplicação`);
+              console.log(`⚠️ [AI Agent] Mídia ${mediaName} já foi enviada - REMOVIDA para eviar duplicação`);
             }
             return !alreadySent;
           });

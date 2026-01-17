@@ -981,6 +981,21 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
           clientHasPendingMessage: false,
         }
       });
+    
+    // 🛑 CRITICAL: Quando IA é desativada, DESATIVAR TAMBÉM o follow-up
+    // Follow-up não deve funcionar se IA está desativada
+    try {
+      await db.update(conversations)
+        .set({ 
+          followupActive: false,
+          nextFollowupAt: null,
+          followupDisabledReason: "IA desativada pelo usuário"
+        })
+        .where(eq(conversations.id, conversationId));
+      console.log(`🛑 [STORAGE] Follow-up desativado para conversa ${conversationId} (IA foi desativada)`);
+    } catch (error) {
+      console.error(`⚠️ [STORAGE] Erro ao desativar follow-up para conversa ${conversationId}:`, error);
+    }
   }
 
   async enableAgentForConversation(conversationId: string): Promise<void> {
