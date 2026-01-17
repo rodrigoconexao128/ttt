@@ -108,18 +108,10 @@ export default function AudioConfigPage() {
     setPreviewSpeed(speed);
     
     try {
-      const response = await fetch("/api/audio-config/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          speed, 
-          voiceType: localVoiceType 
-        }),
+      const response = await apiRequest("POST", "/api/audio-config/preview", { 
+        speed, 
+        voiceType: localVoiceType 
       });
-
-      if (!response.ok) {
-        throw new Error("Falha ao gerar preview");
-      }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -145,17 +137,9 @@ export default function AudioConfigPage() {
     setIsGeneratingPreview(true);
     
     try {
-      const response = await fetch("/api/audio-config/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          speed: localSpeed,
-        }),
+      const response = await apiRequest("POST", "/api/audio-config/test", { 
+        speed: localSpeed,
       });
-
-      if (!response.ok) {
-        throw new Error("Falha ao gerar teste");
-      }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
