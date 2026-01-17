@@ -12,6 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { randomUUID } from 'crypto';
 import say from 'say';
 import * as googleTTS from 'google-tts-api';
 
@@ -46,45 +47,55 @@ export async function generateWithEdgeTTS(
   console.log('🔊 Voz:', voice, '| Rate:', rate, '| Pitch:', pitch);
   
   try {
-    // Cria arquivo temporário para o áudio
-    const tmpDir = path.join(process.cwd(), 'tmp');
-    await fs.mkdir(tmpDir, { recursive: true });
-    const tmpFile = path.join(tmpDir, `tts-${Date.now()}.mp3`);
+    // ESTRATÉGIA: Usar API HTTP da Microsoft diretamente
+    // Edge TTS usa a API do Azure Speech Services (gratuita para uso limitado)
+    const { default: fetch } = await import('node-fetch');
     
-    // Escapa o texto para linha de comando
-    const escapedText = text.replace(/"/g, '\\"').replace(/'/g, "\\'");
+    // Converter rate (+0%) para formato correto
+    const rateMultiplier = parseFloat(rate.replace(/[+%]/g, '')) / 100 + 1;
     
-    // 🔧 ESTRATÉGIA 1: Tentar usar edge-tts CLI direto
-    let command = `edge-tts --voice "${voice}" --rate="${rate}" --pitch="${pitch}" --text "${escapedText}" --write-media "${tmpFile}"`;
+    // Gerar SSML para controlar pitch e rate
+    const ssml = `
+      <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="pt-BR">
+        <voice name="${voice}">
+          <prosody rate="${rateMultiplier}" pitch="${pitch}">
+            ${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+          </prosody>
+        </voice>
+      </speak>
+    `.trim();
     
-    console.log('🔧 [EDGE-TTS] Tentando CLI direto...');
+    // Edge TTS endpoint (API pública)
+    const url = 'https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1';
     
-    try {
-      await execPromise(command);
-      console.log('✅ [EDGE-TTS] CLI funcionou!');
-    } catch (cliError: any) {
-      // Se CLI falhar, tentar usar o script Python wrapper
-      console.log('⚠️ [EDGE-TTS] CLI falhou, tentando script Python wrapper...');
-      
-      const scriptPath = path.join(process.cwd(), 'server', 'edge-tts-generator.py');
-      command = `python3 "${scriptPath}" "${escapedText}" "${voice}" "${rate}" "${pitch}" "${tmpFile}"`;
-      
-      console.log('🔧 [EDGE-TTS] Executando:', command);
-      await execPromise(command);
-      console.log('✅ [EDGE-TTS] Script Python funcionou!');
+    const params = new URLSearchParams({
+      'trustedclienttoken': '6A5AA1D4EAFF4E9FB37E23D68491D6F4',
+      'RequestId': randomUUID(),
+    });
+    
+    const response = await fetch(`${url}?${params}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      body: ssml,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Edge TTS API error: ${response.status} - ${errorText}`);
     }
     
-    // Lê o arquivo gerado
-    const buffer = await fs.readFile(tmpFile);
-    
-    // Remove arquivo temporário
-    await fs.unlink(tmpFile);
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
     
     console.log(`✅ [EDGE-TTS] Áudio gerado: ${buffer.length} bytes`);
     return buffer;
     
   } catch (error: any) {
-    console.error('❌ [EDGE-TTS] Erro final:', error.message);
+    console.error('❌ [EDGE-TTS] Erro:', error.message);
     throw new Error(`Edge TTS falhou: ${error.message}`);
   }
 }
