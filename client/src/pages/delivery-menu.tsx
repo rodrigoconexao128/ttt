@@ -119,6 +119,7 @@ interface DeliveryConfig {
   accepts_pickup: boolean;
   opening_hours: Record<string, any>;
   ai_instructions: string;
+  display_instructions: string | null;
   whatsapp_order_number: string | null;
 }
 
@@ -937,6 +938,41 @@ export default function DeliveryMenuPage() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Número que receberá notificação de cada novo pedido
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Instruções de Exibição para IA */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  Instruções de Exibição do Cardápio
+                </CardTitle>
+                <CardDescription>
+                  Configure como a IA deve apresentar o cardápio para os clientes.
+                  Estas instruções definem o formato de listagem dos itens.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="display_instructions">Formato de Apresentação</Label>
+                  <textarea
+                    id="display_instructions"
+                    className="w-full min-h-[120px] p-3 text-sm rounded-lg border border-input bg-background resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Ex: Quando o cliente pedir o cardápio, liste cada item em uma linha separada com emoji, nome e preço. Organize por categoria."
+                    value={config?.display_instructions || ''}
+                    onChange={(e) => updateConfigMutation.mutate({ display_instructions: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    💡 Exemplo: "Liste os itens um por linha, com emoji da categoria, nome e preço. Agrupe por categoria."
+                  </p>
+                </div>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800">
+                    <strong>📝 Dica:</strong> Para editar os itens do cardápio (nomes, preços, descrições), 
+                    use a aba "Cardápio". Esta seção é apenas para configurar <em>como</em> a IA apresenta os itens.
                   </p>
                 </div>
               </CardContent>

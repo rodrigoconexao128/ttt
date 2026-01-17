@@ -2404,6 +2404,7 @@ export const productsConfig = pgTable("products_config", {
   isActive: boolean("is_active").default(false),
   sendToAi: boolean("send_to_ai").default(true),
   aiInstructions: text("ai_instructions").default("Use esta lista de produtos para responder perguntas sobre disponibilidade, preços e detalhes dos produtos. Seja preciso com valores e quantidades."),
+  displayInstructions: text("display_instructions").default("Quando o cliente pedir a lista de produtos, mostre cada produto em uma linha com nome, preço e disponibilidade."),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2483,6 +2484,7 @@ export const deliveryConfig = pgTable("delivery_config", {
   acceptsPickup: boolean("accepts_pickup").default(true),
   openingHours: jsonb("opening_hours").default({}),
   aiInstructions: text("ai_instructions").default("Você é um atendente de delivery. Seja simpático, ajude o cliente a escolher, anote os pedidos corretamente com todos os detalhes e sempre confirme antes de finalizar."),
+  displayInstructions: text("display_instructions").default("Quando o cliente pedir o cardápio, liste cada item em uma linha separada com emoji, nome e preço. Organize por categoria."),
   whatsappOrderNumber: varchar("whatsapp_order_number", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

@@ -95,6 +95,7 @@ interface ProductsConfig {
   is_active: boolean;
   send_to_ai: boolean;
   ai_instructions: string;
+  display_instructions: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -797,6 +798,27 @@ export default function ProductsPage() {
                     />
                     <p className="text-xs text-muted-foreground">
                       Diga para a IA como ela deve usar a lista de produtos (ex: informar preços, disponibilidade, etc.)
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Instruções de Exibição</Label>
+                    <Textarea
+                      placeholder="Ex: Quando o cliente pedir a lista de produtos, mostre cada produto em uma linha com nome e preço..."
+                      value={config?.display_instructions || ''}
+                      onChange={(e) => updateConfigMutation.mutate({ display_instructions: e.target.value })}
+                      disabled={!config?.is_active || !config?.send_to_ai}
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      💡 Configure como a IA deve formatar a lista de produtos (ex: "Liste um por linha com emoji, nome e preço").
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      <strong>📝 Dica:</strong> Para editar os produtos (nomes, preços, descrições), 
+                      use a aba "Produtos". Esta seção é para configurar <em>como</em> a IA apresenta os itens.
                     </p>
                   </div>
 

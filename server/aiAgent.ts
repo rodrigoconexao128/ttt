@@ -170,6 +170,7 @@ interface ProductForAI {
 interface ProductsForAIResponse {
   active: boolean;
   instructions: string | null;
+  displayInstructions: string | null;
   products: ProductForAI[];
   count: number;
 }
@@ -214,6 +215,7 @@ async function getProductsForAI(userId: string): Promise<ProductsForAIResponse |
     return {
       active: true,
       instructions: config.ai_instructions,
+      displayInstructions: config.display_instructions,
       products: products as ProductForAI[],
       count: products.length
     };
@@ -272,10 +274,15 @@ function generateProductsPromptBlock(productsData: ProductsForAIResponse): strin
     }
   }
   
-  // Instruções customizadas do usuário
+  // Instruções customizadas do usuário (comportamento)
   const customInstructions = productsData.instructions 
     ? `\n**INSTRUÇÕES ESPECIAIS DO ADMINISTRADOR:**\n${productsData.instructions}\n` 
     : '';
+  
+  // Instruções de exibição (formato de listagem)
+  const displayInstructions = productsData.displayInstructions
+    ? `\n**FORMATO DE APRESENTAÇÃO:**\n${productsData.displayInstructions}\n`
+    : '\n**FORMATO DE APRESENTAÇÃO:**\nQuando o cliente pedir a lista, mostre cada produto em uma linha com nome e preço.\n';
   
   return `
 ═══════════════════════════════════════════════════════════════════════
@@ -284,6 +291,7 @@ function generateProductsPromptBlock(productsData: ProductsForAIResponse): strin
 
 ${productsList}
 ${customInstructions}
+${displayInstructions}
 
 **INSTRUÇÕES PARA USO DO CATÁLOGO:**
 1. Use APENAS os produtos listados acima ao responder sobre preços, disponibilidade e detalhes
@@ -325,6 +333,7 @@ interface DeliveryMenuForAIResponse {
   payment_methods: string[];
   categories: { name: string; items: MenuItemForAI[] }[];
   total_items: number;
+  displayInstructions: string | null;
 }
 
 async function getDeliveryMenuForAI(userId: string): Promise<DeliveryMenuForAIResponse | null> {
@@ -420,7 +429,8 @@ async function getDeliveryMenuForAI(userId: string): Promise<DeliveryMenuForAIRe
       accepts_pickup: config.accepts_pickup ?? true,
       payment_methods: config.payment_methods || ['Dinheiro', 'Cartão', 'Pix'],
       categories: categoryList,
-      total_items: items.length
+      total_items: items.length,
+      displayInstructions: config.display_instructions
     };
   } catch (error) {
     console.error(`🍕 [Delivery] Unexpected error:`, error);
@@ -490,6 +500,8 @@ ${deliveryData.accepts_delivery ? `• Entrega: Taxa de ${formatPrice(String(del
 ${deliveryData.accepts_pickup ? '• Retirada no local: GRÁTIS' : ''}
 ${deliveryData.min_order_value > 0 ? `• Pedido mínimo: ${formatPrice(String(deliveryData.min_order_value))}` : ''}
 • Formas de pagamento: ${paymentMethods}
+
+${deliveryData.displayInstructions ? `**📝 FORMATO DE APRESENTAÇÃO DO CARDÁPIO:**\n${deliveryData.displayInstructions}\n` : ''}
 
 **🚨 REGRA CRÍTICA - ENVIAR CARDÁPIO COMPLETO:**
 Quando o cliente pedir o CARDÁPIO, MENU, LISTA DE PRODUTOS, ou perguntar "O QUE VOCÊS TÊM?":
