@@ -251,11 +251,61 @@ export async function handleEditPrompt(
 
 /**
  * Verifica se deve usar FlowEngine ou sistema legado
+ * AGORA: Cria FlowDefinition automaticamente se não existir! 🚀
  */
 export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
   // Verificar se usuário tem um flow definido
-  const flow = await FlowStorage.loadFlow(userId);
-  return flow !== null;
+  let flow = await FlowStorage.loadFlow(userId);
+  
+  if (!flow) {
+    console.log(`\n🔄 [shouldUseFlowEngine] User ${userId} não tem FlowDefinition`);
+    console.log(`🔄 [shouldUseFlowEngine] Tentando criar automaticamente...`);
+    
+    // Tentar criar FlowDefinition a partir do prompt existente
+    try {
+      // Buscar prompt do agente
+      const { data: agentConfig, error: agentError } = await supabase
+        .from('agent_configs')
+        .select('prompt, agent_name, business_type')
+        .eq('user_id', userId)
+        .single();
+      
+      if (agentError || !agentConfig?.prompt) {
+        console.log(`🔄 [shouldUseFlowEngine] ⚠️ Sem prompt para criar flow`);
+        return false;
+      }
+      
+      console.log(`🔄 [shouldUseFlowEngine] Prompt encontrado (${agentConfig.prompt.length} chars)`);
+      console.log(`🔄 [shouldUseFlowEngine] Tipo: ${agentConfig.business_type || 'não definido'}`);
+      
+      // Criar FlowDefinition a partir do prompt
+      const builder = new FlowBuilder();
+      flow = await builder.buildFromPrompt(agentConfig.prompt);
+      
+      // Ajustar nome do agente se disponível
+      if (agentConfig.agent_name) {
+        flow.agentName = agentConfig.agent_name;
+      }
+      
+      // Salvar no banco
+      const saved = await FlowStorage.saveFlow(userId, flow);
+      
+      if (saved) {
+        console.log(`🔄 [shouldUseFlowEngine] ✅ FlowDefinition CRIADO automaticamente!`);
+        console.log(`🔄 [shouldUseFlowEngine] Tipo: ${flow.type}`);
+        console.log(`🔄 [shouldUseFlowEngine] Estados: ${Object.keys(flow.states).length}`);
+        return true;
+      } else {
+        console.log(`🔄 [shouldUseFlowEngine] ❌ Erro ao salvar FlowDefinition`);
+        return false;
+      }
+    } catch (err) {
+      console.error(`🔄 [shouldUseFlowEngine] ❌ Erro ao criar flow:`, err);
+      return false;
+    }
+  }
+  
+  return true;
 }
 
 /**
