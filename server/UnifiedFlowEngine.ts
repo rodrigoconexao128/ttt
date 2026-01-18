@@ -22,7 +22,8 @@
  */
 
 import { supabase } from "./supabaseAuth";
-import { FlowBuilder, PromptAnalyzer, FlowDefinition, FlowType, FlowState, FlowIntent, FlowAction } from "./FlowBuilder";
+import { FlowBuilder, PromptAnalyzer } from "./FlowBuilder";
+import type { FlowDefinition, FlowType, FlowState, FlowIntent, FlowAction } from "./FlowBuilder";
 
 // Tipo de transição inline (não exportado pelo FlowBuilder)
 interface FlowTransition {

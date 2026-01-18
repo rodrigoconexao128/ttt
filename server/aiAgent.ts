@@ -272,7 +272,9 @@ async function getProductsForAI(userId: string): Promise<ProductsForAIResponse |
       return null;
     }
     
-    if (!config || !config.is_active || !config.send_to_ai) {
+    const menuAllowed = config ? config.send_to_ai !== false : true;
+    const deliveryActive = !!config?.is_active;
+    if (!menuAllowed) {
       return null;
     }
     
@@ -296,11 +298,18 @@ async function getProductsForAI(userId: string): Promise<ProductsForAIResponse |
     console.log(`📦 [Products] Found ${products.length} active products for user ${userId}`);
     
     return {
-      active: true,
-      instructions: config.ai_instructions,
-      displayInstructions: config.display_instructions,
-      products: products as ProductForAI[],
-      count: products.length
+      active: menuAllowed && items.length > 0,
+      business_name: config?.business_name ?? null,
+      business_type: config?.business_type ?? 'outros',
+      delivery_fee: deliveryActive ? (parseFloat(config?.delivery_fee) || 0) : 0,
+      min_order_value: deliveryActive ? (parseFloat(config?.min_order_value) || 0) : 0,
+      estimated_delivery_time: deliveryActive ? (config?.estimated_delivery_time || 45) : 45,
+      accepts_delivery: deliveryActive ? (config?.accepts_delivery ?? true) : false,
+      accepts_pickup: deliveryActive ? (config?.accepts_pickup ?? true) : false,
+      payment_methods: config?.payment_methods || ['Dinheiro', 'Cart?o', 'Pix'],
+      categories: categoryList,
+      total_items: items.length,
+      displayInstructions: config?.display_instructions ?? null
     };
   } catch (error) {
     console.error(`📦 [Products] Unexpected error:`, error);
@@ -433,7 +442,9 @@ async function getDeliveryMenuForAI(userId: string): Promise<DeliveryMenuForAIRe
       return null;
     }
     
-    if (!config || !config.is_active || !config.send_to_ai) {
+    const menuAllowed = config ? config.send_to_ai !== false : true;
+    const deliveryActive = !!config?.is_active;
+    if (!menuAllowed) {
       return null;
     }
     
@@ -500,20 +511,23 @@ async function getDeliveryMenuForAI(userId: string): Promise<DeliveryMenuForAIRe
     }));
     
     console.log(`🍕 [Delivery] Found ${items.length} menu items for user ${userId}`);
-    
+    if (!deliveryActive) {
+      console.log(`?? [Delivery] Delivery inativo, enviando card?pio em modo menu-only.`);
+    }
+
     return {
-      active: true,
-      business_name: config.business_name,
-      business_type: config.business_type,
-      delivery_fee: parseFloat(config.delivery_fee) || 0,
-      min_order_value: parseFloat(config.min_order_value) || 0,
-      estimated_delivery_time: config.estimated_delivery_time || 45,
-      accepts_delivery: config.accepts_delivery ?? true,
-      accepts_pickup: config.accepts_pickup ?? true,
-      payment_methods: config.payment_methods || ['Dinheiro', 'Cartão', 'Pix'],
+      active: menuAllowed && items.length > 0,
+      business_name: config?.business_name ?? null,
+      business_type: config?.business_type ?? 'outros',
+      delivery_fee: deliveryActive ? (parseFloat(config?.delivery_fee) || 0) : 0,
+      min_order_value: deliveryActive ? (parseFloat(config?.min_order_value) || 0) : 0,
+      estimated_delivery_time: deliveryActive ? (config?.estimated_delivery_time || 45) : 45,
+      accepts_delivery: deliveryActive ? (config?.accepts_delivery ?? true) : false,
+      accepts_pickup: deliveryActive ? (config?.accepts_pickup ?? true) : false,
+      payment_methods: config?.payment_methods || ['Dinheiro', 'Cart?o', 'Pix'],
       categories: categoryList,
       total_items: items.length,
-      displayInstructions: config.display_instructions
+      displayInstructions: config?.display_instructions ?? null
     };
   } catch (error) {
     console.error(`🍕 [Delivery] Unexpected error:`, error);
