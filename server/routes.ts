@@ -4827,6 +4827,23 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
           console.error(`[AGENT CONFIG] ❌ ERRO: Falha ao criar versão do prompt`);
         }
         console.log(`[AGENT CONFIG] ═══════════════════════════════════════════════════\n`);
+        
+        // 🚀 ATUALIZAR FLOW DEFINITION QUANDO PROMPT É ATUALIZADO
+        try {
+          const { FlowBuilder, FlowStorage } = await import("./flowIntegration");
+          
+          console.log(`\n🚀 [AGENT CONFIG] Atualizando FlowDefinition...`);
+          
+          const builder = new FlowBuilder();
+          const flow = await builder.buildFromPrompt(result.data.prompt);
+          
+          const saved = await FlowStorage.saveFlow(userId, flow);
+          console.log(`🚀 [AGENT CONFIG] FlowDefinition: ${saved ? '✅ Atualizado' : '❌ Falha'}`);
+          console.log(`🚀 [AGENT CONFIG] Tipo de flow: ${flow.type}`);
+        } catch (flowError) {
+          console.error(`🚀 [AGENT CONFIG] ❌ Erro ao atualizar FlowDefinition:`, flowError);
+          // Continua mesmo se falhar - o sistema legado será usado
+        }
       }
       
       res.json(config);
@@ -4998,8 +5015,34 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       
       console.log(`🎯 [Generate Prompt] ════════════════════════════════════════\n`);
 
+      // 🚀 CRIAR FLOW DEFINITION AUTOMATICAMENTE
+      // Isso permite que o FlowEngine seja usado depois
+      let flowCreated = false;
+      try {
+        const { handleGeneratePrompt } = await import("./flowIntegration");
+        const userId = getUserId(req);
+        
+        console.log(`\n🚀 [Generate Prompt] Criando FlowDefinition para sistema híbrido...`);
+        
+        const flowResult = await handleGeneratePrompt(
+          userId,
+          businessType,
+          businessName,
+          description,
+          additionalInfo
+        );
+        
+        flowCreated = flowResult.flowCreated;
+        console.log(`🚀 [Generate Prompt] FlowDefinition: ${flowCreated ? '✅ Criado' : '❌ Não criado'}`);
+        console.log(`🚀 [Generate Prompt] Tipo de flow: ${flowResult.flow?.type || 'GENERICO'}`);
+      } catch (flowError) {
+        console.error(`🚀 [Generate Prompt] ❌ Erro ao criar FlowDefinition:`, flowError);
+        // Continua mesmo se falhar - o sistema legado será usado
+      }
+
       res.json({ 
         prompt: finalPrompt,
+        flowCreated,
         calibration: calibrationResult ? {
           calibrated: true,
           approved: calibrationResult.sucesso,       // CORRIGIDO: era "aprovado"

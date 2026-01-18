@@ -73,7 +73,6 @@ lid-mapping-*.json
 
 # Media and data files
 *.txt
-!requirements.txt
 *.png
 *.jpg
 *.jpeg

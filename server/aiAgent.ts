@@ -6,6 +6,8 @@ import { supabase } from "./supabaseAuth";
 // pois o sistema ADVANCED foi desativado para garantir determinismo nas respostas
 import crypto from "crypto";
 import { validateAgentResponse } from "./agentValidation";
+// 🚀 UNIFIED FLOW ENGINE - Sistema híbrido (IA interpreta, Sistema executa)
+import { shouldUseFlowEngine, processWithFlowEngine, FlowStorage } from "./flowIntegration";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🤖 SISTEMA ANTI-BOT - DETECTA E IGNORA MENSAGENS DE BOTS
@@ -227,6 +229,12 @@ import {
 import {
   processDeliveryOrderTags,
 } from "./deliveryService";
+import {
+  processDeliveryMessage,
+  detectCustomerIntent,
+  validatePriceInResponse,
+  getDeliveryData,
+} from "./deliveryAIService";
 
 // ═══════════════════════════════════════════════════════════════════════
 // � SISTEMA DE CATÁLOGO DE PRODUTOS - INTEGRAÇÃO COM IA
@@ -1806,6 +1814,61 @@ export async function generateAIResponse(
     
     console.log(`   ✅ [AI Agent] Agent ENABLED (legacy isActive=true), processing response...`);
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🍕 INTERCEPTAÇÃO DE DELIVERY - NOVO SISTEMA DETERMINÍSTICO (2025)
+    // 
+    // SE o delivery está ativo e a intenção do cliente é ver o cardápio,
+    // retornamos os dados DIRETAMENTE do banco, sem chamar a IA.
+    // Isso resolve os problemas:
+    // - IA ignorando [ENVIAR_CARDAPIO_COMPLETO]
+    // - IA inventando preços/produtos
+    // - Cardápio incompleto (3 itens vs 36)
+    // ═══════════════════════════════════════════════════════════════════════
+    try {
+      const deliveryIntent = detectCustomerIntent(newMessageText);
+      console.log(`🍕 [AI Agent] Intenção delivery detectada: ${deliveryIntent}`);
+      
+      // Somente intercepta se for pedido de cardápio/menu
+      if (deliveryIntent === 'WANT_MENU' || deliveryIntent === 'GREETING') {
+        console.log(`🍕 [AI Agent] Tentando usar novo sistema de delivery...`);
+        
+        const deliveryResponse = await processDeliveryMessage(
+          userId,
+          newMessageText,
+          conversationHistory?.filter(m => m.text !== null).map(m => ({ fromMe: m.fromMe, text: m.text as string }))
+        );
+        
+        if (deliveryResponse && deliveryResponse.bubbles.length > 0) {
+          console.log(`🍕 [AI Agent] ✅ Sistema de delivery retornou ${deliveryResponse.bubbles.length} bolha(s)`);
+          console.log(`🍕 [AI Agent] Intent: ${deliveryResponse.intent}`);
+          
+          // 🎯 Para WANT_MENU: retorna cardápio direto do banco (bypass total da IA)
+          // Para GREETING: combina saudação + oferta de cardápio
+          
+          // Combinar bolhas em uma resposta (o sistema de envio vai dividir)
+          const combinedResponse = deliveryResponse.bubbles.join('\n\n');
+          
+          // Log da resposta para debug
+          console.log(`🍕 [AI Agent] Preview: ${combinedResponse.substring(0, 200)}...`);
+          console.log(`🍕 [AI Agent] Total chars: ${combinedResponse.length}`);
+          
+          return {
+            text: combinedResponse,
+            mediaActions: [],
+            notification: undefined,
+            appointmentCreated: undefined,
+            deliveryOrderCreated: undefined,
+          };
+        } else {
+          console.log(`🍕 [AI Agent] Delivery não ativo ou sem dados - continuando fluxo normal`);
+        }
+      }
+    } catch (deliveryError) {
+      console.error(`🍕 [AI Agent] Erro no sistema de delivery:`, deliveryError);
+      console.log(`🍕 [AI Agent] Continuando com fluxo normal...`);
+    }
+    // ═══════════════════════════════════════════════════════════════════════
+    
     // 📁 BUSCAR BIBLIOTECA DE MÍDIAS DO AGENTE
     let mediaLibrary;
     if (testDependencies?.getAgentMediaLibrary) {
@@ -2856,7 +2919,36 @@ Mensagem do cliente: ${newMessageText.trim()}`;
         return null;
       }
     }
-    
+
+    // 🍕 VALIDAÇÃO CRÍTICA DE PREÇOS - Impede IA de inventar preços de delivery
+    // Esta validação ocorre em TODAS as respostas quando o delivery está ativo
+    if (responseText) {
+      try {
+        const deliveryData = await getDeliveryData(userId);
+        if (deliveryData && deliveryData.totalItems > 0) {
+          // Verificar se a resposta contém preços (R$ XX,XX)
+          const hasPrice = /R\$\s*\d+[.,]\d{2}/i.test(responseText);
+
+          if (hasPrice) {
+            console.log(`🍕 [AI Agent] Resposta contém preços - validando contra cardápio...`);
+
+            const validation = validatePriceInResponse(responseText, deliveryData);
+
+            if (!validation.valid) {
+              console.log(`⚠️ [AI Agent] PREÇOS INCORRETOS DETECTADOS E CORRIGIDOS:`);
+              validation.errors.forEach(err => console.log(`   - ${err}`));
+              responseText = validation.corrected;
+              console.log(`✅ [AI Agent] Resposta corrigida aplicada`);
+            } else {
+              console.log(`✅ [AI Agent] Preços validados - todos corretos`);
+            }
+          }
+        }
+      } catch (priceValidationError) {
+        console.error(`⚠️ [AI Agent] Erro na validação de preços (continuando):`, priceValidationError);
+      }
+    }
+
     return {
       text: responseText,
       mediaActions,
@@ -2907,7 +2999,6 @@ export async function testAgentResponse(
 ): Promise<{ text: string | null; mediaActions: MistralResponse['actions']; appointmentCreated?: any; deliveryOrderCreated?: any }> {
   try {
     console.log(`\n🧪 ═══════════════════════════════════════════════════════════════`);
-    console.log(`🧪 [SIMULADOR UNIFICADO] Usando MESMO fluxo do WhatsApp`);
     console.log(`🧪 [SIMULADOR] Nome do contato: ${contactName}`);
     console.log(`🧪 ═══════════════════════════════════════════════════════════════`);
     
@@ -2923,27 +3014,73 @@ export async function testAgentResponse(
     console.log(`🧪 [SIMULADOR] Histórico: ${history.length} mensagens`);
     console.log(`🧪 [SIMULADOR] Mídias já enviadas: ${sentMedias?.length || 0}`);
     
-    // 🎯 CHAMAR generateAIResponse - MESMO CÓDIGO DO WHATSAPP!
-    // Isso garante que:
-    // - Contexto dinâmico (nome, hora) é aplicado
-    // - Anti-amnésia funciona
-    // - Validação de resposta funciona
-    // - Humanização funciona
-    // - Placeholders são processados
-    // - Mídias são detectadas e não repetidas
-    // - Agendamentos podem ser criados (com telefone simulado)
-    // - 🍕 Pedidos de delivery podem ser criados
+    // 🚀 VERIFICAR SE DEVE USAR FLOW ENGINE (Sistema Híbrido)
+    // Se customPrompt foi fornecido, NÃO usar FlowEngine (teste de prompt não salvo)
+    const useFlowEngine = !customPrompt && await shouldUseFlowEngine(userId);
+    
+    if (useFlowEngine) {
+      console.log(`🧪 [SIMULADOR] 🚀 Usando FLOW ENGINE (Sistema Híbrido)`);
+      console.log(`🧪 [SIMULADOR] IA → Interpreta intenção`);
+      console.log(`🧪 [SIMULADOR] Sistema → Executa ação (determinístico)`);
+      console.log(`🧪 [SIMULADOR] IA → Humaniza resposta`);
+      
+      // Buscar API key
+      const apiKeyResult = await getMistralClient(userId);
+      if (!apiKeyResult) {
+        throw new Error("API key not configured");
+      }
+      
+      // Gerar ID de conversa simulada (persistente por sessão do simulador)
+      // Usa hash do userId + data para manter estado durante uma sessão de teste
+      const today = new Date().toISOString().split('T')[0];
+      const simulatorConversationId = `simulator-${userId}-${today}`;
+      
+      const flowResult = await processWithFlowEngine(
+        userId,
+        simulatorConversationId,
+        testMessage,
+        apiKeyResult.apiKey,
+        {
+          contactName,
+          history: history.map(m => ({ fromMe: m.fromMe, text: m.text || '' }))
+        }
+      );
+      
+      if (flowResult) {
+        console.log(`🧪 [SIMULADOR] ✅ FlowEngine respondeu: "${flowResult.text?.substring(0, 80)}..."`);
+        console.log(`🧪 ═══════════════════════════════════════════════════════════════\n`);
+        
+        return {
+          text: flowResult.text,
+          mediaActions: flowResult.mediaActions || [],
+          appointmentCreated: undefined,
+          deliveryOrderCreated: undefined
+        };
+      }
+      
+      console.log(`🧪 [SIMULADOR] ⚠️ FlowEngine sem resposta, fallback para sistema legado`);
+    } else {
+      console.log(`🧪 [SIMULADOR] 📋 Usando sistema LEGADO (IA livre)`);
+      if (customPrompt) {
+        console.log(`🧪 [SIMULADOR] 📝 customPrompt fornecido - testando prompt não salvo`);
+      }
+    }
+    
+    // 🎯 FALLBACK: CHAMAR generateAIResponse - SISTEMA LEGADO
+    // Isso é usado quando:
+    // - Não há FlowDefinition para o usuário
+    // - customPrompt foi fornecido (teste de prompt não salvo)
+    // - FlowEngine não conseguiu processar a mensagem
     
     const result = await generateAIResponse(
       userId,
       history,
       testMessage,
       {
-        contactName, // 🆕 Usa nome passado (pode ser customizado pelo frontend)
-        contactPhone: "5511999999999", // 📅 Telefone simulado para testar agendamentos
+        contactName,
+        contactPhone: "5511999999999",
         sentMedias: sentMedias || [],
       },
-      // Se customPrompt foi fornecido, injetar via testDependencies
       customPrompt ? {
         getAgentConfig: async () => ({
           ...agentConfig,

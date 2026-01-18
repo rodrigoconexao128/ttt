@@ -5,8 +5,8 @@ import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 
 // Criar cliente Supabase
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Senha mestra do admin - permite acessar qualquer conta
 // Configure via variável de ambiente ou use o padrão
