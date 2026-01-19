@@ -324,11 +324,22 @@ export class PromptToFlowConverter {
         id: 'show_menu',
         name: 'Mostrar Cardápio',
         type: 'info',
-        message: `Aqui está nosso cardápio! 📋\n\n[O cardápio será carregado automaticamente]\n\nO que você gostaria de pedir?`,
+        message: `Aqui está nosso cardápio! 📋\n\n{{menu_display}}\n\nO que você gostaria de pedir?`,
         nextStates: {
           'product_inquiry': 'take_order',
-          'price': 'take_order',
+          'price': 'show_product_price',
           'purchase': 'take_order'
+        },
+        defaultNext: 'take_order'
+      },
+      show_product_price: {
+        id: 'show_product_price',
+        name: 'Mostrar Preço de Produto',
+        type: 'info',
+        message: `Deixa eu ver nosso cardápio... 📋\n\n{{menu_display}}\n\nQual produto você quer saber o preço?`,
+        nextStates: {
+          'purchase': 'take_order',
+          'product_inquiry': 'take_order'
         },
         defaultNext: 'take_order'
       },

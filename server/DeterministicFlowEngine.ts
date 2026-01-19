@@ -149,6 +149,10 @@ export class DeterministicFlowEngine {
 
       console.log(`   📋 Flow carregado: ${flowDef.flowType} (${Object.keys(flowDef.states).length} estados)`);
 
+      // 1.5. Carregar dados do negócio (produtos, categorias, etc.)
+      flowDef.businessData = await this.loadBusinessData(userId, flowDef.flowType);
+      console.log(`   💾 Business data carregado: ${Object.keys(flowDef.businessData).join(', ')}`);
+
       // 2. Carregar ou criar FlowExecution
       let execution = await this.loadOrCreateExecution(userId, conversationId, flowDef.id, options);
 
@@ -550,6 +554,119 @@ Resposta humanizada:`;
     }
 
     return responseText;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CARREGAMENTO DE DADOS DO NEGÓCIO (produtos, preços, etc.)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  private async loadBusinessData(userId: string, flowType: string): Promise<Record<string, any>> {
+    const businessData: Record<string, any> = {};
+
+    try {
+      // DELIVERY: Carregar cardápio completo
+      if (flowType === 'DELIVERY') {
+        // Buscar produtos
+        const { data: items, error: itemsError } = await supabase
+          .from('menu_items')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('is_available', true)
+          .order('display_order', { ascending: true })
+          .order('name', { ascending: true });
+
+        if (!itemsError && items && items.length > 0) {
+          businessData.menu_items = items;
+
+          // Formatar cardápio para exibição
+          const menuText = items.map((item, index) => {
+            let text = `${index + 1}. **${item.name}** - R$ ${parseFloat(item.price).toFixed(2)}`;
+            if (item.description) {
+              text += `\n   ${item.description}`;
+            }
+            if (item.preparation_time) {
+              text += `\n   ⏱️ Preparo: ${item.preparation_time} min`;
+            }
+            return text;
+          }).join('\n\n');
+
+          businessData.menu_display = menuText;
+          businessData.total_items = items.length;
+
+          console.log(`   🍕 Carregados ${items.length} produtos do cardápio`);
+        } else {
+          console.log(`   ⚠️ Nenhum produto encontrado no cardápio`);
+          businessData.menu_display = "*Cardápio vazio - Adicione produtos para começar!*";
+          businessData.menu_items = [];
+          businessData.total_items = 0;
+        }
+
+        // Buscar categorias
+        const { data: categories } = await supabase
+          .from('menu_categories')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .order('display_order');
+
+        if (categories && categories.length > 0) {
+          businessData.categories = categories;
+        }
+
+        // Buscar configuração de delivery
+        const { data: deliveryConfig } = await supabase
+          .from('delivery_config')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .single();
+
+        if (deliveryConfig) {
+          businessData.delivery_fee = deliveryConfig.delivery_fee;
+          businessData.min_order_value = deliveryConfig.min_order_value;
+          businessData.estimated_delivery_time = deliveryConfig.estimated_delivery_time;
+          businessData.accepts_delivery = deliveryConfig.accepts_delivery;
+          businessData.accepts_pickup = deliveryConfig.accepts_pickup;
+        }
+      }
+
+      // VENDAS: Carregar catálogo de produtos
+      else if (flowType === 'VENDAS') {
+        const { data: products } = await supabase
+          .from('products')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('active', true);
+
+        if (products && products.length > 0) {
+          businessData.products = products;
+          const catalogText = products.map((p, i) =>
+            `${i + 1}. ${p.name} - R$ ${p.price}\n   ${p.description || ''}`
+          ).join('\n\n');
+          businessData.catalog_display = catalogText;
+        }
+      }
+
+      // AGENDAMENTO: Carregar horários disponíveis
+      else if (flowType === 'AGENDAMENTO') {
+        // Buscar configuração de agendamento
+        const { data: scheduleConfig } = await supabase
+          .from('scheduling_config')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+        if (scheduleConfig) {
+          businessData.available_hours = scheduleConfig.available_hours;
+          businessData.booking_duration = scheduleConfig.booking_duration;
+        }
+      }
+
+    } catch (error) {
+      console.error(`   ❌ Erro ao carregar business data:`, error);
+    }
+
+    return businessData;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
