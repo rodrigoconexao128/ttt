@@ -350,6 +350,90 @@ export function detectCustomerIntent(message: string): CustomerIntent {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🤖 DETECÇÃO DE INTENÇÃO COM IA (CONSIDERA CONTEXTO)
+// ═══════════════════════════════════════════════════════════════════════
+
+export async function detectIntentWithAI(
+  message: string,
+  conversationHistory?: Array<{ fromMe: boolean; text: string }>,
+  deliveryData?: DeliveryData | null
+): Promise<CustomerIntent> {
+  
+  // Se não tem histórico, usa detecção simples por regex
+  if (!conversationHistory || conversationHistory.length < 2) {
+    return detectCustomerIntent(message);
+  }
+  
+  const mistral = await getMistralClient();
+  if (!mistral) {
+    console.log(`🤖 [DeliveryAI] Mistral indisponível, usando regex`);
+    return detectCustomerIntent(message);
+  }
+  
+  // Verificar contexto: já tem pedido em andamento?
+  const hasOrderInProgress = conversationHistory.some(m => 
+    m.fromMe && (
+      m.text.toLowerCase().includes('seu pedido:') ||
+      m.text.toLowerCase().includes('resumo do pedido') ||
+      m.text.toLowerCase().includes('para finalizar')
+    )
+  );
+  
+  // Se é uma saudação simples mas já tem pedido, não é GREETING
+  const isSimpleGreeting = /^(oi+e?|olá|ola|eai|hey|opa)\s*[!?.,]*$/i.test(message.trim());
+  if (isSimpleGreeting && hasOrderInProgress) {
+    console.log(`🤖 [DeliveryAI] Saudação com pedido em andamento -> tratando como CONTINUE_ORDER`);
+    return 'OTHER'; // Vai cair no fluxo de IA contextual
+  }
+  
+  // Montar contexto resumido
+  const recentHistory = conversationHistory.slice(-6).map(m => 
+    `${m.fromMe ? 'Atendente' : 'Cliente'}: ${m.text.substring(0, 100)}`
+  ).join('\n');
+  
+  const systemPrompt = `Você analisa intenções de clientes em delivery.
+Baseado no CONTEXTO da conversa, classifique a intenção da última mensagem.
+
+INTENÇÕES POSSÍVEIS:
+- GREETING: Primeira saudação (oi, olá) SEM pedido em andamento
+- WANT_MENU: Quer ver cardápio
+- WANT_TO_ORDER: Quer fazer pedido ou adicionar item
+- ADD_ITEM: Quer adicionar mais itens ao pedido existente
+- REMOVE_ITEM: Quer remover item
+- CONFIRM_ORDER: Confirma pedido (nome, endereço, pagamento)
+- CANCEL_ORDER: Cancela pedido
+- ASK_DELIVERY_INFO: Pergunta sobre entrega, taxa, tempo
+- OTHER: Outras perguntas ou continuação de conversa
+
+IMPORTANTE: Se já tem pedido em andamento e cliente manda saudação simples, NÃO é GREETING, é OTHER ou CONFIRM_ORDER.
+
+Responda APENAS com o nome da intenção, nada mais.`;
+
+  try {
+    const response = await mistral.chat.complete({
+      model: 'mistral-small-latest',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `CONTEXTO DA CONVERSA:\n${recentHistory}\n\nÚLTIMA MENSAGEM DO CLIENTE: "${message}"\n\nQual a intenção?` }
+      ],
+      temperature: 0.1,
+      maxTokens: 20,
+    });
+    
+    const intentStr = (response.choices?.[0]?.message?.content || 'OTHER').toString().trim().toUpperCase();
+    const validIntents: CustomerIntent[] = ['GREETING', 'WANT_MENU', 'ASK_ABOUT_ITEM', 'WANT_TO_ORDER', 'ADD_ITEM', 'REMOVE_ITEM', 'CONFIRM_ORDER', 'CANCEL_ORDER', 'ASK_DELIVERY_INFO', 'ASK_BUSINESS_HOURS', 'COMPLAINT', 'OTHER'];
+    
+    const detectedIntent = validIntents.find(i => intentStr.includes(i)) || 'OTHER';
+    console.log(`🤖 [DeliveryAI] IA detectou intent: ${detectedIntent} (resposta: ${intentStr})`);
+    
+    return detectedIntent;
+  } catch (error) {
+    console.error(`🤖 [DeliveryAI] Erro na detecção IA:`, error);
+    return detectCustomerIntent(message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 📊 BUSCAR DADOS DO DELIVERY (BANCO DE DADOS)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1151,9 +1235,9 @@ export async function processDeliveryMessage(
     return null; // Retorna null para indicar que deve usar fluxo normal
   }
   
-  // 2. Detectar intenção
-  const intent = detectCustomerIntent(message);
-  console.log(`🍕 [DeliveryAI] Intenção detectada: ${intent}`);
+  // 2. Detectar intenção COM IA (considera contexto da conversa)
+  const intent = await detectIntentWithAI(message, conversationHistory, deliveryData);
+  console.log(`🍕 [DeliveryAI] Intenção detectada (com contexto): ${intent}`);
   
   // 3. Gerar resposta baseada na intenção
   const response = await generateDeliveryResponse(
@@ -1180,6 +1264,7 @@ export async function processDeliveryMessage(
 export default {
   processDeliveryMessage,
   detectCustomerIntent,
+  detectIntentWithAI,
   getDeliveryData,
   formatMenuAsBubbles,
   findItemInMenu,
