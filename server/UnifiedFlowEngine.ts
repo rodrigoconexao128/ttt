@@ -629,10 +629,35 @@ export class SystemExecutor {
     const isDeliveryQuery = /entrega|delivery|taxa|frete|tempo|demora/.test(msgLower);
     const isHoursQuery = /horário|abre|fecha|funciona|funcionamento/.test(msgLower);
     
+    // 🔥 VERIFICAR SE DEVE PERGUNTAR CATEGORIA PRIMEIRO
+    // Buscar display_instructions do delivery_config
+    const { data: deliveryConfig } = await supabase
+      .from('delivery_config')
+      .select('display_instructions, business_name')
+      .eq('user_id', userId)
+      .single();
+    
+    const displayInstructions = deliveryConfig?.display_instructions || '';
+    const businessName = deliveryConfig?.business_name || flow.businessName || 'nosso estabelecimento';
+    const askFirstKeywords = ['pergunt', 'primeiro', 'antes', 'categorias', 'quer ver'];
+    const shouldAskFirst = askFirstKeywords.some(kw => displayInstructions.toLowerCase().includes(kw));
+    
+    console.log(`📦 [SystemExecutor] displayInstructions: "${displayInstructions.substring(0, 80)}..."`);
+    console.log(`📦 [SystemExecutor] shouldAskFirst = ${shouldAskFirst}`);
+    
     // Se parece uma pergunta sobre cardápio/menu, carregar dados do menu
     if (isMenuQuery) {
       console.log(`📦 [SystemExecutor] Detectada pergunta sobre menu - carregando cardápio...`);
       await this.loadMenuData(data, userId, flow);
+      
+      // 🔥 SE "PERGUNTAR PRIMEIRO" ESTIVER ATIVO, MOSTRAR APENAS CATEGORIAS
+      if (shouldAskFirst && data.menu_categories && data.menu_categories.length > 0) {
+        console.log(`📦 [SystemExecutor] ⚠️ MODO PERGUNTAR PRIMEIRO ATIVO! Mostrando apenas categorias.`);
+        const categoryNames = data.menu_categories.map((c: any) => c.name).join(', ');
+        data.response = `Bem-vindo(a) ao ${businessName}! 😊\n\nTemos: ${categoryNames}.\n\nQual você gostaria de ver?`;
+        data.askingCategory = true; // Flag para indicar que está perguntando categoria
+        return;
+      }
       
       if (data.menu_formatted && data.menu_formatted !== 'Cardápio não disponível no momento.') {
         data.response = `Aqui está nosso cardápio:\n\n${data.menu_formatted}`;
