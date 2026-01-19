@@ -24,23 +24,23 @@ console.log(
   `[DB] Modo de conexão: ${isPoolerConnection ? 'Supabase Pooler (PgBouncer)' : 'Direct Connection'}`,
 );
 
-// Configurações otimizadas para Supabase com Disk IO limitado
-// IMPORTANTE: PgBouncer (porta 6543) tem limitações com prepared statements
+// 🔥 CONFIGURAÇÕES OTIMIZADAS PARA ALTA CARGA (200+ msgs/min)
+// CORREÇÃO: Circuit breaker error XX000 devido a pool subdimensionado
 const poolConfig: any = {
   connectionString: dbUrl,
   ssl: {
     rejectUnauthorized: false
   },
-  // Pool configurado para funcionar com PgBouncer + economia de recursos
-  // OTIMIZAÇÃO: Aumentamos max para evitar filas, mas com timeout agressivo
-  max: isPoolerConnection ? 3 : 5, // 3 conexões max para balancear throughput vs recursos
-  min: 0, // Não manter conexões ociosas
-  idleTimeoutMillis: isPoolerConnection ? 5000 : 30000, // Liberar conexões ociosas rápido
-  connectionTimeoutMillis: 15000, // Timeout de 15s (reduzido para falhar rápido)
-  // Timeout para queries individuais (evita queries longas travarem o pool)
-  statement_timeout: 10000, // 10 segundos max por query
-  // IMPORTANTE: allowExitOnIdle: false para manter o servidor rodando
+  // Pool dimensionado para alta carga (3x maior que antes)
+  max: isPoolerConnection ? 10 : 15,  // ✅ Aumentado de 3/5 para 10/15
+  min: 2,  // ✅ Mantém 2 conexões sempre prontas (antes era 0)
+  // Timeouts relaxados para evitar falhas prematuras
+  idleTimeoutMillis: isPoolerConnection ? 20000 : 60000,  // ✅ 20s/60s (antes 5s/30s)
+  connectionTimeoutMillis: 30000,  // ✅ 30s (antes 15s)
+  statement_timeout: 30000,  // ✅ 30s por query (antes 10s)
   allowExitOnIdle: false,
+  // Retry automático em caso de falha
+  retryStrategy: () => 5000,
 };
 
 export const pool = new Pool(poolConfig);
