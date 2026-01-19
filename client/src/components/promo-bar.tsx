@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { X, Clock, Tag } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import type { Plan } from "@shared/schema";
+import type { Plan, Subscription } from "@shared/schema";
 
 interface AssignedPlanResponse {
   hasAssignedPlan: boolean;
@@ -18,6 +18,12 @@ export function PromoBar({ isAuthenticated }: PromoBarProps) {
   const [isVisible, setIsVisible] = useState(true);
   const { data: assignedPlanData } = useQuery<AssignedPlanResponse>({
     queryKey: ["/api/user/assigned-plan"],
+    enabled: isAuthenticated,
+  });
+  
+  // Buscar assinatura atual do usuário
+  const { data: currentSubscription } = useQuery<Subscription | null>({
+    queryKey: ["/api/subscriptions/current"],
     enabled: isAuthenticated,
   });
   
@@ -79,6 +85,9 @@ export function PromoBar({ isAuthenticated }: PromoBarProps) {
   
   // Não mostrar se não tem plano atribuído (não veio por link)
   if (!assignedPlanData?.hasAssignedPlan || !assignedPlan) return null;
+  
+  // NÃO mostrar se o usuário JÁ TEM uma assinatura ativa
+  if (currentSubscription && currentSubscription.status === 'active') return null;
   
   // Não mostrar se fechada
   if (!isVisible) return null;

@@ -282,7 +282,19 @@ export class UserFollowUpService {
       return;
     }
 
-    // 🚫 VERIFICAÇÃO DE SUSPENSÃO: Usuários suspensos não podem usar follow-up
+    // � VERIFICAÇÃO CRÍTICA: Re-validar se followup ainda está ativo
+    // Evita enviar mensagens de followup que foram desativadas entre a query inicial e o processamento
+    const [currentConv] = await db.select()
+      .from(conversations)
+      .where(eq(conversations.id, conversation.id))
+      .limit(1);
+    
+    if (!currentConv || !currentConv.followupActive) {
+      console.log(`🛑 [USER-FOLLOW-UP] Follow-up foi DESATIVADO para conversa ${conversation.contactNumber} - cancelando envio`);
+      return;
+    }
+
+    // �🚫 VERIFICAÇÃO DE SUSPENSÃO: Usuários suspensos não podem usar follow-up
     const isSuspended = await checkUserSuspensionForFollowUp(userId);
     if (isSuspended) {
       console.log(`🚫 [USER-FOLLOW-UP] Usuário ${userId} está SUSPENSO - desativando follow-up da conversa`);
@@ -380,7 +392,19 @@ export class UserFollowUpService {
 
       // 4. Gerar mensagem de follow-up
       if (decision.action === 'send' && decision.message) {
-        // � VERIFICAÇÃO CRÍTICA: Se IA está desativada, NÃO enviar follow-up
+        // ⚠️ VERIFICAÇÃO CRÍTICA: Re-validar estado do followup antes de enviar
+        // Evita enviar se usuário desativou followup enquanto IA estava processando
+        const [recheck] = await db.select()
+          .from(conversations)
+          .where(eq(conversations.id, conversation.id))
+          .limit(1);
+        
+        if (!recheck || !recheck.followupActive) {
+          console.log(`🛑 [USER-FOLLOW-UP] Follow-up foi DESATIVADO durante processamento para ${conversation.contactNumber} - cancelando envio`);
+          return;
+        }
+        
+        // 🔒 VERIFICAÇÃO CRÍTICA: Se IA está desativada, NÃO enviar follow-up
         // Follow-up só deve funcionar quando IA está ativa
         const isAgentEnabled = await storage.isAgentEnabledForConversation(conversation.id);
         if (!isAgentEnabled) {
