@@ -614,6 +614,8 @@ export async function generateDeliveryResponse(
   conversationContext?: string
 ): Promise<DeliveryAIResponse> {
   
+  console.log(`🔥🔥🔥 [DEPLOY V2] generateDeliveryResponse iniciada - Intent: ${intent}`);
+  
   // ═══════════════════════════════════════════════════════════════════════
   // CASO ESPECIAL: CARDÁPIO - NÃO CHAMA IA, RETORNA DADOS DO BANCO
   // ═══════════════════════════════════════════════════════════════════════
