@@ -524,8 +524,13 @@ export class SystemExecutor {
 
       if (itemError) throw itemError;
 
+      console.log(`📦 [SystemExecutor] Categorias: ${categories?.length || 0}, Itens: ${items?.length || 0}`);
+
       // Formatar cardápio por categoria (natural, sem separadores técnicos)
       let menuFormatted = '';
+      const usedItemIds = new Set<string>();
+      
+      // Primeiro, itens com categoria
       for (const category of categories || []) {
         const categoryItems = (items || []).filter(item => item.category_id === category.id);
         if (categoryItems.length === 0) continue;
@@ -542,6 +547,24 @@ export class SystemExecutor {
           } else {
             menuFormatted += `\n`;
           }
+          usedItemIds.add(item.id);
+        }
+      }
+
+      // 🔧 FIX: Depois, itens SEM categoria (category_id é null ou não existe)
+      const uncategorizedItems = (items || []).filter(item => !item.category_id || !usedItemIds.has(item.id));
+      if (uncategorizedItems.length > 0) {
+        if (menuFormatted) {
+          menuFormatted += `\n📋 *Outros*\n\n`;
+        }
+        for (const item of uncategorizedItems) {
+          const price = parseFloat(item.price).toFixed(2);
+          menuFormatted += `${item.name} - R$ ${price}\n`;
+          if (item.description) {
+            menuFormatted += `${item.description}\n\n`;
+          } else {
+            menuFormatted += `\n`;
+          }
         }
       }
 
@@ -549,7 +572,7 @@ export class SystemExecutor {
       data.menu_items = items || [];
       data.menu_categories = categories || [];
 
-      console.log(`📦 [SystemExecutor] ✅ Menu carregado: ${items?.length || 0} itens`);
+      console.log(`📦 [SystemExecutor] ✅ Menu carregado: ${items?.length || 0} itens, formatado: ${data.menu_formatted.substring(0, 100)}...`);
     } catch (err) {
       console.error(`📦 [SystemExecutor] ❌ Erro ao carregar menu:`, err);
       data.menu_formatted = 'Cardápio não disponível no momento.';
