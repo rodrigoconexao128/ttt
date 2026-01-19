@@ -63,28 +63,51 @@ export function analyzeUserPrompt(prompt: string): PromptAnalysis {
     originalPromptLength: prompt.length,
   };
 
-  // 1. Extrair nome do negócio (entre ** ou CAPS no início)
-  const matchNegocio = prompt.match(/\*\*([^*]+)\*\*/);
+  // 1. Extrair nome do negócio (entre ** ou # AGENTE ou CAPS no início)
+  const matchNegocio = prompt.match(/\*\*([^*]+)\*\*/) || 
+                       prompt.match(/^#\s*AGENTE\s+([^\n–-]+)/im) ||
+                       prompt.match(/^(?:você é|sou)\s+(?:o\s+|a\s+)?atendente\s+(?:da|do|de)\s+([^\n,.]+)/im);
   if (matchNegocio) {
-    analysis.businessName = matchNegocio[1].split('-')[0].trim();
+    analysis.businessName = matchNegocio[1].split('–')[0].split('-')[0].trim();
     analysis.businessName = analysis.businessName.replace(/[^\w\sáéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ]/gi, '').trim() || 'nosso serviço';
   }
 
-  // 2. Detectar tipo de negócio
-  const businessTypes: Record<string, RegExp> = {
-    'restaurante': /restaurante|lanchonete|pizzaria|hamburgueria|comida|aliment/i,
-    'delivery': /delivery|entrega|pedido|cardápio|menu/i,
-    'salão': /salão|beleza|cabelo|unha|estética|manicure|pedicure/i,
-    'clínica': /clínica|médic|saúde|consulta|exame|doutor/i,
-    'loja': /loja|produtos|vend|preço|compra/i,
-    'serviços': /serviço|consult|atend|orçamento/i,
-    'educação': /curso|aula|professor|escola|treino|treinamento/i,
-    'imobiliária': /imóv|casa|apartamento|alug|vend.*imóv/i,
-    'pet': /pet|cachorro|gato|animal|veterinár/i,
-    'tech': /software|app|sistema|tecnologia|ti|suporte/i,
-  };
+  // 2. Detectar tipo de negócio (ORDEM IMPORTA - mais específicos primeiro)
+  // CRÍTICO: Ordem de prioridade para evitar falsos positivos
+  const businessTypes: [string, RegExp][] = [
+    // SERVIÇOS TÉCNICOS (alta prioridade - não são delivery/restaurante)
+    ['elétrica', /elétric|eletric|tomada|interruptor|disjuntor|instalação elétrica|fiação|rede elétrica/i],
+    ['hidráulica', /hidráulic|encanador|vazamento|cano|torneira|descarga|esgoto/i],
+    ['construção', /construção|pedreiro|obra|reforma|alvenaria|acabamento/i],
+    ['mecânica', /mecânic|oficina|carro|moto|veículo|motor|conserto/i],
+    ['TI/Suporte', /suporte|ti|informática|computador|notebook|software|sistema/i],
+    
+    // SAÚDE (alta prioridade - não são delivery)
+    ['clínica', /clínica|médic|saúde|consulta|exame|doutor|psicólog|terapeut|odonto|dentista/i],
+    ['terapia', /terapi|psico|coaching|conselheiro|acompanhamento|emocional/i],
+    
+    // BELEZA (não são delivery)
+    ['salão', /salão|beleza|cabelo|unha|estética|manicure|pedicure|cabeleireiro/i],
+    
+    // EDUCAÇÃO (não são delivery)
+    ['educação', /curso|aula|professor|escola|treino|treinamento|mentoria/i],
+    
+    // IMOBILIÁRIA (não são delivery)
+    ['imobiliária', /imóv|casa|apartamento|alug|vend.*imóv|corretor|corretora/i],
+    
+    // PET (pode ter delivery mas é diferente)
+    ['pet', /pet|cachorro|gato|animal|veterinár/i],
+    
+    // DELIVERY/FOOD (só detectar se tiver palavras-chave específicas de comida)
+    ['delivery', /cardápio|menu\s+de\s+comida|pedido\s+de\s+comida|delivery\s+de\s+comida|entrega\s+de\s+alimento/i],
+    ['restaurante', /restaurante|lanchonete|pizzaria|hamburgueria|comida|aliment|refeição|prato|sabor/i],
+    
+    // GENÉRICOS (baixa prioridade)
+    ['loja', /loja|produtos|vend|preço|compra/i],
+    ['serviços', /serviço|consult|atend|orçamento/i],
+  ];
 
-  for (const [type, regex] of Object.entries(businessTypes)) {
+  for (const [type, regex] of businessTypes) {
     if (regex.test(prompt)) {
       analysis.businessType = type;
       break;
@@ -119,6 +142,62 @@ export function analyzeUserPrompt(prompt: string): PromptAnalysis {
   }
 
   return analysis;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🛡️ PRÉ-BLINDAGEM CRÍTICA (VAI NO INÍCIO DO PROMPT)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Gera uma pré-blindagem curta e direta que vai NO INÍCIO do prompt
+ * para evitar que a IA confunda o tipo de negócio
+ * 
+ * CRÍTICO: Esta blindagem previne o problema da JB ELÉTRICA onde a IA
+ * respondia sobre "cardápio/delivery" mesmo sendo empresa de serviços elétricos
+ */
+export function generatePreBlindagem(analysis: PromptAnalysis): string {
+  // Detectar se NÃO é delivery/restaurante para evitar alucinação
+  const isNotFood = !['restaurante', 'delivery'].includes(analysis.businessType);
+  const isService = ['elétrica', 'hidráulica', 'construção', 'mecânica', 'TI/Suporte', 'serviços'].includes(analysis.businessType);
+  const isHealth = ['clínica', 'terapia'].includes(analysis.businessType);
+  
+  let antiHallucination = '';
+  
+  if (isNotFood && isService) {
+    antiHallucination = `
+⛔ PROIBIÇÃO ABSOLUTA - NUNCA MENCIONE:
+- Cardápio, menu, delivery, entrega de comida
+- Pedidos de comida, restaurante, lanchonete
+- Preços de comida, bebidas, refeições
+ESTE É UM NEGÓCIO DE ${analysis.businessType.toUpperCase()}, NÃO DE ALIMENTAÇÃO!`;
+  } else if (isNotFood && isHealth) {
+    antiHallucination = `
+⛔ PROIBIÇÃO ABSOLUTA - NUNCA MENCIONE:
+- Cardápio, menu, delivery, entrega de comida
+- Pedidos de comida, restaurante, lanchonete
+ESTE É UM NEGÓCIO DE SAÚDE/TERAPIA, NÃO DE ALIMENTAÇÃO!`;
+  } else if (isNotFood) {
+    antiHallucination = `
+⛔ PROIBIÇÃO ABSOLUTA - NUNCA MENCIONE:
+- Cardápio, menu, delivery (a menos que esteja no prompt abaixo)
+FOQUE APENAS no escopo de ${analysis.businessName}!`;
+  }
+
+  return `
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ 🛡️ PRÉ-BLINDAGEM V3.1 - IDENTIDADE OBRIGATÓRIA                              ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ VOCÊ É: ${analysis.identity.padEnd(62)}║
+║ NEGÓCIO: ${analysis.businessName.substring(0, 60).padEnd(61)}║
+║ TIPO: ${analysis.businessType.toUpperCase().padEnd(64)}║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ ⚠️ LEIA TODO O PROMPT ABAIXO ANTES DE RESPONDER                              ║
+║ ⚠️ RESPONDA APENAS SOBRE O QUE ESTÁ NO PROMPT                                ║
+║ ⚠️ NUNCA INVENTE INFORMAÇÕES QUE NÃO ESTÃO ESCRITAS                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+${antiHallucination}
+
+`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

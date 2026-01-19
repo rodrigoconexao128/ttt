@@ -1,4 +1,4 @@
-import { storage } from "./storage";
+﻿import { storage } from "./storage";
 import type { Message, MistralResponse } from "@shared/schema";
 import { getMistralClient } from "./mistralClient";
 import { supabase } from "./supabaseAuth";
@@ -8,8 +8,8 @@ import crypto from "crypto";
 import { validateAgentResponse } from "./agentValidation";
 // 🚀 UNIFIED FLOW ENGINE - Sistema híbrido (IA interpreta, Sistema executa)
 import { shouldUseFlowEngine, processWithFlowEngine, FlowStorage } from "./flowIntegration";
-// 🛡️ BLINDAGEM UNIVERSAL V3 - Sistema de hardening de prompts
-import { analyzeUserPrompt, generateUniversalBlindagem, validateResponse, extractBusinessName } from "./promptBlindagem";
+// 🛡️ BLINDAGEM UNIVERSAL V3.1 - Sistema de hardening de prompts (inclui pré-blindagem anti-alucinação)
+import { analyzeUserPrompt, generateUniversalBlindagem, generatePreBlindagem, validateResponse, extractBusinessName } from "./promptBlindagem";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🤖 SISTEMA ANTI-BOT - DETECTA E IGNORA MENSAGENS DE BOTS
@@ -2298,12 +2298,13 @@ export async function generateAIResponse(
      // �️ BLINDAGEM UNIVERSAL V3 - Sistema de hardening de prompts
      // Analisa o prompt do usuário para extrair contexto e gerar blindagem personalizada
      const promptAnalysis = analyzeUserPrompt(agentConfig.prompt);
+     const preBlindagem = generatePreBlindagem(promptAnalysis); // NOVA: Vai no INÍCIO do prompt
      const blindagemUniversal = generateUniversalBlindagem(promptAnalysis);
      const nomeNegocio = promptAnalysis.businessName;
      
      console.log(`🛡️ [Blindagem V3] Análise do prompt: negócio="${nomeNegocio}", tipo="${promptAnalysis.businessType}"`);
      
-     systemPrompt = agentConfig.prompt + `
+     systemPrompt = preBlindagem + agentConfig.prompt + `
 
   ---
   
@@ -3412,3 +3413,5 @@ export async function testAgentResponse(
     throw error;
   }
 }
+
+
