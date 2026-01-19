@@ -32,7 +32,8 @@ export async function handleGeneratePrompt(
   businessType: string,
   businessName: string,
   description?: string,
-  additionalInfo?: string
+  additionalInfo?: string,
+  mistralApiKey?: string
 ): Promise<{
   prompt: string;
   flow: FlowDefinition;
@@ -43,7 +44,7 @@ export async function handleGeneratePrompt(
   // 1. Analisar tipo de negócio para determinar flow adequado
   const analyzer = new PromptAnalyzer();
   // 2. Construir FlowDefinition baseado no tipo
-  const builder = new FlowBuilder();
+  const builder = new FlowBuilder(undefined, mistralApiKey);
   
   // Criar prompt base para análise
   const basePrompt = `
@@ -96,6 +97,10 @@ ${additionalInfo ? `Informações adicionais: ${additionalInfo}` : ''}
 /**
  * Chamado quando usuário edita agente via chat (/api/agent/edit-prompt)
  * Atualiza tanto o prompt quanto o FlowDefinition
+ * 
+ * LÓGICA:
+ * - Se prompt mudou COMPLETAMENTE: REGENERA flow do zero
+ * - Se apenas instrução pontual: Modifica valores específicos (preços, cupons, etc)
  */
 export async function handleEditPrompt(
   userId: string,
@@ -110,6 +115,32 @@ export async function handleEditPrompt(
   console.log(`\n🔗 [FlowIntegration] Editando flow com instrução...`);
   console.log(`   Instrução: "${instruction.substring(0, 60)}..."`);
 
+  // 🎯 DETECÇÃO: Mudança completa de prompt vs edição pontual
+  const promptChangedCompletely = newPrompt !== currentPrompt && 
+    (newPrompt.length > currentPrompt.length * 1.5 || 
+     newPrompt.length < currentPrompt.length * 0.7);
+  
+  // 🎯 DETECÇÃO: Prompt tem mensagem customizada obrigatória?
+  const hasCustomGreeting = /responder\s+\*\*exatamente\*\*|primeira mensagem|sempre enviar|enviar sempre|mensagem inicial/i.test(newPrompt);
+
+  if (promptChangedCompletely || hasCustomGreeting) {
+    console.log(`   🔄 REGENERANDO FLOW DO ZERO (prompt mudou ${promptChangedCompletely ? 'completamente' : 'tem mensagem customizada'})`);
+    const builder = new FlowBuilder(undefined, apiKey); // Passar Mistral API key
+    const flow = await builder.buildFromPrompt(newPrompt);
+    const saved = await FlowStorage.saveFlow(userId, flow);
+    
+    console.log(`   ${saved ? '✅' : '❌'} Flow ${saved ? 'regenerado' : 'não regenerado'} do zero`);
+    console.log(`🔗 [FlowIntegration] ════════════════════════════════\n`);
+    
+    return {
+      flowUpdated: saved,
+      changes: saved ? ['Flow regenerado completamente do novo prompt'] : []
+    };
+  }
+
+  // 🎯 EDIÇÃO PONTUAL: Modificar valores específicos
+  console.log(`   ✏️ Edição pontual - modificando valores específicos`);
+
   // 1. Carregar flow existente
   let flow = await FlowStorage.loadFlow(userId);
   const changes: string[] = [];
@@ -117,7 +148,7 @@ export async function handleEditPrompt(
   if (!flow) {
     // Se não existe flow, criar um do prompt
     console.log(`   ⚠️ Flow não encontrado, criando do prompt atual...`);
-    const builder = new FlowBuilder();
+    const builder = new FlowBuilder(undefined, apiKey); // Passar Mistral API key
     flow = await builder.buildFromPrompt(currentPrompt);
     changes.push('Flow criado a partir do prompt existente');
   }
@@ -581,9 +612,9 @@ async function resolveDesiredFlowType(userId: string): Promise<FlowType> {
   return 'GENERICO';
 }
 
-function buildFlowFromPromptWithType(prompt: string, flowType: FlowType): FlowDefinition {
+function buildFlowFromPromptWithType(prompt: string, flowType: FlowType, mistralApiKey?: string): FlowDefinition {
   const analyzer = new PromptAnalyzer();
-  const builder = new FlowBuilder();
+  const builder = new FlowBuilder(undefined, mistralApiKey);
 
   const agentName = analyzer.extractAgentName(prompt) || 'Assistente';
   const businessName = analyzer.extractBusinessName(prompt) || 'Empresa';

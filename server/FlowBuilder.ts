@@ -361,6 +361,52 @@ export class PromptAnalyzer {
     
     return rules;
   }
+
+  /**
+   * 🎯 EXTRAI MENSAGEM CUSTOMIZADA OBRIGATÓRIA DO PROMPT
+   * Detecta quando prompt exige mensagem inicial exata/específica
+   */
+  extractCustomGreeting(prompt: string): string | null {
+    // Padrões que indicam mensagem customizada obrigatória
+    const patterns = [
+      // "responder **exatamente** com..." (mais flexível)
+      /responder\s+\*\*exatamente\*\*.*?:\s*\n+([\s\S]+)/i,
+      
+      // "primeira mensagem: (mensagem)"
+      /primeira mensagem(?:\s+(?:de todas|sempre|inicial))?:\s*\n+([\s\S]+?)(?:\n\n\n|$)/i,
+      
+      // "sempre enviar: (mensagem)"
+      /sempre enviar(?:\s+(?:a seguinte|esta))?(?:\s+mensagem)?:\s*\n+([\s\S]+?)(?:\n\n\n|$)/i,
+      
+      // "enviar sempre: (mensagem)"
+      /enviar sempre(?:\s+(?:a seguinte|esta))?(?:\s+mensagem)?:\s*\n+([\s\S]+?)(?:\n\n\n|$)/i,
+      
+      // "mensagem inicial: (mensagem)"
+      /mensagem inicial:\s*\n+([\s\S]+?)(?:\n\n\n|$)/i,
+      
+      // "Ignorar... responder com: (mensagem)"
+      /Ignorar.*?responder.*?com.*?:\s*\n+([\s\S]+?)(?:\n\n\n|$)/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = prompt.match(pattern);
+      if (match && match[1]) {
+        let message = match[1].trim();
+        
+        // Remover múltiplas quebras de linha no final
+        message = message.replace(/\n{3,}$/g, '');
+        
+        // Validar que é realmente uma mensagem (> 20 chars, tem texto)
+        if (message.length > 20 && /[a-záàâãéèêíïóôõöúçñ]/i.test(message)) {
+          console.log(`[PromptAnalyzer] 🎯 Mensagem customizada detectada (${message.length} chars)`);
+          console.log(`[PromptAnalyzer] Preview: ${message.substring(0, 80)}...`);
+          return message;
+        }
+      }
+    }
+    
+    return null;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -370,17 +416,102 @@ export class PromptAnalyzer {
 export class FlowBuilder {
   private analyzer: PromptAnalyzer;
   private anthropic?: Anthropic;
+  private mistralApiKey?: string;
   
-  constructor(anthropicApiKey?: string) {
+  constructor(anthropicApiKey?: string, mistralApiKey?: string) {
     this.analyzer = new PromptAnalyzer();
     if (anthropicApiKey) {
       this.anthropic = new Anthropic({ apiKey: anthropicApiKey });
+    }
+    if (mistralApiKey) {
+      this.mistralApiKey = mistralApiKey;
     }
   }
   
   /**
    * Constrói FlowDefinition a partir de um prompt existente
    */
+  /**
+   * 🤖 USA IA PARA EXTRAIR MENSAGEM CUSTOMIZADA DO PROMPT
+   * Muito mais robusto que regex!
+   */
+  async extractCustomGreetingWithAI(prompt: string): Promise<string | null> {
+    if (!this.mistralApiKey) {
+      console.log('[FlowBuilder] ⚠️ Mistral API key não disponível, usando regex fallback');
+      return this.analyzer.extractCustomGreeting(prompt);
+    }
+
+    try {
+      console.log('[FlowBuilder] 🤖 Usando IA para extrair mensagem customizada...');
+      
+      const analysisPrompt = `Analise o seguinte prompt de agente de IA e determine se ele contém uma MENSAGEM INICIAL CUSTOMIZADA OBRIGATÓRIA.
+
+PROMPT:
+"""
+${prompt}
+"""
+
+TAREFA:
+1. Identifique se o prompt especifica uma mensagem exata/específica que DEVE ser enviada como primeira interação
+2. Procure por frases como:
+   - "responder exatamente com..."
+   - "primeira mensagem..."
+   - "sempre enviar..."
+   - "mensagem inicial..."
+   - "ignorar saudação e responder com..."
+
+3. Se encontrar, extraia TODA a mensagem customizada (incluindo emojis, formatação, quebras de linha)
+4. Se NÃO encontrar mensagem customizada específica, retorne null
+
+RESPONDA APENAS COM JSON VÁLIDO:
+{
+  "has_custom_greeting": true/false,
+  "greeting_message": "texto completo da mensagem" ou null,
+  "confidence": 0-100
+}`;
+
+      const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.mistralApiKey}`
+        },
+        body: JSON.stringify({
+          model: 'mistral-small-latest',
+          messages: [{ role: 'user', content: analysisPrompt }],
+          temperature: 0.1,
+          max_tokens: 1000
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Mistral API error: ${response.status}`);
+      }
+
+      const data: any = await response.json();
+      const content = data.choices[0]?.message?.content?.trim() || '{}';
+      
+      // Parse JSON (remover markdown se tiver)
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      const result = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+
+      console.log(`[FlowBuilder] 🤖 IA Analysis: has_custom=${result.has_custom_greeting}, confidence=${result.confidence}%`);
+
+      if (result.has_custom_greeting && result.confidence >= 70 && result.greeting_message) {
+        console.log(`[FlowBuilder] ✅ Mensagem customizada extraída pela IA (${result.greeting_message.length} chars)`);
+        return result.greeting_message;
+      }
+
+      return null;
+
+    } catch (error: any) {
+      console.error(`[FlowBuilder] ❌ Erro ao usar IA para extrair mensagem:`, error.message);
+      // Fallback para regex
+      console.log('[FlowBuilder] 🔄 Usando regex fallback...');
+      return this.analyzer.extractCustomGreeting(prompt);
+    }
+  }
+
   async buildFromPrompt(prompt: string, userId?: string): Promise<FlowDefinition> {
     console.log('[FlowBuilder] Analisando prompt...');
     
@@ -396,6 +527,12 @@ export class FlowBuilder {
     const links = this.analyzer.extractLinks(prompt);
     const coupons = this.analyzer.extractCoupons(prompt);
     const globalRules = this.analyzer.extractGlobalRules(prompt);
+    
+    // 🎯 CRÍTICO: Usar IA para extrair mensagem customizada (se disponível)
+    const customGreeting = await this.extractCustomGreetingWithAI(prompt);
+    if (customGreeting) {
+      console.log(`[FlowBuilder] 🎯 Mensagem customizada encontrada (${customGreeting.length} chars)`);
+    }
     
     console.log(`[FlowBuilder] Agente: ${agentName}, Negócio: ${businessName}`);
     
@@ -428,6 +565,18 @@ export class FlowBuilder {
     flow.data.coupons = coupons;
     flow.globalRules = globalRules;
     flow.sourcePrompt = prompt;
+    
+    // 🎯 CRÍTICO: Sobrescrever mensagem START se customizada detectada
+    if (customGreeting && flow.states.INICIO) {
+      console.log(`[FlowBuilder] ✅ Substituindo mensagem START por customizada`);
+      flow.states.INICIO.description = customGreeting;
+      // Também criar uma ação customizada
+      flow.actions.GREET_CUSTOM = {
+        name: 'Saudação Customizada',
+        type: 'RESPONSE',
+        template: customGreeting
+      };
+    }
     
     // 5. Se tiver IA disponível, fazer análise profunda
     if (this.anthropic) {
