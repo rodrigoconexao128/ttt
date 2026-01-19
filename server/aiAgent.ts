@@ -1167,10 +1167,21 @@ export function analyzeConversationHistory(
   for (const msg of conversationHistory) {
     if (!msg.text) continue;
     const text = msg.text.toLowerCase();
-    const isFromUs = msg.fromMe === true;
+    
+    // 🛡️ CORREÇÃO CRÍTICA: Só considerar como "nossa mensagem" se foi do AGENTE (IA)
+    // Mensagens manuais do dono (fromMe=true, isFromAgent=false) NÃO devem ser analisadas
+    // como se fossem do agente, pois podem conter assuntos diferentes (ex: vendendo AgenteZap)
+    const isFromAgent = msg.isFromAgent === true;
+    const isFromOwner = msg.fromMe === true && msg.isFromAgent === false;
+    const isFromClient = msg.fromMe === false;
 
-    if (isFromUs) {
-      // Análise das nossas mensagens
+    // Ignorar mensagens manuais do dono para análise de memória
+    if (isFromOwner) {
+      continue;
+    }
+
+    if (isFromAgent) {
+      // Análise das mensagens DO AGENTE (IA)
       if (greetingPatterns.test(text)) {
         memory.hasGreeted = true;
         memory.greetingCount++;
@@ -1230,7 +1241,7 @@ export function analyzeConversationHistory(
         memory.hasSentMedia.push("áudio");
       }
 
-    } else {
+    } else if (isFromClient) {
       // Análise das mensagens do cliente
       // 🚨 CRÍTICO: Se cliente aceitou oferta ou disse "aguardo"
       if (lastOfferContent && acceptancePatterns.test(text)) {
@@ -1241,12 +1252,13 @@ export function analyzeConversationHistory(
       
       // Se cliente disse "aguardo" ou similar, SEMPRE adicionar ação pendente
       if (text.match(/aguardo|esperando|fico no aguardo|estou esperando|esperarei|pode mandar|pode enviar|manda aí|manda ai/i)) {
-         // Procurar no histórico o que foi prometido
-         const lastAgentMessages = conversationHistory.filter(m => m.fromMe).slice(-5);
+         // Procurar no histórico o que foi prometido (APENAS do agente, não do dono)
+         const lastAgentMessages = conversationHistory.filter(m => m.isFromAgent === true).slice(-5);
          let promisedItem = "o que foi prometido";
          for (const msg of lastAgentMessages) {
             if (msg.text && msg.text.match(/vídeo|video|áudio|audio|imagem|foto|explicar|mostrar|demonstr/i)) {
                const match = msg.text.match(/(vídeo|video|áudio|audio|imagem|foto)/i);
+
                if (match) promisedItem = match[0];
                break;
             }
@@ -2663,7 +2675,31 @@ ${jaDisseOQueTrabalha || jaPediuAjuda ? `
     // Adicionar mensagens do histórico (exceto a última se for do user com mesmo texto que newMessageText)
     for (let i = 0; i < uniqueMessages.length; i++) {
       const msg = uniqueMessages[i];
-      const role = msg.fromMe ? "assistant" : "user";
+      
+      // 🛡️ CORREÇÃO CRÍTICA: Distinguir mensagens do AGENTE vs mensagens do DONO
+      // - isFromAgent=true → A IA enviou esta mensagem → role="assistant"
+      // - fromMe=true, isFromAgent=false → O DONO enviou manualmente → NÃO é assistant!
+      // - fromMe=false → Cliente enviou → role="user"
+      // 
+      // BUG ANTERIOR: Mensagens manuais do dono (ex: vendendo AgenteZap) eram tratadas como
+      // "assistant", fazendo a IA ALUCINAR e continuar o assunto errado!
+      let role: "assistant" | "user" | "system";
+      
+      if (msg.isFromAgent === true) {
+        // A IA realmente enviou esta mensagem
+        role = "assistant";
+      } else if (msg.fromMe === true && msg.isFromAgent === false) {
+        // O DONO enviou manualmente - NÃO INCLUIR como assistant!
+        // Opção 1: Pular completamente (dono pode falar coisas fora do escopo)
+        // Opção 2: Incluir como contexto de "sistema" (menos confuso para IA)
+        // Vamos pular para evitar que IA copie mensagens do dono
+        console.log(`   ${i + 1}. [DONO] ${(msg.text || "").substring(0, 50)}... (IGNORADA - msg manual do dono)`);
+        continue;
+      } else {
+        // Cliente enviou
+        role = "user";
+      }
+      
       const isLastMessage = i === uniqueMessages.length - 1;
       
       // Se última mensagem do histórico for do user com mesmo texto que newMessageText, pular (evitar duplicação)
