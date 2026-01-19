@@ -861,20 +861,40 @@ export async function generateDeliveryResponse(
     .flatMap(cat => cat.items.map(item => `${item.name}: R$ ${item.price.toFixed(2)}`))
     .join('\n');
   
+  // Lista de TODOS os nomes de itens para validação
+  const allItemNames = deliveryData.categories
+    .flatMap(cat => cat.items.map(item => item.name.toLowerCase()));
+  
   const systemPrompt = `Você é um atendente simpático da ${deliveryData.config.business_name}.
-REGRAS IMPORTANTES:
-1. Seja breve e direto (máximo 2-3 frases)
-2. NUNCA invente preços - use APENAS os preços abaixo
-3. Se não souber algo, pergunte ou consulte o cardápio
-4. Use emojis com moderação
 
-PREÇOS CORRETOS (USE APENAS ESTES):
+⚠️ REGRAS CRÍTICAS - SIGA À RISCA:
+
+1. CARDÁPIO COMPLETO (APENAS ESTES ITENS EXISTEM):
 ${itemList}
 
-Taxa de entrega: R$ ${deliveryData.config.delivery_fee.toFixed(2)}
-Pedido mínimo: R$ ${deliveryData.config.min_order_value.toFixed(2)}
-Tempo de entrega: ~${deliveryData.config.estimated_delivery_time} min
-Pagamento: ${deliveryData.config.payment_methods.join(', ')}`;
+2. ITENS QUE NÃO EXISTEM (NUNCA MENCIONE):
+   - Batata frita, batata, fritas
+   - Onion rings, nuggets
+   - Milk shake, sorvete
+   - Qualquer item NÃO listado acima
+
+3. SE O CLIENTE PEDIR ALGO QUE NÃO TEM:
+   Responda: "Infelizmente não temos [item]. Nosso cardápio tem: [listar itens]"
+
+4. AO CONFIRMAR PEDIDO:
+   - Use APENAS preços do cardápio acima
+   - Calcule: Subtotal + Taxa entrega (R$ ${deliveryData.config.delivery_fee.toFixed(2)}) = Total
+   - NUNCA invente valores
+
+5. INFORMAÇÕES DE ENTREGA:
+   - Taxa: R$ ${deliveryData.config.delivery_fee.toFixed(2)}
+   - Tempo: ~${deliveryData.config.estimated_delivery_time} min
+   - Pedido mínimo: R$ ${deliveryData.config.min_order_value.toFixed(2)}
+   - Pagamento: ${deliveryData.config.payment_methods.join(', ')}
+
+6. SEJA BREVE: máximo 2-3 frases. Use emojis com moderação.
+
+7. SE NÃO SOUBER: pergunte ao cliente ou diga que vai verificar.`;
 
   try {
     const response = await mistral.chat.complete({
@@ -883,7 +903,7 @@ Pagamento: ${deliveryData.config.payment_methods.join(', ')}`;
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
       ],
-      temperature: 0.3, // Baixa para ser mais determinístico
+      temperature: 0.2, // Muito baixa para ser mais determinístico
       maxTokens: 300,   // Respostas curtas
     });
     
@@ -892,7 +912,15 @@ Pagamento: ${deliveryData.config.payment_methods.join(', ')}`;
       aiResponse = String(aiResponse);
     }
     
-    // Validar preços na resposta
+    // VALIDAÇÃO 1: Verificar se inventou itens
+    const inventedItems = detectInventedItems(aiResponse, allItemNames);
+    if (inventedItems.length > 0) {
+      console.log(`🚨 [DeliveryAI] IA INVENTOU ITENS: ${inventedItems.join(', ')}`);
+      // Corrigir a resposta
+      aiResponse = `Nosso cardápio tem:\n${itemList}\n\nO que você gostaria de pedir? 😊`;
+    }
+    
+    // VALIDAÇÃO 2: Validar preços na resposta
     const validation = validatePriceInResponse(aiResponse, deliveryData);
     if (!validation.valid) {
       console.log(`⚠️ [DeliveryAI] Preços incorretos detectados e corrigidos:`, validation.errors);
@@ -914,6 +942,43 @@ Pagamento: ${deliveryData.config.payment_methods.join(', ')}`;
       bubbles: ['Desculpe, tive um problema. Pode repetir sua mensagem?'],
     };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🚨 DETECTAR ITENS INVENTADOS PELA IA
+// ═══════════════════════════════════════════════════════════════════════
+
+function detectInventedItems(response: string, validItems: string[]): string[] {
+  const inventedItems: string[] = [];
+  const responseLower = response.toLowerCase();
+  
+  // Lista de itens comuns que IA pode inventar
+  const commonInventions = [
+    'batata frita', 'batata', 'fritas', 'french fries',
+    'onion rings', 'anéis de cebola',
+    'nuggets', 'chicken nuggets',
+    'milk shake', 'milkshake', 'shake',
+    'sorvete', 'sundae',
+    'combo', 'promoção',
+    'pizza', 'hot dog', 'cachorro quente',
+    'cheddar', 'bacon extra', // a menos que exista
+  ];
+  
+  for (const invention of commonInventions) {
+    // Verifica se a IA mencionou o item inventado
+    if (responseLower.includes(invention)) {
+      // Verifica se NÃO é um item válido do cardápio
+      const isValid = validItems.some(valid => 
+        valid.includes(invention) || invention.includes(valid)
+      );
+      
+      if (!isValid) {
+        inventedItems.push(invention);
+      }
+    }
+  }
+  
+  return inventedItems;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
