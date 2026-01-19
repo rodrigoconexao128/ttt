@@ -948,31 +948,57 @@ export default function DeliveryMenuPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Bot className="h-5 w-5" />
-                  Instruções de Exibição do Cardápio
+                  Instruções de Comportamento do Cardápio
                 </CardTitle>
                 <CardDescription>
                   Configure como a IA deve apresentar o cardápio para os clientes.
-                  Estas instruções definem o formato de listagem dos itens.
+                  Você pode definir se envia tudo de uma vez ou pergunta primeiro o que o cliente quer.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="display_instructions">Formato de Apresentação</Label>
+                  <Label htmlFor="display_instructions">Instruções de Apresentação</Label>
                   <textarea
                     id="display_instructions"
-                    className="w-full min-h-[120px] p-3 text-sm rounded-lg border border-input bg-background resize-y focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="Ex: Quando o cliente pedir o cardápio, liste cada item em uma linha separada com emoji, nome e preço. Organize por categoria."
+                    className="w-full min-h-[150px] p-3 text-sm rounded-lg border border-input bg-background resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Ex: Primeiro pergunte ao cliente se ele quer ver Pizzas, Esfihas, Bebidas ou o cardápio completo. Só envie o cardápio da categoria que ele escolher."
                     value={config?.display_instructions || ''}
                     onChange={(e) => updateConfigMutation.mutate({ display_instructions: e.target.value })}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    💡 Exemplo: "Liste os itens um por linha, com emoji da categoria, nome e preço. Agrupe por categoria."
-                  </p>
                 </div>
+                
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-muted-foreground">💡 Exemplos de instruções:</p>
+                  
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm font-medium text-blue-800 mb-1">🎯 Perguntar primeiro (recomendado para cardápios grandes):</p>
+                    <p className="text-xs text-blue-700 italic">
+                      "Quando o cliente quiser ver o cardápio, primeiro pergunte: 'Você quer ver: 🍕 Pizzas, 🥟 Esfihas, 🍹 Bebidas ou o cardápio completo?' 
+                      Só envie o menu da categoria escolhida."
+                    </p>
+                  </div>
+                  
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm font-medium text-green-800 mb-1">📋 Enviar tudo organizado:</p>
+                    <p className="text-xs text-green-700 italic">
+                      "Liste cada item em uma linha separada com emoji, nome e preço. Organize por categoria. 
+                      Use negrito para os nomes das categorias."
+                    </p>
+                  </div>
+                  
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                    <p className="text-sm font-medium text-purple-800 mb-1">⭐ Destacar promoções:</p>
+                    <p className="text-xs text-purple-700 italic">
+                      "Ao apresentar o cardápio, destaque primeiro os itens em promoção com ⭐. 
+                      Depois mostre as demais categorias."
+                    </p>
+                  </div>
+                </div>
+
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                   <p className="text-sm text-amber-800">
                     <strong>📝 Dica:</strong> Para editar os itens do cardápio (nomes, preços, descrições), 
-                    use a aba "Cardápio". Esta seção é apenas para configurar <em>como</em> a IA apresenta os itens.
+                    use a aba "Cardápio". Esta seção é apenas para configurar o <em>comportamento</em> da IA ao apresentar.
                   </p>
                 </div>
               </CardContent>

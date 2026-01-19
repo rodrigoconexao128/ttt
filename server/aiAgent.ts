@@ -687,10 +687,27 @@ function generateDeliveryPromptBlock(deliveryData: DeliveryMenuForAIResponse): s
   // Formas de pagamento
   const paymentMethods = deliveryData.payment_methods.join(', ');
 
+  // Montar instrução de apresentação
+  const displayInstructionsText = deliveryData.displayInstructions 
+    ? deliveryData.displayInstructions.trim()
+    : '';
+  
+  // Se as instruções pedem para perguntar primeiro, não usar tag ENVIAR_CARDAPIO_COMPLETO automaticamente
+  const askFirstKeywords = ['pergunt', 'primeiro', 'antes', 'categorias', 'quer ver'];
+  const shouldAskFirst = askFirstKeywords.some(kw => displayInstructionsText.toLowerCase().includes(kw));
+  
+  // Gerar lista de categorias para referência
+  const categoryList = deliveryData.categories
+    .filter(c => c.items && c.items.length > 0)
+    .map(c => `${c.name} (${c.items.length} itens)`)
+    .join(', ');
+
   return `
 ═══════════════════════════════════════════════════════════════════════
 ${emoji} CARDÁPIO - ${businessName.toUpperCase()} (${deliveryData.total_items} itens)
 ═══════════════════════════════════════════════════════════════════════
+
+📁 **CATEGORIAS DISPONÍVEIS:** ${categoryList}
 
 ${menuText}
 
@@ -700,10 +717,30 @@ ${deliveryData.accepts_pickup ? '• Retirada no local: GRÁTIS' : ''}
 ${deliveryData.min_order_value > 0 ? `• Pedido mínimo: ${formatPrice(String(deliveryData.min_order_value))}` : ''}
 • Formas de pagamento: ${paymentMethods}
 
-${deliveryData.displayInstructions ? `**📝 FORMATO DE APRESENTAÇÃO DO CARDÁPIO:**\n${deliveryData.displayInstructions}\n` : ''}
+${displayInstructionsText ? `
+**📝 INSTRUÇÕES DE APRESENTAÇÃO (SIGA ESTAS REGRAS OBRIGATORIAMENTE):**
+${displayInstructionsText}
+` : ''}
 
 ═══════════════════════════════════════════════════════════════════════
-🚨🚨🚨 REGRA ABSOLUTAMENTE CRÍTICA E OBRIGATÓRIA 🚨🚨🚨
+${shouldAskFirst ? `
+🎯 **MODO: PERGUNTAR PRIMEIRO**
+Como as instruções de apresentação pedem para perguntar primeiro, siga este fluxo:
+
+1. Quando o cliente quiser ver o cardápio, PERGUNTE qual categoria ele prefere:
+   "Temos ${categoryList}. Qual você gostaria de ver?"
+
+2. Quando ele escolher uma categoria, use a tag:
+   [ENVIAR_CATEGORIA: nome_da_categoria]
+   
+   Exemplo: Se o cliente quer ver pizzas, responda:
+   "Aqui estão nossas pizzas! 🍕
+   [ENVIAR_CATEGORIA: Pizzas]"
+
+3. Se ele pedir o cardápio completo, aí sim use:
+   [ENVIAR_CARDAPIO_COMPLETO]
+` : `
+🚨🚨🚨 REGRA ABSOLUTAMENTE CRÍTICA E OBRIGATÓRIA 🚨🚨🚨`}
 ═══════════════════════════════════════════════════════════════════════
 
 QUANDO O CLIENTE PERGUNTAR SOBRE CARDÁPIO, MENU OU PRODUTOS:
@@ -3130,6 +3167,56 @@ Mensagem do cliente: ${newMessageText.trim()}`;
           responseText = `${formattedMenu}\n\nAqui está nosso cardápio completo! 😊 Quer fazer um pedido?`;
           console.log(`🛡️ [AI Agent] ✅ FALLBACK aplicado - cardápio completo injetado (${formattedMenu.length} chars)`);
         }
+      }
+    }
+    
+    // 📁 PROCESSAR TAG DE CATEGORIA: [ENVIAR_CATEGORIA: nome_categoria]
+    // Esta tag permite enviar apenas uma categoria específica do cardápio
+    const categoryTagRegex = /\[ENVIAR_CATEGORIA:\s*([^\]]+)\]/gi;
+    let categoryMatch;
+    while ((categoryMatch = categoryTagRegex.exec(responseText || '')) !== null) {
+      const [fullTag, categoryName] = categoryMatch;
+      console.log(`📁 [AI Agent] Tag [ENVIAR_CATEGORIA: ${categoryName}] detectada!`);
+      
+      const deliveryMenu = await getDeliveryMenuForAI(userId);
+      if (deliveryMenu && deliveryMenu.active) {
+        // Encontrar a categoria pelo nome (busca parcial, case-insensitive)
+        const normalizedSearch = categoryName.toLowerCase().trim();
+        const matchingCategory = deliveryMenu.categories.find(cat => 
+          cat.name.toLowerCase().includes(normalizedSearch) ||
+          normalizedSearch.includes(cat.name.toLowerCase().replace(/[🍕🍫🥟🍹🧀]/g, '').trim())
+        );
+        
+        if (matchingCategory && matchingCategory.items.length > 0) {
+          console.log(`📁 [AI Agent] Categoria encontrada: ${matchingCategory.name} com ${matchingCategory.items.length} itens`);
+          
+          // Formatar apenas essa categoria
+          const formatPrice = (price: string | null): string => {
+            if (!price) return 'Consultar';
+            const num = parseFloat(price);
+            if (isNaN(num)) return price;
+            return `R$ ${num.toFixed(2).replace('.', ',')}`;
+          };
+          
+          let categoryText = `*${matchingCategory.name}*\n`;
+          for (const item of matchingCategory.items) {
+            const priceText = item.promotional_price 
+              ? `~${formatPrice(item.price)}~ *${formatPrice(item.promotional_price)}*`
+              : formatPrice(item.price);
+            categoryText += `• ${item.name} - ${priceText}\n`;
+            if (item.description) {
+              categoryText += `  _${item.description}_\n`;
+            }
+          }
+          
+          responseText = responseText!.replace(fullTag, categoryText);
+          console.log(`📁 [AI Agent] ✅ Categoria "${matchingCategory.name}" inserida (${categoryText.length} chars)`);
+        } else {
+          console.log(`⚠️ [AI Agent] Categoria "${categoryName}" não encontrada`);
+          responseText = responseText!.replace(fullTag, `(Categoria "${categoryName}" não encontrada)`);
+        }
+      } else {
+        responseText = responseText!.replace(fullTag, '');
       }
     }
     
