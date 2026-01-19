@@ -8,9 +8,6 @@ import crypto from "crypto";
 import { validateAgentResponse } from "./agentValidation";
 // 🚀 UNIFIED FLOW ENGINE - Sistema híbrido (IA interpreta, Sistema executa)
 import { shouldUseFlowEngine, processWithFlowEngine, FlowStorage } from "./flowIntegration";
-// 🎯 DETERMINISTIC FLOW ENGINE - Sistema determin\u00edstico universal (funciona para QUALQUER negócio)
-import { DeterministicFlowEngine } from "./DeterministicFlowEngine";
-import { PromptToFlowConverter } from "./PromptToFlowConverter";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🤖 SISTEMA ANTI-BOT - DETECTA E IGNORA MENSAGENS DE BOTS
@@ -2080,128 +2077,70 @@ export async function generateAIResponse(
     }
     
     console.log(`   ✅ [AI Agent] Agent ENABLED (legacy isActive=true), processing response...`);
-
+    
     // ═══════════════════════════════════════════════════════════════════════
-    // 🎯 SISTEMA DETERMINÍSTICO UNIVERSAL - PRIORIDADE MÁXIMA
-    // ═══════════════════════════════════════════════════════════════════════
+    // 🔗 INTEGRAÇÃO COM FLOW ENGINE
+    // 
+    // ARQUITETURA HÍBRIDA:
+    // IA INTERPRETA → FLUXO EXECUTA → IA HUMANIZA
     //
-    // Este sistema garante que a IA NUNCA toma decisões sozinha.
-    // Funciona para QUALQUER tipo de negócio (delivery, vendas, agendamento, genérico)
+    // Quando um fluxo está definido para esse usuário, o sistema:
+    // 1. IA interpreta a intenção da mensagem
+    // 2. Fluxo executa ações determinísticas (não inventa)
+    // 3. IA humaniza a resposta do fluxo
     //
-    // FLUXO:
-    // 1. IA interpreta intenção do usuário
-    // 2. Sistema de fluxo decide próximo estado
-    // 3. Sistema gera resposta baseada em regras
-    // 4. IA humaniza a resposta
-    //
+    // Isso previne variação de respostas pois o "core" é determinístico
     // ═══════════════════════════════════════════════════════════════════════
     try {
-      console.log(`\n🎯 [DeterministicFlow] Verificando se deve usar fluxo determin\u00edstico...`);
-
-      const flowEngine = new DeterministicFlowEngine();
-      const conversationId = options?.contactPhone || `conv_${userId}_${Date.now()}`;
-
-      const flowResult = await flowEngine.processMessage(
-        userId,
-        conversationId,
-        newMessageText,
-        {
-          contactName: contactName,
-          contactPhone: contactPhone,
-          apiKey: agentConfig.mistralApiKey
-        }
-      );
-
-      if (flowResult) {
-        console.log(`🎯 [DeterministicFlow] ✅ Resposta gerada pelo fluxo determin\u00edstico!`);
-        console.log(`   Estado: ${flowResult.state}`);
-        console.log(`   Preview: ${flowResult.text.substring(0, 100)}...`);
-
-        return {
-          text: flowResult.text,
-          mediaActions: flowResult.mediaActions || [],
-          notification: undefined,
-          appointmentCreated: undefined,
-          deliveryOrderCreated: undefined,
-        };
-      }
-
-      console.log(`🎯 [DeterministicFlow] ℹ️ Sem fluxo definido, tentando criar automaticamente...`);
-
-      // Criar fluxo automaticamente se não existir
-      if (agentConfig.prompt && agentConfig.prompt.length > 50) {
-        const converter = new PromptToFlowConverter();
-        const newFlow = await converter.convertPromptToFlow(
-          agentConfig.prompt,
-          userId,
-          {
-            agentName: agentConfig.agentName || 'Assistente',
-            businessName: agentConfig.businessName || 'Empresa'
-          }
-        );
-
-        // Salvar no banco
-        const { error: saveError } = await supabase
-          .from('flow_definitions')
-          .upsert({
-            id: newFlow.id,
-            user_id: newFlow.userId,
-            flow_type: newFlow.flowType,
-            agent_name: newFlow.agentName,
-            business_name: newFlow.businessName,
-            agent_personality: newFlow.agentPersonality,
-            flow_definition: {
-              states: newFlow.states,
-              initialState: newFlow.initialState
-            },
-            business_data: newFlow.businessData,
-            global_rules: newFlow.globalRules,
-            source_prompt: newFlow.sourcePrompt,
-            generated_by: 'auto',
-            version: newFlow.version,
-            is_active: true
-          }, {
-            onConflict: 'user_id,flow_type'
-          });
-
-        if (!saveError) {
-          console.log(`🎯 [DeterministicFlow] ✅ Fluxo criado automaticamente! Tipo: ${newFlow.flowType}`);
-
-          // Tentar processar novamente com o fluxo recém-criado
-          const retryResult = await flowEngine.processMessage(
+      const useFlowEngine = await shouldUseFlowEngine(userId);
+      if (useFlowEngine) {
+        console.log(`\n🔗 [AI Agent] Detectado FlowEngine ativo - usando arquitetura IA+Fluxo`);
+        console.log(`   → IA INTERPRETA a intenção`);
+        console.log(`   → FLUXO EXECUTA ações determinísticas`);
+        console.log(`   → IA HUMANIZA a resposta\n`);
+        
+        // Obter chave da API para humanização
+        const mistralKey = process.env.MISTRAL_API_KEY;
+        if (!mistralKey) {
+          console.log(`⚠️ [Flow Engine] Sem API key Mistral, usando sistema legado`);
+        } else {
+          // Gerar ID de conversa persistente
+          const conversationId = options?.conversationId || 
+            `real-${userId}-${Math.floor(Date.now() / 60000)}`; // Muda a cada minuto
+          
+          const flowResult = await processWithFlowEngine(
             userId,
             conversationId,
             newMessageText,
+            mistralKey,
             {
-              contactName: contactName,
-              contactPhone: contactPhone,
-              apiKey: agentConfig.mistralApiKey
+              contactName,
+              history: conversationHistory.map(m => ({ 
+                fromMe: m.fromMe, 
+                text: m.text || '' 
+              }))
             }
           );
-
-          if (retryResult) {
-            console.log(`🎯 [DeterministicFlow] ✅ Resposta gerada com fluxo recém-criado!`);
+          
+          if (flowResult) {
+            console.log(`✅ [Flow Engine] Resposta gerada com sucesso`);
             return {
-              text: retryResult.text,
-              mediaActions: retryResult.mediaActions || [],
+              text: flowResult.text,
+              mediaActions: flowResult.mediaActions || [],
               notification: undefined,
               appointmentCreated: undefined,
-              deliveryOrderCreated: undefined,
+              deliveryOrderCreated: undefined
             };
+          } else {
+            console.log(`⚠️ [Flow Engine] Sem resposta, usando sistema legado`);
           }
-        } else {
-          console.error(`🎯 [DeterministicFlow] ❌ Erro ao salvar fluxo:`, saveError);
         }
       }
-
-      console.log(`🎯 [DeterministicFlow] Continuando com sistema legado...`);
-
     } catch (flowError) {
-      console.error(`🎯 [DeterministicFlow] ❌ Erro ao processar com fluxo:`, flowError);
-      console.log(`🎯 [DeterministicFlow] Continuando com sistema legado...`);
+      console.error(`⚠️ [Flow Engine] Erro:`, flowError);
+      // Continua com sistema legado
     }
-    // ═══════════════════════════════════════════════════════════════════════
-
+    
     // ═══════════════════════════════════════════════════════════════════════
     // 🍕 INTERCEPTAÇÃO DE DELIVERY - NOVO SISTEMA DETERMINÍSTICO (2025)
     // 

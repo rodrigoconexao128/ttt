@@ -14,7 +14,8 @@
  * - IA só interpreta intenções e humaniza respostas
  */
 
-import { FlowBuilder, FlowDefinition, PromptAnalyzer } from "./FlowBuilder";
+import { FlowBuilder, PromptAnalyzer } from "./FlowBuilder";
+import type { FlowDefinition, FlowType } from "./FlowBuilder";
 import { UnifiedFlowEngine, FlowStorage, FlowConfig } from "./UnifiedFlowEngine";
 import { supabase } from "./supabaseAuth";
 
@@ -41,24 +42,6 @@ export async function handleGeneratePrompt(
 
   // 1. Analisar tipo de negócio para determinar flow adequado
   const analyzer = new PromptAnalyzer();
-  
-  // Mapear businessType para FlowType
-  const flowTypeMap: Record<string, string> = {
-    'restaurant': 'DELIVERY',
-    'store': 'VENDAS',
-    'clinic': 'AGENDAMENTO',
-    'salon': 'AGENDAMENTO',
-    'gym': 'VENDAS',
-    'school': 'VENDAS',
-    'agency': 'VENDAS',
-    'realestate': 'VENDAS',
-    'lawyer': 'SUPORTE',
-    'mechanic': 'SUPORTE',
-    'other': 'GENERICO'
-  };
-
-  const flowType = flowTypeMap[businessType] || 'GENERICO';
-
   // 2. Construir FlowDefinition baseado no tipo
   const builder = new FlowBuilder();
   
@@ -73,7 +56,8 @@ ${additionalInfo ? `Informações adicionais: ${additionalInfo}` : ''}
   // 3. Construir flow
   let flow: FlowDefinition;
   try {
-    flow = await builder.buildFromPrompt(basePrompt);
+    const desiredType = await resolveDesiredFlowType(userId);
+    flow = await buildFlowFromPromptWithType(basePrompt, desiredType);
     
     // Ajustar dados do flow
     flow.businessName = businessName;
@@ -254,6 +238,9 @@ export async function handleEditPrompt(
  * AGORA: Cria FlowDefinition automaticamente se não existir! 🚀
  */
 export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
+  // Resolver tipo de flow desejado (DELIVERY, VENDAS, etc)
+  const desiredType = await resolveDesiredFlowType(userId);
+  
   // Verificar se usuário tem um flow definido
   let flow = await FlowStorage.loadFlow(userId);
   
@@ -279,8 +266,7 @@ export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
       console.log(`🔄 [shouldUseFlowEngine] Tipo: ${agentConfig.business_type || 'não definido'}`);
       
       // Criar FlowDefinition a partir do prompt
-      const builder = new FlowBuilder();
-      flow = await builder.buildFromPrompt(agentConfig.prompt);
+      flow = await buildFlowFromPromptWithType(agentConfig.prompt, desiredType);
       
       // Ajustar nome do agente se disponível
       if (agentConfig.agent_name) {
@@ -305,6 +291,37 @@ export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
     }
   }
   
+  if (flow.type !== desiredType) {
+    console.log(`?? [shouldUseFlowEngine] Flow ${flow.type} difere de ${desiredType}, reconstruindo...`);
+    try {
+      const { data: agentConfig, error: agentError } = await supabase
+        .from('agent_configs')
+        .select('prompt, agent_name')
+        .eq('user_id', userId)
+        .single();
+
+      if (agentError || !agentConfig?.prompt) {
+        console.log(`?? [shouldUseFlowEngine] ?? Sem prompt para reconstruir flow`);
+        return true;
+      }
+
+      const rebuilt = await buildFlowFromPromptWithType(agentConfig.prompt, desiredType);
+      if (agentConfig.agent_name) {
+        rebuilt.agentName = agentConfig.agent_name;
+      }
+
+      const saved = await FlowStorage.saveFlow(userId, rebuilt);
+      if (saved) {
+        console.log(`?? [shouldUseFlowEngine] ? Flow atualizado para ${desiredType}`);
+      } else {
+        console.log(`?? [shouldUseFlowEngine] ? Falha ao atualizar flow`);
+      }
+    } catch (err) {
+      console.error(`?? [shouldUseFlowEngine] ? Erro ao atualizar flow:`, err);
+    }
+  }
+
+  console.log(`✅ [shouldUseFlowEngine] RETORNANDO TRUE - FlowEngine ATIVO`);
   return true;
 }
 
@@ -477,6 +494,137 @@ function generatePromptFromFlow(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+
+async function resolveDesiredFlowType(userId: string): Promise<FlowType> {
+  /**
+   * PRIORIDADE DE FLUXOS:
+   * 1. DELIVERY (https://agentezap.online/delivery-cardapio)
+   * 2. PRODUTOS/VENDAS (https://agentezap.online/produtos)
+   * 3. AGENDAMENTO (https://agentezap.online/agendamentos)
+   * 4. CURSO (se implementado depois)
+   * 5. GENERICO (fallback com fluxo invisível por trás)
+   * 
+   * IMPORTANTE: Quando NENHUM está ativo, usar GENERICO com fluxo por trás
+   * IA INTERPRETA → FLUXO EXECUTA → IA HUMANIZA
+   */
+
+  // 1. Verificar DELIVERY
+  try {
+    const { data: deliveryConfigs, error: deliveryError } = await supabase
+      .from('delivery_config')
+      .select('is_active, send_to_ai')
+      .eq('user_id', userId);
+
+    const deliveryConfig = deliveryConfigs?.[0];
+    console.log(`🔍 [resolveDesiredFlowType] DELIVERY check - is_active: ${deliveryConfig?.is_active}, send_to_ai: ${deliveryConfig?.send_to_ai}, error: ${deliveryError?.message || 'none'}, count: ${deliveryConfigs?.length || 0}`);
+
+    // Verificar apenas se NÃO há erro e is_active é true
+    if (!deliveryError && deliveryConfig?.is_active === true) {
+      console.log(`📦 [resolveDesiredFlowType] → DELIVERY (ativo)`);
+      return 'DELIVERY';
+    }
+  } catch (err: any) {
+    console.log(`❌ [resolveDesiredFlowType] DELIVERY erro: ${err?.message || err}`);
+  }
+
+  // 2. Verificar PRODUTOS/VENDAS
+  try {
+    const { data: productsConfig } = await supabase
+      .from('products_config')
+      .select('is_active, send_to_ai')
+      .eq('user_id', userId)
+      .single();
+
+    if (productsConfig?.is_active && productsConfig?.send_to_ai !== false) {
+      console.log(`🛍️ [resolveDesiredFlowType] → VENDAS (ativo)`);
+      return 'VENDAS';
+    }
+  } catch {
+    // Sem config
+  }
+
+  // 3. Verificar AGENDAMENTO
+  try {
+    const { data: schedulingConfig } = await supabase
+      .from('scheduling_config')
+      .select('is_enabled')
+      .eq('user_id', userId)
+      .single();
+
+    if (schedulingConfig?.is_enabled) {
+      console.log(`📅 [resolveDesiredFlowType] → AGENDAMENTO (ativo)`);
+      return 'AGENDAMENTO';
+    }
+  } catch {
+    // Sem config
+  }
+
+  // 4. Verificar CURSO
+  try {
+    const { data: courseConfig } = await supabase
+      .from('course_config')
+      .select('is_active, send_to_ai')
+      .eq('user_id', userId)
+      .single();
+
+    if (courseConfig?.is_active && courseConfig?.send_to_ai !== false) {
+      console.log(`🎓 [resolveDesiredFlowType] → CURSO (ativo)`);
+      return 'CURSO';
+    }
+  } catch {
+    // Sem config
+  }
+
+  // 5. FALLBACK: GENERICO com fluxo invisível por trás
+  // Mesmo quando NENHUM módulo está ativo, o sistema executa um fluxo determinístico
+  console.log(`🤖 [resolveDesiredFlowType] → GENERICO (fallback com fluxo invisível)`);
+  return 'GENERICO';
+}
+
+function buildFlowFromPromptWithType(prompt: string, flowType: FlowType): FlowDefinition {
+  const analyzer = new PromptAnalyzer();
+  const builder = new FlowBuilder();
+
+  const agentName = analyzer.extractAgentName(prompt) || 'Assistente';
+  const businessName = analyzer.extractBusinessName(prompt) || 'Empresa';
+  const personality = analyzer.extractPersonality(prompt) || 'amigavel e profissional';
+
+  let flow: FlowDefinition;
+  switch (flowType) {
+    case 'DELIVERY':
+      flow = builder.buildDeliveryFlow(agentName, businessName, personality);
+      break;
+    case 'VENDAS':
+      flow = builder.buildVendasFlow(agentName, businessName, personality);
+      break;
+    case 'AGENDAMENTO':
+      flow = builder.buildAgendamentoFlow(agentName, businessName, personality);
+      break;
+    case 'SUPORTE':
+      flow = builder.buildSuporteFlow(agentName, businessName, personality);
+      break;
+    case 'CURSO':
+      flow = builder.buildCursoFlow(agentName, businessName, personality);
+      break;
+    default:
+      flow = builder.buildGenericoFlow(agentName, businessName, personality);
+  }
+
+  flow.data = flow.data || {};
+  flow.data.prices = analyzer.extractPrices(prompt);
+  flow.data.links = analyzer.extractLinks(prompt);
+  flow.data.coupons = analyzer.extractCoupons(prompt);
+  flow.globalRules = analyzer.extractGlobalRules(prompt);
+  flow.sourcePrompt = prompt;
+
+  return flow;
+}
+
+export async function buildFlowForUserPrompt(userId: string, prompt: string): Promise<FlowDefinition> {
+  const desiredType = await resolveDesiredFlowType(userId);
+  return buildFlowFromPromptWithType(prompt, desiredType);
+}
+
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════════════════
 

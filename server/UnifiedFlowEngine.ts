@@ -366,7 +366,8 @@ export class SystemExecutor {
     nextState: string,
     data: Record<string, any>,
     extractedData?: Record<string, any>,
-    userId?: string
+    userId?: string,
+    userMessage?: string
   ): Promise<{ response: string; newData: Record<string, any>; mediaActions?: any[] }> {
     
     // Mesclar dados extraídos
@@ -377,8 +378,16 @@ export class SystemExecutor {
       await this.loadRealData(action.dataSource, mergedData, flow, userId);
     }
 
+    // 🔧 FIX: Se template contém {response} e não há valor definido, 
+    // carregar dados relevantes baseado no contexto
+    const template = action.template || '';
+    if (template.includes('{response}') && !mergedData.response && userId) {
+      console.log(`📦 [SystemExecutor] Template usa {response} - carregando dados do contexto...`);
+      await this.loadContextualData(mergedData, flow, userId, userMessage);
+    }
+
     // Processar template substituindo variáveis
-    let response = this.processTemplate(action.template || '', mergedData, flow);
+    let response = this.processTemplate(template, mergedData, flow);
 
     // Processar ações de mídia se houver
     let mediaActions: any[] = [];
@@ -391,6 +400,69 @@ export class SystemExecutor {
       newData: mergedData,
       mediaActions
     };
+  }
+
+  /**
+   * 🔧 Carrega dados contextuais quando o template usa {response}
+   * Isso é necessário para fluxos GENERICO que usam PROVIDE_INFO com {response}
+   */
+  private async loadContextualData(
+    data: Record<string, any>,
+    flow: FlowDefinition,
+    userId: string,
+    userMessage?: string
+  ): Promise<void> {
+    console.log(`📦 [SystemExecutor] Carregando dados contextuais para flow type: ${flow.type}`);
+    
+    const msgLower = (userMessage || '').toLowerCase();
+    
+    // Detectar contexto da pergunta e carregar dados apropriados
+    const isMenuQuery = /cardápio|menu|pizza|pizzas|lanche|hamburguer|comida|prato|vocês têm|o que tem|quais|opções/.test(msgLower);
+    const isDeliveryQuery = /entrega|delivery|taxa|frete|tempo|demora/.test(msgLower);
+    const isHoursQuery = /horário|abre|fecha|funciona|funcionamento/.test(msgLower);
+    
+    // Se parece uma pergunta sobre cardápio/menu, carregar dados do menu
+    if (isMenuQuery) {
+      console.log(`📦 [SystemExecutor] Detectada pergunta sobre menu - carregando cardápio...`);
+      await this.loadMenuData(data, userId, flow);
+      
+      if (data.menu_formatted && data.menu_formatted !== 'Cardápio não disponível no momento.') {
+        data.response = `Aqui está nosso cardápio:\n\n${data.menu_formatted}`;
+      } else {
+        // Fallback se não há menu cadastrado
+        data.response = `Nosso cardápio está sendo atualizado. Por favor, entre em contato conosco para mais informações!`;
+      }
+      return;
+    }
+    
+    // Se pergunta sobre entrega/delivery
+    if (isDeliveryQuery) {
+      console.log(`📦 [SystemExecutor] Detectada pergunta sobre delivery - carregando config...`);
+      await this.loadDeliveryFee(data, userId);
+      
+      data.response = `🛵 *Informações de Entrega:*\n\n` +
+        `📍 Taxa de entrega: R$ ${data.delivery_fee || '5,00'}\n` +
+        `⏱️ Tempo estimado: ${data.delivery_time || '45 minutos'}\n` +
+        `💰 Pedido mínimo: R$ ${data.min_order || '20,00'}`;
+      return;
+    }
+    
+    // Se pergunta sobre horário
+    if (isHoursQuery) {
+      console.log(`📦 [SystemExecutor] Detectada pergunta sobre horário - carregando config...`);
+      await this.loadBusinessHours(data, userId);
+      
+      if (data.hours) {
+        data.response = `🕐 *Nosso horário de funcionamento:*\n\n${data.hours}`;
+      } else {
+        data.response = `Nosso horário de funcionamento está disponível em nosso site ou redes sociais.`;
+      }
+      return;
+    }
+    
+    // Fallback genérico - se nenhum contexto específico foi detectado
+    console.log(`📦 [SystemExecutor] Nenhum contexto específico detectado - usando resposta genérica`);
+    data.response = `Como posso ajudar você? Posso fornecer informações sobre nosso cardápio, horários de funcionamento ou delivery.`;
   }
 
   /**
@@ -452,18 +524,23 @@ export class SystemExecutor {
 
       if (itemError) throw itemError;
 
-      // Formatar cardápio por categoria
+      // Formatar cardápio por categoria (natural, sem separadores técnicos)
       let menuFormatted = '';
       for (const category of categories || []) {
         const categoryItems = (items || []).filter(item => item.category_id === category.id);
         if (categoryItems.length === 0) continue;
         
-        menuFormatted += `\n*${category.name.toUpperCase()}*\n`;
+        // Emoji baseado no nome da categoria
+        const emoji = category.name.toLowerCase().includes('pizza') ? '🍕' : '📋';
+        menuFormatted += `\n${emoji} *${category.name}*\n\n`;
+        
         for (const item of categoryItems) {
-          const price = parseFloat(item.price).toFixed(2).replace('.', ',');
-          menuFormatted += `• ${item.name} - R$ ${price}\n`;
+          const price = parseFloat(item.price).toFixed(2);
+          menuFormatted += `${item.name} - R$ ${price}\n`;
           if (item.description) {
-            menuFormatted += `  ↳ ${item.description}\n`;
+            menuFormatted += `${item.description}\n\n`;
+          } else {
+            menuFormatted += `\n`;
           }
         }
       }
@@ -652,19 +729,40 @@ export class AIHumanizer {
     const systemPrompt = `Você é ${flow.agentName} da ${flow.businessName}.
 Personalidade: ${personality}
 
-TAREFA:
-Reescreva a resposta abaixo de forma NATURAL e HUMANIZADA para WhatsApp.
-Mantenha TODAS as informações (preços, links, dados), mas torne o texto mais humano.
+⚠️⚠️⚠️ TAREFA CRÍTICA - LEIA COM ATENÇÃO ⚠️⚠️⚠️
 
-REGRAS:
-- Mantenha o tom de conversa informal de WhatsApp
-- Não use cumprimentos excessivos
-- Não repita informações
-- Máximo 2 emojis por mensagem
-- Se a resposta já estiver boa, retorne ela mesma
-- NUNCA invente informações - use apenas o que está na resposta original
+Você vai receber uma resposta PRONTA do sistema. Sua ÚNICA função é:
+- Tornar o texto mais NATURAL e amigável (como WhatsApp)
+- COPIAR TODOS os dados EXATAMENTE como estão
+- NÃO adicionar, remover ou modificar NENHUM item, preço ou informação
 
-Responda APENAS com o texto humanizado, sem explicações.`;
+🚨 PROIBIDO (você será REJEITADO se fizer isso):
+❌ Adicionar itens que NÃO estão na resposta original
+❌ Inventar preços, produtos, sabores, categorias
+❌ Adicionar exemplos ou sugestões extras
+❌ Expandir listas com itens novos
+❌ Usar separadores "━━━━━" ou formatação técnica
+❌ Adicionar títulos como "NOSSO DELIVERY", "INFORMAÇÕES"
+
+✅ PERMITIDO (faça APENAS isso):
+✓ Ajustar pontuação e gramática
+✓ Adicionar 1-2 emojis simples (se ainda não tiver muitos)
+✓ Tornar o tom mais amigável e natural
+✓ Reformular frases mantendo OS MESMOS dados
+
+EXEMPLO CORRETO:
+Original: "Olá!\n\n🍕 Pizzas\n\nMussarela - R$ 45.00\nQueijo de primeira\n\nQual gostaria?"
+Humanizado: "Olá! Essas são nossas pizzas:\n\n🍕 Mussarela - R$ 45,00\nQueijo de primeira qualidade\n\nQual você gostaria de pedir? 😊"
+(Note: MESMO item, MESMO preço, MESMA descrição - só mudou a forma de escrever)
+
+EXEMPLO ERRADO (NÃO FAÇA ISSO):
+Original: "Olá!\n\n🍕 Pizzas\n\nMussarela - R$ 45.00\nQueijo de primeira\n\nQual gostaria?"
+ERRADO: "Olá! Temos várias pizzas:\n\n🍕 Mussarela - R$ 45,00\n🍕 Calabresa - R$ 50,00\n🍕 Portuguesa - R$ 55,00\n\nQual prefere?"
+❌❌❌ REJEITADO! Adicionou Calabresa e Portuguesa que NÃO existiam!
+
+⚡ REGRA DE OURO: Se a resposta tem 1 pizza, retorne 1 pizza. Se tem 5, retorne 5. NUNCA invente!
+
+Responda APENAS com o texto humanizado.`;
 
     try {
       const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -679,7 +777,7 @@ Responda APENAS com o texto humanizado, sem explicações.`;
             { role: 'system', content: systemPrompt },
             { role: 'user', content: `Mensagem original do cliente: "${userMessage}"\n\nResposta do sistema para humanizar:\n${systemResponse}` }
           ],
-          temperature: options?.variation || 0.3,
+          temperature: 0, // ZERO criatividade - apenas reformulação
           max_tokens: 500
         })
       });
@@ -689,7 +787,22 @@ Responda APENAS com o texto humanizado, sem explicações.`;
       }
 
       const data = await response.json();
-      return data.choices[0]?.message?.content?.trim() || systemResponse;
+      let humanized = data.choices[0]?.message?.content?.trim() || systemResponse;
+      
+      // 🛡️ VALIDAÇÃO: Rejeitar se resposta cresceu muito (indica invenção de dados)
+      if (systemResponse.length > 0 && humanized.length > systemResponse.length * 1.3) {
+        console.error(`🚨 [AIHumanizer] REJEITADO! Resposta cresceu 30%+ - possível invenção de dados`);
+        console.error(`📊 Original: ${systemResponse.length} chars`);
+        console.error(`📊 Humanized: ${humanized.length} chars`);
+        console.error(`📝 Original:\n${systemResponse}`);
+        console.error(`📝 Humanized:\n${humanized}`);
+        console.error(`⚠️ Usando resposta original para evitar alucinação`);
+        humanized = systemResponse; // Fallback: usar original se humanizer inventou
+      }
+      
+      console.log(`🎨 [AIHumanizer] ✅ Humanizado (${systemResponse.length} → ${humanized.length} chars): "${humanized.substring(0, 80)}..."`);
+      
+      return humanized;
     } catch (err) {
       console.error(`[AIHumanizer] Erro:`, err);
       return systemResponse; // Fallback para resposta original
@@ -819,7 +932,7 @@ export class UnifiedFlowEngine {
       };
     }
 
-    // Executar ação (passa userId para carregar dados reais do banco)
+    // Executar ação (passa userId e mensagem para carregar dados reais do banco)
     const { response, newData, mediaActions } = await this.executor.execute(
       flow,
       action,
@@ -827,7 +940,8 @@ export class UnifiedFlowEngine {
       transition.nextState,
       state.data,
       extractedData,
-      state.userId
+      state.userId,
+      message  // 🔧 Passa mensagem do usuário para detectar contexto
     );
 
     // Humanizar se solicitado

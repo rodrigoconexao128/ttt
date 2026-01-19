@@ -20,7 +20,7 @@ import Anthropic from '@anthropic-ai/sdk';
 // 📊 TIPOS E INTERFACES
 // ═══════════════════════════════════════════════════════════════════════
 
-export type FlowType = 'DELIVERY' | 'VENDAS' | 'AGENDAMENTO' | 'SUPORTE' | 'GENERICO';
+export type FlowType = 'DELIVERY' | 'VENDAS' | 'AGENDAMENTO' | 'SUPORTE' | 'CURSO' | 'GENERICO';
 
 export interface FlowState {
   name: string;
@@ -160,6 +160,21 @@ export class PromptAnalyzer {
       'modem', 'roteador', 'conexão', 'sinal', 'mbps'
     ];
     
+    // CURSO: Palavras-chave de infoprodutos/cursos/mentorias
+    const cursoKeywords = [
+      'curso', 'aula', 'módulo', 'mentoria', 'treinamento', 'formação',
+      'certificado', 'certificação', 'aprender', 'ensino', 'educação',
+      'infoproduto', 'ebook', 'e-book', 'material didático', 'apostila',
+      'aluno', 'estudante', 'professor', 'instrutor', 'mentor',
+      'conteúdo exclusivo', 'acesso vitalício', 'área de membros',
+      'hotmart', 'eduzz', 'monetizze', 'kiwify', 'udemy', 'coursera',
+      'garantia', 'reembolso', 'satisfação', 'transformação', 'resultado',
+      'método', 'metodologia', 'passo a passo', 'do zero', 'iniciante',
+      'avançado', 'completo', 'masterclass', 'workshop', 'webinar',
+      'comunidade', 'grupo vip', 'suporte ao aluno', 'bônus', 'brindes',
+      'inscrição', 'matrícula', 'vaga', 'turma', 'liberação', 'acesso'
+    ];
+    
     // Contar matches
     const countMatches = (keywords: string[]) => 
       keywords.filter(kw => promptLower.includes(kw)).length;
@@ -169,6 +184,7 @@ export class PromptAnalyzer {
       AGENDAMENTO: countMatches(agendamentoKeywords),
       VENDAS: countMatches(vendasKeywords),
       SUPORTE: countMatches(suporteKeywords),
+      CURSO: countMatches(cursoKeywords),
     };
     
     // Encontrar o tipo com maior score
@@ -399,6 +415,9 @@ export class FlowBuilder {
       case 'SUPORTE':
         flow = this.buildSuporteFlow(agentName, businessName, personality);
         break;
+      case 'CURSO':
+        flow = this.buildCursoFlow(agentName, businessName, personality);
+        break;
       default:
         flow = this.buildGenericoFlow(agentName, businessName, personality);
     }
@@ -623,7 +642,7 @@ export class FlowBuilder {
           name: 'Mostrar Menu',
           type: 'DATA',
           dataSource: 'menu',
-          template: '📋 *CARDÁPIO {business_name}*\n\n{menu_formatted}\n\nO que vai querer?'
+          template: 'Olá! Essas são nossas opções:\n\n{menu_formatted}\n\nQual você gostaria de pedir?'
         },
         ADD_TO_CART: {
           name: 'Adicionar ao Carrinho',
@@ -1150,6 +1169,771 @@ export class FlowBuilder {
       globalRules: [
         'Sempre tentar resolver antes de escalar',
         'Ser empático com o cliente frustrado',
+      ],
+      
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+  
+  /**
+   * Constrói flow de CURSO (infoprodutos, mentorias, treinamentos)
+   * 
+   * ARQUITETURA:
+   * - Fluxo A: FAQ do curso (responder rápido e correto)
+   * - Fluxo B: Vendas/Lead (transformar conversa em compra)
+   * - Fluxo C: Qualificação (identificar perfil do aluno)
+   */
+  buildCursoFlow(agentName: string, businessName: string, personality: string): FlowDefinition {
+    return {
+      id: `curso_${Date.now()}`,
+      version: '1.0.0',
+      type: 'CURSO',
+      businessName,
+      agentName,
+      agentPersonality: personality,
+      
+      initialState: 'INICIO',
+      finalStates: ['INSCRITO', 'NAO_INTERESSADO', 'LEAD_CAPTURADO'],
+      
+      states: {
+        // ═══════════════════════════════════════════════════════════════
+        // INÍCIO - Primeira Interação
+        // ═══════════════════════════════════════════════════════════════
+        INICIO: {
+          name: 'Início',
+          description: 'Primeira mensagem do cliente',
+          transitions: [
+            { intent: 'GREETING', nextState: 'QUALIFICANDO', action: 'GREET_COURSE' },
+            { intent: 'ASK_COURSE_INFO', nextState: 'FAQ', action: 'EXPLAIN_COURSE' },
+            { intent: 'ASK_PRICE', nextState: 'PRECOS', action: 'SHOW_PRICE' },
+            { intent: 'WANT_ENROLL', nextState: 'FECHANDO', action: 'START_ENROLLMENT' },
+            { intent: 'ASK_FOR_WHO', nextState: 'FAQ', action: 'EXPLAIN_FOR_WHO' },
+          ]
+        },
+        
+        // ═══════════════════════════════════════════════════════════════
+        // QUALIFICANDO - Entendendo o interesse
+        // ═══════════════════════════════════════════════════════════════
+        QUALIFICANDO: {
+          name: 'Qualificando',
+          description: 'Entendendo necessidade do aluno',
+          transitions: [
+            { intent: 'TELL_GOAL', nextState: 'EXPLICANDO', action: 'PERSONALIZE_PITCH' },
+            { intent: 'ASK_COURSE_INFO', nextState: 'FAQ', action: 'EXPLAIN_COURSE' },
+            { intent: 'ASK_PRICE', nextState: 'PRECOS', action: 'SHOW_PRICE' },
+            { intent: 'ASK_FOR_WHO', nextState: 'FAQ', action: 'EXPLAIN_FOR_WHO' },
+            { intent: 'ASK_CONTENT', nextState: 'FAQ', action: 'EXPLAIN_CONTENT' },
+            { intent: 'WANT_ENROLL', nextState: 'FECHANDO', action: 'START_ENROLLMENT' },
+          ]
+        },
+        
+        // ═══════════════════════════════════════════════════════════════
+        // FAQ - Respondendo dúvidas (base curada)
+        // ═══════════════════════════════════════════════════════════════
+        FAQ: {
+          name: 'FAQ',
+          description: 'Respondendo dúvidas sobre o curso',
+          transitions: [
+            { intent: 'ASK_COURSE_INFO', nextState: 'FAQ', action: 'EXPLAIN_COURSE' },
+            { intent: 'ASK_PRICE', nextState: 'PRECOS', action: 'SHOW_PRICE' },
+            { intent: 'ASK_FOR_WHO', nextState: 'FAQ', action: 'EXPLAIN_FOR_WHO' },
+            { intent: 'ASK_CONTENT', nextState: 'FAQ', action: 'EXPLAIN_CONTENT' },
+            { intent: 'ASK_DURATION', nextState: 'FAQ', action: 'EXPLAIN_DURATION' },
+            { intent: 'ASK_CERTIFICATE', nextState: 'FAQ', action: 'EXPLAIN_CERTIFICATE' },
+            { intent: 'ASK_GUARANTEE', nextState: 'FAQ', action: 'EXPLAIN_GUARANTEE' },
+            { intent: 'ASK_SUPPORT', nextState: 'FAQ', action: 'EXPLAIN_SUPPORT' },
+            { intent: 'ASK_BONUS', nextState: 'FAQ', action: 'EXPLAIN_BONUS' },
+            { intent: 'ASK_PAYMENT_OPTIONS', nextState: 'PRECOS', action: 'SHOW_PAYMENT_OPTIONS' },
+            { intent: 'ASK_REQUIREMENTS', nextState: 'FAQ', action: 'EXPLAIN_REQUIREMENTS' },
+            { intent: 'WANT_ENROLL', nextState: 'FECHANDO', action: 'START_ENROLLMENT' },
+            { intent: 'ASK_HUMAN', nextState: 'ENCAMINHANDO', action: 'TRANSFER_TO_HUMAN' },
+          ]
+        },
+        
+        // ═══════════════════════════════════════════════════════════════
+        // EXPLICANDO - Pitch personalizado
+        // ═══════════════════════════════════════════════════════════════
+        EXPLICANDO: {
+          name: 'Explicando',
+          description: 'Explicando solução personalizada',
+          transitions: [
+            { intent: 'ASK_PRICE', nextState: 'PRECOS', action: 'SHOW_PRICE' },
+            { intent: 'ASK_CONTENT', nextState: 'FAQ', action: 'EXPLAIN_CONTENT' },
+            { intent: 'ASK_RESULTS', nextState: 'EXPLICANDO', action: 'SHOW_RESULTS' },
+            { intent: 'ASK_TESTIMONIALS', nextState: 'EXPLICANDO', action: 'SHOW_TESTIMONIALS' },
+            { intent: 'WANT_ENROLL', nextState: 'FECHANDO', action: 'START_ENROLLMENT' },
+            { intent: 'OBJECTION', nextState: 'TRATANDO_OBJECAO', action: 'HANDLE_OBJECTION' },
+          ]
+        },
+        
+        // ═══════════════════════════════════════════════════════════════
+        // PREÇOS - Falando sobre valores
+        // ═══════════════════════════════════════════════════════════════
+        PRECOS: {
+          name: 'Preços',
+          description: 'Apresentando valores e condições',
+          transitions: [
+            { intent: 'ASK_COUPON', nextState: 'PRECOS', action: 'EXPLAIN_COUPON' },
+            { intent: 'ASK_INSTALLMENTS', nextState: 'PRECOS', action: 'SHOW_INSTALLMENTS' },
+            { intent: 'ASK_GUARANTEE', nextState: 'FAQ', action: 'EXPLAIN_GUARANTEE' },
+            { intent: 'WANT_ENROLL', nextState: 'FECHANDO', action: 'START_ENROLLMENT' },
+            { intent: 'OBJECTION', nextState: 'TRATANDO_OBJECAO', action: 'HANDLE_OBJECTION' },
+            { intent: 'TOO_EXPENSIVE', nextState: 'TRATANDO_OBJECAO', action: 'HANDLE_PRICE_OBJECTION' },
+          ]
+        },
+        
+        // ═══════════════════════════════════════════════════════════════
+        // TRATANDO OBJEÇÃO - Contornando dúvidas
+        // ═══════════════════════════════════════════════════════════════
+        TRATANDO_OBJECAO: {
+          name: 'Tratando Objeção',
+          description: 'Respondendo objeções e dúvidas',
+          transitions: [
+            { intent: 'WANT_ENROLL', nextState: 'FECHANDO', action: 'START_ENROLLMENT' },
+            { intent: 'ASK_GUARANTEE', nextState: 'FAQ', action: 'EXPLAIN_GUARANTEE' },
+            { intent: 'NEED_TIME', nextState: 'LEAD_CAPTURADO', action: 'CAPTURE_LEAD' },
+            { intent: 'NOT_NOW', nextState: 'LEAD_CAPTURADO', action: 'CAPTURE_LEAD' },
+            { intent: 'NOT_INTERESTED', nextState: 'NAO_INTERESSADO', action: 'RESPECT_DECISION' },
+            { intent: 'ASK_HUMAN', nextState: 'ENCAMINHANDO', action: 'TRANSFER_TO_HUMAN' },
+          ]
+        },
+        
+        // ═══════════════════════════════════════════════════════════════
+        // FECHANDO - Processo de matrícula
+        // ═══════════════════════════════════════════════════════════════
+        FECHANDO: {
+          name: 'Fechando',
+          description: 'Fechando matrícula',
+          transitions: [
+            { intent: 'CONFIRM', nextState: 'INSCRITO', action: 'SEND_ENROLLMENT_LINK' },
+            { intent: 'ASK_GUARANTEE', nextState: 'FECHANDO', action: 'REASSURE_GUARANTEE' },
+            { intent: 'OBJECTION', nextState: 'TRATANDO_OBJECAO', action: 'HANDLE_OBJECTION' },
+            { intent: 'NEED_TIME', nextState: 'LEAD_CAPTURADO', action: 'CAPTURE_LEAD' },
+          ]
+        },
+        
+        // ═══════════════════════════════════════════════════════════════
+        // ESTADOS FINAIS
+        // ═══════════════════════════════════════════════════════════════
+        INSCRITO: {
+          name: 'Inscrito',
+          description: 'Aluno se inscreveu',
+          transitions: [
+            { intent: 'ASK_ACCESS', nextState: 'INSCRITO', action: 'EXPLAIN_ACCESS' },
+            { intent: 'ASK_HELP', nextState: 'INSCRITO', action: 'OFFER_SUPPORT' },
+          ]
+        },
+        LEAD_CAPTURADO: {
+          name: 'Lead Capturado',
+          description: 'Lead para follow-up futuro',
+          transitions: [
+            { intent: 'GREETING', nextState: 'QUALIFICANDO', action: 'WELCOME_BACK' },
+            { intent: 'WANT_ENROLL', nextState: 'FECHANDO', action: 'START_ENROLLMENT' },
+          ]
+        },
+        NAO_INTERESSADO: {
+          name: 'Não Interessado',
+          description: 'Cliente não quis',
+          transitions: [
+            { intent: 'GREETING', nextState: 'INICIO', action: 'GREET_COURSE' },
+          ]
+        },
+        ENCAMINHANDO: {
+          name: 'Encaminhando',
+          description: 'Passando para humano',
+          transitions: []
+        }
+      },
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // INTENTS - Intenções reconhecidas
+      // ═══════════════════════════════════════════════════════════════════
+      intents: {
+        // Saudação
+        GREETING: {
+          name: 'Saudação',
+          examples: ['oi', 'olá', 'bom dia', 'boa tarde', 'e aí', 'eai', 'opa'],
+          patterns: ['^(oi|ola|bom\\s+dia|boa\\s+(tarde|noite)|e\\s*a[ií]|opa)[!?.,]?$'],
+          priority: 10
+        },
+        
+        // FAQ - Informações do curso
+        ASK_COURSE_INFO: {
+          name: 'O que é o curso',
+          examples: ['o que é', 'sobre o que é', 'me fala do curso', 'como funciona', 'o que vou aprender', 'do que se trata'],
+          patterns: ['o\\s+que\\s+[eé]', 'como\\s+funciona', 'sobre\\s+o\\s+que', 'do\\s+que\\s+se\\s+trata'],
+          priority: 8
+        },
+        ASK_FOR_WHO: {
+          name: 'Para quem é',
+          examples: ['para quem é', 'pra quem é', 'é pra iniciante', 'serve pra mim', 'é pra quem', 'preciso ter experiência'],
+          patterns: ['(para|pra)\\s+quem', '[eé]\\s+pra\\s+(iniciante|quem)', 'serve\\s+pra\\s+mim', 'experi[êe]ncia'],
+          priority: 8
+        },
+        ASK_CONTENT: {
+          name: 'Conteúdo do curso',
+          examples: ['o que tem no curso', 'quais módulos', 'quais aulas', 'conteúdo', 'grade', 'ementa', 'tem aula de'],
+          patterns: ['o\\s+que\\s+tem', 'quais\\s+(m[óo]dulos|aulas)', 'conte[úu]do', 'grade', 'ementa'],
+          priority: 7
+        },
+        ASK_DURATION: {
+          name: 'Duração',
+          examples: ['quanto tempo dura', 'duração', 'quantas horas', 'quantas aulas', 'tempo do curso'],
+          patterns: ['quanto\\s+tempo', 'dura[çc][aã]o', 'quantas\\s+(horas|aulas)'],
+          priority: 6
+        },
+        ASK_CERTIFICATE: {
+          name: 'Certificado',
+          examples: ['tem certificado', 'certificado', 'certificação', 'dá certificado', 'diploma'],
+          patterns: ['certificad[oa]', 'certifica[çc][aã]o', 'diploma'],
+          priority: 6
+        },
+        ASK_GUARANTEE: {
+          name: 'Garantia',
+          examples: ['tem garantia', 'posso devolver', 'reembolso', 'garantia de satisfação', 'e se eu não gostar'],
+          patterns: ['garantia', 'reembolso', 'devolver', 'n[aã]o\\s+gostar'],
+          priority: 7
+        },
+        ASK_SUPPORT: {
+          name: 'Suporte',
+          examples: ['tem suporte', 'como tiro dúvida', 'consigo falar', 'comunidade', 'grupo', 'ajuda'],
+          patterns: ['suporte', 'tirar\\s+d[úu]vida', 'comunidade', 'grupo'],
+          priority: 6
+        },
+        ASK_BONUS: {
+          name: 'Bônus',
+          examples: ['quais bônus', 'o que vem junto', 'tem brinde', 'materiais extras', 'além do curso'],
+          patterns: ['b[ôo]nus', 'brinde', 'materiais\\s+extras', 'al[eé]m\\s+do\\s+curso'],
+          priority: 5
+        },
+        ASK_REQUIREMENTS: {
+          name: 'Pré-requisitos',
+          examples: ['preciso saber algo', 'pré-requisito', 'preciso ter', 'conhecimento prévio'],
+          patterns: ['pr[eé][-]?requisito', 'preciso\\s+(saber|ter)', 'conhecimento\\s+pr[eé]vio'],
+          priority: 5
+        },
+        ASK_ACCESS: {
+          name: 'Acesso',
+          examples: ['como acesso', 'onde acesso', 'liberou', 'área de membros', 'login'],
+          patterns: ['como\\s+acesso', 'onde\\s+acesso', '[aá]rea\\s+de\\s+membros', 'login'],
+          priority: 6
+        },
+        
+        // Preços e pagamento
+        ASK_PRICE: {
+          name: 'Preço',
+          examples: ['quanto custa', 'qual o valor', 'preço', 'quanto é', 'investimento'],
+          patterns: ['quanto\\s+(custa|[eé])', 'qual\\s+o?\\s*valor', 'pre[çc]o', 'investimento'],
+          priority: 9
+        },
+        ASK_PAYMENT_OPTIONS: {
+          name: 'Formas de Pagamento',
+          examples: ['formas de pagamento', 'aceita pix', 'parcelamento', 'como pago', 'parcela em quantas vezes'],
+          patterns: ['formas?\\s+de\\s+pagamento', 'aceita\\s+(pix|cart[aã]o)', 'parcel', 'como\\s+pago'],
+          priority: 7
+        },
+        ASK_INSTALLMENTS: {
+          name: 'Parcelamento',
+          examples: ['parcela em quantas vezes', 'posso parcelar', 'divide', 'parcelas', 'cartão'],
+          patterns: ['parcela', 'divide', 'quantas\\s+vezes', 'cart[aã]o'],
+          priority: 7
+        },
+        ASK_COUPON: {
+          name: 'Cupom',
+          examples: ['tem cupom', 'código de desconto', 'promoção', 'desconto'],
+          patterns: ['cupom', 'c[óo]digo', 'promo[çc][aã]o', 'desconto'],
+          priority: 6
+        },
+        TOO_EXPENSIVE: {
+          name: 'Caro demais',
+          examples: ['muito caro', 'não tenho dinheiro', 'tá caro', 'fora do orçamento', 'pesado'],
+          patterns: ['(muito|t[aá])\\s+caro', 'n[aã]o\\s+tenho\\s+dinheiro', 'or[çc]amento', 'pesado'],
+          priority: 7
+        },
+        
+        // Qualificação
+        TELL_GOAL: {
+          name: 'Contar objetivo',
+          examples: ['quero aprender', 'meu objetivo é', 'preciso de', 'quero ser', 'quero trabalhar com'],
+          patterns: ['quero\\s+(aprender|ser|trabalhar)', 'meu\\s+objetivo', 'preciso\\s+de'],
+          entities: ['goal', 'experience_level'],
+          priority: 7
+        },
+        
+        // Vendas
+        WANT_ENROLL: {
+          name: 'Quero me inscrever',
+          examples: ['quero comprar', 'quero me inscrever', 'como faço pra comprar', 'link de compra', 'quero adquirir', 'vou comprar', 'me inscreve'],
+          patterns: ['quero\\s+(comprar|me\\s+inscrever|adquirir)', 'link\\s+de\\s+compra', 'como\\s+(fa[çc]o|compro)', 'vou\\s+comprar'],
+          priority: 9
+        },
+        CONFIRM: {
+          name: 'Confirmar',
+          examples: ['ok', 'isso', 'vou comprar', 'fecha', 'quero'],
+          patterns: ['^(ok|isso|fecha|quero|vou|sim)$'],
+          priority: 8
+        },
+        
+        // Objeções
+        OBJECTION: {
+          name: 'Objeção',
+          examples: ['será que funciona', 'tenho medo', 'e se não der certo', 'não sei se', 'estou em dúvida'],
+          patterns: ['ser[aá]\\s+que', 'tenho\\s+medo', 'n[aã]o\\s+sei\\s+se', 'd[úu]vida', 'e\\s+se'],
+          priority: 6
+        },
+        NEED_TIME: {
+          name: 'Preciso pensar',
+          examples: ['vou pensar', 'preciso pensar', 'deixa eu ver', 'vou analisar', 'depois volto'],
+          patterns: ['vou\\s+(pensar|analisar)', 'preciso\\s+pensar', 'deixa\\s+eu\\s+ver', 'depois'],
+          priority: 7
+        },
+        NOT_NOW: {
+          name: 'Agora não',
+          examples: ['agora não dá', 'depois', 'mês que vem', 'outro momento'],
+          patterns: ['agora\\s+n[aã]o', 'depois', 'm[eê]s\\s+que\\s+vem', 'outro\\s+momento'],
+          priority: 6
+        },
+        NOT_INTERESTED: {
+          name: 'Não interessado',
+          examples: ['não tenho interesse', 'não quero', 'não é pra mim', 'obrigado mas não'],
+          patterns: ['n[aã]o\\s+(tenho\\s+interesse|quero|[eé]\\s+pra\\s+mim)'],
+          priority: 8
+        },
+        
+        // Resultados e prova social
+        ASK_RESULTS: {
+          name: 'Resultados',
+          examples: ['funciona mesmo', 'tem resultado', 'quem já fez', 'dá resultado'],
+          patterns: ['funciona\\s+mesmo', 'resultado', 'quem\\s+j[aá]\\s+fez'],
+          priority: 6
+        },
+        ASK_TESTIMONIALS: {
+          name: 'Depoimentos',
+          examples: ['depoimentos', 'casos de sucesso', 'quem já comprou', 'feedback de alunos'],
+          patterns: ['depoimento', 'casos?\\s+de\\s+sucesso', 'feedback', 'alunos\\s+que'],
+          priority: 5
+        },
+        
+        // Escalar
+        ASK_HUMAN: {
+          name: 'Falar com humano',
+          examples: ['falar com alguém', 'atendente', 'pessoa real', 'humano'],
+          patterns: ['falar\\s+com\\s+(algu[eé]m|pessoa|atendente|humano)'],
+          priority: 8
+        },
+        ASK_HELP: {
+          name: 'Ajuda',
+          examples: ['preciso de ajuda', 'me ajuda', 'estou com dúvida'],
+          patterns: ['ajuda', 'd[úu]vida'],
+          priority: 5
+        },
+      },
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // ACTIONS - Ações e templates
+      // ═══════════════════════════════════════════════════════════════════
+      actions: {
+        // Saudação
+        GREET_COURSE: {
+          name: 'Saudar',
+          type: 'RESPONSE',
+          template: `Olá! 😊 Seja bem-vindo(a)!
+
+Sou {agent_name} e estou aqui para te ajudar a conhecer o {business_name}.
+
+Você tem interesse em transformar sua carreira/vida através do nosso método?`,
+          variables: ['agent_name', 'business_name']
+        },
+        WELCOME_BACK: {
+          name: 'Bem-vindo de volta',
+          type: 'RESPONSE',
+          template: `Olá! Que bom te ver de volta! 😊
+
+Ficou com alguma dúvida sobre o {business_name}? Estou aqui pra ajudar!`,
+          variables: ['business_name']
+        },
+        
+        // FAQ - Respostas da base curada
+        EXPLAIN_COURSE: {
+          name: 'Explicar o curso',
+          type: 'DATA',
+          dataSource: 'course_info',
+          template: `📚 *Sobre o {business_name}*
+
+{course_description}
+
+✅ O que você vai aprender:
+{learning_outcomes}
+
+Quer saber mais sobre o conteúdo ou sobre como funciona a garantia?`,
+          variables: ['business_name', 'course_description', 'learning_outcomes']
+        },
+        EXPLAIN_FOR_WHO: {
+          name: 'Para quem é',
+          type: 'DATA',
+          dataSource: 'target_audience',
+          template: `🎯 *Para quem é o {business_name}?*
+
+{target_audience}
+
+{not_for_audience}
+
+Se identificou? Posso te explicar melhor o conteúdo!`,
+          variables: ['business_name', 'target_audience', 'not_for_audience']
+        },
+        EXPLAIN_CONTENT: {
+          name: 'Conteúdo',
+          type: 'DATA',
+          dataSource: 'modules',
+          template: `📖 *Conteúdo do Curso*
+
+{modules_list}
+
+São {total_hours} horas de conteúdo prático e direto ao ponto!
+
+Quer saber sobre os bônus que vêm junto?`,
+          variables: ['modules_list', 'total_hours']
+        },
+        EXPLAIN_DURATION: {
+          name: 'Duração',
+          type: 'DATA',
+          dataSource: 'course_info',
+          template: `⏱️ *Duração*
+
+O curso tem {total_hours} horas de conteúdo.
+
+Você pode fazer no seu ritmo, com acesso {access_period}.
+
+As aulas são gravadas e ficam disponíveis 24h!`,
+          variables: ['total_hours', 'access_period']
+        },
+        EXPLAIN_CERTIFICATE: {
+          name: 'Certificado',
+          type: 'DATA',
+          dataSource: 'certificate_info',
+          template: `🎓 *Certificado*
+
+{certificate_description}
+
+{certificate_validity}`,
+          variables: ['certificate_description', 'certificate_validity']
+        },
+        EXPLAIN_GUARANTEE: {
+          name: 'Garantia',
+          type: 'DATA',
+          dataSource: 'guarantee_info',
+          template: `✅ *Garantia de {guarantee_days} dias*
+
+{guarantee_description}
+
+Se por qualquer motivo você não gostar, basta pedir o reembolso em até {guarantee_days} dias e devolvemos 100% do valor. Sem burocracia!
+
+Isso te deixa mais tranquilo(a)?`,
+          variables: ['guarantee_days', 'guarantee_description']
+        },
+        EXPLAIN_SUPPORT: {
+          name: 'Suporte',
+          type: 'DATA',
+          dataSource: 'support_info',
+          template: `💬 *Suporte ao Aluno*
+
+{support_description}
+
+{community_info}
+
+Você nunca estará sozinho(a) nessa jornada!`,
+          variables: ['support_description', 'community_info']
+        },
+        EXPLAIN_BONUS: {
+          name: 'Bônus',
+          type: 'DATA',
+          dataSource: 'bonus_info',
+          template: `🎁 *Bônus Exclusivos*
+
+Além do curso completo, você recebe:
+
+{bonus_list}
+
+Tudo isso está incluso no valor da inscrição!`,
+          variables: ['bonus_list']
+        },
+        EXPLAIN_REQUIREMENTS: {
+          name: 'Pré-requisitos',
+          type: 'DATA',
+          dataSource: 'requirements',
+          template: `📋 *Pré-requisitos*
+
+{requirements_description}
+
+{equipment_needed}
+
+O curso foi feito pra você conseguir acompanhar mesmo partindo do zero!`,
+          variables: ['requirements_description', 'equipment_needed']
+        },
+        EXPLAIN_ACCESS: {
+          name: 'Como acessar',
+          type: 'DATA',
+          dataSource: 'access_info',
+          template: `🔑 *Acesso às Aulas*
+
+{access_instructions}
+
+Qualquer dúvida técnica, nossa equipe de suporte está disponível!`,
+          variables: ['access_instructions']
+        },
+        
+        // Preços
+        SHOW_PRICE: {
+          name: 'Mostrar preço',
+          type: 'DATA',
+          dataSource: 'pricing',
+          template: `💰 *Investimento*
+
+{pricing_details}
+
+{payment_options}
+
+E lembre-se: você tem {guarantee_days} dias de garantia!
+
+Quer ver as formas de pagamento?`,
+          variables: ['pricing_details', 'payment_options', 'guarantee_days']
+        },
+        SHOW_PAYMENT_OPTIONS: {
+          name: 'Formas de pagamento',
+          type: 'DATA',
+          dataSource: 'payment_methods',
+          template: `💳 *Formas de Pagamento*
+
+{payment_methods_list}
+
+{installments_info}
+
+Qual forma prefere?`,
+          variables: ['payment_methods_list', 'installments_info']
+        },
+        SHOW_INSTALLMENTS: {
+          name: 'Parcelamento',
+          type: 'DATA',
+          dataSource: 'installments',
+          template: `💳 *Parcelamento*
+
+{installments_details}
+
+Quer que eu te mande o link para garantir sua vaga?`,
+          variables: ['installments_details']
+        },
+        EXPLAIN_COUPON: {
+          name: 'Cupom',
+          type: 'DATA',
+          dataSource: 'coupons',
+          template: `🎟️ *Cupom de Desconto*
+
+{coupon_info}
+
+Esse desconto é por tempo limitado!`,
+          variables: ['coupon_info']
+        },
+        
+        // Qualificação e Pitch
+        PERSONALIZE_PITCH: {
+          name: 'Pitch personalizado',
+          type: 'RESPONSE',
+          template: `Que legal! 🔥
+
+Com o {business_name} você vai conseguir exatamente isso!
+
+{personalized_benefits}
+
+Quer conhecer o conteúdo completo ou já quer saber como se inscrever?`,
+          variables: ['business_name', 'personalized_benefits']
+        },
+        
+        // Resultados e prova social
+        SHOW_RESULTS: {
+          name: 'Mostrar resultados',
+          type: 'DATA',
+          dataSource: 'results',
+          template: `📈 *Resultados dos Alunos*
+
+{results_description}
+
+{success_metrics}
+
+Quer ver depoimentos de quem já fez?`,
+          variables: ['results_description', 'success_metrics']
+        },
+        SHOW_TESTIMONIALS: {
+          name: 'Depoimentos',
+          type: 'DATA',
+          dataSource: 'testimonials',
+          template: `⭐ *O que nossos alunos dizem*
+
+{testimonials_list}
+
+Quer garantir sua vaga também?`,
+          variables: ['testimonials_list']
+        },
+        
+        // Objeções
+        HANDLE_OBJECTION: {
+          name: 'Tratar objeção',
+          type: 'RESPONSE',
+          template: `Entendo perfeitamente sua preocupação! 😊
+
+{objection_response}
+
+E lembre-se: você tem {guarantee_days} dias pra testar. Se não gostar, devolvemos seu dinheiro!
+
+Posso tirar mais alguma dúvida?`,
+          variables: ['objection_response', 'guarantee_days']
+        },
+        HANDLE_PRICE_OBJECTION: {
+          name: 'Tratar preço',
+          type: 'RESPONSE',
+          template: `Entendo! 💭
+
+Olha, quando você divide o investimento pelo que vai aprender, fica menos de {daily_value} por dia!
+
+{value_comparison}
+
+E você ainda tem {guarantee_days} dias pra testar. Se não valer a pena, devolvemos tudo!
+
+{payment_facilitation}`,
+          variables: ['daily_value', 'value_comparison', 'guarantee_days', 'payment_facilitation']
+        },
+        
+        // Fechamento
+        START_ENROLLMENT: {
+          name: 'Iniciar matrícula',
+          type: 'RESPONSE',
+          template: `Ótima decisão! 🎉
+
+Você está a um passo de transformar sua vida!
+
+📋 *Resumo:*
+• {business_name}
+• {total_hours} de conteúdo
+• Acesso {access_period}
+• Garantia de {guarantee_days} dias
+• Todos os bônus inclusos
+
+{enrollment_cta}
+
+Posso te mandar o link de inscrição?`,
+          variables: ['business_name', 'total_hours', 'access_period', 'guarantee_days', 'enrollment_cta']
+        },
+        REASSURE_GUARANTEE: {
+          name: 'Reforçar garantia',
+          type: 'RESPONSE',
+          template: `Não se preocupe! 😊
+
+A garantia funciona assim: você tem {guarantee_days} dias pra testar o curso. Se não gostar por QUALQUER motivo, é só mandar um email pedindo reembolso e devolvemos 100% do valor.
+
+Sem perguntas, sem burocracia!
+
+Quer que eu mande o link?`,
+          variables: ['guarantee_days']
+        },
+        SEND_ENROLLMENT_LINK: {
+          name: 'Enviar link',
+          type: 'RESPONSE',
+          template: `Perfeito! 🚀
+
+Aqui está seu link exclusivo de inscrição:
+
+👉 {enrollment_link}
+
+Qualquer dúvida durante o processo, me chama aqui!
+
+Te vejo do outro lado! 🎓`,
+          variables: ['enrollment_link']
+        },
+        
+        // Lead
+        CAPTURE_LEAD: {
+          name: 'Capturar lead',
+          type: 'RESPONSE',
+          template: `Sem problema! Fico feliz em poder te ajudar! 😊
+
+Quando estiver pronto(a), é só me chamar aqui que te ajudo com a inscrição!
+
+{lead_nurture_message}
+
+Até breve! 👋`,
+          variables: ['lead_nurture_message']
+        },
+        RESPECT_DECISION: {
+          name: 'Respeitar decisão',
+          type: 'RESPONSE',
+          template: `Tudo bem, respeito sua decisão! 😊
+
+Se mudar de ideia ou tiver qualquer dúvida no futuro, estou por aqui!
+
+Desejo sucesso na sua jornada! 🙏`,
+          variables: []
+        },
+        
+        // Suporte
+        OFFER_SUPPORT: {
+          name: 'Oferecer suporte',
+          type: 'RESPONSE',
+          template: `Claro! Estou aqui pra te ajudar! 😊
+
+{support_response}
+
+Mais alguma dúvida?`,
+          variables: ['support_response']
+        },
+        TRANSFER_TO_HUMAN: {
+          name: 'Transferir pra humano',
+          type: 'RESPONSE',
+          template: `Entendi! Vou passar seu contato para nossa equipe! 📞
+
+Em breve alguém vai entrar em contato com você para tirar todas as suas dúvidas.
+
+Enquanto isso, posso te ajudar com mais alguma informação?`,
+          variables: []
+        },
+      },
+      
+      // ═══════════════════════════════════════════════════════════════════
+      // DATA - Dados padrão do curso (serão sobrescritos pela config)
+      // ═══════════════════════════════════════════════════════════════════
+      data: {
+        // Informações do curso
+        faq: [
+          { question: 'O que é o curso?', answer: 'Um treinamento completo para você dominar...' },
+          { question: 'Para quem é?', answer: 'Para quem quer aprender...' },
+          { question: 'Quanto tempo dura?', answer: 'São X horas de conteúdo...' },
+          { question: 'Tem certificado?', answer: 'Sim! Você recebe certificado ao concluir.' },
+          { question: 'Tem garantia?', answer: 'Sim! Garantia de 7 dias.' },
+        ],
+        prices: {
+          full: 997,
+          promotional: 497,
+          installments: 12,
+        },
+        links: {
+          checkout: '',
+          area_membros: '',
+        },
+        // Configurações específicas de curso
+        course_info: {
+          total_hours: 40,
+          access_period: 'vitalício',
+          guarantee_days: 7,
+          modules_count: 8,
+        },
+      },
+      
+      globalRules: [
+        'NUNCA inventar informações sobre preços - usar apenas dados cadastrados',
+        'NUNCA inventar depoimentos ou resultados',
+        'SEMPRE mencionar a garantia quando falar de preço',
+        'SEMPRE ser empático com objeções',
+        'NUNCA pressionar demais - respeitar o tempo do cliente',
+        'Se não souber responder algo específico, oferecer falar com humano',
       ],
       
       createdAt: new Date(),

@@ -1057,7 +1057,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      res.json(config);
+        res.json(config);
     } catch (error) {
       res.status(500).json({ message: "Error fetching user agent config" });
     }
@@ -1070,7 +1070,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Update business config
       const config = await storage.upsertBusinessAgentConfig(id, data);
-      res.json(config);
+        res.json(config);
     } catch (error) {
       res.status(500).json({ message: "Error updating user agent config" });
     }
@@ -3107,6 +3107,696 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
   });
 
   // =============================================
+  // ROTAS DE CURSO/INFOPRODUTO
+  // =============================================
+  
+  // --- COURSE CONFIG ---
+
+  // GET - Obter configuração de curso
+  app.get("/api/course-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const { data, error } = await supabase
+        .from('course_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      // Retorna config padrão se não existir
+      if (!data) {
+        return res.json({
+          id: null,
+          user_id: userId,
+          is_active: false,
+          send_to_ai: true,
+          course_name: null,
+          course_description: null,
+          course_type: 'curso_online',
+          target_audience: null,
+          not_for_audience: null,
+          learning_outcomes: [],
+          modules: [],
+          total_hours: 0,
+          total_lessons: 0,
+          access_period: 'vitalicio',
+          has_certificate: true,
+          certificate_description: null,
+          certificate_validity: null,
+          guarantee_days: 7,
+          guarantee_description: 'Garantia incondicional de satisfação',
+          price_full: null,
+          price_promotional: null,
+          price_installments: 12,
+          price_installment_value: null,
+          checkout_link: null,
+          members_area_link: null,
+          sales_page_link: null,
+          payment_methods: ['pix', 'cartao_credito', 'boleto'],
+          installments_info: null,
+          bonus_items: [],
+          requirements_description: null,
+          equipment_needed: null,
+          support_description: null,
+          community_info: null,
+          testimonials: [],
+          results_description: null,
+          success_metrics: null,
+          active_coupons: [],
+          ai_instructions: 'Você é um especialista em vendas de infoprodutos. Seja empático, mostre o valor do curso e sempre mencione a garantia.',
+          lead_nurture_message: 'Quando estiver pronto(a), é só me chamar!',
+          enrollment_cta: 'Garanta sua vaga com desconto especial!',
+        });
+      }
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching course config:", error);
+      res.status(500).json({ message: "Failed to fetch course config" });
+    }
+  });
+
+  // PUT - Atualizar configuração de curso
+  app.put("/api/course-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const body = req.body;
+      
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Lista de campos permitidos
+      const allowedFields = [
+        'is_active', 'send_to_ai', 'course_name', 'course_description', 'course_type',
+        'target_audience', 'not_for_audience', 'learning_outcomes', 'modules',
+        'total_hours', 'total_lessons', 'access_period', 'has_certificate',
+        'certificate_description', 'certificate_validity', 'guarantee_days',
+        'guarantee_description', 'price_full', 'price_promotional', 'price_installments',
+        'price_installment_value', 'checkout_link', 'members_area_link', 'sales_page_link',
+        'payment_methods', 'installments_info', 'bonus_items', 'requirements_description',
+        'equipment_needed', 'support_description', 'community_info', 'testimonials',
+        'results_description', 'success_metrics', 'active_coupons', 'ai_instructions',
+        'lead_nurture_message', 'enrollment_cta'
+      ];
+      
+      // Mapear camelCase para snake_case
+      const camelToSnake = (str: string) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+      
+      for (const [key, value] of Object.entries(body)) {
+        const snakeKey = camelToSnake(key);
+        if (allowedFields.includes(snakeKey) && value !== undefined) {
+          // Converter números se necessário
+          if (['price_full', 'price_promotional', 'price_installment_value', 'total_hours'].includes(snakeKey)) {
+            updateData[snakeKey] = value ? parseFloat(String(value)) : null;
+          } else if (['guarantee_days', 'price_installments', 'total_lessons'].includes(snakeKey)) {
+            updateData[snakeKey] = value ? parseInt(String(value)) : null;
+          } else {
+            updateData[snakeKey] = value;
+          }
+        }
+        // Também aceitar snake_case diretamente
+        if (allowedFields.includes(key) && value !== undefined) {
+          if (['price_full', 'price_promotional', 'price_installment_value', 'total_hours'].includes(key)) {
+            updateData[key] = value ? parseFloat(String(value)) : null;
+          } else if (['guarantee_days', 'price_installments', 'total_lessons'].includes(key)) {
+            updateData[key] = value ? parseInt(String(value)) : null;
+          } else {
+            updateData[key] = value;
+          }
+        }
+      }
+      
+      // Tenta update primeiro, depois insert
+      const { data: existing } = await supabase
+        .from('course_config')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+      
+      if (existing) {
+        const { data, error } = await supabase
+          .from('course_config')
+          .update(updateData)
+          .eq('user_id', userId)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        res.json(data);
+      } else {
+        const { data, error } = await supabase
+          .from('course_config')
+          .insert({
+            user_id: userId,
+            ...updateData
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        res.json(data);
+      }
+    } catch (error) {
+      console.error("Error updating course config:", error);
+      res.status(500).json({ message: "Failed to update course config" });
+    }
+  });
+
+  // POST - Adicionar módulo ao curso
+  app.post("/api/course-config/modules", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const newModule = req.body;
+      
+      if (!newModule.name) {
+        return res.status(400).json({ message: "Nome do módulo é obrigatório" });
+      }
+      
+      // Buscar configuração atual
+      const { data: config, error: fetchError } = await supabase
+        .from('course_config')
+        .select('modules, total_hours, total_lessons')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+      
+      const currentModules = config?.modules || [];
+      const moduleWithId = {
+        id: `mod_${Date.now()}`,
+        name: newModule.name,
+        description: newModule.description || '',
+        duration_minutes: newModule.duration_minutes || 60,
+        lessons: newModule.lessons || [],
+        order: currentModules.length + 1,
+      };
+      
+      const updatedModules = [...currentModules, moduleWithId];
+      
+      // Recalcular totais
+      const totalMinutes = updatedModules.reduce((sum: number, m: any) => sum + (m.duration_minutes || 0), 0);
+      const totalLessons = updatedModules.reduce((sum: number, m: any) => sum + (m.lessons?.length || 0), 0);
+      
+      // Atualizar ou criar
+      if (config) {
+        const { data, error } = await supabase
+          .from('course_config')
+          .update({
+            modules: updatedModules,
+            total_hours: totalMinutes / 60,
+            total_lessons: totalLessons,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        res.json({ module: moduleWithId, config: data });
+      } else {
+        const { data, error } = await supabase
+          .from('course_config')
+          .insert({
+            user_id: userId,
+            modules: updatedModules,
+            total_hours: totalMinutes / 60,
+            total_lessons: totalLessons,
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        res.json({ module: moduleWithId, config: data });
+      }
+    } catch (error) {
+      console.error("Error adding course module:", error);
+      res.status(500).json({ message: "Failed to add course module" });
+    }
+  });
+
+  // PUT - Atualizar módulo do curso
+  app.put("/api/course-config/modules/:moduleId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { moduleId } = req.params;
+      const updates = req.body;
+      
+      const { data: config, error: fetchError } = await supabase
+        .from('course_config')
+        .select('modules')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      const modules = config?.modules || [];
+      const moduleIndex = modules.findIndex((m: any) => m.id === moduleId);
+      
+      if (moduleIndex === -1) {
+        return res.status(404).json({ message: "Módulo não encontrado" });
+      }
+      
+      modules[moduleIndex] = { ...modules[moduleIndex], ...updates };
+      
+      // Recalcular totais
+      const totalMinutes = modules.reduce((sum: number, m: any) => sum + (m.duration_minutes || 0), 0);
+      const totalLessons = modules.reduce((sum: number, m: any) => sum + (m.lessons?.length || 0), 0);
+      
+      const { data, error } = await supabase
+        .from('course_config')
+        .update({
+          modules,
+          total_hours: totalMinutes / 60,
+          total_lessons: totalLessons,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      console.error("Error updating course module:", error);
+      res.status(500).json({ message: "Failed to update course module" });
+    }
+  });
+
+  // DELETE - Remover módulo do curso
+  app.delete("/api/course-config/modules/:moduleId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { moduleId } = req.params;
+      
+      const { data: config, error: fetchError } = await supabase
+        .from('course_config')
+        .select('modules')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      const modules = (config?.modules || []).filter((m: any) => m.id !== moduleId);
+      
+      // Recalcular totais
+      const totalMinutes = modules.reduce((sum: number, m: any) => sum + (m.duration_minutes || 0), 0);
+      const totalLessons = modules.reduce((sum: number, m: any) => sum + (m.lessons?.length || 0), 0);
+      
+      const { data, error } = await supabase
+        .from('course_config')
+        .update({
+          modules,
+          total_hours: totalMinutes / 60,
+          total_lessons: totalLessons,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      console.error("Error deleting course module:", error);
+      res.status(500).json({ message: "Failed to delete course module" });
+    }
+  });
+
+  // POST - Adicionar bônus ao curso
+  app.post("/api/course-config/bonus", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const newBonus = req.body;
+      
+      if (!newBonus.name) {
+        return res.status(400).json({ message: "Nome do bônus é obrigatório" });
+      }
+      
+      const { data: config, error: fetchError } = await supabase
+        .from('course_config')
+        .select('bonus_items')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+      
+      const currentBonus = config?.bonus_items || [];
+      const bonusWithId = {
+        id: `bonus_${Date.now()}`,
+        name: newBonus.name,
+        description: newBonus.description || '',
+        value: newBonus.value || 0,
+      };
+      
+      const updatedBonus = [...currentBonus, bonusWithId];
+      
+      if (config) {
+        const { data, error } = await supabase
+          .from('course_config')
+          .update({
+            bonus_items: updatedBonus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        res.json({ bonus: bonusWithId, config: data });
+      } else {
+        const { data, error } = await supabase
+          .from('course_config')
+          .insert({
+            user_id: userId,
+            bonus_items: updatedBonus,
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        res.json({ bonus: bonusWithId, config: data });
+      }
+    } catch (error) {
+      console.error("Error adding course bonus:", error);
+      res.status(500).json({ message: "Failed to add course bonus" });
+    }
+  });
+
+  // DELETE - Remover bônus do curso
+  app.delete("/api/course-config/bonus/:bonusId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { bonusId } = req.params;
+      
+      const { data: config, error: fetchError } = await supabase
+        .from('course_config')
+        .select('bonus_items')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      const bonusItems = (config?.bonus_items || []).filter((b: any) => b.id !== bonusId);
+      
+      const { data, error } = await supabase
+        .from('course_config')
+        .update({
+          bonus_items: bonusItems,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      console.error("Error deleting course bonus:", error);
+      res.status(500).json({ message: "Failed to delete course bonus" });
+    }
+  });
+
+  // POST - Adicionar depoimento
+  app.post("/api/course-config/testimonials", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const newTestimonial = req.body;
+      
+      if (!newTestimonial.name || !newTestimonial.text) {
+        return res.status(400).json({ message: "Nome e texto do depoimento são obrigatórios" });
+      }
+      
+      const { data: config, error: fetchError } = await supabase
+        .from('course_config')
+        .select('testimonials')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+      
+      const currentTestimonials = config?.testimonials || [];
+      const testimonialWithId = {
+        id: `test_${Date.now()}`,
+        name: newTestimonial.name,
+        photo_url: newTestimonial.photo_url || null,
+        text: newTestimonial.text,
+        result: newTestimonial.result || '',
+      };
+      
+      const updatedTestimonials = [...currentTestimonials, testimonialWithId];
+      
+      if (config) {
+        const { data, error } = await supabase
+          .from('course_config')
+          .update({
+            testimonials: updatedTestimonials,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        res.json({ testimonial: testimonialWithId, config: data });
+      } else {
+        const { data, error } = await supabase
+          .from('course_config')
+          .insert({
+            user_id: userId,
+            testimonials: updatedTestimonials,
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        res.json({ testimonial: testimonialWithId, config: data });
+      }
+    } catch (error) {
+      console.error("Error adding course testimonial:", error);
+      res.status(500).json({ message: "Failed to add course testimonial" });
+    }
+  });
+
+  // DELETE - Remover depoimento
+  app.delete("/api/course-config/testimonials/:testimonialId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { testimonialId } = req.params;
+      
+      const { data: config, error: fetchError } = await supabase
+        .from('course_config')
+        .select('testimonials')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      const testimonials = (config?.testimonials || []).filter((t: any) => t.id !== testimonialId);
+      
+      const { data, error } = await supabase
+        .from('course_config')
+        .update({
+          testimonials,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      console.error("Error deleting course testimonial:", error);
+      res.status(500).json({ message: "Failed to delete course testimonial" });
+    }
+  });
+
+  // POST - Adicionar cupom ativo
+  app.post("/api/course-config/coupons", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const newCoupon = req.body;
+      
+      if (!newCoupon.code) {
+        return res.status(400).json({ message: "Código do cupom é obrigatório" });
+      }
+      
+      const { data: config, error: fetchError } = await supabase
+        .from('course_config')
+        .select('active_coupons')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+      
+      const currentCoupons = config?.active_coupons || [];
+      const couponWithId = {
+        id: `coupon_${Date.now()}`,
+        code: newCoupon.code.toUpperCase(),
+        discount_percent: newCoupon.discount_percent || null,
+        discount_value: newCoupon.discount_value || null,
+        expires_at: newCoupon.expires_at || null,
+        description: newCoupon.description || '',
+      };
+      
+      const updatedCoupons = [...currentCoupons, couponWithId];
+      
+      if (config) {
+        const { data, error } = await supabase
+          .from('course_config')
+          .update({
+            active_coupons: updatedCoupons,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        res.json({ coupon: couponWithId, config: data });
+      } else {
+        const { data, error } = await supabase
+          .from('course_config')
+          .insert({
+            user_id: userId,
+            active_coupons: updatedCoupons,
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        res.json({ coupon: couponWithId, config: data });
+      }
+    } catch (error) {
+      console.error("Error adding course coupon:", error);
+      res.status(500).json({ message: "Failed to add course coupon" });
+    }
+  });
+
+  // DELETE - Remover cupom
+  app.delete("/api/course-config/coupons/:couponId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { couponId } = req.params;
+      
+      const { data: config, error: fetchError } = await supabase
+        .from('course_config')
+        .select('active_coupons')
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      const activeCoupons = (config?.active_coupons || []).filter((c: any) => c.id !== couponId);
+      
+      const { data, error } = await supabase
+        .from('course_config')
+        .update({
+          active_coupons: activeCoupons,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      res.json(data);
+    } catch (error) {
+      console.error("Error deleting course coupon:", error);
+      res.status(500).json({ message: "Failed to delete course coupon" });
+    }
+  });
+
+  // GET - Dados do curso formatados para IA
+  app.get("/api/course-config/ai-context", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      
+      const { data: config, error } = await supabase
+        .from('course_config')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      if (!config || !config.is_active) {
+        return res.json({
+          enabled: false,
+          context: ''
+        });
+      }
+      
+      // Formatar contexto para IA
+      let context = `
+📚 INFORMAÇÕES DO CURSO: ${config.course_name || 'Curso'}
+
+${config.course_description || ''}
+
+🎯 PARA QUEM É:
+${config.target_audience || 'Pessoas interessadas em aprender'}
+
+❌ PARA QUEM NÃO É:
+${config.not_for_audience || 'Não especificado'}
+
+📖 CONTEÚDO (${config.total_hours || 0} horas, ${config.total_lessons || 0} aulas):
+${(config.modules || []).map((m: any, i: number) => `${i + 1}. ${m.name}: ${m.description || ''}`).join('\n')}
+
+💰 INVESTIMENTO:
+- Preço: R$ ${config.price_promotional || config.price_full || 'Consultar'}
+${config.price_installments ? `- Parcelamento em até ${config.price_installments}x` : ''}
+${config.price_installment_value ? `- Parcelas de R$ ${config.price_installment_value}` : ''}
+
+✅ GARANTIA: ${config.guarantee_days || 7} dias
+${config.guarantee_description || 'Garantia de satisfação'}
+
+🎓 CERTIFICADO: ${config.has_certificate ? 'Sim' : 'Não'}
+${config.certificate_description || ''}
+
+📱 ACESSO: ${config.access_period || 'Vitalício'}
+
+🎁 BÔNUS INCLUSOS:
+${(config.bonus_items || []).map((b: any) => `• ${b.name}${b.value ? ` (valor: R$ ${b.value})` : ''}`).join('\n') || 'Nenhum bônus cadastrado'}
+
+💳 FORMAS DE PAGAMENTO:
+${(config.payment_methods || []).join(', ')}
+
+🔗 LINK DE INSCRIÇÃO:
+${config.checkout_link || 'Solicitar ao atendimento'}
+
+💬 SUPORTE:
+${config.support_description || 'Suporte dedicado ao aluno'}
+${config.community_info || ''}
+
+⭐ DEPOIMENTOS DE ALUNOS:
+${(config.testimonials || []).slice(0, 3).map((t: any) => `"${t.text}" - ${t.name}`).join('\n\n') || 'Ainda não há depoimentos'}
+
+📈 RESULTADOS:
+${config.results_description || ''}
+${config.success_metrics || ''}
+
+🎟️ CUPONS ATIVOS:
+${(config.active_coupons || []).map((c: any) => `${c.code}: ${c.discount_percent ? c.discount_percent + '% de desconto' : 'R$ ' + c.discount_value + ' de desconto'}`).join('\n') || 'Nenhum cupom ativo'}
+
+INSTRUÇÕES PARA O AGENTE:
+${config.ai_instructions || ''}
+`.trim();
+      
+      res.json({
+        enabled: true,
+        context,
+        config
+      });
+    } catch (error) {
+      console.error("Error fetching course AI context:", error);
+      res.status(500).json({ message: "Failed to fetch course AI context" });
+    }
+  });
+
+  // =============================================
   // ROTAS DE DELIVERY (CARDÁPIO DIGITAL)
   // =============================================
 
@@ -4828,24 +5518,23 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
         }
         console.log(`[AGENT CONFIG] ═══════════════════════════════════════════════════\n`);
         
-        // 🚀 ATUALIZAR FLOW DEFINITION QUANDO PROMPT É ATUALIZADO
+        // ATUALIZAR FLOW DEFINITION QUANDO PROMPT E ATUALIZADO
         try {
-          const { FlowBuilder, FlowStorage } = await import("./flowIntegration");
-          
-          console.log(`\n🚀 [AGENT CONFIG] Atualizando FlowDefinition...`);
-          
-          const builder = new FlowBuilder();
-          const flow = await builder.buildFromPrompt(result.data.prompt);
-          
+          const { FlowStorage, buildFlowForUserPrompt } = await import("./flowIntegration");
+
+          console.log(`[AGENT CONFIG] Atualizando FlowDefinition...`);
+
+          const flow = await buildFlowForUserPrompt(userId, result.data.prompt);
           const saved = await FlowStorage.saveFlow(userId, flow);
-          console.log(`🚀 [AGENT CONFIG] FlowDefinition: ${saved ? '✅ Atualizado' : '❌ Falha'}`);
-          console.log(`🚀 [AGENT CONFIG] Tipo de flow: ${flow.type}`);
+          console.log(`[AGENT CONFIG] FlowDefinition: ${saved ? 'OK' : 'FALHA'}`);
+          console.log(`[AGENT CONFIG] Tipo de flow: ${flow.type}`);
         } catch (flowError) {
-          console.error(`🚀 [AGENT CONFIG] ❌ Erro ao atualizar FlowDefinition:`, flowError);
-          // Continua mesmo se falhar - o sistema legado será usado
+          console.error(`[AGENT CONFIG] Erro ao atualizar FlowDefinition:`, flowError);
+          // Continua mesmo se falhar - o sistema legado sera usado
         }
+
       }
-      
+
       res.json(config);
     } catch (error) {
       console.error("Error updating agent config:", error);
@@ -5363,6 +6052,31 @@ Responda APENAS com o JSON, sem texto adicional.`;
         });
         console.log(`[Edit Prompt] ✅ Config principal atualizada com prompt calibrado`);
         
+        // 🚀 AUTO-UPDATE FLOW: Reorganizar e calibrar fluxo após edição
+        // Quando cliente edita o prompt, o fluxo é regenerado baseado na nova instrução
+        let flowUpdated = false;
+        try {
+          const { handleEditPrompt } = await import("./flowIntegration");
+          console.log(`\n🚀 [Edit Prompt] Regenerando FlowDefinition conforme nova instrução...`);
+          
+          const flowResult = await handleEditPrompt(
+            userId,
+            currentPrompt,
+            instruction,
+            promptFinal,
+            mistralApiKey
+          );
+          
+          flowUpdated = flowResult.flowUpdated;
+          console.log(`🚀 [Edit Prompt] FlowDefinition: ${flowUpdated ? '✅ Atualizado' : '❌ Não atualizado'}`);
+          if (flowUpdated && flowResult.changes.length > 0) {
+            console.log(`🚀 [Edit Prompt] Mudanças no fluxo: ${flowResult.changes.join(', ')}`);
+          }
+        } catch (flowError) {
+          console.error(`🚀 [Edit Prompt] ❌ Erro ao atualizar FlowDefinition:`, flowError);
+          // Continua mesmo se falhar - o sistema legado será usado
+        }
+        
         // Salvar nova versão do prompt (com info de calibração)
         await salvarVersaoPrompt({
           userId,
@@ -5372,6 +6086,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
           editType: 'ia',
           editDetails: {
             ...result.detalhes,
+            flowUpdated,
             calibration: calibrationResult ? {
               score: calibrationResult.scoreGeral,
               reparos: calibrationResult.tentativasReparo
@@ -5391,6 +6106,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
           aplicadas: result.edicoesAplicadas,
           falharam: result.edicoesFalharam
         },
+        flowUpdated: result.success && result.novoPrompt !== currentPrompt ? true : false,
         calibration: calibrationResult ? {
           sucesso: calibrationResult.sucesso,
           score: calibrationResult.scoreGeral,
@@ -14090,7 +14806,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
         });
       }
       
-      res.json(config);
+        res.json(config);
     } catch (error: any) {
       console.error("Error fetching exclusion config:", error);
       res.status(500).json({ message: "Failed to fetch exclusion config" });
@@ -14112,7 +14828,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       });
       
       console.log(`⚙️ [EXCLUSION] Config atualizada para usuário ${userId}: enabled=${isEnabled}, followup=${followupExclusionEnabled}`);
-      res.json(config);
+        res.json(config);
     } catch (error: any) {
       console.error("Error updating exclusion config:", error);
       res.status(500).json({ message: "Failed to update exclusion config" });
@@ -15653,7 +16369,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
         });
       }
       
-      res.json(config);
+        res.json(config);
     } catch (error: any) {
       console.error("Error fetching scheduling config:", error);
       res.status(500).json({ message: "Failed to fetch scheduling config" });
