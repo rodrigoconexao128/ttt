@@ -269,6 +269,26 @@ export async function handleEditPrompt(
  * AGORA: Cria FlowDefinition automaticamente se não existir! 🚀
  */
 export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🚫 FLOW ENGINE DESABILITADO - BLINDAGEM V3 EM USO
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A partir de 2025-01-19, o sistema usa APENAS IA com Blindagem V3.
+  // O FlowEngine/chatbot foi substituído por:
+  // - Blindagem Universal V3 (anti-alucinação + anti-jailbreak)
+  // - Sistema determinístico de Delivery (para cardápio/pedidos)
+  // 
+  // Motivo: IA com blindagem obedece 100% ao prompt sem precisar de fluxos
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log(`\n🚫 [shouldUseFlowEngine] FlowEngine DESABILITADO`);
+  console.log(`   → Usando IA com Blindagem V3 para user ${userId}`);
+  console.log(`   → Sistema determinístico de Delivery mantido para cardápio\n`);
+  return false;
+  
+  /*
+  // ════════════════════════════════════════════════════════════════════════
+  // CÓDIGO ANTIGO MANTIDO PARA REFERÊNCIA (não executado)
+  // ════════════════════════════════════════════════════════════════════════
+  
   // Resolver tipo de flow desejado (DELIVERY, VENDAS, etc)
   const desiredType = await resolveDesiredFlowType(userId);
   
@@ -354,6 +374,7 @@ export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
 
   console.log(`✅ [shouldUseFlowEngine] RETORNANDO TRUE - FlowEngine ATIVO`);
   return true;
+  */
 }
 
 /**
