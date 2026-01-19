@@ -233,6 +233,12 @@ export class AIInterpreter {
       return { intent: 'UNKNOWN', confidence: 0 };
     }
 
+    // Verificar se transitions existe
+    if (!state.transitions || !Array.isArray(state.transitions)) {
+      console.warn(`[AIInterpreter] Estado ${currentState} não tem transitions válidas`);
+      return { intent: 'UNKNOWN', confidence: 0 };
+    }
+
     // Construir lista de intents possíveis
     const possibleIntents = state.transitions.map(t => t.intent);
     const intentDescriptions = possibleIntents.map(intentId => {
@@ -372,10 +378,22 @@ export class SystemExecutor {
     
     // Mesclar dados extraídos
     const mergedData = { ...data, ...extractedData };
+    
+    // 🛒 Inicializar carrinho se não existir (para fluxos DELIVERY)
+    if (flow.type === 'DELIVERY' && !mergedData.cart) {
+      mergedData.cart = [];
+      mergedData.total = 0;
+    }
 
     // 🚀 Se a ação é do tipo DATA, buscar dados REAIS do sistema
     if (action.type === 'DATA' && userId) {
       await this.loadRealData(action.dataSource, mergedData, flow, userId);
+    }
+    
+    // 🛒 DELIVERY: Processar ações de carrinho com preços REAIS
+    const actionName = action.name || '';
+    if (flow.type === 'DELIVERY' && userId) {
+      await this.processDeliveryAction(actionName, mergedData, extractedData, userId);
     }
 
     // 🔧 FIX: Se template contém {response} e não há valor definido, 
@@ -400,6 +418,196 @@ export class SystemExecutor {
       newData: mergedData,
       mediaActions
     };
+  }
+  
+  /**
+   * 🛒 Processa ações específicas de Delivery (ADD_TO_CART, REMOVE_FROM_CART, etc)
+   */
+  private async processDeliveryAction(
+    actionName: string,
+    data: Record<string, any>,
+    extractedData?: Record<string, any>,
+    userId?: string
+  ): Promise<void> {
+    console.log(`🛒 [SystemExecutor] Processando ação delivery: ${actionName}`);
+    console.log(`🛒 [SystemExecutor] extractedData:`, JSON.stringify(extractedData || {}));
+    
+    // Garantir que cart existe
+    if (!data.cart) data.cart = [];
+    if (typeof data.total !== 'number') data.total = 0;
+    
+    const productName = extractedData?.product || extractedData?.item;
+    const quantity = extractedData?.quantity || 1;
+    
+    switch (actionName) {
+      case 'Adicionar ao Carrinho':
+      case 'ADD_TO_CART': {
+        if (!productName || !userId) {
+          console.log(`🛒 [SystemExecutor] Sem produto ou userId para adicionar`);
+          break;
+        }
+        
+        // Buscar item no menu com preço REAL do banco
+        const menuItem = await this.findMenuItemByName(productName, userId);
+        
+        if (!menuItem) {
+          console.log(`🛒 [SystemExecutor] Produto "${productName}" não encontrado no menu`);
+          data.error = `Produto "${productName}" não encontrado no cardápio`;
+          break;
+        }
+        
+        console.log(`🛒 [SystemExecutor] Item encontrado: ${menuItem.name} - R$ ${menuItem.price}`);
+        
+        // Verificar se item já está no carrinho
+        const existingIndex = data.cart.findIndex((item: any) => 
+          item.name.toLowerCase() === menuItem.name.toLowerCase()
+        );
+        
+        if (existingIndex >= 0) {
+          // Incrementar quantidade
+          data.cart[existingIndex].quantity += quantity;
+        } else {
+          // Adicionar novo item
+          data.cart.push({
+            name: menuItem.name,
+            quantity: quantity,
+            unit_price: parseFloat(menuItem.price)
+          });
+        }
+        
+        // Recalcular total
+        this.recalculateTotal(data);
+        
+        // Preencher variáveis do template
+        data.product = menuItem.name;
+        data.quantity = quantity;
+        data.item_total = (quantity * parseFloat(menuItem.price)).toFixed(2);
+        this.buildCartSummary(data);
+        
+        console.log(`🛒 [SystemExecutor] ✅ Carrinho atualizado:`, JSON.stringify(data.cart));
+        console.log(`🛒 [SystemExecutor] ✅ Total: R$ ${data.total}`);
+        break;
+      }
+      
+      case 'Remover do Carrinho':
+      case 'REMOVE_FROM_CART': {
+        if (!productName) break;
+        
+        const removeIndex = data.cart.findIndex((item: any) =>
+          item.name.toLowerCase().includes(productName.toLowerCase())
+        );
+        
+        if (removeIndex >= 0) {
+          const removed = data.cart.splice(removeIndex, 1)[0];
+          data.product = removed.name;
+          data.quantity = removed.quantity;
+          this.recalculateTotal(data);
+          this.buildCartSummary(data);
+          console.log(`🛒 [SystemExecutor] ✅ Removido: ${removed.name}`);
+        }
+        break;
+      }
+      
+      case 'Mostrar Carrinho':
+      case 'SHOW_CART': {
+        this.buildCartSummary(data);
+        break;
+      }
+      
+      case 'Cancelar':
+      case 'CANCEL': {
+        data.cart = [];
+        data.total = 0;
+        data.cart_summary = 'Carrinho vazio';
+        console.log(`🛒 [SystemExecutor] ✅ Pedido cancelado`);
+        break;
+      }
+      
+      default:
+        // Para outras ações, apenas construir resumo se há carrinho
+        if (data.cart.length > 0) {
+          this.buildCartSummary(data);
+        }
+    }
+  }
+  
+  /**
+   * 🔍 Busca item do menu pelo nome (fuzzy match) com preço REAL
+   */
+  private async findMenuItemByName(
+    productName: string,
+    userId: string
+  ): Promise<{ name: string; price: string; description?: string } | null> {
+    try {
+      const { data: items, error } = await supabase
+        .from('menu_items')
+        .select('name, price, description')
+        .eq('user_id', userId)
+        .eq('is_available', true);
+      
+      if (error || !items || items.length === 0) {
+        console.log(`🔍 [SystemExecutor] Nenhum item encontrado no menu de ${userId}`);
+        return null;
+      }
+      
+      const searchLower = productName.toLowerCase();
+      
+      // Primeiro: match exato
+      let found = items.find(item => 
+        item.name.toLowerCase() === searchLower
+      );
+      
+      // Segundo: match parcial
+      if (!found) {
+        found = items.find(item => 
+          item.name.toLowerCase().includes(searchLower) ||
+          searchLower.includes(item.name.toLowerCase())
+        );
+      }
+      
+      // Terceiro: palavras-chave
+      if (!found) {
+        const words = searchLower.split(/\s+/);
+        found = items.find(item => {
+          const itemLower = item.name.toLowerCase();
+          return words.some(word => word.length > 2 && itemLower.includes(word));
+        });
+      }
+      
+      return found || null;
+    } catch (err) {
+      console.error(`🔍 [SystemExecutor] Erro buscando menu:`, err);
+      return null;
+    }
+  }
+  
+  /**
+   * 💰 Recalcula total do carrinho
+   */
+  private recalculateTotal(data: Record<string, any>): void {
+    data.total = data.cart.reduce((sum: number, item: any) => {
+      return sum + (item.quantity * item.unit_price);
+    }, 0);
+  }
+  
+  /**
+   * 📝 Constrói resumo do carrinho para exibição
+   */
+  private buildCartSummary(data: Record<string, any>): void {
+    if (!data.cart || data.cart.length === 0) {
+      data.cart_summary = 'Carrinho vazio';
+      data.total = '0,00';
+      return;
+    }
+    
+    data.cart_summary = data.cart.map((item: any) => {
+      const itemTotal = (item.quantity * item.unit_price).toFixed(2).replace('.', ',');
+      return `• ${item.quantity}x ${item.name} - R$ ${itemTotal}`;
+    }).join('\n');
+    
+    data.total = typeof data.total === 'number' 
+      ? data.total.toFixed(2).replace('.', ',')
+      : data.total;
   }
 
   /**
@@ -909,6 +1117,12 @@ export class UnifiedFlowEngine {
     const currentFlowState = flow.states[state.currentState];
     if (!currentFlowState) {
       console.log(`   ❌ Estado inválido: ${state.currentState}`);
+      return null;
+    }
+
+    // 🔧 FIX: Verificar se transitions existe antes de usar .find()
+    if (!currentFlowState.transitions || !Array.isArray(currentFlowState.transitions)) {
+      console.log(`   ⚠️ Estado ${state.currentState} não tem transitions definidas`);
       return null;
     }
 

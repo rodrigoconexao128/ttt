@@ -31,20 +31,26 @@ export default function TestAgent() {
   const [isTyping, setIsTyping] = useState(false);
   const [agentName, setAgentName] = useState("Agente IA");
   const [agentCompany, setAgentCompany] = useState("AgenteZap");
-  const [userId, setUserId] = useState<string | undefined>(undefined);
+  
+  // 🔧 FIX: Ler userId da query string OU do path param
+  const urlParams = new URLSearchParams(window.location.search);
+  const userIdFromQuery = urlParams.get('userId');
+  const [userId, setUserId] = useState<string | undefined>(userIdFromQuery || undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Carregar informações do agente pelo token
+  // Carregar informações do agente pelo token OU userId
   const { data: agentInfo } = useQuery({
-    queryKey: ["/api/test-agent/info", token],
+    queryKey: ["/api/test-agent/info", token || userIdFromQuery],
     queryFn: async () => {
-      if (!token) return null;
-      const res = await fetch(`/api/test-agent/info/${token}`);
+      // Prioridade: token do path, depois userId da query
+      const identifier = token || userIdFromQuery;
+      if (!identifier) return null;
+      const res = await fetch(`/api/test-agent/info/${identifier}`);
       if (!res.ok) return null;
       return res.json();
     },
-    enabled: !!token,
+    enabled: !!(token || userIdFromQuery),
   });
 
   useEffect(() => {

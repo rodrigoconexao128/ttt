@@ -11,7 +11,7 @@ import { registerAudioConfigRoutes } from "./routes_audio_config";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 import { withRetry, db } from "./db";
 import { eq, and, gte, desc, inArray } from "drizzle-orm";
-import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users, resellerInvoiceItems as resellerInvoiceItemsTable, resellerInvoices as resellerInvoicesTable, websiteImports } from "@shared/schema";
+import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users, resellerInvoiceItems as resellerInvoiceItemsTable, resellerInvoices as resellerInvoicesTable, websiteImports, aiAgentConfig } from "@shared/schema";
 import { resellerService } from "./resellerService";
 import { scrapeWebsite, validateUrl, formatContextForAgent, type WebsiteScrapingResult } from "./websiteScraperService";
 import { startBackgroundSync, getSyncStatus, getSyncedContactsFromDB, hasSyncedBefore } from "./contactSyncService";
@@ -14556,10 +14556,39 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   /**
    * Obter informações do agente para a página de teste
    * GET /api/test-agent/info/:token
+   * Suporta: token de teste OU userId direto
    */
   app.get("/api/test-agent/info/:token", async (req: any, res) => {
     try {
       const { token } = req.params;
+      
+      // 🔧 FIX: Se o token parecer um userId (começa com test- ou tem formato UUID), buscar direto
+      if (token.startsWith('test-') || token.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        // Buscar config do agente pelo userId
+        const userConfig = await db
+          .select({
+            name: users.name,
+            userId: users.id,
+            prompt: aiAgentConfig.prompt,
+          })
+          .from(users)
+          .leftJoin(aiAgentConfig, eq(aiAgentConfig.userId, users.id))
+          .where(eq(users.id, token))
+          .limit(1);
+        
+        if (userConfig.length > 0 && userConfig[0].userId) {
+          // Extrair nome do agente do prompt se possível (ex: "Você é Maria, atendente...")
+          const promptMatch = userConfig[0].prompt?.match(/Você é (\w+)/i);
+          const agentName = promptMatch ? promptMatch[1] : "Agente";
+          
+          return res.json({
+            agentName: agentName,
+            company: userConfig[0].name || "Empresa",
+            userId: userConfig[0].userId,
+            description: `Agente de ${userConfig[0].name || "teste"}`,
+          });
+        }
+      }
       
       // Buscar token de teste gerado pelo adminAgentService (agora persiste no Supabase)
       const { getTestToken } = await import("./adminAgentService");

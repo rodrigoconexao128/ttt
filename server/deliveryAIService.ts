@@ -255,7 +255,8 @@ export interface DeliveryAIResponse {
 
 const INTENT_PATTERNS: Record<CustomerIntent, RegExp[]> = {
   GREETING: [
-    /^(oi|olá|ola|eai|e ai|hey|opa|bom dia|boa tarde|boa noite|tudo bem|td bem|blz)/i,
+    /^(oi+e?|olá|ola|eai|e ai|hey|opa|bom dia|boa tarde|boa noite|tudo bem|td bem|blz|oie+)$/i,
+    /^(oi+e?|olá|ola|eai|e ai|hey|opa|bom dia|boa tarde|boa noite|tudo bem|td bem|blz|oie+)\s*[!?.,]*$/i,
   ],
   WANT_MENU: [
     /card[aá]pio/i,
@@ -369,17 +370,17 @@ export async function getDeliveryData(userId: string): Promise<DeliveryData | nu
     // 2. Buscar categorias
     const { data: categories } = await supabase
       .from('menu_categories')
-      .select('id, name, sort_order')
+      .select('id, name, display_order')
       .eq('user_id', userId)
-      .order('sort_order', { ascending: true });
+      .order('display_order', { ascending: true });
     
     // 3. Buscar itens do menu
     const { data: items } = await supabase
       .from('menu_items')
-      .select('id, name, description, price, category_id, is_highlight, is_available')
+      .select('id, name, description, price, category_id, is_featured, is_available')
       .eq('user_id', userId)
       .eq('is_available', true)
-      .order('name', { ascending: true });
+      .order('display_order', { ascending: true });
     
     if (!items || items.length === 0) {
       console.log(`🍕 [DeliveryAI] Nenhum item encontrado para user ${userId}`);
@@ -407,7 +408,7 @@ export async function getDeliveryData(userId: string): Promise<DeliveryData | nu
         description: item.description,
         price: parseFloat(item.price) || 0,
         category_name: categoryName,
-        is_highlight: item.is_highlight || false,
+        is_highlight: item.is_featured || false,
         is_available: item.is_available,
       });
     });
@@ -631,14 +632,26 @@ export async function generateDeliveryResponse(
   }
   
   // ═══════════════════════════════════════════════════════════════════════
-  // CASO ESPECIAL: SAUDAÇÃO - Resposta simples sem IA
+  // CASO ESPECIAL: SAUDAÇÃO - JÁ ENVIA CARDÁPIO AUTOMATICAMENTE
+  // O usuário solicitou que no delivery, ao receber "oi", já envie o cardápio
+  // sem precisar o cliente pedir. Isso acelera o fluxo de pedidos.
   // ═══════════════════════════════════════════════════════════════════════
   if (intent === 'GREETING') {
     const greeting = getTimeBasedGreeting();
+    console.log(`🍕 [DeliveryAI] GREETING detectado - enviando cardápio automaticamente`);
+    
+    // Buscar cardápio formatado em bolhas
+    const menuBubbles = formatMenuAsBubbles(deliveryData);
+    
+    // Primeira bolha: Saudação
+    // Depois: Cardápio completo
+    // Última: Chamada para ação
     return {
       intent: 'GREETING',
       bubbles: [
-        `${greeting}! 😊 Bem-vindo(a) ao *${deliveryData.config.business_name}*!\n\nPosso te enviar nosso cardápio ou você já sabe o que quer pedir?`
+        `${greeting}! 😊 Bem-vindo(a) ao *${deliveryData.config.business_name}*!`,
+        ...menuBubbles,
+        `Me avise quando quiser fazer seu pedido! 🛵`
       ],
     };
   }

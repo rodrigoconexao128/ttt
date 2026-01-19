@@ -252,7 +252,7 @@ export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
     try {
       // Buscar prompt do agente
       const { data: agentConfig, error: agentError } = await supabase
-        .from('agent_configs')
+        .from('ai_agent_config')
         .select('prompt, agent_name, business_type')
         .eq('user_id', userId)
         .single();

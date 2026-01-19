@@ -2612,7 +2612,7 @@ ${topics.length > 0 ? topics.map(t => `• ${t}`).join('\n') : '• Conversas ge
         const hasAgentReplies = agentMessages.length > 0;
         
         // Verificar se nova mensagem é uma saudação simples
-        const isSaudacao = /^(oi|olá|ola|bom dia|boa tarde|boa noite|ei|e ai|eai|fala|tudo bem|blz|beleza)[\s\?!\.]*$/i.test((newMessageText || '').trim());
+        const isSaudacao = /^(oi+e?|oie+|olá|ola|bom dia|boa tarde|boa noite|ei|e ai|eai|fala|tudo bem|td bem|blz|beleza)[\s\?!\.]*$/i.test((newMessageText || '').trim());
         
         // Detectar se a mensagem atual já contém informações do negócio do cliente
         const msgLower = (newMessageText || '').toLowerCase();
@@ -2839,7 +2839,7 @@ ${jaDisseOQueTrabalha || jaPediuAjuda ? `
     let finalUserMessage = newMessageText.trim() || "[Mensagem vazia]";
     
     // 🛡️ ANTI-AMNÉSIA FORÇADO: Se é saudação repetida com histórico, FORÇAR instrução na mensagem
-    const isSaudacaoSimples = /^(oi|olá|ola|bom dia|boa tarde|boa noite|ei|e ai|eai|fala|tudo bem|blz|beleza|hey|hello|hi)[\s\?!\.]*$/i.test(finalUserMessage);
+    const isSaudacaoSimples = /^(oi+e?|oie+|olá|ola|bom dia|boa tarde|boa noite|ei|e ai|eai|fala|tudo bem|td bem|blz|beleza|hey|hello|hi)[\s\?!\.]*$/i.test(finalUserMessage);
     const hasAgentRepliesInHistory = uniqueMessages.some(m => m.fromMe);
     
     if (isSaudacaoSimples && hasAgentRepliesInHistory && uniqueMessages.length >= 2) {
