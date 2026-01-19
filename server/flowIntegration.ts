@@ -14,15 +14,9 @@
  * - IA só interpreta intenções e humaniza respostas
  */
 
-import { FlowBuilder, PromptAnalyzer } from "./FlowBuilder";
-import type { FlowDefinition } from "./FlowBuilder";
+import { FlowBuilder, FlowDefinition, PromptAnalyzer } from "./FlowBuilder";
 import { UnifiedFlowEngine, FlowStorage, FlowConfig } from "./UnifiedFlowEngine";
 import { supabase } from "./supabaseAuth";
-import {
-  ChatbotFlowGenerator,
-  generateAndSaveFlowOnAgentCreate,
-  updateFlowOnPromptEdit
-} from "./ChatbotFlowGenerator";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INTEGRAÇÃO COM GENERATE-PROMPT
@@ -76,38 +70,21 @@ ${description ? `Descrição: ${description}` : ''}
 ${additionalInfo ? `Informações adicionais: ${additionalInfo}` : ''}
   `.trim();
 
-  // 3. Construir flow - usar ChatbotFlowGenerator para melhor estrutura
+  // 3. Construir flow
   let flow: FlowDefinition;
   try {
-    // Primeiro tentar com FlowBuilder (para tipos específicos como DELIVERY)
-    if (flowType === 'DELIVERY' || flowType === 'AGENDAMENTO') {
-      flow = await builder.buildFromPrompt(basePrompt);
-    } else {
-      // Para VENDAS, SUPORTE e GENERICO, usar ChatbotFlowGenerator
-      // que gera fluxos mais completos com FAQ e respostas customizadas
-      const chatbotGenerator = new ChatbotFlowGenerator();
-      flow = chatbotGenerator.generateFromPrompt(basePrompt);
-    }
-
+    flow = await builder.buildFromPrompt(basePrompt);
+    
     // Ajustar dados do flow
     flow.businessName = businessName;
     flow.agentName = extractAgentName(description) || 'Assistente';
-
+    
     console.log(`   📋 Flow criado: ${flow.type} com ${Object.keys(flow.states).length} estados`);
   } catch (err) {
-    console.error(`   ❌ Erro ao criar flow com builder principal:`, err);
-    // Fallback: usar ChatbotFlowGenerator para criar flow genérico
-    try {
-      const chatbotGenerator = new ChatbotFlowGenerator();
-      flow = chatbotGenerator.generateFromPrompt(basePrompt);
-      flow.businessName = businessName;
-      console.log(`   📋 Flow criado via ChatbotFlowGenerator (fallback)`);
-    } catch (fallbackErr) {
-      console.error(`   ❌ Erro no fallback:`, fallbackErr);
-      // Último recurso
-      flow = builder.buildGenericoFlow('Assistente', businessName, 'profissional e amigável');
-      flow.businessName = businessName;
-    }
+    console.error(`   ❌ Erro ao criar flow:`, err);
+    // Fallback: criar flow genérico
+    flow = builder.buildGenericoFlow('Assistente', businessName, 'profissional e amigável');
+    flow.businessName = businessName;
   }
 
   // 4. Salvar flow no banco
@@ -253,21 +230,11 @@ export async function handleEditPrompt(
     changes.push(`Nova regra adicionada`);
   }
 
-  // 3. Também atualizar com base no novo prompt completo (sincronização total)
-  // Isso garante que FAQ e outras informações extraídas do prompt também sejam atualizadas
-  try {
-    const chatbotGenerator = new ChatbotFlowGenerator();
-    flow = chatbotGenerator.updateFromPrompt(flow, newPrompt);
-    changes.push('Fluxo sincronizado com novo prompt');
-  } catch (syncErr) {
-    console.log(`   ⚠️ Erro na sincronização completa do fluxo:`, syncErr);
-  }
-
-  // 4. Atualizar versão e salvar
+  // 3. Atualizar versão e salvar
   flow.version = incrementVersion(flow.version);
-
+  
   const saved = await FlowStorage.saveFlow(userId, flow);
-
+  
   console.log(`   ${saved ? '✅' : '❌'} Flow ${saved ? 'atualizado' : 'não atualizado'}`);
   console.log(`   📊 ${changes.length} mudanças aplicadas: ${changes.join(', ')}`);
   console.log(`🔗 [FlowIntegration] ════════════════════════════════\n`);
@@ -285,20 +252,15 @@ export async function handleEditPrompt(
 /**
  * Verifica se deve usar FlowEngine ou sistema legado
  * AGORA: Cria FlowDefinition automaticamente se não existir! 🚀
- *
- * ARQUITETURA HÍBRIDA:
- * - IA INTERPRETA: Entende o que o cliente quer (linguagem natural)
- * - SISTEMA EXECUTA: Busca respostas do fluxo (determinístico)
- * - IA HUMANIZA: Torna a resposta natural (anti-bloqueio)
  */
 export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
   // Verificar se usuário tem um flow definido
   let flow = await FlowStorage.loadFlow(userId);
-
+  
   if (!flow) {
     console.log(`\n🔄 [shouldUseFlowEngine] User ${userId} não tem FlowDefinition`);
     console.log(`🔄 [shouldUseFlowEngine] Tentando criar automaticamente...`);
-
+    
     // Tentar criar FlowDefinition a partir do prompt existente
     try {
       // Buscar prompt do agente
@@ -307,41 +269,27 @@ export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
         .select('prompt, agent_name, business_type')
         .eq('user_id', userId)
         .single();
-
+      
       if (agentError || !agentConfig?.prompt) {
         console.log(`🔄 [shouldUseFlowEngine] ⚠️ Sem prompt para criar flow`);
         return false;
       }
-
+      
       console.log(`🔄 [shouldUseFlowEngine] Prompt encontrado (${agentConfig.prompt.length} chars)`);
       console.log(`🔄 [shouldUseFlowEngine] Tipo: ${agentConfig.business_type || 'não definido'}`);
-
-      // Detectar tipo de negócio
-      const analyzer = new PromptAnalyzer();
-      const detectedType = analyzer.detectFlowType(agentConfig.prompt);
-      console.log(`🔄 [shouldUseFlowEngine] Tipo detectado: ${detectedType}`);
-
-      // Escolher gerador baseado no tipo
-      // Para DELIVERY e AGENDAMENTO usa FlowBuilder (mais específico)
-      // Para VENDAS, SUPORTE e GENERICO usa ChatbotFlowGenerator (mais completo)
-      if (detectedType === 'DELIVERY' || detectedType === 'AGENDAMENTO') {
-        console.log(`🔄 [shouldUseFlowEngine] Usando FlowBuilder (tipo específico)`);
-        const builder = new FlowBuilder();
-        flow = await builder.buildFromPrompt(agentConfig.prompt);
-      } else {
-        console.log(`🔄 [shouldUseFlowEngine] Usando ChatbotFlowGenerator (tipo genérico/vendas/suporte)`);
-        const chatbotGenerator = new ChatbotFlowGenerator();
-        flow = chatbotGenerator.generateFromPrompt(agentConfig.prompt);
-      }
-
+      
+      // Criar FlowDefinition a partir do prompt
+      const builder = new FlowBuilder();
+      flow = await builder.buildFromPrompt(agentConfig.prompt);
+      
       // Ajustar nome do agente se disponível
       if (agentConfig.agent_name) {
         flow.agentName = agentConfig.agent_name;
       }
-
+      
       // Salvar no banco
       const saved = await FlowStorage.saveFlow(userId, flow);
-
+      
       if (saved) {
         console.log(`🔄 [shouldUseFlowEngine] ✅ FlowDefinition CRIADO automaticamente!`);
         console.log(`🔄 [shouldUseFlowEngine] Tipo: ${flow.type}`);
@@ -356,7 +304,7 @@ export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
       return false;
     }
   }
-
+  
   return true;
 }
 
@@ -536,9 +484,5 @@ export {
   FlowBuilder,
   FlowDefinition,
   UnifiedFlowEngine,
-  FlowStorage,
-  // ChatbotFlowGenerator exports
-  ChatbotFlowGenerator,
-  generateAndSaveFlowOnAgentCreate,
-  updateFlowOnPromptEdit
+  FlowStorage
 };

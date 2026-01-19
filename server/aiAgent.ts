@@ -8,6 +8,9 @@ import crypto from "crypto";
 import { validateAgentResponse } from "./agentValidation";
 // 🚀 UNIFIED FLOW ENGINE - Sistema híbrido (IA interpreta, Sistema executa)
 import { shouldUseFlowEngine, processWithFlowEngine, FlowStorage } from "./flowIntegration";
+// 🎯 DETERMINISTIC FLOW ENGINE - Sistema determin\u00edstico universal (funciona para QUALQUER negócio)
+import { DeterministicFlowEngine } from "./DeterministicFlowEngine";
+import { PromptToFlowConverter } from "./PromptToFlowConverter";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🤖 SISTEMA ANTI-BOT - DETECTA E IGNORA MENSAGENS DE BOTS
@@ -799,7 +802,256 @@ IMPORTANTE:
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 🚫 VERIFICAÇÃO DE SUSPENSÃO POR VIOLAÇÃO DE POLÍTICAS
+// � FUNÇÕES AUXILIARES PARA MÓDULO DE CURSO/INFOPRODUTO
+// ═══════════════════════════════════════════════════════════════════════
+
+interface CourseConfigForAI {
+  active: boolean;
+  send_to_ai: boolean;
+  course_name: string | null;
+  course_description: string | null;
+  course_type: string | null;
+  target_audience: string | null;
+  not_for_audience: string | null;
+  learning_outcomes: string[];
+  modules: Array<{ id: string; name: string; description: string; duration_minutes: number; lessons: string[]; order: number }>;
+  total_hours: number;
+  total_lessons: number;
+  access_period: string | null;
+  has_certificate: boolean;
+  certificate_description: string | null;
+  guarantee_days: number;
+  guarantee_description: string | null;
+  price_full: number | null;
+  price_promotional: number | null;
+  price_installments: number;
+  price_installment_value: number | null;
+  checkout_link: string | null;
+  payment_methods: string[];
+  bonus_items: Array<{ id: string; name: string; description: string; value: number }>;
+  support_description: string | null;
+  community_info: string | null;
+  testimonials: Array<{ id: string; name: string; text: string; result: string }>;
+  results_description: string | null;
+  active_coupons: Array<{ id: string; code: string; discount_percent?: number; discount_value?: number; description: string }>;
+  ai_instructions: string | null;
+  lead_nurture_message: string | null;
+  enrollment_cta: string | null;
+}
+
+async function getCourseConfigForAI(userId: string): Promise<CourseConfigForAI | null> {
+  try {
+    const { data: config, error: configError } = await supabase
+      .from('course_config')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (configError && configError.code !== 'PGRST116') {
+      console.error(`📚 [Course] Error fetching config:`, configError);
+      return null;
+    }
+    
+    if (!config) {
+      return null;
+    }
+    
+    const courseAllowed = config.send_to_ai !== false;
+    const courseActive = !!config.is_active;
+    
+    if (!courseAllowed || !courseActive) {
+      return null;
+    }
+    
+    console.log(`📚 [Course] Found course config for user ${userId}: ${config.course_name}`);
+    
+    return {
+      active: courseActive && courseAllowed,
+      send_to_ai: courseAllowed,
+      course_name: config.course_name,
+      course_description: config.course_description,
+      course_type: config.course_type || 'curso_online',
+      target_audience: config.target_audience,
+      not_for_audience: config.not_for_audience,
+      learning_outcomes: config.learning_outcomes || [],
+      modules: config.modules || [],
+      total_hours: parseFloat(config.total_hours) || 0,
+      total_lessons: config.total_lessons || 0,
+      access_period: config.access_period || 'vitalício',
+      has_certificate: config.has_certificate ?? true,
+      certificate_description: config.certificate_description,
+      guarantee_days: config.guarantee_days || 7,
+      guarantee_description: config.guarantee_description,
+      price_full: config.price_full ? parseFloat(config.price_full) : null,
+      price_promotional: config.price_promotional ? parseFloat(config.price_promotional) : null,
+      price_installments: config.price_installments || 12,
+      price_installment_value: config.price_installment_value ? parseFloat(config.price_installment_value) : null,
+      checkout_link: config.checkout_link,
+      payment_methods: config.payment_methods || ['pix', 'cartao_credito', 'boleto'],
+      bonus_items: config.bonus_items || [],
+      support_description: config.support_description,
+      community_info: config.community_info,
+      testimonials: config.testimonials || [],
+      results_description: config.results_description,
+      active_coupons: config.active_coupons || [],
+      ai_instructions: config.ai_instructions,
+      lead_nurture_message: config.lead_nurture_message,
+      enrollment_cta: config.enrollment_cta,
+    };
+  } catch (error) {
+    console.error(`📚 [Course] Unexpected error:`, error);
+    return null;
+  }
+}
+
+function generateCoursePromptBlock(courseData: CourseConfigForAI): string {
+  if (!courseData || !courseData.active) {
+    return '';
+  }
+  
+  const formatPrice = (price: number | null): string => {
+    if (!price) return 'Consultar';
+    return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+  
+  const courseName = courseData.course_name || 'Curso';
+  
+  // Formatar módulos
+  let modulesText = '';
+  if (courseData.modules && courseData.modules.length > 0) {
+    modulesText = courseData.modules.map((m, i) => 
+      `  ${i + 1}. ${m.name}${m.description ? ` - ${m.description}` : ''}`
+    ).join('\n');
+  }
+  
+  // Formatar bônus
+  let bonusText = '';
+  if (courseData.bonus_items && courseData.bonus_items.length > 0) {
+    bonusText = courseData.bonus_items.map(b => 
+      `  🎁 ${b.name}${b.value ? ` (valor: ${formatPrice(b.value)})` : ''}`
+    ).join('\n');
+  }
+  
+  // Formatar depoimentos (máx 3)
+  let testimonialsText = '';
+  if (courseData.testimonials && courseData.testimonials.length > 0) {
+    testimonialsText = courseData.testimonials.slice(0, 3).map(t => 
+      `  ⭐ "${t.text}" - ${t.name}${t.result ? ` (${t.result})` : ''}`
+    ).join('\n\n');
+  }
+  
+  // Formatar cupons
+  let couponsText = '';
+  if (courseData.active_coupons && courseData.active_coupons.length > 0) {
+    couponsText = courseData.active_coupons.map(c => 
+      `  🎟️ ${c.code}: ${c.discount_percent ? c.discount_percent + '% OFF' : formatPrice(c.discount_value || 0) + ' OFF'}`
+    ).join('\n');
+  }
+  
+  // Preço formatado
+  const priceInfo = courseData.price_promotional && courseData.price_promotional < (courseData.price_full || 0)
+    ? `~${formatPrice(courseData.price_full)}~ *${formatPrice(courseData.price_promotional)}* 🔥 PROMOÇÃO!`
+    : formatPrice(courseData.price_full);
+  
+  const installmentInfo = courseData.price_installment_value 
+    ? `ou ${courseData.price_installments}x de ${formatPrice(courseData.price_installment_value)}`
+    : courseData.price_full 
+      ? `ou em até ${courseData.price_installments}x`
+      : '';
+
+  return `
+═══════════════════════════════════════════════════════════════════════
+📚 INFORMAÇÕES DO CURSO: ${courseName.toUpperCase()}
+═══════════════════════════════════════════════════════════════════════
+
+📝 *DESCRIÇÃO:*
+${courseData.course_description || 'Curso completo para transformar seu conhecimento.'}
+
+🎯 *PARA QUEM É ESTE CURSO:*
+${courseData.target_audience || 'Pessoas interessadas em aprender e evoluir.'}
+
+${courseData.not_for_audience ? `❌ *PARA QUEM NÃO É:*\n${courseData.not_for_audience}\n` : ''}
+
+📖 *CONTEÚDO DO CURSO:*
+${courseData.total_hours > 0 ? `• ${courseData.total_hours} horas de conteúdo` : ''}
+${courseData.total_lessons > 0 ? `• ${courseData.total_lessons} aulas` : ''}
+${modulesText ? `\n*Módulos:*\n${modulesText}` : ''}
+
+💰 *INVESTIMENTO:*
+• ${priceInfo}
+${installmentInfo ? `• ${installmentInfo}` : ''}
+• Formas de pagamento: ${courseData.payment_methods.map(p => p.replace('_', ' ')).join(', ')}
+
+✅ *GARANTIA: ${courseData.guarantee_days} dias*
+${courseData.guarantee_description || 'Garantia incondicional de satisfação. Se não gostar, devolvemos seu dinheiro.'}
+
+📱 *ACESSO:*
+• Período: ${courseData.access_period || 'Vitalício'}
+${courseData.has_certificate ? `• 🎓 Inclui Certificado${courseData.certificate_description ? `: ${courseData.certificate_description}` : ''}` : ''}
+
+${bonusText ? `🎁 *BÔNUS INCLUSOS:*\n${bonusText}\n` : ''}
+
+${courseData.support_description ? `💬 *SUPORTE:*\n${courseData.support_description}\n` : ''}
+${courseData.community_info ? `👥 *COMUNIDADE:*\n${courseData.community_info}\n` : ''}
+
+${testimonialsText ? `⭐ *DEPOIMENTOS DE ALUNOS:*\n${testimonialsText}\n` : ''}
+
+${courseData.results_description ? `📈 *RESULTADOS:*\n${courseData.results_description}\n` : ''}
+
+${couponsText ? `🎟️ *CUPONS ATIVOS:*\n${couponsText}\n` : ''}
+
+${courseData.checkout_link ? `🔗 *LINK DE INSCRIÇÃO:* ${courseData.checkout_link}` : ''}
+
+═══════════════════════════════════════════════════════════════════════
+🚨 INSTRUÇÕES PARA ATENDIMENTO DE VENDA DE CURSO 🚨
+═══════════════════════════════════════════════════════════════════════
+
+${courseData.ai_instructions || 'Você é um especialista em vendas de infoprodutos. Seja empático, mostre o valor do curso e sempre mencione a garantia.'}
+
+**REGRAS ABSOLUTAMENTE OBRIGATÓRIAS:**
+
+1. 🔴 **NUNCA INVENTE INFORMAÇÕES!**
+   - NUNCA invente preços diferentes dos listados acima
+   - NUNCA invente depoimentos ou resultados de alunos
+   - NUNCA invente módulos ou conteúdo que não exista
+   - Se não souber algo, diga: "Vou confirmar essa informação e te retorno" ou "Posso transferir para um atendente humano"
+
+2. ✅ **SEMPRE MENCIONE A GARANTIA JUNTO COM O PREÇO:**
+   Quando falar de preço, SEMPRE lembre: "E você tem ${courseData.guarantee_days} dias de garantia. Se não gostar, devolvemos seu dinheiro."
+
+3. 🎯 **QUALIFIQUE O LEAD:**
+   - Entenda a situação atual do cliente
+   - Identifique a dor/problema
+   - Mostre como o curso resolve
+   - Use perguntas: "O que te atraiu no curso?" / "Qual resultado você busca?"
+
+4. 💰 **TRATE OBJEÇÕES COM EMPATIA:**
+   - "Está caro" → Mostre o valor + garantia + parcelamento
+   - "Preciso pensar" → "Claro! Qual ponto te deixou em dúvida?" + ${courseData.lead_nurture_message || 'Quando estiver pronto(a), é só me chamar!'}
+   - "Não tenho tempo" → Mostre flexibilidade do acesso ${courseData.access_period || 'vitalício'}
+
+5. 🛒 **PARA FECHAR A VENDA:**
+   ${courseData.enrollment_cta || 'Garanta sua vaga com desconto especial!'}
+   ${courseData.checkout_link ? `Link: ${courseData.checkout_link}` : 'Posso enviar o link de pagamento para você?'}
+
+6. 📞 **SE O CLIENTE INSISTIR EM FALAR COM HUMANO:**
+   Respeite e diga: "Sem problemas! Vou encaminhar para nossa equipe de atendimento."
+
+**FLUXO IDEAL DE CONVERSA:**
+INÍCIO → QUALIFICAÇÃO → FAQ/EXPLICAÇÃO → PREÇOS → TRATAMENTO OBJEÇÕES → FECHAMENTO
+
+**NUNCA:**
+- Force a venda se o cliente não estiver pronto
+- Minta sobre resultados
+- Ignore objeções legítimas
+- Seja agressivo ou insistente demais
+
+═══════════════════════════════════════════════════════════════════════
+`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// �🚫 VERIFICAÇÃO DE SUSPENSÃO POR VIOLAÇÃO DE POLÍTICAS
 // ═══════════════════════════════════════════════════════════════════════
 async function checkUserSuspension(userId: string): Promise<boolean> {
   try {
@@ -1828,7 +2080,128 @@ export async function generateAIResponse(
     }
     
     console.log(`   ✅ [AI Agent] Agent ENABLED (legacy isActive=true), processing response...`);
-    
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🎯 SISTEMA DETERMINÍSTICO UNIVERSAL - PRIORIDADE MÁXIMA
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Este sistema garante que a IA NUNCA toma decisões sozinha.
+    // Funciona para QUALQUER tipo de negócio (delivery, vendas, agendamento, genérico)
+    //
+    // FLUXO:
+    // 1. IA interpreta intenção do usuário
+    // 2. Sistema de fluxo decide próximo estado
+    // 3. Sistema gera resposta baseada em regras
+    // 4. IA humaniza a resposta
+    //
+    // ═══════════════════════════════════════════════════════════════════════
+    try {
+      console.log(`\n🎯 [DeterministicFlow] Verificando se deve usar fluxo determin\u00edstico...`);
+
+      const flowEngine = new DeterministicFlowEngine();
+      const conversationId = options?.contactPhone || `conv_${userId}_${Date.now()}`;
+
+      const flowResult = await flowEngine.processMessage(
+        userId,
+        conversationId,
+        newMessageText,
+        {
+          contactName: contactName,
+          contactPhone: contactPhone,
+          apiKey: agentConfig.mistralApiKey
+        }
+      );
+
+      if (flowResult) {
+        console.log(`🎯 [DeterministicFlow] ✅ Resposta gerada pelo fluxo determin\u00edstico!`);
+        console.log(`   Estado: ${flowResult.state}`);
+        console.log(`   Preview: ${flowResult.text.substring(0, 100)}...`);
+
+        return {
+          text: flowResult.text,
+          mediaActions: flowResult.mediaActions || [],
+          notification: undefined,
+          appointmentCreated: undefined,
+          deliveryOrderCreated: undefined,
+        };
+      }
+
+      console.log(`🎯 [DeterministicFlow] ℹ️ Sem fluxo definido, tentando criar automaticamente...`);
+
+      // Criar fluxo automaticamente se não existir
+      if (agentConfig.prompt && agentConfig.prompt.length > 50) {
+        const converter = new PromptToFlowConverter();
+        const newFlow = await converter.convertPromptToFlow(
+          agentConfig.prompt,
+          userId,
+          {
+            agentName: agentConfig.agentName || 'Assistente',
+            businessName: agentConfig.businessName || 'Empresa'
+          }
+        );
+
+        // Salvar no banco
+        const { error: saveError } = await supabase
+          .from('flow_definitions')
+          .upsert({
+            id: newFlow.id,
+            user_id: newFlow.userId,
+            flow_type: newFlow.flowType,
+            agent_name: newFlow.agentName,
+            business_name: newFlow.businessName,
+            agent_personality: newFlow.agentPersonality,
+            flow_definition: {
+              states: newFlow.states,
+              initialState: newFlow.initialState
+            },
+            business_data: newFlow.businessData,
+            global_rules: newFlow.globalRules,
+            source_prompt: newFlow.sourcePrompt,
+            generated_by: 'auto',
+            version: newFlow.version,
+            is_active: true
+          }, {
+            onConflict: 'user_id,flow_type'
+          });
+
+        if (!saveError) {
+          console.log(`🎯 [DeterministicFlow] ✅ Fluxo criado automaticamente! Tipo: ${newFlow.flowType}`);
+
+          // Tentar processar novamente com o fluxo recém-criado
+          const retryResult = await flowEngine.processMessage(
+            userId,
+            conversationId,
+            newMessageText,
+            {
+              contactName: contactName,
+              contactPhone: contactPhone,
+              apiKey: agentConfig.mistralApiKey
+            }
+          );
+
+          if (retryResult) {
+            console.log(`🎯 [DeterministicFlow] ✅ Resposta gerada com fluxo recém-criado!`);
+            return {
+              text: retryResult.text,
+              mediaActions: retryResult.mediaActions || [],
+              notification: undefined,
+              appointmentCreated: undefined,
+              deliveryOrderCreated: undefined,
+            };
+          }
+        } else {
+          console.error(`🎯 [DeterministicFlow] ❌ Erro ao salvar fluxo:`, saveError);
+        }
+      }
+
+      console.log(`🎯 [DeterministicFlow] Continuando com sistema legado...`);
+
+    } catch (flowError) {
+      console.error(`🎯 [DeterministicFlow] ❌ Erro ao processar com fluxo:`, flowError);
+      console.log(`🎯 [DeterministicFlow] Continuando com sistema legado...`);
+    }
+    // ═══════════════════════════════════════════════════════════════════════
+
     // ═══════════════════════════════════════════════════════════════════════
     // 🍕 INTERCEPTAÇÃO DE DELIVERY - NOVO SISTEMA DETERMINÍSTICO (2025)
     // 
@@ -2110,6 +2483,18 @@ export async function generateAIResponse(
        }
      } catch (deliveryError) {
        console.error(`🍕 [AI Agent] Error loading delivery menu:`, deliveryError);
+     }
+
+     // 📚 INJETAR CONTEXTO DE CURSO/INFOPRODUTO (se ativo)
+     try {
+       const courseData = await getCourseConfigForAI(userId);
+       if (courseData && courseData.active) {
+         const coursePromptBlock = generateCoursePromptBlock(courseData);
+         systemPrompt += '\n\n' + coursePromptBlock;
+         console.log(`📚 [AI Agent] Course config ACTIVE - ${courseData.course_name} injected into prompt`);
+       }
+     } catch (courseError) {
+       console.error(`📚 [AI Agent] Error loading course config:`, courseError);
      }
 
      // 🧠 ADICIONAR SISTEMA ANTI-AMNÉSIA
