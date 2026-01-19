@@ -685,6 +685,79 @@ export async function generateDeliveryResponse(
   }
   
   // ═══════════════════════════════════════════════════════════════════════
+  // CASO ESPECIAL: PEDIDO - Processa com preços REAIS do banco
+  // ═══════════════════════════════════════════════════════════════════════
+  if (intent === 'WANT_TO_ORDER' || intent === 'ADD_ITEM') {
+    console.log(`🍕 [DeliveryAI] Intent ${intent} - processando pedido com preços do banco`);
+    
+    // Parse os itens da mensagem e processa com preços reais
+    const parsedItems = parseOrderItems(message);
+    
+    if (parsedItems.length === 0) {
+      return {
+        intent,
+        bubbles: ['O que você gostaria de pedir? Pode me dizer o nome do item e a quantidade! 😊'],
+      };
+    }
+    
+    const addedItems: Array<{ name: string; quantity: number; price: number; total: number }> = [];
+    const notFoundItems: string[] = [];
+    
+    for (const parsed of parsedItems) {
+      const menuItem = findItemByNameFuzzy(deliveryData, parsed.name);
+      
+      if (menuItem) {
+        addedItems.push({
+          name: menuItem.name,
+          quantity: parsed.quantity,
+          price: menuItem.price,
+          total: menuItem.price * parsed.quantity
+        });
+      } else {
+        notFoundItems.push(parsed.name);
+      }
+    }
+    
+    if (addedItems.length === 0) {
+      return {
+        intent,
+        bubbles: [`Hmm, não encontrei "${parsedItems[0]?.name || ''}" no cardápio 🤔 Quer ver as opções?`],
+      };
+    }
+    
+    // Calcular totais
+    const subtotal = addedItems.reduce((sum, item) => sum + item.total, 0);
+    const deliveryFee = deliveryData.config.delivery_fee;
+    const total = subtotal + deliveryFee;
+    
+    // Formatar resposta com preços CORRETOS
+    let response = `✅ Ótimo! Seu pedido:\n\n`;
+    for (const item of addedItems) {
+      response += `• ${item.quantity}x ${item.name} - R$ ${item.total.toFixed(2).replace('.', ',')}\n`;
+    }
+    
+    if (notFoundItems.length > 0) {
+      response += `\n⚠️ Não encontrei: ${notFoundItems.join(', ')}\n`;
+    }
+    
+    response += `\n💰 Subtotal: R$ ${subtotal.toFixed(2).replace('.', ',')}`;
+    response += `\n🛵 Taxa de entrega: R$ ${deliveryFee.toFixed(2).replace('.', ',')}`;
+    response += `\n\n💵 *Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
+    response += `\n\nPara finalizar, me diz:\n📝 Nome\n📍 Endereço\n💳 Forma de pagamento`;
+    
+    return {
+      intent,
+      bubbles: [response],
+      metadata: {
+        orderItems: addedItems,
+        subtotal,
+        deliveryFee,
+        total
+      }
+    };
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════════
   // OUTROS CASOS: USA IA COM CONTEXTO MÍNIMO
   // ═══════════════════════════════════════════════════════════════════════
   
