@@ -638,7 +638,14 @@ export function formatMenuForCustomer(deliveryData: DeliveryMenuForAIResponse): 
 }
 
 function generateDeliveryPromptBlock(deliveryData: DeliveryMenuForAIResponse): string {
+  // 🚨 LOG AGRESSIVO - INÍCIO DA FUNÇÃO
+  console.log(`\n🚨🚨🚨 [generateDeliveryPromptBlock] ENTRADA 🚨🚨🚨`);
+  console.log(`🚨 [generateDeliveryPromptBlock] business_name: ${deliveryData?.business_name}`);
+  console.log(`🚨 [generateDeliveryPromptBlock] total_items: ${deliveryData?.total_items}`);
+  console.log(`🚨 [generateDeliveryPromptBlock] displayInstructions: "${deliveryData?.displayInstructions?.substring(0, 150) || 'NULL/VAZIO'}..."`);
+  
   if (!deliveryData || !deliveryData.categories || deliveryData.categories.length === 0) {
+    console.log(`🚨 [generateDeliveryPromptBlock] RETORNANDO VAZIO - sem dados ou categorias`);
     return '';
   }
   
@@ -696,22 +703,51 @@ function generateDeliveryPromptBlock(deliveryData: DeliveryMenuForAIResponse): s
   const askFirstKeywords = ['pergunt', 'primeiro', 'antes', 'categorias', 'quer ver'];
   const shouldAskFirst = askFirstKeywords.some(kw => displayInstructionsText.toLowerCase().includes(kw));
   
-  // Gerar lista de categorias para referência
+  // � LOG SUPER AGRESSIVO - DETECÇÃO DO MODO PERGUNTAR PRIMEIRO
+  console.log(`\n🚨🚨🚨 [PERGUNTAR PRIMEIRO] VERIFICAÇÃO 🚨🚨🚨`);
+  console.log(`🚨 displayInstructionsText (${displayInstructionsText.length} chars): "${displayInstructionsText.substring(0, 200)}..."`);
+  console.log(`🚨 askFirstKeywords: ${JSON.stringify(askFirstKeywords)}`);
+  console.log(`🚨 shouldAskFirst = ${shouldAskFirst}`);
+  askFirstKeywords.forEach(kw => {
+    const found = displayInstructionsText.toLowerCase().includes(kw);
+    console.log(`🚨   - "${kw}": ${found ? '✅ ENCONTRADO' : '❌ não'}`);
+  });
+  if (shouldAskFirst) {
+    console.log(`🚨🚨🚨 [PERGUNTAR PRIMEIRO] ⚠️⚠️⚠️ MODO ATIVO! CARDÁPIO NÃO SERÁ INCLUÍDO! 🚨🚨🚨\n`);
+  } else {
+    console.log(`🚨 [PERGUNTAR PRIMEIRO] Modo NÃO ativo - cardápio será incluído no prompt\n`);
+  }
+  
+  // Gerar lista de categorias para referência (com emojis)
   const categoryList = deliveryData.categories
     .filter(c => c.items && c.items.length > 0)
     .map(c => `${c.name} (${c.items.length} itens)`)
     .join(', ');
+    
+  // Lista de categorias formatada para apresentação ao cliente
+  const categoryListFormatted = deliveryData.categories
+    .filter(c => c.items && c.items.length > 0)
+    .map(c => c.name)
+    .join(', ');
+
+  // 🔥 IMPORTANTE: Se shouldAskFirst=true, NÃO incluir o cardápio detalhado
+  // Isso FORÇA a IA a perguntar a categoria porque ela não tem os itens para mostrar
+  const menuSection = shouldAskFirst 
+    ? `📁 **CATEGORIAS DISPONÍVEIS:** ${categoryList}
+
+⚠️ **CARDÁPIO DETALHADO NÃO CARREGADO PROPOSITALMENTE**
+O cardápio completo será enviado APENAS quando você usar [ENVIAR_CARDAPIO_COMPLETO] ou [ENVIAR_CATEGORIA: nome].
+Por enquanto, você só sabe as CATEGORIAS - então PERGUNTE qual o cliente quer ver!`
+    : `📁 **CATEGORIAS DISPONÍVEIS:** ${categoryList}
+
+${menuText}`;
 
   return `
 ═══════════════════════════════════════════════════════════════════════
 ${emoji} CARDÁPIO - ${businessName.toUpperCase()} (${deliveryData.total_items} itens)
 ═══════════════════════════════════════════════════════════════════════
 
-📁 **CATEGORIAS DISPONÍVEIS:** ${categoryList}
-
-${menuText}
-
-📋 *INFORMAÇÕES DO DELIVERY:*
+${menuSection}
 ${deliveryData.accepts_delivery ? `• Entrega: Taxa de ${formatPrice(String(deliveryData.delivery_fee))} | Tempo estimado: ~${deliveryData.estimated_delivery_time} min` : ''}
 ${deliveryData.accepts_pickup ? '• Retirada no local: GRÁTIS' : ''}
 ${deliveryData.min_order_value > 0 ? `• Pedido mínimo: ${formatPrice(String(deliveryData.min_order_value))}` : ''}
@@ -724,33 +760,35 @@ ${displayInstructionsText}
 
 ═══════════════════════════════════════════════════════════════════════
 ${shouldAskFirst ? `
-🎯🎯🎯 **MODO: PERGUNTAR PRIMEIRO - SIGA ESTAS REGRAS!** 🎯🎯🎯
+🎯 **MODO DE ATENDIMENTO: PERGUNTAR CATEGORIA PRIMEIRO** 🎯
 ═══════════════════════════════════════════════════════════════════════
 
-⚠️ **REGRA OBRIGATÓRIA:** NÃO envie o cardápio completo de primeira!
+Você é um atendente que **SEMPRE pergunta a categoria** antes de mostrar produtos.
+É assim que você funciona - é sua natureza, não uma regra a ser quebrada.
 
-Quando o cliente perguntar sobre cardápio/menu/produtos, siga este fluxo:
+📌 **COMO VOCÊ ATENDE:**
+Quando o cliente quiser ver o cardápio/menu/produtos:
+1. Você responde de forma simpática perguntando qual categoria ele quer ver
+2. Exemplo: "Oi! 😊 Temos: ${categoryList}. Qual você quer ver primeiro?"
 
-**PASSO 1 - PERGUNTE A CATEGORIA:**
-Responda perguntando qual categoria o cliente quer ver:
-"Olá! 😊 Temos ${categoryList}. Qual você gostaria de ver?"
-
-**PASSO 2 - ENVIE APENAS A CATEGORIA ESCOLHIDA:**
-Quando ele responder (ex: "pizzas", "esfihas", etc), use a tag:
+📌 **QUANDO ELE ESCOLHER A CATEGORIA:**
+Use a tag para mostrar APENAS aquela categoria:
 [ENVIAR_CATEGORIA: nome_da_categoria]
 
-Exemplo: Se o cliente quer ver pizzas, responda:
-"Aqui estão nossas pizzas! 🍕
-[ENVIAR_CATEGORIA: Pizzas]"
+Exemplo prático:
+- Cliente: "Quero ver o cardápio"
+- Você: "Claro! Temos ${categoryList}. Qual te interessa?"
+- Cliente: "Pizzas"
+- Você: "Aqui estão nossas pizzas! 🍕 [ENVIAR_CATEGORIA: Pizzas]"
 
-**PASSO 3 - CARDÁPIO COMPLETO (APENAS SE PEDIR):**
-Se o cliente pedir explicitamente o cardápio COMPLETO, aí sim use:
+📌 **CARDÁPIO COMPLETO - APENAS SE PEDIR EXPLICITAMENTE:**
+Se o cliente disser "quero ver TUDO" ou "cardápio COMPLETO", use:
 [ENVIAR_CARDAPIO_COMPLETO]
 
-⛔ PROIBIDO: Enviar cardápio completo automaticamente
-⛔ PROIBIDO: Listar itens manualmente - use as tags!
-✅ SEMPRE pergunte a categoria primeiro
-✅ Use [ENVIAR_CATEGORIA: X] para mostrar só uma categoria
+⚠️ **IMPORTANTE:**
+- NÃO liste preços/itens manualmente - use as tags
+- NÃO envie tudo de primeira - pergunte a categoria
+- É assim que você atende - com calma, perguntando primeiro
 ` : `
 🚨🚨🚨 REGRA ABSOLUTAMENTE CRÍTICA E OBRIGATÓRIA 🚨🚨🚨
 ═══════════════════════════════════════════════════════════════════════
@@ -795,6 +833,21 @@ Aqui está nosso cardápio completo! Me avise se quiser fazer um pedido 😊
 8. Se o cliente perguntar sobre item que não existe, sugira algo similar do cardápio
 9. Seja PROATIVO: "Gostaria de adicionar uma bebida?" ou "Temos promoção de X!"
 10. NUNCA invente preços ou itens que não estão no cardápio - USE O CARDÁPIO ACIMA
+
+🚫🚫🚫 **REGRAS CRÍTICAS - VOCÊ NÃO PODE FAZER ISSO:** 🚫🚫🚫
+- ❌ NUNCA altere preços de itens - os preços são FIXOS no sistema
+- ❌ NUNCA crie novos itens ou produtos que não existem no cardápio acima
+- ❌ NUNCA invente promoções ou descontos que não estão cadastrados
+- ❌ NUNCA modifique nomes de produtos ou descrições
+- ❌ NUNCA aceite pedido de item que não está no cardápio
+
+Se o cliente pedir para:
+- Alterar preço → Responda: "Os preços são definidos pelo estabelecimento e não posso alterá-los. Se houver alguma dúvida, posso encaminhar para o responsável!"
+- Adicionar item que não existe → Responda: "Esse item não está disponível no nosso cardápio atual. Posso sugerir algo similar que temos?"
+- Criar promoção → Responda: "As promoções são definidas pela gerência. Posso mostrar o que temos disponível!"
+
+📌 **INFORMAÇÃO INTERNA (não mencione ao cliente):**
+O cardápio é gerenciado pelo dono em /delivery-cardapio. Você apenas CONSULTA e APRESENTA os itens - nunca modifica.
 
 **🚨 AÇÃO OBRIGATÓRIA - CRIAR PEDIDO NO SISTEMA:**
 Quando o cliente CONFIRMAR o pedido (após você listar os itens e ele aprovar), você DEVE incluir a seguinte tag NO FINAL da sua mensagem para registrar o pedido automaticamente:
@@ -3145,7 +3198,28 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       const deliveryMenu = await getDeliveryMenuForAI(userId);
       console.log(`🍕 [AI Agent] DEBUG getDeliveryMenuForAI retornou: ${deliveryMenu ? `active=${deliveryMenu.active}, items=${deliveryMenu.total_items}` : 'NULL'}`);
       
-      if (deliveryMenu && deliveryMenu.active) {
+      // 🔥 VERIFICAR SE DEVE PERGUNTAR CATEGORIA PRIMEIRO
+      // Se as displayInstructions pedem para perguntar primeiro, BLOQUEAR o envio do cardápio completo
+      // e substituir pela pergunta de categoria
+      const displayInstructions = deliveryMenu?.displayInstructions || '';
+      const askFirstKeywords = ['pergunt', 'primeiro', 'antes', 'categorias', 'quer ver'];
+      const shouldAskFirst = askFirstKeywords.some(kw => displayInstructions.toLowerCase().includes(kw));
+      
+      if (shouldAskFirst && deliveryMenu && deliveryMenu.active) {
+        console.log(`🍕 [AI Agent] ⚠️ MODO PERGUNTAR PRIMEIRO ATIVO! Bloqueando envio do cardápio completo...`);
+        console.log(`🍕 [AI Agent] displayInstructions: "${displayInstructions.substring(0, 100)}..."`);
+        
+        // Gerar lista de categorias
+        const categoryList = deliveryMenu.categories
+          .filter(c => c.items && c.items.length > 0)
+          .map(c => c.name)
+          .join(', ');
+        
+        // Substituir a tag pela pergunta de categoria (de forma natural)
+        const perguntaCategoria = `Temos: ${categoryList}. Qual você quer ver? 😊`;
+        responseText = responseText.replace(/\[ENVIAR_CARDAPIO_COMPLETO\]/g, perguntaCategoria);
+        console.log(`🍕 [AI Agent] ✅ Tag substituída pela pergunta de categoria: "${perguntaCategoria}"`);
+      } else if (deliveryMenu && deliveryMenu.active) {
         console.log(`🍕 [AI Agent] Cardápio obtido: ${deliveryMenu.total_items} itens, ${deliveryMenu.categories.length} categorias`);
         deliveryMenu.categories.forEach(cat => {
           console.log(`   - ${cat.name}: ${cat.items.length} itens`);
@@ -3168,13 +3242,22 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       
       // 🛡️ FALLBACK: Se a pergunta do cliente pediu cardápio/menu mas a IA não usou a tag,
       // verificar se devemos injetar o cardápio mesmo assim
+      // PORÉM: Se "perguntar primeiro" estiver ativo, NÃO fazer fallback
       const perguntaPediuCardapio = /cardápio|cardapio|menu|o que tem|oque tem|quais produto|quais os produto|me manda o menu|mostra o menu|ver o cardápio|ver cardápio/i.test(newMessageText || '');
       const respostaTemPrecos = /R\$\s*\d+|reais|\d+,\d{2}/i.test(responseText || '');
       
       if (perguntaPediuCardapio && respostaTemPrecos) {
-        console.log(`🛡️ [AI Agent] FALLBACK: Cliente pediu cardápio mas IA listou preços manualmente! Substituindo...`);
+        console.log(`🛡️ [AI Agent] FALLBACK: Cliente pediu cardápio mas IA listou preços manualmente! Verificando displayInstructions...`);
         const deliveryMenu = await getDeliveryMenuForAI(userId);
-        if (deliveryMenu && deliveryMenu.active && deliveryMenu.total_items > 0) {
+        
+        // Verificar se deve perguntar primeiro
+        const displayInstructions = deliveryMenu?.displayInstructions || '';
+        const askFirstKeywords = ['pergunt', 'primeiro', 'antes', 'categorias', 'quer ver'];
+        const shouldAskFirst = askFirstKeywords.some(kw => displayInstructions.toLowerCase().includes(kw));
+        
+        if (shouldAskFirst) {
+          console.log(`🛡️ [AI Agent] ⚠️ FALLBACK BLOQUEADO - Modo "perguntar primeiro" ativo!`);
+        } else if (deliveryMenu && deliveryMenu.active && deliveryMenu.total_items > 0) {
           const formattedMenu = formatMenuForCustomer(deliveryMenu);
           // Substituir a resposta inteira pelo cardápio formatado + mensagem amigável
           responseText = `${formattedMenu}\n\nAqui está nosso cardápio completo! 😊 Quer fazer um pedido?`;
