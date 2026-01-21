@@ -27,6 +27,23 @@ import { conversations } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { uploadMediaToStorage } from "./mediaStorageService";
 import { processAudioResponseForAgent } from "./audioResponseService";
+// 🆕 ANTI-REENVIO: Importar serviço de deduplicação para proteção contra instabilidade
+import { canProcessIncomingMessage, canSendMessage, getDeduplicationStats, MessageType, MessageSource } from "./messageDeduplicationService";
+// 🆕 v4.0 ANTI-BAN: Serviço de proteção contra bloqueio (rate limiting, safe mode, etc)
+import { antiBanProtectionService } from "./antiBanProtectionService";
+
+// 🚨 SISTEMA DE RECUPERAÇÃO DE MENSAGENS PENDENTES
+// Resolve problema de mensagens perdidas durante instabilidade/deploys Railway
+import { 
+  pendingMessageRecoveryService,
+  saveIncomingMessage,
+  markMessageAsProcessed,
+  markMessageAsFailed,
+  startMessageRecovery,
+  logConnectionDisconnection,
+  getRecoveryStats,
+  registerMessageProcessor 
+} from "./pendingMessageRecoveryService";
 
 // -----------------------------------------------------------------------
 // ?? SISTEMA DE CACHE DE MENSAGENS PARA RETRY (FIX "AGUARDANDO MENSAGEM")
@@ -370,6 +387,14 @@ const RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconexão
 // 🔄 Iniciar polling de mensagens não processadas
 // (variáveis necessárias já foram declaradas acima)
 startMissedMessagePolling();
+
+// 🚨 SISTEMA DE RECUPERAÇÃO: Registrar callback de processamento
+// Este callback será usado pelo pendingMessageRecoveryService para reprocessar
+// mensagens que não foram processadas durante instabilidade/deploys
+// NOTA: O registerMessageProcessor já foi importado no topo do arquivo junto
+// com outras funções do pendingMessageRecoveryService.
+// A função handleIncomingMessage precisa estar definida primeiro
+// O registro é feito no final do arquivo via setTimeout para garantir ordem
 
 // -----------------------------------------------------------------------
 // 📇 CACHE DE AGENDA - OTIMIZAÇÃO PARA ENVIO EM MASSA
@@ -755,10 +780,11 @@ const pendingAdminResponses = new Map<string, PendingAdminResponse>(); // key: c
 const checkedConversationsThisSession = new Set<string>();
 
 // -----------------------------------------------------------------------
-// ?? SISTEMA ANTI-BLOQUEIO - Registro do Callback de Envio Real
+// 🛡️ SISTEMA ANTI-BLOQUEIO v4.0 - Registro do Callback de Envio Real
 // -----------------------------------------------------------------------
-// Esta fun��o � chamada pelo messageQueueService para enviar mensagens reais
+// Esta função é chamada pelo messageQueueService para enviar mensagens reais
 // O callback permite que a fila controle o timing entre mensagens
+// 🆕 v4.0: Agora simula "digitando..." antes de enviar para parecer mais humano
 async function internalSendMessageRaw(
   userId: string, 
   jid: string, 
@@ -770,16 +796,39 @@ async function internalSendMessageRaw(
     throw new Error("WhatsApp not connected");
   }
 
+  // 🆕 v4.0 ANTI-BAN: Simular "digitando..." antes de enviar
+  // Isso faz a conversa parecer mais natural e humana
+  try {
+    const typingDuration = antiBanProtectionService.calculateTypingDuration(text.length);
+    
+    // Enviar status "composing" (digitando)
+    await session.socket.sendPresenceUpdate('composing', jid);
+    console.log(`🛡️ [ANTI-BAN] ⌨️ Simulando digitação por ${Math.round(typingDuration/1000)}s...`);
+    
+    // Aguardar tempo proporcional ao tamanho da mensagem
+    await new Promise(resolve => setTimeout(resolve, typingDuration));
+    
+    // Enviar status "paused" (parou de digitar) antes de enviar
+    await session.socket.sendPresenceUpdate('paused', jid);
+    
+    // Pequeno delay antes do envio real (0.5-1.5s)
+    const finalDelay = 500 + Math.random() * 1000;
+    await new Promise(resolve => setTimeout(resolve, finalDelay));
+  } catch (err) {
+    // Não falhar se não conseguir enviar status de digitação
+    console.log(`🛡️ [ANTI-BAN] ⚠️ Não foi possível enviar status de digitação:`, err);
+  }
+
   const sentMessage = await session.socket.sendMessage(jid, { text });
   
   if (sentMessage?.key.id) {
     agentMessageIds.add(sentMessage.key.id);
     
     // -----------------------------------------------------------------------
-    // ?? CACHEAR MENSAGEM PARA getMessage() - FIX "AGUARDANDO MENSAGEM"
+    // 🔑 CACHEAR MENSAGEM PARA getMessage() - FIX "AGUARDANDO MENSAGEM"
     // -----------------------------------------------------------------------
     // Armazenar mensagem no cache para que Baileys possa recuperar
-    // em caso de falha na decripta��o e necessidade de retry
+    // em caso de falha na decriptação e necessidade de retry
     if (sentMessage.message) {
       cacheMessage(userId, sentMessage.key.id, sentMessage.message);
     } else {
@@ -787,7 +836,7 @@ async function internalSendMessageRaw(
       cacheMessage(userId, sentMessage.key.id, { conversation: text });
     }
     
-    console.log(`??? [ANTI-BLOCK] ? Mensagem enviada - ID: ${sentMessage.key.id}`);
+    console.log(`🛡️ [ANTI-BLOCK] ✅ Mensagem enviada - ID: ${sentMessage.key.id}`);
   }
 
   return sentMessage?.key.id || null;
@@ -2196,6 +2245,18 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       if (conn === "close") {
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        
+        // -----------------------------------------------------------------------
+        // 🚨 SISTEMA DE RECUPERAÇÃO: Registrar desconexão
+        // -----------------------------------------------------------------------
+        // Salvar evento de desconexão para diagnóstico e recuperação
+        try {
+          const disconnectReason = (lastDisconnect?.error as any)?.message || 
+                                   `statusCode: ${statusCode}`;
+          await logConnectionDisconnection(userId, session.connectionId, disconnectReason);
+        } catch (logErr) {
+          console.error(`🚨 [RECOVERY] Erro ao logar desconexão:`, logErr);
+        }
 
         // Sempre deletar a sess�o primeiro
         sessions.delete(userId);
@@ -2325,6 +2386,19 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         }, 10000); // 10 segundos ap�s conex�o
         
         // ======================================================================
+        // 🚨 SISTEMA DE RECUPERAÇÃO: Processar mensagens pendentes
+        // ======================================================================
+        // Quando a conexão estabiliza, verificar se há mensagens que chegaram
+        // durante instabilidade/deploy e não foram processadas
+        // ======================================================================
+        try {
+          console.log(`🚨 [RECOVERY] Iniciando recuperação de mensagens pendentes para ${userId.substring(0, 8)}...`);
+          await startMessageRecovery(userId, session.connectionId);
+        } catch (recoveryError) {
+          console.error(`🚨 [RECOVERY] Erro ao iniciar recuperação:`, recoveryError);
+        }
+        
+        // ======================================================================
         // ?? FOLLOW-UP: Reativar follow-ups que estavam aguardando conex�o
         // ======================================================================
         // Quando o WhatsApp reconecta, os follow-ups que foram pausados por falta
@@ -2360,6 +2434,57 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       // Isso permite que Baileys recupere a mensagem se precisar fazer retry
       if (message.key.id && message.message) {
         cacheMessage(userId, message.key.id, message.message);
+      }
+      
+      // -----------------------------------------------------------------------
+      // 🚨 SISTEMA DE RECUPERAÇÃO: Salvar mensagem IMEDIATAMENTE
+      // -----------------------------------------------------------------------
+      // Salva mensagem na tabela pending_incoming_messages ANTES de processar
+      // Isso garante que se houver crash/desconexão, a mensagem será recuperada
+      // -----------------------------------------------------------------------
+      if (m.type === "notify" && !message.key.fromMe && message.key.remoteJid) {
+        const remoteJid = message.key.remoteJid;
+        // Só salvar mensagens individuais (não grupos)
+        if (!remoteJid.includes("@g.us") && !remoteJid.includes("@broadcast")) {
+          try {
+            // Extrair conteúdo textual básico para log
+            const msg = message.message;
+            let textContent: string | null = null;
+            let msgType = "text";
+            
+            if (msg?.conversation) {
+              textContent = msg.conversation;
+            } else if (msg?.extendedTextMessage?.text) {
+              textContent = msg.extendedTextMessage.text;
+            } else if (msg?.imageMessage) {
+              textContent = msg.imageMessage.caption || "📷 Imagem";
+              msgType = "image";
+            } else if (msg?.audioMessage) {
+              textContent = "🎵 Áudio";
+              msgType = "audio";
+            } else if (msg?.videoMessage) {
+              textContent = msg.videoMessage.caption || "🎬 Vídeo";
+              msgType = "video";
+            } else if (msg?.documentMessage) {
+              textContent = msg.documentMessage.fileName || "📄 Documento";
+              msgType = "document";
+            } else if (msg?.stickerMessage) {
+              textContent = "🎨 Sticker";
+              msgType = "sticker";
+            }
+            
+            await saveIncomingMessage({
+              userId: userId,
+              connectionId: session.connectionId,
+              waMessage: message,
+              messageContent: textContent,
+              messageType: msgType,
+            });
+          } catch (saveErr) {
+            console.error(`🚨 [RECOVERY] Erro ao salvar mensagem pendente:`, saveErr);
+            // Não bloqueia processamento se salvar falhar
+          }
+        }
       }
       
       // ?? IMPORTANTE: Ignorar mensagens de sincroniza��o/hist�rico
@@ -2478,9 +2603,22 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     console.log(`?? [FROM ME] Could not extract contact number from JID: ${remoteJid}`);
     return;
   }
-
-  // Extrair texto da mensagem E M�DIA (incluindo �udio para transcri��o)
+  
+  // 🆕 v4.0 ANTI-BAN CRÍTICO: Registrar mensagem MANUAL do dono no sistema de proteção
+  // Isso faz com que o bot ESPERE antes de enviar qualquer mensagem para evitar
+  // padrão de "bot enviando imediatamente após humano" que a Meta detecta como spam
   const msg = waMessage.message;
+  let messageType: 'text' | 'media' | 'audio' = 'text';
+  if (msg?.audioMessage) {
+    messageType = 'audio';
+  } else if (msg?.imageMessage || msg?.videoMessage || msg?.documentMessage || msg?.documentWithCaptionMessage) {
+    messageType = 'media';
+  }
+  
+  antiBanProtectionService.registerOwnerManualMessage(session.userId, contactNumber, messageType);
+  console.log(`🛡️ [ANTI-BAN v4.0] 👤 Mensagem MANUAL do DONO registrada - Bot aguardará antes de responder`);
+  
+  // Extrair texto da mensagem E MÍDIA (incluindo áudio para transcrição)
   let messageText = "";
   let mediaType: string | null = null;
   let mediaUrl: string | null = null;
@@ -2904,6 +3042,31 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   const remoteJid = waMessage.key.remoteJid;
   if (!remoteJid) return;
 
+  // ┌───────────────────────────────────────────────────────────────────────┐
+  // │  🛡️ ANTI-REENVIO: VERIFICAÇÃO DE DEDUPLICAÇÃO DE MENSAGENS          │
+  // │  Protege contra reprocessamento após instabilidade/restart           │
+  // └───────────────────────────────────────────────────────────────────────┘
+  const whatsappMessageId = waMessage.key.id;
+  if (whatsappMessageId) {
+    const contactNumber = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '');
+    const conversationId = `${session.connectionId}:${contactNumber}`;
+    
+    const canProcess = await canProcessIncomingMessage({
+      whatsappMessageId,
+      userId: session.connectionId,
+      conversationId,
+      contactNumber,
+    });
+    
+    if (!canProcess) {
+      console.log(`🛡️ [ANTI-REENVIO] 🚫 Mensagem recebida BLOQUEADA (já processada)!`);
+      console.log(`   📧 De: ${remoteJid.substring(0, 20)}...`);
+      console.log(`   🆔 WhatsApp ID: ${whatsappMessageId}`);
+      console.log(`   ⚠️ Proteção anti-reenvio após instabilidade/restart`);
+      return;
+    }
+  }
+
   // Filtrar grupos e status - aceitar apenas conversas individuais
   // @g.us = grupos, @broadcast = status/listas de transmiss�o
   if (remoteJid.includes("@g.us") || remoteJid.includes("@broadcast")) {
@@ -3258,6 +3421,21 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       directPath,
       mediaUrlOriginal,
     });
+    
+    // -----------------------------------------------------------------------
+    // 🚨 SISTEMA DE RECUPERAÇÃO: Marcar mensagem como PROCESSADA com sucesso
+    // -----------------------------------------------------------------------
+    // Se chegou até aqui, a mensagem foi salva no banco de dados
+    // Podemos marcar como processada na tabela pending_incoming_messages
+    // -----------------------------------------------------------------------
+    if (waMessage.key.id) {
+      try {
+        await markMessageAsProcessed(waMessage.key.id);
+      } catch (markErr) {
+        console.error(`🚨 [RECOVERY] Erro ao marcar como processada:`, markErr);
+        // Não bloqueia - mensagem já foi salva no banco principal
+      }
+    }
 
     // ?? FIX CR�TICO: savedMessage.text pode conter transcri��o de �udio!
     // createMessage() transcreve automaticamente �udios ANTES de retornar.
@@ -4100,6 +4278,92 @@ export async function sendAdminDirectMessage(adminId: string, phoneNumber: strin
   await sendWithQueue(`admin_${adminId}`, 'admin msg direta', async () => {
     await session.socket.sendMessage(jid, { text });
   });
+}
+
+// ==================== ADMIN NOTIFICATION MESSAGE ====================
+// Para envio de notificações automáticas (lembretes de pagamento, check-ins, etc)
+// NÃO é para chatbot - apenas envio de mensagens informativas
+export async function sendAdminNotification(
+  adminId: string, 
+  phoneNumber: string, 
+  message: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = adminSessions.get(adminId);
+    if (!session?.socket) {
+      console.log(`[sendAdminNotification] ❌ Admin ${adminId} não conectado`);
+      return { success: false, error: "Admin WhatsApp not connected" };
+    }
+
+    // Clean phone number - remover tudo exceto números
+    let cleanPhone = phoneNumber.replace(/\D/g, '');
+    
+    // Garantir que tem o DDI 55 do Brasil
+    if (!cleanPhone.startsWith('55') && cleanPhone.length <= 11) {
+      cleanPhone = '55' + cleanPhone;
+    }
+    
+    // Verificar formato válido: 55 + DDD (2) + número (8-9)
+    if (cleanPhone.length < 12 || cleanPhone.length > 13) {
+      console.log(`[sendAdminNotification] ❌ Número inválido: ${phoneNumber} -> ${cleanPhone} (length: ${cleanPhone.length})`);
+      return { success: false, error: `Número inválido: ${phoneNumber}` };
+    }
+    
+    const jid = `${cleanPhone}@s.whatsapp.net`;
+    
+    console.log(`[sendAdminNotification] 📤 Verificando número: ${phoneNumber} -> ${jid}`);
+    
+    // ✅ Verificar se o número existe no WhatsApp ANTES de enviar
+    let numberExists = false;
+    try {
+      const [result] = await session.socket.onWhatsApp(cleanPhone);
+      numberExists = result?.exists === true;
+      
+      if (!numberExists) {
+        console.log(`[sendAdminNotification] ❌ Número NÃO existe no WhatsApp: ${cleanPhone}`);
+        return { success: false, error: `Número não existe no WhatsApp: ${phoneNumber}` };
+      }
+      
+      console.log(`[sendAdminNotification] ✅ Número verificado: ${cleanPhone} existe no WhatsApp`);
+    } catch (checkError) {
+      // Se falhar a verificação, tentar enviar mesmo assim (alguns números podem não verificar)
+      console.log(`[sendAdminNotification] ⚠️ Não foi possível verificar número (tentando enviar mesmo assim): ${cleanPhone}`);
+    }
+    
+    // Enviar mensagem usando a fila anti-banimento
+    let sendSuccess = false;
+    let sendError: string | undefined;
+    
+    await sendWithQueue(`admin_${adminId}`, 'admin notification', async () => {
+      try {
+        const result = await session.socket.sendMessage(jid, { text: message });
+        
+        if (result?.key?.id) {
+          sendSuccess = true;
+          console.log(`[sendAdminNotification] ✅ Mensagem enviada com sucesso para ${cleanPhone} (msgId: ${result.key.id})`);
+        } else {
+          sendError = 'Nenhum ID de mensagem retornado';
+          console.log(`[sendAdminNotification] ⚠️ Envio sem confirmação para ${cleanPhone}`);
+        }
+      } catch (sendErr) {
+        sendError = sendErr instanceof Error ? sendErr.message : 'Erro desconhecido';
+        console.error(`[sendAdminNotification] ❌ Erro ao enviar para ${cleanPhone}:`, sendErr);
+        throw sendErr; // Re-throw para que sendWithQueue capture
+      }
+    });
+
+    if (sendSuccess) {
+      return { success: true };
+    } else {
+      return { success: false, error: sendError || 'Falha no envio' };
+    }
+  } catch (error) {
+    console.error('[sendAdminNotification] ❌ Erro geral:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
 }
 
 // ==================== ADMIN MEDIA MESSAGE ====================
@@ -6885,3 +7149,33 @@ export async function redownloadMedia(
 }
 
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🚨 SISTEMA DE RECUPERAÇÃO: Registrar processador de mensagens pendentes
+// ═══════════════════════════════════════════════════════════════════════════════
+// Este callback permite que o pendingMessageRecoveryService reprocesse mensagens
+// que chegaram durante instabilidade/deploys do Railway
+// 
+// IMPORTANTE: Este código deve ficar no FINAL do arquivo para garantir que
+// todas as funções necessárias já foram definidas
+// ═══════════════════════════════════════════════════════════════════════════════
+
+setTimeout(() => {
+  try {
+    registerMessageProcessor(async (userId: string, waMessage: WAMessage) => {
+      // Buscar sessão ativa
+      const session = sessions.get(userId);
+      
+      if (!session?.socket) {
+        console.log(`🚨 [RECOVERY] Sessão não encontrada para ${userId.substring(0, 8)}... - pulando`);
+        throw new Error('Sessão não disponível');
+      }
+      
+      // Usar a função handleIncomingMessage existente
+      await handleIncomingMessage(session, waMessage);
+    });
+    
+    console.log(`🚨 [RECOVERY] ✅ Message processor registrado com sucesso!`);
+  } catch (err) {
+    console.error(`🚨 [RECOVERY] ❌ Erro ao registrar message processor:`, err);
+  }
+}, 1000); // Aguardar 1 segundo para garantir que tudo foi inicializado

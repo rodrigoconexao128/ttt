@@ -1,21 +1,28 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════╗
- * ║                    🛡️ SISTEMA ANTI-BLOQUEIO WHATSAPP                         ║
+ * ║                    🛡️ SISTEMA ANTI-BLOQUEIO WHATSAPP v5.1                    ║
  * ║                                                                              ║
- * ║  Este serviço implementa proteção contra bloqueio do WhatsApp através de:   ║
- * ║  1. Fila de mensagens POR WHATSAPP (cada conexão tem sua própria fila)      ║
- * ║  2. Delay de 5-10 segundos entre mensagens do MESMO WhatsApp                ║
- * ║  3. Nunca envia duas mensagens no mesmo segundo                             ║
+ * ║  Sistema SIMPLIFICADO e FUNCIONAL anti-banimento:                           ║
  * ║                                                                              ║
- * ║  IMPORTANTE: Múltiplos WhatsApps podem enviar ao mesmo tempo!               ║
- * ║  A regra é POR WHATSAPP, não global.                                        ║
+ * ║  1. Fila de mensagens POR CANAL WHATSAPP (cada cliente SaaS tem sua fila)   ║
+ * ║  2. Delay REALISTA de 5-15 segundos entre mensagens                         ║
+ * ║  3. Sistema de LOTES: após 10 mensagens, pausa de 1 MINUTO                  ║
+ * ║  4. Detecta mensagem manual do DONO e conta no delay                        ║
+ * ║  5. Simulação de digitação antes de cada mensagem (TYPING INDICATOR)        ║
+ * ║  6. DEDUPLICAÇÃO - Nunca reenvia após instabilidade                         ║
+ * ║  7. Cache de metadados de grupos (evita rate limit)                         ║
  * ║                                                                              ║
- * ║  ⚠️ VARIAÇÃO DE IA REMOVIDA - Estava corrompendo respostas do agente!       ║
- * ║  Mensagens são enviadas EXATAMENTE como recebidas.                          ║
+ * ║  ❌ SEM rate limiting absurdo (10 msgs/hora era ridículo)                   ║
+ * ║  ❌ SEM safe mode desnecessário                                             ║
+ * ║  ❌ SEM limites diários que atrapalham negócios                             ║
+ * ║                                                                              ║
+ * ║  IMPORTANTE: Cada canal WhatsApp (cliente SaaS) tem sua própria fila!       ║
  * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
 
 import { WASocket } from "@whiskeysockets/baileys";
+import { canSendMessage, MessageType, MessageSource } from './messageDeduplicationService';
+import { antiBanProtectionService, ANTI_BAN_CONFIG } from './antiBanProtectionService';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  INTERFACE E TIPOS
@@ -25,17 +32,21 @@ interface QueuedMessage {
   id: string;
   jid: string;
   text: string;
-  originalText: string; // Texto original antes da variação
+  originalText: string;
   options?: {
     isFromAgent?: boolean;
     mediaType?: string;
     mediaUrl?: string;
     caption?: string;
+    conversationId?: string;
+    messageType?: MessageType;
+    source?: MessageSource;
   };
-  priority: 'high' | 'normal' | 'low'; // Alta = resposta IA, Normal = follow-up, Baixa = bulk
+  priority: 'high' | 'normal' | 'low';
   addedAt: number;
   resolve: (result: MessageSendResult) => void;
   reject: (error: Error) => void;
+  dedupChecked?: boolean;
 }
 
 interface MessageSendResult {
@@ -54,34 +65,22 @@ interface WhatsAppQueueState {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🎯 CLASSE PRINCIPAL DO SERVIÇO DE FILA
+// 🎯 CLASSE PRINCIPAL DO SERVIÇO DE FILA (SIMPLIFICADO v5.0)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class MessageQueueService {
   // Mapa de filas: userId -> estado da fila daquele WhatsApp
   private queues = new Map<string, WhatsAppQueueState>();
   
-  // Histórico de variações por mensagem base (para evitar repetição)
-  private variationHistory = new Map<string, string[]>();
-  
-  // Configurações
-  private readonly MIN_DELAY_MS = 5000; // 5 segundos mínimo
-  private readonly MAX_DELAY_MS = 10000; // 10 segundos máximo
-  
   // Callback para enviar mensagem real (injetado pelo whatsapp.ts)
   private sendCallback: ((userId: string, jid: string, text: string, options?: any) => Promise<string | null>) | null = null;
 
   constructor() {
-    console.log('🛡️ [ANTI-BLOCK] MessageQueueService iniciado (com IA Mistral para humanização)');
+    console.log('🛡️ [ANTI-BLOCK v5.0] MessageQueueService SIMPLIFICADO iniciado');
+    console.log(`   📊 Config: ${ANTI_BAN_CONFIG.MIN_DELAY_MS/1000}-${ANTI_BAN_CONFIG.MAX_DELAY_MS/1000}s delay, ${ANTI_BAN_CONFIG.BATCH_SIZE} msgs/lote, ${ANTI_BAN_CONFIG.BATCH_PAUSE_MS/1000}s pausa`);
     
     // Limpar filas vazias a cada 5 minutos
     setInterval(() => this.cleanupEmptyQueues(), 5 * 60 * 1000);
-    
-    // Limpar histórico de variações a cada 30 minutos
-    setInterval(() => {
-      this.variationHistory.clear();
-      console.log('🛡️ [ANTI-BLOCK] Histórico de variações limpo');
-    }, 30 * 60 * 1000);
   }
 
   /**
@@ -94,23 +93,8 @@ class MessageQueueService {
   }
 
   /**
-   * Gera hash simples de uma mensagem para histórico
-   */
-  private generateHash(text: string): string {
-    let hash = 0;
-    for (let i = 0; i < text.length; i++) {
-      const char = text.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return hash.toString(16);
-  }
-
-  /**
    * Adiciona mensagem à fila do WhatsApp específico
    * Retorna uma Promise que resolve quando a mensagem for enviada
-   * 
-   * ✅ VARIAÇÃO DE IA REMOVIDA - Texto enviado exatamente como recebido
    */
   async enqueue(
     userId: string,
@@ -126,24 +110,21 @@ class MessageQueueService {
       this.queues.set(userId, {
         queue: [],
         isProcessing: false,
-        lastSentAt: Date.now(), // ✅ CORREÇÃO: Inicializar com tempo atual para garantir delay na primeira msg
+        lastSentAt: Date.now(),
         totalSent: 0,
         totalErrors: 0,
       });
-      console.log(`🛡️ [ANTI-BLOCK] Nova fila criada para ${userId.substring(0, 8)}... (lastSentAt = now para garantir delay)`);
+      console.log(`🛡️ [ANTI-BLOCK v5.0] Nova fila criada para ${userId.substring(0, 8)}...`);
     }
 
     const state = this.queues.get(userId)!;
     const messageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    // ⚠️ VARIAÇÃO DE IA REMOVIDA - Enviar texto EXATAMENTE como recebido
-    // A variação estava corrompendo respostas do agente e mensagens do dono
 
     return new Promise((resolve, reject) => {
       const queuedMessage: QueuedMessage = {
         id: messageId,
         jid,
-        text: text, // ✅ Usar texto original SEM variação
+        text: text,
         originalText: text,
         options,
         priority: options?.priority || 'normal',
@@ -155,10 +136,9 @@ class MessageQueueService {
       // Inserir na posição correta baseado em prioridade
       this.insertByPriority(state.queue, queuedMessage);
 
-      console.log(`🛡️ [ANTI-BLOCK] Mensagem enfileirada para ${userId.substring(0, 8)}...`);
+      console.log(`🛡️ [ANTI-BLOCK v5.0] Mensagem enfileirada para ${userId.substring(0, 8)}...`);
       console.log(`   📊 Fila: ${state.queue.length} | Prioridade: ${options?.priority || 'normal'}`);
       console.log(`   📝 Texto: "${text.substring(0, 50)}..."`);
-      // ✅ VARIAÇÃO REMOVIDA - texto enviado sem modificação
 
       // Iniciar processamento se não estiver rodando
       if (!state.isProcessing) {
@@ -188,8 +168,8 @@ class MessageQueueService {
   }
 
   /**
-   * Processa a fila de um WhatsApp específico
-   * Garante delay de 5-10s entre mensagens
+   * Processa a fila de um canal WhatsApp específico
+   * v5.1 SIMPLIFICADO: Delay 5-15s + pausa 1 min após 10 msgs
    */
   private async processQueue(userId: string): Promise<void> {
     const state = this.queues.get(userId);
@@ -199,22 +179,32 @@ class MessageQueueService {
 
     while (state.queue.length > 0) {
       const message = state.queue.shift()!;
+      const contactNumber = message.jid.replace('@s.whatsapp.net', '').replace('@g.us', '');
       
       try {
-        // Calcular delay necessário
+        // Verificar se pode enviar (pausa de lote?)
+        const canSendCheck = antiBanProtectionService.canSendMessage(userId);
+        if (!canSendCheck.canSend) {
+          console.log(`🛡️ [ANTI-BLOCK v5.0] ⏸️ ${canSendCheck.reason}`);
+          
+          // Colocar mensagem de volta na fila
+          state.queue.unshift(message);
+          
+          // Aguardar
+          await this.sleep(canSendCheck.waitMs);
+          continue;
+        }
+        
+        // Calcular delay (usa o serviço anti-ban)
+        const delay = antiBanProtectionService.calculateDelay(userId, contactNumber);
+        
+        // Calcular delay restante baseado no tempo desde último envio
         const now = Date.now();
         const timeSinceLastSent = now - state.lastSentAt;
-        const requiredDelay = this.getRandomDelay();
-        
-        // 🛡️ PROTEÇÃO EXTRA: Se lastSentAt é muito antigo (> 1 min), ainda assim aplicar delay mínimo
-        // Isso previne envios instantâneos após reconexão ou reinício do servidor
-        const isFirstAfterLongGap = timeSinceLastSent > 60000; // > 1 minuto
-        const remainingDelay = isFirstAfterLongGap 
-          ? requiredDelay  // Aplicar delay completo se primeira msg após longa pausa
-          : Math.max(0, requiredDelay - timeSinceLastSent);
+        const remainingDelay = Math.max(0, delay - timeSinceLastSent);
 
         if (remainingDelay > 0) {
-          console.log(`🛡️ [ANTI-BLOCK] Aguardando ${(remainingDelay/1000).toFixed(1)}s antes de enviar (userId: ${userId.substring(0, 8)}...)${isFirstAfterLongGap ? ' [PRIMEIRA MSG]' : ''}`);
+          console.log(`🛡️ [ANTI-BLOCK v5.0] ⏳ Aguardando ${(remainingDelay/1000).toFixed(1)}s antes de enviar...`);
           await this.sleep(remainingDelay);
         }
 
@@ -223,12 +213,19 @@ class MessageQueueService {
         
         state.lastSentAt = Date.now();
         state.totalSent++;
+        
+        // Registrar no serviço anti-ban (contador de lote)
+        const batchResult = antiBanProtectionService.registerMessageSent(userId, contactNumber);
+        
+        if (batchResult.shouldPause) {
+          console.log(`🛡️ [ANTI-BLOCK v5.0] 📦 Iniciando pausa de ${batchResult.pauseDuration/1000}s (1 minuto)`);
+        }
 
         message.resolve(result);
 
       } catch (error: any) {
         state.totalErrors++;
-        console.error(`🛡️ [ANTI-BLOCK] ❌ Erro ao enviar:`, error.message);
+        console.error(`🛡️ [ANTI-BLOCK v5.0] ❌ Erro ao enviar:`, error.message);
         message.reject(error);
       }
     }
@@ -238,10 +235,41 @@ class MessageQueueService {
 
   /**
    * Envia mensagem real usando o callback registrado
+   * 🆕 AGORA COM VERIFICAÇÃO DE DEDUPLICAÇÃO ANTES DO ENVIO!
    */
   private async sendMessage(userId: string, message: QueuedMessage): Promise<MessageSendResult> {
     if (!this.sendCallback) {
       throw new Error('Send callback not registered');
+    }
+
+    // 🆕 VERIFICAÇÃO DE DEDUPLICAÇÃO - NUNCA ENVIAR DUPLICATAS!
+    // Isso protege contra reenvio após instabilidade/restart do servidor
+    const contactNumber = message.jid.replace('@s.whatsapp.net', '').replace('@g.us', '');
+    const conversationId = message.options?.conversationId || `${userId}:${contactNumber}`;
+    const messageType = message.options?.messageType || 'ai_response';
+    const source = message.options?.source || 'queue';
+    
+    const canSend = await canSendMessage({
+      userId,
+      conversationId,
+      contactNumber,
+      content: message.text,
+      messageType,
+      source
+    });
+    
+    if (!canSend) {
+      console.log(`🛡️ [ANTI-BLOCK] 🚫 MENSAGEM BLOQUEADA POR DEDUPLICAÇÃO!`);
+      console.log(`   📧 Para: ${message.jid.substring(0, 15)}...`);
+      console.log(`   📝 Texto: ${message.text.substring(0, 50)}...`);
+      console.log(`   ⚠️ Esta mensagem já foi enviada anteriormente (proteção anti-reenvio)`);
+      
+      // Retornar sucesso SEM enviar - a mensagem já foi processada antes
+      return {
+        success: true,
+        messageId: 'DEDUPLICATED_BLOCKED',
+        variedText: undefined,
+      };
     }
 
     console.log(`🛡️ [ANTI-BLOCK] 📤 Enviando mensagem para ${message.jid.substring(0, 15)}...`);
@@ -259,7 +287,8 @@ class MessageQueueService {
    * Gera delay aleatório entre MIN e MAX
    */
   private getRandomDelay(): number {
-    return this.MIN_DELAY_MS + Math.random() * (this.MAX_DELAY_MS - this.MIN_DELAY_MS);
+    return ANTI_BAN_CONFIG.MIN_DELAY_MS + 
+      Math.random() * (ANTI_BAN_CONFIG.MAX_DELAY_MS - ANTI_BAN_CONFIG.MIN_DELAY_MS);
   }
 
   /**
@@ -274,15 +303,15 @@ class MessageQueueService {
    */
   private cleanupEmptyQueues(): void {
     const now = Date.now();
-    const MAX_IDLE_TIME = 30 * 60 * 1000; // 30 minutos sem atividade
+    const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutos
 
     const entries = Array.from(this.queues.entries());
     for (const [userId, state] of entries) {
       if (state.queue.length === 0 && !state.isProcessing) {
         // Verificar se última mensagem foi há mais de 30 min
-        if (now - state.lastSentAt > MAX_IDLE_TIME) {
+        if (now - state.lastSentAt > IDLE_TIMEOUT_MS) {
           this.queues.delete(userId);
-          console.log(`🛡️ [ANTI-BLOCK] Fila removida por inatividade: ${userId.substring(0, 8)}...`);
+          console.log(`🛡️ [ANTI-BLOCK v5.0] Fila removida por inatividade: ${userId.substring(0, 8)}...`);
         }
       }
     }
@@ -293,18 +322,30 @@ class MessageQueueService {
    */
   getStats(): Record<string, any> {
     const stats: Record<string, any> = {
+      version: 'v5.0-SIMPLES',
       totalQueues: this.queues.size,
+      config: {
+        minDelayMs: ANTI_BAN_CONFIG.MIN_DELAY_MS,
+        maxDelayMs: ANTI_BAN_CONFIG.MAX_DELAY_MS,
+        batchSize: ANTI_BAN_CONFIG.BATCH_SIZE,
+        batchPauseMs: ANTI_BAN_CONFIG.BATCH_PAUSE_MS,
+      },
       queues: {},
     };
 
     const entries = Array.from(this.queues.entries());
     for (const [userId, state] of entries) {
+      const antiBanStats = antiBanProtectionService.getStats(userId);
       stats.queues[userId.substring(0, 8)] = {
         queueLength: state.queue.length,
         isProcessing: state.isProcessing,
         totalSent: state.totalSent,
         totalErrors: state.totalErrors,
         lastSentAt: state.lastSentAt ? new Date(state.lastSentAt).toISOString() : null,
+        // Stats do serviço anti-ban
+        batchCount: antiBanStats.consecutiveMessages,
+        isPaused: antiBanStats.isPaused,
+        pauseRemainingMs: antiBanStats.pauseRemainingMs,
       };
     }
 
@@ -324,32 +365,33 @@ class MessageQueueService {
       state.queue = [];
     }
     this.queues.clear();
-    console.log('🛡️ [ANTI-BLOCK] Todas as filas limpas');
+    console.log('🛡️ [ANTI-BLOCK v5.0] Todas as filas limpas');
   }
 
   /**
-   * 🛡️ SAFE MODE: Limpa a fila de um usuário específico
-   * Usado quando o cliente tomou bloqueio e está reconectando
-   * Cancela todas as mensagens pendentes sem enviar
+   * Limpa a fila de um usuário específico
    */
   clearUserQueue(userId: string): { cleared: number; wasPending: boolean } {
     const state = this.queues.get(userId);
     if (!state) {
-      console.log(`🛡️ [SAFE MODE] Nenhuma fila encontrada para ${userId.substring(0, 8)}...`);
+      console.log(`🛡️ [ANTI-BLOCK v5.0] Nenhuma fila encontrada para ${userId.substring(0, 8)}...`);
       return { cleared: 0, wasPending: false };
     }
 
     const queueSize = state.queue.length;
     const wasPending = state.isProcessing;
 
-    // Rejeitar todas as mensagens pendentes com erro específico
+    // Rejeitar todas as mensagens pendentes
     for (const msg of state.queue) {
-      msg.reject(new Error('Queue cleared by Safe Mode - anti-block protection'));
+      msg.reject(new Error('Queue cleared'));
     }
     state.queue = [];
     state.isProcessing = false;
 
-    console.log(`🛡️ [SAFE MODE] ✅ Fila do usuário ${userId.substring(0, 8)}... limpa: ${queueSize} mensagens removidas`);
+    // Resetar contador de lote no serviço anti-ban
+    antiBanProtectionService.resetBatchCounter(userId);
+
+    console.log(`🛡️ [ANTI-BLOCK v5.0] ✅ Fila do usuário ${userId.substring(0, 8)}... limpa: ${queueSize} mensagens removidas`);
     return { cleared: queueSize, wasPending };
   }
 
@@ -362,16 +404,25 @@ class MessageQueueService {
 
   /**
    * Verifica se um WhatsApp pode enviar mensagem agora
-   * (útil para UI mostrar status)
    */
-  canSendNow(userId: string): { canSend: boolean; waitMs: number } {
+  canSendNow(userId: string): { canSend: boolean; waitMs: number; reason?: string } {
     const state = this.queues.get(userId);
     if (!state) {
       return { canSend: true, waitMs: 0 };
     }
 
+    // Verificar no serviço anti-ban
+    const antiBanCheck = antiBanProtectionService.canSendMessage(userId);
+    if (!antiBanCheck.canSend) {
+      return { 
+        canSend: false, 
+        waitMs: antiBanCheck.waitMs,
+        reason: antiBanCheck.reason 
+      };
+    }
+
     const timeSinceLastSent = Date.now() - state.lastSentAt;
-    const waitMs = Math.max(0, this.MIN_DELAY_MS - timeSinceLastSent);
+    const waitMs = Math.max(0, ANTI_BAN_CONFIG.MIN_DELAY_MS - timeSinceLastSent);
 
     return {
       canSend: waitMs === 0 && state.queue.length === 0,
@@ -380,13 +431,7 @@ class MessageQueueService {
   }
 
   /**
-   * 🛡️ ANTI-BLOCK PARA MÍDIA E OUTROS ENVIOS
-   * Aguarda vez na fila e aplica delay entre mensagens
-   * Use ANTES de enviar mídia, áudio, etc. para evitar bloqueio
-   * 
-   * @param userId - ID do usuário/WhatsApp
-   * @param description - Descrição do envio (para logs)
-   * @returns Promise que resolve após aplicar delay necessário
+   * Aguarda vez na fila para enviar mídia ou outros tipos
    */
   async waitForTurn(userId: string, description: string = 'mídia'): Promise<void> {
     // Obter ou criar estado da fila
@@ -395,47 +440,50 @@ class MessageQueueService {
       state = {
         queue: [],
         isProcessing: false,
-        lastSentAt: Date.now(), // 🛡️ Garantir delay na primeira msg
+        lastSentAt: Date.now(),
         totalSent: 0,
         totalErrors: 0,
       };
       this.queues.set(userId, state);
-      console.log(`🛡️ [ANTI-BLOCK] Nova fila criada para mídia: ${userId.substring(0, 8)}...`);
+      console.log(`🛡️ [ANTI-BLOCK v5.0] Nova fila criada para mídia: ${userId.substring(0, 8)}...`);
+    }
+
+    // Verificar se está em pausa de lote
+    const antiBanCheck = antiBanProtectionService.canSendMessage(userId);
+    if (!antiBanCheck.canSend) {
+      console.log(`🛡️ [ANTI-BLOCK v5.0] ⏸️ ${antiBanCheck.reason} - aguardando ${Math.ceil(antiBanCheck.waitMs/1000)}s`);
+      await this.sleep(antiBanCheck.waitMs);
     }
 
     // Aguardar se há fila de texto sendo processada
     while (state.isProcessing || state.queue.length > 0) {
-      console.log(`🛡️ [ANTI-BLOCK] ⏳ Aguardando fila de texto terminar antes de enviar ${description}...`);
+      console.log(`🛡️ [ANTI-BLOCK v5.0] ⏳ Aguardando fila de texto terminar antes de enviar ${description}...`);
       await this.sleep(1000);
       state = this.queues.get(userId)!;
     }
 
     // Calcular delay necessário
-    const now = Date.now();
-    const timeSinceLastSent = now - state.lastSentAt;
-    const requiredDelay = this.getRandomDelay();
-    
-    // Proteção para primeira msg após gap longo
-    const isFirstAfterLongGap = timeSinceLastSent > 60000;
-    const remainingDelay = isFirstAfterLongGap 
-      ? requiredDelay 
-      : Math.max(0, requiredDelay - timeSinceLastSent);
+    const contactNumber = 'media'; // Para mídia não temos contato específico
+    const delay = antiBanProtectionService.calculateDelay(userId, contactNumber);
+    const timeSinceLastSent = Date.now() - state.lastSentAt;
+    const remainingDelay = Math.max(0, delay - timeSinceLastSent);
 
     if (remainingDelay > 0) {
-      console.log(`🛡️ [ANTI-BLOCK] 🎵 Aguardando ${(remainingDelay/1000).toFixed(1)}s antes de enviar ${description} (userId: ${userId.substring(0, 8)}...)${isFirstAfterLongGap ? ' [PRIMEIRA]' : ''}`);
+      console.log(`🛡️ [ANTI-BLOCK v5.0] 🎵 Aguardando ${(remainingDelay/1000).toFixed(1)}s antes de enviar ${description}`);
       await this.sleep(remainingDelay);
     }
 
-    // Atualizar lastSentAt após o delay
+    // Registrar envio no serviço anti-ban
+    antiBanProtectionService.registerMessageSent(userId, contactNumber);
+    
     state.lastSentAt = Date.now();
     state.totalSent++;
     
-    console.log(`🛡️ [ANTI-BLOCK] ✅ Liberado para enviar ${description}`);
+    console.log(`🛡️ [ANTI-BLOCK v5.0] ✅ Liberado para enviar ${description}`);
   }
 
   /**
    * Notifica que um envio de mídia foi concluído
-   * Use APÓS enviar mídia para atualizar timestamp da fila
    */
   markMediaSent(userId: string): void {
     const state = this.queues.get(userId);
@@ -445,45 +493,20 @@ class MessageQueueService {
   }
 
   /**
-   * 🛡️ WRAPPER UNIVERSAL - Executa QUALQUER função de envio respeitando a fila
-   * 
-   * Use este método para enviar QUALQUER tipo de mensagem (texto, mídia, áudio, etc.)
-   * garantindo que o delay de 5-10s seja respeitado.
-   * 
-   * @param userId - ID do usuário/WhatsApp (para identificar a fila)
-   * @param description - Descrição do envio (para logs)
-   * @param sendFn - Função async que faz o envio real
-   * @returns Promise com o resultado do sendFn
-   * 
-   * @example
-   * // Enviar texto
-   * await messageQueueService.executeWithDelay(userId, 'texto', async () => {
-   *   return await socket.sendMessage(jid, { text: 'Olá!' });
-   * });
-   * 
-   * // Enviar mídia
-   * await messageQueueService.executeWithDelay(userId, 'imagem', async () => {
-   *   return await socket.sendMessage(jid, { image: buffer });
-   * });
+   * Executa qualquer função de envio respeitando a fila
    */
   async executeWithDelay<T>(
     userId: string,
     description: string,
     sendFn: () => Promise<T>
   ): Promise<T> {
-    // Aguardar vez na fila
     await this.waitForTurn(userId, description);
     
     try {
-      // Executar envio real
       const result = await sendFn();
-      
-      // Atualizar timestamp após envio bem-sucedido
       this.markMediaSent(userId);
-      
       return result;
     } catch (error) {
-      // Em caso de erro, ainda atualizar timestamp para não travar fila
       this.markMediaSent(userId);
       throw error;
     }

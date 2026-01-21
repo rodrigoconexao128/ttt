@@ -350,6 +350,15 @@ export interface IStorage {
   // Share token and message update operations
   getConversationByShareToken(shareToken: string): Promise<Conversation | undefined>;
   updateMessage(id: string, data: Partial<InsertMessage>): Promise<Message>;
+  
+  // Admin Notification operations
+  getAdminNotificationConfig?(adminId: string): Promise<any | undefined>;
+  updateAdminNotificationConfig?(adminId: string, data: any): Promise<void>;
+  getAdminBroadcasts?(adminId: string): Promise<any[]>;
+  getAdminBroadcast?(adminId: string, id: string): Promise<any | undefined>;
+  createAdminBroadcast?(data: any): Promise<string>;
+  updateAdminBroadcast?(adminId: string, id: string, data: any): Promise<void>;
+  createAdminNotificationLog?(data: any): Promise<string>;
 }
 
 // In-memory storage for campaigns and contact lists
@@ -929,37 +938,27 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
   }
 
   /**
-   * 🔧 FIX BUG CRÍTICO: Verificar se IA está desativada para uma conversa
-   * AGORA verifica DUAS condições:
-   * 1. agent_disabled_conversations (pausa temporária quando dono responde)
-   * 2. conversations.followup_disabled_reason = "Desativado pelo usuário" (desativação manual)
+   * Verificar se IA está desativada para uma conversa
    * 
-   * Se qualquer uma das condições for true, a IA NÃO deve responder.
+   * ⚠️ IMPORTANTE: A IA é controlada APENAS pela tabela agent_disabled_conversations
+   * Follow-up é controlado SEPARADAMENTE por conversations.followupActive
+   * IA e Follow-up são sistemas INDEPENDENTES!
+   * 
+   * IA é desativada quando:
+   * 1. Existe entrada em agent_disabled_conversations (pausa temporária quando dono responde)
+   * 
+   * Follow-up é desativado quando:
+   * 1. Toggle global em /followup está desativado (followup_configs.is_enabled)
+   * 2. Toggle individual na conversa está desativado (conversations.followupActive)
    */
   async isAgentDisabledForConversation(conversationId: string): Promise<boolean> {
-    // 1. Verificar tabela de pausas temporárias
+    // Verificar tabela de pausas temporárias (ÚNICA verificação para IA)
     const [disabled] = await db
       .select()
       .from(agentDisabledConversations)
       .where(eq(agentDisabledConversations.conversationId, conversationId));
     
-    if (disabled) {
-      return true;
-    }
-    
-    // 2. 🔧 FIX: Verificar se foi DESATIVADO MANUALMENTE pelo usuário
-    const [conversation] = await db
-      .select({ followupDisabledReason: conversations.followupDisabledReason })
-      .from(conversations)
-      .where(eq(conversations.id, conversationId));
-    
-    // Se followupDisabledReason contém "Desativado pelo usuário", IA está desativada
-    if (conversation?.followupDisabledReason?.includes('Desativado pelo usuário')) {
-      console.log(`🛑 [STORAGE] IA desativada MANUALMENTE para conversa ${conversationId}`);
-      return true;
-    }
-    
-    return false;
+    return !!disabled;
   }
 
   async disableAgentForConversation(conversationId: string, autoReactivateAfterMinutes?: number | null): Promise<void> {
@@ -982,20 +981,13 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
         }
       });
     
-    // 🛑 CRITICAL: Quando IA é desativada, DESATIVAR TAMBÉM o follow-up
-    // Follow-up não deve funcionar se IA está desativada
-    try {
-      await db.update(conversations)
-        .set({ 
-          followupActive: false,
-          nextFollowupAt: null,
-          followupDisabledReason: "IA desativada pelo usuário"
-        })
-        .where(eq(conversations.id, conversationId));
-      console.log(`🛑 [STORAGE] Follow-up desativado para conversa ${conversationId} (IA foi desativada)`);
-    } catch (error) {
-      console.error(`⚠️ [STORAGE] Erro ao desativar follow-up para conversa ${conversationId}:`, error);
-    }
+    // ⚠️ IMPORTANTE: Follow-up é INDEPENDENTE da IA!
+    // A desativação da IA NÃO deve afetar o follow-up
+    // Follow-up só deve ser cancelado quando:
+    // 1. Toggle global em /followup está desativado (followup_configs.is_enabled)
+    // 2. Toggle individual na conversa está desativado (conversations.followupActive)
+    // A IA e o Follow-up são sistemas separados e independentes!
+    console.log(`🤖 [STORAGE] IA desativada para conversa ${conversationId} (follow-up permanece no estado atual)`);
   }
 
   async enableAgentForConversation(conversationId: string): Promise<void> {
@@ -1004,17 +996,14 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       .delete(agentDisabledConversations)
       .where(eq(agentDisabledConversations.conversationId, conversationId));
     
-    // 2. 🔧 FIX BUG: Limpar também o campo followup_disabled_reason
-    // Isso é CRÍTICO porque isAgentDisabledForConversation() verifica este campo
-    await db
-      .update(conversations)
-      .set({ 
-        followupDisabledReason: null,
-        followupActive: true
-      })
-      .where(eq(conversations.id, conversationId));
+    // ⚠️ IMPORTANTE: Follow-up é INDEPENDENTE da IA!
+    // A reativação da IA NÃO deve afetar o follow-up
+    // Follow-up só deve ser controlado quando:
+    // 1. Toggle global em /followup (followup_configs.is_enabled)
+    // 2. Toggle individual na conversa (conversations.followupActive)
+    // A IA e o Follow-up são sistemas separados e independentes!
     
-    console.log(`✅ [STORAGE] IA reativada para conversa ${conversationId} - limpou agent_disabled_conversations E followup_disabled_reason`);
+    console.log(`✅ [STORAGE] IA reativada para conversa ${conversationId} (follow-up permanece no estado atual)`);
   }
 
   async updateDisabledConversationOwnerReply(conversationId: string): Promise<void> {
@@ -4199,6 +4188,286 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     
     const remaining = Math.max(0, counter.dailyLimit - counter.count);
     return { canSend: remaining > 0, remaining, limit: counter.dailyLimit };
+  }
+
+  // ========================================================================
+  // Admin Notification operations
+  // ========================================================================
+
+  async getAdminNotificationConfig(adminId: string): Promise<any | undefined> {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM admin_notification_config WHERE admin_id = ${adminId} LIMIT 1
+      `);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error getting admin notification config:', error);
+      return undefined;
+    }
+  }
+
+  async updateAdminNotificationConfig(adminId: string, data: any): Promise<void> {
+    try {
+      const existing = await this.getAdminNotificationConfig(adminId);
+      
+      // Converter arrays para formato PostgreSQL
+      const paymentDays = data.paymentReminderDaysBefore || [7, 3, 1];
+      const overdueDays = data.overdueReminderDaysAfter || [1, 3, 7, 14];
+      const businessDays = data.businessDays || [1, 2, 3, 4, 5];
+      
+      // Garantir que welcomeVariations é um array de strings válidas (usado em ambos INSERT e UPDATE)
+      let welcomeVariationsArray: string[] = [];
+      if (Array.isArray(data.welcomeMessageVariations)) {
+        welcomeVariationsArray = data.welcomeMessageVariations.map((v: any) => 
+          typeof v === 'string' ? v : String(v)
+        ).filter((v: string) => v && v.trim());
+      }
+      
+      // Construir a expressão ARRAY para PostgreSQL
+      const welcomeVariationsSQL = welcomeVariationsArray.length > 0 
+        ? `ARRAY[${welcomeVariationsArray.map((v: string) => `'${v.replace(/'/g, "''")}'`).join(',')}]::text[]`
+        : `ARRAY[]::text[]`;
+      
+      if (!existing) {
+        await db.execute(sql`
+          INSERT INTO admin_notification_config (
+            admin_id, 
+            payment_reminder_enabled, 
+            payment_reminder_days_before,
+            payment_reminder_message_template,
+            payment_reminder_ai_enabled,
+            payment_reminder_ai_prompt,
+            overdue_reminder_enabled,
+            overdue_reminder_days_after,
+            overdue_reminder_message_template,
+            overdue_reminder_ai_enabled,
+            overdue_reminder_ai_prompt,
+            periodic_checkin_enabled,
+            periodic_checkin_min_days,
+            periodic_checkin_max_days,
+            periodic_checkin_message_template,
+            checkin_ai_enabled,
+            checkin_ai_prompt,
+            broadcast_enabled,
+            broadcast_antibot_variation,
+            broadcast_ai_variation,
+            broadcast_min_interval_seconds,
+            broadcast_max_interval_seconds,
+            disconnected_alert_enabled,
+            disconnected_alert_hours,
+            disconnected_alert_message_template,
+            disconnected_ai_enabled,
+            disconnected_ai_prompt,
+            ai_variation_enabled,
+            ai_variation_prompt,
+            business_hours_start,
+            business_hours_end,
+            business_days,
+            respect_business_hours,
+            welcome_message_enabled,
+            welcome_message_variations,
+            welcome_message_ai_enabled,
+            welcome_message_ai_prompt
+          ) VALUES (
+            ${adminId},
+            ${data.paymentReminderEnabled ?? true},
+            ARRAY[${sql.raw(paymentDays.join(','))}]::integer[],
+            ${data.paymentReminderMessageTemplate || ''},
+            ${data.paymentReminderAiEnabled ?? true},
+            ${data.paymentReminderAiPrompt || 'Reescreva esta mensagem de lembrete de pagamento de forma natural e personalizada.'},
+            ${data.overdueReminderEnabled ?? true},
+            ARRAY[${sql.raw(overdueDays.join(','))}]::integer[],
+            ${data.overdueReminderMessageTemplate || ''},
+            ${data.overdueReminderAiEnabled ?? true},
+            ${data.overdueReminderAiPrompt || 'Reescreva esta mensagem de cobrança de forma educada e empática.'},
+            ${data.periodicCheckinEnabled ?? true},
+            ${data.periodicCheckinMinDays ?? 7},
+            ${data.periodicCheckinMaxDays ?? 15},
+            ${data.periodicCheckinMessageTemplate || ''},
+            ${data.checkinAiEnabled ?? true},
+            ${data.checkinAiPrompt || 'Reescreva esta mensagem de check-in de forma calorosa e natural.'},
+            ${data.broadcastEnabled ?? true},
+            ${data.broadcastAntibotVariation ?? true},
+            ${data.broadcastAiVariation ?? true},
+            ${data.broadcastMinIntervalSeconds ?? 3},
+            ${data.broadcastMaxIntervalSeconds ?? 10},
+            ${data.disconnectedAlertEnabled ?? true},
+            ${data.disconnectedAlertHours ?? 2},
+            ${data.disconnectedAlertMessageTemplate || ''},
+            ${data.disconnectedAiEnabled ?? true},
+            ${data.disconnectedAiPrompt || 'Reescreva esta mensagem de alerta de desconexão de forma prestativa e profissional.'},
+            ${data.aiVariationEnabled ?? true},
+            ${data.aiVariationPrompt || ''},
+            ${data.businessHoursStart || '09:00'},
+            ${data.businessHoursEnd || '18:00'},
+            ARRAY[${sql.raw(businessDays.join(','))}]::integer[],
+            ${data.respectBusinessHours ?? true},
+            ${data.welcomeMessageEnabled ?? true},
+            ${sql.raw(welcomeVariationsSQL)},
+            ${data.welcomeMessageAiEnabled ?? true},
+            ${data.welcomeMessageAiPrompt || 'Gere uma mensagem de boas-vindas calorosa e profissional para um cliente que acabou de iniciar uma conversa no WhatsApp. Use o nome do cliente se disponível. Seja breve, amigável e mostre disposição para ajudar.'}
+          )
+        `);
+      } else {
+        // Para UPDATE, reutilizar welcomeVariationsSQL já construído acima
+        await db.execute(sql`
+          UPDATE admin_notification_config SET
+            payment_reminder_enabled = ${data.paymentReminderEnabled},
+            payment_reminder_days_before = ARRAY[${sql.raw(paymentDays.join(','))}]::integer[],
+            payment_reminder_message_template = ${data.paymentReminderMessageTemplate},
+            payment_reminder_ai_enabled = ${data.paymentReminderAiEnabled ?? true},
+            payment_reminder_ai_prompt = ${data.paymentReminderAiPrompt || ''},
+            overdue_reminder_enabled = ${data.overdueReminderEnabled},
+            overdue_reminder_days_after = ARRAY[${sql.raw(overdueDays.join(','))}]::integer[],
+            overdue_reminder_message_template = ${data.overdueReminderMessageTemplate},
+            overdue_reminder_ai_enabled = ${data.overdueReminderAiEnabled ?? true},
+            overdue_reminder_ai_prompt = ${data.overdueReminderAiPrompt || ''},
+            periodic_checkin_enabled = ${data.periodicCheckinEnabled},
+            periodic_checkin_min_days = ${data.periodicCheckinMinDays},
+            periodic_checkin_max_days = ${data.periodicCheckinMaxDays},
+            periodic_checkin_message_template = ${data.periodicCheckinMessageTemplate},
+            checkin_ai_enabled = ${data.checkinAiEnabled ?? true},
+            checkin_ai_prompt = ${data.checkinAiPrompt || ''},
+            broadcast_enabled = ${data.broadcastEnabled},
+            broadcast_antibot_variation = ${data.broadcastAntibotVariation},
+            broadcast_ai_variation = ${data.broadcastAiVariation},
+            broadcast_min_interval_seconds = ${data.broadcastMinIntervalSeconds},
+            broadcast_max_interval_seconds = ${data.broadcastMaxIntervalSeconds},
+            disconnected_alert_enabled = ${data.disconnectedAlertEnabled},
+            disconnected_alert_hours = ${data.disconnectedAlertHours},
+            disconnected_alert_message_template = ${data.disconnectedAlertMessageTemplate},
+            disconnected_ai_enabled = ${data.disconnectedAiEnabled ?? true},
+            disconnected_ai_prompt = ${data.disconnectedAiPrompt || ''},
+            ai_variation_enabled = ${data.aiVariationEnabled},
+            ai_variation_prompt = ${data.aiVariationPrompt},
+            business_hours_start = ${data.businessHoursStart},
+            business_hours_end = ${data.businessHoursEnd},
+            business_days = ARRAY[${sql.raw(businessDays.join(','))}]::integer[],
+            respect_business_hours = ${data.respectBusinessHours},
+            welcome_message_enabled = ${data.welcomeMessageEnabled},
+            welcome_message_variations = ${sql.raw(welcomeVariationsSQL)},
+            welcome_message_ai_enabled = ${data.welcomeMessageAiEnabled},
+            welcome_message_ai_prompt = ${data.welcomeMessageAiPrompt},
+            updated_at = now()
+          WHERE admin_id = ${adminId}
+        `);
+      }
+    } catch (error) {
+      console.error('Error updating admin notification config:', error);
+      throw error;
+    }
+  }
+
+  async getAdminBroadcasts(adminId: string): Promise<any[]> {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM admin_broadcasts 
+        WHERE admin_id = ${adminId}
+        ORDER BY created_at DESC
+        LIMIT 50
+      `);
+      return result.rows;
+    } catch (error) {
+      console.error('Error getting admin broadcasts:', error);
+      return [];
+    }
+  }
+
+  async getAdminBroadcast(adminId: string, id: string): Promise<any | undefined> {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM admin_broadcasts 
+        WHERE admin_id = ${adminId} AND id = ${id}
+        LIMIT 1
+      `);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error getting admin broadcast:', error);
+      return undefined;
+    }
+  }
+
+  async createAdminBroadcast(data: any): Promise<string> {
+    try {
+      const id = `broadcast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO admin_broadcasts (
+          id, admin_id, name, message_template, target_type, 
+          target_filter, ai_variation, antibot_enabled, status,
+          total_recipients, sent_count, failed_count
+        ) VALUES (
+          ${id}, ${data.adminId}, ${data.name}, ${data.messageTemplate},
+          ${data.targetType}, ${JSON.stringify(data.targetFilter || {})},
+          ${data.aiVariation}, ${data.antibotEnabled}, ${data.status},
+          ${data.totalRecipients}, ${data.sentCount}, ${data.failedCount}
+        )
+      `);
+      return id;
+    } catch (error) {
+      console.error('Error creating admin broadcast:', error);
+      throw error;
+    }
+  }
+
+  async updateAdminBroadcast(adminId: string, id: string, data: any): Promise<void> {
+    try {
+      const updates: string[] = [];
+      const values: any[] = [];
+
+      if (data.status !== undefined) {
+        updates.push('status = ?');
+        values.push(data.status);
+      }
+      if (data.sentCount !== undefined) {
+        updates.push('sent_count = ?');
+        values.push(data.sentCount);
+      }
+      if (data.failedCount !== undefined) {
+        updates.push('failed_count = ?');
+        values.push(data.failedCount);
+      }
+      if (data.startedAt !== undefined) {
+        updates.push('started_at = ?');
+        values.push(data.startedAt);
+      }
+      if (data.completedAt !== undefined) {
+        updates.push('completed_at = ?');
+        values.push(data.completedAt);
+      }
+      
+      if (updates.length > 0) {
+        updates.push('updated_at = now()');
+        values.push(adminId, id);
+        
+        const query = `UPDATE admin_broadcasts SET ${updates.join(', ')} WHERE admin_id = ? AND id = ?`;
+        await db.execute(sql.raw(query, values));
+      }
+    } catch (error) {
+      console.error('Error updating admin broadcast:', error);
+      throw error;
+    }
+  }
+
+  async createAdminNotificationLog(data: any): Promise<string> {
+    try {
+      const id = `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO admin_notification_logs (
+          id, admin_id, user_id, notification_type,
+          recipient_phone, recipient_name, message_sent,
+          message_original, status, metadata
+        ) VALUES (
+          ${id}, ${data.adminId}, ${data.userId}, ${data.notificationType},
+          ${data.recipientPhone}, ${data.recipientName}, ${data.messageSent},
+          ${data.messageOriginal}, ${data.status || 'pending'},
+          ${JSON.stringify(data.metadata || {})}
+        )
+      `);
+      return id;
+    } catch (error) {
+      console.error('Error creating admin notification log:', error);
+      throw error;
+    }
   }
 }
 

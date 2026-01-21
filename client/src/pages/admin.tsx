@@ -31,9 +31,8 @@ import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
 import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
+import AdminNotificationsPanel from "@/components/admin-notifications-panel";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
-import WelcomeMessageConfig from "@/components/welcome-message-config";
-import AdminAgentConfig from "@/components/admin-agent-config";
 import AdminConversations from "@/components/admin-conversations";
 import FollowUpCalendar from "@/components/follow-up-calendar";
 import { UserAgentConfigDialog } from "@/components/user-agent-config-dialog";
@@ -184,13 +183,11 @@ export default function AdminPanel() {
         return <SubscriptionsHistoryManager />;
       case "whatsapp":
         return (
-          <div className="grid gap-4">
+          <div className="space-y-6">
             <AdminWhatsappPanel />
-            <WelcomeMessageConfig />
+            <AdminNotificationsPanel />
           </div>
         );
-      case "agent":
-        return <AdminAgentConfig />;
       case "conversations":
         return null; // Renderizado fora do container
       case "calendar":

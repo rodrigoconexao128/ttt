@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,13 +36,16 @@ import {
   XCircle,
   RefreshCw,
   Bell,
+  BellOff,
   MoreVertical,
   Eye,
   MessageSquare,
   Printer,
   Timer,
   ArrowRight,
-  FileText
+  FileText,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { formatDistanceToNow } from 'date-fns';
@@ -183,6 +186,7 @@ const kanbanColumns = [
   { status: 'preparing', title: '👨‍🍳 Preparando' },
   { status: 'ready', title: '📦 Prontos' },
   { status: 'out_for_delivery', title: '🚚 Em Entrega' },
+  { status: 'cancelled', title: '❌ Cancelados' },
 ];
 
 export default function DeliveryOrdersPage() {
@@ -197,6 +201,42 @@ export default function DeliveryOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<DeliveryOrder | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  
+  // Estados para notificação sonora
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [lastKnownOrderIds, setLastKnownOrderIds] = useState<Set<string>>(new Set());
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Inicializar áudio de notificação
+  useEffect(() => {
+    // Criar elemento de áudio com som de notificação
+    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleWcYU7i1kH5UNkKgvsFJMhEmjPQDYGBYWF5oamx0eHd3c21mXFRNR0VHUl5qd4ONl52empaOgG9aRi0YEBgq');
+    audioRef.current.volume = 0.7;
+    
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+  
+  // Função para tocar som de notificação
+  const playNotificationSound = useCallback(() => {
+    if (soundEnabled && audioRef.current) {
+      // Tocar 3 vezes com intervalo
+      const playBeep = (count: number) => {
+        if (count > 0 && audioRef.current) {
+          audioRef.current.currentTime = 0;
+          audioRef.current.play().catch(() => {
+            console.log('Áudio bloqueado pelo navegador');
+          });
+          setTimeout(() => playBeep(count - 1), 400);
+        }
+      };
+      playBeep(3);
+    }
+  }, [soundEnabled]);
 
   // Build query URL
   const buildOrdersUrl = () => {
@@ -214,6 +254,38 @@ export default function DeliveryOrdersPage() {
     queryKey: [buildOrdersUrl()],
     refetchInterval: autoRefresh ? 10000 : false, // Auto-refresh every 10s
   });
+
+  // Efeito para detectar novos pedidos e tocar notificação
+  useEffect(() => {
+    if (!ordersData?.orders) return;
+    
+    const currentOrderIds = new Set(ordersData.orders.map(o => o.id));
+    
+    // Na primeira carga, apenas salva os IDs
+    if (lastKnownOrderIds.size === 0) {
+      setLastKnownOrderIds(currentOrderIds);
+      return;
+    }
+    
+    // Verificar se há novos pedidos pendentes
+    const newPendingOrders = ordersData.orders.filter(
+      order => order.status === 'pending' && !lastKnownOrderIds.has(order.id)
+    );
+    
+    if (newPendingOrders.length > 0) {
+      // Tocar som de notificação
+      playNotificationSound();
+      
+      // Mostrar toast
+      toast({
+        title: `🔔 ${newPendingOrders.length} novo(s) pedido(s)!`,
+        description: `Cliente: ${newPendingOrders[0].customer_name}`,
+      });
+    }
+    
+    // Atualizar lista de IDs conhecidos
+    setLastKnownOrderIds(currentOrderIds);
+  }, [ordersData?.orders, playNotificationSound, toast]);
 
   const { data: stats, isLoading: isLoadingStats } = useQuery<DeliveryStats>({
     queryKey: ["/api/delivery/stats"],
@@ -369,6 +441,19 @@ export default function DeliveryOrdersPage() {
         </div>
         
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant={soundEnabled ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            title={soundEnabled ? "Som ativado - clique para desativar" : "Som desativado - clique para ativar"}
+          >
+            {soundEnabled ? (
+              <Volume2 className="h-4 w-4 mr-2" />
+            ) : (
+              <VolumeX className="h-4 w-4 mr-2" />
+            )}
+            Som
+          </Button>
           <Button
             variant={autoRefresh ? "default" : "outline"}
             size="sm"

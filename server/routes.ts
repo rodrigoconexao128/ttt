@@ -10,7 +10,7 @@ import { registerFollowUpRoutes } from "./routes_user_followup";
 import { registerAudioConfigRoutes } from "./routes_audio_config";
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 import { withRetry, db } from "./db";
-import { eq, and, gte, desc, inArray } from "drizzle-orm";
+import { eq, and, gte, desc, inArray, sql } from "drizzle-orm";
 import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users, resellerInvoiceItems as resellerInvoiceItemsTable, resellerInvoices as resellerInvoicesTable, websiteImports, aiAgentConfig } from "@shared/schema";
 import { resellerService } from "./resellerService";
 import { scrapeWebsite, validateUrl, formatContextForAgent, type WebsiteScrapingResult } from "./websiteScraperService";
@@ -193,6 +193,7 @@ import {
   connectionHealthCheck,
   startConnectionHealthCheck,
   stopConnectionHealthCheck,
+  sendAdminNotification,
 } from "./whatsapp";
 import { messageQueueService } from "./messageQueueService";
 import { 
@@ -11484,6 +11485,1308 @@ Responda APENAS com o JSON, sem texto adicional.`;
     }
   });
 
+  // ========================================================================
+  // ADMIN NOTIFICATIONS - Sistema de notificações automáticas
+  // ========================================================================
+
+  // Get notification config
+  app.get("/api/admin/notifications/config", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const config = await storage.getAdminNotificationConfig?.(adminId);
+      
+      const defaultConfig = {
+        paymentReminderEnabled: true,
+        paymentReminderDaysBefore: [7, 3, 1],
+        paymentReminderMessageTemplate: 'Olá {cliente_nome}! 👋\n\nGostaríamos de lembrar que seu pagamento vence em {dias_restantes} dias.\n\n📅 Vencimento: {data_vencimento}\n💰 Valor: R$ {valor}\n\nQualquer dúvida estamos à disposição! 🙏',
+        paymentReminderAiEnabled: true,
+        paymentReminderAiPrompt: 'Reescreva esta mensagem de lembrete de pagamento de forma natural e personalizada. Mantenha o tom profissional mas amigável.',
+        overdueReminderEnabled: true,
+        overdueReminderDaysAfter: [1, 3, 7, 14],
+        overdueReminderMessageTemplate: 'Olá {cliente_nome}! 👋\n\nIdentificamos que seu pagamento está em atraso há {dias_atraso} dias.\n\n📅 Venceu em: {data_vencimento}\n💰 Valor: R$ {valor}\n\nPor favor, regularize sua situação. 🤝',
+        overdueReminderAiEnabled: true,
+        overdueReminderAiPrompt: 'Reescreva esta mensagem de cobrança de forma educada e empática. Mantenha o tom profissional.',
+        periodicCheckinEnabled: true,
+        periodicCheckinMinDays: 7,
+        periodicCheckinMaxDays: 15,
+        periodicCheckinMessageTemplate: 'Olá {cliente_nome}! 👋\n\nPassando para ver se está tudo bem! 😊\n\nPrecisa de alguma coisa? Estamos aqui! 💪',
+        checkinAiEnabled: true,
+        checkinAiPrompt: 'Reescreva esta mensagem de check-in de forma calorosa e natural. Pareça genuinamente interessado no cliente.',
+        broadcastEnabled: true,
+        broadcastAntibotVariation: true,
+        broadcastAiVariation: true,
+        broadcastMinIntervalSeconds: 3,
+        broadcastMaxIntervalSeconds: 10,
+        disconnectedAlertEnabled: true,
+        disconnectedAlertHours: 2,
+        disconnectedAlertMessageTemplate: 'Olá {cliente_nome}! 👋\n\nNotamos que seu WhatsApp está desconectado. 📱\n\nPodemos ajudar? 🙏',
+        disconnectedAiEnabled: true,
+        disconnectedAiPrompt: 'Reescreva esta mensagem de alerta de desconexão de forma prestativa e profissional.',
+        aiVariationEnabled: true,
+        aiVariationPrompt: 'Reescreva esta mensagem de forma natural e personalizada. Mantenha o tom profissional mas amigável.',
+        businessHoursStart: '09:00',
+        businessHoursEnd: '18:00',
+        businessDays: [1, 2, 3, 4, 5],
+        respectBusinessHours: true,
+        welcomeMessageEnabled: true,
+        welcomeMessageVariations: [
+          'Olá {{name}}! 👋 Bem-vindo(a) ao nosso atendimento. Como posso ajudar você hoje?',
+          'Oi {{name}}! 😊 É um prazer ter você aqui. Em que posso ser útil?',
+          'Bem-vindo(a) {{name}}! Estou aqui para ajudar. O que você precisa?',
+        ],
+        welcomeMessageAiEnabled: true,
+        welcomeMessageAiPrompt: 'Gere uma mensagem de boas-vindas calorosa e profissional.',
+      };
+      
+      if (!config) {
+        return res.json(defaultConfig);
+      }
+
+      // Converter snake_case para camelCase
+      const camelCaseConfig = {
+        paymentReminderEnabled: config.payment_reminder_enabled ?? defaultConfig.paymentReminderEnabled,
+        paymentReminderDaysBefore: config.payment_reminder_days_before ?? defaultConfig.paymentReminderDaysBefore,
+        paymentReminderMessageTemplate: config.payment_reminder_message_template ?? defaultConfig.paymentReminderMessageTemplate,
+        paymentReminderAiEnabled: config.payment_reminder_ai_enabled ?? defaultConfig.paymentReminderAiEnabled,
+        paymentReminderAiPrompt: config.payment_reminder_ai_prompt ?? defaultConfig.paymentReminderAiPrompt,
+        overdueReminderEnabled: config.overdue_reminder_enabled ?? defaultConfig.overdueReminderEnabled,
+        overdueReminderDaysAfter: config.overdue_reminder_days_after ?? defaultConfig.overdueReminderDaysAfter,
+        overdueReminderMessageTemplate: config.overdue_reminder_message_template ?? defaultConfig.overdueReminderMessageTemplate,
+        overdueReminderAiEnabled: config.overdue_reminder_ai_enabled ?? defaultConfig.overdueReminderAiEnabled,
+        overdueReminderAiPrompt: config.overdue_reminder_ai_prompt ?? defaultConfig.overdueReminderAiPrompt,
+        periodicCheckinEnabled: config.periodic_checkin_enabled ?? defaultConfig.periodicCheckinEnabled,
+        periodicCheckinMinDays: config.periodic_checkin_min_days ?? defaultConfig.periodicCheckinMinDays,
+        periodicCheckinMaxDays: config.periodic_checkin_max_days ?? defaultConfig.periodicCheckinMaxDays,
+        periodicCheckinMessageTemplate: config.periodic_checkin_message_template ?? defaultConfig.periodicCheckinMessageTemplate,
+        checkinAiEnabled: config.checkin_ai_enabled ?? defaultConfig.checkinAiEnabled,
+        checkinAiPrompt: config.checkin_ai_prompt ?? defaultConfig.checkinAiPrompt,
+        broadcastEnabled: config.broadcast_enabled ?? defaultConfig.broadcastEnabled,
+        broadcastAntibotVariation: config.broadcast_antibot_variation ?? defaultConfig.broadcastAntibotVariation,
+        broadcastAiVariation: config.broadcast_ai_variation ?? defaultConfig.broadcastAiVariation,
+        broadcastMinIntervalSeconds: config.broadcast_min_interval_seconds ?? defaultConfig.broadcastMinIntervalSeconds,
+        broadcastMaxIntervalSeconds: config.broadcast_max_interval_seconds ?? defaultConfig.broadcastMaxIntervalSeconds,
+        disconnectedAlertEnabled: config.disconnected_alert_enabled ?? defaultConfig.disconnectedAlertEnabled,
+        disconnectedAlertHours: config.disconnected_alert_hours ?? defaultConfig.disconnectedAlertHours,
+        disconnectedAlertMessageTemplate: config.disconnected_alert_message_template ?? defaultConfig.disconnectedAlertMessageTemplate,
+        disconnectedAiEnabled: config.disconnected_ai_enabled ?? defaultConfig.disconnectedAiEnabled,
+        disconnectedAiPrompt: config.disconnected_ai_prompt ?? defaultConfig.disconnectedAiPrompt,
+        aiVariationEnabled: config.ai_variation_enabled ?? defaultConfig.aiVariationEnabled,
+        aiVariationPrompt: config.ai_variation_prompt ?? defaultConfig.aiVariationPrompt,
+        businessHoursStart: config.business_hours_start ?? defaultConfig.businessHoursStart,
+        businessHoursEnd: config.business_hours_end ?? defaultConfig.businessHoursEnd,
+        businessDays: config.business_days ?? defaultConfig.businessDays,
+        respectBusinessHours: config.respect_business_hours ?? defaultConfig.respectBusinessHours,
+        welcomeMessageEnabled: config.welcome_message_enabled ?? defaultConfig.welcomeMessageEnabled,
+        welcomeMessageVariations: config.welcome_message_variations ?? defaultConfig.welcomeMessageVariations,
+        welcomeMessageAiEnabled: config.welcome_message_ai_enabled ?? defaultConfig.welcomeMessageAiEnabled,
+        welcomeMessageAiPrompt: config.welcome_message_ai_prompt ?? defaultConfig.welcomeMessageAiPrompt,
+      };
+
+      res.json(camelCaseConfig);
+    } catch (error) {
+      console.error("Error fetching notification config:", error);
+      res.status(500).json({ message: "Failed to fetch config" });
+    }
+  });
+
+  // Update notification config
+  app.put("/api/admin/notifications/config", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const configData = req.body;
+
+      await storage.updateAdminNotificationConfig?.(adminId, configData);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating notification config:", error);
+      res.status(500).json({ message: "Failed to update config" });
+    }
+  });
+
+  // Get notification stats
+  app.get("/api/admin/notifications/stats", isAdmin, async (_req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      const connections = await storage.getAllConnections?.();
+      const subscriptions = await storage.getAllSubscriptions?.();
+      
+      const total = users.length;
+      const withPlan = users.filter(u => {
+        const sub = subscriptions?.find(s => s.userId === u.id && s.status === 'active');
+        return !!sub;
+      }).length;
+      const withoutPlan = total - withPlan;
+      const disconnected = users.filter(u => {
+        const conn = connections?.find(c => c.userId === u.id);
+        return !conn || !conn.isConnected;
+      }).length;
+      
+      // Calcular pagamentos em atraso (simplificado)
+      const overduePayments = 0; // TODO: implementar lógica real
+
+      res.json({
+        total,
+        withPlan,
+        withoutPlan,
+        disconnected,
+        overduePayments,
+      });
+    } catch (error) {
+      console.error("Error fetching notification stats:", error);
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  // Test notification with AI variation
+  app.post("/api/admin/notifications/test", isAdmin, async (req: any, res) => {
+    try {
+      const { type, message } = req.body;
+      const adminId = (req.session as any)?.adminId;
+      
+      // Simular variação com IA
+      const { callGroq } = await import("./llm");
+      const config = await storage.getAdminNotificationConfig?.(adminId);
+      
+      const systemPrompt = config?.aiVariationPrompt || 'Reescreva esta mensagem de forma natural e personalizada. Retorne APENAS a mensagem reescrita, sem explicações.';
+      
+      // ✅ CORRIGIDO: Usar array de ChatMessage
+      const variedMessage = await callGroq(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ],
+        { temperature: 0.8, maxTokens: 300 }
+      );
+      
+      // ✅ PROTEÇÃO: Verificar se retornou mensagem válida
+      const trimmedVaried = variedMessage.trim();
+      const finalMessage = (trimmedVaried && trimmedVaried.length > 10 && !trimmedVaried.includes('Como posso ajudar'))
+        ? trimmedVaried
+        : message;
+
+      res.json({ 
+        success: true, 
+        original: message,
+        variedMessage: finalMessage,
+      });
+    } catch (error: any) {
+      console.error("Error testing notification:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get broadcasts
+  app.get("/api/admin/broadcasts", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const broadcasts = await storage.getAdminBroadcasts?.(adminId);
+      
+      res.json(broadcasts || []);
+    } catch (error) {
+      console.error("Error fetching broadcasts:", error);
+      res.status(500).json({ message: "Failed to fetch broadcasts" });
+    }
+  });
+
+  // Create broadcast
+  app.post("/api/admin/broadcasts", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { name, messageTemplate, targetType, aiVariation, antibotEnabled } = req.body;
+
+      if (!name || !messageTemplate || !targetType) {
+        return res.status(400).json({ message: "Name, message template and target type are required" });
+      }
+
+      // Calcular total de destinatários
+      const users = await storage.getAllUsers();
+      const subscriptions = await storage.getAllSubscriptions?.();
+      
+      let totalRecipients = 0;
+      if (targetType === 'all') {
+        totalRecipients = users.length;
+      } else if (targetType === 'with_plan') {
+        totalRecipients = users.filter(u => {
+          const sub = subscriptions?.find(s => s.userId === u.id && s.status === 'active');
+          return !!sub;
+        }).length;
+      } else if (targetType === 'without_plan') {
+        totalRecipients = users.filter(u => {
+          const sub = subscriptions?.find(s => s.userId === u.id && s.status === 'active');
+          return !sub;
+        }).length;
+      }
+
+      const broadcastId = await storage.createAdminBroadcast?.({
+        adminId,
+        name,
+        messageTemplate,
+        targetType,
+        aiVariation: aiVariation !== false,
+        antibotEnabled: antibotEnabled !== false,
+        status: 'draft',
+        totalRecipients,
+        sentCount: 0,
+        failedCount: 0,
+      });
+
+      res.json({ success: true, id: broadcastId });
+    } catch (error) {
+      console.error("Error creating broadcast:", error);
+      res.status(500).json({ message: "Failed to create broadcast" });
+    }
+  });
+
+  // Start broadcast COM DELAYS EM LOTE E VERIFICAÇÃO DE SESSÃO
+  app.post("/api/admin/broadcasts/:id/start", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+
+      // Iniciar broadcast em background
+      setImmediate(async () => {
+        try {
+          await storage.updateAdminBroadcast?.(adminId, id, { status: 'sending', startedAt: new Date() });
+          
+          const broadcast = await storage.getAdminBroadcast?.(adminId, id);
+          if (!broadcast) return;
+
+          const config = await storage.getAdminNotificationConfig?.(adminId);
+          const users = await storage.getAllUsers();
+          const subscriptions = await storage.getAllSubscriptions?.();
+          const { sendAdminNotification, getAdminSession } = await import("./whatsapp");
+
+          // ✅ VERIFICAR SE ADMIN TEM WHATSAPP CONECTADO
+          const adminSession = getAdminSession(adminId);
+          if (!adminSession || !adminSession.socket?.user) {
+            console.log(`⚠️ [BROADCAST ${id}] WhatsApp do admin desconectado - cancelando broadcast`);
+            await storage.updateAdminBroadcast?.(adminId, id, { 
+              status: 'cancelled',
+              completedAt: new Date(),
+              sentCount: 0,
+              failedCount: 0,
+            });
+            return;
+          }
+
+          // Filtrar destinatários
+          let recipients = users;
+          if (broadcast.targetType === 'with_plan') {
+            recipients = users.filter(u => {
+              const sub = subscriptions?.find(s => s.userId === u.id && s.status === 'active');
+              return !!sub;
+            });
+          } else if (broadcast.targetType === 'without_plan') {
+            recipients = users.filter(u => {
+              const sub = subscriptions?.find(s => s.userId === u.id && s.status === 'active');
+              return !sub;
+            });
+          }
+
+          let sent = 0;
+          let failed = 0;
+          let batchCount = 0;
+
+          // ✅ TAMANHO DE LOTE ALEATÓRIO (15-25 mensagens)
+          const BATCH_SIZE_MIN = 15;
+          const BATCH_SIZE_MAX = 25;
+          
+          for (let i = 0; i < recipients.length; i++) {
+            const user = recipients[i];
+            
+            try {
+              // Substituir variáveis
+              let message = broadcast.messageTemplate.replace(/{cliente_nome}/g, user.name || 'Cliente');
+              
+              // ✅ VARIAR COM IA SE HABILITADO (cada mensagem única)
+              if (broadcast.aiVariation && config?.aiVariationEnabled) {
+                const { callGroq } = await import("./llm");
+                const prompt = config.aiVariationPrompt || 
+                  `Reescreva esta mensagem mantendo o mesmo significado mas com palavras diferentes.
+                  Varie saudações, conectivos e expressões.
+                  Mantenha tom profissional e cordial.
+                  Cliente: ${user.name || 'Cliente'}
+                  Retorne APENAS a mensagem reescrita, sem explicações.`;
+                
+                message = await callGroq([
+                  { role: 'system', content: prompt },
+                  { role: 'user', content: broadcast.messageTemplate },
+                ], {
+                  model: 'llama-3.3-70b-versatile',
+                  temperature: 0.8,
+                  max_tokens: 300,
+                });
+                message = message.trim();
+              }
+
+              // ✅ ENVIAR COM RETRY
+              let success = false;
+              for (let attempt = 1; attempt <= 3; attempt++) {
+                const result = await sendAdminNotification(adminId, user.phone || user.whatsappNumber, message);
+                if (result.success) {
+                  success = true;
+                  break;
+                }
+                
+                if (attempt < 3) {
+                  const backoffMs = Math.pow(2, attempt) * 1000;
+                  await new Promise(resolve => setTimeout(resolve, backoffMs));
+                }
+              }
+
+              if (success) {
+                sent++;
+              } else {
+                failed++;
+              }
+
+              // ✅ DELAY ANTI-BOT ENTRE MENSAGENS INDIVIDUAIS (3-10 segundos)
+              if (broadcast.antibotEnabled && i < recipients.length - 1) {
+                const minDelay = (config?.broadcastMinIntervalSeconds || 3) * 1000;
+                const maxDelay = (config?.broadcastMaxIntervalSeconds || 10) * 1000;
+                const delay = Math.random() * (maxDelay - minDelay) + minDelay;
+                await new Promise(resolve => setTimeout(resolve, delay));
+              }
+            } catch (error) {
+              console.error(`Error sending to ${user.id}:`, error);
+              failed++;
+            }
+
+            // ✅ DELAY ENTRE LOTES (30-60 segundos a cada 15-25 mensagens)
+            if ((i + 1) % (Math.floor(Math.random() * (BATCH_SIZE_MAX - BATCH_SIZE_MIN + 1)) + BATCH_SIZE_MIN) === 0 && i < recipients.length - 1) {
+              batchCount++;
+              const BATCH_DELAY_MIN_MS = 30000; // 30 segundos
+              const BATCH_DELAY_MAX_MS = 60000; // 60 segundos
+              const batchDelay = Math.random() * (BATCH_DELAY_MAX_MS - BATCH_DELAY_MIN_MS) + BATCH_DELAY_MIN_MS;
+              
+              console.log(`⏸️ [BROADCAST ${id}] Pausa entre lotes (${batchCount}) - aguardando ${Math.floor(batchDelay/1000)}s...`);
+              await new Promise(resolve => setTimeout(resolve, batchDelay));
+            }
+
+            // Atualizar progresso
+            await storage.updateAdminBroadcast?.(adminId, id, { sentCount: sent, failedCount: failed });
+          }
+
+          await storage.updateAdminBroadcast?.(adminId, id, { 
+            status: 'completed', 
+            completedAt: new Date(),
+            sentCount: sent,
+            failedCount: failed,
+          });
+
+          console.log(`✅ [BROADCAST ${id}] Concluído: ${sent} enviados, ${failed} falhas, ${batchCount} pausas de lote`);
+        } catch (error) {
+          console.error(`❌ [BROADCAST ${id}] Erro:`, error);
+          await storage.updateAdminBroadcast?.(adminId, id, { status: 'cancelled' });
+        }
+      });
+
+      res.json({ success: true, message: 'Broadcast iniciado em background' });
+    } catch (error) {
+      console.error("Error starting broadcast:", error);
+      res.status(500).json({ message: "Failed to start broadcast" });
+    }
+  });
+
+  // ==================== SCHEDULED NOTIFICATIONS / AGENDAMENTOS ====================
+
+  // Get scheduled notifications (calendar view)
+  app.get("/api/admin/notifications/scheduled", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { startDate, endDate, status, type } = req.query;
+      
+      const result = await db.execute(sql`
+        SELECT 
+          sn.*,
+          u.name as user_name,
+          u.email as user_email
+        FROM scheduled_notifications sn
+        LEFT JOIN users u ON sn.user_id = u.id
+        WHERE sn.admin_id = ${adminId}
+        ${startDate ? sql`AND sn.scheduled_for >= ${startDate}::timestamp` : sql``}
+        ${endDate ? sql`AND sn.scheduled_for <= ${endDate}::timestamp` : sql``}
+        ${status ? sql`AND sn.status = ${status}` : sql``}
+        ${type ? sql`AND sn.notification_type = ${type}` : sql``}
+        ORDER BY sn.scheduled_for ASC
+      `);
+      
+      res.json(result.rows || []);
+    } catch (error) {
+      console.error("Error fetching scheduled notifications:", error);
+      res.status(500).json({ message: "Failed to fetch scheduled notifications" });
+    }
+  });
+
+  // Get calendar summary (count per day)
+  app.get("/api/admin/notifications/calendar", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { month, year } = req.query;
+      
+      const startOfMonth = new Date(Number(year), Number(month) - 1, 1);
+      const endOfMonth = new Date(Number(year), Number(month), 0, 23, 59, 59);
+      
+      const result = await db.execute(sql`
+        SELECT 
+          DATE(scheduled_for) as date,
+          notification_type,
+          status,
+          COUNT(*) as count
+        FROM scheduled_notifications
+        WHERE admin_id = ${adminId}
+        AND scheduled_for >= ${startOfMonth.toISOString()}
+        AND scheduled_for <= ${endOfMonth.toISOString()}
+        GROUP BY DATE(scheduled_for), notification_type, status
+        ORDER BY date
+      `);
+      
+      // Agrupar por data para facilitar visualização no calendário
+      const calendarData: Record<string, { 
+        total: number; 
+        pending: number; 
+        sent: number; 
+        failed: number;
+        byType: Record<string, number>;
+      }> = {};
+      
+      for (const row of result.rows as any[]) {
+        const dateKey = row.date.split('T')[0];
+        if (!calendarData[dateKey]) {
+          calendarData[dateKey] = { total: 0, pending: 0, sent: 0, failed: 0, byType: {} };
+        }
+        const count = parseInt(row.count);
+        calendarData[dateKey].total += count;
+        calendarData[dateKey].byType[row.notification_type] = (calendarData[dateKey].byType[row.notification_type] || 0) + count;
+        
+        if (row.status === 'pending') calendarData[dateKey].pending += count;
+        else if (row.status === 'sent') calendarData[dateKey].sent += count;
+        else if (row.status === 'failed') calendarData[dateKey].failed += count;
+      }
+      
+      res.json(calendarData);
+    } catch (error) {
+      console.error("Error fetching calendar data:", error);
+      res.status(500).json({ message: "Failed to fetch calendar data" });
+    }
+  });
+
+  // Reorganize/Generate all scheduled notifications
+  app.post("/api/admin/notifications/reorganize", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      
+      // Obter configuração
+      const rawConfig = await storage.getAdminNotificationConfig?.(adminId);
+      
+      // Configuração padrão
+      const defaultConfig = {
+        paymentReminderEnabled: true,
+        paymentReminderDaysBefore: [7, 3, 1],
+        paymentReminderMessageTemplate: 'Olá {cliente_nome}! 👋\n\nGostaríamos de lembrar que seu pagamento vence em {dias_restantes} dias.\n\n📅 Vencimento: {data_vencimento}\n💰 Valor: R$ {valor}\n\nQualquer dúvida estamos à disposição! 🙏',
+        paymentReminderAiEnabled: true,
+        paymentReminderAiPrompt: 'Reescreva esta mensagem de lembrete de pagamento de forma natural e personalizada. Mantenha o tom profissional mas amigável.',
+        overdueReminderEnabled: true,
+        overdueReminderDaysAfter: [1, 3, 7, 14],
+        overdueReminderMessageTemplate: 'Olá {cliente_nome}! 👋\n\nIdentificamos que seu pagamento está em atraso há {dias_atraso} dias.\n\n📅 Venceu em: {data_vencimento}\n💰 Valor: R$ {valor}\n\nPor favor, regularize sua situação. 🤝',
+        overdueReminderAiEnabled: true,
+        overdueReminderAiPrompt: 'Reescreva esta mensagem de cobrança de forma educada e empática. Mantenha o tom profissional.',
+        periodicCheckinEnabled: true,
+        periodicCheckinMinDays: 7,
+        periodicCheckinMaxDays: 15,
+        periodicCheckinMessageTemplate: 'Olá {cliente_nome}! 👋\n\nPassando para ver se está tudo bem! 😊\n\nPrecisa de alguma coisa? Estamos aqui! 💪',
+        checkinAiEnabled: true,
+        checkinAiPrompt: 'Reescreva esta mensagem de check-in de forma calorosa e natural. Pareça genuinamente interessado no cliente.',
+        disconnectedAlertEnabled: true,
+        disconnectedAlertHours: 2,
+        disconnectedAlertMessageTemplate: 'Olá {cliente_nome}! 👋\n\nNotamos que seu WhatsApp está desconectado. 📱\n\nPodemos ajudar? 🙏',
+        disconnectedAiEnabled: true,
+        disconnectedAiPrompt: 'Reescreva esta mensagem de alerta de desconexão de forma prestativa e profissional.',
+        aiVariationEnabled: true,
+        aiVariationPrompt: 'Reescreva esta mensagem de forma natural e personalizada. Mantenha o tom profissional mas amigável.',
+        businessHoursStart: '09:00',
+        businessHoursEnd: '18:00',
+        businessDays: [1, 2, 3, 4, 5],
+        respectBusinessHours: true,
+      };
+      
+      // Converter snake_case para camelCase se tiver config no banco
+      const config = rawConfig ? {
+        paymentReminderEnabled: rawConfig.payment_reminder_enabled ?? defaultConfig.paymentReminderEnabled,
+        paymentReminderDaysBefore: rawConfig.payment_reminder_days_before ?? defaultConfig.paymentReminderDaysBefore,
+        paymentReminderMessageTemplate: rawConfig.payment_reminder_message_template ?? defaultConfig.paymentReminderMessageTemplate,
+        paymentReminderAiEnabled: rawConfig.payment_reminder_ai_enabled ?? defaultConfig.paymentReminderAiEnabled,
+        paymentReminderAiPrompt: rawConfig.payment_reminder_ai_prompt ?? defaultConfig.paymentReminderAiPrompt,
+        overdueReminderEnabled: rawConfig.overdue_reminder_enabled ?? defaultConfig.overdueReminderEnabled,
+        overdueReminderDaysAfter: rawConfig.overdue_reminder_days_after ?? defaultConfig.overdueReminderDaysAfter,
+        overdueReminderMessageTemplate: rawConfig.overdue_reminder_message_template ?? defaultConfig.overdueReminderMessageTemplate,
+        overdueReminderAiEnabled: rawConfig.overdue_reminder_ai_enabled ?? defaultConfig.overdueReminderAiEnabled,
+        overdueReminderAiPrompt: rawConfig.overdue_reminder_ai_prompt ?? defaultConfig.overdueReminderAiPrompt,
+        periodicCheckinEnabled: rawConfig.periodic_checkin_enabled ?? defaultConfig.periodicCheckinEnabled,
+        periodicCheckinMinDays: rawConfig.periodic_checkin_min_days ?? defaultConfig.periodicCheckinMinDays,
+        periodicCheckinMaxDays: rawConfig.periodic_checkin_max_days ?? defaultConfig.periodicCheckinMaxDays,
+        periodicCheckinMessageTemplate: rawConfig.periodic_checkin_message_template ?? defaultConfig.periodicCheckinMessageTemplate,
+        checkinAiEnabled: rawConfig.checkin_ai_enabled ?? defaultConfig.checkinAiEnabled,
+        checkinAiPrompt: rawConfig.checkin_ai_prompt ?? defaultConfig.checkinAiPrompt,
+        disconnectedAlertEnabled: rawConfig.disconnected_alert_enabled ?? defaultConfig.disconnectedAlertEnabled,
+        disconnectedAlertHours: rawConfig.disconnected_alert_hours ?? defaultConfig.disconnectedAlertHours,
+        disconnectedAlertMessageTemplate: rawConfig.disconnected_alert_message_template ?? defaultConfig.disconnectedAlertMessageTemplate,
+        disconnectedAiEnabled: rawConfig.disconnected_ai_enabled ?? defaultConfig.disconnectedAiEnabled,
+        disconnectedAiPrompt: rawConfig.disconnected_ai_prompt ?? defaultConfig.disconnectedAiPrompt,
+        aiVariationEnabled: rawConfig.ai_variation_enabled ?? defaultConfig.aiVariationEnabled,
+        aiVariationPrompt: rawConfig.ai_variation_prompt ?? defaultConfig.aiVariationPrompt,
+        businessHoursStart: rawConfig.business_hours_start ?? defaultConfig.businessHoursStart,
+        businessHoursEnd: rawConfig.business_hours_end ?? defaultConfig.businessHoursEnd,
+        businessDays: rawConfig.business_days ?? defaultConfig.businessDays,
+        respectBusinessHours: rawConfig.respect_business_hours ?? defaultConfig.respectBusinessHours,
+      } : defaultConfig;
+      
+      console.log(`[Reorganize] Config carregada:`, JSON.stringify({
+        paymentReminderEnabled: config.paymentReminderEnabled,
+        overdueReminderEnabled: config.overdueReminderEnabled,
+        periodicCheckinEnabled: config.periodicCheckinEnabled,
+        disconnectedAlertEnabled: config.disconnectedAlertEnabled,
+        paymentReminderDaysBefore: config.paymentReminderDaysBefore,
+        overdueReminderDaysAfter: config.overdueReminderDaysAfter,
+      }));
+      
+      // Obter todos os usuários com plano ativo
+      const users = await storage.getAllUsers();
+      const subscriptions = await storage.getAllSubscriptions?.() || [];
+      const connections = await storage.getAllConnections?.() || [];
+      
+      // Limpar agendamentos pendentes antigos (passados)
+      await db.execute(sql`
+        DELETE FROM scheduled_notifications 
+        WHERE admin_id = ${adminId} 
+        AND status = 'pending'
+        AND scheduled_for < NOW()
+      `);
+      
+      // Buscar logs de envio para não duplicar
+      const sentLogsResult = await db.execute(sql`
+        SELECT user_id, notification_type, 
+               DATE(created_at) as sent_date,
+               (metadata->>'daysBefore')::int as days_before,
+               (metadata->>'daysAfter')::int as days_after
+        FROM admin_notification_logs 
+        WHERE admin_id = ${adminId}
+        AND created_at > NOW() - INTERVAL '30 days'
+      `);
+      const sentLogs = sentLogsResult.rows || [];
+      
+      // Buscar agendamentos pendentes existentes para não duplicar
+      const existingResult = await db.execute(sql`
+        SELECT user_id, notification_type, DATE(scheduled_for) as schedule_date,
+               (metadata->>'daysBefore')::int as days_before,
+               (metadata->>'daysAfter')::int as days_after
+        FROM scheduled_notifications
+        WHERE admin_id = ${adminId}
+        AND status = 'pending'
+      `);
+      const existingScheduled = existingResult.rows || [];
+      
+      // Função para verificar se já foi enviado ou agendado
+      const alreadySentOrScheduled = (userId: string, type: string, daysBefore?: number, daysAfter?: number) => {
+        // Verifica se já foi enviado
+        const wasSent = sentLogs.some((log: any) => 
+          log.user_id === userId && 
+          log.notification_type === type &&
+          (daysBefore === undefined || log.days_before === daysBefore) &&
+          (daysAfter === undefined || log.days_after === daysAfter)
+        );
+        // Verifica se já está agendado
+        const isScheduled = existingScheduled.some((s: any) => 
+          s.user_id === userId && 
+          s.notification_type === type &&
+          (daysBefore === undefined || s.days_before === daysBefore) &&
+          (daysAfter === undefined || s.days_after === daysAfter)
+        );
+        return wasSent || isScheduled;
+      };
+      
+      const scheduledItems: any[] = [];
+      const now = new Date();
+      
+      // Contar status de subscriptions para debug
+      const activeCount = subscriptions.filter(s => s.status === 'active').length;
+      const pendingCount = subscriptions.filter(s => s.status === 'pending').length;
+      console.log(`[Reorganize] Processando ${users.length} usuários, ${subscriptions.length} subscriptions (${activeCount} active, ${pendingCount} pending)`);
+      console.log(`[Reorganize] Exemplo de subscription:`, JSON.stringify(subscriptions[0], null, 2));
+      
+      for (const user of users) {
+        if (!user.phone) continue;
+        
+        // Buscar subscription ativa OU pendente (pendente = aguardando pagamento = vence em breve)
+        const subscription = subscriptions.find(s => s.userId === user.id && (s.status === 'active' || s.status === 'pending'));
+        const connection = connections.find(c => c.userId === user.id);
+        
+        // Calcular data de vencimento
+        // Prioridade: nextPaymentDate > dataFim > dataInicio + frequenciaDias
+        let dueDate = subscription?.nextPaymentDate || subscription?.dataFim;
+        
+        // Se não tem data de vencimento mas tem data de início e plano, calcular
+        if (!dueDate && subscription?.dataInicio && subscription?.plan) {
+          const startDate = new Date(subscription.dataInicio);
+          const frequenciaDias = subscription.plan.frequenciaDias || 30; // padrão 30 dias
+          const calculatedDueDate = new Date(startDate);
+          calculatedDueDate.setDate(calculatedDueDate.getDate() + frequenciaDias);
+          dueDate = calculatedDueDate.toISOString();
+          
+          console.log(`[Reorganize] ${user.name}: calculado vencimento = dataInicio(${startDate.toISOString()}) + ${frequenciaDias} dias = ${dueDate}`);
+        }
+        
+        const planValor = subscription?.plan?.valor || '0';
+        
+        // Debug: mostrar se vai entrar na condição de lembrete
+        if (subscription && dueDate) {
+          const dueDateObj = new Date(dueDate);
+          const daysUntilDue = Math.ceil((dueDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysUntilDue > -30 && daysUntilDue <= 30) {
+            console.log(`[Reorganize] ${user.name}: dueDate=${dueDate}, daysUntilDue=${daysUntilDue}, paymentReminderEnabled=${config.paymentReminderEnabled}`);
+          }
+        }
+        
+        // 1. LEMBRETE DE PAGAMENTO (para quem tem plano com vencimento)
+        if (config.paymentReminderEnabled && subscription && dueDate) {
+          const dueDateObj = new Date(dueDate);
+          const daysUntilDue = Math.ceil((dueDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          
+          // Apenas logar quem vence nos próximos 14 dias
+          if (daysUntilDue > 0 && daysUntilDue <= 14) {
+            console.log(`[Reorganize] ${user.name}: LEMBRETE - vence em ${daysUntilDue} dias (${dueDateObj.toISOString()})`);
+          }
+          
+          for (const daysBefore of (config.paymentReminderDaysBefore || [7, 3, 1])) {
+            // Só agendar se a data de lembrete está no futuro
+            if (daysUntilDue > 0 && daysUntilDue <= daysBefore + 7) {
+              console.log(`[Reorganize] ${user.name}: tentando agendar lembrete de ${daysBefore} dias antes`);
+              // Verifica se já foi enviado ou agendado
+              if (alreadySentOrScheduled(user.id, 'payment_reminder', daysBefore)) {
+                console.log(`[Reorganize] Pulando ${user.name} - já enviado/agendado para ${daysBefore} dias antes`);
+                continue;
+              }
+              
+              const scheduleDate = new Date(dueDateObj);
+              scheduleDate.setDate(scheduleDate.getDate() - daysBefore);
+              
+              // Se a data de agendamento já passou, agendar para amanhã no horário comercial
+              if (scheduleDate <= now) {
+                scheduleDate.setTime(now.getTime());
+                scheduleDate.setDate(scheduleDate.getDate() + 1);
+              }
+              
+              // Aplicar horário comercial
+              if (config.respectBusinessHours) {
+                const [startHour] = (config.businessHoursStart || '09:00').split(':').map(Number);
+                scheduleDate.setHours(startHour + Math.floor(Math.random() * 2), Math.floor(Math.random() * 60), 0);
+              }
+              
+              scheduledItems.push({
+                admin_id: adminId,
+                user_id: user.id,
+                notification_type: 'payment_reminder',
+                recipient_phone: user.phone,
+                recipient_name: user.name || 'Cliente',
+                message_template: config.paymentReminderMessageTemplate || 'Lembrete de pagamento',
+                ai_prompt: config.paymentReminderAiPrompt || config.aiVariationPrompt,
+                scheduled_for: scheduleDate.toISOString(),
+                ai_enabled: config.paymentReminderAiEnabled !== false,
+                metadata: JSON.stringify({ 
+                  daysBefore, 
+                  dueDate: dueDateObj.toISOString(),
+                  subscriptionId: subscription.id,
+                  valor: planValor,
+                  planName: subscription.plan?.nome || 'Plano'
+                }),
+              });
+            }
+          }
+        }
+        
+        // 2. COBRANÇA EM ATRASO (para quem tem plano vencido)
+        if (config.overdueReminderEnabled && subscription && dueDate) {
+          const dueDateObj = new Date(dueDate);
+          const daysOverdue = Math.ceil((now.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (daysOverdue > 0) {
+            console.log(`[Reorganize] ${user.name}: em atraso há ${daysOverdue} dias`);
+            
+            for (const daysAfter of (config.overdueReminderDaysAfter || [1, 3, 7, 14])) {
+              // Se está no período de atraso adequado
+              if (daysOverdue >= daysAfter && daysOverdue < daysAfter + 7) {
+                // Verifica se já foi enviado ou agendado
+                if (alreadySentOrScheduled(user.id, 'overdue_reminder', undefined, daysAfter)) {
+                  console.log(`[Reorganize] Pulando ${user.name} - cobrança já enviada/agendada para ${daysAfter} dias após`);
+                  continue;
+                }
+                
+                const scheduleDate = new Date();
+                // Aplicar horário comercial
+                if (config.respectBusinessHours) {
+                  const [startHour] = (config.businessHoursStart || '09:00').split(':').map(Number);
+                  scheduleDate.setHours(startHour + Math.floor(Math.random() * 2), Math.floor(Math.random() * 60), 0);
+                }
+                // Se horário já passou, agendar para amanhã
+                if (scheduleDate <= now) {
+                  scheduleDate.setDate(scheduleDate.getDate() + 1);
+                }
+                
+                scheduledItems.push({
+                  admin_id: adminId,
+                  user_id: user.id,
+                  notification_type: 'overdue_reminder',
+                  recipient_phone: user.phone,
+                  recipient_name: user.name || 'Cliente',
+                  message_template: config.overdueReminderMessageTemplate || 'Cobrança em atraso',
+                  ai_prompt: config.overdueReminderAiPrompt || config.aiVariationPrompt,
+                  scheduled_for: scheduleDate.toISOString(),
+                  ai_enabled: config.overdueReminderAiEnabled !== false,
+                  metadata: JSON.stringify({ 
+                    daysAfter,
+                    daysOverdue, 
+                    dueDate: dueDateObj.toISOString(),
+                    subscriptionId: subscription.id,
+                    valor: planValor,
+                    planName: subscription.plan?.nome || 'Plano'
+                  }),
+                });
+              }
+            }
+          }
+        }
+        
+        // 3. CHECK-IN PERIÓDICO (só para quem tem plano ativo)
+        if (config.periodicCheckinEnabled && subscription) {
+          // Verifica se já tem check-in agendado
+          if (alreadySentOrScheduled(user.id, 'checkin')) {
+            continue;
+          }
+          
+          const minDays = config.periodicCheckinMinDays || 7;
+          const maxDays = config.periodicCheckinMaxDays || 15;
+          const randomDays = Math.floor(Math.random() * (maxDays - minDays + 1)) + minDays;
+          
+          const scheduleDate = new Date();
+          scheduleDate.setDate(scheduleDate.getDate() + randomDays);
+          
+          if (config.respectBusinessHours) {
+            const [startHour] = (config.businessHoursStart || '09:00').split(':').map(Number);
+            scheduleDate.setHours(startHour + Math.floor(Math.random() * 4), Math.floor(Math.random() * 60), 0);
+          }
+          
+          scheduledItems.push({
+            admin_id: adminId,
+            user_id: user.id,
+            notification_type: 'checkin',
+            recipient_phone: user.phone,
+            recipient_name: user.name || 'Cliente',
+            message_template: config.periodicCheckinMessageTemplate || 'Check-in periódico',
+            ai_prompt: config.checkinAiPrompt || config.aiVariationPrompt,
+            scheduled_for: scheduleDate.toISOString(),
+            ai_enabled: config.checkinAiEnabled !== false,
+            metadata: JSON.stringify({ minDays, maxDays, randomDays }),
+          });
+        }
+        
+        // 4. ALERTA DESCONECTADO (para quem está desconectado com plano ativo)
+        if (config.disconnectedAlertEnabled && connection && !connection.isConnected && subscription) {
+          // Verifica se já tem alerta agendado
+          if (alreadySentOrScheduled(user.id, 'disconnected')) {
+            continue;
+          }
+          
+          const scheduleDate = new Date();
+          scheduleDate.setHours(scheduleDate.getHours() + (config.disconnectedAlertHours || 2));
+          
+          scheduledItems.push({
+            admin_id: adminId,
+            user_id: user.id,
+            notification_type: 'disconnected',
+            recipient_phone: user.phone,
+            recipient_name: user.name || 'Cliente',
+            message_template: config.disconnectedAlertMessageTemplate || 'Alerta de desconexão',
+            ai_prompt: config.disconnectedAiPrompt || config.aiVariationPrompt,
+            scheduled_for: scheduleDate.toISOString(),
+            ai_enabled: config.disconnectedAiEnabled !== false,
+            metadata: JSON.stringify({ disconnectedSince: connection.updatedAt }),
+          });
+        }
+      }
+      
+      console.log(`[Reorganize] Total de ${scheduledItems.length} notificações a agendar`);
+      
+      // Inserir todos os agendamentos
+      if (scheduledItems.length > 0) {
+        for (const item of scheduledItems) {
+          await db.execute(sql`
+            INSERT INTO scheduled_notifications (
+              admin_id, user_id, notification_type, recipient_phone, recipient_name,
+              message_template, ai_prompt, scheduled_for, ai_enabled, metadata, status
+            ) VALUES (
+              ${item.admin_id}, ${item.user_id}, ${item.notification_type}, 
+              ${item.recipient_phone}, ${item.recipient_name}, ${item.message_template},
+              ${item.ai_prompt}, ${item.scheduled_for}::timestamp, ${item.ai_enabled}, 
+              ${item.metadata}::jsonb, 'pending'
+            )
+            ON CONFLICT DO NOTHING
+          `);
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `${scheduledItems.length} notificações agendadas`,
+        scheduled: scheduledItems.length,
+        breakdown: {
+          paymentReminder: scheduledItems.filter(i => i.notification_type === 'payment_reminder').length,
+          overdueReminder: scheduledItems.filter(i => i.notification_type === 'overdue_reminder').length,
+          checkin: scheduledItems.filter(i => i.notification_type === 'checkin').length,
+          disconnected: scheduledItems.filter(i => i.notification_type === 'disconnected').length,
+        }
+      });
+    } catch (error) {
+      console.error("Error reorganizing notifications:", error);
+      res.status(500).json({ message: "Failed to reorganize notifications" });
+    }
+  });
+
+  // Cancel scheduled notification
+  app.delete("/api/admin/notifications/scheduled/:id", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+      
+      await db.execute(sql`
+        UPDATE scheduled_notifications 
+        SET status = 'cancelled'
+        WHERE id = ${id} AND admin_id = ${adminId} AND status = 'pending'
+      `);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error cancelling notification:", error);
+      res.status(500).json({ message: "Failed to cancel notification" });
+    }
+  });
+
+  // Get conversation history for a user (for AI context)
+  app.get("/api/admin/notifications/conversation-history/:userId", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { userId } = req.params;
+      const { limit = 10 } = req.query;
+      
+      // Buscar telefone do usuário
+      const userResult = await db.execute(sql`
+        SELECT phone FROM users WHERE id = ${userId}
+      `);
+      const userPhone = (userResult.rows?.[0] as any)?.phone;
+      
+      if (!userPhone) {
+        return res.json([]);
+      }
+      
+      // Buscar mensagens do admin com este usuário pelo número de telefone
+      const result = await db.execute(sql`
+        SELECT 
+          am.text,
+          am.from_me,
+          am.timestamp,
+          am.is_from_agent
+        FROM admin_messages am
+        INNER JOIN admin_conversations ac ON am.conversation_id = ac.id
+        WHERE ac.admin_id = ${adminId}
+        AND (ac.contact_number LIKE ${'%' + userPhone.slice(-8)} OR ac.contact_number LIKE ${userPhone + '%'})
+        ORDER BY am.timestamp DESC
+        LIMIT ${Number(limit)}
+      `);
+      
+      // Formatar histórico para contexto IA
+      const history = (result.rows as any[]).reverse().map(msg => ({
+        role: msg.from_me ? 'assistant' : 'user',
+        content: msg.text,
+        timestamp: msg.timestamp,
+        isFromAgent: msg.is_from_agent
+      }));
+      
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching conversation history:", error);
+      res.status(500).json({ message: "Failed to fetch conversation history" });
+    }
+  });
+
+  // Process and send scheduled notification with conversation context
+  app.post("/api/admin/notifications/send/:id", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+      
+      // Buscar notificação agendada
+      const result = await db.execute(sql`
+        SELECT * FROM scheduled_notifications WHERE id = ${id} AND admin_id = ${adminId}
+      `);
+      
+      const notification = result.rows?.[0] as any;
+      if (!notification) {
+        return res.status(404).json({ message: "Notificação não encontrada" });
+      }
+      
+      if (notification.status !== 'pending') {
+        return res.status(400).json({ message: "Notificação já foi processada" });
+      }
+      
+      // Buscar histórico de conversa pelo telefone do destinatário
+      const historyResult = await db.execute(sql`
+        SELECT 
+          am.text,
+          am.from_me,
+          am.timestamp
+        FROM admin_messages am
+        INNER JOIN admin_conversations ac ON am.conversation_id = ac.id
+        WHERE ac.admin_id = ${adminId}
+        AND (ac.contact_number LIKE ${'%' + notification.recipient_phone.slice(-8)} OR ac.contact_number LIKE ${notification.recipient_phone + '%'})
+        ORDER BY am.timestamp DESC
+        LIMIT 15
+      `);
+      
+      const conversationHistory = (historyResult.rows as any[]).reverse().map(msg => 
+        `${msg.from_me ? 'Você' : 'Cliente'}: ${msg.text}`
+      ).join('\n');
+      
+      // Preparar mensagem - substituir variáveis
+      const metadata = JSON.parse(notification.metadata || '{}');
+      let finalMessage = notification.message_template
+        .replace(/{cliente_nome}/g, notification.recipient_name || 'Cliente')
+        .replace(/{dias_restantes}/g, metadata.daysBefore || '')
+        .replace(/{dias_atraso}/g, metadata.daysOverdue || metadata.daysAfter || '')
+        .replace(/{data_vencimento}/g, metadata.dueDate ? 
+          new Date(metadata.dueDate).toLocaleDateString('pt-BR') : '')
+        .replace(/{valor}/g, metadata.valor || '');
+      
+      // Variação com IA usando contexto da conversa
+      if (notification.ai_enabled) {
+        try {
+          const { callGroq } = await import("./llm");
+          const config = await storage.getAdminNotificationConfig?.(adminId);
+          
+          let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt || 
+            'Reescreva esta mensagem de forma natural e personalizada.';
+          
+          // Adicionar contexto do cliente
+          systemPrompt += `\n\nO nome do cliente é: ${notification.recipient_name || 'Cliente'}`;
+          
+          // Adicionar contexto da conversa ao prompt
+          if (conversationHistory) {
+            systemPrompt += `\n\nHISTÓRICO DA CONVERSA COM ESTE CLIENTE:\n---\n${conversationHistory}\n---\n\nUse este contexto para personalizar a mensagem.`;
+          }
+          
+          systemPrompt += '\n\nIMPORTANTE: Retorne APENAS a mensagem reescrita, sem explicações ou aspas.';
+          
+          // ✅ CORRIGIDO: Usar array de ChatMessage
+          const variedMessage = await callGroq(
+            [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: finalMessage }
+            ],
+            { temperature: 0.8, maxTokens: 500 }
+          );
+          
+          // ✅ PROTEÇÃO: Verificar se retornou mensagem válida
+          const trimmedVaried = variedMessage.trim();
+          if (trimmedVaried && trimmedVaried.length > 10 && !trimmedVaried.includes('Como posso ajudar')) {
+            finalMessage = trimmedVaried;
+          }
+        } catch (aiError) {
+          console.error("Error varying message with AI:", aiError);
+          // Continua com mensagem original se IA falhar
+        }
+      }
+      
+      // Enviar mensagem
+      const { sendAdminNotification } = await import("./whatsapp");
+      const sent = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
+      
+      // Atualizar status
+      await db.execute(sql`
+        UPDATE scheduled_notifications 
+        SET 
+          status = ${sent ? 'sent' : 'failed'},
+          sent_at = NOW(),
+          final_message = ${finalMessage},
+          conversation_context = ${conversationHistory || ''},
+          error_message = ${sent ? null : 'Falha ao enviar'}
+        WHERE id = ${id}
+      `);
+      
+      // Registrar no log com metadata para evitar duplicatas
+      await db.execute(sql`
+        INSERT INTO admin_notification_logs (
+          admin_id, user_id, notification_type, recipient_phone, recipient_name,
+          message_original, message_sent, status, metadata, created_at, sent_at
+        ) VALUES (
+          ${adminId}, ${notification.user_id}, ${notification.notification_type},
+          ${notification.recipient_phone}, ${notification.recipient_name},
+          ${notification.message_template}, ${finalMessage}, ${sent ? 'sent' : 'failed'},
+          ${notification.metadata}::jsonb, NOW(), NOW()
+        )
+      `);
+      
+      res.json({ 
+        success: sent, 
+        message: sent ? 'Notificação enviada com sucesso' : 'Falha ao enviar',
+        finalMessage 
+      });
+    } catch (error) {
+      console.error("Error sending notification:", error);
+      res.status(500).json({ message: "Failed to send notification" });
+    }
+  });
+
+  // PROCESSAR FILA DE NOTIFICAÇÕES AGENDADAS - COM SISTEMA DE DELAY ANTI-BAN
+  app.post("/api/admin/notifications/process-queue", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      
+      // Verificar conexão WhatsApp
+      const adminConnection = await db.execute(sql`
+        SELECT * FROM admin_whatsapp_connection WHERE admin_id = ${adminId} AND is_connected = true
+      `);
+      if (!adminConnection.rows?.length) {
+        return res.status(400).json({ message: "WhatsApp do admin não está conectado" });
+      }
+      
+      // Buscar notificações pendentes para enviar agora
+      const pendingResult = await db.execute(sql`
+        SELECT * FROM scheduled_notifications
+        WHERE admin_id = ${adminId}
+        AND status = 'pending'
+        AND scheduled_for <= NOW()
+        ORDER BY scheduled_for ASC
+        LIMIT 50
+      `);
+      
+      const pendingNotifications = pendingResult.rows as any[];
+      if (pendingNotifications.length === 0) {
+        return res.json({ success: true, message: "Nenhuma notificação para processar", processed: 0 });
+      }
+      
+      // Obter configuração para delays
+      const config = await storage.getAdminNotificationConfig?.(adminId);
+      const minDelay = config?.broadcastMinIntervalSeconds || 10;
+      const maxDelay = config?.broadcastMaxIntervalSeconds || 20;
+      const batchSize = 10; // A cada 10 mensagens, pausa maior
+      const batchPauseSeconds = 60; // Pausa de 60 segundos a cada lote
+      
+      console.log(`[QUEUE] Iniciando processamento de ${pendingNotifications.length} notificações`);
+      
+      // Retornar imediatamente - processar em background
+      res.json({ 
+        success: true, 
+        message: `Processando ${pendingNotifications.length} notificações em fila`,
+        total: pendingNotifications.length,
+        batchSize,
+        minDelay,
+        maxDelay
+      });
+      
+      // Processar em background
+      (async () => {
+        let processed = 0;
+        let failed = 0;
+        
+        for (let i = 0; i < pendingNotifications.length; i++) {
+          const notification = pendingNotifications[i];
+          
+          try {
+            // Buscar histórico de conversa
+            const historyResult = await db.execute(sql`
+              SELECT am.text, am.from_me
+              FROM admin_messages am
+              INNER JOIN admin_conversations ac ON am.conversation_id = ac.id
+              WHERE ac.admin_id = ${adminId}
+              AND (ac.contact_number LIKE ${'%' + notification.recipient_phone.slice(-8)} OR ac.contact_number LIKE ${notification.recipient_phone + '%'})
+              ORDER BY am.timestamp DESC
+              LIMIT 10
+            `);
+            
+            const conversationHistory = (historyResult.rows as any[]).reverse().map(msg => 
+              `${msg.from_me ? 'Você' : 'Cliente'}: ${msg.text}`
+            ).join('\n');
+            
+            // Preparar mensagem com variáveis
+            const metadata = JSON.parse(notification.metadata || '{}');
+            let finalMessage = notification.message_template
+              .replace(/{cliente_nome}/g, notification.recipient_name || 'Cliente')
+              .replace(/{dias_restantes}/g, metadata.daysBefore || '')
+              .replace(/{dias_atraso}/g, metadata.daysOverdue || metadata.daysAfter || '')
+              .replace(/{data_vencimento}/g, metadata.dueDate ? 
+                new Date(metadata.dueDate).toLocaleDateString('pt-BR') : '')
+              .replace(/{valor}/g, metadata.valor || '');
+            
+            // VARIAÇÃO IA OBRIGATÓRIA se ativada
+            if (notification.ai_enabled) {
+              try {
+                const { callGroq } = await import("./llm");
+                
+                let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt || 
+                  'Reescreva esta mensagem de forma natural e personalizada.';
+                
+                // Adicionar contexto do cliente
+                systemPrompt += `\n\nO nome do cliente é: ${notification.recipient_name || 'Cliente'}`;
+                
+                if (conversationHistory) {
+                  systemPrompt += `\n\nHISTÓRICO DA CONVERSA COM ESTE CLIENTE:\n---\n${conversationHistory}\n---\n\nUse este contexto para personalizar a mensagem.`;
+                }
+                
+                systemPrompt += '\n\nIMPORTANTE: Retorne APENAS a mensagem reescrita, sem explicações ou aspas.';
+                
+                // ✅ CORRIGIDO: Usar array de ChatMessage
+                const variedMessage = await callGroq(
+                  [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: finalMessage }
+                  ],
+                  { temperature: 0.8, maxTokens: 500 }
+                );
+                
+                // ✅ PROTEÇÃO: Verificar se retornou mensagem válida
+                const trimmedVaried = variedMessage.trim();
+                if (trimmedVaried && trimmedVaried.length > 10 && !trimmedVaried.includes('Como posso ajudar')) {
+                  finalMessage = trimmedVaried;
+                  console.log(`[QUEUE] ✅ IA variou mensagem para ${notification.recipient_name}`);
+                } else {
+                  console.log(`[QUEUE] ⚠️ IA retornou inválido, usando original para ${notification.recipient_name}`);
+                }
+              } catch (aiError) {
+                console.error(`[QUEUE] ❌ Erro IA para ${notification.recipient_name}:`, aiError);
+                // Se IA falhar e é obrigatória, não enviar sem variação
+                if (config?.aiVariationEnabled) {
+                  console.log(`[QUEUE] Pulando ${notification.recipient_name} - IA obrigatória falhou`);
+                  failed++;
+                  await db.execute(sql`
+                    UPDATE scheduled_notifications 
+                    SET status = 'failed', error_message = 'Falha na variação IA obrigatória'
+                    WHERE id = ${notification.id}
+                  `);
+                  continue;
+                }
+              }
+            }
+            
+            // Enviar mensagem
+            const { sendAdminNotification } = await import("./whatsapp");
+            const sent = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
+            
+            if (sent) {
+              processed++;
+              console.log(`[QUEUE] ✓ Enviado para ${notification.recipient_name} (${processed}/${pendingNotifications.length})`);
+            } else {
+              failed++;
+              console.log(`[QUEUE] ✗ Falha ao enviar para ${notification.recipient_name}`);
+            }
+            
+            // Atualizar status
+            await db.execute(sql`
+              UPDATE scheduled_notifications 
+              SET 
+                status = ${sent ? 'sent' : 'failed'},
+                sent_at = NOW(),
+                final_message = ${finalMessage},
+                conversation_context = ${conversationHistory || ''},
+                error_message = ${sent ? null : 'Falha ao enviar'}
+              WHERE id = ${notification.id}
+            `);
+            
+            // Registrar log
+            await db.execute(sql`
+              INSERT INTO admin_notification_logs (
+                admin_id, user_id, notification_type, recipient_phone, recipient_name,
+                message_original, message_sent, status, metadata, created_at, sent_at
+              ) VALUES (
+                ${adminId}, ${notification.user_id}, ${notification.notification_type},
+                ${notification.recipient_phone}, ${notification.recipient_name},
+                ${notification.message_template}, ${finalMessage}, ${sent ? 'sent' : 'failed'},
+                ${notification.metadata}::jsonb, NOW(), NOW()
+              )
+            `);
+            
+            // DELAY ENTRE MENSAGENS (anti-ban)
+            const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+            
+            // Pausa maior a cada lote de 10
+            if ((i + 1) % batchSize === 0 && i + 1 < pendingNotifications.length) {
+              console.log(`[QUEUE] Pausa de ${batchPauseSeconds}s após lote de ${batchSize} mensagens...`);
+              await new Promise(resolve => setTimeout(resolve, batchPauseSeconds * 1000));
+            } else if (i + 1 < pendingNotifications.length) {
+              console.log(`[QUEUE] Aguardando ${delay}s antes da próxima mensagem...`);
+              await new Promise(resolve => setTimeout(resolve, delay * 1000));
+            }
+            
+          } catch (error) {
+            console.error(`[QUEUE] Erro processando ${notification.recipient_name}:`, error);
+            failed++;
+            await db.execute(sql`
+              UPDATE scheduled_notifications 
+              SET status = 'failed', error_message = ${String(error)}
+              WHERE id = ${notification.id}
+            `);
+          }
+        }
+        
+        console.log(`[QUEUE] Processamento concluído: ${processed} enviados, ${failed} falhas`);
+      })();
+      
+    } catch (error) {
+      console.error("Error processing notification queue:", error);
+      res.status(500).json({ message: "Failed to process queue" });
+    }
+  });
+
+  // OBTER STATUS DA FILA DE NOTIFICAÇÕES
+  app.get("/api/admin/notifications/queue-status", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      
+      const result = await db.execute(sql`
+        SELECT 
+          status,
+          notification_type,
+          COUNT(*) as count
+        FROM scheduled_notifications
+        WHERE admin_id = ${adminId}
+        GROUP BY status, notification_type
+      `);
+      
+      const pendingTodayResult = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM scheduled_notifications
+        WHERE admin_id = ${adminId}
+        AND status = 'pending'
+        AND scheduled_for <= NOW()
+      `);
+      
+      const nextInQueueResult = await db.execute(sql`
+        SELECT * FROM scheduled_notifications
+        WHERE admin_id = ${adminId}
+        AND status = 'pending'
+        ORDER BY scheduled_for ASC
+        LIMIT 5
+      `);
+      
+      res.json({
+        breakdown: result.rows,
+        pendingNow: Number((pendingTodayResult.rows?.[0] as any)?.count || 0),
+        nextInQueue: nextInQueueResult.rows
+      });
+    } catch (error) {
+      console.error("Error getting queue status:", error);
+      res.status(500).json({ message: "Failed to get queue status" });
+    }
+  });
+
   // ==================== BULK SEND / ENVIO EM MASSA ROUTES ====================
   
   // Envio em massa para múltiplos números - COM SUPORTE A [nome] e variação IA
@@ -13029,6 +14332,48 @@ Foco: fazer o cliente TESTAR a ferramenta.`
         message: "Failed to test model",
         error: error.message || String(error)
       });
+    }
+  });
+
+  // POST - Testar DELIVERY (SEM autenticação para desenvolvimento local)
+  app.post("/api/dev/delivery/test", async (req: any, res) => {
+    try {
+      const { userId, message, history } = req.body;
+      
+      if (!userId || !message) {
+        return res.status(400).json({ message: "userId and message are required" });
+      }
+
+      console.log(`🧪 [DEV] Testando delivery para user ${userId}: ${message.substring(0, 50)}`);
+      
+      // Converter histórico
+      const conversationHistory = history?.map((msg: any, idx: number) => ({
+        id: `test-${idx}`,
+        chatId: "test",
+        text: msg.content,
+        fromMe: msg.role === "assistant",
+        timestamp: new Date(Date.now() - (history.length - idx) * 60000),
+        isFromAgent: msg.role === "assistant",
+      })) || [];
+      
+      // Usar testAgentResponse diretamente
+      const testResult = await testAgentResponse(
+        userId, 
+        message, 
+        undefined,
+        conversationHistory,
+        undefined,
+        "Teste"
+      );
+      
+      res.json({ 
+        response: testResult.response,
+        intent: testResult.intent,
+        mediaActions: testResult.mediaActions || []
+      });
+    } catch (error: any) {
+      console.error("❌ [DEV] Erro no teste delivery:", error);
+      res.status(500).json({ message: error.message || "Erro interno" });
     }
   });
 

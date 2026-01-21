@@ -97,15 +97,13 @@ export class FollowUpService {
     console.log(`👉 [FOLLOW-UP] Processando ${conversation.contactNumber} (Estágio ${conversation.followupStage})`);
 
     try {
-      // 0. Verificar se o agente está ativo para esta conversa
-      // Se o agente estiver desativado, o follow-up deve ser CANCELADO (não apenas ignorado)
-      if (!conversation.isAgentEnabled) {
-        console.log(`🛑 [FOLLOW-UP] Agente desativado para ${conversation.contactNumber}. Cancelando follow-up.`);
-        await this.disableFollowUp(conversation.id, "Agente IA desativado");
-        return;
-      }
-
-      // 0.1 Verificar se o follow-up está ativo - DUPLA VERIFICAÇÃO
+      // ⚠️ IMPORTANTE: Follow-up é INDEPENDENTE da IA!
+      // A desativação da IA (isAgentEnabled) NÃO deve cancelar o follow-up
+      // Follow-up só deve ser cancelado quando:
+      // 1. Toggle global em /followup está desativado (followup_configs.is_enabled)
+      // 2. Toggle individual na conversa está desativado (conversations.followupActive)
+      
+      // Verificar se o follow-up está ativo para esta conversa
       // Se followupActive for false, NÃO enviar mensagem
       if (!conversation.followupActive) {
         console.log(`🛑 [FOLLOW-UP] Follow-up desativado para ${conversation.contactNumber}. Cancelando.`);

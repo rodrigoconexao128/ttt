@@ -358,8 +358,43 @@ export class UserFollowUpService {
         return;
       }
 
-      // 3. Analisar histórico com IA
-      const decision = await this.analyzeWithAI(conversation, config);
+      // 3. Analisar histórico com IA - COM SISTEMA DE REGENERAÇÃO
+      // 🔄 NOVO: Tentar até 3x se mensagem for repetitiva, ao invés de simplesmente pular
+      let decision = await this.analyzeWithAI(conversation, config);
+      let regenerationAttempts = 0;
+      const MAX_REGENERATION_ATTEMPTS = 3;
+      
+      // Se a IA detectou repetição mas action=wait com motivo de repetição, REGENERAR!
+      while (
+        decision.action === 'wait' && 
+        regenerationAttempts < MAX_REGENERATION_ATTEMPTS &&
+        (decision.reason.includes('repetida') || 
+         decision.reason.includes('similar') || 
+         decision.reason.includes('repetitiva') ||
+         decision.reason.includes('igual'))
+      ) {
+        regenerationAttempts++;
+        console.log(`🔄 [USER-FOLLOW-UP] Tentativa ${regenerationAttempts}/${MAX_REGENERATION_ATTEMPTS} de regenerar mensagem para ${conversation.contactNumber}`);
+        console.log(`   Motivo da regeneração: ${decision.reason}`);
+        
+        // Chamar IA novamente com contexto de regeneração
+        decision = await this.analyzeWithAI(conversation, config, regenerationAttempts);
+        
+        // Se conseguiu gerar mensagem diferente, sair do loop
+        if (decision.action === 'send' && decision.message) {
+          console.log(`✅ [USER-FOLLOW-UP] Regeneração ${regenerationAttempts} bem sucedida!`);
+          break;
+        }
+      }
+      
+      // Se após todas as tentativas ainda está repetindo, logar e pular
+      if (regenerationAttempts >= MAX_REGENERATION_ATTEMPTS && decision.action === 'wait') {
+        console.warn(`⚠️ [USER-FOLLOW-UP] Após ${MAX_REGENERATION_ATTEMPTS} tentativas, não conseguiu gerar mensagem única para ${conversation.contactNumber}`);
+        await this.logFollowUp(conversation, userId, 'skipped', null, decision, `Após ${regenerationAttempts} tentativas: ${decision.reason}`);
+        const nextDate = addRandomSeconds(new Date(Date.now() + 12 * 60 * 60 * 1000)); // 12h ao invés de 24h
+        await this.scheduleNextFollowUp(conversation.id, nextDate);
+        return;
+      }
       
       if (decision.action === 'abort') {
         console.log(`🛑 [USER-FOLLOW-UP] Abortado pela IA para ${conversation.contactNumber}: ${decision.reason}`);
@@ -404,16 +439,14 @@ export class UserFollowUpService {
           return;
         }
         
-        // 🔒 VERIFICAÇÃO CRÍTICA: Se IA está desativada, NÃO enviar follow-up
-        // Follow-up só deve funcionar quando IA está ativa
-        const isAgentEnabled = await storage.isAgentEnabledForConversation(conversation.id);
-        if (!isAgentEnabled) {
-          console.log(`🛑 [USER-FOLLOW-UP] IA desativada para ${conversation.contactNumber} - cancelando follow-up`);
-          await this.disableFollowUp(conversation.id, "IA desativada pelo usuário");
-          return;
-        }
+        // ⚠️ IMPORTANTE: Follow-up é INDEPENDENTE da IA!
+        // A desativação da IA (isAgentEnabled) NÃO deve cancelar o follow-up
+        // Follow-up só deve ser cancelado quando:
+        // 1. Toggle global em /followup está desativado (followup_configs.is_enabled)
+        // 2. Toggle individual na conversa está desativado (conversations.followupActive)
+        // A IA e o Follow-up são sistemas separados e independentes!
         
-        // �🔒 ANTI-DUPLICAÇÃO: Verificar se mensagem similar já foi enviada recentemente
+        // 🔒 ANTI-DUPLICAÇÃO: Verificar se mensagem similar já foi enviada recentemente
         if (wasMessageRecentlySent(conversation.id, decision.message)) {
           console.warn(`🔒 [USER-FOLLOW-UP] Mensagem DUPLICADA detectada para ${conversation.contactNumber} - NÃO enviando`);
           const nextDate = addRandomSeconds(new Date(Date.now() + 60 * 60 * 1000)); // 1 hora
@@ -458,25 +491,12 @@ export class UserFollowUpService {
             );
             await this.advanceToNextStage(conversation, config);
             
-            // 🔄 REATIVAR IA: Quando follow-up é enviado, reativar IA SOMENTE se follow-up ainda estiver ativo
-            // Isso evita reativar IA se o usuário desativou o follow-up enquanto processava
-            try {
-              // Buscar estado atualizado da conversa
-              const [currentConv] = await db.select()
-                .from(conversations)
-                .where(eq(conversations.id, conversation.id))
-                .limit(1);
-              
-              // Só reativa se follow-up ainda estiver ativo
-              if (currentConv?.followupActive) {
-                await storage.enableAgentForConversation(conversation.id);
-                console.log(`🤖 [USER-FOLLOW-UP] IA reativada para ${conversation.contactNumber} após follow-up`);
-              } else {
-                console.log(`⏭️ [USER-FOLLOW-UP] IA NÃO reativada - follow-up foi desativado para ${conversation.contactNumber}`);
-              }
-            } catch (reactivateError) {
-              console.warn(`⚠️ [USER-FOLLOW-UP] Erro ao reativar IA para ${conversation.contactNumber}:`, reactivateError);
-            }
+            // ⚠️ IMPORTANTE: NÃO reativamos a IA automaticamente após follow-up!
+            // Follow-up e IA são sistemas INDEPENDENTES:
+            // - Se o usuário desativou a IA, ela deve permanecer desativada
+            // - O follow-up pode continuar funcionando mesmo com IA desativada
+            // - A IA só deve ser reativada quando o usuário ativar manualmente
+            console.log(`✅ [USER-FOLLOW-UP] Follow-up enviado para ${conversation.contactNumber} (IA permanece no estado atual)`);
           } else {
             // Falha (ex: WhatsApp desconectado): NÃO logar como falha, apenas reagendar
             // Isso evita poluir o histórico com "falhas" que são apenas reconexões
@@ -611,8 +631,9 @@ export class UserFollowUpService {
   /**
    * Usa IA para analisar se deve enviar follow-up e qual mensagem
    * VERSÃO MELHORADA: Lê contexto completo, entende o negócio, evita repetições
+   * @param regenerationAttempt - Número da tentativa de regeneração (0 = primeira vez)
    */
-  private async analyzeWithAI(conversation: any, config: any): Promise<{
+  private async analyzeWithAI(conversation: any, config: any, regenerationAttempt: number = 0): Promise<{
     action: 'send' | 'wait' | 'abort' | 'schedule';
     reason: string;
     message?: string;
@@ -733,6 +754,39 @@ ${productsList ? `\nPRODUTOS/SERVIÇOS:\n${productsList}` : ''}
       clientFeedback.includes('mesmo texto') ||
       clientFeedback.includes('já disse') ||
       clientFeedback.includes('já falei');
+    
+    // 🔴 DETECÇÃO DE CLIENTE IRRITADO - DESATIVA AUTOMATICAMENTE O FOLLOW-UP
+    const clientIrritadoPhrases = [
+      'para de mandar', 'pare de mandar', 'para de enviar', 'pare de enviar',
+      'não manda mais', 'não mande mais', 'não envia mais', 'não envie mais',
+      'chega de mensagem', 'para com isso', 'pare com isso',
+      'me deixa em paz', 'deixa em paz', 'saco cheio', 'encheu o saco',
+      'irritado', 'irritada', 'p*rra', 'porra', 'caralho', 'merda',
+      'não quero mais', 'não quero saber', 'desiste', 'desista',
+      'bloquear', 'vou bloquear', 'vou te bloquear',
+      'spam', 'isso é spam', 'tá spamando', 'spamando',
+      'para de insistir', 'pare de insistir', 'já disse não', 'já falei não',
+      'não me manda', 'não me mande', 'não me envia', 'não me envie',
+      'cansa', 'cansado', 'cansada', 'chato', 'chata', 'chatice',
+      'que saco', 'que droga', 'pqp', 'vsf', 'vai se',
+      'não enche', 'não encha', 'me esquece', 'esquece de mim',
+      'some daqui', 'sai fora', 'vai embora',
+      'número errado', 'engano', 'não te conheço', 'quem é você'
+    ];
+    
+    const isClientIrritado = clientIrritadoPhrases.some(phrase => 
+      clientFeedback.includes(phrase)
+    );
+    
+    // 🔴 Se cliente está irritado, desativar follow-up IMEDIATAMENTE
+    if (isClientIrritado) {
+      console.log(`🔴 [USER-FOLLOW-UP] CLIENTE IRRITADO detectado para ${conversation.contactNumber}!`);
+      console.log(`   Frase detectada no histórico: "${clientFeedback.slice(0, 200)}..."`);
+      return {
+        action: 'abort',
+        reason: 'Cliente demonstrou irritação/desejo de não receber mais mensagens - follow-up desativado automaticamente'
+      };
+    }
 
     // Extrair última mensagem do cliente para contexto
     const lastClientText = lastClientMessage?.text?.replace(/\s*Áudio\s*$/gi, '').trim() || '';
@@ -751,22 +805,42 @@ ${productsList ? `\nPRODUTOS/SERVIÇOS:\n${productsList}` : ''}
     const offeredDemo = ourLastMessages.some(m => m?.toLowerCase().includes('demo') || m?.toLowerCase().includes('vídeo') || m?.toLowerCase().includes('teste'));
     const offeredPrice = ourLastMessages.some(m => m?.toLowerCase().includes('99') || m?.toLowerCase().includes('199') || m?.toLowerCase().includes('preço') || m?.toLowerCase().includes('plano'));
     const askedQuestion = ourLastMessages[0]?.includes('?');
+    
+    // 🔴 Verificar se conversamos hoje (para evitar saudações)
+    const lastOurMessageToday = recentMessages.find(m => {
+      if (!m.fromMe || !m.timestamp) return false;
+      const msgDate = new Date(m.timestamp);
+      const msgDay = msgDate.toLocaleDateString('pt-BR');
+      return msgDay === todayStr;
+    });
+    const conversedToday = !!lastOurMessageToday;
+    
+    // 🔄 Contexto de regeneração (quando estamos tentando novamente)
+    const regenerationContext = regenerationAttempt > 0 ? `
 
-    const prompt = `## 📌 O QUE É FOLLOW-UP E QUANDO USAR
+🔴🔴🔴 **ATENÇÃO CRÍTICA - TENTATIVA ${regenerationAttempt} DE REGENERAÇÃO** 🔴🔴🔴
+A mensagem que você gerou na tentativa anterior FOI REJEITADA por ser muito similar às mensagens anteriores.
+VOCÊ PRECISA SER COMPLETAMENTE DIFERENTE AGORA!
 
-FOLLOW-UP significa "acompanhamento" - é uma mensagem que enviamos para RETOMAR uma conversa que FICOU PARADA.
+REGRAS EXTRAS PARA REGENERAÇÃO:
+1. Use uma ABORDAGEM TOTALMENTE DIFERENTE (se perguntou antes, agora ofereça algo; se ofereceu, agora pergunte)
+2. NÃO use NENHUMA das frases das mensagens anteriores
+3. Seja mais CURTO e DIRETO (máximo 1-2 frases)
+4. Tente um ÂNGULO NOVO: benefício diferente, informação nova, pergunta criativa
+5. Se estágio > 2, tente algo mais criativo como compartilhar um case, estatística interessante, ou novidade
 
-❌ **FOLLOW-UP NÃO É:**
-- Responder mensagem normal do cliente (isso é conversa, não follow-up)
-- Enviar se já mandamos msg há menos de 2 horas
-- Repetir a mesma informação de antes
-- Insistir quando cliente não quer
+EXEMPLOS DE VARIAÇÃO (use como inspiração, não copie):
+- Estágio 1: "Ficou alguma dúvida sobre o que conversamos?"
+- Estágio 2: "Conseguiu dar uma olhada naquilo?"  
+- Estágio 3: "Surgiu algo novo aqui que pode te interessar..."
+- Estágio 4: "Tô terminando o expediente, quer que eu te mande mais info amanhã?"
+` : '';
 
-✅ **FOLLOW-UP É:**
-- Retomar contato quando CLIENTE ficou em silêncio há MUITAS HORAS
-- Continuar de onde a conversa PAROU, não começar do zero
-- Agregar VALOR NOVO (nova info, novo benefício, nova abordagem)
-- Ser natural como um humano falaria
+    const prompt = `## 📌 O QUE É FOLLOW-UP INTELIGENTE
+
+FOLLOW-UP = AQUECER O LEAD de forma NATURAL, como se fosse um amigo ou vendedor experiente retomando contato.
+
+🎯 **OBJETIVO**: Fazer o cliente RESPONDER sem parecer insistente ou robótico.
 
 ---
 
@@ -777,81 +851,80 @@ ${businessContext}
 ## 📅 MOMENTO ATUAL
 - Data: ${todayStr} (${todayName})  
 - Hora: ${brazilNow.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+- Já conversamos HOJE: **${conversedToday ? 'SIM - NÃO cumprimentar de novo!' : 'NÃO'}**
 
 ## 👤 CLIENTE: ${clientName || 'Não identificado'}
 
-## ⏰ ANÁLISE TEMPORAL CRÍTICA
+## ⏰ ANÁLISE TEMPORAL
 - CLIENTE respondeu há: **${minutesSinceClient} minutos** (${Math.floor(minutesSinceClient/60)}h ${minutesSinceClient % 60}min)
-- NÓS enviamos msg há: **${minutesSinceOur} minutos**
-- Quem falou por ÚLTIMO: **${lastMessageWasOurs ? '⚠️ NÓS (cliente não respondeu)' : '🟢 CLIENTE (aguardando NOSSA resposta)'}**
-- Estágio do follow-up: ${conversation.followupStage || 0}
-${hasNegativeFeedback ? '\n⛔ **ALERTA CRÍTICO**: Cliente JÁ RECLAMOU de mensagens repetidas!' : ''}
+- NÓS enviamos há: **${minutesSinceOur} minutos**
+- Quem falou por ÚLTIMO: **${lastMessageWasOurs ? '⚠️ NÓS (cliente não respondeu)' : '🟢 CLIENTE'}**
+- Estágio: ${conversation.followupStage || 0}
+${hasNegativeFeedback ? '\n⛔ **ALERTA**: Cliente reclamou de repetições!' : ''}
+${regenerationContext}
 
-## 💬 HISTÓRICO COMPLETO (LEIA TUDO COM ATENÇÃO!)
+## 💬 HISTÓRICO DA CONVERSA (LEIA COM ATENÇÃO!)
 ${historyFormatted.map(h => `[${h.hora}] ${h.de}: ${h.mensagem}`).join('\n')}
 
-## 🚫 NOSSAS ÚLTIMAS MENSAGENS (NÃO REPITA NENHUMA DELAS!)
-${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).join('\n') : '(nenhuma ainda)'}
+## 🚫 MENSAGENS ANTERIORES (EVITE COMPLETAMENTE!)
+${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).join('\n') : '(nenhuma)'}
 
-## 🧠 ANÁLISE INTELIGENTE DO CONTEXTO
+## 📊 CONTEXTO
 - Última fala do cliente: "${lastClientText}"
-- Já oferecemos demonstração: ${offeredDemo ? 'SIM' : 'NÃO'}
-- Já falamos de preço/planos: ${offeredPrice ? 'SIM' : 'NÃO'}
+- Oferecemos demo/teste: ${offeredDemo ? 'SIM' : 'NÃO'}
+- Falamos de preço: ${offeredPrice ? 'SIM' : 'NÃO'}
 
 ---
 
-## 🎯 REGRAS DE DECISÃO (SIGA RIGOROSAMENTE!)
+## 🎯 REGRAS DE DECISÃO
 
-### WAIT (esperar) - Escolha quando:
-1. Cliente respondeu há MENOS de 2 horas (conversa ativa, não incomodar)
-2. NÓS enviamos msg há menos de 2 horas e cliente não respondeu (dar tempo)
-3. Cliente pediu para esperar, disse que está ocupado
-4. Não temos nada NOVO para agregar
+### SEND - Enviar quando:
+- Cliente parou de responder há mais de 2 horas
+- Temos algo NOVO para falar
+- Conversa não teve fechamento negativo
 
-### SEND (enviar) - Escolha APENAS quando TODOS os critérios:
-1. Cliente parou de responder há MAIS de 2 horas
-2. Temos algo NOVO/DIFERENTE para falar (não repetir)
-3. A conversa não teve fechamento negativo
+### WAIT - Esperar quando:
+- Cliente respondeu há menos de 2 horas
+- Nós enviamos há menos de 2 horas sem resposta
+- Não temos nada novo para agregar
 
-### ABORT (cancelar follow-up) - Escolha quando:
-1. Cliente disse NÃO claramente, rejeitou
-2. Cliente já comprou/fechou
-3. Cliente pediu para não enviar mais mensagens
-
-### SCHEDULE (agendar) - Escolha quando:
-1. Cliente mencionou data específica ("me liga segunda", "depois do carnaval")
+### ABORT - Cancelar quando:
+- Cliente disse NÃO claramente
+- Cliente demonstrou irritação
+- Cliente pediu para parar de enviar mensagens
 
 ---
 
-## ✍️ COMO ESCREVER A MENSAGEM (se action=send)
+## ✍️ COMO ESCREVER A MENSAGEM
 
-1. **CONTINUE DE ONDE PAROU**: Releia o histórico e continue o ASSUNTO que estava em discussão
-2. **SEJA DIFERENTE**: Use abordagem/palavras diferentes das msgs anteriores
-3. **AGREGUE VALOR**: Traga informação nova, benefício novo, ângulo novo
-4. **SEJA CURTO**: Máximo 2-3 frases, WhatsApp não é email
-5. **SEJA HUMANO**: Escreva como pessoa real, não robô
-6. **USE O NOME**: Chame o cliente pelo nome se souber
+⛔ **PROIBIDO** (NUNCA FAÇA):
+${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVERSAMOS HOJE!' : ''}
+- NUNCA repita mensagens anteriores (nem com palavras diferentes)
+- NUNCA use frases genéricas como "passo a passo", "entendi", "fico à disposição"
+- NUNCA se apresente de novo (sem "sou X da empresa Y")
+- NUNCA seja robótico ou formal demais
 
-⛔ **NUNCA NO FOLLOW-UP**:
-- NÃO cumprimente novamente (sem "Bom dia", "Oi", "Olá") - já conversamos hoje!
-- NÃO se apresente de novo (sem "Sou X da empresa Y")
-- NÃO repita a mesma pergunta que já fez
-- NÃO envie a mesma mensagem com palavras diferentes
-- NÃO seja formal demais ou robótico
+✅ **OBRIGATÓRIO** (SEMPRE FAÇA):
+- Continue o ASSUNTO da conversa naturalmente
+- Seja CURTO (1-2 frases no máximo)
+- Pareça HUMANO, como um amigo/vendedor real
+- Traga VALOR NOVO ou pergunta DIFERENTE
+- Use o NOME do cliente se souber
 
-✅ **EXEMPLOS BONS de follow-up natural**:
-- "E aí, conseguiu pensar sobre o que conversamos?"
-- "Vi aqui que ficou uma dúvida sobre X, quer que eu explique melhor?"
-- "Só passando pra ver se posso te ajudar com mais alguma coisa"
-- "Lembrei de você! Ainda está interessado em X?"
+🌟 **EXEMPLOS DE MENSAGENS BOAS** (adapte ao contexto):
+- "E aí [nome], conseguiu pensar sobre aquilo?"
+- "Vi que ficou uma dúvida sobre X, quer que eu explique melhor?"
+- "Surgiu uma novidade aqui que achei sua cara..."
+- "Opa, tava aqui pensando no seu caso..."
+- "[nome], rápido: ainda faz sentido aquilo pra você?"
 
-**Tom**: ${toneMap[config.tone] || 'consultivo'}
-**Emojis**: ${config.useEmojis ? 'Pode usar 1 emoji sutil' : 'NÃO use emojis'}
+**Tom**: ${toneMap[config.tone] || 'casual e amigável'}
+**Emojis**: ${config.useEmojis ? 'Pode usar 1 emoji no máximo' : 'NÃO use emojis'}
 
 ---
 
-## 📋 RESPONDA APENAS EM JSON (sem texto antes ou depois):
-{"action":"wait|send|abort|schedule","reason":"explicação curta do motivo","message":"texto pronto (só se action=send)","scheduleDate":"YYYY-MM-DDTHH:MM (só se action=schedule)"}`;
+## 📋 RESPONDA APENAS EM JSON:
+{"action":"send|wait|abort|schedule","reason":"motivo curto","message":"texto (só se send)","scheduleDate":"YYYY-MM-DDTHH:MM (só se schedule)"}`;
 
     try {
       const mistral = await getMistralClient();
@@ -1138,21 +1211,17 @@ ${ourLastMessages.length > 0 ? ourLastMessages.map((m, i) => `${i+1}. "${m}"`).j
       return;
     }
 
-    // � VERIFICAÇÃO CRÍTICA: Se a IA está desativada, NÃO ativar follow-up
-    // Follow-up só funciona quando IA está ativa
-    const isAgentEnabled = await storage.isAgentEnabledForConversation(conversationId);
-    if (!isAgentEnabled) {
-      console.log(`🛑 [USER-FOLLOW-UP] IA está desativada para ${conversationId}. Follow-up NÃO pode ser ativado.`);
-      await db.update(conversations)
-        .set({ 
-          followupActive: false,
-          followupDisabledReason: "IA desativada - ative a IA primeiro"
-        })
-        .where(eq(conversations.id, conversationId));
-      return;
-    }
+    // ⚠️ IMPORTANTE: Follow-up é INDEPENDENTE da IA!
+    // Follow-up pode ser ativado/desativado independentemente do estado da IA
+    // A IA e o Follow-up são sistemas separados e independentes!
+    // 
+    // Follow-up é controlado por:
+    // 1. Toggle global em /followup (followup_configs.is_enabled)
+    // 2. Toggle individual na conversa (conversations.followupActive)
+    //
+    // A desativação da IA (isAgentEnabled) NÃO deve afetar o follow-up!
 
-    // �🔧 FIX BUG REATIVAÇÃO: Se foi DESATIVADO MANUALMENTE pelo usuário, NÃO reativar automaticamente
+    // 🔧 FIX BUG REATIVAÇÃO: Se foi DESATIVADO MANUALMENTE pelo usuário, NÃO reativar automaticamente
     // Isso evita que o sistema reative follow-up quando o dono envia uma mensagem
     if (conversation.followupDisabledReason && conversation.followupDisabledReason.includes('Desativado pelo usuário')) {
       console.log(`🛑 [USER-FOLLOW-UP] Follow-up foi DESATIVADO MANUALMENTE para ${conversationId}. Motivo: ${conversation.followupDisabledReason}. NÃO reativando automaticamente.`);

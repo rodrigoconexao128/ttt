@@ -2268,44 +2268,37 @@ export async function generateAIResponse(
     // - IA inventando preços/produtos
     // - Cardápio incompleto (3 itens vs 36)
     // ═══════════════════════════════════════════════════════════════════════
+    // 🍕 NOVO SISTEMA DE DELIVERY (SEMPRE TENTA PROCESSAR SE ATIVO)
+    // ═══════════════════════════════════════════════════════════════════════
     try {
-      const deliveryIntent = detectCustomerIntent(newMessageText);
-      console.log(`🍕 [AI Agent] Intenção delivery detectada: ${deliveryIntent}`);
+      console.log(`🍕 [AI Agent] Tentando processar com sistema de delivery...`);
       
-      // Somente intercepta se for pedido de cardápio/menu
-      if (deliveryIntent === 'WANT_MENU' || deliveryIntent === 'GREETING') {
-        console.log(`🍕 [AI Agent] Tentando usar novo sistema de delivery...`);
+      const deliveryResponse = await processDeliveryMessage(
+        userId,
+        newMessageText,
+        conversationHistory?.filter(m => m.text !== null).map(m => ({ fromMe: m.fromMe, text: m.text as string }))
+      );
+      
+      if (deliveryResponse && deliveryResponse.bubbles.length > 0) {
+        console.log(`🍕 [AI Agent] ✅ Sistema de delivery retornou ${deliveryResponse.bubbles.length} bolha(s)`);
+        console.log(`🍕 [AI Agent] Intent: ${deliveryResponse.intent}`);
         
-        const deliveryResponse = await processDeliveryMessage(
-          userId,
-          newMessageText,
-          conversationHistory?.filter(m => m.text !== null).map(m => ({ fromMe: m.fromMe, text: m.text as string }))
-        );
+        // Combinar bolhas em uma resposta (o sistema de envio vai dividir)
+        const combinedResponse = deliveryResponse.bubbles.join('\n\n');
         
-        if (deliveryResponse && deliveryResponse.bubbles.length > 0) {
-          console.log(`🍕 [AI Agent] ✅ Sistema de delivery retornou ${deliveryResponse.bubbles.length} bolha(s)`);
-          console.log(`🍕 [AI Agent] Intent: ${deliveryResponse.intent}`);
-          
-          // 🎯 Para WANT_MENU: retorna cardápio direto do banco (bypass total da IA)
-          // Para GREETING: combina saudação + oferta de cardápio
-          
-          // Combinar bolhas em uma resposta (o sistema de envio vai dividir)
-          const combinedResponse = deliveryResponse.bubbles.join('\n\n');
-          
-          // Log da resposta para debug
-          console.log(`🍕 [AI Agent] Preview: ${combinedResponse.substring(0, 200)}...`);
-          console.log(`🍕 [AI Agent] Total chars: ${combinedResponse.length}`);
-          
-          return {
-            text: combinedResponse,
-            mediaActions: [],
-            notification: undefined,
-            appointmentCreated: undefined,
-            deliveryOrderCreated: undefined,
-          };
-        } else {
-          console.log(`🍕 [AI Agent] Delivery não ativo ou sem dados - continuando fluxo normal`);
-        }
+        // Log da resposta para debug
+        console.log(`🍕 [AI Agent] Preview: ${combinedResponse.substring(0, 200)}...`);
+        console.log(`🍕 [AI Agent] Total chars: ${combinedResponse.length}`);
+        
+        return {
+          text: combinedResponse,
+          mediaActions: [],
+          notification: undefined,
+          appointmentCreated: undefined,
+          deliveryOrderCreated: deliveryResponse.deliveryOrderCreated,
+        };
+      } else {
+        console.log(`🍕 [AI Agent] Delivery não ativo ou sem resposta - continuando fluxo normal`);
       }
     } catch (deliveryError) {
       console.error(`🍕 [AI Agent] Erro no sistema de delivery:`, deliveryError);

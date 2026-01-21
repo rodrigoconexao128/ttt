@@ -65,9 +65,24 @@ import {
   Truck,
   Store,
   CreditCard,
-  Sparkles
+  Sparkles,
+  XCircle
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+
+// Interface para opções de variação (ex: Tamanho P, M, G)
+interface VariationOption {
+  name: string;
+  price: number;
+}
+
+// Interface para um grupo de variações (ex: "Tamanho" com opções P, M, G)
+interface VariationGroup {
+  name: string;
+  type: 'single' | 'multiple';
+  required: boolean;
+  options: VariationOption[];
+}
 
 interface MenuItem {
   id: string;
@@ -81,7 +96,7 @@ interface MenuItem {
   preparation_time: number;
   is_available: boolean;
   is_featured: boolean;
-  options: any[];
+  options: VariationGroup[];
   ingredients: string | null;
   allergens: string | null;
   serves: number;
@@ -117,6 +132,7 @@ interface DeliveryConfig {
   payment_methods: string[];
   accepts_delivery: boolean;
   accepts_pickup: boolean;
+  accepts_cancellation: boolean;  // Novo campo: permite cancelamento pelo cliente
   opening_hours: Record<string, any>;
   ai_instructions: string;
   display_instructions: string | null;
@@ -165,7 +181,18 @@ export default function DeliveryMenuPage() {
     ingredients: '',
     allergens: '',
     serves: 1,
+    options: [] as VariationGroup[],
   });
+
+  // Estado para nova variação sendo adicionada
+  const [newVariation, setNewVariation] = useState<VariationGroup>({
+    name: '',
+    type: 'single',
+    required: true,
+    options: []
+  });
+  const [newOptionName, setNewOptionName] = useState('');
+  const [newOptionPrice, setNewOptionPrice] = useState('');
 
   // Form state para categoria
   const [categoryForm, setCategoryForm] = useState({
@@ -336,7 +363,11 @@ export default function DeliveryMenuPage() {
       ingredients: '',
       allergens: '',
       serves: 1,
+      options: [],
     });
+    setNewVariation({ name: '', type: 'single', required: true, options: [] });
+    setNewOptionName('');
+    setNewOptionPrice('');
   };
 
   const resetCategoryForm = () => {
@@ -363,7 +394,11 @@ export default function DeliveryMenuPage() {
       ingredients: item.ingredients || '',
       allergens: item.allergens || '',
       serves: item.serves,
+      options: item.options || [],
     });
+    setNewVariation({ name: '', type: 'single', required: true, options: [] });
+    setNewOptionName('');
+    setNewOptionPrice('');
     setIsEditItemModalOpen(true);
   };
 
@@ -427,6 +462,105 @@ export default function DeliveryMenuPage() {
     { value: 'japonesa', label: '🍣 Comida Japonesa' },
     { value: 'outros', label: '🍴 Outros' },
   ];
+
+  // Funções para gerenciar variações
+  const addOptionToNewVariation = () => {
+    if (!newOptionName.trim()) return;
+    const price = parseFloat(newOptionPrice) || 0;
+    setNewVariation(prev => ({
+      ...prev,
+      options: [...prev.options, { name: newOptionName.trim(), price }]
+    }));
+    setNewOptionName('');
+    setNewOptionPrice('');
+  };
+
+  const removeOptionFromNewVariation = (index: number) => {
+    setNewVariation(prev => ({
+      ...prev,
+      options: prev.options.filter((_, i) => i !== index)
+    }));
+  };
+
+  const addVariationToItem = () => {
+    if (!newVariation.name.trim() || newVariation.options.length === 0) return;
+    setItemForm(prev => ({
+      ...prev,
+      options: [...prev.options, { ...newVariation }]
+    }));
+    setNewVariation({ name: '', type: 'single', required: true, options: [] });
+  };
+
+  const removeVariationFromItem = (index: number) => {
+    setItemForm(prev => ({
+      ...prev,
+      options: prev.options.filter((_, i) => i !== index)
+    }));
+  };
+
+  const applyVariationTemplate = (template: string) => {
+    if (template === 'tamanho-pizza') {
+      const sizeVariation: VariationGroup = {
+        name: 'Tamanho',
+        type: 'single',
+        required: true,
+        options: [
+          { name: 'Pequena (P)', price: 30 },
+          { name: 'Média (M)', price: 40 },
+          { name: 'Grande (G)', price: 55 },
+        ]
+      };
+      setItemForm(prev => ({
+        ...prev,
+        options: [...prev.options, sizeVariation]
+      }));
+    } else if (template === 'tamanho-lanche') {
+      const sizeVariation: VariationGroup = {
+        name: 'Tamanho',
+        type: 'single',
+        required: true,
+        options: [
+          { name: 'Simples', price: 0 },
+          { name: 'Duplo', price: 8 },
+          { name: 'Triplo', price: 15 },
+        ]
+      };
+      setItemForm(prev => ({
+        ...prev,
+        options: [...prev.options, sizeVariation]
+      }));
+    } else if (template === 'tamanho-acai') {
+      const sizeVariation: VariationGroup = {
+        name: 'Tamanho',
+        type: 'single',
+        required: true,
+        options: [
+          { name: '300ml', price: 15 },
+          { name: '500ml', price: 22 },
+          { name: '700ml', price: 30 },
+        ]
+      };
+      setItemForm(prev => ({
+        ...prev,
+        options: [...prev.options, sizeVariation]
+      }));
+    } else if (template === 'adicionais') {
+      const addonsVariation: VariationGroup = {
+        name: 'Adicionais',
+        type: 'multiple',
+        required: false,
+        options: [
+          { name: 'Bacon', price: 5 },
+          { name: 'Queijo extra', price: 4 },
+          { name: 'Ovo', price: 3 },
+        ]
+      };
+      setItemForm(prev => ({
+        ...prev,
+        options: [...prev.options, addonsVariation]
+      }));
+    }
+  };
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-7xl">
@@ -619,6 +753,11 @@ export default function DeliveryMenuPage() {
                               <div className="font-medium flex items-center gap-2">
                                 {item.name}
                                 {item.is_featured && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
+                                {item.options && item.options.length > 0 && (
+                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                    📐 {item.options.length} variação(ões)
+                                  </Badge>
+                                )}
                               </div>
                               {item.description && (
                                 <div className="text-xs text-muted-foreground line-clamp-1">{item.description}</div>
@@ -926,6 +1065,23 @@ export default function DeliveryMenuPage() {
                   </div>
                 </div>
 
+                {/* Toggle de cancelamento pelo cliente */}
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-red-50 border-red-200">
+                  <div className="flex items-center gap-2">
+                    <XCircle className="h-4 w-4 text-red-500" />
+                    <div>
+                      <span className="font-medium">Permitir Cancelamento</span>
+                      <p className="text-xs text-muted-foreground">
+                        Se ativado, o cliente pode cancelar o pedido pelo chat
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={config?.accepts_cancellation ?? false}
+                    onCheckedChange={(checked) => updateConfigMutation.mutate({ accepts_cancellation: checked })}
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <CreditCard className="h-4 w-4" />
@@ -938,6 +1094,87 @@ export default function DeliveryMenuPage() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Número que receberá notificação de cada novo pedido
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Horários de Funcionamento */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Horários de Funcionamento
+                </CardTitle>
+                <CardDescription>
+                  Configure os dias e horários que seu estabelecimento funciona. 
+                  A IA informará automaticamente quando estiver fechado.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
+                  const dayNames: Record<string, string> = {
+                    monday: 'Segunda-feira',
+                    tuesday: 'Terça-feira',
+                    wednesday: 'Quarta-feira',
+                    thursday: 'Quinta-feira',
+                    friday: 'Sexta-feira',
+                    saturday: 'Sábado',
+                    sunday: 'Domingo'
+                  };
+                  const dayConfig = config?.opening_hours?.[day] || { enabled: false, open: '18:00', close: '23:00' };
+                  
+                  return (
+                    <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
+                      <div className="w-32">
+                        <span className="font-medium">{dayNames[day]}</span>
+                      </div>
+                      <Switch
+                        checked={dayConfig.enabled || false}
+                        onCheckedChange={(checked) => {
+                          const newHours = { ...config?.opening_hours, [day]: { ...dayConfig, enabled: checked } };
+                          updateConfigMutation.mutate({ opening_hours: newHours });
+                        }}
+                      />
+                      {dayConfig.enabled && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm">Abre:</Label>
+                            <Input
+                              type="time"
+                              value={dayConfig.open || '18:00'}
+                              onChange={(e) => {
+                                const newHours = { ...config?.opening_hours, [day]: { ...dayConfig, open: e.target.value } };
+                                updateConfigMutation.mutate({ opening_hours: newHours });
+                              }}
+                              className="w-28"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm">Fecha:</Label>
+                            <Input
+                              type="time"
+                              value={dayConfig.close || '23:00'}
+                              onChange={(e) => {
+                                const newHours = { ...config?.opening_hours, [day]: { ...dayConfig, close: e.target.value } };
+                                updateConfigMutation.mutate({ opening_hours: newHours });
+                              }}
+                              className="w-28"
+                            />
+                          </div>
+                        </>
+                      )}
+                      {!dayConfig.enabled && (
+                        <span className="text-muted-foreground text-sm">Fechado</span>
+                      )}
+                    </div>
+                  );
+                })}
+                
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mt-4">
+                  <p className="text-sm text-amber-800">
+                    <strong>💡 Dica:</strong> Quando o cliente enviar mensagem fora do horário de funcionamento, 
+                    a IA informará automaticamente os horários disponíveis.
                   </p>
                 </div>
               </CardContent>
@@ -1198,6 +1435,181 @@ export default function DeliveryMenuPage() {
                   <Star className="h-4 w-4 text-yellow-500" />
                   Destaque
                 </Label>
+              </div>
+            </div>
+
+            {/* Seção de Variações */}
+            <div className="border-t pt-4 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-base font-semibold flex items-center gap-2">
+                  📐 Variações (Tamanhos/Opções)
+                </Label>
+              </div>
+              
+              <p className="text-sm text-muted-foreground mb-3">
+                Adicione tamanhos (P, M, G) ou opções para este item. O cliente escolherá no pedido.
+              </p>
+
+              {/* Templates rápidos */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => applyVariationTemplate('tamanho-pizza')}
+                >
+                  🍕 Tamanho Pizza
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => applyVariationTemplate('tamanho-lanche')}
+                >
+                  🍔 Tamanho Lanche
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => applyVariationTemplate('tamanho-acai')}
+                >
+                  🍨 Tamanho Açaí
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => applyVariationTemplate('adicionais')}
+                >
+                  ➕ Adicionais
+                </Button>
+              </div>
+
+              {/* Variações existentes */}
+              {itemForm.options.length > 0 && (
+                <div className="space-y-3 mb-4">
+                  {itemForm.options.map((variation, vIndex) => (
+                    <div key={vIndex} className="p-3 bg-muted rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{variation.name}</span>
+                          <Badge variant={variation.required ? "default" : "secondary"} className="text-xs">
+                            {variation.required ? 'Obrigatório' : 'Opcional'}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {variation.type === 'single' ? 'Escolha única' : 'Múltipla escolha'}
+                          </Badge>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-destructive h-8 w-8 p-0"
+                          onClick={() => removeVariationFromItem(vIndex)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {variation.options.map((opt, oIndex) => (
+                          <Badge key={oIndex} variant="secondary" className="px-2 py-1">
+                            {opt.name}: R$ {opt.price.toFixed(2)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Formulário para nova variação */}
+              <div className="p-3 border rounded-lg bg-blue-50/50">
+                <Label className="text-sm font-medium mb-2 block">+ Adicionar nova variação</Label>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <Input
+                    placeholder="Nome (ex: Tamanho)"
+                    value={newVariation.name}
+                    onChange={(e) => setNewVariation({ ...newVariation, name: e.target.value })}
+                    className="col-span-1"
+                  />
+                  <Select 
+                    value={newVariation.type} 
+                    onValueChange={(v: 'single' | 'multiple') => setNewVariation({ ...newVariation, type: v })}
+                  >
+                    <SelectTrigger className="col-span-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single">Escolha única</SelectItem>
+                      <SelectItem value="multiple">Múltipla</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Checkbox 
+                      id="varRequired"
+                      checked={newVariation.required}
+                      onCheckedChange={(checked) => setNewVariation({ ...newVariation, required: checked as boolean })}
+                    />
+                    <Label htmlFor="varRequired" className="text-sm">Obrigatório</Label>
+                  </div>
+                </div>
+
+                {/* Opções da nova variação */}
+                {newVariation.options.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {newVariation.options.map((opt, i) => (
+                      <Badge key={i} variant="secondary" className="px-2 py-1 flex items-center gap-1">
+                        {opt.name}: R$ {opt.price.toFixed(2)}
+                        <button 
+                          type="button"
+                          onClick={() => removeOptionFromNewVariation(i)}
+                          className="ml-1 text-destructive hover:text-destructive"
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nome opção (ex: Grande)"
+                    value={newOptionName}
+                    onChange={(e) => setNewOptionName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Preço"
+                    value={newOptionPrice}
+                    onChange={(e) => setNewOptionPrice(e.target.value)}
+                    className="w-24"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={addOptionToNewVariation}
+                    disabled={!newOptionName.trim()}
+                  >
+                    + Opção
+                  </Button>
+                </div>
+
+                {newVariation.name && newVariation.options.length > 0 && (
+                  <Button 
+                    type="button" 
+                    variant="default" 
+                    size="sm"
+                    className="mt-2 w-full"
+                    onClick={addVariationToItem}
+                  >
+                    ✓ Adicionar Variação "{newVariation.name}"
+                  </Button>
+                )}
               </div>
             </div>
           </div>

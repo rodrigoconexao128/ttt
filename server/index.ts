@@ -8,6 +8,7 @@ import { appointmentReminderService } from "./appointmentReminderService";
 import { startAutoReactivationService } from "./autoReactivateService";
 import { startDailySyncCron } from "./fullContactSyncService";
 import { startMediaCleanupService } from "./mediaCleanupService";
+import { startNotificationScheduler } from "./notificationSchedulerService";
 import { seedDatabase } from "./seed";
 import path from "path";
 import fs from "fs";
@@ -196,5 +197,9 @@ app.use((req, res, next) => {
     // 🗑️ Iniciar Serviço de Limpeza de Mídias
     // Deleta mídias do Storage com mais de 1 hora para economizar Egress
     startMediaCleanupService();
+    
+    // 🔔 Iniciar Scheduler de Notificações Admin
+    // Lembretes de pagamento, check-ins periódicos, alertas de desconexão
+    startNotificationScheduler();
   });
 })();

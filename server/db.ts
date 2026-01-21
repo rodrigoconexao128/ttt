@@ -24,42 +24,86 @@ console.log(
   `[DB] Modo de conexão: ${isPoolerConnection ? 'Supabase Pooler (PgBouncer)' : 'Direct Connection'}`,
 );
 
-// 🔥 CONFIGURAÇÕES OTIMIZADAS PARA ALTA CARGA (200+ msgs/min)
-// CORREÇÃO: Circuit breaker error XX000 devido a pool subdimensionado
+// 🔥 CONFIGURAÇÃO COM LOGS DETALHADOS E RETRY (Debug circuit breaker)
 const poolConfig: any = {
   connectionString: dbUrl,
   ssl: {
     rejectUnauthorized: false
   },
-  // Pool dimensionado para alta carga (3x maior que antes)
-  max: isPoolerConnection ? 10 : 15,  // ✅ Aumentado de 3/5 para 10/15
-  min: 2,  // ✅ Mantém 2 conexões sempre prontas (antes era 0)
-  // Timeouts relaxados para evitar falhas prematuras
-  idleTimeoutMillis: isPoolerConnection ? 20000 : 60000,  // ✅ 20s/60s (antes 5s/30s)
-  connectionTimeoutMillis: 30000,  // ✅ 30s (antes 15s)
-  statement_timeout: 30000,  // ✅ 30s por query (antes 10s)
+  // Pool CONSERVADOR para diagnóstico
+  max: isPoolerConnection ? 5 : 7,  // Reduzido de 10/15 para diagnóstico
+  min: 1,  // Mantém 1 conexão pronta
+  idleTimeoutMillis: isPoolerConnection ? 30000 : 60000,
+  connectionTimeoutMillis: 45000,  // 45s para dar tempo
+  statement_timeout: 30000,
   allowExitOnIdle: false,
-  // Retry automático em caso de falha
-  retryStrategy: () => 5000,
+  
+  // Retry com backoff exponencial
+  retryStrategy: (times: number) => {
+    if (times > 5) {
+      console.log(`[DB] Max retries (5) atingido, desistindo`);
+      return false;
+    }
+    const delay = Math.min(times * 2000, 15000);
+    console.log(`⏳ [DB] Retry #${times} após ${delay}ms`);
+    return delay;
+  },
 };
 
 export const pool = new Pool(poolConfig);
 
-// Tratamento de erros do pool - NÃO crashar o servidor
-pool.on('error', (err) => {
-  console.error('❌ [DB Pool] Erro na conexão:', err.message);
+// 🔍 LOGS DETALHADOS PARA DIAGNÓSTICO
+pool.on('connect', () => {
+  console.log('✅ [DB Pool] Nova conexão ESTABELECIDA');
 });
 
-// Log de conexão para debug (apenas em dev)
-if (process.env.NODE_ENV !== 'production') {
-  pool.on('connect', (_client: PoolClient) => {
-    console.log('🔗 [DB Pool] Nova conexão estabelecida');
-  });
+pool.on('acquire', () => {
+  console.log('🔗 [DB Pool] Conexão ADQUIRIDA do pool');
+});
 
-  pool.on('remove', () => {
-    console.log('🔌 [DB Pool] Conexão removida do pool');
-  });
-}
+pool.on('error', (err: any) => {
+  console.error('❌ [DB Pool] ERRO:', err.message);
+  console.error('   Code:', err.code);
+  console.error('   Severity:', err.severity);
+});
+
+pool.on('remove', () => {
+  console.log('🔌 [DB Pool] Conexão REMOVIDA');
+});
+
+// 🧪 Teste de autenticação inicial COM LOGS DETALHADOS
+setTimeout(async () => {
+  console.log('🔍 [DB] === TESTE DE AUTENTICAÇÃO INICIAL ===');
+  try {
+    const start = Date.now();
+    console.log('[DB] 1. Tentando conectar...');
+    
+    const client = await pool.connect();
+    const connectTime = Date.now() - start;
+    console.log(`✅ [DB] 2. Conectado em ${connectTime}ms`);
+    
+    console.log('[DB] 3. Executando query de teste...');
+    const result = await client.query('SELECT current_user, current_database(), version()');
+    const queryTime = Date.now() - start;
+    
+    console.log(`✅ [DB] 4. Query executada em ${queryTime - connectTime}ms`);
+    console.log('[DB] === AUTENTICAÇÃO OK ===');
+    console.log('   User:', result.rows[0].current_user);
+    console.log('   Database:', result.rows[0].current_database);
+    console.log('   Version:', result.rows[0].version.substring(0, 50) + '...');
+    
+    client.release();
+    console.log('[DB] 5. Conexão liberada de volta ao pool');
+  } catch (error: any) {
+    console.error('❌ [DB] === FALHA NA AUTENTICAÇÃO ===');
+    console.error('   Message:', error.message);
+    console.error('   Code:', error.code);
+    console.error('   Severity:', error.severity);
+    console.error('   Detail:', error.detail);
+    console.error('   Hint:', error.hint);
+    console.error('===================================');
+  }
+}, 3000);
 
 // Função helper para executar query com retry automático
 export async function withRetry<T>(

@@ -3,6 +3,8 @@
  * 
  * Gerencia biblioteca de mídias dos agentes e envio via WhatsApp (w-api ou Baileys).
  * O Mistral decide qual mídia enviar baseado nas descrições no prompt.
+ * 
+ * ⚠️ IMPORTANTE: Todos os envios passam pelo sistema anti-ban centralizado!
  */
 
 import { db } from "./db";
@@ -11,6 +13,8 @@ import { eq, and, asc, or, sql } from "drizzle-orm";
 import { transcribeAudioWithMistral } from "./mistralClient";
 import { registerAgentMessageId } from "./whatsapp";
 import { messageQueueService } from "./messageQueueService";
+import { centralizedMessageSender } from "./centralizedMessageSender";
+import { antiBanProtectionService, simulateTyping, ANTI_BAN_CONFIG } from "./antiBanProtectionService";
 
 // =============================================================================
 // MEDIA LIBRARY CRUD
@@ -903,6 +907,9 @@ async function sendAudioWithFallback(
   // Validar buffer
   const validation = await validateAudioBuffer(audioBuffer, mimeType);
   
+  // 🛡️ Helper para micro-delay entre retries (2-3s para não spammar)
+  const microDelay = () => new Promise(r => setTimeout(r, 2000 + Math.random() * 1000));
+  
   // Estratégia 1: Enviar como está (com validação)
   console.log(`[MediaService] 📋 Estratégia 1: Enviar ${isPtt ? 'COM' : 'SEM'} PTT (${mimeType})`);
   
@@ -921,6 +928,9 @@ async function sendAudioWithFallback(
     console.warn(`[MediaService] ❌ Estratégia 1 falhou:`, e);
   }
 
+  // 🛡️ Micro-delay entre retries
+  await microDelay();
+
   // Estratégia 2: Se falhou com PTT, tentar SEM PTT
   if (isPtt) {
     console.log(`[MediaService] 📋 Estratégia 2: Tentar SEM PTT`);
@@ -938,6 +948,9 @@ async function sendAudioWithFallback(
     } catch (e) {
       console.warn(`[MediaService] ❌ Estratégia 2 falhou:`, e);
     }
+    
+    // 🛡️ Micro-delay entre retries
+    await microDelay();
   }
 
   // Estratégia 3: Tentar com diferentes mimetypes (baseado nos testes do Baileys)
@@ -961,6 +974,9 @@ async function sendAudioWithFallback(
     } catch (e) {
       console.warn(`[MediaService] ❌ Estratégia 3 falhou com ${mt}:`, e);
     }
+    
+    // 🛡️ Micro-delay entre retries de mimetype
+    await microDelay();
   }
 
   // Estratégia 4: Tentar via URL (alguns cenários de Baileys preferem streaming)
