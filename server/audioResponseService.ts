@@ -30,38 +30,137 @@ async function ensureTmpDir(): Promise<void> {
 }
 
 /**
- * Remove URLs do texto antes de converter em áudio
- * Evita que o TTS fale links longos e sem sentido
+ * 🧹 Sanitiza texto para TTS - Remove formatação e caracteres que soam estranhos
  * 
- * Exemplos removidos:
- * - https://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e
- * - http://example.com
- * - www.site.com.br
+ * O WhatsApp usa formatação como:
+ * - *texto* para negrito
+ * - _texto_ para itálico
+ * - ~texto~ para tachado
+ * - ```código``` para código
+ * - > para citação
  * 
- * @param text - Texto original
- * @returns Texto sem URLs
+ * Quando a IA fala esses caracteres, fica muito estranho.
+ * Esta função remove TUDO que não faz sentido em áudio falado.
+ * 
+ * @param text - Texto original com formatação
+ * @returns Texto limpo, natural para ser falado
  */
-function removeUrlsFromText(text: string): string {
+function sanitizeTextForTTS(text: string): string {
   if (!text) return text;
 
-  // Regex para detectar URLs completas (http/https/www)
-  // Match: http://, https://, www.
-  const urlRegex = /(?:https?:\/\/|www\.)[^\s]+/gi;
-  
-  // Remover URLs e espaços duplos resultantes
-  const cleanedText = text
-    .replace(urlRegex, '') // Remove URLs
-    .replace(/\s{2,}/g, ' ') // Remove espaços duplos
-    .trim(); // Remove espaços nas bordas
+  let cleanedText = text;
 
-  // Log para debug
-  if (text !== cleanedText) {
-    console.log(`🔗 [TTS-RESPONSE] URLs removidas do texto para áudio`);
-    console.log(`   Original: "${text.substring(0, 100)}..."`);
-    console.log(`   Limpo: "${cleanedText.substring(0, 100)}..."`);
+  // 1. REMOVER URLS (links completos)
+  // Exemplos: https://agentezap.online/..., http://..., www.site.com
+  cleanedText = cleanedText.replace(/(?:https?:\/\/|www\.)[^\s]+/gi, '');
+
+  // 2. REMOVER FORMATAÇÃO DE MARKDOWN/WHATSAPP
+  
+  // Asteriscos (negrito): *texto* → texto
+  // Cuidado: pode ter múltiplos asteriscos **texto** ou ***texto***
+  cleanedText = cleanedText.replace(/\*+([^*]+)\*+/g, '$1');
+  // Asteriscos soltos que sobraram
+  cleanedText = cleanedText.replace(/\*/g, '');
+
+  // Underlines (itálico): _texto_ → texto
+  cleanedText = cleanedText.replace(/_+([^_]+)_+/g, '$1');
+  // Underlines soltos
+  cleanedText = cleanedText.replace(/_/g, '');
+
+  // Til (tachado): ~texto~ → texto
+  cleanedText = cleanedText.replace(/~+([^~]+)~+/g, '$1');
+  // Tils soltos
+  cleanedText = cleanedText.replace(/~/g, '');
+
+  // Código inline: `código` → código
+  cleanedText = cleanedText.replace(/`+([^`]+)`+/g, '$1');
+  // Crases soltas
+  cleanedText = cleanedText.replace(/`/g, '');
+
+  // Blocos de código: ```código``` → código
+  cleanedText = cleanedText.replace(/```[\s\S]*?```/g, '');
+
+  // 3. REMOVER CARACTERES QUE SOAM ESTRANHOS EM ÁUDIO
+  
+  // Colchetes: [texto] → texto
+  cleanedText = cleanedText.replace(/\[([^\]]*)\]/g, '$1');
+  
+  // Parênteses duplos ou com conteúdo desnecessário
+  // Ex: ((obs)) → obs
+  cleanedText = cleanedText.replace(/\(\(([^)]*)\)\)/g, '$1');
+  
+  // Chaves: {texto} → texto
+  cleanedText = cleanedText.replace(/\{([^}]*)\}/g, '$1');
+
+  // Aspas angulares (citação Markdown): > texto → texto
+  cleanedText = cleanedText.replace(/^>\s*/gm, '');
+
+  // 4. REMOVER/SUBSTITUIR SÍMBOLOS ESPECIAIS
+  
+  // Bullets e marcadores → natural para lista
+  cleanedText = cleanedText.replace(/^[-•●○◆◇▸▹►▻→]\s*/gm, '');
+  
+  // Hashtags soltas: # texto → texto (não # em numeros)
+  cleanedText = cleanedText.replace(/^#+\s+/gm, '');
+  
+  // Emojis de marcação que a IA pode usar
+  // Mantemos emojis normais, mas removemos os que parecem marcadores
+  // cleanedText = cleanedText.replace(/[✅❌⚠️🔴🟢🟡⬛⬜🔲🔳]/g, '');
+  
+  // Barras verticais (tabelas): | → remover
+  cleanedText = cleanedText.replace(/\|/g, '');
+  
+  // Reticências excessivas: ...... → ...
+  cleanedText = cleanedText.replace(/\.{4,}/g, '...');
+  
+  // Exclamações/interrogações excessivas: !!!!! → !
+  cleanedText = cleanedText.replace(/!{2,}/g, '!');
+  cleanedText = cleanedText.replace(/\?{2,}/g, '?');
+
+  // 5. LIMPAR ESCAPE CHARACTERS E FORMATAÇÃO RESIDUAL
+  
+  // Barras invertidas de escape: \n, \t, etc
+  cleanedText = cleanedText.replace(/\\[nrtfvb]/g, ' ');
+  cleanedText = cleanedText.replace(/\\/g, '');
+  
+  // HTML entities comuns
+  cleanedText = cleanedText.replace(/&nbsp;/gi, ' ');
+  cleanedText = cleanedText.replace(/&amp;/gi, 'e');
+  cleanedText = cleanedText.replace(/&lt;/gi, '');
+  cleanedText = cleanedText.replace(/&gt;/gi, '');
+  cleanedText = cleanedText.replace(/&quot;/gi, '');
+
+  // 6. NORMALIZAR ESPAÇOS E QUEBRAS DE LINHA
+  
+  // Múltiplas quebras de linha → uma pausa natural
+  cleanedText = cleanedText.replace(/\n{3,}/g, '\n\n');
+  
+  // Espaços múltiplos → um espaço
+  cleanedText = cleanedText.replace(/[ \t]{2,}/g, ' ');
+  
+  // Espaços antes de pontuação
+  cleanedText = cleanedText.replace(/\s+([.,!?;:])/g, '$1');
+  
+  // Trim final
+  cleanedText = cleanedText.trim();
+
+  // 7. LOG PARA DEBUG (apenas se houve mudança significativa)
+  if (text.length !== cleanedText.length) {
+    const removed = text.length - cleanedText.length;
+    console.log(`🧹 [TTS-SANITIZE] Texto sanitizado para áudio:`);
+    console.log(`   📝 Original (${text.length} chars): "${text.substring(0, 80)}..."`);
+    console.log(`   ✨ Limpo (${cleanedText.length} chars): "${cleanedText.substring(0, 80)}..."`);
+    console.log(`   🗑️ Removidos: ${removed} caracteres de formatação`);
   }
 
   return cleanedText;
+}
+
+/**
+ * @deprecated Use sanitizeTextForTTS() - mantido para compatibilidade
+ */
+function removeUrlsFromText(text: string): string {
+  return sanitizeTextForTTS(text);
 }
 
 /**
@@ -114,7 +213,7 @@ export async function shouldGenerateAudioResponse(userId: string): Promise<{
 
 /**
  * Gera áudio TTS da resposta da IA
- * IMPORTANTE: Remove URLs do texto antes de converter
+ * IMPORTANTE: Sanitiza texto (remove URLs, formatação, etc) antes de converter
  * @param text - Texto para converter em áudio
  * @param voice - Voz do Edge TTS
  * @param rate - Taxa de velocidade (ex: "+0%", "-20%")
@@ -126,19 +225,19 @@ export async function generateAudioForResponse(
   rate: string
 ): Promise<Buffer | null> {
   try {
-    // 1. REMOVER URLs do texto (SEMPRE antes de gerar áudio)
-    const textWithoutUrls = removeUrlsFromText(text);
+    // 1. SANITIZAR TEXTO COMPLETAMENTE (URLs, formatação, símbolos especiais)
+    const sanitizedText = sanitizeTextForTTS(text);
 
-    if (!textWithoutUrls || textWithoutUrls.trim().length === 0) {
-      console.log(`⚠️ [TTS-RESPONSE] Texto vazio após remover URLs, pulando geração de áudio`);
+    if (!sanitizedText || sanitizedText.trim().length === 0) {
+      console.log(`⚠️ [TTS-RESPONSE] Texto vazio após sanitização, pulando geração de áudio`);
       return null;
     }
 
     // 2. Limitar texto muito longo (evitar áudios muito longos)
     const maxLength = 500;
-    const trimmedText = textWithoutUrls.length > maxLength 
-      ? textWithoutUrls.substring(0, maxLength) + "..." 
-      : textWithoutUrls;
+    const trimmedText = sanitizedText.length > maxLength 
+      ? sanitizedText.substring(0, maxLength) + "..." 
+      : sanitizedText;
 
     console.log(`🎙️ [TTS-RESPONSE] Gerando áudio para: "${trimmedText.substring(0, 50)}..."`);
 
