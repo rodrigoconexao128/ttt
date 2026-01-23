@@ -12768,7 +12768,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
       
       // Enviar mensagem
       const { sendAdminNotification } = await import("./whatsapp");
-      const sent = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
+      const sendResult = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
+      const sent = sendResult.success;
       
       // Atualizar status
       await db.execute(sql`
@@ -12778,7 +12779,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
           sent_at = NOW(),
           final_message = ${finalMessage},
           conversation_context = ${conversationHistory || ''},
-          error_message = ${sent ? null : 'Falha ao enviar'}
+          error_message = ${sent ? null : (sendResult.error || 'Falha ao enviar')}
         WHERE id = ${id}
       `);
       
@@ -12889,7 +12890,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
       
       // Enviar mensagem
       const { sendAdminNotification } = await import("./whatsapp");
-      const sent = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
+      const sendResult = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
+      const sent = sendResult.success;
       
       // Atualizar registro original marcando como reenviado
       await db.execute(sql`
@@ -13061,14 +13063,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
             
             // Enviar mensagem
             const { sendAdminNotification } = await import("./whatsapp");
-            const sent = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
+            const sendResult = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
+            const sent = sendResult.success;
             
             if (sent) {
               processed++;
               console.log(`[QUEUE] ✓ Enviado para ${notification.recipient_name} (${processed}/${pendingNotifications.length})`);
             } else {
               failed++;
-              console.log(`[QUEUE] ✗ Falha ao enviar para ${notification.recipient_name}`);
+              console.log(`[QUEUE] ✗ Falha ao enviar para ${notification.recipient_name}: ${sendResult.error || 'Erro desconhecido'}`);
             }
             
             // Atualizar status
@@ -13079,7 +13082,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
                 sent_at = NOW(),
                 final_message = ${finalMessage},
                 conversation_context = ${conversationHistory || ''},
-                error_message = ${sent ? null : 'Falha ao enviar'}
+                error_message = ${sent ? null : (sendResult.error || 'Falha ao enviar')}
               WHERE id = ${notification.id}
             `);
             
