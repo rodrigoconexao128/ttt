@@ -3667,8 +3667,21 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     const aiResponse = aiResult?.text || null;
     const mediaActions = aiResult?.mediaActions || [];
 
-    // ?? NOTIFICATION SYSTEM UNIVERSAL (AI + Manual + Resposta do Agente)
+    // 📢 NOTIFICATION SYSTEM UNIVERSAL (AI + Manual + Resposta do Agente)
     const businessConfig = await storage.getBusinessAgentConfig(userId);
+    
+    // 🔍 DEBUG: Log detalhado do businessConfig para diagnóstico
+    console.log(`🔔 [NOTIFICATION DEBUG] userId: ${userId}`);
+    console.log(`🔔 [NOTIFICATION DEBUG] businessConfig exists: ${!!businessConfig}`);
+    if (businessConfig) {
+      console.log(`🔔 [NOTIFICATION DEBUG] notificationEnabled: ${businessConfig.notificationEnabled}`);
+      console.log(`🔔 [NOTIFICATION DEBUG] notificationMode: ${businessConfig.notificationMode}`);
+      console.log(`🔔 [NOTIFICATION DEBUG] notificationManualKeywords: ${businessConfig.notificationManualKeywords}`);
+      console.log(`🔔 [NOTIFICATION DEBUG] notificationPhoneNumber: ${businessConfig.notificationPhoneNumber}`);
+    }
+    console.log(`🔔 [NOTIFICATION DEBUG] clientMessage (combinedText): "${combinedText?.substring(0, 100)}"`);
+    console.log(`🔔 [NOTIFICATION DEBUG] aiResponse: "${aiResponse?.substring(0, 100) || 'null'}"`);
+    
     let shouldNotify = false;
     let notifyReason = "";
     let keywordSource = ""; // Para tracking de onde veio o gatilho
@@ -3678,24 +3691,44 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       shouldNotify = true;
       notifyReason = aiResult.notification.reason;
       keywordSource = "IA";
-      console.log(`?? [AI Agent] AI detected notification trigger: ${notifyReason}`);
+      console.log(`📢 [AI Agent] AI detected notification trigger: ${notifyReason}`);
     }
     
     // Check Manual keyword notification (if mode is "manual" or "both")
+    // 🔍 DEBUG: Log da condição de verificação
+    const conditionCheck = {
+      notificationEnabled: !!businessConfig?.notificationEnabled,
+      notificationManualKeywords: !!businessConfig?.notificationManualKeywords,
+      notificationMode: businessConfig?.notificationMode,
+      modeMatches: businessConfig?.notificationMode === "manual" || businessConfig?.notificationMode === "both"
+    };
+    console.log(`🔔 [NOTIFICATION DEBUG] Keyword check condition: ${JSON.stringify(conditionCheck)}`);
+    
     if (businessConfig?.notificationEnabled && 
         businessConfig?.notificationManualKeywords &&
         (businessConfig.notificationMode === "manual" || businessConfig.notificationMode === "both")) {
+      
+      console.log(`🔔 [NOTIFICATION DEBUG] ✅ Entering keyword check block!`);
       
       const keywords = businessConfig.notificationManualKeywords
         .split(',')
         .map(k => k.trim().toLowerCase())
         .filter(k => k.length > 0);
       
-      // ?? VERIFICAR TANTO NA MENSAGEM DO CLIENTE QUANTO NA RESPOSTA DO AGENTE
+      console.log(`🔔 [NOTIFICATION DEBUG] Keywords to check: ${JSON.stringify(keywords)}`);
+      
+      // 📢 VERIFICAR TANTO NA MENSAGEM DO CLIENTE QUANTO NA RESPOSTA DO AGENTE
       const clientMessage = combinedText.toLowerCase();
       const agentMessage = (aiResponse || "").toLowerCase();
       
+      console.log(`🔔 [NOTIFICATION DEBUG] clientMessage: "${clientMessage.substring(0, 100)}"`);
+      console.log(`🔔 [NOTIFICATION DEBUG] agentMessage: "${agentMessage.substring(0, 100)}"`);
+      
       for (const keyword of keywords) {
+        console.log(`🔔 [NOTIFICATION DEBUG] Checking keyword: "${keyword}"`);
+        console.log(`🔔 [NOTIFICATION DEBUG] Client includes "${keyword}": ${clientMessage.includes(keyword)}`);
+        console.log(`🔔 [NOTIFICATION DEBUG] Agent includes "${keyword}": ${agentMessage.includes(keyword)}`);
+        
         // Verificar na mensagem do cliente
         if (clientMessage.includes(keyword)) {
           shouldNotify = true;
@@ -3704,11 +3737,11 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             ? `${notifyReason} + Palavra-chave (${source}): "${keyword}"` 
             : `Palavra-chave detectada (${source}): "${keyword}"`;
           keywordSource = keywordSource ? `${keywordSource} + Manual (cliente)` : "Manual (cliente)";
-          console.log(`?? [AI Agent] Manual keyword in CLIENT message: "${keyword}"`);
+          console.log(`📢 [AI Agent] Manual keyword in CLIENT message: "${keyword}"`);
           break;
         }
         
-        // ?? Verificar na resposta do agente (NOVO!)
+        // 📢 Verificar na resposta do agente (NOVO!)
         if (agentMessage.includes(keyword)) {
           shouldNotify = true;
           const source = "agente";
@@ -3716,15 +3749,17 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             ? `${notifyReason} + Palavra-chave (${source}): "${keyword}"` 
             : `Palavra-chave detectada (${source}): "${keyword}"`;
           keywordSource = keywordSource ? `${keywordSource} + Manual (agente)` : "Manual (agente)";
-          console.log(`?? [AI Agent] Manual keyword in AGENT response: "${keyword}"`);
+          console.log(`📢 [AI Agent] Manual keyword in AGENT response: "${keyword}"`);
           break;
         }
       }
+    } else {
+      console.log(`🔔 [NOTIFICATION DEBUG] ❌ Skipping keyword check - conditions not met`);
     }
     
-    // Log completo da detec��o
+    // Log completo da detecção
     if (shouldNotify) {
-      console.log(`?? [AI Agent] NOTIFICATION TRIGGERED via: ${keywordSource}`);
+      console.log(`📢 [AI Agent] NOTIFICATION TRIGGERED via: ${keywordSource}`);
     }
     
     // Send notification if triggered
@@ -3732,8 +3767,8 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       const notifyNumber = businessConfig.notificationPhoneNumber.replace(/\D/g, '');
       const notifyJid = `${notifyNumber}@s.whatsapp.net`;
       
-      // ?? Mensagem de notifica��o melhorada com contexto
-      const notifyMessage = `?? *NOTIFICA��O DO AGENTE*\n\n` +
+      // 📢 Mensagem de notificação melhorada com contexto
+      const notifyMessage = `📢 *NOTIFICAÇÃO DO AGENTE*\n\n` +
         `?? *Motivo:* ${notifyReason}\n` +
         `?? *Fonte:* ${keywordSource}\n\n` +
         `?? *Cliente:* ${contactNumber}\n` +
@@ -3891,35 +3926,58 @@ export async function triggerAgentResponseForConversation(
   conversationId: string,
   forceRespond: boolean = false
 ): Promise<{ triggered: boolean; reason: string }> {
-  console.log(`\n?? [TRIGGER] Verificando mensagens para conversa ${conversationId}... (force: ${forceRespond})`);
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`[TRIGGER] FUNÇÃO INICIADA - ${new Date().toISOString()}`);
+  console.log(`[TRIGGER] userId: ${userId}`);
+  console.log(`[TRIGGER] conversationId: ${conversationId}`);
+  console.log(`[TRIGGER] forceRespond: ${forceRespond}`);
+  console.log(`${'='.repeat(60)}`);
   
   try {
-    // 1. Buscar a sess�o do usu�rio
+    // 1. Buscar a sessão do usuário
+    console.log(`[TRIGGER] Verificando sessão no Map sessions...`);
+    console.log(`[TRIGGER] Total de sessões no Map: ${sessions.size}`);
+    
+    // Debug: listar todas as chaves do Map
+    const sessionKeys = Array.from(sessions.keys());
+    console.log(`[TRIGGER] Chaves no Map sessions: [${sessionKeys.join(', ')}]`);
+    
     const session = sessions.get(userId);
+    console.log(`[TRIGGER] Sessão encontrada para userId ${userId}: ${session ? 'SIM' : 'NÃO'}`);
+    
     if (!session?.socket) {
       // Verificar se estamos em modo dev sem WhatsApp
       const skipRestore = process.env.SKIP_WHATSAPP_RESTORE === 'true';
-      console.log(`?? [TRIGGER] Sess�o WhatsApp n�o dispon�vel para usu�rio ${userId} (SKIP_WHATSAPP_RESTORE: ${skipRestore})`);
+      console.log(`[TRIGGER] FALHA: Sessão WhatsApp não disponível (socket: ${session?.socket ? 'existe' : 'undefined'})`);
+      console.log(`[TRIGGER] SKIP_WHATSAPP_RESTORE: ${skipRestore}`);
       
       if (skipRestore) {
-        return { triggered: false, reason: "Modo desenvolvimento: WhatsApp n�o conectado localmente. Em produ��o, a sess�o ser� restaurada automaticamente." };
+        return { triggered: false, reason: "Modo desenvolvimento: WhatsApp não conectado localmente. Em produção, a sessão será restaurada automaticamente." };
       }
-      return { triggered: false, reason: "WhatsApp n�o conectado. Verifique a conex�o em 'Conex�o'." };
+      return { triggered: false, reason: "WhatsApp não conectado. Verifique a conexão em 'Conexão'." };
     }
+    console.log(`[TRIGGER] Sessão WhatsApp OK - socket existe`);
     
-    // 2. Verificar se o agente est� ativo globalmente
+    // 2. Verificar se o agente está ativo globalmente
+    console.log(`[TRIGGER] Verificando agentConfig...`);
     const agentConfig = await storage.getAgentConfig(userId);
+    console.log(`[TRIGGER] agentConfig encontrado: ${agentConfig ? 'SIM' : 'NÃO'}`);
+    console.log(`[TRIGGER] agentConfig.isActive: ${agentConfig?.isActive}`);
+    
     if (!agentConfig?.isActive) {
-      console.log(`?? [TRIGGER] Agente globalmente inativo para usu�rio ${userId}`);
+      console.log(`[TRIGGER] FALHA: Agente globalmente inativo`);
       return { triggered: false, reason: "Ative o agente em 'Meu Agente IA' primeiro." };
     }
+    console.log(`[TRIGGER] Agente está ATIVO`);
     
     // 3. Buscar dados da conversa
+    console.log(`[TRIGGER] Buscando conversa...`);
     const conversation = await storage.getConversation(conversationId);
     if (!conversation) {
-      console.log(`?? [TRIGGER] Conversa ${conversationId} n�o encontrada`);
-      return { triggered: false, reason: "Conversa n�o encontrada." };
+      console.log(`[TRIGGER] FALHA: Conversa não encontrada`);
+      return { triggered: false, reason: "Conversa não encontrada." };
     }
+    console.log(`[TRIGGER] Conversa encontrada: ${conversation.contactName || conversation.contactNumber}`);
     
     // 4. Buscar mensagens da conversa
     const messages = await storage.getMessagesByConversationId(conversationId);

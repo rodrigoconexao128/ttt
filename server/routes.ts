@@ -240,6 +240,7 @@ import {
 } from "./adminMediaStore";
 import { processAdminMessage } from "./adminAgentService";
 import { forceCleanup as forceMediaCleanup, getStorageStats } from "./mediaCleanupService";
+import { invalidateLLMConfigCache, getCurrentProvider } from "./llm";
 import { z } from "zod";
 
 // Helper to get userId from authenticated request
@@ -2336,9 +2337,9 @@ FORMATO DE RESPOSTA (JSON):
 IMPORTANTE: Use o ID (UUID) exato mostrado entre [ID: ...] para cada campo. Exemplo: se vir [ID: abc-123], use "fieldId": "abc-123".
 Se não encontrar um valor, retorne value como null. A confidence deve ser entre 0 e 1.`;
 
-      // Chama Mistral para extração
-      const { generateWithMistral } = await import("./mistralClient");
-      const response = await generateWithMistral(
+      // Chama LLM para extração (usa Groq ou Mistral conforme configuração do admin)
+      const { generateWithLLM } = await import("./llm");
+      const response = await generateWithLLM(
         "Você é um assistente especializado em extração de dados de conversas. Analise cuidadosamente e extraia as informações solicitadas.",
         extractionPrompt,
         { 
@@ -5626,8 +5627,8 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           const { Mistral } = await import("@mistralai/mistralai");
           const mistral = new Mistral({ apiKey: mistralApiKey });
           
+          // Usa modelo configurado no banco de dados (sem hardcode)
           const response = await mistral.chat.complete({
-            model: "mistral-small-latest",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt }
@@ -7217,24 +7218,41 @@ Responda APENAS com o JSON, sem texto adicional.`;
   // - O usuário quer forçar uma resposta mesmo que a última mensagem seja dele
   // ═══════════════════════════════════════════════════════════════════════════
   app.post("/api/agent/respond/:conversationId", isAuthenticated, async (req: any, res) => {
+    // ===============================================================
+    // DEBUG: Log explícito no início para diagnóstico
+    // ===============================================================
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`[RESPONDER COM IA] ENDPOINT ACIONADO - ${new Date().toISOString()}`);
+    console.log(`${'='.repeat(60)}`);
+    
     try {
       const { conversationId } = req.params;
       const userId = getUserId(req);
+      
+      console.log(`[RESPONDER COM IA] userId: ${userId}`);
+      console.log(`[RESPONDER COM IA] conversationId: ${conversationId}`);
 
       // Verificar propriedade da conversa
       const conversation = await storage.getConversation(conversationId);
       if (!conversation) {
+        console.log(`[RESPONDER COM IA] ERRO: Conversa não encontrada`);
         return res.status(404).json({ message: "Conversa não encontrada" });
       }
+      console.log(`[RESPONDER COM IA] Conversa encontrada: ${conversation.contactName || conversation.contactNumber}`);
 
       const connection = await storage.getConnectionByUserId(userId);
       if (!connection || conversation.connectionId !== connection.id) {
+        console.log(`[RESPONDER COM IA] ERRO: Acesso negado - connectionId mismatch`);
         return res.status(403).json({ message: "Acesso negado" });
       }
+      console.log(`[RESPONDER COM IA] Conexão verificada: ${connection.id}`);
 
       // Verificar se agente global está ativo
       const agentConfig = await storage.getAgentConfig(userId);
+      console.log(`[RESPONDER COM IA] agentConfig.isActive: ${agentConfig?.isActive}`);
+      
       if (!agentConfig?.isActive) {
+        console.log(`[RESPONDER COM IA] ERRO: Agente não está ativo globalmente`);
         return res.status(400).json({ 
           success: false, 
           message: "O agente precisa estar ativo globalmente. Ative-o em 'Meu Agente IA'." 
@@ -7242,24 +7260,25 @@ Responda APENAS com o JSON, sem texto adicional.`;
       }
 
       // Disparar resposta da IA em background (fire and forget)
-      console.log(`🤖 [RESPONDER COM IA] Iniciando processamento para ${conversationId}`);
+      console.log(`[RESPONDER COM IA] Chamando triggerAgentResponseForConversation...`);
       
       // Disparar sem esperar resultado (não bloqueia a resposta)
       triggerAgentResponseForConversation(userId, conversationId, true)
         .then(result => {
-          console.log(`✅ [RESPONDER COM IA] Processado para ${conversationId}: ${result.reason}`);
+          console.log(`[RESPONDER COM IA] RESULTADO: triggered=${result.triggered}, reason="${result.reason}"`);
         })
         .catch(error => {
-          console.error(`❌ [RESPONDER COM IA] Erro ao processar ${conversationId}:`, error);
+          console.error(`[RESPONDER COM IA] ERRO na função trigger:`, error);
         });
       
       // Retorna sucesso imediatamente - processamento continua em background
+      console.log(`[RESPONDER COM IA] Retornando sucesso ao cliente`);
       res.json({ 
         success: true, 
         message: "Solicitação enviada. A IA irá responder em breve." 
       });
     } catch (error) {
-      console.error("Error in respond with AI:", error);
+      console.error("[RESPONDER COM IA] ERRO GERAL:", error);
       res.status(500).json({ message: "Falha ao responder com IA" });
     }
   });
@@ -7456,12 +7475,12 @@ Responda APENAS com o JSON, sem texto adicional.`;
         currentTime: new Date(),
       });
       
-      // Chamar Mistral para teste
-      const { getMistralClient } = await import("./mistralClient");
-      const mistral = await getMistralClient();
+      // Chamar LLM para teste (Groq ou Mistral conforme config admin)
+      const { getLLMClient } = await import("./llm");
+      const mistral = await getLLMClient();
       
+      // Usa modelo configurado no banco de dados (sem hardcode)
       const response = await mistral.chat.complete({
-        model: config.model || "mistral-small-latest",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: testMessage },
@@ -8482,17 +8501,27 @@ Responda APENAS com o JSON, sem texto adicional.`;
   // Get system config
   app.get("/api/admin/config", isAdmin, async (_req, res) => {
     try {
-      const [mistralKey, pixKey, zaiKey] = await withRetry(() => 
+      const [mistralKey, pixKey, zaiKey, llmProvider, groqKey, groqModel, openrouterKey, openrouterModel] = await withRetry(() => 
         Promise.all([
           storage.getSystemConfig("mistral_api_key"),
           storage.getSystemConfig("pix_key"),
           storage.getSystemConfig("zai_api_key"),
+          storage.getSystemConfig("llm_provider"),
+          storage.getSystemConfig("groq_api_key"),
+          storage.getSystemConfig("groq_model"),
+          storage.getSystemConfig("openrouter_api_key"),
+          storage.getSystemConfig("openrouter_model"),
         ])
       );
       res.json({
         mistral_api_key: mistralKey?.valor || "",
         pix_key: pixKey?.valor || "",
         zai_api_key: zaiKey?.valor || "",
+        llm_provider: llmProvider?.valor || "mistral",
+        groq_api_key: groqKey?.valor || "",
+        groq_model: groqModel?.valor || "openai/gpt-oss-20b",
+        openrouter_api_key: openrouterKey?.valor || "",
+        openrouter_model: openrouterModel?.valor || "meta-llama/llama-3.3-70b-instruct:free",
       });
     } catch (error) {
       console.error("Error fetching config:", error);
@@ -8503,7 +8532,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
   // Update system config
   app.put("/api/admin/config", isAdmin, async (req, res) => {
     try {
-      const { mistral_api_key, pix_key, zai_api_key } = req.body;
+      const { mistral_api_key, pix_key, zai_api_key, llm_provider, groq_api_key, groq_model, openrouter_api_key, openrouter_model } = req.body;
 
       if (mistral_api_key !== undefined) {
         // Limpar espaços e caracteres invisíveis da chave antes de salvar
@@ -8521,6 +8550,44 @@ Responda APENAS com o JSON, sem texto adicional.`;
         const cleanZaiKey = zai_api_key.trim().replace(/[\r\n\t\s]/g, "");
         await storage.updateSystemConfig("zai_api_key", cleanZaiKey);
         console.log(`[Admin] ZAI key saved (${cleanZaiKey.length} chars)`);
+      }
+
+      // LLM Provider Toggle (OpenRouter/Groq/Mistral)
+      if (llm_provider !== undefined) {
+        const validProviders = ["openrouter", "groq", "mistral"];
+        const provider = llm_provider.trim().toLowerCase();
+        if (validProviders.includes(provider)) {
+          await storage.updateSystemConfig("llm_provider", provider);
+          invalidateLLMConfigCache(); // Invalida cache para aplicar imediatamente
+          console.log(`[Admin] LLM Provider changed to: ${provider}`);
+        }
+      }
+
+      if (groq_api_key !== undefined) {
+        const cleanGroqKey = groq_api_key.trim().replace(/[\r\n\t\s]/g, "");
+        await storage.updateSystemConfig("groq_api_key", cleanGroqKey);
+        invalidateLLMConfigCache(); // Invalida cache
+        console.log(`[Admin] Groq API key saved (${cleanGroqKey.length} chars)`);
+      }
+
+      if (groq_model !== undefined) {
+        await storage.updateSystemConfig("groq_model", groq_model.trim());
+        invalidateLLMConfigCache(); // Invalida cache
+        console.log(`[Admin] Groq model set to: ${groq_model.trim()}`);
+      }
+
+      // OpenRouter configurations
+      if (openrouter_api_key !== undefined) {
+        const cleanOpenRouterKey = openrouter_api_key.trim().replace(/[\r\n\t\s]/g, "");
+        await storage.updateSystemConfig("openrouter_api_key", cleanOpenRouterKey);
+        invalidateLLMConfigCache(); // Invalida cache
+        console.log(`[Admin] OpenRouter API key saved (${cleanOpenRouterKey.length} chars)`);
+      }
+
+      if (openrouter_model !== undefined) {
+        await storage.updateSystemConfig("openrouter_model", openrouter_model.trim());
+        invalidateLLMConfigCache(); // Invalida cache
+        console.log(`[Admin] OpenRouter model set to: ${openrouter_model.trim()}`);
       }
 
       res.json({ success: true });
@@ -11084,6 +11151,200 @@ Responda APENAS com o JSON, sem texto adicional.`;
     }
   });
 
+  // Test Groq API key
+  app.post("/api/admin/test-groq", isAdmin, async (_req, res) => {
+    try {
+      console.log("[Test Groq] Starting test...");
+      
+      // Buscar chave e modelo do banco
+      const groqKeyConfig = await storage.getSystemConfig("groq_api_key");
+      const groqModelConfig = await storage.getSystemConfig("groq_model");
+      
+      const apiKey = groqKeyConfig?.valor;
+      const model = groqModelConfig?.valor || "openai/gpt-oss-20b";
+      
+      // Log informações sobre a chave (sem expor a chave completa)
+      const keyPreview = apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : "null";
+      console.log(`[Test Groq] Key resolved: ${keyPreview} (${apiKey?.length ?? 0} chars)`);
+      console.log(`[Test Groq] Model: ${model}`);
+      
+      if (!apiKey) {
+        console.log("[Test Groq] No valid key found");
+        return res.json({ 
+          success: false, 
+          error: "Chave Groq não configurada",
+          keyLength: 0
+        });
+      }
+      
+      console.log("[Test Groq] Making test request...");
+      
+      // Fazer chamada direta à API Groq
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [{ role: "user", content: "Say OK" }],
+          max_tokens: 5
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error?.message || `HTTP ${response.status}`);
+      }
+      
+      console.log("[Test Groq] Response received:", data.choices?.[0]?.message?.content);
+      
+      if (data.choices && data.choices.length > 0) {
+        res.json({ 
+          success: true, 
+          model: model,
+          message: "Chave válida e funcionando!",
+          keyLength: apiKey.length,
+          keyPreview
+        });
+      } else {
+        res.json({ 
+          success: false, 
+          error: "Resposta inválida da API",
+          keyLength: apiKey.length
+        });
+      }
+    } catch (error: any) {
+      console.error("[Test Groq] Error:", error.message);
+      
+      // Extrair mensagem de erro útil
+      let errorMessage = "Erro desconhecido";
+      let suggestion = "";
+      
+      if (error.message?.includes("401")) {
+        errorMessage = "Chave inválida ou expirada (401 Unauthorized)";
+        suggestion = "Verifique se a chave está correta. Gere uma nova em console.groq.com";
+      } else if (error.message?.includes("403")) {
+        errorMessage = "Acesso negado (403 Forbidden)";
+        suggestion = "Verifique se a chave tem permissões corretas";
+      } else if (error.message?.includes("429")) {
+        errorMessage = "Limite de requisições excedido (429 Too Many Requests)";
+        suggestion = "Aguarde alguns minutos antes de tentar novamente";
+      } else if (error.message?.includes("model_not_found") || error.message?.includes("does not exist")) {
+        errorMessage = "Modelo não encontrado";
+        suggestion = "O modelo selecionado pode ter sido removido. Tente outro modelo.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      res.json({ 
+        success: false, 
+        error: errorMessage,
+        suggestion
+      });
+    }
+  });
+
+  // Test OpenRouter API key
+  app.post("/api/admin/test-openrouter", isAdmin, async (_req, res) => {
+    try {
+      console.log("[Test OpenRouter] Starting test...");
+      
+      // Buscar chave e modelo do banco
+      const openrouterKeyConfig = await storage.getSystemConfig("openrouter_api_key");
+      const openrouterModelConfig = await storage.getSystemConfig("openrouter_model");
+      
+      const apiKey = openrouterKeyConfig?.valor;
+      const model = openrouterModelConfig?.valor || "meta-llama/llama-3.3-70b-instruct:free";
+      
+      // Log informações sobre a chave (sem expor a chave completa)
+      const keyPreview = apiKey ? `${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 4)}` : "null";
+      console.log(`[Test OpenRouter] Key resolved: ${keyPreview} (${apiKey?.length ?? 0} chars)`);
+      console.log(`[Test OpenRouter] Model: ${model}`);
+      
+      if (!apiKey) {
+        console.log("[Test OpenRouter] No valid key found");
+        return res.json({ 
+          success: false, 
+          error: "Chave OpenRouter não configurada",
+          keyLength: 0
+        });
+      }
+      
+      console.log("[Test OpenRouter] Making test request...");
+      
+      // Fazer chamada direta à API OpenRouter
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://agentezap.com",
+          "X-Title": "AgenteZap"
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [{ role: "user", content: "Say OK" }],
+          max_tokens: 5
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error?.message || `HTTP ${response.status}`);
+      }
+      
+      console.log("[Test OpenRouter] Response received:", data.choices?.[0]?.message?.content);
+      
+      if (data.choices && data.choices.length > 0) {
+        res.json({ 
+          success: true, 
+          model: model,
+          message: "Chave válida e funcionando!",
+          keyLength: apiKey.length,
+          keyPreview
+        });
+      } else {
+        res.json({ 
+          success: false, 
+          error: "Resposta inválida da API",
+          keyLength: apiKey.length
+        });
+      }
+    } catch (error: any) {
+      console.error("[Test OpenRouter] Error:", error.message);
+      
+      // Extrair mensagem de erro útil
+      let errorMessage = "Erro desconhecido";
+      let suggestion = "";
+      
+      if (error.message?.includes("401")) {
+        errorMessage = "Chave inválida ou expirada (401 Unauthorized)";
+        suggestion = "Verifique se a chave está correta. Gere uma nova em openrouter.ai/keys";
+      } else if (error.message?.includes("403")) {
+        errorMessage = "Acesso negado (403 Forbidden)";
+        suggestion = "Verifique se a chave tem permissões corretas";
+      } else if (error.message?.includes("429")) {
+        errorMessage = "Limite de requisições excedido (429 Too Many Requests)";
+        suggestion = "Aguarde alguns minutos antes de tentar novamente";
+      } else if (error.message?.includes("model_not_found") || error.message?.includes("does not exist") || error.message?.includes("No endpoints found")) {
+        errorMessage = "Modelo não encontrado ou não disponível";
+        suggestion = "O modelo pode requerer configuração especial. Tente 'meta-llama/llama-3.3-70b-instruct:free'";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      res.json({ 
+        success: false, 
+        error: errorMessage,
+        suggestion
+      });
+    }
+  });
+
   // ==================== ADMIN WHATSAPP ROUTES ====================
   // Get admin WhatsApp connection status - verifica estado REAL da sessão
   app.get("/api/admin/whatsapp/connection", isAdmin, async (req, res) => {
@@ -11813,7 +12074,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
                   { role: 'system', content: prompt },
                   { role: 'user', content: broadcast.messageTemplate },
                 ], {
-                  model: 'llama-3.3-70b-versatile',
+                  // Usa modelo do banco de dados via config
                   temperature: 0.8,
                   max_tokens: 300,
                 });
@@ -14261,8 +14522,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
         return res.status(400).json({ message: "Model and message are required" });
       }
 
-      const { getMistralClient } = await import("./mistralClient");
-      const mistral = await getMistralClient();
+      const { getLLMClient } = await import("./llm");
+      const mistral = await getLLMClient();
 
       // Construir mensagens com histórico
       const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
@@ -14874,14 +15135,14 @@ Foco: fazer o cliente TESTAR a ferramenta.`
         return res.status(400).json({ message: "Prompt is required" });
       }
 
-      const { generateWithMistral } = await import("./mistralClient");
+      const { generateWithLLM } = await import("./llm");
       
       const systemPrompt = `Você é um assistente que cria mensagens prontas para atendimento ao cliente.
 Crie uma mensagem profissional, amigável e concisa baseada na descrição do usuário.
 Responda APENAS com a mensagem pronta, sem explicações adicionais.
 A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
-      const result = await generateWithMistral(systemPrompt, prompt);
+      const result = await generateWithLLM(systemPrompt, prompt);
       
       // Extrair título do prompt
       const title = prompt.length > 30 ? prompt.substring(0, 30) + "..." : prompt;
@@ -15004,14 +15265,14 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
         return res.status(400).json({ message: "Title is required" });
       }
 
-      const { generateWithMistral } = await import("./mistralClient");
+      const { generateWithLLM } = await import("./llm");
       
       const systemPrompt = `Você é um assistente que cria mensagens prontas para atendimento ao cliente.
 Crie uma mensagem profissional, amigável e concisa baseada no título fornecido.
 Responda APENAS com a mensagem pronta, sem explicações adicionais.
 A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
-      const result = await generateWithMistral(systemPrompt, `Crie uma mensagem de: ${title}`);
+      const result = await generateWithLLM(systemPrompt, `Crie uma mensagem de: ${title}`);
 
       res.json({ content: result.trim() });
     } catch (error) {
@@ -15029,7 +15290,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
         return res.status(400).json({ message: "Prompt is required" });
       }
 
-      const { generateWithMistral } = await import("./mistralClient");
+      const { generateWithLLM } = await import("./llm");
       
       let systemPrompt = `Você é um assistente que ajuda a criar mensagens para WhatsApp.
 Crie uma mensagem profissional, amigável e natural baseada na instrução do usuário.
@@ -15045,7 +15306,7 @@ Use emojis com moderação quando apropriado.`;
         systemPrompt += `\n\nÚltimas mensagens da conversa para contexto:\n${context.slice(-5).join('\n')}`;
       }
 
-      const result = await generateWithMistral(systemPrompt, prompt);
+      const result = await generateWithLLM(systemPrompt, prompt);
 
       res.json({ message: result.trim() });
     } catch (error) {
@@ -15273,7 +15534,7 @@ Use emojis com moderação quando apropriado.`;
         return res.status(400).json({ message: "Prompt is required" });
       }
 
-      const { generateWithMistral } = await import("./mistralClient");
+      const { generateWithLLM } = await import("./llm");
       
       let systemPrompt = `Você é um assistente que ajuda a criar mensagens para WhatsApp.
 Crie uma mensagem profissional, amigável e natural baseada na instrução do usuário.
@@ -15289,7 +15550,7 @@ Use emojis com moderação quando apropriado.`;
         systemPrompt += `\n\nÚltimas mensagens da conversa para contexto:\n${context.lastMessages.slice(-5).join('\n')}`;
       }
 
-      const result = await generateWithMistral(systemPrompt, prompt);
+      const result = await generateWithLLM(systemPrompt, prompt);
 
       res.json({ message: result.trim() });
     } catch (error) {
@@ -15868,7 +16129,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
     try {
       const { handleTestAgentMessage } = await import("./testAgentService");
       const { getTestToken, processAdminMessage } = await import("./adminAgentService");
-      const { getMistralClient } = await import("./mistralClient");
+      const { getLLMClient } = await import("./llm");
 
       const { message, token, history, userId, sentMedias } = req.body;
 
@@ -15877,7 +16138,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
         {
           getTestToken,
           getAgentConfig: (id) => storage.getAgentConfig(id),
-          getMistralClient,
+          getMistralClient: getLLMClient,
           processAdminMessage,
           getAgentMediaLibrary,
           generateMediaPromptBlock,
