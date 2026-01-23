@@ -132,13 +132,20 @@ export function processResponsePlaceholders(text: string, contactName?: string):
   
   // 🛡️ FIX: Se resposta ficar muito longa (mais de 500 chars), limitar
   // Respostas muito longas geralmente são concatenações
-  if (processed.length > 600) {
+  // ⚠️ EXCEÇÃO: NÃO truncar se for uma LISTA NUMERADA (cardápio, categorias, produtos)
+  const isNumberedList = /\d+\.\s+[🎨☁️🔗💼📚🐾🤖🎬🐀🍔💾🔊💰✔️📊💬📸🌐🎮📲🚀🚗🐒🎨📄⏳🎓🔔🏢🔧🖥️🖌️🇬🇧💎👥🛒📡🛠️🖤🎟️💥💻📱⚡🎰📺🎯🔍📲🎁💵✅🔄🤝🗃️💡]/g;
+  const numberedItemsCount = (processed.match(isNumberedList) || []).length;
+  const hasMultipleNumberedItems = numberedItemsCount >= 5;
+  
+  if (processed.length > 600 && !hasMultipleNumberedItems) {
     // Encontrar um ponto de corte natural (. ou ? ou !)
     const cutPoint = processed.substring(0, 500).lastIndexOf('. ');
     if (cutPoint > 100) {
       processed = processed.substring(0, cutPoint + 1);
       console.log(`🛡️ [TextUtils] Resposta truncada de ${processed.length} para ${cutPoint + 1} chars`);
     }
+  } else if (hasMultipleNumberedItems) {
+    console.log(`🛡️ [TextUtils] Lista numerada detectada (${numberedItemsCount} itens) - NÃO truncando`);
   }
   
   return processed.trim();

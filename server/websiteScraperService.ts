@@ -1,11 +1,11 @@
 /**
  * 🌐 WEBSITE SCRAPER SERVICE
  * Serviço para extrair dados de websites e alimentar o agente IA
- * Usa Playwright para sites dinâmicos e Mistral para processar o conteúdo
+ * Usa Playwright para sites dinâmicos e LLM configurado (Groq/Mistral) para processar o conteúdo
  */
 
 import { chromium, Browser, Page } from "playwright";
-import { generateWithMistral } from "./mistralClient";
+import { generateWithLLM } from "./llm";
 
 // ============================================================================
 // TIPOS
@@ -419,7 +419,7 @@ Formato de resposta (JSON puro, sem markdown):
 ]`;
 
   try {
-    const response = await generateWithMistral(
+    const response = await generateWithLLM(
       systemPrompt,
       `Extraia os produtos deste texto de website:\n\n${text.slice(0, 15000)}`,
       { maxTokens: 4000, temperature: 0.1 }
@@ -433,7 +433,7 @@ Formato de resposta (JSON puro, sem markdown):
 
     return [];
   } catch (error) {
-    console.error("[WebsiteScraper] Error extracting with Mistral:", error);
+    console.error("[WebsiteScraper] Error extracting with LLM:", error);
     return [];
   }
 }

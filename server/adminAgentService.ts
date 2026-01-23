@@ -12,7 +12,8 @@
 
 import { storage } from "./storage";
 import { generatePixQRCode } from "./pixService";
-import { getMistralClient, analyzeImageWithMistral, analyzeImageForAdmin } from "./mistralClient";
+import { getLLMClient } from "./llm";
+import { analyzeImageWithMistral, analyzeImageForAdmin } from "./mistralClient";
 import { v4 as uuidv4 } from "uuid";
 import { 
   generateAdminMediaPromptBlock, 
@@ -515,7 +516,7 @@ export async function generateProfessionalAgentPrompt(
   instructions: string
 ): Promise<string> {
   try {
-    const mistral = await getMistralClient();
+    const mistral = await getLLMClient();
     
     const systemPrompt = `Você é um especialista em criar Personas de IA para atendimento ao cliente.
 Sua missão é criar um PROMPT DE SISTEMA (System Prompt) altamente persuasivo, humano e inteligente para um agente de atendimento.
@@ -2327,7 +2328,7 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
 
 export async function generateAIResponse(session: ClientSession, userMessage: string): Promise<string> {
   try {
-    const mistral = await getMistralClient();
+    const mistral = await getLLMClient();
     const systemPrompt = await getMasterPrompt(session);
     
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
@@ -2370,12 +2371,12 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
         randomSeed: 42,   // Seed fixo para garantir consistência
       });
     } catch (err: any) {
-      // Fallback para modelo menor em caso de erro de capacidade (429) ou modelo não encontrado
+      // Fallback para modelo sem especificar - usa o padrão do getLLMClient
       if (err?.statusCode === 429 || err?.message?.includes('capacity exceeded') || err?.message?.includes('not found')) {
-        console.warn(`⚠️ [SALES] Erro com modelo ${configuredModel} (${err.statusCode}). Tentando fallback para mistral-small-latest...`);
+        console.warn(`⚠️ [SALES] Erro com modelo ${configuredModel} (${err.statusCode}). Tentando fallback com modelo padrão do sistema...`);
         try {
+          // Usa modelo padrão do sistema (sem hardcode)
           response = await mistral.chat.complete({
-            model: "mistral-small-latest",
             messages: messages,
             maxTokens: maxTokens,
             temperature: 0.0, // ZERO para determinismo
@@ -2699,7 +2700,7 @@ export async function processAdminMessage(
     // ------------------------------------------------------------------
     let refinedTrigger = context;
     try {
-        const mistral = await getMistralClient();
+        const mistral = await getLLMClient();
         const extractionPrompt = `
         CONTEXTO: O usuário (dono do bot) enviou uma imagem e, ao ser perguntado quando ela deve ser usada, respondeu: "${context}".
         
@@ -2716,8 +2717,8 @@ export async function processAdminMessage(
         Exemplo 3: Admin diz "tabela" -> Retorno: "tabela, preços, valores"
         `;
         
+        // Usa modelo configurado no banco de dados (sem hardcode)
         const extraction = await mistral.chat.complete({
-            model: "mistral-small-latest",
             messages: [{ role: "user", content: extractionPrompt }],
             temperature: 0.1,
             maxTokens: 100
@@ -2923,9 +2924,9 @@ export async function processAdminMessage(
             - Se pediu foto da loja e imagem é fachada -> "NULL" (pois não é material de envio recorrente para clientes)
             `;
             
-            const mistral = await getMistralClient();
+            const mistral = await getLLMClient();
+            // Usa modelo configurado no banco de dados (sem hardcode)
             const classification = await mistral.chat.complete({
-                model: "mistral-small-latest",
                 messages: [{ role: "user", content: classificationPrompt }],
                 temperature: 0.1,
                 maxTokens: 50
@@ -3333,7 +3334,7 @@ REGRAS:
       await storage.upsertAgentConfig(user.id, {
         prompt: fullPrompt,
         isActive: true,
-        model: "mistral-small-latest",
+        model: undefined, // Usa modelo do banco de dados via getLLMClient()
         triggerPhrases: [],
         messageSplitChars: 400,
         responseDelaySeconds: 30,
@@ -3371,7 +3372,7 @@ export async function generateFollowUpResponse(phoneNumber: string, context: str
   if (!session) return "";
   
   try {
-    const mistral = await getMistralClient();
+    const mistral = await getLLMClient();
     
     // Buscar nome do contato no banco
     const conversation = await storage.getAdminConversationByPhone(phoneNumber);
@@ -3484,7 +3485,7 @@ export async function generateScheduledContactResponse(phoneNumber: string, reas
   const session = getClientSession(phoneNumber);
   
   try {
-    const mistral = await getMistralClient();
+    const mistral = await getLLMClient();
     
     // Buscar nome do contato no banco
     const conversation = await storage.getAdminConversationByPhone(phoneNumber);

@@ -396,9 +396,10 @@ export async function processWithFlowEngine(
   usedFlow: boolean;
 } | null> {
   
+  // Usa modelo configurado no banco de dados via getLLMClient() interno
   const config: FlowConfig = {
     apiKey,
-    model: 'mistral-small-latest',
+    model: undefined, // Sem hardcode - usa modelo do banco de dados
     humanize: true,
     temperature: 0.2
   };

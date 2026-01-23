@@ -17,7 +17,7 @@ import {
   MessageCircle, Zap, Save, Loader2, Sparkles, 
   RefreshCw, CheckCircle2, XCircle, Play, Pause,
   Target, Filter, Bot, Shield, Timer, ChevronLeft, ChevronRight,
-  CalendarDays, Trash2, Eye, History
+  CalendarDays, Trash2, Eye, History, RotateCcw
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -395,6 +395,32 @@ export default function AdminNotificationsPanel() {
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation para REENVIAR notificação já enviada
+  const resendScheduledMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/admin/notifications/resend/${id}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regenerate: false }) // Usar mesma mensagem
+      });
+      if (!response.ok) throw new Error("Erro ao reenviar");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({ 
+        title: data.success ? "Mensagem reenviada!" : "Falha no reenvio", 
+        description: data.success ? "A notificação foi reenviada com sucesso." : data.message,
+        variant: data.success ? "default" : "destructive"
+      });
+      refetchCalendar();
+      if (selectedDate) refetchScheduled();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao reenviar", description: error.message, variant: "destructive" });
     },
   });
 
@@ -890,6 +916,21 @@ export default function AdminNotificationsPanel() {
                                         disabled={cancelScheduledMutation.isPending}
                                       >
                                         <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                  {/* Botão Reenviar para notificações já enviadas ou com falha */}
+                                  {(notification.status === 'sent' || notification.status === 'failed') && (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-blue-500"
+                                        onClick={() => resendScheduledMutation.mutate(notification.id)}
+                                        disabled={resendScheduledMutation.isPending}
+                                        title="Reenviar notificação"
+                                      >
+                                        <RotateCcw className="w-4 h-4" />
                                       </Button>
                                     </div>
                                   )}

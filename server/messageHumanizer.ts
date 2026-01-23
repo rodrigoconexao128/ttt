@@ -10,7 +10,7 @@
  * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
 
-import { getMistralClient } from "./mistralClient";
+import { getLLMClient } from "./llm";
 
 // Cache de mensagens já humanizadas para evitar chamadas repetidas à IA
 const humanizedCache = new Map<string, { result: string; timestamp: number }>();
@@ -69,7 +69,7 @@ export async function humanizeMessageWithAI(
   }
 
   try {
-    const mistral = await getMistralClient();
+    const mistral = await getLLMClient();
 
     const previousVariationsText = context?.previousVariations?.length 
       ? `\n\n⚠️ VARIAÇÕES JÁ USADAS (NÃO REPITA NENHUMA DELAS):\n${context.previousVariations.map((v, i) => `${i+1}. "${v}"`).join('\n')}`
@@ -102,8 +102,8 @@ ${previousVariationsText}
 
 ## ✍️ RESPONDA APENAS COM A MENSAGEM REESCRITA (sem explicações, sem aspas, sem "Aqui está"):`;
 
+    // Usa modelo configurado no banco de dados (sem hardcode)
     const response = await mistral.chat.complete({
-      model: "mistral-small-latest",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.8, // Alta criatividade para variar mais
       maxTokens: 500,

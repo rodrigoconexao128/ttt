@@ -12806,6 +12806,128 @@ Responda APENAS com o JSON, sem texto adicional.`;
     }
   });
 
+  // REENVIAR notificação que já foi enviada (status = 'sent')
+  app.post("/api/admin/notifications/resend/:id", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+      
+      // Buscar notificação agendada - permitir apenas status 'sent' ou 'failed'
+      const result = await db.execute(sql`
+        SELECT * FROM scheduled_notifications WHERE id = ${id} AND admin_id = ${adminId}
+      `);
+      
+      const notification = result.rows?.[0] as any;
+      if (!notification) {
+        return res.status(404).json({ message: "Notificação não encontrada" });
+      }
+      
+      if (notification.status !== 'sent' && notification.status !== 'failed') {
+        return res.status(400).json({ message: "Apenas notificações enviadas ou com falha podem ser reenviadas" });
+      }
+      
+      // Usar a mesma mensagem final se existir, ou gerar nova
+      let finalMessage = notification.final_message || notification.message_template;
+      
+      // Se AI estava ativada, podemos regenerar a mensagem
+      if (notification.ai_enabled && req.body?.regenerate) {
+        try {
+          // Buscar histórico de conversa
+          const historyResult = await db.execute(sql`
+            SELECT 
+              am.text,
+              am.from_me,
+              am.timestamp
+            FROM admin_messages am
+            INNER JOIN admin_conversations ac ON am.conversation_id = ac.id
+            WHERE ac.admin_id = ${adminId}
+            AND (ac.contact_number LIKE ${'%' + notification.recipient_phone.slice(-8)} OR ac.contact_number LIKE ${notification.recipient_phone + '%'})
+            ORDER BY am.timestamp DESC
+            LIMIT 15
+          `);
+          
+          const conversationHistory = (historyResult.rows as any[]).reverse().map(msg => 
+            `${msg.from_me ? 'Você' : 'Cliente'}: ${msg.text}`
+          ).join('\n');
+          
+          const metadata = JSON.parse(notification.metadata || '{}');
+          let baseMessage = notification.message_template
+            .replace(/{cliente_nome}/g, notification.recipient_name || 'Cliente')
+            .replace(/{dias_restantes}/g, metadata.daysBefore || '')
+            .replace(/{dias_atraso}/g, metadata.daysOverdue || metadata.daysAfter || '')
+            .replace(/{data_vencimento}/g, metadata.dueDate ? 
+              new Date(metadata.dueDate).toLocaleDateString('pt-BR') : '')
+            .replace(/{valor}/g, metadata.valor || '');
+          
+          const { callGroq } = await import("./llm");
+          const config = await storage.getAdminNotificationConfig?.(adminId);
+          
+          let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt || 
+            'Reescreva esta mensagem de forma natural e personalizada.';
+          systemPrompt += `\n\nO nome do cliente é: ${notification.recipient_name || 'Cliente'}`;
+          if (conversationHistory) {
+            systemPrompt += `\n\nHISTÓRICO DA CONVERSA COM ESTE CLIENTE:\n---\n${conversationHistory}\n---\n\nUse este contexto para personalizar a mensagem.`;
+          }
+          systemPrompt += '\n\nIMPORTANTE: Retorne APENAS a mensagem reescrita, sem explicações ou aspas.';
+          
+          const variedMessage = await callGroq(
+            [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: baseMessage }
+            ],
+            { temperature: 0.8, maxTokens: 500 }
+          );
+          
+          const trimmedVaried = variedMessage.trim();
+          if (trimmedVaried && trimmedVaried.length > 10 && !trimmedVaried.includes('Como posso ajudar')) {
+            finalMessage = trimmedVaried;
+          }
+        } catch (aiError) {
+          console.error("Error varying message with AI on resend:", aiError);
+        }
+      }
+      
+      // Enviar mensagem
+      const { sendAdminNotification } = await import("./whatsapp");
+      const sent = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
+      
+      // Atualizar registro original marcando como reenviado
+      await db.execute(sql`
+        UPDATE scheduled_notifications 
+        SET 
+          metadata = jsonb_set(
+            COALESCE(metadata, '{}')::jsonb, 
+            '{resent_at}', 
+            to_jsonb(NOW()::text)
+          ),
+          final_message = ${finalMessage}
+        WHERE id = ${id}
+      `);
+      
+      // Registrar novo log de reenvio
+      await db.execute(sql`
+        INSERT INTO admin_notification_logs (
+          admin_id, user_id, notification_type, recipient_phone, recipient_name,
+          message_original, message_sent, status, metadata, created_at, sent_at
+        ) VALUES (
+          ${adminId}, ${notification.user_id}, ${notification.notification_type + '_resend'},
+          ${notification.recipient_phone}, ${notification.recipient_name},
+          ${notification.message_template}, ${finalMessage}, ${sent ? 'sent' : 'failed'},
+          ${JSON.stringify({ original_notification_id: notification.id, resent: true })}::jsonb, NOW(), NOW()
+        )
+      `);
+      
+      res.json({ 
+        success: sent, 
+        message: sent ? 'Notificação reenviada com sucesso' : 'Falha ao reenviar',
+        finalMessage 
+      });
+    } catch (error) {
+      console.error("Error resending notification:", error);
+      res.status(500).json({ message: "Failed to resend notification" });
+    }
+  });
+
   // PROCESSAR FILA DE NOTIFICAÇÕES AGENDADAS - COM SISTEMA DE DELAY ANTI-BAN
   app.post("/api/admin/notifications/process-queue", isAdmin, async (req: any, res) => {
     try {

@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { adminConversations, followupLogs, adminMessages } from "@shared/schema";
 import { eq, and, lte, isNull } from "drizzle-orm";
-import { getMistralClient } from "./mistralClient";
+import { getLLMClient } from "./llm";
 
 // ============================================================================
 // CONFIGURAÇÕES
@@ -232,9 +232,9 @@ export class FollowUpService {
     `;
 
     try {
-      const mistral = await getMistralClient();
+      const mistral = await getLLMClient();
+      // Usa modelo configurado no banco de dados (sem hardcode)
       const response = await mistral.chat.complete({
-        model: "mistral-small-latest",
         messages: [{ role: "user", content: prompt }]
       });
       const content = response.choices?.[0]?.message?.content || "";

@@ -21,7 +21,7 @@ import {
   businessAgentConfigs
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { getMistralClient } from "./mistralClient";
+import { getLLMClient } from "./llm";
 import { getSessions } from "./whatsapp";
 import { storage } from "./storage";
 import { messageQueueService } from "./messageQueueService";
@@ -307,7 +307,7 @@ export class AppointmentReminderService {
     conversationHistory: any[]
   ): Promise<string | null> {
     try {
-      const mistral = await getMistralClient();
+      const mistral = await getLLMClient();
       if (!mistral) {
         console.error("❌ [APPOINTMENT-REMINDER] Mistral não disponível");
         return config.reminder_message || null; // Fallback para mensagem padrão
@@ -350,8 +350,8 @@ ${config.reminder_message ? `\nModelo de referência (adapte naturalmente): ${co
 
 Gere apenas a mensagem de lembrete, sem explicações adicionais.`;
 
+      // Usa modelo configurado no banco de dados (sem hardcode)
       const response = await mistral.chat.complete({
-        model: "mistral-small-latest",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: "Gere a mensagem de lembrete de agendamento para o cliente." }
@@ -538,7 +538,7 @@ async function generateConfirmationWithAI(
   conversationHistory: any[]
 ): Promise<string | null> {
   try {
-    const mistral = await getMistralClient();
+    const mistral = await getLLMClient();
     if (!mistral) {
       console.error("❌ [CONFIRMATION] Mistral não disponível");
       return config?.confirmation_message || null;
@@ -584,8 +584,8 @@ ${config?.confirmation_message ? `\nModelo de referência (adapte naturalmente):
 
 Gere apenas a mensagem de confirmação, sem explicações adicionais.`;
 
+    // Usa modelo configurado no banco de dados (sem hardcode)
     const response = await mistral.chat.complete({
-      model: "mistral-small-latest",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: "Gere a mensagem informando que o agendamento foi confirmado." }
@@ -720,7 +720,7 @@ async function generateCancellationWithAI(
   reason?: string
 ): Promise<string | null> {
   try {
-    const mistral = await getMistralClient();
+    const mistral = await getLLMClient();
     if (!mistral) {
       return config?.cancellation_message || null;
     }
@@ -755,8 +755,8 @@ ${config?.cancellation_message ? `\nModelo de referência: ${config.cancellation
 
 Gere apenas a mensagem de cancelamento, sem explicações.`;
 
+    // Usa modelo configurado no banco de dados (sem hardcode)
     const response = await mistral.chat.complete({
-      model: "mistral-small-latest",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: "Gere a mensagem informando o cancelamento do agendamento." }

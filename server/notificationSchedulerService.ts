@@ -7,6 +7,7 @@
  * - Check-ins periódicos (a cada X dias)
  * - Alertas de WhatsApp desconectado (após X horas)
  * - Broadcasts programados
+ * - ✅ NOVO: Verificação e downgrade de planos vencidos
  * 
  * ✅ FUNCIONA MESMO COM WHATSAPP DESCONECTADO (verifica antes de enviar)
  * ✅ GERA MENSAGEM ÚNICA POR CLIENTE COM IA (anti-detecção de bot)
@@ -18,6 +19,7 @@
  * NÃO é um chatbot - apenas envia mensagens informativas
  */
 
+import crypto from "crypto";
 import { storage } from "./storage";
 import { sendAdminNotification } from "./whatsapp";
 import { callGroq } from "./llm";
@@ -84,6 +86,9 @@ async function processNotifications(): Promise<void> {
 
     // ✅ Limpar contadores antigos
     cleanOldCounters();
+
+    // ✅ NOVO: Verificar e atualizar planos vencidos automaticamente
+    await processExpiredSubscriptions();
 
     // ✅ PRIMEIRO: Processar fila de scheduled_notifications
     await processScheduledNotificationsQueue();
@@ -152,6 +157,9 @@ async function processScheduledNotificationsQueue(): Promise<void> {
     console.log(`📋 [QUEUE SCHEDULER] Reivindicou ${claimedIds.length} notificações para processamento`);
     
     // Buscar os dados completos das notificações reivindicadas
+    // ✅ CORREÇÃO: Usar sql.raw() para strings literais no template SQL
+    // O id é VARCHAR, não UUID - usar cast para text[]
+    const idsArrayStr = `'{${claimedIds.join(',')}}'`;
     const pendingResult = await db.execute(sql`
       SELECT sn.*, anc.admin_id as config_admin_id,
              anc.respect_business_hours,
@@ -164,7 +172,7 @@ async function processScheduledNotificationsQueue(): Promise<void> {
              anc.broadcast_max_interval_seconds
       FROM scheduled_notifications sn
       LEFT JOIN admin_notification_config anc ON anc.admin_id = sn.admin_id
-      WHERE sn.id = ANY(${claimedIds}::uuid[])
+      WHERE sn.id = ANY(${sql.raw(idsArrayStr)}::text[])
       ORDER BY sn.scheduled_for ASC
     `);
     
@@ -186,10 +194,13 @@ async function processScheduledNotificationsQueue(): Promise<void> {
     }
     
     // ✅ Reverter notificações que não foram processadas (ainda em 'processing')
+    // Usando sql.raw() para strings literais no template SQL
+    // O id é VARCHAR, não UUID - usar cast para text[]
+    const revertIdsArrayStr = `'{${claimedIds.join(',')}}'`;
     await db.execute(sql`
       UPDATE scheduled_notifications
       SET status = 'pending', updated_at = NOW()
-      WHERE id = ANY(${claimedIds}::uuid[])
+      WHERE id = ANY(${sql.raw(revertIdsArrayStr)}::text[])
         AND status = 'processing'
     `);
     
@@ -829,7 +840,7 @@ async function applyAIVariation(message: string, customPrompt?: string, clientNa
       { role: 'system', content: prompt },
       { role: 'user', content: message },
     ], {
-      model: 'llama-3.3-70b-versatile',
+      // Usa modelo do banco de dados via config
       temperature: 0.8, // Alta temperatura para máxima variação
       max_tokens: 300,
     });
@@ -957,5 +968,76 @@ async function getLastNotificationLog(
   } catch (error) {
     console.error('Erro ao buscar último log:', error);
     return null;
+  }
+}
+
+/**
+ * 📦 VERIFICA E ATUALIZA PLANOS VENCIDOS AUTOMATICAMENTE
+ * 
+ * Esta função é executada periodicamente para:
+ * 1. Encontrar subscriptions com status='active' mas data_fim < NOW()
+ * 2. Marcar essas subscriptions como 'expired'
+ * 3. Logar as alterações para auditoria
+ * 
+ * IMPORTANTE: Clientes com plano vencido voltam ao limite de 25 mensagens de teste
+ * A verificação de limite é feita no whatsapp.ts ao processar mensagens
+ */
+export async function processExpiredSubscriptions(): Promise<void> {
+  try {
+    console.log('📦 [SUBSCRIPTION CHECKER] Verificando planos vencidos...');
+    
+    // Buscar subscriptions que estão active mas com data_fim no passado
+    // Adicionar período de carência de 5 dias para pagamentos recorrentes
+    const result = await db.execute(sql`
+      UPDATE subscriptions
+      SET status = 'expired', updated_at = NOW()
+      WHERE status = 'active'
+        AND data_fim IS NOT NULL
+        AND data_fim < NOW()
+        AND (
+          -- Se não é pagamento recorrente, expira imediatamente
+          next_payment_date IS NULL
+          OR
+          -- Se é recorrente, dá 5 dias de carência após next_payment_date
+          next_payment_date + INTERVAL '5 days' < NOW()
+        )
+      RETURNING id, user_id, data_fim, plan_id
+    `);
+    
+    const expiredSubs = result.rows as any[];
+    
+    if (expiredSubs.length > 0) {
+      console.log(`📦 [SUBSCRIPTION CHECKER] ⚠️ ${expiredSubs.length} plano(s) marcado(s) como expirado(s):`);
+      
+      for (const sub of expiredSubs) {
+        console.log(`   - Subscription ${sub.id}: User ${sub.user_id}, venceu em ${sub.data_fim}`);
+        
+        // Logar para auditoria
+        try {
+          await db.execute(sql`
+            INSERT INTO admin_notification_logs (
+              id, admin_id, user_id, client_phone, 
+              notification_type, message_content, status, created_at
+            ) VALUES (
+              ${crypto.randomUUID()},
+              ${sub.user_id},
+              ${sub.user_id},
+              'SYSTEM',
+              'subscription_expired',
+              ${'Plano expirado automaticamente. data_fim: ' + sub.data_fim + '. Cliente volta ao limite de 25 mensagens de teste.'},
+              'sent',
+              NOW()
+            )
+          `);
+        } catch (logError) {
+          console.error('Erro ao logar expiração:', logError);
+        }
+      }
+    } else {
+      console.log('📦 [SUBSCRIPTION CHECKER] ✅ Nenhum plano vencido para atualizar');
+    }
+    
+  } catch (error) {
+    console.error('📦 [SUBSCRIPTION CHECKER] Erro:', error);
   }
 }

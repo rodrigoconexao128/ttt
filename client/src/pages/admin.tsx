@@ -3122,14 +3122,23 @@ function ResellersManager() {
   );
 }
 
-function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?: string; zai_api_key?: string } | undefined }) {
+function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?: string; zai_api_key?: string; llm_provider?: string; groq_api_key?: string; groq_model?: string; openrouter_api_key?: string; openrouter_model?: string } | undefined }) {
   const { toast } = useToast();
   const [mistralKey, setMistralKey] = useState(config?.mistral_api_key || "");
   const [pixKey, setPixKey] = useState(config?.pix_key || "");
   const [zaiKey, setZaiKey] = useState(config?.zai_api_key || "");
+  const [llmProvider, setLlmProvider] = useState(config?.llm_provider || "mistral");
+  const [groqKey, setGroqKey] = useState(config?.groq_api_key || "");
+  const [groqModel, setGroqModel] = useState(config?.groq_model || "openai/gpt-oss-20b");
+  const [openrouterKey, setOpenrouterKey] = useState(config?.openrouter_api_key || "");
+  const [openrouterModel, setOpenrouterModel] = useState(config?.openrouter_model || "openai/gpt-oss-20b");
   const [showMistralKey, setShowMistralKey] = useState(false);
   const [showZaiKey, setShowZaiKey] = useState(false);
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
   const [testingMistral, setTestingMistral] = useState(false);
+  const [testingGroq, setTestingGroq] = useState(false);
+  const [testingOpenrouter, setTestingOpenrouter] = useState(false);
 
   // Sincronizar estado com config quando carregar
   useEffect(() => {
@@ -3137,6 +3146,11 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
       setMistralKey(config.mistral_api_key || "");
       setPixKey(config.pix_key || "");
       setZaiKey(config.zai_api_key || "");
+      setLlmProvider(config.llm_provider || "mistral");
+      setGroqKey(config.groq_api_key || "");
+      setGroqModel(config.groq_model || "openai/gpt-oss-20b");
+      setOpenrouterKey(config.openrouter_api_key || "");
+      setOpenrouterModel(config.openrouter_model || "openai/gpt-oss-20b");
     }
   }, [config]);
 
@@ -3157,8 +3171,42 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
     }
   };
 
+  const testGroqKey = async () => {
+    setTestingGroq(true);
+    try {
+      const response = await apiRequest("POST", "/api/admin/test-groq");
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: "✅ Chave Groq válida!", description: `Modelo: ${data.model}` });
+      } else {
+        toast({ title: "❌ Chave Groq inválida", description: data.error, variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "❌ Erro ao testar chave", description: error.message, variant: "destructive" });
+    } finally {
+      setTestingGroq(false);
+    }
+  };
+
+  const testOpenrouterKey = async () => {
+    setTestingOpenrouter(true);
+    try {
+      const response = await apiRequest("POST", "/api/admin/test-openrouter");
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: "✅ Chave OpenRouter válida!", description: `Modelo: ${data.model}` });
+      } else {
+        toast({ title: "❌ Chave OpenRouter inválida", description: data.error, variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "❌ Erro ao testar chave", description: error.message, variant: "destructive" });
+    } finally {
+      setTestingOpenrouter(false);
+    }
+  };
+
   const updateConfigMutation = useMutation({
-    mutationFn: async (data: { mistral_api_key: string; pix_key: string; zai_api_key: string }) => {
+    mutationFn: async (data: { mistral_api_key: string; pix_key: string; zai_api_key: string; llm_provider: string; groq_api_key: string; groq_model: string; openrouter_api_key: string; openrouter_model: string }) => {
       return await apiRequest("PUT", "/api/admin/config", data);
     },
     onSuccess: () => {
@@ -3172,56 +3220,264 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateConfigMutation.mutate({ mistral_api_key: mistralKey, pix_key: pixKey, zai_api_key: zaiKey });
+    updateConfigMutation.mutate({ 
+      mistral_api_key: mistralKey, 
+      pix_key: pixKey, 
+      zai_api_key: zaiKey,
+      llm_provider: llmProvider,
+      groq_api_key: groqKey,
+      groq_model: groqModel,
+      openrouter_api_key: openrouterKey,
+      openrouter_model: openrouterModel
+    });
   };
+
+  // Lista de modelos Groq disponíveis
+  const groqModels = [
+    { value: "openai/gpt-oss-20b", label: "GPT-OSS 20B (Recomendado ~$6/mês)" },
+    { value: "openai/gpt-oss-120b", label: "GPT-OSS 120B (Maior)" },
+    { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile" },
+    { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
+    { value: "gemma2-9b-it", label: "Gemma 2 9B IT" },
+    { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
+  ];
+
+  // Lista de modelos OpenRouter disponíveis (Hyperbolic = mais barato)
+  const openrouterModels = [
+    { value: "openai/gpt-oss-20b", label: "GPT-OSS 20B via Hyperbolic (Recomendado ~$0.04/M) ✨" },
+    { value: "openai/gpt-oss-20b:free", label: "GPT-OSS 20B (GRÁTIS - 50 req/dia) 🆓" },
+    { value: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B Instruct" },
+    { value: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B (GRÁTIS - 50 req/dia) 🆓" },
+    { value: "google/gemma-2-9b-it:free", label: "Gemma 2 9B IT (GRÁTIS) 🆓" },
+    { value: "mistralai/mistral-7b-instruct:free", label: "Mistral 7B Instruct (GRÁTIS) 🆓" },
+  ];
 
   return (
     <>
     <Card data-testid="card-system-config">
       <CardHeader>
         <CardTitle>Configurações do Sistema</CardTitle>
-        <CardDescription>Chave API Mistral, chave PIX e outras configurações</CardDescription>
+        <CardDescription>Chave API Mistral, Groq, chave PIX e outras configurações</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="mistralKey">Mistral API Key</Label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Input
-                  id="mistralKey"
-                  type={showMistralKey ? "text" : "password"}
-                  value={mistralKey}
-                  onChange={(e) => setMistralKey(e.target.value)}
-                  placeholder="sk-..."
-                  data-testid="input-mistral-key"
-                  className="pr-10"
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* LLM Provider Toggle */}
+          <div className="p-4 border rounded-lg bg-muted/30">
+            <Label className="text-base font-semibold">Provedor de IA (LLM)</Label>
+            <p className="text-sm text-muted-foreground mb-3">
+              Escolha qual provedor de IA usar para os agentes. OpenRouter oferece modelos GRÁTIS!
+            </p>
+            <div className="flex gap-4 flex-wrap">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="llmProvider"
+                  value="mistral"
+                  checked={llmProvider === "mistral"}
+                  onChange={(e) => setLlmProvider(e.target.value)}
+                  className="w-4 h-4"
                 />
+                <span className={llmProvider === "mistral" ? "font-semibold" : ""}>Mistral AI</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="llmProvider"
+                  value="groq"
+                  checked={llmProvider === "groq"}
+                  onChange={(e) => setLlmProvider(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span className={llmProvider === "groq" ? "font-semibold text-green-600" : ""}>
+                  Groq (~$6/mês) 🚀
+                </span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="llmProvider"
+                  value="openrouter"
+                  checked={llmProvider === "openrouter"}
+                  onChange={(e) => setLlmProvider(e.target.value)}
+                  className="w-4 h-4"
+                />
+                <span className={llmProvider === "openrouter" ? "font-semibold text-purple-600" : ""}>
+                  OpenRouter (GRÁTIS) 🆓✨
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* Groq Configuration (só aparece se Groq estiver selecionado) */}
+          {llmProvider === "groq" && (
+            <div className="p-4 border rounded-lg border-green-200 bg-green-50/50 space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="groqKey">Groq API Key</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="groqKey"
+                      type={showGroqKey ? "text" : "password"}
+                      value={groqKey}
+                      onChange={(e) => setGroqKey(e.target.value)}
+                      placeholder="gsk_..."
+                      data-testid="input-groq-key"
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowGroqKey(!showGroqKey)}
+                    >
+                      {showGroqKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={testGroqKey}
+                    disabled={testingGroq || !groqKey}
+                  >
+                    {testingGroq ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                    Testar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="groqModel">Modelo Groq</Label>
+                <select
+                  id="groqModel"
+                  value={groqModel}
+                  onChange={(e) => setGroqModel(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-testid="select-groq-model"
+                >
+                  {groqModels.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-sm text-muted-foreground">
+                  Modelo usado pelos agentes IA. GPT-OSS 20B é o mais econômico.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* OpenRouter Configuration (só aparece se OpenRouter estiver selecionado) */}
+          {llmProvider === "openrouter" && (
+            <div className="p-4 border rounded-lg border-purple-200 bg-purple-50/50 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🆓</span>
+                <span className="text-sm font-semibold text-purple-700">Modelos 100% GRÁTIS - Sem limite de uso!</span>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="openrouterKey">OpenRouter API Key</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="openrouterKey"
+                      type={showOpenrouterKey ? "text" : "password"}
+                      value={openrouterKey}
+                      onChange={(e) => setOpenrouterKey(e.target.value)}
+                      placeholder="sk-or-v1-..."
+                      data-testid="input-openrouter-key"
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowOpenrouterKey(!showOpenrouterKey)}
+                    >
+                      {showOpenrouterKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={testOpenrouterKey}
+                    disabled={testingOpenrouter || !openrouterKey}
+                  >
+                    {testingOpenrouter ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                    Testar
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Crie sua chave em <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-purple-600 underline">openrouter.ai/keys</a>
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="openrouterModel">Modelo OpenRouter</Label>
+                <select
+                  id="openrouterModel"
+                  value={openrouterModel}
+                  onChange={(e) => setOpenrouterModel(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-testid="select-openrouter-model"
+                >
+                  {openrouterModels.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-sm text-muted-foreground">
+                  Todos os modelos são 100% gratuitos! Llama 3.3 70B é o mais potente.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Mistral Configuration (só aparece se Mistral estiver selecionado) */}
+          {llmProvider === "mistral" && (
+            <div className="grid gap-2">
+              <Label htmlFor="mistralKey">Mistral API Key</Label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    id="mistralKey"
+                    type={showMistralKey ? "text" : "password"}
+                    value={mistralKey}
+                    onChange={(e) => setMistralKey(e.target.value)}
+                    placeholder="sk-..."
+                    data-testid="input-mistral-key"
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowMistralKey(!showMistralKey)}
+                  >
+                    {showMistralKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                  onClick={() => setShowMistralKey(!showMistralKey)}
+                  onClick={testMistralKey}
+                  disabled={testingMistral || !mistralKey}
                 >
-                  {showMistralKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {testingMistral ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                  Testar
                 </Button>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={testMistralKey}
-                disabled={testingMistral || !mistralKey}
-              >
-                {testingMistral ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                Testar
-              </Button>
+              <p className="text-sm text-muted-foreground">
+                Chave API usada por todos os agentes IA do sistema
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Chave API usada por todos os agentes IA do sistema
-            </p>
-          </div>
+          )}
 
           <div className="grid gap-2">
             <Label htmlFor="pixKey">Chave PIX</Label>

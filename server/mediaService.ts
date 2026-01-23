@@ -394,7 +394,7 @@ export function parseMistralResponse(responseText: string): MistralResponse | nu
 // A IA analisa: mensagem, histórico, biblioteca de mídia e campo whenToUse.
 // =============================================================================
 
-import { classifyMediaWithAI } from "./mistralClient";
+import { classifyMediaWithLLM } from "./llm";
 
 interface ForceMediaResult {
   shouldSendMedia: boolean;
@@ -437,8 +437,8 @@ export async function forceMediaDetection(
   }
   
   try {
-    // Chamar IA para classificação
-    const aiResult = await classifyMediaWithAI({
+    // Chamar IA para classificação (usa Groq ou Mistral conforme configuração do admin)
+    const aiResult = await classifyMediaWithLLM({
       clientMessage,
       conversationHistory,
       mediaLibrary: mediaLibrary.map(m => ({
@@ -1016,9 +1016,9 @@ export async function transcribeAudio(
   mimeType: string = 'audio/ogg'
 ): Promise<string | null> {
   try {
-    // Import dinâmico do cliente Mistral
-    const { getMistralClient } = await import('./mistralClient');
-    const mistral = await getMistralClient();
+    // Import dinâmico do cliente LLM
+    const { getLLMClient } = await import('./llm');
+    const mistral = await getLLMClient();
 
     if (!mistral) {
       console.error('[MediaService] Mistral client not available for transcription');

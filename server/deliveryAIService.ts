@@ -18,7 +18,7 @@
  */
 
 import { supabase } from "./supabaseAuth";
-import { getMistralClient } from "./mistralClient";
+import { getLLMClient } from "./llm";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 📦 TIPOS E INTERFACES
@@ -898,7 +898,7 @@ export async function detectIntentWithAI(
     return detectCustomerIntent(message);
   }
   
-  const mistral = await getMistralClient();
+  const mistral = await getLLMClient();
   if (!mistral) {
     console.log(`🤖 [DeliveryAI] Mistral indisponível, usando regex`);
     return detectCustomerIntent(message);
@@ -952,8 +952,8 @@ REGRAS IMPORTANTES:
 Responda APENAS com o nome da intenção, nada mais.`;
 
   try {
+    // Usa modelo configurado no banco de dados (sem hardcode)
     const response = await mistral.chat.complete({
-      model: 'mistral-small-latest',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `CONTEXTO DA CONVERSA:\n${recentHistory}\n\nÚLTIMA MENSAGEM DO CLIENTE: "${message}"\n\nQual a intenção?` }
@@ -2136,7 +2136,7 @@ export async function generateDeliveryResponse(
   // OUTROS CASOS: USA IA COM CONTEXTO MÍNIMO
   // ═══════════════════════════════════════════════════════════════════════
   
-  const mistral = await getMistralClient();
+  const mistral = await getLLMClient();
   if (!mistral) {
     console.error(`🍕 [DeliveryAI] Mistral client not available`);
     return {
@@ -2186,8 +2186,8 @@ ${itemList}
 7. SE NÃO SOUBER: pergunte ao cliente ou diga que vai verificar.`;
 
   try {
+    // Usa modelo configurado no banco de dados (sem hardcode)
     const response = await mistral.chat.complete({
-      model: 'mistral-small-latest',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message },

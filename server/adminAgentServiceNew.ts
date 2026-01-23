@@ -12,7 +12,7 @@
 
 import { storage } from "./storage";
 import { generatePixQRCode } from "./pixService";
-import { getMistralClient } from "./mistralClient";
+import { getLLMClient } from "./llm";
 import { v4 as uuidv4 } from "uuid";
 import { 
   generateAdminMediaPromptBlock, 
@@ -485,7 +485,7 @@ async function executeActions(session: ClientSession, actions: ParsedAction[]): 
 
 export async function generateAIResponse(session: ClientSession, userMessage: string): Promise<string> {
   try {
-    const mistral = await getMistralClient();
+    const mistral = await getLLMClient();
     const systemPrompt = await getMasterPrompt(session);
     
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
@@ -504,8 +504,8 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
     
     console.log(`🤖 [SALES] Gerando resposta para: "${userMessage.substring(0, 50)}..." (state: ${session.flowState})`);
     
+    // Usa modelo configurado no banco de dados (sem hardcode)
     const response = await mistral.chat.complete({
-      model: "mistral-small-latest",
       messages: messages,
       maxTokens: 400,
       temperature: 0.8,
@@ -799,7 +799,7 @@ REGRAS:
       await storage.upsertAgentConfig(user.id, {
         prompt: fullPrompt,
         isActive: true,
-        model: "mistral-small-latest",
+        model: undefined, // Usa modelo do banco de dados via getLLMClient()
         triggerPhrases: [],
         messageSplitChars: 400,
         responseDelaySeconds: 30,
@@ -850,7 +850,7 @@ export async function generateFollowUpResponse(phoneNumber: string, context: str
   if (!session) return "";
   
   try {
-    const mistral = await getMistralClient();
+    const mistral = await getLLMClient();
     
     const prompt = `Você é o Rodrigo, vendedor humano da AgenteZap.
 O cliente parou de responder há alguns minutos.
@@ -862,8 +862,8 @@ Gere uma mensagem de follow-up CURTA e NATURAL para retomar a conversa.
 Não seja insistente. Seja amigável e mostre que está disponível.
 NÃO use ações [AÇÃO:...]. Apenas texto natural.`;
 
+    // Usa modelo configurado no banco de dados (sem hardcode)
     const response = await mistral.chat.complete({
-      model: "mistral-small-latest",
       messages: [{ role: "user", content: prompt }],
       maxTokens: 150,
       temperature: 0.9,
@@ -882,7 +882,7 @@ export async function generateScheduledContactResponse(phoneNumber: string, reas
   const session = getClientSession(phoneNumber);
   
   try {
-    const mistral = await getMistralClient();
+    const mistral = await getLLMClient();
     
     const prompt = `Você é o Rodrigo, vendedor humano da AgenteZap.
 Você agendou de entrar em contato com o cliente hoje.
@@ -893,8 +893,8 @@ Gere uma mensagem de retorno NATURAL e AMIGÁVEL.
 Mencione que você prometeu retornar.
 NÃO use ações [AÇÃO:...]. Apenas texto natural.`;
 
+    // Usa modelo configurado no banco de dados (sem hardcode)
     const response = await mistral.chat.complete({
-      model: "mistral-small-latest",
       messages: [{ role: "user", content: prompt }],
       maxTokens: 150,
       temperature: 0.9,

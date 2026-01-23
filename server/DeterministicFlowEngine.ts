@@ -26,7 +26,7 @@
  */
 
 import { supabase } from "./supabaseAuth";
-import { getMistralClient } from "./mistralClient";
+import { getLLMClient } from "./llm";
 
 // ═══════════════════════════════════════════════════════════════════════
 // TIPOS
@@ -257,7 +257,7 @@ export class DeterministicFlowEngine {
       return this.simpleIntentDetection(userMessage, flowDef);
     }
 
-    const mistral = getMistralClient(apiKey);
+    const mistral = await getLLMClient();
 
     const prompt = `Você é um interpretador de intenções. Analise a mensagem do usuário e retorne APENAS um JSON com a intenção.
 
@@ -283,8 +283,8 @@ Retorne JSON neste formato EXATO:
 }`;
 
     try {
+      // Usa modelo configurado no banco de dados (sem hardcode)
       const response = await mistral.chat.complete({
-        model: 'mistral-small-latest',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
         maxTokens: 200
@@ -513,7 +513,7 @@ Retorne JSON neste formato EXATO:
     apiKey: string
   ): Promise<string> {
 
-    const mistral = getMistralClient(apiKey);
+    const mistral = await getLLMClient();
 
     const prompt = `Você é ${flowDef.agentName}, um assistente ${flowDef.agentPersonality}.
 
@@ -538,8 +538,8 @@ REGRAS:
 Resposta humanizada:`;
 
     try {
+      // Usa modelo configurado no banco de dados (sem hardcode)
       const response = await mistral.chat.complete({
-        model: 'mistral-small-latest',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.3,
         maxTokens: 300

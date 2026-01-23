@@ -3572,26 +3572,64 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       return;
     }
     
-    // ?? CHECK DE LIMITE DE MENSAGENS PARA USU�RIOS SEM PLANO PAGO
+    // 🔒 CHECK DE LIMITE DE MENSAGENS E PLANO VENCIDO
     const FREE_TRIAL_LIMIT = 25;
     const connection = await storage.getConnectionByUserId(userId);
     if (connection) {
       const subscription = await storage.getUserSubscription(userId);
-      // Apenas status 'active' (plano pago) � ilimitado
-      const hasActiveSubscription = subscription?.status === 'active';
+      
+      // ✅ CORREÇÃO: Verificar status E se o plano está vencido por data
+      let hasActiveSubscription = subscription?.status === 'active';
+      let isSubscriptionExpired = false;
+      
+      // 🔍 Verificar se o plano está vencido pela data_fim
+      if (subscription?.dataFim) {
+        const endDate = new Date(subscription.dataFim);
+        const now = new Date();
+        if (now > endDate) {
+          isSubscriptionExpired = true;
+          hasActiveSubscription = false;
+          console.log(`🚫 [AI AGENT] PLANO VENCIDO! data_fim: ${endDate.toISOString()} < agora: ${now.toISOString()}`);
+        }
+      }
+      
+      // 🔍 Verificar também pelo next_payment_date (para assinaturas recorrentes)
+      if (subscription?.nextPaymentDate && !isSubscriptionExpired) {
+        const nextPayment = new Date(subscription.nextPaymentDate);
+        const now = new Date();
+        // Considerar vencido se passou mais de 5 dias da data de pagamento
+        const daysOverdue = Math.floor((now.getTime() - nextPayment.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysOverdue > 5) {
+          isSubscriptionExpired = true;
+          hasActiveSubscription = false;
+          console.log(`🚫 [AI AGENT] PAGAMENTO EM ATRASO! ${daysOverdue} dias - nextPaymentDate: ${nextPayment.toISOString()}`);
+        }
+      }
       
       if (!hasActiveSubscription) {
         const agentMessagesCount = await storage.getAgentMessagesCount(connection.id);
         
+        // 🚫 Se plano venceu, também volta pro limite de 25 mensagens (plano de teste)
+        if (isSubscriptionExpired) {
+          console.log(`🚫 [AI AGENT] Plano vencido! Cliente volta ao limite de ${FREE_TRIAL_LIMIT} mensagens de teste.`);
+          console.log(`   📊 Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
+          
+          // Se já usou as mensagens de teste, bloqueia completamente
+          if (agentMessagesCount >= FREE_TRIAL_LIMIT) {
+            console.log(`🚫 [AI AGENT] Plano vencido E limite de teste atingido - IA PAUSADA para este cliente`);
+            return;
+          }
+        }
+        
         if (agentMessagesCount >= FREE_TRIAL_LIMIT) {
-          console.log(`?? [AI AGENT] Limite de ${FREE_TRIAL_LIMIT} mensagens atingido (${agentMessagesCount}/${FREE_TRIAL_LIMIT}). Usu�rio precisa assinar plano.`);
-          // N�o enviar resposta - limite atingido
+          console.log(`🚫 [AI AGENT] Limite de ${FREE_TRIAL_LIMIT} mensagens atingido (${agentMessagesCount}/${FREE_TRIAL_LIMIT}). Usuário precisa assinar plano.`);
+          // Não enviar resposta - limite atingido
           return;
         }
         
-        console.log(`?? [AI AGENT] Uso: ${agentMessagesCount + 1}/${FREE_TRIAL_LIMIT} mensagens`);
+        console.log(`📊 [AI AGENT] Uso: ${agentMessagesCount + 1}/${FREE_TRIAL_LIMIT} mensagens`);
       } else {
-        console.log(`? [AI AGENT] Usu�rio tem plano pago ativo: ${subscription.plan?.nome || 'Plano'}`);
+        console.log(`✅ [AI AGENT] Usuário tem plano pago ativo e válido: ${subscription?.plan?.nome || 'Plano'}`);
       }
     }
     
@@ -4367,26 +4405,52 @@ export async function sendAdminNotification(
       return { success: false, error: `Número inválido: ${phoneNumber}` };
     }
     
-    const jid = `${cleanPhone}@s.whatsapp.net`;
+    // ✅ CORREÇÃO: Testar múltiplas variações do número
+    // Alguns números podem estar cadastrados com 9 extra ou faltando o 9
+    const phoneVariations: string[] = [cleanPhone];
     
-    console.log(`[sendAdminNotification] 📤 Verificando número: ${phoneNumber} -> ${jid}`);
-    
-    // ✅ Verificar se o número existe no WhatsApp ANTES de enviar
-    let numberExists = false;
-    try {
-      const [result] = await session.socket.onWhatsApp(cleanPhone);
-      numberExists = result?.exists === true;
-      
-      if (!numberExists) {
-        console.log(`[sendAdminNotification] ❌ Número NÃO existe no WhatsApp: ${cleanPhone}`);
-        return { success: false, error: `Número não existe no WhatsApp: ${phoneNumber}` };
-      }
-      
-      console.log(`[sendAdminNotification] ✅ Número verificado: ${cleanPhone} existe no WhatsApp`);
-    } catch (checkError) {
-      // Se falhar a verificação, tentar enviar mesmo assim (alguns números podem não verificar)
-      console.log(`[sendAdminNotification] ⚠️ Não foi possível verificar número (tentando enviar mesmo assim): ${cleanPhone}`);
+    // Se tem 13 dígitos (55 + DDD + 9 + 8 dígitos), criar variação sem o 9
+    if (cleanPhone.length === 13 && cleanPhone[4] === '9') {
+      const withoutNine = cleanPhone.slice(0, 4) + cleanPhone.slice(5);
+      phoneVariations.push(withoutNine);
+      console.log(`[sendAdminNotification] 📱 Variação sem 9: ${withoutNine}`);
     }
+    
+    // Se tem 12 dígitos (55 + DDD + 8 dígitos), criar variação com o 9
+    if (cleanPhone.length === 12) {
+      const withNine = cleanPhone.slice(0, 4) + '9' + cleanPhone.slice(4);
+      phoneVariations.push(withNine);
+      console.log(`[sendAdminNotification] 📱 Variação com 9: ${withNine}`);
+    }
+    
+    console.log(`[sendAdminNotification] 📤 Verificando variações: ${phoneVariations.join(', ')}`);
+    
+    // ✅ Verificar qual variação existe no WhatsApp
+    let validPhone: string | null = null;
+    
+    for (const phone of phoneVariations) {
+      try {
+        const [result] = await session.socket.onWhatsApp(phone);
+        if (result?.exists === true) {
+          validPhone = phone;
+          console.log(`[sendAdminNotification] ✅ Número encontrado: ${phone}`);
+          break;
+        } else {
+          console.log(`[sendAdminNotification] ❌ ${phone} não existe no WhatsApp`);
+        }
+      } catch (checkError) {
+        console.log(`[sendAdminNotification] ⚠️ Erro ao verificar ${phone}:`, checkError);
+      }
+    }
+    
+    // Se nenhuma variação foi encontrada, retornar erro
+    if (!validPhone) {
+      console.log(`[sendAdminNotification] ❌ Nenhuma variação do número existe no WhatsApp: ${phoneVariations.join(', ')}`);
+      return { success: false, error: `Número não existe no WhatsApp: ${phoneNumber} (testado: ${phoneVariations.join(', ')})` };
+    }
+    
+    const jid = `${validPhone}@s.whatsapp.net`;
+    console.log(`[sendAdminNotification] 📤 Enviando para: ${jid}`);
     
     // Enviar mensagem usando a fila anti-banimento
     let sendSuccess = false;
@@ -4398,14 +4462,14 @@ export async function sendAdminNotification(
         
         if (result?.key?.id) {
           sendSuccess = true;
-          console.log(`[sendAdminNotification] ✅ Mensagem enviada com sucesso para ${cleanPhone} (msgId: ${result.key.id})`);
+          console.log(`[sendAdminNotification] ✅ Mensagem enviada com sucesso para ${validPhone} (msgId: ${result.key.id})`);
         } else {
           sendError = 'Nenhum ID de mensagem retornado';
-          console.log(`[sendAdminNotification] ⚠️ Envio sem confirmação para ${cleanPhone}`);
+          console.log(`[sendAdminNotification] ⚠️ Envio sem confirmação para ${validPhone}`);
         }
       } catch (sendErr) {
         sendError = sendErr instanceof Error ? sendErr.message : 'Erro desconhecido';
-        console.error(`[sendAdminNotification] ❌ Erro ao enviar para ${cleanPhone}:`, sendErr);
+        console.error(`[sendAdminNotification] ❌ Erro ao enviar para ${validPhone}:`, sendErr);
         throw sendErr; // Re-throw para que sendWithQueue capture
       }
     });

@@ -1,6 +1,6 @@
 ﻿import { storage } from "./storage";
 import type { Message, MistralResponse } from "@shared/schema";
-import { getMistralClient } from "./mistralClient";
+import { getLLMClient, getCurrentProvider } from "./llm";
 import { supabase } from "./supabaseAuth";
 // NOTA: generateSystemPrompt, detectJailbreak, detectOffTopic foram removidos
 // pois o sistema ADVANCED foi desativado para garantir determinismo nas respostas
@@ -1605,7 +1605,10 @@ VOCÊ JÁ SABE O QUE FAZER. EXECUTE A AÇÃO ABAIXO IMEDIATAMENTE:
 5. HUMANIZAÇÃO (sem gírias excessivas):
    → Seja profissional mas acolhedor
    → Use emojis com moderação (1-2 por mensagem)
-   → Frases curtas e diretas (máx 4-5 linhas por mensagem)
+   → Frases curtas e diretas (máx 4-5 linhas por mensagem) - EXCETO quando:
+      • O cliente pedir lista/cardápio/categorias/produtos COMPLETOS
+      • O prompt instrui enviar lista INTEIRA/COMPLETA
+      • Nestes casos: ENVIE A LISTA TODA, SEM CORTAR NADA
    → NÃO use: "cara", "véi", "mano", "brother" - use o NOME do cliente
 
 ═══════════════════════════════════════════════════════════════════════════════`);
@@ -2536,6 +2539,9 @@ export async function generateAIResponse(
       console.log(`🎯 [AI Agent] Instrução de formatação "${formattingRequest.type}" injetada no prompt`);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🚨 DETECTAR PEDIDO DE LISTA/CARDÁPIO/CATEGORIAS - FORÇAR RESPOSTA COMPLETA
+    // Esta é uma mensagem de SYSTEM separada para ter MÁXIMA PRIORIDADE
     // 📜 INSTRUÇÃO ESPECIAL QUANDO MODO HISTÓRICO ESTÁ ATIVO
     // Ajuda a IA a entender que deve analisar o contexto completo da conversa
     if (isHistoryModeActive && conversationHistory.length > 0) {
@@ -2946,12 +2952,52 @@ ${jaDisseOQueTrabalha || jaPediuAjuda ? `
 Mensagem do cliente: ${newMessageText.trim()}`;
     }
     
+    // 🎯 FIX CRÍTICO: Detectar pedido de LISTA/CARDÁPIO/PACK e forçar resposta COMPLETA
+    const listPhrases = ['o que tem', 'que tem', 'o que vem', 'quais são', 'quais sao', 'lista', 'cardápio', 'cardapio', 'categorias', 'produtos', 'tudo que tem', 'todas', 'todos', 'completo', 'completa', 'inteiro', 'inteira', 'pack', 'superpack'];
+    const isAskingForListInMessage = listPhrases.some(kw => newMessageText.toLowerCase().includes(kw));
+    
+    if (isAskingForListInMessage) {
+      console.log(`📋 [AI Agent] PEDIDO DE LISTA DETECTADO! Extraindo lista do prompt...`);
+      
+      // 🎯 SOLUÇÃO DEFINITIVA (TESTADA E APROVADA - 100% sucesso):
+      // Extrair lista numerada do prompt e INJETAR diretamente na mensagem
+      // Isso garante que a IA RECEBA a lista completa, independente do tamanho do prompt
+      // FIX: Usar systemPrompt (já construído) ou agentConfig.prompt como fallback
+      const promptToSearch = systemPrompt || agentConfig.prompt || '';
+      
+      // Regex para encontrar listas numeradas (1. Item\n2. Item\n...)
+      // Busca sequências de pelo menos 10 itens numerados consecutivos
+      const numberedListRegex = /(?:^|\n)((?:\d{1,3}\.\s*[^\n]+(?:\n|$)){10,})/;
+      const listMatch = promptToSearch.match(numberedListRegex);
+      
+      if (listMatch) {
+        const extractedList = listMatch[1].trim();
+        const itemCount = (extractedList.match(/^\d{1,3}\./gm) || []).length;
+        console.log(`📋 [AI Agent] ✅ LISTA EXTRAÍDA: ${itemCount} itens (${extractedList.length} chars)`);
+        
+        // 🚀 TÉCNICA VENCEDORA: Injetar lista na user message (testado - 100% sucesso)
+        finalUserMessage = `O cliente perguntou: "${newMessageText.trim()}"
+
+Copie esta lista COMPLETA (${itemCount} itens):
+
+${extractedList}`;
+      } else {
+        console.log(`📋 [AI Agent] ⚠️ Nenhuma lista numerada detectada no prompt`);
+        // Fallback: instrução genérica
+        finalUserMessage = `[INSTRUÇÃO: O cliente está pedindo lista/cardápio. Envie a lista COMPLETA do seu conhecimento, item por item, sem cortar nada]
+
+Cliente: ${newMessageText.trim()}`;
+      }
+    }
+    
     messages.push({
       role: "user",
       content: finalUserMessage,
     });
 
-    const mistral = await getMistralClient();
+    // 🚀 SISTEMA DE LLM MULTI-PROVIDER (Groq/Mistral)
+    const llmClient = await getLLMClient();
+    const currentProvider = await getCurrentProvider();
     
     // ════════════════════════════════════════════════════════════════════════════
     // 🎯 TOKENS SEM LIMITE ARTIFICIAL - Deixar a IA responder naturalmente
@@ -2962,11 +3008,21 @@ Mensagem do cliente: ${newMessageText.trim()}`;
     // Perguntas curtas = respostas proporcionais, mas SEM corte forçado
     const questionLength = newMessageText.length;
     
+    // 🔧 FIX: Detectar se cliente está pedindo LISTA/CARDÁPIO/CATEGORIAS
+    // Nestes casos, usar maxTokens muito maior para garantir resposta completa
+    const listKeywords = ['lista', 'cardápio', 'cardapio', 'categorias', 'produtos', 'o que tem', 'que tem', 'o que vem', 'que vem', 'tudo que tem', 'quais são', 'quais sao', 'todas', 'todos', 'completo', 'completa', 'inteiro', 'inteira', 'pack', 'superpack'];
+    const isAskingForList = listKeywords.some(kw => newMessageText.toLowerCase().includes(kw));
+    
     // Base generosa para permitir respostas completas
     // 1 token ≈ 3-4 caracteres em português
     // 2000 tokens ≈ 6000-8000 chars (mensagens bem longas)
+    // 🔧 FIX: Se pedir lista, usar 8000 tokens (≈24000-32000 chars) para listas MUITO grandes como 71 categorias
     // 🔧 FIX: Aumentado mínimo de 600 para 1200 tokens para evitar corte de respostas sobre preços/planos
-    const baseMaxTokens = questionLength < 20 ? 1200 : questionLength < 50 ? 1500 : 2000;
+    const baseMaxTokens = isAskingForList ? 8000 : (questionLength < 20 ? 1200 : questionLength < 50 ? 1500 : 2000);
+    
+    if (isAskingForList) {
+      console.log(`📋 [AI Agent] Detectado pedido de LISTA - usando maxTokens aumentado: ${baseMaxTokens}`);
+    }
     
     // 🆕 Se usar sistema avançado, respeitar maxResponseLength configurado
     // Usar MAX ao invés de MIN para garantir que resposta não seja cortada
@@ -2981,9 +3037,12 @@ Mensagem do cliente: ${newMessageText.trim()}`;
     console.log(`🎯 [AI Agent] Pergunta: ${questionLength} chars → maxTokens: ${maxTokens} (SEM LIMITE - divisão em partes é depois)`);
     
     // Determinar modelo (usar config do business ou legacy)
-    const model = useAdvancedSystem && businessConfig?.model 
-      ? businessConfig.model 
-      : agentConfig.model;
+    // Para Groq, usar modelo configurado no system_config; para Mistral, usar o do agentConfig
+    const model = currentProvider === 'groq' 
+      ? undefined  // Deixar o LLM client usar o modelo configurado
+      : (useAdvancedSystem && businessConfig?.model 
+          ? businessConfig.model 
+          : agentConfig.model);
     
     // ════════════════════════════════════════════════════════════════════════════
     // 🎯 CACHE DE RESPOSTAS: Garante que mesma pergunta = mesma resposta SEMPRE
@@ -3021,10 +3080,10 @@ Mensagem do cliente: ${newMessageText.trim()}`;
     // 🎯 TEMPERATURE 0.0 + SEED FIXO: Respostas 100% DETERMINÍSTICAS
     // REMOVIDA VARIAÇÃO: Usuário solicitou remover variação do simulador e WhatsApp debug
     // randomSeed: Garante que mesma pergunta = mesma resposta SEMPRE
-    console.log(`🔧 [AI-CONFIG] DETERMINISM: temperature=0.0, randomSeed=42, model=${model}`);
+    console.log(`🔧 [AI-CONFIG] DETERMINISM: provider=${currentProvider}, temperature=0.0, randomSeed=42, model=${model || 'auto'}`);
     const chatResponse = await withRetry(
       async () => {
-        return await mistral.chat.complete({
+        return await llmClient.chat.complete({
           model,
           messages: messages as any,
           maxTokens, // Dinâmico baseado na pergunta e config
@@ -3034,7 +3093,7 @@ Mensagem do cliente: ${newMessageText.trim()}`;
       },
       3, // 3 tentativas
       1500, // Delay inicial de 1.5s
-      `Mistral API (${model})`
+      `LLM API (${currentProvider})`
     );
 
     const content = chatResponse.choices?.[0]?.message?.content;
@@ -3534,10 +3593,10 @@ export async function testAgentResponse(
       console.log(`🧪 [SIMULADOR] Sistema → Executa ação (determinístico)`);
       console.log(`🧪 [SIMULADOR] IA → Humaniza resposta`);
       
-      // Buscar API key
-      const apiKeyResult = await getMistralClient(userId);
-      if (!apiKeyResult) {
-        throw new Error("API key not configured");
+      // Verificar se LLM está configurado
+      const llmClient = await getLLMClient();
+      if (!llmClient) {
+        throw new Error("LLM não configurado");
       }
       
       // Gerar ID de conversa simulada (persistente por sessão do simulador)

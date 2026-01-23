@@ -9,7 +9,7 @@ import {
   businessAgentConfigs
 } from "@shared/schema";
 import { eq, and, lte, isNotNull } from "drizzle-orm";
-import { getMistralClient } from "./mistralClient";
+import { getLLMClient } from "./llm";
 import { storage } from "./storage";
 import { getSessions } from "./whatsapp";
 
@@ -927,9 +927,9 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
 {"action":"send|wait|abort|schedule","reason":"motivo curto","message":"texto (só se send)","scheduleDate":"YYYY-MM-DDTHH:MM (só se schedule)"}`;
 
     try {
-      const mistral = await getMistralClient();
+      const mistral = await getLLMClient();
+      // Usa modelo configurado no banco de dados (sem hardcode)
       const response = await mistral.chat.complete({
-        model: "mistral-small-latest",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.8 // Mais criatividade para variar mensagens
       });

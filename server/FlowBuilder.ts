@@ -15,6 +15,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { chatComplete } from './llm';
 
 // ═══════════════════════════════════════════════════════════════════════
 // 📊 TIPOS E INTERFACES
@@ -434,15 +435,11 @@ export class FlowBuilder {
   /**
    * 🤖 USA IA PARA EXTRAIR MENSAGEM CUSTOMIZADA DO PROMPT
    * Muito mais robusto que regex!
+   * Usa o sistema centralizado de LLM (Groq/Mistral conforme config)
    */
   async extractCustomGreetingWithAI(prompt: string): Promise<string | null> {
-    if (!this.mistralApiKey) {
-      console.log('[FlowBuilder] ⚠️ Mistral API key não disponível, usando regex fallback');
-      return this.analyzer.extractCustomGreeting(prompt);
-    }
-
     try {
-      console.log('[FlowBuilder] 🤖 Usando IA para extrair mensagem customizada...');
+      console.log('[FlowBuilder] 🤖 Usando IA (sistema centralizado) para extrair mensagem customizada...');
       
       const analysisPrompt = `Analise o seguinte prompt de agente de IA e determine se ele contém uma MENSAGEM INICIAL CUSTOMIZADA OBRIGATÓRIA.
 
@@ -470,30 +467,18 @@ RESPONDA APENAS COM JSON VÁLIDO:
   "confidence": 0-100
 }`;
 
-      const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.mistralApiKey}`
-        },
-        body: JSON.stringify({
-          model: 'mistral-small-latest',
-          messages: [{ role: 'user', content: analysisPrompt }],
-          temperature: 0.1,
-          max_tokens: 1000
-        })
+      // Usa modelo configurado no banco de dados (sem hardcode)
+      const response = await chatComplete({
+        messages: [{ role: 'user', content: analysisPrompt }],
+        temperature: 0.1,
+        maxTokens: 1000
       });
 
-      if (!response.ok) {
-        throw new Error(`Mistral API error: ${response.status}`);
-      }
-
-      const data: any = await response.json();
-      const content = data.choices[0]?.message?.content?.trim() || '{}';
+      const content = response.choices?.[0]?.message?.content?.trim() || '{}';
       
       // Parse JSON (remover markdown se tiver)
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      const result = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+      const jsonMatch = typeof content === 'string' ? content.match(/\{[\s\S]*\}/) : null;
+      const result = JSON.parse(jsonMatch ? jsonMatch[0] : (typeof content === 'string' ? content : '{}'));
 
       console.log(`[FlowBuilder] 🤖 IA Analysis: has_custom=${result.has_custom_greeting}, confidence=${result.confidence}%`);
 

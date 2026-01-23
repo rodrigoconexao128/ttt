@@ -4,7 +4,8 @@
  * Baseado em research de Anthropic Constitutional AI e OpenAI Safety
  */
 
-import { getMistralClient, resolveApiKey } from "./mistralClient";
+import { getLLMClient } from "./llm";
+import { resolveApiKey } from "./mistralClient";
 import type { BusinessAgentConfig } from "@db/schema";
 
 // ═══════════════════════════════════════════════════════════
@@ -60,11 +61,11 @@ Responda APENAS com um JSON no formato:
 `;
 
   try {
-    // const apiKey = await resolveApiKey(); // Not needed if using getMistralClient()
-    const mistral = await getMistralClient(); // Use the exported function which handles mocks
+    // const apiKey = await resolveApiKey(); // Not needed if using getLLMClient()
+    const mistral = await getLLMClient(); // Use the exported function which handles mocks
 
+    // Usa modelo configurado no banco de dados (sem hardcode)
     const response = await mistral.chat.complete({
-      model: "mistral-small-latest", // Modelo rápido e barato para validações
       messages: [
         { role: "user", content: classificationPrompt }
       ],
