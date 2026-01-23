@@ -5863,26 +5863,16 @@ REGRAS:
 Responda APENAS com o JSON, sem texto adicional.`;
 
         try {
-          const intentResponse = await fetch('https://api.mistral.ai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${mistralApiKey}`
-            },
-            body: JSON.stringify({
-              model: 'mistral-small-latest',
-              messages: [{ role: 'user', content: intentAnalysisPrompt }],
-              temperature: 0.1,
-              max_tokens: 200
-            })
+          // 🚀 Chamada via chatComplete (usa OpenRouter/Hyperbolic automaticamente)
+          const { chatComplete } = await import("./llm");
+          
+          const intentResponse = await chatComplete({
+            messages: [{ role: 'user', content: intentAnalysisPrompt }],
+            temperature: 0.1,
+            maxTokens: 200
           });
 
-          if (!intentResponse.ok) {
-            throw new Error(`Mistral API error: ${intentResponse.status}`);
-          }
-
-          const intentData = await intentResponse.json();
-          const intentText = intentData.choices[0]?.message?.content?.trim() || '{}';
+          const intentText = intentResponse.choices?.[0]?.message?.content?.trim() || '{}';
           
           // Parse JSON da resposta
           let intentAnalysis;

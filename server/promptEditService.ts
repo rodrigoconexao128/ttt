@@ -7,7 +7,7 @@
  * 
  * FLUXO:
  * 1. Usuário pede alteração em linguagem natural
- * 2. Enviamos prompt atual + instrução para a IA (Mistral)
+ * 2. Enviamos prompt atual + instrução para a IA (OpenRouter/Hyperbolic)
  * 3. IA retorna JSON com {resposta_chat, operacao, edicoes: [{buscar, substituir}]}
  * 4. Sistema aplica as edições localmente com fuzzy matching
  * 5. Retornamos o prompt editado + mensagem de chat para o histórico
@@ -16,9 +16,11 @@
  * - 80% mais rápido (IA não reescreve tudo)
  * - 80% mais barato (menos tokens)
  * - 100% do resto preservado (só muda o necessário)
+ * 
+ * 🚀 ATUALIZADO: Agora usa OpenRouter/Hyperbolic (mesmo LLM do chat produção)
  */
 
-import OpenAI from "openai";
+import { chatComplete, type ChatMessage } from "./llm";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TIPOS
@@ -81,28 +83,18 @@ IMPORTANTE:
 // FUNÇÃO PRINCIPAL: Editar Prompt via IA
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Edita um prompt via IA usando OpenRouter/Hyperbolic
+ * 🚀 ATUALIZADO: Parâmetros apiKey e modelo são ignorados - usa config do sistema
+ */
 export async function editarPromptViaIA(
   promptAtual: string,
   instrucaoUsuario: string,
-  apiKey: string,
-  modelo: "mistral" | "openai" = "mistral"
+  _apiKey?: string,  // Ignorado - usa config do sistema
+  _modelo?: "mistral" | "openai"  // Ignorado - usa OpenRouter/Hyperbolic
 ): Promise<ResultadoEdicao> {
   
-  // Garantir que apiKey é string
-  const apiKeyStr = String(apiKey || '');
-  
-  console.log(`[EditService] Iniciando edição via IA`);
-  console.log(`[EditService] Modelo: ${modelo}`);
-  console.log(`[EditService] API Key type: ${typeof apiKey}`);
-  console.log(`[EditService] API Key length: ${apiKeyStr.length}`);
-  
-  // Configura cliente baseado no modelo
-  const client = new OpenAI({
-    apiKey: apiKeyStr,
-    baseURL: modelo === "mistral" ? "https://api.mistral.ai/v1" : undefined
-  });
-  
-  const modelName = modelo === "mistral" ? "mistral-large-latest" : "gpt-4o-mini";
+  console.log(`[EditService] Iniciando edição via IA (OpenRouter/Hyperbolic)`);
   
   // Monta a mensagem do usuário
   const userMessage = `PROMPT ATUAL DO AGENTE:
@@ -116,20 +108,25 @@ INSTRUÇÃO DO USUÁRIO:
 Analise o prompt e retorne as edições necessárias em JSON.`;
 
   try {
-    // Chamada à API com JSON mode
-    // Nota: Mistral não suporta json_schema estrito como OpenAI, usamos json_object
-    const response = await client.chat.completions.create({
-      model: modelName,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage }
-      ],
-      response_format: { type: "json_object" },
+    // 🚀 Chamada via chatComplete (usa OpenRouter/Hyperbolic automaticamente)
+    const messages: ChatMessage[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userMessage }
+    ];
+
+    const response = await chatComplete({
+      messages,
       temperature: 0.3,  // Baixo para ser mais preciso
-      max_tokens: 4000
+      maxTokens: 4000
     });
     
-    const content = response.choices[0]?.message?.content || "";
+    let content = response.choices?.[0]?.message?.content || "";
+    
+    // Tentar extrair JSON da resposta (pode vir com markdown)
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      content = jsonMatch[0];
+    }
     
     // Parse do JSON (garantido válido pelo response_format)
     let respostaIA: RespostaIA;

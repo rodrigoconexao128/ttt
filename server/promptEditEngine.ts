@@ -1051,20 +1051,15 @@ function processDescribe(doc: string, intent: ParsedIntent, rawInstruction: stri
 /**
  * Edita o prompt usando a técnica de Search/Replace Block (padrão Aider)
  * Esta é a técnica mais robusta para edição de texto via LLM.
+ * 🚀 ATUALIZADO: Agora usa OpenRouter/Hyperbolic (mesmo LLM do chat produção)
  */
 export async function editPromptWithLLM(
   currentPrompt: string,
   userInstruction: string,
-  apiKey: string
+  _apiKey?: string  // Ignorado - usa config do sistema
 ): Promise<EditResult> {
   try {
-    const OpenAI = await import("openai").then(m => m.default);
-    
-    // Configura cliente (suporta OpenAI ou Mistral/Outros compatíveis)
-    const client = new OpenAI({
-      apiKey: apiKey,
-      baseURL: apiKey.startsWith("sk-") ? undefined : "https://api.mistral.ai/v1" // Fallback para Mistral se não for sk- (OpenAI)
-    });
+    const { chatComplete } = await import("./llm");
 
     const systemPrompt = `Você é um especialista em edição de texto e prompts.
 Sua tarefa é editar o texto fornecido seguindo EXATAMENTE a instrução do usuário.
@@ -1096,8 +1091,8 @@ INSTRUÇÃO DO USUÁRIO:
 
 Gere os blocos de edição SEARCH/REPLACE para aplicar esta instrução.`;
 
-    const response = await client.chat.completions.create({
-      model: apiKey.startsWith("sk-") ? "gpt-4-turbo" : "mistral-large-latest",
+    // 🚀 Chamada via chatComplete (usa OpenRouter/Hyperbolic automaticamente)
+    const response = await chatComplete({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage }
@@ -1105,7 +1100,7 @@ Gere os blocos de edição SEARCH/REPLACE para aplicar esta instrução.`;
       temperature: 0, // Determinístico para melhor precisão
     });
 
-    const llmOutput = response.choices[0]?.message?.content || "";
+    const llmOutput = response.choices?.[0]?.message?.content || "";
     
     // Processa os blocos retornados
     return applyLLMBlocks(currentPrompt, llmOutput);

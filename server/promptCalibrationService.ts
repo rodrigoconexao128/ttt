@@ -14,9 +14,11 @@
  * 6. Retorna resultado com score de confiança
  * 
  * Baseado em técnicas de: Anthropic, LangSmith, Microsoft Promptbase
+ * 
+ * 🚀 ATUALIZADO: Agora usa OpenRouter/Hyperbolic (mesmo LLM do chat produção)
  */
 
-import OpenAI from "openai";
+import { chatComplete, type ChatMessage } from "./llm";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TIPOS
@@ -191,17 +193,46 @@ RETORNE JSON:
 // ═══════════════════════════════════════════════════════════════════════════
 
 export class PromptCalibrationService {
-  private client: OpenAI;
-  private modelo: string;
   private config: ConfiguracaoCalibracao;
 
-  constructor(apiKey: string, modelo: "mistral" | "openai" = "mistral", config?: Partial<ConfiguracaoCalibracao>) {
-    this.client = new OpenAI({
-      apiKey,
-      baseURL: modelo === "mistral" ? "https://api.mistral.ai/v1" : undefined
-    });
-    this.modelo = modelo === "mistral" ? "mistral-large-latest" : "gpt-4o-mini";
+  constructor(config?: Partial<ConfiguracaoCalibracao>) {
+    // 🚀 Agora usa OpenRouter/Hyperbolic automaticamente via chatComplete()
+    // Não precisa mais de apiKey ou modelo - usa config do sistema
     this.config = { ...CONFIG_PADRAO, ...config };
+    console.log(`🎯 [Calibração] Inicializado com OpenRouter/Hyperbolic (mesmo LLM da produção)`);
+  }
+
+  /**
+   * Método helper para fazer chamadas ao LLM unificado
+   */
+  private async callLLM(
+    systemPrompt: string, 
+    userMessage: string, 
+    options?: { temperature?: number; maxTokens?: number; jsonMode?: boolean }
+  ): Promise<string> {
+    const messages: ChatMessage[] = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage }
+    ];
+
+    const response = await chatComplete({
+      messages,
+      temperature: options?.temperature ?? 0.7,
+      maxTokens: options?.maxTokens ?? 500
+    });
+
+    const content = response.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error("Resposta vazia do LLM");
+    }
+
+    // Se jsonMode, tentar extrair JSON da resposta
+    if (options?.jsonMode) {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      return jsonMatch ? jsonMatch[0] : content;
+    }
+
+    return content;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -316,20 +347,13 @@ export class PromptCalibrationService {
 Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada corretamente no prompt do agente.`;
 
     try {
-      const response = await this.client.chat.completions.create({
-        model: this.modelo,
-        messages: [
-          { role: "system", content: PROMPT_GERADOR_CENARIOS },
-          { role: "user", content: userMessage }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.5,
-        max_tokens: 2000
-      });
-
-      const content = response.choices[0]?.message?.content || "{}";
-      const parsed = JSON.parse(content);
+      const content = await this.callLLM(
+        PROMPT_GERADOR_CENARIOS,
+        userMessage,
+        { temperature: 0.5, maxTokens: 2000, jsonMode: true }
+      );
       
+      const parsed = JSON.parse(content);
       return (parsed.cenarios || []).slice(0, quantidade);
     } catch (error) {
       console.error("[Calibração] Erro ao gerar cenários:", error);
@@ -405,17 +429,12 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
       .replace("{{PERGUNTA}}", perguntaBase);
 
     try {
-      const response = await this.client.chat.completions.create({
-        model: this.modelo,
-        messages: [
-          { role: "system", content: promptCliente },
-          { role: "user", content: "Envie a mensagem como cliente:" }
-        ],
-        temperature: 0.7,
-        max_tokens: 200
-      });
-
-      return response.choices[0]?.message?.content?.trim() || perguntaBase;
+      const content = await this.callLLM(
+        promptCliente,
+        "Envie a mensagem como cliente:",
+        { temperature: 0.7, maxTokens: 200 }
+      );
+      return content.trim() || perguntaBase;
     } catch {
       return perguntaBase;
     }
@@ -427,17 +446,12 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
 
   private async obterRespostaAgente(promptAgente: string, mensagemCliente: string): Promise<string> {
     try {
-      const response = await this.client.chat.completions.create({
-        model: this.modelo,
-        messages: [
-          { role: "system", content: promptAgente },
-          { role: "user", content: mensagemCliente }
-        ],
-        temperature: 0.7,
-        max_tokens: 500
-      });
-
-      return response.choices[0]?.message?.content?.trim() || "";
+      const content = await this.callLLM(
+        promptAgente,
+        mensagemCliente,
+        { temperature: 0.7, maxTokens: 500 }
+      );
+      return content.trim() || "";
     } catch (error: any) {
       throw new Error(`Erro ao obter resposta do agente: ${error.message}`);
     }
@@ -460,18 +474,12 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
       .replace("{{TIPO_VALIDACAO}}", cenario.tipoValidacao);
 
     try {
-      const response = await this.client.chat.completions.create({
-        model: this.modelo,
-        messages: [
-          { role: "system", content: promptAnalise },
-          { role: "user", content: "Analise a resposta e retorne o JSON de avaliação:" }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.2,
-        max_tokens: 500
-      });
+      const content = await this.callLLM(
+        promptAnalise,
+        "Analise a resposta e retorne o JSON de avaliação:",
+        { temperature: 0.2, maxTokens: 500, jsonMode: true }
+      );
 
-      const content = response.choices[0]?.message?.content || "{}";
       const parsed = JSON.parse(content);
 
       return {
@@ -511,18 +519,12 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
       .replace("{{EXPECTATIVA}}", cenarioFalhou.expectativaResposta);
 
     try {
-      const response = await this.client.chat.completions.create({
-        model: this.modelo,
-        messages: [
-          { role: "system", content: promptReparo },
-          { role: "user", content: "Corrija o prompt e retorne as edições em JSON:" }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.3,
-        max_tokens: 2000
-      });
+      const content = await this.callLLM(
+        promptReparo,
+        "Corrija o prompt e retorne as edições em JSON:",
+        { temperature: 0.3, maxTokens: 2000, jsonMode: true }
+      );
 
-      const content = response.choices[0]?.message?.content || "{}";
       const parsed = JSON.parse(content);
 
       if (parsed.operacao === "editar" && parsed.edicoes?.length > 0) {
@@ -547,14 +549,19 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
 // FUNÇÃO HELPER PARA USO DIRETO
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Função simplificada para calibrar prompts
+ * 🚀 ATUALIZADO: Agora usa OpenRouter/Hyperbolic automaticamente
+ * Os parâmetros apiKey e modelo são mantidos por compatibilidade mas ignorados
+ */
 export async function calibrarPromptEditado(
   promptEditado: string,
   instrucaoUsuario: string,
-  apiKey: string,
-  modelo: "mistral" | "openai" = "mistral",
+  _apiKey?: string,  // Ignorado - usa config do sistema
+  _modelo?: "mistral" | "openai",  // Ignorado - usa OpenRouter/Hyperbolic
   config?: Partial<ConfiguracaoCalibracao>
 ): Promise<ResultadoCalibracao> {
-  const service = new PromptCalibrationService(apiKey, modelo, config);
+  const service = new PromptCalibrationService(config);
   return service.calibrarPrompt(promptEditado, instrucaoUsuario);
 }
 

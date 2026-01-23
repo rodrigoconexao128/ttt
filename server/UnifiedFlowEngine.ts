@@ -19,10 +19,13 @@
  * - FlowBuilder: Converte prompts em FlowDefinitions
  * - FlowStorage: Persiste fluxos no Supabase
  * - HybridFlowEngine: Executa fluxos com IA híbrida
+ * 
+ * 🚀 ATUALIZADO: Agora usa OpenRouter/Hyperbolic (mesmo LLM do chat produção)
  */
 
 import { supabase } from "./supabaseAuth";
 import { FlowBuilder, PromptAnalyzer } from "./FlowBuilder";
+import { chatComplete, type ChatMessage } from "./llm";
 import type { FlowDefinition, FlowType, FlowState, FlowIntent, FlowAction } from "./FlowBuilder";
 
 // Tipo de transição inline (não exportado pelo FlowBuilder)
@@ -209,12 +212,11 @@ export class FlowStorage {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export class AIInterpreter {
-  private apiKey: string;
-  private model: string;
+  // 🚀 Agora usa OpenRouter/Hyperbolic automaticamente via chatComplete()
 
-  constructor(apiKey: string, model: string = 'mistral-small-latest') {
-    this.apiKey = apiKey;
-    this.model = model;
+  constructor() {
+    // Não precisa mais de apiKey ou model - usa config do sistema
+    console.log(`[AIInterpreter] Inicializado com OpenRouter/Hyperbolic`);
   }
 
   /**
@@ -272,29 +274,19 @@ REGRAS:
 - Extraia dados relevantes (números, nomes, etc)`;
 
     try {
-      const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Mensagem do cliente: "${message}"` }
-          ],
-          temperature: 0.1,
-          max_tokens: 200
-        })
+      // 🚀 Chamada via chatComplete (usa OpenRouter/Hyperbolic automaticamente)
+      const messages: ChatMessage[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Mensagem do cliente: "${message}"` }
+      ];
+
+      const response = await chatComplete({
+        messages,
+        temperature: 0.1,
+        maxTokens: 200
       });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const text = data.choices[0]?.message?.content?.trim() || '{}';
+      const text = response.choices?.[0]?.message?.content?.trim() || '{}';
       
       // Extrair JSON
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -962,10 +954,11 @@ export class SystemExecutor {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export class AIHumanizer {
-  private apiKey: string;
-  private model: string;
+  // 🚀 Agora usa OpenRouter/Hyperbolic automaticamente via chatComplete()
 
-  constructor(apiKey: string, model: string = 'mistral-small-latest') {
+  constructor() {
+    // Não precisa mais de apiKey ou model - usa config do sistema
+    console.log(`[AIHumanizer] Inicializado com OpenRouter/Hyperbolic`);
     this.apiKey = apiKey;
     this.model = model;
   }
@@ -1021,29 +1014,19 @@ ERRADO: "Olá! Temos várias pizzas:\n\n🍕 Mussarela - R$ 45,00\n🍕 Calabres
 Responda APENAS com o texto humanizado.`;
 
     try {
-      const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Mensagem original do cliente: "${userMessage}"\n\nResposta do sistema para humanizar:\n${systemResponse}` }
-          ],
-          temperature: 0, // ZERO criatividade - apenas reformulação
-          max_tokens: 500
-        })
+      // 🚀 Chamada via chatComplete (usa OpenRouter/Hyperbolic automaticamente)
+      const messages: ChatMessage[] = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Mensagem original do cliente: "${userMessage}"\n\nResposta do sistema para humanizar:\n${systemResponse}` }
+      ];
+
+      const response = await chatComplete({
+        messages,
+        temperature: 0, // ZERO criatividade - apenas reformulação
+        maxTokens: 500
       });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      let humanized = data.choices[0]?.message?.content?.trim() || systemResponse;
+      let humanized = response.choices?.[0]?.message?.content?.trim() || systemResponse;
       
       // 🛡️ VALIDAÇÃO: Rejeitar se resposta cresceu muito (indica invenção de dados)
       if (systemResponse.length > 0 && humanized.length > systemResponse.length * 1.3) {
@@ -1078,9 +1061,10 @@ export class UnifiedFlowEngine {
 
   constructor(config: FlowConfig) {
     this.config = config;
-    this.interpreter = new AIInterpreter(config.apiKey, config.model);
+    // 🚀 Não precisa mais de apiKey/model - usa config do sistema via chatComplete()
+    this.interpreter = new AIInterpreter();
     this.executor = new SystemExecutor();
-    this.humanizer = new AIHumanizer(config.apiKey, config.model);
+    this.humanizer = new AIHumanizer();
   }
 
   /**
