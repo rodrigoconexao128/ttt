@@ -12718,7 +12718,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
       ).join('\n');
       
       // Preparar mensagem - substituir variáveis
-      const metadata = JSON.parse(notification.metadata || '{}');
+      const metadata = typeof notification.metadata === 'string' ? JSON.parse(notification.metadata || '{}') : (notification.metadata || {});
       let finalMessage = notification.message_template
         .replace(/{cliente_nome}/g, notification.recipient_name || 'Cliente')
         .replace(/{dias_restantes}/g, metadata.daysBefore || '')
@@ -12854,7 +12854,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
             `${msg.from_me ? 'Você' : 'Cliente'}: ${msg.text}`
           ).join('\n');
           
-          const metadata = JSON.parse(notification.metadata || '{}');
+          const metadata = typeof notification.metadata === 'string' ? JSON.parse(notification.metadata || '{}') : (notification.metadata || {});
           let baseMessage = notification.message_template
             .replace(/{cliente_nome}/g, notification.recipient_name || 'Cliente')
             .replace(/{dias_restantes}/g, metadata.daysBefore || '')
@@ -13011,7 +13011,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
             ).join('\n');
             
             // Preparar mensagem com variáveis
-            const metadata = JSON.parse(notification.metadata || '{}');
+            const metadata = typeof notification.metadata === 'string' ? JSON.parse(notification.metadata || '{}') : (notification.metadata || {});
             let finalMessage = notification.message_template
               .replace(/{cliente_nome}/g, notification.recipient_name || 'Cliente')
               .replace(/{dias_restantes}/g, metadata.daysBefore || '')
