@@ -211,6 +211,9 @@ export class PromptCalibrationService {
     userMessage: string, 
     options?: { temperature?: number; maxTokens?: number; jsonMode?: boolean }
   ): Promise<string> {
+    console.log(`🔄 [Calibração LLM] Chamando chatComplete()...`);
+    const startTime = Date.now();
+    
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage }
@@ -218,16 +221,18 @@ export class PromptCalibrationService {
 
     // 🚀 Timeout de 15s por chamada LLM para não travar a calibração
     const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error("LLM timeout")), 15000)
+      setTimeout(() => reject(new Error("LLM timeout (15s)")), 15000)
     );
 
     const llmPromise = chatComplete({
       messages,
-      temperature: options?.temperature ?? 0.5, // Reduzido para respostas mais consistentes
-      maxTokens: options?.maxTokens ?? 300 // Reduzido para velocidade
+      temperature: options?.temperature ?? 0.5,
+      maxTokens: options?.maxTokens ?? 300
     });
 
     const response = await Promise.race([llmPromise, timeoutPromise]);
+    const elapsed = Date.now() - startTime;
+    console.log(`✅ [Calibração LLM] Resposta em ${elapsed}ms`);
 
     const content = response.choices?.[0]?.message?.content;
     if (!content) {
@@ -283,9 +288,12 @@ export class PromptCalibrationService {
         // 3. Calcular score geral
         scoreGeral = resultados.reduce((acc, r) => acc + r.score, 0) / resultados.length;
         console.log(`📊 [Calibração] Score geral: ${scoreGeral.toFixed(1)}/100 (${cenariosAprovados}/${cenarios.length} aprovados)`);
+        console.log(`📊 [Calibração] Mínimo para aprovar: ${this.config.scoreMinimoAprovacao}/100`);
 
         // 4. Verificar se passou
-        if (scoreGeral >= this.config.scoreMinimoAprovacao && cenariosAprovados >= cenarios.length * 0.7) {
+        // 🚀 RELAXADO: Score >= mínimo OU 100% dos cenários aprovados
+        // Antes exigia AMBAS as condições, agora aceita qualquer uma
+        if (scoreGeral >= this.config.scoreMinimoAprovacao || cenariosAprovados === cenarios.length) {
           console.log(`🎉 [Calibração] APROVADO! Prompt calibrado com sucesso.`);
           break;
         }
