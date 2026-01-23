@@ -4475,9 +4475,9 @@ export async function sendAdminNotification(
     });
 
     if (sendSuccess) {
-      return { success: true };
+      return { success: true, validatedPhone: validPhone, originalPhone: phoneNumber };
     } else {
-      return { success: false, error: sendError || 'Falha no envio' };
+      return { success: false, error: sendError || 'Falha no envio', validatedPhone: validPhone, originalPhone: phoneNumber };
     }
   } catch (error) {
     console.error('[sendAdminNotification] ❌ Erro geral:', error);

@@ -12892,14 +12892,25 @@ Responda APENAS com o JSON, sem texto adicional.`;
       const sendResult = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
       const sent = sendResult.success;
       
+      console.log(`[RESEND] 📤 Resultado do envio:`, {
+        success: sent,
+        originalPhone: sendResult.originalPhone,
+        validatedPhone: sendResult.validatedPhone,
+        error: sendResult.error
+      });
+      
       // Atualizar registro original marcando como reenviado
       await db.execute(sql`
         UPDATE scheduled_notifications 
         SET 
           metadata = jsonb_set(
-            COALESCE(metadata, '{}')::jsonb, 
-            '{resent_at}', 
-            to_jsonb(NOW()::text)
+            jsonb_set(
+              COALESCE(metadata, '{}')::jsonb, 
+              '{resent_at}', 
+              to_jsonb(NOW()::text)
+            ),
+            '{validated_phone}',
+            to_jsonb(${sendResult.validatedPhone || 'unknown'}::text)
           ),
           final_message = ${finalMessage}
         WHERE id = ${id}
@@ -12914,14 +12925,25 @@ Responda APENAS com o JSON, sem texto adicional.`;
           ${adminId}, ${notification.user_id}, ${notification.notification_type},
           ${notification.recipient_phone}, ${notification.recipient_name},
           ${notification.message_template}, ${finalMessage}, ${sent ? 'sent' : 'failed'},
-          ${JSON.stringify({ original_notification_id: notification.id, resent: true, resent_at: new Date().toISOString() })}::jsonb, NOW(), NOW()
+          ${JSON.stringify({ 
+            original_notification_id: notification.id, 
+            resent: true, 
+            resent_at: new Date().toISOString(),
+            validated_phone: sendResult.validatedPhone,
+            original_phone: sendResult.originalPhone 
+          })}::jsonb, NOW(), NOW()
         )
       `);
       
       res.json({ 
         success: sent, 
         message: sent ? 'Notificação reenviada com sucesso' : 'Falha ao reenviar',
-        finalMessage 
+        finalMessage,
+        debug: {
+          originalPhone: sendResult.originalPhone,
+          validatedPhone: sendResult.validatedPhone,
+          error: sendResult.error
+        }
       });
     } catch (error) {
       console.error("Error resending notification:", error);
