@@ -1190,6 +1190,57 @@ function getBrazilGreeting(): { greeting: string; period: string } {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🕐 FUNÇÃO PARA OBTER DATA/HORA DO BRASIL (UNIVERSAL)
+// ═══════════════════════════════════════════════════════════════════════
+// NOTA: Esta função é ESSENCIAL para clientes que têm horário de atendimento
+// no prompt. A IA precisa saber a data/hora atual para verificar se está
+// dentro ou fora do horário comercial.
+// ═══════════════════════════════════════════════════════════════════════
+interface BrazilDateTime {
+  date: string;           // "23/01/2026"
+  time: string;           // "14:30"
+  hour: number;           // 14
+  minute: number;         // 30
+  dayOfWeek: number;      // 0-6 (Domingo-Sábado)
+  dayName: string;        // "Quinta-feira"
+  dayNameAbrev: string;   // "QUI"
+  isWeekend: boolean;     // true se sábado ou domingo
+  fullDateTime: string;   // "Sexta-feira, 23/01/2026 às 14:30"
+}
+
+function getBrazilDateTime(): BrazilDateTime {
+  const now = new Date();
+  
+  // Converter para timezone de São Paulo
+  const brazilTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  
+  const hour = brazilTime.getHours();
+  const minute = brazilTime.getMinutes();
+  const dayOfWeek = brazilTime.getDay(); // 0=Domingo, 1=Segunda, ... 6=Sábado
+  
+  const diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+  const diasSemanaAbrev = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
+  
+  const date = brazilTime.toLocaleDateString('pt-BR');
+  const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  const dayName = diasSemana[dayOfWeek];
+  const dayNameAbrev = diasSemanaAbrev[dayOfWeek];
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  
+  return {
+    date,
+    time,
+    hour,
+    minute,
+    dayOfWeek,
+    dayName,
+    dayNameAbrev,
+    isWeekend,
+    fullDateTime: `${dayName}, ${date} às ${time}`,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 🧠 SISTEMA ANTI-AMNÉSIA GLOBAL (FUNCIONA PARA TODOS OS CLIENTES)
 // ═══════════════════════════════════════════════════════════════════════
 // Este sistema analisa TODO o histórico da conversa e gera um resumo de 
@@ -1625,9 +1676,11 @@ VOCÊ JÁ SABE O QUE FAZER. EXECUTE A AÇÃO ABAIXO IMEDIATAMENTE:
 // NÃO IMPOR REGRAS - apenas INFORMAR contexto.
 // ═══════════════════════════════════════════════════════════════════════
 function generateDynamicContextBlock(contactName?: string, sentMedias?: string[], conversationHistory?: Array<{ fromMe?: boolean; text?: string | null; timestamp?: Date | null }>): string {
-  // 🔧 FIX DETERMINISM v2: REMOVIDO getBrazilGreeting() completamente
-  // A hora do dia NÃO deve afetar a resposta da IA para garantir determinismo
-  // O cliente pode escolher usar saudações no prompt dele se quiser
+  // � FIX v4: ADICIONADO data/hora do Brasil novamente!
+  // Clientes como JB Elétrica precisam saber o horário para verificar
+  // se está dentro ou fora do horário de atendimento.
+  // A informação é contextual (não afeta determinismo da resposta).
+  const brazilTime = getBrazilDateTime();
   
   const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
     ? contactName.trim() 
@@ -1636,10 +1689,6 @@ function generateDynamicContextBlock(contactName?: string, sentMedias?: string[]
   const sentMediasList = sentMedias && sentMedias.length > 0 
     ? sentMedias.join(", ") 
     : "nenhuma ainda";
-  
-  // 🔧 FIX DETERMINISM v2: REMOVIDO hora e data completamente do contexto
-  // Essas variáveis causavam variação nas respostas entre chamadas
-  // A IA não precisa saber a hora exata para responder bem
   
   // 🔄 DETECTAR SE JÁ HOUVE CONVERSA HOJE
   // Se já temos histórico de conversa hoje, a IA NÃO deve cumprimentar novamente
@@ -1671,22 +1720,25 @@ function generateDynamicContextBlock(contactName?: string, sentMedias?: string[]
     }
   }
   
-  // 🔧 FIX DETERMINISM v3: REMOVIDO period/hora completamente
-  // A hora do dia causava variação nas respostas - removido para garantir determinismo
-  
-  // CONTEXTO SIMPLES - IA interpreta conforme prompt do cliente
-  // 🔧 FIX DETERMINISM v3: SEM hora, data ou período - garantir determinismo absoluto
+  // CONTEXTO COM DATA/HORA DO BRASIL - IA interpreta conforme prompt do cliente
   let contextBlock = `
 ═══════════════════════════════════════════════════════════════════════════════
-📋 INFORMAÇÕES DO CLIENTE (use conforme seu prompt)
+📋 INFORMAÇÕES DO CONTEXTO ATUAL
 ═══════════════════════════════════════════════════════════════════════════════
+
+🕐 DATA E HORA ATUAL (BRASIL - Horário de Brasília):
+   • Data: ${brazilTime.date}
+   • Hora: ${brazilTime.time}
+   • Dia da semana: ${brazilTime.dayName}
+   ${brazilTime.isWeekend ? '⚠️ HOJE É FIM DE SEMANA (Sábado/Domingo)' : ''}
 
 👤 Nome do cliente: ${formattedName || "(não identificado - use 'você' se precisar)"}
 📁 Mídias já enviadas nesta conversa: ${sentMediasList}
 
 INSTRUÇÕES IMPORTANTES:
+- USE A DATA/HORA ACIMA para verificar horários de funcionamento mencionados no prompt
+- Se o prompt menciona horário de atendimento, VERIFIQUE se está dentro ou fora
 - Se seu prompt usa variáveis como {{nome}}, {nome}, [nome], [cliente] etc → substitua por "${formattedName || 'você'}"
-- Se seu prompt pede para usar o nome do cliente → use "${formattedName || 'você'}"
 - Não repita mídias que já foram enviadas
 - SIGA O ESTILO DO SEU PROMPT (gírias, formalidade, etc)`;
 
