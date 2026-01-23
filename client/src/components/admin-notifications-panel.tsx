@@ -405,7 +405,7 @@ export default function AdminNotificationsPanel() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ regenerate: false }) // Usar mesma mensagem
+        body: JSON.stringify({ regenerate: true }) // Usar variação de IA
       });
       if (!response.ok) throw new Error("Erro ao reenviar");
       return response.json();

@@ -12830,8 +12830,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
       // Usar a mesma mensagem final se existir, ou gerar nova
       let finalMessage = notification.final_message || notification.message_template;
       
+      console.log(`[RESEND] Notification ${id}: ai_enabled=${notification.ai_enabled}, regenerate=${req.body?.regenerate}`);
+      
       // Se AI estava ativada, podemos regenerar a mensagem
       if (notification.ai_enabled && req.body?.regenerate) {
+        console.log(`[RESEND] ✨ Usando variação de IA para reenvio`);
         try {
           // Buscar histórico de conversa
           const historyResult = await db.execute(sql`
@@ -12880,12 +12883,18 @@ Responda APENAS com o JSON, sem texto adicional.`;
           );
           
           const trimmedVaried = variedMessage.trim();
+          console.log(`[RESEND] IA retornou: "${trimmedVaried.substring(0, 100)}..."`);
           if (trimmedVaried && trimmedVaried.length > 10 && !trimmedVaried.includes('Como posso ajudar')) {
             finalMessage = trimmedVaried;
+            console.log(`[RESEND] ✅ Mensagem variada pela IA com sucesso`);
+          } else {
+            console.log(`[RESEND] ⚠️ Mensagem da IA rejeitada, usando original`);
           }
         } catch (aiError) {
-          console.error("Error varying message with AI on resend:", aiError);
+          console.error("[RESEND] ❌ Error varying message with AI on resend:", aiError);
         }
+      } else {
+        console.log(`[RESEND] 📝 Usando mensagem original (sem variação IA)`);
       }
       
       // Enviar mensagem
@@ -12912,10 +12921,10 @@ Responda APENAS com o JSON, sem texto adicional.`;
           admin_id, user_id, notification_type, recipient_phone, recipient_name,
           message_original, message_sent, status, metadata, created_at, sent_at
         ) VALUES (
-          ${adminId}, ${notification.user_id}, ${notification.notification_type + '_resend'},
+          ${adminId}, ${notification.user_id}, ${notification.notification_type},
           ${notification.recipient_phone}, ${notification.recipient_name},
           ${notification.message_template}, ${finalMessage}, ${sent ? 'sent' : 'failed'},
-          ${JSON.stringify({ original_notification_id: notification.id, resent: true })}::jsonb, NOW(), NOW()
+          ${JSON.stringify({ original_notification_id: notification.id, resent: true, resent_at: new Date().toISOString() })}::jsonb, NOW(), NOW()
         )
       `);
       
