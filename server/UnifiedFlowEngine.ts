@@ -959,8 +959,6 @@ export class AIHumanizer {
   constructor() {
     // Não precisa mais de apiKey ou model - usa config do sistema
     console.log(`[AIHumanizer] Inicializado com OpenRouter/Hyperbolic`);
-    this.apiKey = apiKey;
-    this.model = model;
   }
 
   /**

@@ -5969,8 +5969,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
             "mistral",
             {
               numeroCenarios: 2, // Balancear velocidade vs precisão
-              maxTentativasReparo: 2,
-              scoreMinimoAprovacao: 60
+              maxTentativasReparo: 3, // Aumentado para 3 para atingir score mínimo
+              scoreMinimoAprovacao: 80 // Aumentado de 60 para 80 para garantir qualidade
             }
           );
           
