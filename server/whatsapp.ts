@@ -3808,16 +3808,16 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         }
       }
     }
-    console.log(`?? [AI AGENT] M�dias j� enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
+    console.log(`📁 [AI AGENT] Mídias já enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
     
-    // Verificar se modo hist�rico est� ativo
-    const agentConfig = await storage.getAgentConfig(userId);
+    // Verificar se modo histórico está ativo
+    const historyAgentConfig = await storage.getAgentConfig(userId);
     
-    if (agentConfig?.fetchHistoryOnFirstResponse) {
-      console.log(`?? [AI AGENT] Modo hist�rico ATIVO - ${conversationHistory.length} mensagens dispon�veis para contexto`);
+    if (historyAgentConfig?.fetchHistoryOnFirstResponse) {
+      console.log(`📜 [AI AGENT] Modo histórico ATIVO - ${conversationHistory.length} mensagens disponíveis para contexto`);
       
       if (conversationHistory.length > 40) {
-        console.log(`?? [AI AGENT] Hist�rico grande - ser� usado sistema de resumo inteligente`);
+        console.log(`📊 [AI AGENT] Histórico grande - será usado sistema de resumo inteligente`);
       }
     }
 
