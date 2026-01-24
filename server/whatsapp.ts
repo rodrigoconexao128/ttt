@@ -3849,7 +3849,8 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     const mediaActions = aiResult?.mediaActions || [];
 
     // 📢 NOTIFICATION SYSTEM UNIVERSAL (AI + Manual + Resposta do Agente)
-    const businessConfig = await storage.getBusinessAgentConfig(userId);
+    // Reutilizar businessConfig já declarado no início da função (linha 3663)
+    // const businessConfig = await storage.getBusinessAgentConfig(userId); // REMOVIDO - já existe
     
     // 🔍 DEBUG: Log detalhado do businessConfig para diagnóstico
     console.log(`🔔 [NOTIFICATION DEBUG] userId: ${userId}`);
