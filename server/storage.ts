@@ -1063,6 +1063,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     // 🔥 OTIMIZAÇÃO: Query 100% SQL para minimizar Egress
     // Usa cálculo de tempo direto no PostgreSQL ao invés de filtrar em JS
     // Retorna APENAS registros que precisam ser reativados AGORA
+    // 🆕 FIX: Usar COALESCE para definir 5 minutos como padrão quando auto_reactivate_after_minutes é NULL
     try {
       const { pool } = await import("./db");
       const result = await pool.query(`
@@ -1071,10 +1072,9 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
           client_last_message_at as "clientLastMessageAt"
         FROM agent_disabled_conversations
         WHERE 
-          auto_reactivate_after_minutes IS NOT NULL
-          AND client_has_pending_message = true
+          client_has_pending_message = true
           AND owner_last_reply_at IS NOT NULL
-          AND owner_last_reply_at + (auto_reactivate_after_minutes || ' minutes')::interval <= NOW()
+          AND owner_last_reply_at + (COALESCE(auto_reactivate_after_minutes, 5) || ' minutes')::interval <= NOW()
         LIMIT 10
       `);
       
@@ -1091,6 +1091,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
   /**
    * 🔥 OTIMIZAÇÃO: Verifica rapidamente se há conversas para reativar
    * Usa COUNT(*) que é muito mais leve que SELECT * para verificação
+   * 🆕 FIX: Usar COALESCE para definir 5 minutos como padrão quando auto_reactivate_after_minutes é NULL
    */
   async hasConversationsToAutoReactivate(): Promise<boolean> {
     try {
@@ -1099,10 +1100,9 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
         SELECT EXISTS (
           SELECT 1 FROM agent_disabled_conversations
           WHERE 
-            auto_reactivate_after_minutes IS NOT NULL
-            AND client_has_pending_message = true
+            client_has_pending_message = true
             AND owner_last_reply_at IS NOT NULL
-            AND owner_last_reply_at + (auto_reactivate_after_minutes || ' minutes')::interval <= NOW()
+            AND owner_last_reply_at + (COALESCE(auto_reactivate_after_minutes, 5) || ' minutes')::interval <= NOW()
           LIMIT 1
         ) as has_pending
       `);
@@ -1115,6 +1115,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
 
   /**
    * 🔥 OTIMIZAÇÃO: Conta conversas com timers ativos (para ajuste dinâmico de intervalo)
+   * 🆕 FIX: Contar TODAS as conversas pausadas com mensagem pendente (não apenas as com timer explícito)
    */
   async countActiveAutoReactivateTimers(): Promise<number> {
     try {
@@ -1122,8 +1123,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       const result = await pool.query(`
         SELECT COUNT(*) as count 
         FROM agent_disabled_conversations
-        WHERE auto_reactivate_after_minutes IS NOT NULL
-          AND client_has_pending_message = true
+        WHERE client_has_pending_message = true
       `);
       return parseInt(result.rows[0]?.count || '0', 10);
     } catch (error) {
