@@ -23,6 +23,7 @@ import {
   SidebarFooter,
   SidebarInset,
   SidebarSeparator,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { ConversationsList } from "@/components/conversations-list";
 import { ChatArea } from "@/components/chat-area";
@@ -217,6 +218,7 @@ export default function Dashboard() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [toolsPickerOpen, setToolsPickerOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // 🔗 Handler para selecionar conversa e atualizar URL
   const handleSelectConversation = (conversationId: string | null) => {
@@ -258,6 +260,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (isToolsRoute) {
+      setSidebarOpen(false);
       setToolsOpen(true);
     }
   }, [isToolsRoute]);
@@ -403,17 +406,23 @@ const toolsNavigation: ToolNavItem[] = [
     { label: "Integrações", href: "/integracoes", icon: Plug, tooltip: "Integrações", isActive: isIntegrationsRoute, testId: "button-nav-integrations" },
     { label: "Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Agendamentos", isActive: isSchedulingRoute, testId: "button-nav-scheduling" },
     { label: "Reservas", href: "/reservas", icon: BedDouble, tooltip: "Reservas", isActive: isReservationsRoute, testId: "button-nav-reservations" },
-    { label: "Minha Assinatura", href: "/minha-assinatura", icon: Receipt, tooltip: "Ver minha assinatura e pagamentos", isActive: isMySubscriptionRoute, testId: "button-nav-my-subscription" },
   ];
 
   // Menu de Configurações separado do Ferramentas
   const configNavigation: ToolNavItem[] = [
     { label: "Configurações", href: "/settings", icon: Settings, tooltip: "Configurações da conta", isActive: isSettingsRoute, testId: "button-settings" },
     { label: "Membros", href: "/settings", icon: Users, tooltip: "Gerenciar equipe", isActive: false, testId: "button-nav-team" },
+    { label: "Minha Assinatura", href: "/minha-assinatura", icon: Receipt, tooltip: "Ver minha assinatura e pagamentos", isActive: isMySubscriptionRoute, testId: "button-nav-my-subscription" },
     { label: "Planos", href: "/plans", icon: CreditCard, tooltip: "Ver planos disponíveis", isActive: isPlansRoute || isSubscribeRoute, testId: "button-nav-plans" },
   ];
 
   const filteredToolsNavigation = toolsNavigation.filter(item => {
+    // Restrição temporária: Itens visíveis apenas para rodrigo4@gmail.com
+    const restrictedToRodrigo = ["Contatos", "Integrações", "Qualificação de Lead"];
+    if (restrictedToRodrigo.includes(item.label)) {
+      if (user?.email !== "rodrigo4@gmail.com") return false;
+    }
+
     if (!isMember) return true;
     
     // Regras de bloqueio explícito para membros
@@ -471,18 +480,23 @@ const toolsNavigation: ToolNavItem[] = [
       {/* Banner fixo no topo quando limite atingido (só mostra se não estiver suspenso) */}
       {!isSuspended && <LimitReachedTopBanner />}
       
-      <SidebarProvider>
-      <Sidebar>
+      <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+      <Sidebar collapsible="icon">
         <SidebarHeader>
-          <div className="px-2 py-1.5 text-sm font-semibold flex items-center gap-2">
-            {branding.logoUrl ? (
-              <img src={branding.logoUrl} alt={branding.companyName} className="w-5 h-5 object-contain" />
-            ) : (
-              <Bot className="w-4 h-4 text-muted-foreground" />
+          <div className="flex items-center justify-between px-2 py-2">
+            {sidebarOpen && (
+              <div className="flex items-center gap-2 text-sm font-semibold animate-in fade-in zoom-in-95 duration-200">
+                {branding.logoUrl ? (
+                  <img src={branding.logoUrl} alt={branding.companyName} className="w-5 h-5 object-contain" />
+                ) : (
+                  <Bot className="w-4 h-4 text-muted-foreground" />
+                )}
+                <span className="truncate" style={branding.isWhiteLabel ? { color: branding.primaryColor } : undefined}>
+                  {branding.companyName}
+                </span>
+              </div>
             )}
-            <span style={branding.isWhiteLabel ? { color: branding.primaryColor } : undefined}>
-              {branding.companyName}
-            </span>
+            <SidebarTrigger className={cn("h-7 w-7", !sidebarOpen && "mx-auto")} />
           </div>
         </SidebarHeader>
         <SidebarContent>

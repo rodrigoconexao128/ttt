@@ -3501,6 +3501,15 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       
       // ?? SISTEMA DE ACUMULA��O: Buscar delay configurado
       const agentConfig = await storage.getAgentConfig(userId);
+      
+      // 🚨 FIX CRÍTICO: Verificar se o agente global está ATIVO
+      // Sem essa verificação, o sistema tenta responder mesmo com agente desativado
+      if (!agentConfig?.isActive) {
+        console.log(`🛑 [AI AGENT] Agente GLOBAL desativado para user ${userId} - não respondendo automaticamente`);
+        console.log(`   👉 Ative o agente em "Meu Agente IA" para respostas automáticas`);
+        return;
+      }
+      
       const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
       const responseDelayMs = responseDelaySeconds * 1000;
       
@@ -3569,6 +3578,34 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
   console.log(`   ?? Contato: ${contactNumber}`);
   
   try {
+    // 🚨 FIX CRÍTICO: Verificar novamente se o agente global está ativo
+    // O usuário pode ter desativado o agente durante o delay de acumulação
+    const agentConfig = await storage.getAgentConfig(userId);
+    if (!agentConfig?.isActive) {
+      console.log(`\n${'!'.repeat(60)}`);
+      console.log(`🛑 [AI AGENT] BLOQUEIO: Agente global DESATIVADO`);
+      console.log(`   userId: ${userId}`);
+      console.log(`   conversationId: ${conversationId}`);
+      console.log(`   contactNumber: ${contactNumber}`);
+      console.log(`   👉 Agente foi desativado durante o delay - resposta cancelada`);
+      console.log(`${'!'.repeat(60)}\n`);
+      conversationsBeingProcessed.delete(conversationId);
+      return;
+    }
+    
+    // 🚨 FIX: Verificar também se a IA está pausada para esta conversa específica
+    const isAgentDisabled = await storage.isAgentDisabledForConversation(conversationId);
+    if (isAgentDisabled) {
+      console.log(`\n${'!'.repeat(60)}`);
+      console.log(`🛑 [AI AGENT] BLOQUEIO: IA PAUSADA para esta conversa`);
+      console.log(`   conversationId: ${conversationId}`);
+      console.log(`   contactNumber: ${contactNumber}`);
+      console.log(`   👉 IA foi pausada durante o delay - resposta cancelada`);
+      console.log(`${'!'.repeat(60)}\n`);
+      conversationsBeingProcessed.delete(conversationId);
+      return;
+    }
+    
     const currentSession = sessions.get(userId);
     if (!currentSession?.socket) {
       console.log(`\n${'!'.repeat(60)}`);
@@ -3578,6 +3615,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       console.log(`   contactNumber: ${contactNumber}`);
       console.log(`   👉 WhatsApp provavelmente desconectado`);
       console.log(`${'!'.repeat(60)}\n`);
+      conversationsBeingProcessed.delete(conversationId);
       return;
     }
     
@@ -3632,6 +3670,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             console.log(`   Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
             console.log(`   👉 IA PAUSADA para este cliente - precisa renovar assinatura`);
             console.log(`${'!'.repeat(60)}\n`);
+            conversationsBeingProcessed.delete(conversationId);
             return;
           }
         }
@@ -3645,6 +3684,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           console.log(`   👉 Usuário precisa assinar plano`);
           console.log(`${'!'.repeat(60)}\n`);
           // Não enviar resposta - limite atingido
+          conversationsBeingProcessed.delete(conversationId);
           return;
         }
         
