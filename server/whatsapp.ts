@@ -657,9 +657,12 @@ checkForMissedMessages = async function(session: WhatsAppSession): Promise<void>
     
     if (result.rows.length === 0) return;
     
-    // 2. Verificar config do agente
+    // 2. Verificar config do agente (USAR BUSINESS CONFIG - tabela correta)
+    const businessConfig = await storage.getBusinessAgentConfig(userId);
+    if (!businessConfig?.isActive) return;
+    
+    // Buscar delay da config legada para compatibilidade
     const agentConfig = await storage.getAgentConfig(userId);
-    if (!agentConfig?.isActive) return;
     
     // 3. Processar mensagens não respondidas
     for (const row of result.rows) {
@@ -879,12 +882,14 @@ async function checkUnrespondedMessages(session: WhatsAppSession): Promise<void>
   console.log(`   ?? Usu�rio: ${userId}`);
   
   try {
-    // 1. Verificar se o agente est� ativo
-    const agentConfig = await storage.getAgentConfig(userId);
-    if (!agentConfig?.isActive) {
+    // 1. Verificar se o agente est� ativo (USAR BUSINESS CONFIG - tabela correta)
+    const businessConfig = await storage.getBusinessAgentConfig(userId);
+    if (!businessConfig?.isActive) {
       console.log(`?? [UNRESPONDED CHECK] Agente inativo, pulando verifica��o`);
       return;
     }
+    // Buscar config legada para delay
+    const agentConfig = await storage.getAgentConfig(userId);
     
     // 2. Buscar todas as conversas deste usu�rio
     const allConversations = await storage.getConversationsByConnectionId(connectionId);
@@ -3654,8 +3659,9 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
   try {
     // 🚨 FIX CRÍTICO: Verificar novamente se o agente global está ativo
     // O usuário pode ter desativado o agente durante o delay de acumulação
-    const agentConfig = await storage.getAgentConfig(userId);
-    if (!agentConfig?.isActive) {
+    // USAR BUSINESS CONFIG - tabela onde usuários configuram via UI
+    const businessConfig = await storage.getBusinessAgentConfig(userId);
+    if (!businessConfig?.isActive) {
       console.log(`\n${'!'.repeat(60)}`);
       console.log(`🛑 [AI AGENT] BLOQUEIO: Agente global DESATIVADO`);
       console.log(`   userId: ${userId}`);
@@ -3666,6 +3672,8 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       conversationsBeingProcessed.delete(conversationId);
       return;
     }
+    // Buscar config legada para outras propriedades se necessário
+    const agentConfig = await storage.getAgentConfig(userId);
     
     // 🚨 FIX: Verificar também se a IA está pausada para esta conversa específica
     const isAgentDisabled = await storage.isAgentDisabledForConversation(conversationId);
@@ -4141,12 +4149,13 @@ export async function triggerAgentResponseForConversation(
     console.log(`[TRIGGER] Sessão WhatsApp OK - socket existe`);
     
     // 2. Verificar se o agente está ativo globalmente
-    console.log(`[TRIGGER] Verificando agentConfig...`);
-    const agentConfig = await storage.getAgentConfig(userId);
-    console.log(`[TRIGGER] agentConfig encontrado: ${agentConfig ? 'SIM' : 'NÃO'}`);
-    console.log(`[TRIGGER] agentConfig.isActive: ${agentConfig?.isActive}`);
+    // IMPORTANTE: Usar getBusinessAgentConfig que é a tabela sincronizada com a UI
+    console.log(`[TRIGGER] Verificando businessConfig...`);
+    const businessConfig = await storage.getBusinessAgentConfig(userId);
+    console.log(`[TRIGGER] businessConfig encontrado: ${businessConfig ? 'SIM' : 'NÃO'}`);
+    console.log(`[TRIGGER] businessConfig.isActive: ${businessConfig?.isActive}`);
     
-    if (!agentConfig?.isActive) {
+    if (!businessConfig?.isActive) {
       console.log(`[TRIGGER] FALHA: Agente globalmente inativo`);
       return { triggered: false, reason: "Ative o agente em 'Meu Agente IA' primeiro." };
     }

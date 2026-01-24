@@ -5487,6 +5487,36 @@ ${config.ai_instructions || ''}
         config = await storage.upsertAgentConfig(userId, dataWithDefaults);
       }
       
+      // 🚨 FIX CRÍTICO: Sincronizar isActive com business_agent_configs
+      // O toggle da UI "A ON/OFF" deve atualizar AMBAS as tabelas para consistência
+      // O backend usa business_agent_configs.is_active para verificar se deve responder
+      if (typeof result.data.isActive === 'boolean') {
+        console.log(`[AGENT CONFIG] 🔄 Sincronizando isActive=${result.data.isActive} com business_agent_configs`);
+        try {
+          const existingBusinessConfig = await storage.getBusinessAgentConfig(userId);
+          if (existingBusinessConfig) {
+            await storage.upsertBusinessAgentConfig(userId, {
+              ...existingBusinessConfig,
+              isActive: result.data.isActive
+            });
+            console.log(`[AGENT CONFIG] ✅ business_agent_configs.is_active atualizado para ${result.data.isActive}`);
+          } else {
+            // Se não existe business config, criar uma mínima
+            await storage.upsertBusinessAgentConfig(userId, {
+              userId,
+              agentName: "Assistente",
+              agentRole: "Assistente Virtual",
+              companyName: "Minha Empresa",
+              isActive: result.data.isActive
+            });
+            console.log(`[AGENT CONFIG] ✅ Criado business_agent_configs com isActive=${result.data.isActive}`);
+          }
+        } catch (syncError) {
+          console.error(`[AGENT CONFIG] ⚠️ Erro ao sincronizar business_agent_configs:`, syncError);
+          // Continua mesmo se falhar
+        }
+      }
+      
       // 📝 CRÍTICO: Se prompt mudou, criar nova versão no histórico
       if (promptChanged && result.data.prompt) {
         const { salvarVersaoPrompt } = await import("./promptHistoryService");
@@ -7238,10 +7268,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
       console.log(`[RESPONDER COM IA] Conexão verificada: ${connection.id}`);
 
       // Verificar se agente global está ativo
-      const agentConfig = await storage.getAgentConfig(userId);
-      console.log(`[RESPONDER COM IA] agentConfig.isActive: ${agentConfig?.isActive}`);
+      // IMPORTANTE: Usar getBusinessAgentConfig que é a tabela que a UI sincroniza
+      const businessAgentConfig = await storage.getBusinessAgentConfig(userId);
+      console.log(`[RESPONDER COM IA] businessAgentConfig.isActive: ${businessAgentConfig?.isActive}`);
       
-      if (!agentConfig?.isActive) {
+      if (!businessAgentConfig?.isActive) {
         console.log(`[RESPONDER COM IA] ERRO: Agente não está ativo globalmente`);
         return res.status(400).json({ 
           success: false, 
