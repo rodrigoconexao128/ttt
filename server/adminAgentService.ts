@@ -12,7 +12,7 @@
 
 import { storage } from "./storage";
 import { generatePixQRCode } from "./pixService";
-import { getLLMClient } from "./llm";
+import { getLLMClient, withRetryLLM } from "./llm";
 import { analyzeImageWithMistral, analyzeImageForAdmin } from "./mistralClient";
 import { v4 as uuidv4 } from "uuid";
 import { 
@@ -2362,32 +2362,44 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
     // Isso garante que NENHUM conteúdo seja cortado - apenas dividido em blocos
     const maxTokens = 2000; // ~6000 chars - permite respostas completas
     
+    // 🔄 USAR withRetryLLM para 3 tentativas automáticas antes de fallback
     try {
-      response = await mistral.chat.complete({
-        model: configuredModel,
-        messages: messages,
-        maxTokens: maxTokens,
-        temperature: 0.0, // ZERO para determinismo - igual ao aiAgent.ts
-        randomSeed: 42,   // Seed fixo para garantir consistência
-      });
+      response = await withRetryLLM(
+        async () => mistral.chat.complete({
+          model: configuredModel,
+          messages: messages,
+          maxTokens: maxTokens,
+          temperature: 0.0, // ZERO para determinismo - igual ao aiAgent.ts
+          randomSeed: 42,   // Seed fixo para garantir consistência
+        }),
+        `Admin chatComplete (${configuredModel})`,
+        3, // 3 tentativas
+        1000 // delay inicial 1s
+      );
     } catch (err: any) {
-      // Fallback para modelo sem especificar - usa o padrão do getLLMClient
-      if (err?.statusCode === 429 || err?.message?.includes('capacity exceeded') || err?.message?.includes('not found')) {
-        console.warn(`⚠️ [SALES] Erro com modelo ${configuredModel} (${err.statusCode}). Tentando fallback com modelo padrão do sistema...`);
-        try {
-          // Usa modelo padrão do sistema (sem hardcode)
-          response = await mistral.chat.complete({
+      // 🔄 FALLBACK com withRetryLLM também
+      console.error('═══════════════════════════════════════════════════════════════');
+      console.error('🔄 [ADMIN FALLBACK] Erro com modelo configurado após 3 tentativas!');
+      console.error(`   └─ Erro: ${err?.message || err}`);
+      console.error('🔄 [ADMIN FALLBACK] Tentando com modelo padrão do sistema...');
+      console.error('═══════════════════════════════════════════════════════════════');
+      
+      try {
+        // Usa modelo padrão do sistema (sem hardcode) - também com retry
+        response = await withRetryLLM(
+          async () => mistral.chat.complete({
             messages: messages,
             maxTokens: maxTokens,
             temperature: 0.0, // ZERO para determinismo
             randomSeed: 42,   // Seed fixo
-          });
-        } catch (fallbackErr) {
-           console.error(`❌ [SALES] Erro também no fallback:`, fallbackErr);
-           throw err; // Lança o erro original se o fallback falhar
-        }
-      } else {
-        throw err;
+          }),
+          'Admin chatComplete (fallback)',
+          3, // 3 tentativas
+          1000
+        );
+      } catch (fallbackErr) {
+         console.error(`❌ [ADMIN] Erro também no fallback após 3 tentativas:`, fallbackErr);
+         throw err; // Lança o erro original se o fallback falhar
       }
     }
     

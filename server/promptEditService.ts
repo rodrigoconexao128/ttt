@@ -107,113 +107,133 @@ INSTRUÇÃO DO USUÁRIO:
 
 Analise o prompt e retorne as edições necessárias em JSON.`;
 
-  try {
-    // 🚀 Chamada via chatComplete (usa OpenRouter/Hyperbolic automaticamente)
-    const messages: ChatMessage[] = [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userMessage }
-    ];
-
-    const response = await chatComplete({
-      messages,
-      temperature: 0.3,  // Baixo para ser mais preciso
-      maxTokens: 4000
-    });
-    
-    let content = response.choices?.[0]?.message?.content || "";
-    
-    // Tentar extrair JSON da resposta (pode vir com markdown)
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      content = jsonMatch[0];
-    }
-    
-    // Parse do JSON (garantido válido pelo response_format)
-    let respostaIA: RespostaIA;
+  // 🚀 RETRY: Tenta até 3 vezes para garantir sucesso
+  const MAX_RETRIES = 3;
+  let lastError: string = "";
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      respostaIA = JSON.parse(content);
-    } catch (e) {
-      console.error("[EditService] Erro ao parsear JSON:", content);
-      return {
-        success: false,
-        novoPrompt: promptAtual,
-        mensagemChat: "Desculpe, houve um erro ao processar sua solicitação. Tente novamente.",
-        edicoesAplicadas: 0,
-        edicoesFalharam: 0,
-        detalhes: []
-      };
-    }
-    
-    // Se não precisa editar, retorna mensagem de chat apenas
-    if (respostaIA.operacao === "nenhuma" || !respostaIA.edicoes?.length) {
-      return {
-        success: true,
-        novoPrompt: promptAtual,
-        mensagemChat: respostaIA.resposta_chat || "Entendi! Não há alterações a fazer.",
-        edicoesAplicadas: 0,
-        edicoesFalharam: 0,
-        detalhes: []
-      };
-    }
-    
-    // Aplica as edições
-    let novoPrompt = promptAtual;
-    const detalhes: ResultadoEdicao["detalhes"] = [];
-    let aplicadas = 0;
-    let falharam = 0;
-    
-    for (const edicao of respostaIA.edicoes) {
-      const { buscar, substituir } = edicao;
+      console.log(`[EditService] Tentativa ${attempt}/${MAX_RETRIES}...`);
       
-      // Tenta aplicar com fuzzy matching
-      const resultado = aplicarEdicaoFuzzy(novoPrompt, buscar, substituir, 0.85);
+      // 🚀 Chamada via chatComplete (usa OpenRouter/Hyperbolic automaticamente)
+      const messages: ChatMessage[] = [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userMessage }
+      ];
+
+      const response = await chatComplete({
+        messages,
+        temperature: 0.3,  // Baixo para ser mais preciso
+        maxTokens: 4000
+      });
       
-      if (resultado.success) {
-        novoPrompt = resultado.novoTexto;
-        aplicadas++;
-        detalhes.push({
-          buscar,
-          substituir,
-          status: "aplicada",
-          matchType: resultado.matchType
-        });
+      let content = response.choices?.[0]?.message?.content || "";
+      
+      // Verificar se resposta está vazia
+      if (!content || content.trim() === "") {
+        throw new Error("Resposta vazia do LLM");
+      }
+      
+      // Tentar extrair JSON da resposta (pode vir com markdown)
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        content = jsonMatch[0];
       } else {
-        falharam++;
-        detalhes.push({
-          buscar,
-          substituir,
-          status: "falhou"
-        });
-        console.warn(`[EditService] Edição não encontrada: "${buscar.substring(0, 50)}..."`);
+        throw new Error("JSON não encontrado na resposta");
+      }
+      
+      // Parse do JSON com validação
+      let respostaIA: RespostaIA;
+      try {
+        respostaIA = JSON.parse(content);
+        
+        // Validar estrutura mínima do JSON
+        if (!respostaIA.resposta_chat && !respostaIA.operacao) {
+          throw new Error("JSON incompleto - falta resposta_chat ou operacao");
+        }
+      } catch (e: any) {
+        console.warn(`[EditService] Erro ao parsear JSON (tentativa ${attempt}):`, e.message);
+        throw new Error(`JSON inválido: ${e.message}`);
+      }
+    
+      // Se não precisa editar, retorna mensagem de chat apenas
+      if (respostaIA.operacao === "nenhuma" || !respostaIA.edicoes?.length) {
+        return {
+          success: true,
+          novoPrompt: promptAtual,
+          mensagemChat: respostaIA.resposta_chat || "Entendi! Não há alterações a fazer.",
+          edicoesAplicadas: 0,
+          edicoesFalharam: 0,
+          detalhes: []
+        };
+      }
+      
+      // Aplica as edições
+      let novoPrompt = promptAtual;
+      const detalhes: ResultadoEdicao["detalhes"] = [];
+      let aplicadas = 0;
+      let falharam = 0;
+      
+      for (const edicao of respostaIA.edicoes) {
+        const { buscar, substituir } = edicao;
+        
+        // Tenta aplicar com fuzzy matching
+        const resultado = aplicarEdicaoFuzzy(novoPrompt, buscar, substituir, 0.85);
+        
+        if (resultado.success) {
+          novoPrompt = resultado.novoTexto;
+          aplicadas++;
+          detalhes.push({
+            buscar,
+            substituir,
+            status: "aplicada",
+            matchType: resultado.matchType
+          });
+        } else {
+          falharam++;
+          detalhes.push({
+            buscar,
+            substituir,
+            status: "falhou"
+          });
+          console.warn(`[EditService] Edição não encontrada: "${buscar.substring(0, 50)}..."`);
+        }
+      }
+      
+      // ✅ Sucesso! Retorna resultado
+      console.log(`[EditService] ✅ Edição concluída: ${aplicadas} aplicadas, ${falharam} falharam`);
+      return {
+        success: aplicadas > 0,
+        novoPrompt: aplicadas > 0 ? novoPrompt : promptAtual,
+        mensagemChat: respostaIA.resposta_chat || `Pronto! Apliquei ${aplicadas} edição(ões).`,
+        edicoesAplicadas: aplicadas,
+        edicoesFalharam: falharam,
+        detalhes
+      };
+      
+    } catch (error: any) {
+      lastError = error.message;
+      console.warn(`[EditService] ⚠️ Tentativa ${attempt} falhou: ${error.message}`);
+      
+      if (attempt < MAX_RETRIES) {
+        // Backoff exponencial: 1s, 2s
+        const delay = Math.pow(2, attempt - 1) * 1000;
+        console.log(`[EditService] ⏳ Aguardando ${delay}ms antes de tentar novamente...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
-    
-    return {
-      success: aplicadas > 0,
-      novoPrompt: aplicadas > 0 ? novoPrompt : promptAtual,
-      mensagemChat: respostaIA.resposta_chat || `Pronto! Apliquei ${aplicadas} edição(ões).`,
-      edicoesAplicadas: aplicadas,
-      edicoesFalharam: falharam,
-      detalhes
-    };
-    
-  } catch (error: any) {
-    console.error("[EditService] ❌ ERRO na chamada à IA");
-    console.error("[EditService] Error type:", error.constructor.name);
-    console.error("[EditService] Error message:", error.message);
-    console.error("[EditService] Error status:", error.status);
-    console.error("[EditService] Error code:", error.code);
-    console.error("[EditService] Full error:", JSON.stringify(error, null, 2));
-    
-    return {
-      success: false,
-      novoPrompt: promptAtual,
-      mensagemChat: `Erro ao processar: ${error.message}. Tente novamente.`,
-      edicoesAplicadas: 0,
-      edicoesFalharam: 0,
-      detalhes: []
-    };
   }
+  
+  // Todas as tentativas falharam
+  console.error(`[EditService] ❌ Todas as ${MAX_RETRIES} tentativas falharam`);
+  return {
+    success: false,
+    novoPrompt: promptAtual,
+    mensagemChat: `Desculpe, não consegui processar após ${MAX_RETRIES} tentativas. Erro: ${lastError}. Tente novamente.`,
+    edicoesAplicadas: 0,
+    edicoesFalharam: 0,
+    detalhes: []
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

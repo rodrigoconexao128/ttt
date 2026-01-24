@@ -36,6 +36,93 @@ interface LLMConfigCache {
 let llmConfigCache: LLMConfigCache | null = null;
 const LLM_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
+// ============================================================================
+// 🔄 FUNÇÃO DE RETRY COM EXPONENTIAL BACKOFF PARA CHAMADAS DE API LLM
+// ============================================================================
+const LLM_MAX_RETRIES = 3;
+const LLM_INITIAL_DELAY_MS = 1000;
+
+/**
+ * Executa uma operação com retry automático e exponential backoff
+ * Específica para chamadas de API LLM (OpenRouter, Groq, etc)
+ * 🔄 EXPORTADA para uso em outros módulos
+ */
+export async function withRetryLLM<T>(
+  operation: () => Promise<T>,
+  operationName: string = "LLM API call",
+  maxRetries: number = LLM_MAX_RETRIES,
+  initialDelayMs: number = LLM_INITIAL_DELAY_MS
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Log de início de cada tentativa
+      console.log(`🔄 [LLM RETRY] ${operationName} - Tentativa ${attempt}/${maxRetries}...`);
+      
+      const result = await operation();
+      
+      // Log de sucesso
+      if (attempt > 1) {
+        console.log(`✅ [LLM RETRY] ${operationName} - SUCESSO na tentativa ${attempt}/${maxRetries}!`);
+      }
+      
+      return result;
+    } catch (error: any) {
+      lastError = error;
+      
+      // Extrair status code do erro (pode estar em diferentes formatos)
+      const statusCode = error?.status || error?.statusCode || 
+                        (error?.message?.match(/error: (\d+)/)?.[1] ? parseInt(error.message.match(/error: (\d+)/)[1]) : null);
+      
+      // Verificar se é um erro que vale a pena tentar novamente
+      const isRetryable = 
+        statusCode === 429 || // Rate limit
+        statusCode === 500 || // Server error
+        statusCode === 502 || // Bad gateway
+        statusCode === 503 || // Service unavailable
+        statusCode === 504 || // Gateway timeout
+        statusCode === 520 || // Cloudflare error
+        statusCode === 521 || // Cloudflare error
+        statusCode === 522 || // Cloudflare timeout
+        statusCode === 523 || // Cloudflare error
+        statusCode === 524 || // Cloudflare timeout
+        error?.code === 'ECONNRESET' ||
+        error?.code === 'ETIMEDOUT' ||
+        error?.code === 'ENOTFOUND' ||
+        error?.code === 'ECONNREFUSED' ||
+        error?.code === 'UND_ERR_CONNECT_TIMEOUT' ||
+        error?.message?.toLowerCase()?.includes('rate limit') ||
+        error?.message?.toLowerCase()?.includes('timeout') ||
+        error?.message?.toLowerCase()?.includes('connection') ||
+        error?.message?.toLowerCase()?.includes('overloaded') ||
+        error?.message?.toLowerCase()?.includes('temporarily unavailable') ||
+        error?.message?.toLowerCase()?.includes('too many requests');
+      
+      if (!isRetryable || attempt === maxRetries) {
+        console.error(`❌ [LLM RETRY] ${operationName} - ESGOTOU ${maxRetries} tentativas!`);
+        console.error(`   └─ Erro final: ${error?.message || error}`);
+        console.error(`   └─ Status: ${statusCode || 'N/A'}`);
+        console.error(`   └─ Retryable: ${isRetryable ? 'SIM' : 'NÃO'}`);
+        throw error;
+      }
+      
+      // Exponential backoff: 1s, 2s, 4s... com jitter aleatório
+      const jitter = Math.random() * 500; // 0-500ms de jitter
+      const delay = (initialDelayMs * Math.pow(2, attempt - 1)) + jitter;
+      
+      console.log(`⚠️ [LLM RETRY] ${operationName} - FALHOU tentativa ${attempt}/${maxRetries}`);
+      console.log(`   └─ Erro: ${error?.message || 'Unknown'}`);
+      console.log(`   └─ Status: ${statusCode || 'N/A'}`);
+      console.log(`   └─ Próxima tentativa em: ${Math.round(delay)}ms`);
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError || new Error(`${operationName} falhou após ${maxRetries} tentativas`);
+}
+
 /**
  * Invalida o cache de configuração LLM
  */
@@ -109,7 +196,8 @@ async function getLLMConfig(): Promise<{
 }
 
 /**
- * Chama o OpenRouter API
+ * Chama o OpenRouter API COM RETRY AUTOMÁTICO
+ * Implementa exponential backoff para lidar com rate limits e erros temporários
  */
 async function callOpenRouterAPI(
   messages: ChatMessage[],
@@ -124,37 +212,45 @@ async function callOpenRouterAPI(
   
   console.log(`[LLM] 🚀 Chamando OpenRouter API com modelo: ${model}`);
   
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://agentezap.online',
-      'X-Title': 'AgenteZap'
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens ?? 500,
-    }),
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[LLM] OpenRouter API error: ${response.status} - ${errorText}`);
-    throw new Error(`OpenRouter API error: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  
-  console.log(`[LLM] ✅ OpenRouter respondeu com ${content?.length || 0} caracteres`);
-  return typeof content === 'string' ? content : '';
+  // 🔄 Usar retry automático para lidar com erros temporários
+  return await withRetryLLM(async () => {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://agentezap.online',
+        'X-Title': 'AgenteZap'
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: options?.temperature ?? 0.7,
+        max_tokens: options?.maxTokens ?? 500,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[LLM] OpenRouter API error: ${response.status} - ${errorText}`);
+      // Criar erro com status para que withRetryLLM possa identificar
+      const error = new Error(`OpenRouter API error: ${response.status}`) as any;
+      error.status = response.status;
+      error.statusCode = response.status;
+      throw error;
+    }
+    
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    console.log(`[LLM] ✅ OpenRouter respondeu com ${content?.length || 0} caracteres`);
+    return typeof content === 'string' ? content : '';
+  }, `OpenRouter API (${model})`);
 }
 
 /**
- * Chama o Groq API diretamente
+ * Chama o Groq API diretamente COM RETRY AUTOMÁTICO
+ * Implementa exponential backoff para lidar com rate limits e erros temporários
  */
 async function callGroqAPI(
   messages: ChatMessage[],
@@ -169,31 +265,38 @@ async function callGroqAPI(
   
   console.log(`[LLM] 🚀 Chamando Groq API com modelo: ${model}`);
   
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens ?? 500,
-    }),
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[LLM] Groq API error: ${response.status} - ${errorText}`);
-    throw new Error(`Groq API error: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  
-  console.log(`[LLM] ✅ Groq respondeu com ${content?.length || 0} caracteres`);
-  return typeof content === 'string' ? content : '';
+  // 🔄 Usar retry automático para lidar com erros temporários
+  return await withRetryLLM(async () => {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: options?.temperature ?? 0.7,
+        max_tokens: options?.maxTokens ?? 500,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[LLM] Groq API error: ${response.status} - ${errorText}`);
+      // Criar erro com status para que withRetryLLM possa identificar
+      const error = new Error(`Groq API error: ${response.status}`) as any;
+      error.status = response.status;
+      error.statusCode = response.status;
+      throw error;
+    }
+    
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    console.log(`[LLM] ✅ Groq respondeu com ${content?.length || 0} caracteres`);
+    return typeof content === 'string' ? content : '';
+  }, `Groq API (${model})`);
 }
 
 /**
@@ -312,6 +415,7 @@ export interface LLMChatResponse {
 /**
  * Função de chat completo - substitui getMistralClient().chat.complete()
  * Usa o provider configurado (OpenRouter, Groq ou Mistral)
+ * 🔄 COM RETRY AUTOMÁTICO para lidar com rate limits e erros temporários
  */
 export async function chatComplete(params: {
   model?: string;
@@ -330,33 +434,41 @@ export async function chatComplete(params: {
       const model = config.openrouterModel;
       console.log(`[LLM] 🚀 chatComplete via OpenRouter com modelo correto: ${model} (provider=${config.provider})`);
       
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.openrouterApiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://agentezap.online',
-          'X-Title': 'AgenteZap'
-        },
-        body: JSON.stringify({
-          model,
-          messages: params.messages,
-          max_tokens: params.maxTokens ?? 500,
-          temperature: params.temperature ?? 0.7,
-          provider: {
-            order: ['hyperbolic'],  // Priorizar Hyperbolic (mais barato: $0.04/M input e output)
-            allow_fallbacks: true   // Permite outros providers se Hyperbolic falhar
-          }
-        }),
-      });
+      // 🔄 Usar retry automático para lidar com erros temporários
+      const data = await withRetryLLM(async () => {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.openrouterApiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://agentezap.online',
+            'X-Title': 'AgenteZap'
+          },
+          body: JSON.stringify({
+            model,
+            messages: params.messages,
+            max_tokens: params.maxTokens ?? 500,
+            temperature: params.temperature ?? 0.7,
+            provider: {
+              order: ['hyperbolic'],  // Priorizar Hyperbolic (mais barato: $0.04/M input e output)
+              allow_fallbacks: true   // Permite outros providers se Hyperbolic falhar
+            }
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[LLM] OpenRouter API error: ${response.status} - ${errorText}`);
+          // Criar erro com status para que withRetryLLM possa identificar
+          const error = new Error(`OpenRouter API error: ${response.status}`) as any;
+          error.status = response.status;
+          error.statusCode = response.status;
+          throw error;
+        }
+        
+        return await response.json();
+      }, `OpenRouter chatComplete (${model})`);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[LLM] OpenRouter API error: ${response.status} - ${errorText}`);
-        throw new Error(`OpenRouter API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
       console.log(`[LLM] ✅ OpenRouter chatComplete respondeu`);
       
       return {
@@ -365,8 +477,12 @@ export async function chatComplete(params: {
           finishReason: c.finish_reason
         })) || []
       };
-    } catch (openrouterError) {
-      console.error('[LLM] Erro no OpenRouter chatComplete, tentando fallback para Groq:', openrouterError);
+    } catch (openrouterError: any) {
+      console.error('═══════════════════════════════════════════════════════════════');
+      console.error('🔄 [LLM FALLBACK] OpenRouter FALHOU após 3 tentativas!');
+      console.error(`   └─ Erro: ${openrouterError?.message || openrouterError}`);
+      console.error('🔄 [LLM FALLBACK] Iniciando fallback para Groq...');
+      console.error('═══════════════════════════════════════════════════════════════');
       // Continua para tentar Groq
     }
   }
@@ -379,28 +495,35 @@ export async function chatComplete(params: {
       const model = config.groqModel;
       console.log(`[LLM] 🚀 chatComplete via Groq com modelo: ${model}`);
       
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.groqApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages: params.messages,
-          max_tokens: params.maxTokens ?? 500,
-          temperature: params.temperature ?? 0.7,
-          seed: params.randomSeed,
-        }),
-      });
+      // 🔄 Usar retry automático para Groq também
+      const data = await withRetryLLM(async () => {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.groqApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model,
+            messages: params.messages,
+            max_tokens: params.maxTokens ?? 500,
+            temperature: params.temperature ?? 0.7,
+            seed: params.randomSeed,
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[LLM] Groq API error: ${response.status} - ${errorText}`);
+          const error = new Error(`Groq API error: ${response.status}`) as any;
+          error.status = response.status;
+          error.statusCode = response.status;
+          throw error;
+        }
+        
+        return await response.json();
+      }, `Groq chatComplete (${model})`);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[LLM] Groq API error: ${response.status} - ${errorText}`);
-        throw new Error(`Groq API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
       console.log(`[LLM] ✅ Groq chatComplete respondeu`);
       
       return {
@@ -409,12 +532,17 @@ export async function chatComplete(params: {
           finishReason: c.finish_reason
         })) || []
       };
-    } catch (groqError) {
-      console.error('[LLM] Erro no Groq chatComplete, tentando fallback para Mistral:', groqError);
+    } catch (groqError: any) {
+      console.error('═══════════════════════════════════════════════════════════════');
+      console.error('🔄 [LLM FALLBACK] Groq FALHOU após 3 tentativas!');
+      console.error(`   └─ Erro: ${groqError?.message || groqError}`);
+      console.error('🔄 [LLM FALLBACK] Iniciando fallback FINAL para Mistral...');
+      console.error('═══════════════════════════════════════════════════════════════');
     }
   }
   
   // Fallback para Mistral
+  console.log('🆘 [LLM FALLBACK FINAL] Usando Mistral como último recurso!');
   console.log(`[LLM] 🚀 chatComplete via Mistral com modelo: ${params.model || 'mistral-small-latest'}`);
   const mistral = await getMistralClient();
   

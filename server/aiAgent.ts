@@ -1780,7 +1780,7 @@ INSTRUÇÕES IMPORTANTES:
 // ═══════════════════════════════════════════════════════════════════════
 
 
-// � FUNÇÃO DE RETRY AUTOMÁTICO PARA CHAMADAS DE API
+// 🔄 FUNÇÃO DE RETRY AUTOMÁTICO PARA CHAMADAS DE API
 // Implementa exponential backoff para lidar com rate limits e erros temporários
 async function withRetry<T>(
   operation: () => Promise<T>,
@@ -1792,7 +1792,17 @@ async function withRetry<T>(
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      return await operation();
+      // Log de início de cada tentativa
+      console.log(`🔄 [AI RETRY] ${operationName} - Tentativa ${attempt}/${maxRetries}...`);
+      
+      const result = await operation();
+      
+      // Log de sucesso
+      if (attempt > 1) {
+        console.log(`✅ [AI RETRY] ${operationName} - SUCESSO na tentativa ${attempt}/${maxRetries}!`);
+      }
+      
+      return result;
     } catch (error: any) {
       lastError = error;
       
@@ -1811,13 +1821,19 @@ async function withRetry<T>(
         error?.message?.includes('connection');
       
       if (!isRetryable || attempt === maxRetries) {
-        console.error(`❌ [AI Agent] ${operationName} falhou após ${attempt} tentativa(s):`, error?.message || error);
+        console.error(`❌ [AI RETRY] ${operationName} - ESGOTOU ${maxRetries} tentativas!`);
+        console.error(`   └─ Erro final: ${error?.message || error}`);
+        console.error(`   └─ Status: ${error?.statusCode || 'N/A'}`);
+        console.error(`   └─ Retryable: ${isRetryable ? 'SIM' : 'NÃO'}`);
         throw error;
       }
       
       // Exponential backoff: 1s, 2s, 4s...
       const delay = initialDelayMs * Math.pow(2, attempt - 1);
-      console.log(`⚠️ [AI Agent] ${operationName} falhou (tentativa ${attempt}/${maxRetries}). Retry em ${delay}ms... Erro: ${error?.message || 'Unknown'}`);
+      console.log(`⚠️ [AI RETRY] ${operationName} - FALHOU tentativa ${attempt}/${maxRetries}`);
+      console.log(`   └─ Erro: ${error?.message || 'Unknown'}`);
+      console.log(`   └─ Status: ${error?.statusCode || 'N/A'}`);
+      console.log(`   └─ Próxima tentativa em: ${delay}ms`);
       
       await new Promise(resolve => setTimeout(resolve, delay));
     }
@@ -2178,7 +2194,9 @@ export async function generateAIResponse(
     // Usuários suspensos não podem usar a IA
     const isSuspended = await checkUserSuspension(userId);
     if (isSuspended) {
-      console.log(`🚫 [AI Agent] Usuário ${userId} está SUSPENSO - não respondendo`);
+      console.log(`\n${'!'.repeat(60)}`);
+      console.log(`🚫 [AI Agent] RETURN NULL #1: Usuário ${userId} está SUSPENSO`);
+      console.log(`${'!'.repeat(60)}\n`);
       return null;
     }
 
@@ -2190,10 +2208,12 @@ export async function generateAIResponse(
     // 🤖 VERIFICAÇÃO ANTI-BOT - Não responder bots de empresas
     const botCheck = isMessageFromBot(newMessageText, contactName);
     if (botCheck.isBot) {
-      console.log(`🤖 [AI Agent] Mensagem de BOT detectada - IGNORANDO`);
+      console.log(`\n${'!'.repeat(60)}`);
+      console.log(`🤖 [AI Agent] RETURN NULL #2: Mensagem de BOT detectada - IGNORANDO`);
       console.log(`   Razão: ${botCheck.reason}`);
       console.log(`   Contato: ${contactName || 'N/A'}`);
       console.log(`   Mensagem: ${newMessageText.substring(0, 50)}...`);
+      console.log(`${'!'.repeat(60)}\n`);
       return null;
     }
     
@@ -2244,7 +2264,12 @@ export async function generateAIResponse(
     // ═══════════════════════════════════════════════════════════════════════
 
     if (!agentConfig || !agentConfig.isActive) {
-      console.log(`   ❌ [AI Agent] Legacy config not found or inactive - agent DISABLED`);
+      console.log(`\n${'!'.repeat(60)}`);
+      console.log(`❌ [AI Agent] RETURN NULL #3: agentConfig não encontrado ou INATIVO`);
+      console.log(`   userId: ${userId}`);
+      console.log(`   agentConfig exists: ${!!agentConfig}`);
+      console.log(`   agentConfig.isActive: ${agentConfig?.isActive}`);
+      console.log(`${'!'.repeat(60)}\n`);
       return null;
     }
     
@@ -2435,7 +2460,13 @@ export async function generateAIResponse(
       });
 
       if (!hasTrigger) {
-        console.log(`⏸️ [AI Agent] Skipping response - no trigger phrase found for user ${userId}`);
+        console.log(`\n${'!'.repeat(60)}`);
+        console.log(`⏸️ [AI Agent] RETURN NULL #4: Trigger phrases configuradas mas NENHUMA encontrada`);
+        console.log(`   userId: ${userId}`);
+        console.log(`   Trigger phrases configuradas: ${triggerPhrases.join(', ')}`);
+        console.log(`   Mensagem atual: "${newMessageText.substring(0, 100)}"`);
+        console.log(`   👉 Para resolver: Remova as trigger phrases ou adicione uma que corresponda`);
+        console.log(`${'!'.repeat(60)}\n`);
         return null;
       }
 

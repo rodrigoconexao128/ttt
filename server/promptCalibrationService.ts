@@ -204,48 +204,78 @@ export class PromptCalibrationService {
 
   /**
    * Método helper para fazer chamadas ao LLM unificado
-   * 🚀 OTIMIZADO: Usa timeout curto e menos tokens para velocidade
+   * 🚀 OTIMIZADO: Com retry automático e melhor tratamento de erros
    */
   private async callLLM(
     systemPrompt: string, 
     userMessage: string, 
     options?: { temperature?: number; maxTokens?: number; jsonMode?: boolean }
   ): Promise<string> {
-    console.log(`🔄 [Calibração LLM] Chamando chatComplete()...`);
-    const startTime = Date.now();
+    const MAX_RETRIES = 3;
+    let lastError: Error | null = null;
     
-    const messages: ChatMessage[] = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage }
-    ];
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`🔄 [Calibração LLM] Chamando chatComplete() (tentativa ${attempt}/${MAX_RETRIES})...`);
+        const startTime = Date.now();
+        
+        const messages: ChatMessage[] = [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage }
+        ];
 
-    // 🚀 Timeout de 15s por chamada LLM para não travar a calibração
-    const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error("LLM timeout (15s)")), 15000)
-    );
+        // 🚀 Timeout de 20s por chamada LLM
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error("LLM timeout (20s)")), 20000)
+        );
 
-    const llmPromise = chatComplete({
-      messages,
-      temperature: options?.temperature ?? 0.5,
-      maxTokens: options?.maxTokens ?? 300
-    });
+        const llmPromise = chatComplete({
+          messages,
+          temperature: options?.temperature ?? 0.5,
+          maxTokens: options?.maxTokens ?? 300
+        });
 
-    const response = await Promise.race([llmPromise, timeoutPromise]);
-    const elapsed = Date.now() - startTime;
-    console.log(`✅ [Calibração LLM] Resposta em ${elapsed}ms`);
+        const response = await Promise.race([llmPromise, timeoutPromise]);
+        const elapsed = Date.now() - startTime;
+        console.log(`✅ [Calibração LLM] Resposta em ${elapsed}ms`);
 
-    const content = response.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("Resposta vazia do LLM");
+        const content = response.choices?.[0]?.message?.content;
+        if (!content || content.trim() === "") {
+          throw new Error("Resposta vazia do LLM");
+        }
+
+        // Se jsonMode, tentar extrair JSON da resposta
+        if (options?.jsonMode) {
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            throw new Error("JSON não encontrado na resposta");
+          }
+          // Validar que é JSON válido
+          try {
+            JSON.parse(jsonMatch[0]);
+          } catch {
+            throw new Error("JSON inválido na resposta");
+          }
+          return jsonMatch[0];
+        }
+
+        return content;
+        
+      } catch (error: any) {
+        lastError = error;
+        console.warn(`⚠️ [Calibração LLM] Tentativa ${attempt} falhou: ${error.message}`);
+        
+        if (attempt < MAX_RETRIES) {
+          // Backoff exponencial: 1s, 2s, 4s
+          const delay = Math.pow(2, attempt - 1) * 1000;
+          console.log(`⏳ [Calibração LLM] Aguardando ${delay}ms antes de tentar novamente...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
-
-    // Se jsonMode, tentar extrair JSON da resposta
-    if (options?.jsonMode) {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      return jsonMatch ? jsonMatch[0] : content;
-    }
-
-    return content;
+    
+    // Todas as tentativas falharam
+    throw lastError || new Error("Falha após múltiplas tentativas");
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

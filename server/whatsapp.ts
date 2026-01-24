@@ -3568,7 +3568,13 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
   try {
     const currentSession = sessions.get(userId);
     if (!currentSession?.socket) {
-      console.log(`[AI Agent] Session not available for user ${userId}, skipping response`);
+      console.log(`\n${'!'.repeat(60)}`);
+      console.log(`⚠️ [AI Agent] BLOQUEIO: Session/socket não disponível`);
+      console.log(`   userId: ${userId}`);
+      console.log(`   conversationId: ${conversationId}`);
+      console.log(`   contactNumber: ${contactNumber}`);
+      console.log(`   👉 WhatsApp provavelmente desconectado`);
+      console.log(`${'!'.repeat(60)}\n`);
       return;
     }
     
@@ -3616,13 +3622,25 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           
           // Se já usou as mensagens de teste, bloqueia completamente
           if (agentMessagesCount >= FREE_TRIAL_LIMIT) {
-            console.log(`🚫 [AI AGENT] Plano vencido E limite de teste atingido - IA PAUSADA para este cliente`);
+            console.log(`\n${'!'.repeat(60)}`);
+            console.log(`🚫 [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido`);
+            console.log(`   userId: ${userId}`);
+            console.log(`   contactNumber: ${contactNumber}`);
+            console.log(`   Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
+            console.log(`   👉 IA PAUSADA para este cliente - precisa renovar assinatura`);
+            console.log(`${'!'.repeat(60)}\n`);
             return;
           }
         }
         
         if (agentMessagesCount >= FREE_TRIAL_LIMIT) {
-          console.log(`🚫 [AI AGENT] Limite de ${FREE_TRIAL_LIMIT} mensagens atingido (${agentMessagesCount}/${FREE_TRIAL_LIMIT}). Usuário precisa assinar plano.`);
+          console.log(`\n${'!'.repeat(60)}`);
+          console.log(`🚫 [AI AGENT] BLOQUEIO: Limite de ${FREE_TRIAL_LIMIT} mensagens atingido`);
+          console.log(`   userId: ${userId}`);
+          console.log(`   contactNumber: ${contactNumber}`);
+          console.log(`   Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
+          console.log(`   👉 Usuário precisa assinar plano`);
+          console.log(`${'!'.repeat(60)}\n`);
           // Não enviar resposta - limite atingido
           return;
         }
@@ -3939,7 +3957,16 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         console.error("Erro ao agendar follow-up:", error);
       }
     } else {
-      console.log(`[AI Agent] No response generated (trigger phrase check or agent inactive)`);
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`⚠️ [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!`);
+      console.log(`   conversationId: ${conversationId}`);
+      console.log(`   contactNumber: ${contactNumber}`);
+      console.log(`   Possíveis causas (verifique logs acima para "RETURN NULL"):`);
+      console.log(`   1. Usuário SUSPENSO`);
+      console.log(`   2. Mensagem de BOT detectada`);
+      console.log(`   3. agentConfig não encontrado ou isActive=false`);
+      console.log(`   4. Trigger phrases configuradas mas nenhuma encontrada`);
+      console.log(`${'='.repeat(60)}\n`);
     }
   } catch (error) {
     console.error("Error generating AI response:", error);
