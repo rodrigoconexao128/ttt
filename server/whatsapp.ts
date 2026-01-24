@@ -3051,9 +3051,12 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     const contactNumber = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '');
     const conversationId = `${session.connectionId}:${contactNumber}`;
     
+    // 🐛 FIX: Usar session.userId ao invés de session.connectionId
+    // O incoming_message_log precisa do userId real para que o sistema
+    // encontre o ai_agent_config correto ao processar mensagens
     const canProcess = await canProcessIncomingMessage({
       whatsappMessageId,
-      userId: session.connectionId,
+      userId: session.userId,  // CORRIGIDO: Era session.connectionId (bug que impedia respostas)
       conversationId,
       contactNumber,
     });
