@@ -1,0 +1,500 @@
+﻿{"level":"info","timestamp":"2026-01-24T20:42:28.609002991Z","message":"  }"}
+{"timestamp":"2026-01-24T20:42:28.609015415Z","level":"info","message":"}"}
+{"level":"info","message":"    baseKey: <Buffer 05 cb 1c 6b 29 27 06 73 9a 5c 23 48 7d cb b5 e2 cf f5 33 38 f0 94 63 ae 9f ba 65 eb 66 50 f4 59 2e>,","timestamp":"2026-01-24T20:42:28.609024430Z"}
+{"message":"    used: 1769274776371,","level":"info","timestamp":"2026-01-24T20:42:28.609033001Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:28.609034641Z","message":"    baseKeyType: 1,"}
+{"timestamp":"2026-01-24T20:42:28.609034752Z","level":"info","message":"    signedKeyId: 12231790,"}
+{"message":"    created: 1769274776371,","level":"info","timestamp":"2026-01-24T20:42:28.609042372Z"}
+{"level":"info","message":"    baseKey: <Buffer 05 cb 1c 6b 29 27 06 73 9a 5c 23 48 7d cb b5 e2 cf f5 33 38 f0 94 63 ae 9f ba 65 eb 66 50 f4 59 2e>,","timestamp":"2026-01-24T20:42:28.609046713Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:28.609046863Z","message":"    closed: -1,"}
+{"timestamp":"2026-01-24T20:42:28.609051852Z","level":"info","message":"    remoteIdentityKey: <Buffer 05 a6 95 1a 4b 69 3a 9f ec d2 b6 43 d8 6b 78 54 06 6a a3 4e a9 76 53 95 2a 12 6e 1a 6e f8 da 9f 60>"}
+{"timestamp":"2026-01-24T20:42:28.609059991Z","message":"  },","level":"info"}
+{"timestamp":"2026-01-24T20:42:28.609062551Z","message":"    preKeyId: 8268261","level":"info"}
+{"timestamp":"2026-01-24T20:42:28.609067190Z","message":"  pendingPreKey: {","level":"info"}
+{"message":"­ƒøí´©Å [ANTI-BAN v5.0] Ô£à Msg enviada - Lote: 3/10","timestamp":"2026-01-24T20:42:28.609498660Z","level":"info"}
+{"message":"­ƒøí´©Å [ANTI-BLOCK v5.0] Ô£à Liberado para enviar credenciais welcome","timestamp":"2026-01-24T20:42:28.609504546Z","level":"info"}
+{"level":"info","message":"?? [MSG CACHE] Armazenada mensagem ACAF835AA54C99F497990784F6CC3EE9 para user 06495c08... (cache size: 312)","timestamp":"2026-01-24T20:42:28.609510198Z"}
+{"level":"info","message":"Ignoring group/status message from: status@broadcast","timestamp":"2026-01-24T20:42:28.609514114Z"}
+{"message":"Closing session: SessionEntry {","level":"info","timestamp":"2026-01-24T20:42:28.609518317Z"}
+{"timestamp":"2026-01-24T20:42:28.609523318Z","message":"  _chains: {","level":"info"}
+{"message":"    BffnxDbzZHH3vs7O0fdGkCTMWHUV9HnEOEcteYRIiBpl: { chainKey: [Object], chainType: 2, messageKeys: [Object] },","level":"info","timestamp":"2026-01-24T20:42:28.609527375Z"}
+{"message":"    'BS37Fp1oSeqrpkx7/0Opc7mb8mCaEoUphf5h/H0BQ9pj': { chainKey: [Object], chainType: 1, messageKeys: {} }","timestamp":"2026-01-24T20:42:28.609531669Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:28.609535983Z","level":"info","message":"  },"}
+{"message":"  registrationId: 841723791,","timestamp":"2026-01-24T20:42:28.609540708Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:28.609545917Z","message":"  currentRatchet: {"}
+{"level":"info","message":"    ephemeralKeyPair: {","timestamp":"2026-01-24T20:42:28.609550296Z"}
+{"message":"      pubKey: <Buffer 05 2d fb 16 9d 68 49 ea ab a6 4c 7b ff 43 a9 73 b9 9b f2 60 9a 12 85 29 85 fe 61 fc 7d 01 43 da 63>,","timestamp":"2026-01-24T20:42:28.609555289Z","level":"info"}
+{"message":"      privKey: <Buffer e0 4e 1b 40 50 a5 3f 26 e8 98 41 ac f3 85 16 d9 6c 2f b8 41 d6 eb c7 96 86 50 84 ab 5a b8 c7 46>","timestamp":"2026-01-24T20:42:28.609561394Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:28.609568191Z","message":"    },","level":"info"}
+{"message":"    lastRemoteEphemeralKey: <Buffer 05 f7 e7 c4 36 f3 64 71 f7 be ce ce d1 f7 46 90 24 cc 58 75 15 f4 79 c4 38 47 2d 79 84 48 88 1a 65>,","level":"info","timestamp":"2026-01-24T20:42:28.609578953Z"}
+{"timestamp":"2026-01-24T20:42:28.609585084Z","level":"info","message":"    previousCounter: 0,"}
+{"timestamp":"2026-01-24T20:42:28.609592121Z","message":"    rootKey: <Buffer 1c 01 a7 2a cc 15 e7 25 84 c3 f4 68 4e 97 f0 f0 22 cc d8 ed 88 95 dd aa 2f d4 59 07 06 6f c4 c7>","level":"info"}
+{"message":"  },","level":"info","timestamp":"2026-01-24T20:42:28.609596476Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:28.609601324Z","message":"  indexInfo: {"}
+{"timestamp":"2026-01-24T20:42:28.646389655Z","message":"?? [MSG CACHE] Armazenada mensagem AC4C5AB53D89AF6675B2225E2032A201 para user 06495c08... (cache size: 313)","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:28.683533329Z","message":"Removing old closed session: SessionEntry {"}
+{"level":"info","message":"  _chains: {","timestamp":"2026-01-24T20:42:28.683541130Z"}
+{"message":"    'BUHLFeu4Tbf+5tU/dhNZZD3sqCIMBYuIkVNaSzK5EyJC': { chainKey: [Object], chainType: 1, messageKeys: {} }","timestamp":"2026-01-24T20:42:28.683545886Z","level":"info"}
+{"level":"info","message":"  },","timestamp":"2026-01-24T20:42:28.683550541Z"}
+{"message":"  registrationId: 841723791,","level":"info","timestamp":"2026-01-24T20:42:28.683555277Z"}
+{"message":"  currentRatchet: {","timestamp":"2026-01-24T20:42:28.683559851Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:28.683564417Z","message":"    ephemeralKeyPair: {","level":"info"}
+{"level":"info","message":"      pubKey: <Buffer 05 41 cb 15 eb b8 4d b7 fe e6 d5 3f 76 13 59 64 3d ec a8 22 0c 05 8b 88 91 53 5a 4b 32 b9 13 22 42>,","timestamp":"2026-01-24T20:42:28.683568276Z"}
+{"message":"      privKey: <Buffer a8 f8 63 88 7b ad c2 8f 5c 73 2b fd fc e6 90 d4 03 21 17 1c bd a8 ea 0f 6a ce f8 da 92 9a 55 46>","timestamp":"2026-01-24T20:42:28.683572042Z","level":"info"}
+{"level":"info","message":"    },","timestamp":"2026-01-24T20:42:28.683576152Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:28.683580103Z","message":"    lastRemoteEphemeralKey: <Buffer 05 e4 6f 32 d0 7a fa b4 ff 9f d4 18 93 c0 d6 bb 5a a1 62 4a 73 5f 82 d7 d4 17 7a 42 1d 04 e5 2d 51>,"}
+{"level":"info","timestamp":"2026-01-24T20:42:28.683584969Z","message":"    previousCounter: 0,"}
+{"message":"    rootKey: <Buffer fc 07 ef da 5a 36 91 a0 c2 a4 90 08 e5 e1 a1 56 84 13 3a 4d ec e4 99 43 08 40 dc d1 73 b7 85 fc>","level":"info","timestamp":"2026-01-24T20:42:28.683588923Z"}
+{"timestamp":"2026-01-24T20:42:28.683594279Z","level":"info","message":"  },"}
+{"message":"  indexInfo: {","level":"info","timestamp":"2026-01-24T20:42:28.683599876Z"}
+{"message":"    baseKey: <Buffer 05 3d b3 80 17 82 05 4f 0e 4b 38 46 ce c7 70 36 79 ee 2c 2d 99 01 92 fb a2 0d 6f 95 80 93 85 61 75>,","level":"info","timestamp":"2026-01-24T20:42:28.683604950Z"}
+{"level":"info","message":"    baseKeyType: 1,","timestamp":"2026-01-24T20:42:28.683610196Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:28.683615815Z","message":"    closed: 1769019868038,"}
+{"timestamp":"2026-01-24T20:42:28.683621994Z","level":"info","message":"    used: 1769019500107,"}
+{"level":"info","message":"    created: 1769019500107,","timestamp":"2026-01-24T20:42:28.683627736Z"}
+{"message":"    remoteIdentityKey: <Buffer 05 a6 95 1a 4b 69 3a 9f ec d2 b6 43 d8 6b 78 54 06 6a a3 4e a9 76 53 95 2a 12 6e 1a 6e f8 da 9f 60>","level":"info","timestamp":"2026-01-24T20:42:28.683634545Z"}
+{"level":"info","message":"  },","timestamp":"2026-01-24T20:42:28.685267690Z"}
+{"message":"  pendingPreKey: {","timestamp":"2026-01-24T20:42:28.685280316Z","level":"info"}
+{"message":"    signedKeyId: 12231790,","level":"info","timestamp":"2026-01-24T20:42:28.685289676Z"}
+{"message":"    baseKey: <Buffer 05 3d b3 80 17 82 05 4f 0e 4b 38 46 ce c7 70 36 79 ee 2c 2d 99 01 92 fb a2 0d 6f 95 80 93 85 61 75>,","timestamp":"2026-01-24T20:42:28.685297351Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:28.685306199Z","message":"    preKeyId: 8267060","level":"info"}
+{"message":"  }","level":"info","timestamp":"2026-01-24T20:42:28.685313367Z"}
+{"timestamp":"2026-01-24T20:42:28.685321654Z","message":"}","level":"info"}
+{"message":"[WELCOME] Ô£à Mensagem de boas-vindas enviada com sucesso para +5521972529230","timestamp":"2026-01-24T20:42:28.695546846Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:28.697211037Z","message":"8:42:28 PM [express] POST /api/auth/signup 200 in 12231ms :: {\"success\":true,\"user\":{\"id\":\"f859c929-ÔÇª"}
+{"level":"info","timestamp":"2026-01-24T20:42:28.796963214Z","message":"?? [MSG CACHE] Armazenada mensagem 3EB078C8FC1B4685F6A915 para user admin_81... (cache size: 110)"}
+{"timestamp":"2026-01-24T20:42:28.796971382Z","level":"info","message":"­ƒôñ [ADMIN] Mensagem enviada pelo admin detectada"}
+{"level":"info","message":"­ƒôñ [ADMIN FROM ME] Salvando mensagem do admin: Ol├í! tudo bem? Sou Rodrigo do Suporte da AgenteZap...","timestamp":"2026-01-24T20:42:28.796978199Z"}
+{"timestamp":"2026-01-24T20:42:28.799066963Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"message":"    'BbXvhJyJh58qBZH/U2O3HWnK3r+EnpvPeNH1IrC0IDdt': { chainKey: [Object], chainType: 2, messageKeys: {} },","timestamp":"2026-01-24T20:42:29.518186491Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:29.518199676Z","message":"    'BUpmfnPeLTFUv8d42Mm3+y9mroyavV4Rl1CnhVytwNE5': { chainKey: [Object], chainType: 2, messageKeys: {} },"}
+{"level":"info","message":"    BWESqOzIgqwI1iLIxcXZL8E6Hp5gFOvKzGYJzq33xLEp: { chainKey: [Object], chainType: 1, messageKeys: {} }","timestamp":"2026-01-24T20:42:29.518207119Z"}
+{"level":"info","message":"  },","timestamp":"2026-01-24T20:42:29.518213023Z"}
+{"timestamp":"2026-01-24T20:42:29.518219068Z","message":"  registrationId: 102,","level":"info"}
+{"message":"  currentRatchet: {","level":"info","timestamp":"2026-01-24T20:42:29.518225824Z"}
+{"message":"    ephemeralKeyPair: {","timestamp":"2026-01-24T20:42:29.518231748Z","level":"info"}
+{"level":"info","message":"      pubKey: <Buffer 05 61 12 a8 ec c8 82 ac 08 d6 22 c8 c5 c5 d9 2f c1 3a 1e 9e 60 14 eb ca cc 66 09 ce ad f7 c4 b1 29>,","timestamp":"2026-01-24T20:42:29.518240836Z"}
+{"level":"info","message":"      privKey: <Buffer b8 38 b2 f9 cb 7e 38 2d 44 d5 f3 9f 2b 56 ec ad be 59 d5 89 c5 a8 ef 69 61 47 02 10 e2 ec a4 6f>","timestamp":"2026-01-24T20:42:29.518249406Z"}
+{"message":"    },","timestamp":"2026-01-24T20:42:29.518257595Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:29.518265139Z","level":"info","message":"    lastRemoteEphemeralKey: <Buffer 05 4a 66 7e 73 de 2d 31 54 bf c7 78 d8 c9 b7 fb 2f 66 ae 8c 9a bd 5e 11 97 50 a7 85 5c ad c0 d1 39>,"}
+{"message":"    previousCounter: 3,","timestamp":"2026-01-24T20:42:29.518270375Z","level":"info"}
+{"message":"    rootKey: <Buffer 7e d2 e0 b1 e0 f4 42 bd 70 75 4c 07 85 ab 66 67 e0 65 20 3f 16 df 15 b7 5b 5e a4 4a 8b 48 e1 8e>","timestamp":"2026-01-24T20:42:29.518276890Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:29.518282074Z","message":"  },","level":"info"}
+{"message":"  indexInfo: {","level":"info","timestamp":"2026-01-24T20:42:29.518288404Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:29.518370337Z","message":"Ignoring group/status message from: status@broadcast"}
+{"message":"Closing open session in favor of incoming prekey bundle","timestamp":"2026-01-24T20:42:29.518375157Z","level":"error"}
+{"level":"info","message":"Closing session: SessionEntry {","timestamp":"2026-01-24T20:42:29.518379409Z"}
+{"message":"  _chains: {","timestamp":"2026-01-24T20:42:29.518386538Z","level":"info"}
+{"message":"    'BeyJvHaYU3c0gDaFKIS/KURwhm+RuUMfA8sZdZk/blBe': { chainKey: [Object], chainType: 2, messageKeys: [Object] },","level":"info","timestamp":"2026-01-24T20:42:29.518391575Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:29.520201693Z","message":"  _chains: {"}
+{"level":"info","timestamp":"2026-01-24T20:42:29.520208675Z","message":"    BWESqOzIgqwI1iLIxcXZL8E6Hp5gFOvKzGYJzq33xLEp: { chainKey: [Object], chainType: 2, messageKeys: [Object] },"}
+{"timestamp":"2026-01-24T20:42:29.520214008Z","level":"info","message":"    'BXRzJ3oafMC35w/AXrKqhGjgthSCyZ/JNMiOMHExklld': { chainKey: [Object], chainType: 1, messageKeys: {} }"}
+{"message":"  },","level":"info","timestamp":"2026-01-24T20:42:29.520219612Z"}
+{"level":"info","message":"  registrationId: 172,","timestamp":"2026-01-24T20:42:29.520225687Z"}
+{"timestamp":"2026-01-24T20:42:29.520232238Z","message":"  currentRatchet: {","level":"info"}
+{"message":"    ephemeralKeyPair: {","timestamp":"2026-01-24T20:42:29.520239205Z","level":"info"}
+{"message":"      pubKey: <Buffer 05 74 73 27 7a 1a 7c c0 b7 e7 0f c0 5e b2 aa 84 68 e0 b6 14 82 c9 9f c9 34 c8 8e 30 71 31 92 59 5d>,","level":"info","timestamp":"2026-01-24T20:42:29.520245765Z"}
+{"timestamp":"2026-01-24T20:42:29.520251820Z","level":"info","message":"      privKey: <Buffer 60 96 df 6f df f5 56 68 c9 47 c9 cf fa cc 0c e6 83 ef 5a 49 0a f6 51 41 ab 45 1a cd e2 5a 8f 42>"}
+{"timestamp":"2026-01-24T20:42:29.520257802Z","level":"info","message":"    },"}
+{"timestamp":"2026-01-24T20:42:29.520261474Z","level":"info","message":"    baseKey: <Buffer 05 1f ca 9e 1d 94 1b d3 77 ab d7 ee b1 f1 c9 0d 4d b7 ca 28 09 b0 01 2b 0e 74 64 9b f4 2a f1 01 14>,"}
+{"message":"    lastRemoteEphemeralKey: <Buffer 05 61 12 a8 ec c8 82 ac 08 d6 22 c8 c5 c5 d9 2f c1 3a 1e 9e 60 14 eb ca cc 66 09 ce ad f7 c4 b1 29>,","timestamp":"2026-01-24T20:42:29.520265079Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:29.520268900Z","message":"    baseKeyType: 2,","level":"info"}
+{"message":"    closed: -1,","level":"info","timestamp":"2026-01-24T20:42:29.520283192Z"}
+{"message":"    used: 1769204217507,","timestamp":"2026-01-24T20:42:29.520290933Z","level":"info"}
+{"message":"    created: 1769202183673,","level":"info","timestamp":"2026-01-24T20:42:29.520296041Z"}
+{"message":"    remoteIdentityKey: <Buffer 05 de 3d c5 6d 3f a1 48 ed 0f 7d 0e b0 8f 47 79 c4 ee 00 0e da fd 26 7a d2 ab 2b d0 e4 42 dd 92 1e>","timestamp":"2026-01-24T20:42:29.520301077Z","level":"info"}
+{"message":"  }","timestamp":"2026-01-24T20:42:29.520307555Z","level":"info"}
+{"message":"}","timestamp":"2026-01-24T20:42:29.520314431Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:29.520319632Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:29.520325946Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:29.520331715Z","level":"info","message":"Closing session: SessionEntry {"}
+{"timestamp":"2026-01-24T20:42:29.522504880Z","message":"    previousCounter: 1,","level":"info"}
+{"timestamp":"2026-01-24T20:42:29.522515370Z","level":"info","message":"    rootKey: <Buffer 1a 4a 83 b9 eb c8 f1 3a 76 05 18 08 e5 53 e0 e7 b1 fc 30 59 a7 48 fc a9 76 09 39 c8 0b bd 44 3a>"}
+{"level":"info","message":"  },","timestamp":"2026-01-24T20:42:29.522522279Z"}
+{"message":"    created: 1769274776911,","timestamp":"2026-01-24T20:42:29.522526998Z","level":"info"}
+{"level":"info","message":"  indexInfo: {","timestamp":"2026-01-24T20:42:29.522530976Z"}
+{"timestamp":"2026-01-24T20:42:29.522536102Z","level":"info","message":"    remoteIdentityKey: <Buffer 05 73 c1 40 af db dd d8 f5 c0 df 4a ca 2c 17 1d 2c 2c 06 5d 6b 1d b1 2d 5a 69 25 fb a0 f0 97 d8 3d>"}
+{"message":"    baseKey: <Buffer 05 86 a1 8d db 47 9d 3a 19 c4 ed 64 47 cd 58 cc 73 01 53 75 43 3f ab bd 46 6d 6b 66 d2 6c 48 47 1a>,","timestamp":"2026-01-24T20:42:29.522541431Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:29.522544762Z","level":"info","message":"  },"}
+{"timestamp":"2026-01-24T20:42:29.522552019Z","message":"  pendingPreKey: {","level":"info"}
+{"level":"info","message":"    baseKeyType: 1,","timestamp":"2026-01-24T20:42:29.522554610Z"}
+{"timestamp":"2026-01-24T20:42:29.522559741Z","level":"info","message":"    signedKeyId: 1,"}
+{"level":"info","timestamp":"2026-01-24T20:42:29.522565052Z","message":"    closed: -1,"}
+{"timestamp":"2026-01-24T20:42:29.522567408Z","message":"    'BeLDc3Sd5OutGAQ6I/K4royAz7gx8F/ZvdsBYWST/vpI': { chainKey: [Object], chainType: 2, messageKeys: [Object] },","level":"info"}
+{"timestamp":"2026-01-24T20:42:29.522568406Z","level":"info","message":"    baseKey: <Buffer 05 86 a1 8d db 47 9d 3a 19 c4 ed 64 47 cd 58 cc 73 01 53 75 43 3f ab bd 46 6d 6b 66 d2 6c 48 47 1a>,"}
+{"message":"    preKeyId: 6957","level":"info","timestamp":"2026-01-24T20:42:29.522578265Z"}
+{"level":"info","message":"    'BRb5sL9+kI9bAL2jdJXHV1DT+WB5PGPsrK4v0ENvc20/': { chainKey: [Object], chainType: 1, messageKeys: {} }","timestamp":"2026-01-24T20:42:29.522582101Z"}
+{"timestamp":"2026-01-24T20:42:29.522585605Z","level":"info","message":"  }"}
+{"level":"info","timestamp":"2026-01-24T20:42:29.522589537Z","message":"    used: 1769274776911,"}
+{"timestamp":"2026-01-24T20:42:29.522593159Z","message":"  },","level":"info"}
+{"level":"info","message":"}","timestamp":"2026-01-24T20:42:29.522593360Z"}
+{"message":"Removing old closed session: SessionEntry {","timestamp":"2026-01-24T20:42:29.522602360Z","level":"info"}
+{"message":"  registrationId: 172,","timestamp":"2026-01-24T20:42:29.522608201Z","level":"info"}
+{"level":"info","message":"  _chains: {","timestamp":"2026-01-24T20:42:29.522608416Z"}
+{"timestamp":"2026-01-24T20:42:29.522618705Z","level":"info","message":"  currentRatchet: {"}
+{"timestamp":"2026-01-24T20:42:29.524495383Z","level":"info","message":"    ephemeralKeyPair: {"}
+{"timestamp":"2026-01-24T20:42:29.524506299Z","level":"info","message":"      pubKey: <Buffer 05 16 f9 b0 bf 7e 90 8f 5b 00 bd a3 74 95 c7 57 50 d3 f9 60 79 3c 63 ec ac ae 2f d0 43 6f 73 6d 3f>,"}
+{"message":"    remoteIdentityKey: <Buffer 05 73 c1 40 af db dd d8 f5 c0 df 4a ca 2c 17 1d 2c 2c 06 5d 6b 1d b1 2d 5a 69 25 fb a0 f0 97 d8 3d>","level":"info","timestamp":"2026-01-24T20:42:29.524507499Z"}
+{"message":"      privKey: <Buffer 00 9d 09 59 7b 95 ac 2a f5 49 2c e8 8d 03 25 92 69 fb 13 d3 49 03 07 8d 99 85 3e 02 20 48 ce 48>","level":"info","timestamp":"2026-01-24T20:42:29.524515119Z"}
+{"message":"  },","timestamp":"2026-01-24T20:42:29.524518995Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:29.524526102Z","message":"  pendingPreKey: {"}
+{"timestamp":"2026-01-24T20:42:29.524534977Z","level":"info","message":"    },"}
+{"message":"    signedKeyId: 1,","timestamp":"2026-01-24T20:42:29.524541346Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:29.524547839Z","level":"info","message":"    lastRemoteEphemeralKey: <Buffer 05 e2 c3 73 74 9d e4 eb ad 18 04 3a 23 f2 b8 ae 8c 80 cf b8 31 f0 5f d9 bd db 01 61 64 93 fe fa 48>,"}
+{"level":"info","message":"    baseKey: <Buffer 05 53 2b e0 bc 8f e9 e5 e9 88 ac b6 58 cc a0 23 da 10 5d c7 8e 0d 80 e0 a3 a4 76 a0 cb 3d e1 cc 53>,","timestamp":"2026-01-24T20:42:29.524550459Z"}
+{"message":"    previousCounter: 1,","level":"info","timestamp":"2026-01-24T20:42:29.524557239Z"}
+{"message":"    preKeyId: 5649","level":"info","timestamp":"2026-01-24T20:42:29.524558688Z"}
+{"level":"info","message":"    rootKey: <Buffer 81 74 44 9e da 29 33 3e c5 a4 08 80 a0 32 1e 53 c5 1b 6f fc 13 71 95 5e a6 d3 7b 79 31 d3 d1 5d>","timestamp":"2026-01-24T20:42:29.524565903Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:29.524567241Z","message":"  }"}
+{"level":"info","message":"}","timestamp":"2026-01-24T20:42:29.524574483Z"}
+{"message":"  },","level":"info","timestamp":"2026-01-24T20:42:29.524574797Z"}
+{"timestamp":"2026-01-24T20:42:29.524582587Z","level":"info","message":"  indexInfo: {"}
+{"level":"info","message":"    baseKey: <Buffer 05 53 2b e0 bc 8f e9 e5 e9 88 ac b6 58 cc a0 23 da 10 5d c7 8e 0d 80 e0 a3 a4 76 a0 cb 3d e1 cc 53>,","timestamp":"2026-01-24T20:42:29.524589153Z"}
+{"timestamp":"2026-01-24T20:42:29.524595382Z","message":"    baseKeyType: 1,","level":"info"}
+{"level":"info","message":"    closed: 1769019501206,","timestamp":"2026-01-24T20:42:29.524601506Z"}
+{"timestamp":"2026-01-24T20:42:29.524608445Z","message":"    used: 1769017919862,","level":"info"}
+{"timestamp":"2026-01-24T20:42:29.524615730Z","message":"    created: 1769017919862,","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:29.526271243Z"}
+{"timestamp":"2026-01-24T20:42:29.538441287Z","level":"info","message":"Ô£à [ADMIN FROM ME] Mensagem salva na conversa bb13e00f-653f-4de6-b2b4-b91078c151a5"}
+{"timestamp":"2026-01-24T20:42:29.578060393Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:29.764885818Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:30.510505624Z","level":"info","message":"8:42:29 PM [express] GET /api/auth/user 200 in 579ms :: {\"id\":\"f859c929-5c2d-4c23-aa53-e359a602aea3\"ÔÇª"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:30.573637237Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:30.662164159Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:30.669165363Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:30.758201459Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"timestamp":"2026-01-24T20:42:30.845915524Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:30.847696690Z","level":"info","message":"8:42:30 PM [express] GET /api/whatsapp/connection 200 in 394ms"}
+{"timestamp":"2026-01-24T20:42:30.854077956Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:30.854091039Z","message":"8:42:30 PM [express] GET /api/user/suspension-status 200 in 412ms :: {\"suspended\":false}","level":"info"}
+{"timestamp":"2026-01-24T20:42:31.418471245Z","message":"­ƒøí´©Å [ANTI-BAN] Ôî¿´©Å Simulando digita├º├úo por 3s...","level":"info"}
+{"message":"8:42:31 PM [express] GET /api/subscriptions/current 200 in 871ms","level":"info","timestamp":"2026-01-24T20:42:31.418481502Z"}
+{"message":"8:42:31 PM [express] GET /api/usage 200 in 1045ms :: {\"agentMessagesCount\":0,\"limit\":25,\"remaining\":ÔÇª","timestamp":"2026-01-24T20:42:31.418489001Z","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:31.418510012Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:31.418512345Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:31.418519962Z","level":"info","message":"8:42:31 PM [express] GET /api/agent/config 200 in 601ms"}
+{"level":"info","timestamp":"2026-01-24T20:42:31.418521907Z","message":"8:42:30 PM [express] GET /api/agent/media 200 in 508ms :: []"}
+{"message":"8:42:31 PM [express] GET /api/user/assigned-plan 200 in 591ms :: {\"hasAssignedPlan\":false}","timestamp":"2026-01-24T20:42:31.418527337Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:31.418533465Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","timestamp":"2026-01-24T20:42:31.418547375Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:31.418554940Z","message":"­ƒøí´©Å [ANTI-BLOCK] ­ƒôñ Enviando mensagem para 557788032372@s....","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:31.595283940Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:31.781009802Z","level":"info"}
+{"message":"Ô£à [DB Pool] Nova conex├úo ESTABELECIDA","timestamp":"2026-01-24T20:42:31.795632235Z","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:31.795638478Z"}
+{"timestamp":"2026-01-24T20:42:31.817708825Z","level":"info","message":"Ô£à [DB Pool] Nova conex├úo ESTABELECIDA"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:31.817719768Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:32.502009509Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:32.502015191Z","message":"8:42:32 PM [express] GET /api/user/branding 200 in 1573ms :: {\"isWhiteLabel\":false,\"companyName\":\"AgÔÇª"}
+{"timestamp":"2026-01-24T20:42:32.502020455Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:32.502028746Z"}
+{"timestamp":"2026-01-24T20:42:32.502036797Z","message":"8:42:32 PM [express] GET /api/reseller/status 200 in 1911ms :: {\"hasResellerPlan\":false,\"reseller\":nÔÇª","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:32.502043328Z","level":"info"}
+{"message":"8:42:32 PM [express] GET /api/usage 304 in 616ms :: {\"agentMessagesCount\":19,\"limit\":-1,\"remaining\":ÔÇª","level":"info","timestamp":"2026-01-24T20:42:32.585443267Z"}
+{"timestamp":"2026-01-24T20:42:32.725553126Z","message":"[CONNECTION UPDATE] User 1f2f40b5-fb3e-4d04-8136-611358c2283d - connection: undefined, hasQR: true, hasLastDisconnect: false","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:32.725560432Z","message":"[QR CODE] Generating QR Code for user 1f2f40b5-fb3e-4d04-8136-611358c2283d..."}
+{"timestamp":"2026-01-24T20:42:32.739812322Z","level":"info","message":"[QR CODE] QR Code generated successfully for user 1f2f40b5-fb3e-4d04-8136-611358c2283d, length: 6334"}
+{"message":"[BROADCAST] No WebSocket clients found for user 1f2f40b5-fb3e-4d04-8136-611358c2283d","timestamp":"2026-01-24T20:42:32.739826336Z","level":"info"}
+{"level":"info","message":"[QR CODE] QR Code broadcasted to user 1f2f40b5-fb3e-4d04-8136-611358c2283d","timestamp":"2026-01-24T20:42:32.739834819Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:32.739840294Z"}
+{"timestamp":"2026-01-24T20:42:33.397841516Z","message":"[QR CODE] QR Code saved to database for user 1f2f40b5-fb3e-4d04-8136-611358c2283d (took 191ms)","level":"info"}
+{"message":"?? [MSG CACHE] Armazenada mensagem ACE32F3CA8A8BD6BBA605CFE983621B5 para user 4bf0c68b... (cache size: 1431)","timestamp":"2026-01-24T20:42:33.582624399Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:33.824663767Z","message":"Ignoring group/status message from: status@broadcast","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:34.752997804Z","message":"[CONNECTION UPDATE] User de1112e5-8277-4438-94d7-5aacab30a951 - connection: undefined, hasQR: true, hasLastDisconnect: false"}
+{"timestamp":"2026-01-24T20:42:34.753016572Z","level":"info","message":"[QR CODE] Generating QR Code for user de1112e5-8277-4438-94d7-5aacab30a951..."}
+{"message":"[QR CODE] QR Code generated successfully for user de1112e5-8277-4438-94d7-5aacab30a951, length: 6406","timestamp":"2026-01-24T20:42:34.769632916Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:34.769645242Z","message":"[BROADCAST] No WebSocket clients found for user de1112e5-8277-4438-94d7-5aacab30a951"}
+{"level":"info","message":"[QR CODE] QR Code broadcasted to user de1112e5-8277-4438-94d7-5aacab30a951","timestamp":"2026-01-24T20:42:34.769652411Z"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:34.769658943Z"}
+{"timestamp":"2026-01-24T20:42:35.448033095Z","level":"info","message":"[QR CODE] QR Code saved to database for user de1112e5-8277-4438-94d7-5aacab30a951 (took 192ms)"}
+{"timestamp":"2026-01-24T20:42:36.443089903Z","message":"Closing session: SessionEntry {","level":"info"}
+{"message":"  _chains: {","timestamp":"2026-01-24T20:42:36.443094127Z","level":"info"}
+{"message":"    BbsRv2rSQU0wviP2koxch7GG7si646VkypKgh7tFyw1q: { chainKey: [Object], chainType: 1, messageKeys: {} }","level":"info","timestamp":"2026-01-24T20:42:36.443098313Z"}
+{"level":"info","message":"  },","timestamp":"2026-01-24T20:42:36.443102358Z"}
+{"message":"  registrationId: 1290123942,","level":"info","timestamp":"2026-01-24T20:42:36.443106702Z"}
+{"message":"  currentRatchet: {","timestamp":"2026-01-24T20:42:36.443111514Z","level":"info"}
+{"message":"    ephemeralKeyPair: {","level":"info","timestamp":"2026-01-24T20:42:36.443115881Z"}
+{"level":"info","message":"      pubKey: <Buffer 05 bb 11 bf 6a d2 41 4d 30 be 23 f6 92 8c 5c 87 b1 86 ee c8 ba e3 a5 64 ca 92 a0 87 bb 45 cb 0d 6a>,","timestamp":"2026-01-24T20:42:36.443120901Z"}
+{"message":"      privKey: <Buffer 48 24 6b 22 f2 10 9b d7 dd 5d 7e 96 3d 20 2d 5a bd d1 21 83 24 83 e2 c4 39 5b f2 85 16 9b 21 4b>","level":"info","timestamp":"2026-01-24T20:42:36.443125105Z"}
+{"message":"    },","level":"info","timestamp":"2026-01-24T20:42:36.443129098Z"}
+{"message":"    lastRemoteEphemeralKey: <Buffer 05 dd 12 92 8a a9 7c 62 34 1c 1f 87 21 5c c0 1a 45 5d 16 c9 a2 35 98 02 ac 0f cc 7c 25 b1 54 c0 40>,","timestamp":"2026-01-24T20:42:36.443133220Z","level":"info"}
+{"message":"    previousCounter: 0,","timestamp":"2026-01-24T20:42:36.443137799Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.443142491Z","level":"info","message":"    rootKey: <Buffer 06 c4 85 c1 f9 53 76 c9 15 35 1f 2a ee 8b 35 57 ae 62 32 64 29 e7 f8 8a 1e ef 51 3f af 45 ec f1>"}
+{"message":"  },","timestamp":"2026-01-24T20:42:36.443146055Z","level":"info"}
+{"message":"  indexInfo: {","timestamp":"2026-01-24T20:42:36.443151800Z","level":"info"}
+{"message":"    baseKey: <Buffer 05 7b 68 68 48 48 8b 77 62 d6 0c 67 42 6c 93 6f 29 b8 c3 c2 87 ac 17 64 2c 65 5e fa e8 9e 3e 9a 04>,","level":"info","timestamp":"2026-01-24T20:42:36.443156049Z"}
+{"message":"    baseKeyType: 1,","level":"info","timestamp":"2026-01-24T20:42:36.443160438Z"}
+{"message":"    closed: -1,","timestamp":"2026-01-24T20:42:36.443164825Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.443168721Z","level":"info","message":"    used: 1769027542373,"}
+{"timestamp":"2026-01-24T20:42:36.443174097Z","level":"info","message":"    created: 1769027542373,"}
+{"level":"info","message":"    remoteIdentityKey: <Buffer 05 85 12 d9 29 00 c4 ad 3d 74 14 6c 5e e1 25 b8 24 f3 6e 82 3a 34 0c 72 9a 24 8a 56 2b 89 a1 e6 7a>","timestamp":"2026-01-24T20:42:36.443177940Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:36.443182351Z","message":"  },"}
+{"level":"info","message":"  pendingPreKey: {","timestamp":"2026-01-24T20:42:36.446446267Z"}
+{"timestamp":"2026-01-24T20:42:36.446453914Z","level":"info","message":"    signedKeyId: 805046,"}
+{"timestamp":"2026-01-24T20:42:36.446459262Z","message":"    baseKey: <Buffer 05 7b 68 68 48 48 8b 77 62 d6 0c 67 42 6c 93 6f 29 b8 c3 c2 87 ac 17 64 2c 65 5e fa e8 9e 3e 9a 04>,","level":"info"}
+{"message":"    preKeyId: 15465","timestamp":"2026-01-24T20:42:36.446464472Z","level":"info"}
+{"level":"info","message":"  }","timestamp":"2026-01-24T20:42:36.446469452Z"}
+{"message":"}","timestamp":"2026-01-24T20:42:36.446474978Z","level":"info"}
+{"level":"info","message":"Closing session: SessionEntry {","timestamp":"2026-01-24T20:42:36.446482405Z"}
+{"message":"  _chains: {","timestamp":"2026-01-24T20:42:36.446487819Z","level":"info"}
+{"message":"    'BbdARZZcE9M2+04HDIUXc6enpzhIEcH6W1OU3a2ocdAD': { chainKey: [Object], chainType: 2, messageKeys: {} },","timestamp":"2026-01-24T20:42:36.446494370Z","level":"info"}
+{"message":"    'BW2sa3FON9Rc8A6qhv4b0daBUrvUVo+IzRdFsXEkTHUC': { chainKey: [Object], chainType: 1, messageKeys: {} }","timestamp":"2026-01-24T20:42:36.446500709Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.446506389Z","level":"info","message":"  },"}
+{"message":"  registrationId: 841723791,","timestamp":"2026-01-24T20:42:36.446512368Z","level":"info"}
+{"message":"  currentRatchet: {","timestamp":"2026-01-24T20:42:36.446522219Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.446527933Z","message":"    ephemeralKeyPair: {","level":"info"}
+{"message":"      pubKey: <Buffer 05 6d ac 6b 71 4e 37 d4 5c f0 0e aa 86 fe 1b d1 d6 81 52 bb d4 56 8f 88 cd 17 45 b1 71 24 4c 75 02>,","timestamp":"2026-01-24T20:42:36.446533206Z","level":"info"}
+{"message":"      privKey: <Buffer c8 22 56 44 91 16 39 d2 b5 e6 17 a2 f5 b5 19 42 0d 64 ad d7 34 47 c6 3f 90 57 8b 7f 3e e2 b0 6c>","level":"info","timestamp":"2026-01-24T20:42:36.446539034Z"}
+{"message":"    },","timestamp":"2026-01-24T20:42:36.446544467Z","level":"info"}
+{"message":"    lastRemoteEphemeralKey: <Buffer 05 b7 40 45 96 5c 13 d3 36 fb 4e 07 0c 85 17 73 a7 a7 a7 38 48 11 c1 fa 5b 53 94 dd ad a8 71 d0 03>,","timestamp":"2026-01-24T20:42:36.446550390Z","level":"info"}
+{"message":"    previousCounter: 2,","timestamp":"2026-01-24T20:42:36.446556712Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.446562254Z","level":"info","message":"    rootKey: <Buffer 29 fc e3 9f 0a ef f9 87 7c e1 9d 06 5f af db b0 08 f7 90 7d 10 c7 d1 1c 1e 03 8c 1f f0 64 3e ac>"}
+{"level":"info","timestamp":"2026-01-24T20:42:36.446567080Z","message":"  },"}
+{"timestamp":"2026-01-24T20:42:36.446572334Z","level":"info","message":"  indexInfo: {"}
+{"timestamp":"2026-01-24T20:42:36.446578574Z","message":"    baseKey: <Buffer 05 6a 0b c2 13 1b 33 ca f4 dc c5 e4 24 81 20 b0 34 ac b6 29 ce da 52 b3 58 fb 2a c4 ff df fe 9a 4c>,","level":"info"}
+{"message":"    previousCounter: 0,","level":"info","timestamp":"2026-01-24T20:42:36.447867544Z"}
+{"level":"info","message":"    rootKey: <Buffer 8a 72 61 c0 e1 bd d4 d8 74 ab d5 e9 8d aa ed 6d 7c 42 65 96 30 0b 6f 6d c0 86 2e e8 e2 3c 0f 21>","timestamp":"2026-01-24T20:42:36.447897336Z"}
+{"message":"    baseKeyType: 1,","timestamp":"2026-01-24T20:42:36.447979938Z","level":"info"}
+{"message":"    closed: -1,","timestamp":"2026-01-24T20:42:36.447984886Z","level":"info"}
+{"message":"    used: 1769283349173,","timestamp":"2026-01-24T20:42:36.447990865Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.447996079Z","level":"info","message":"    created: 1769283214645,"}
+{"message":"    remoteIdentityKey: <Buffer 05 a6 95 1a 4b 69 3a 9f ec d2 b6 43 d8 6b 78 54 06 6a a3 4e a9 76 53 95 2a 12 6e 1a 6e f8 da 9f 60>","timestamp":"2026-01-24T20:42:36.448001509Z","level":"info"}
+{"level":"info","message":"  }","timestamp":"2026-01-24T20:42:36.448007027Z"}
+{"message":"}","timestamp":"2026-01-24T20:42:36.448011875Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.448017440Z","message":"Removing old closed session: SessionEntry {","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.448023807Z","message":"  _chains: {","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.448029186Z","message":"    BXj65mJMZptslbLpKvp8gdLY2wUYk8sNQVFr6Hy6gPgU: { chainKey: [Object], chainType: 2, messageKeys: {} },","level":"info"}
+{"level":"info","message":"    BZzek2g2uwSlbfMA62DizTSCqthjr2KPRdPWoCYgiIhT: { chainKey: [Object], chainType: 2, messageKeys: {} },","timestamp":"2026-01-24T20:42:36.448036037Z"}
+{"message":"    BbPPHB6AA1YQPEkSdgdkkOfqjXAaTVffS2gDvN7UjRBz: { chainKey: [Object], chainType: 1, messageKeys: {} }","timestamp":"2026-01-24T20:42:36.448042315Z","level":"info"}
+{"message":"  },","level":"info","timestamp":"2026-01-24T20:42:36.448046894Z"}
+{"message":"  registrationId: 841723791,","timestamp":"2026-01-24T20:42:36.448052050Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:36.448057363Z","message":"  currentRatchet: {"}
+{"level":"info","timestamp":"2026-01-24T20:42:36.448062053Z","message":"    ephemeralKeyPair: {"}
+{"message":"      pubKey: <Buffer 05 b3 cf 1c 1e 80 03 56 10 3c 49 12 76 07 64 90 e7 ea 8d 70 1a 4d 57 df 4b 68 03 bc de d4 8d 10 73>,","timestamp":"2026-01-24T20:42:36.448066713Z","level":"info"}
+{"message":"      privKey: <Buffer 90 37 cc 68 8a 2a 95 dd da bc 0b c1 07 3b 79 23 5e 95 49 26 4f c5 8c 00 05 97 8b 60 ab 2e a1 4a>","level":"info","timestamp":"2026-01-24T20:42:36.448071139Z"}
+{"timestamp":"2026-01-24T20:42:36.448076262Z","level":"info","message":"    },"}
+{"level":"info","timestamp":"2026-01-24T20:42:36.448081244Z","message":"    lastRemoteEphemeralKey: <Buffer 05 9c de 93 68 36 bb 04 a5 6d f3 00 eb 60 e2 cd 34 82 aa d8 63 af 62 8f 45 d3 d6 a0 26 20 88 88 53>,"}
+{"timestamp":"2026-01-24T20:42:36.451920157Z","message":"  },","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.451927391Z","level":"info","message":"  indexInfo: {"}
+{"timestamp":"2026-01-24T20:42:36.451933078Z","message":"    baseKey: <Buffer 05 7d 46 6f 4a 5b 6f a9 7a e0 f8 95 54 62 63 d5 74 dc 5e b1 6f b1 d6 99 cd 1b 68 d6 47 00 cc ce 2c>,","level":"info"}
+{"level":"info","message":"    baseKeyType: 1,","timestamp":"2026-01-24T20:42:36.451940101Z"}
+{"timestamp":"2026-01-24T20:42:36.451948155Z","level":"info","message":"    closed: 1769209776208,"}
+{"timestamp":"2026-01-24T20:42:36.451953804Z","message":"    used: 1769209555132,","level":"info"}
+{"level":"info","message":"    created: 1769209215430,","timestamp":"2026-01-24T20:42:36.451960750Z"}
+{"message":"    remoteIdentityKey: <Buffer 05 a6 95 1a 4b 69 3a 9f ec d2 b6 43 d8 6b 78 54 06 6a a3 4e a9 76 53 95 2a 12 6e 1a 6e f8 da 9f 60>","level":"info","timestamp":"2026-01-24T20:42:36.451965521Z"}
+{"message":"  }","timestamp":"2026-01-24T20:42:36.451970727Z","level":"info"}
+{"level":"info","message":"}","timestamp":"2026-01-24T20:42:36.451976052Z"}
+{"message":"?? [MSG CACHE] Armazenada mensagem 3EB099E5A7FA8F35911E6F para user cb9213c3... (cache size: 108)","timestamp":"2026-01-24T20:42:36.451980700Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.451986358Z","message":"­ƒøí´©Å [ANTI-BLOCK] Ô£à Mensagem enviada - ID: 3EB099E5A7FA8F35911E6F","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:36.451993357Z","message":"­ƒøí´©Å [ANTI-BAN v5.0] Ô£à Msg enviada - Lote: 2/10"}
+{"timestamp":"2026-01-24T20:42:36.451998399Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"message":"","level":"info","timestamp":"2026-01-24T20:42:36.452003670Z"}
+{"timestamp":"2026-01-24T20:42:36.452008822Z","message":"========================================","level":"info"}
+{"level":"info","message":"[CONTACTS SYNC] ? Baileys emitiu 2 contatos","timestamp":"2026-01-24T20:42:36.452013339Z"}
+{"message":"[CONTACTS SYNC] User ID: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c","timestamp":"2026-01-24T20:42:36.452020262Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.452026003Z","level":"info","message":"[CONTACTS SYNC] ?? Salvando em MEM´┐¢RIA (n´┐¢o no banco)"}
+{"timestamp":"2026-01-24T20:42:36.452031933Z","level":"info","message":"========================================"}
+{"message":"","timestamp":"2026-01-24T20:42:36.452036806Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:36.452042192Z","message":"?? [AGENDA CACHE] Salvou 2 contatos para user d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c (expira em 2 HORAS)"}
+{"message":"[BROADCAST] No WebSocket clients found for user d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c","timestamp":"2026-01-24T20:42:36.452049922Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:36.458761921Z","level":"info","message":"[CONTACTS SYNC] ? 2 contatos salvos em cache (mem´┐¢ria)"}
+{"message":"?? [MSG CACHE] Armazenada mensagem AC546D60E8FA79E631A84BDBA793F1D9 para user 057f95ed... (cache size: 352)","timestamp":"2026-01-24T20:42:36.458765918Z","level":"info"}
+{"message":"?? [MSG CACHE] Armazenada mensagem 3EB099E5A7FA8F35911E6F para user cb9213c3... (cache size: 108)","timestamp":"2026-01-24T20:42:36.458770068Z","level":"info"}
+{"level":"info","message":"?? [SYNC] Ignorando mensagem de sincroniza´┐¢´┐¢o (type: append)","timestamp":"2026-01-24T20:42:36.458774036Z"}
+{"level":"error","message":"Decrypted message with closed session.","timestamp":"2026-01-24T20:42:36.458778328Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:36.458783227Z","level":"info"}
+{"message":"?? [MSG CACHE] Armazenada mensagem 3EB099E5A7FA8F35911E6F para user admin_81... (cache size: 111)","timestamp":"2026-01-24T20:42:36.458788075Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:36.458793365Z","message":"­ƒôñ [ADMIN] Mensagem enviada pelo admin detectada"}
+{"message":"­ƒôñ [ADMIN FROM ME] Salvando mensagem do admin: Luiz, percebi que voc├¬ ainda n├úo testou o recurso ...","timestamp":"2026-01-24T20:42:36.458797437Z","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:36.458801331Z"}
+{"timestamp":"2026-01-24T20:42:36.458805453Z","level":"info","message":"Ignoring group/status message from: status@broadcast"}
+{"timestamp":"2026-01-24T20:42:36.458809419Z","message":"Ô£à [FOLLOW-UP] Agendado inicial para conversa fe406f68-64c0-44ad-8a78-07c1c2345c8a em 10 min","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:36.458813881Z"}
+{"timestamp":"2026-01-24T20:42:36.458817698Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:36.625937349Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:36.625945050Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:36.686967400Z","message":"?? [MSG CACHE] Armazenada mensagem AC29B7F09227731FEE38BEA1DD25787B para user db9bc4b0... (cache size: 220)","level":"info"}
+{"level":"info","message":"Ô£à [ADMIN FROM ME] Mensagem salva na conversa 81dc8fc2-4d07-4991-89a5-224252a074fd","timestamp":"2026-01-24T20:42:36.811010700Z"}
+{"message":"Ô£à [USER-FOLLOW-UP] Ativado para conversa fe406f68-64c0-44ad-8a78-07c1c2345c8a","timestamp":"2026-01-24T20:42:36.816143108Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:36.816156382Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒôà [USER-FOLLOW-UP] Pr├│ximo follow-up agendado para 1/27/2026, 8:42:43 PM","level":"info","timestamp":"2026-01-24T20:42:37.407237652Z"}
+{"timestamp":"2026-01-24T20:42:37.407244069Z","level":"info","message":"Ô£à [USER-FOLLOW-UP] Follow-up enviado para 557788032372 (IA permanece no estado atual)"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:37.407250074Z"}
+{"timestamp":"2026-01-24T20:42:37.407396512Z","message":"Ignoring group/status message from: status@broadcast","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:37.407403469Z","message":"[BROADCAST] No WebSocket clients found for user cb9213c3-fde3-479e-a4aa-344171c59735"}
+{"timestamp":"2026-01-24T20:42:37.407410790Z","level":"info","message":"Ô£à [FOLLOW-UP-CALLBACK] Mensagem enviada com sucesso para 557788032372"}
+{"timestamp":"2026-01-24T20:42:37.407416972Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"ÔÅ░ [USER-FOLLOW-UP] Est├ígio 3 ÔåÆ 4, intervalo: 4320 minutos","timestamp":"2026-01-24T20:42:37.407423974Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:37.407430902Z","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:37.575097102Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:37.770422685Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:38.434730232Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:38.434736361Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"timestamp":"2026-01-24T20:42:38.434744224Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:38.528150682Z"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:38.717227110Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:39.412223994Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:39.412231379Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:39.412238229Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","timestamp":"2026-01-24T20:42:39.473214075Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","timestamp":"2026-01-24T20:42:39.664254363Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:39.850063737Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:40.524525730Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:40.524670217Z","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:40.524676274Z"}
+{"timestamp":"2026-01-24T20:42:40.605902937Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:40.795293709Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:41.408578074Z","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:41.408583040Z"}
+{"timestamp":"2026-01-24T20:42:41.408591899Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:41.552781533Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:41.738263004Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","timestamp":"2026-01-24T20:42:42.435827532Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:42.435835457Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:42.435841106Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:42.435846871Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:42.435852138Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:42.435857462Z"}
+{"timestamp":"2026-01-24T20:42:42.497222752Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"8:42:42 PM [express] GET /api/usage 304 in 815ms :: {\"agentMessagesCount\":0,\"limit\":25,\"remaining\":2ÔÇª","timestamp":"2026-01-24T20:42:42.516846190Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:42.685628756Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:42.871133041Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"timestamp":"2026-01-24T20:42:43.527087780Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:43.527106984Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:43.527121847Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:43.527289365Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:43.530835560Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:43.628377003Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"8:42:43 PM [express] GET /api/usage 304 in 594ms :: {\"agentMessagesCount\":19,\"limit\":-1,\"remaining\":ÔÇª","timestamp":"2026-01-24T20:42:43.717620863Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:43.816844688Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:44.615822321Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:44.615828439Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:44.615841768Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"timestamp":"2026-01-24T20:42:44.615847961Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:44.764203641Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:45.451185768Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"?? [MSG CACHE] Armazenada mensagem AC46CCB4455CBB4EF0F7DE0796DF7727 para user 84170f76... (cache size: 4823)","timestamp":"2026-01-24T20:42:45.451192029Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:45.451207776Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:45.451216340Z","message":"Ignoring group/status message from: 120363418654384594@g.us","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:45.451222996Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:45.522157903Z"}
+{"timestamp":"2026-01-24T20:42:45.709684778Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:46.403277054Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:46.403367716Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:46.403373429Z"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:46.464826936Z"}
+{"timestamp":"2026-01-24T20:42:46.654883761Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:46.843605523Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:47.454102027Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:47.454108371Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:47.454114084Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:47.599055124Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:47.790270048Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:48.530918246Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:48.530923227Z"}
+{"level":"info","message":"8:42:48 PM [express] GET /api/user/suspension-status 304 in 414ms :: {\"suspended\":false}","timestamp":"2026-01-24T20:42:48.530928318Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:48.530933709Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:48.530939440Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:48.544287361Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:48.736767564Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:48.865281604Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:49.562629372Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:49.562634675Z","message":"8:42:49 PM [express] GET /api/daily-limits 304 in 411ms :: {\"hasActiveSubscription\":true,\"calibratioÔÇª"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:49.562639793Z"}
+{"timestamp":"2026-01-24T20:42:49.562644404Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:49.562650014Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"WebSocket client connected for user: cb9213c3-fde3-479e-a4aa-344171c59735","timestamp":"2026-01-24T20:42:49.562656409Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:49.562663109Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:49.562670378Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:49.562676796Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"timestamp":"2026-01-24T20:42:49.626593048Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:49.626601069Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:49.676836352Z","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:49.812293290Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:49.862902780Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:49.867259234Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:49.867275286Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"level":"info","message":"8:42:49 PM [express] GET /api/access-status 304 in 799ms :: {\"accessStatus\":\"active\",\"shouldBlock\":fÔÇª","timestamp":"2026-01-24T20:42:50.552056281Z"}
+{"message":"8:42:50 PM [express] GET /api/usage 200 in 1885ms :: {\"agentMessagesCount\":4818,\"limit\":-1,\"remaininÔÇª","level":"info","timestamp":"2026-01-24T20:42:50.552061455Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:50.552067875Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:50.552073062Z"}
+{"timestamp":"2026-01-24T20:42:50.552078807Z","level":"info","message":"8:42:50 PM [express] GET /api/tags 304 in 1497ms :: [{\"id\":\"6bd86a13-e362-4f6a-afce-9ef7f0ccdd4f\",\"uÔÇª"}
+{"level":"info","timestamp":"2026-01-24T20:42:50.552084459Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:50.552090712Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:50.620820916Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:50.809541981Z","level":"info","message":"8:42:50 PM [express] GET /api/access-status 401 in 1ms :: {\"message\":\"Unauthorized\"}"}
+{"level":"info","timestamp":"2026-01-24T20:42:50.809548740Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:50.882820948Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:51.541586581Z"}
+{"timestamp":"2026-01-24T20:42:51.541599140Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:51.541854627Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:51.541858477Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:51.541862528Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:51.541866340Z"}
+{"timestamp":"2026-01-24T20:42:51.566802601Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:51.618092073Z","message":"8:42:51 PM [express] GET /api/access-status 200 in 1118ms :: {\"accessStatus\":\"active\",\"shouldBlock\":ÔÇª","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:51.753813365Z"}
+{"message":"?? [MSG CACHE] Armazenada mensagem AC9D80EE54E35D93F3AF555AEA5E4CC7 para user 057f95ed... (cache size: 353)","timestamp":"2026-01-24T20:42:51.825126301Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:52.438629912Z","level":"info"}
+{"message":"Ignoring group/status message from: 554195831992-1628875135@g.us","level":"info","timestamp":"2026-01-24T20:42:52.438645953Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:52.438657520Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:52.438668626Z"}
+{"level":"info","message":"8:42:51 PM [express] GET /api/conversations-with-tags 200 in 3200ms :: [{\"id\":\"fe406f68-64c0-44ad-8aÔÇª","timestamp":"2026-01-24T20:42:52.438744511Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:52.514246433Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:52.703289697Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"[CONNECTION UPDATE] User 1f2f40b5-fb3e-4d04-8136-611358c2283d - connection: undefined, hasQR: true, hasLastDisconnect: false","timestamp":"2026-01-24T20:42:52.732815459Z","level":"info"}
+{"message":"[QR CODE] Generating QR Code for user 1f2f40b5-fb3e-4d04-8136-611358c2283d...","timestamp":"2026-01-24T20:42:52.732829088Z","level":"info"}
+{"message":"[QR CODE] QR Code generated successfully for user 1f2f40b5-fb3e-4d04-8136-611358c2283d, length: 6374","timestamp":"2026-01-24T20:42:52.746162314Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:52.746172690Z","message":"[BROADCAST] No WebSocket clients found for user 1f2f40b5-fb3e-4d04-8136-611358c2283d","level":"info"}
+{"message":"[QR CODE] QR Code broadcasted to user 1f2f40b5-fb3e-4d04-8136-611358c2283d","timestamp":"2026-01-24T20:42:52.746179762Z","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:52.748712898Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:52.894542135Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:53.480692038Z","level":"info","message":"[QR CODE] QR Code saved to database for user 1f2f40b5-fb3e-4d04-8136-611358c2283d (took 186ms)"}
+{"timestamp":"2026-01-24T20:42:53.480700327Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:53.480707099Z"}
+{"timestamp":"2026-01-24T20:42:53.480714274Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:53.480721363Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:53.480728278Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:53.480737003Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:53.551590213Z","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:53.604152665Z","message":"8:42:53 PM [express] GET /api/usage 304 in 778ms :: {\"agentMessagesCount\":0,\"limit\":25,\"remaining\":2ÔÇª"}
+{"message":"?? [MSG CACHE] Armazenada mensagem 3A1924408DB568678EFF para user f4657a3f... (cache size: 195)","timestamp":"2026-01-24T20:42:53.604165921Z","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:53.649167013Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:53.713806036Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:53.733980377Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:53.832844373Z","level":"info","message":"Ignoring group/status message from: status@broadcast"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:53.840109430Z","level":"info"}
+{"message":"?? [MSG CACHE] Armazenada mensagem AC2E7064F3BF8D82C1D6E6DEB204C1ED para user 3e724ad7... (cache size: 714)","level":"info","timestamp":"2026-01-24T20:42:54.390574213Z"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:54.390579872Z"}
+{"timestamp":"2026-01-24T20:42:54.390588509Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"level":"info","timestamp":"2026-01-24T20:42:54.390595781Z","message":"8:42:54 PM [express] GET /api/user/suspension-status 304 in 779ms :: {\"suspended\":false}"}
+{"level":"info","timestamp":"2026-01-24T20:42:54.390602810Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"Ignoring group/status message from: status@broadcast","timestamp":"2026-01-24T20:42:54.390609156Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:54.390615320Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","timestamp":"2026-01-24T20:42:54.390621409Z","message":"8:42:54 PM [express] GET /api/access-status 200 in 967ms :: {\"accessStatus\":\"trial\",\"shouldBlock\":faÔÇª"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:54.390626838Z"}
+{"timestamp":"2026-01-24T20:42:54.405888265Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:54.540519753Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:54.593573719Z"}
+{"timestamp":"2026-01-24T20:42:54.725653863Z","level":"info","message":"8:42:54 PM [express] GET /api/usage 304 in 587ms :: {\"agentMessagesCount\":19,\"limit\":-1,\"remaining\":ÔÇª"}
+{"timestamp":"2026-01-24T20:42:54.756837068Z","level":"info","message":"[CONNECTION UPDATE] User de1112e5-8277-4438-94d7-5aacab30a951 - connection: close, hasQR: false, hasLastDisconnect: true"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:54.783463095Z"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:55.644112194Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:55.644117402Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:55.644125557Z","message":"­ƒÜ¿ [RECOVERY] ­ƒôí Desconex├úo registrada - 0 mensagens pendentes","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:55.644131366Z"}
+{"level":"info","timestamp":"2026-01-24T20:42:55.644136550Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"level":"info","message":"User de1112e5-8277-4438-94d7-5aacab30a951 WhatsApp disconnected temporarily, reconnecting in 5 seconds... (attempt 1/5)","timestamp":"2026-01-24T20:42:55.644142487Z"}
+{"timestamp":"2026-01-24T20:42:55.644149637Z","level":"info","message":"[BROADCAST] No WebSocket clients found for user de1112e5-8277-4438-94d7-5aacab30a951"}
+{"level":"info","timestamp":"2026-01-24T20:42:55.644155339Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:55.730448099Z","level":"info"}
+{"level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:56.539825046Z"}
+{"timestamp":"2026-01-24T20:42:56.539871005Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"timestamp":"2026-01-24T20:42:56.539900849Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"timestamp":"2026-01-24T20:42:56.539908842Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info","timestamp":"2026-01-24T20:42:56.539915535Z"}
+{"timestamp":"2026-01-24T20:42:56.539926364Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:56.539934095Z","level":"info"}
+{"timestamp":"2026-01-24T20:42:56.539940840Z","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","level":"info"}
+{"timestamp":"2026-01-24T20:42:56.540180939Z","level":"info","message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool"}
+{"message":"­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool","timestamp":"2026-01-24T20:42:56.540187768Z","level":"info"}

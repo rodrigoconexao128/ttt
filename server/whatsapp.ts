@@ -3513,18 +3513,21 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       const targetNumber = contactNumber;
       const finalText = effectiveText;
       
-      // ?? SISTEMA DE ACUMULA��O: Buscar delay configurado
-      const agentConfig = await storage.getAgentConfig(userId);
+      // 🚨 FIX CRÍTICO: Buscar configuração do BUSINESS agent (tabela correta)
+      // A tabela business_agent_configs é onde os usuários configuram o agente
+      const businessConfig = await storage.getBusinessAgentConfig(userId);
       
       // 🚨 FIX CRÍTICO: Verificar se o agente global está ATIVO
       // Sem essa verificação, o sistema tenta responder mesmo com agente desativado
-      if (!agentConfig?.isActive) {
+      if (!businessConfig?.isActive) {
         console.log(`🛑 [AI AGENT] Agente GLOBAL desativado para user ${userId} - não respondendo automaticamente`);
         console.log(`   👉 Ative o agente em "Meu Agente IA" para respostas automáticas`);
         return;
       }
       
-      const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
+      // Buscar delay da config antiga (ai_agent_config) para compatibilidade
+      const agentConfig = await storage.getAgentConfig(userId);
+      const responseDelaySeconds = businessConfig?.responseDelaySeconds ?? agentConfig?.responseDelaySeconds ?? 30;
       const responseDelayMs = responseDelaySeconds * 1000;
       
       // Verificar se j� existe um timeout pendente para esta conversa
