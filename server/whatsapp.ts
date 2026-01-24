@@ -2981,20 +2981,27 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     if (shouldPauseOnManualReply) {
       const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversation.id);
       if (!isAlreadyDisabled) {
-        // Pausar com timer de auto-reativa��o (se configurado)
+        // Pausar com timer de auto-reativação (se configurado)
         await storage.disableAgentForConversation(conversation.id, autoReactivateMinutes);
-        console.log(`?? [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversation.id} - dono respondeu manualmente` + 
+        console.log(`⏸️ [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversation.id} - dono respondeu manualmente` + 
           (autoReactivateMinutes ? ` (reativa em ${autoReactivateMinutes}min)` : ' (manual only)'));
         
-        // Cancelar qualquer resposta pendente do agente para esta conversa
+        // Cancelar qualquer resposta pendente do agente para esta conversa (memória)
         const pendingResponse = pendingResponses.get(conversation.id);
         if (pendingResponse) {
           clearTimeout(pendingResponse.timeout);
           pendingResponses.delete(conversation.id);
-          console.log(`?? [AUTO-PAUSE] Resposta pendente do agente cancelada para ${contactNumber}`);
+          console.log(`🚫 [AUTO-PAUSE] Resposta pendente do agente cancelada (memória) para ${contactNumber}`);
         }
         
-        // ?? Notificar que a IA foi pausada para esta conversa (APENAS quando realmente pausar)
+        // 💾 Cancelar também no banco (persistência)
+        try {
+          await storage.deletePendingAIResponse(conversation.id);
+        } catch (e) {
+          console.error('⚠️ Erro ao cancelar timer persistente:', e);
+        }
+        
+        // 📢 Notificar que a IA foi pausada para esta conversa (APENAS quando realmente pausar)
         broadcastToUser(session.userId, {
           type: "agent_auto_paused",
           conversationId: conversation.id,
@@ -3002,19 +3009,26 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
           autoReactivateMinutes,
         });
       } else {
-        // J� estava pausada, apenas atualizar timestamp do dono (reset timer)
+        // Já estava pausada, apenas atualizar timestamp do dono (reset timer)
         await storage.updateDisabledConversationOwnerReply(conversation.id);
-        console.log(`?? [AUTO-PAUSE] Timer resetado para conversa ${conversation.id} - dono respondeu novamente`);
+        console.log(`🔄 [AUTO-PAUSE] Timer resetado para conversa ${conversation.id} - dono respondeu novamente`);
       }
     } else {
-      console.log(`? [AUTO-PAUSE DESATIVADO] Dono respondeu manualmente mas pauseOnManualReply est� desativado - IA continua ativa`);
+      console.log(`✅ [AUTO-PAUSE DESATIVADO] Dono respondeu manualmente mas pauseOnManualReply está desativado - IA continua ativa`);
       
-      // Ainda cancelar resposta pendente para evitar duplica��o
+      // Ainda cancelar resposta pendente para evitar duplicação (memória)
       const pendingResponse = pendingResponses.get(conversation.id);
       if (pendingResponse) {
         clearTimeout(pendingResponse.timeout);
         pendingResponses.delete(conversation.id);
-        console.log(`? [AUTO-PAUSE DESATIVADO] Resposta pendente cancelada (dono respondeu primeiro) para ${contactNumber}`);
+        console.log(`✅ [AUTO-PAUSE DESATIVADO] Resposta pendente cancelada (dono respondeu primeiro) para ${contactNumber}`);
+        
+        // 💾 Cancelar também no banco (persistência)
+        try {
+          await storage.deletePendingAIResponse(conversation.id);
+        } catch (e) {
+          console.error('⚠️ Erro ao cancelar timer persistente:', e);
+        }
       }
     }
   } catch (error) {
@@ -3528,11 +3542,45 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
           await processAccumulatedMessages(existingPending);
         }, responseDelayMs);
         
-        console.log(`?? [AI AGENT] Timer reiniciado: ${responseDelaySeconds}s para ${targetNumber}`);
+        console.log(`🔄 [AI AGENT] Timer reiniciado: ${responseDelaySeconds}s para ${targetNumber}`);
+        
+        // 💾 PERSISTIR no banco (atualizar mensagens e novo tempo)
+        const newExecuteAt = new Date(Date.now() + responseDelayMs);
+        await storage.updatePendingAIResponseMessages(
+          conversationId, 
+          existingPending.messages, 
+          newExecuteAt
+        );
       } else {
-        // Nova conversa - criar entrada de acumula��o
-        console.log(`?? [AI AGENT] Novo timer de ${responseDelaySeconds}s para ${targetNumber}...`);
-        console.log(`?? [AI AGENT] Primeira mensagem: "${finalText}"`);
+        // Nova conversa - criar entrada de acumulação
+        const timerStartTime = Date.now();
+        const executeAt = new Date(timerStartTime + responseDelayMs);
+        
+        console.log(`\n${'='.repeat(60)}`);
+        console.log(`🤖 [AI AGENT] NOVO TIMER CRIADO`);
+        console.log(`   📞 Contato: ${targetNumber}`);
+        console.log(`   🆔 conversationId: ${conversationId}`);
+        console.log(`   👤 userId: ${userId}`);
+        console.log(`   ⏱️ Delay: ${responseDelaySeconds}s`);
+        console.log(`   📝 Mensagem: "${finalText.substring(0, 100)}..."`);
+        console.log(`   🕐 Timer criado às: ${new Date().toISOString()}`);
+        console.log(`   🎯 Executará às: ${executeAt.toISOString()}`);
+        console.log(`${'='.repeat(60)}\n`);
+        
+        // 💾 PERSISTIR no banco ANTES de criar o timer em memória
+        try {
+          await storage.savePendingAIResponse({
+            conversationId,
+            userId,
+            contactNumber: targetNumber,
+            jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
+            messages: [finalText],
+            executeAt
+          });
+        } catch (persistError) {
+          console.error(`⚠️ [PERSISTENT TIMER] Erro ao persistir timer:`, persistError);
+          // Continua mesmo se falhar a persistência
+        }
         
         const pending: PendingResponse = {
           timeout: null as any,
@@ -3541,14 +3589,30 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
           userId,
           contactNumber: targetNumber,
           jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
-          startTime: Date.now(),
+          startTime: timerStartTime,
         };
         
         pending.timeout = setTimeout(async () => {
-          await processAccumulatedMessages(pending);
+          console.log(`\n${'*'.repeat(60)}`);
+          console.log(`⏰ [AI AGENT] TIMER DISPAROU!`);
+          console.log(`   📞 Contato: ${targetNumber}`);
+          console.log(`   🆔 conversationId: ${conversationId}`);
+          console.log(`   ⏱️ Tempo decorrido: ${((Date.now() - timerStartTime) / 1000).toFixed(1)}s`);
+          console.log(`${'*'.repeat(60)}\n`);
+          try {
+            await processAccumulatedMessages(pending);
+          } catch (timerError) {
+            console.error(`\n${'!'.repeat(60)}`);
+            console.error(`🚨 [AI AGENT] ERRO NO TIMER!`);
+            console.error(`   📞 Contato: ${targetNumber}`);
+            console.error(`   🆔 conversationId: ${conversationId}`);
+            console.error(`   ❌ Erro:`, timerError);
+            console.error(`${'!'.repeat(60)}\n`);
+          }
         }, responseDelayMs);
         
         pendingResponses.set(conversationId, pending);
+        console.log(`📋 [AI AGENT] Total de timers pendentes: ${pendingResponses.size}`);
       }
     }
   } catch (error) {
@@ -3556,26 +3620,33 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   }
 }
 
-// ?? FUN��O PARA PROCESSAR MENSAGENS ACUMULADAS
+// 🔄 FUNÇÃO PARA PROCESSAR MENSAGENS ACUMULADAS
 async function processAccumulatedMessages(pending: PendingResponse): Promise<void> {
   const { conversationId, userId, contactNumber, jidSuffix, messages } = pending;
   
-  // ?? ANTI-DUPLICA��O: Verificar se j� est� processando esta conversa
+  // 🔒 ANTI-DUPLICAÇÃO: Verificar se já está processando esta conversa
   if (conversationsBeingProcessed.has(conversationId)) {
-    console.log(`?? [AI AGENT] ?? Conversa ${conversationId} j� est� sendo processada, IGNORANDO duplicata`);
+    console.log(`⚠️ [AI AGENT] 🔒 Conversa ${conversationId} já está sendo processada, IGNORANDO duplicata`);
     return;
   }
   
-  // ?? Marcar como em processamento ANTES de qualquer coisa
+  // 🔒 Marcar como em processamento ANTES de qualquer coisa
   conversationsBeingProcessed.add(conversationId);
   
-  // Remover da fila de pendentes
+  // Remover da fila de pendentes (memória)
   pendingResponses.delete(conversationId);
   
+  // 💾 Marcar como completado no banco (persistência)
+  try {
+    await storage.markPendingAIResponseCompleted(conversationId);
+  } catch (e) {
+    console.error('⚠️ Erro ao marcar timer como completado:', e);
+  }
+  
   const totalWaitTime = ((Date.now() - pending.startTime) / 1000).toFixed(1);
-  console.log(`\n?? [AI AGENT] =========== PROCESSANDO RESPOSTA ===========`);
-  console.log(`   ?? Aguardou ${totalWaitTime}s | ${messages.length} mensagem(s) acumulada(s)`);
-  console.log(`   ?? Contato: ${contactNumber}`);
+  console.log(`\n🤖 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========`);
+  console.log(`   ⏱️ Aguardou ${totalWaitTime}s | ${messages.length} mensagem(s) acumulada(s)`);
+  console.log(`   📞 Contato: ${contactNumber}`);
   
   try {
     // 🚨 FIX CRÍTICO: Verificar novamente se o agente global está ativo
@@ -6726,10 +6797,87 @@ export async function restoreAdminSessions(): Promise<void> {
   }
 }
 
+// ============================================================
+// 💾 RESTAURAÇÃO DE TIMERS PENDENTES
+// ============================================================
+// Quando o servidor reinicia/redeploya, os timers em memória são perdidos.
+// Esta função restaura os timers que estavam salvos no banco de dados.
+// ============================================================
+
+export async function restorePendingAITimers(): Promise<void> {
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log("🔒 [DEV MODE] SKIP_WHATSAPP_RESTORE=true - Pulando restauração de timers pendentes");
+    return;
+  }
+  
+  try {
+    console.log("\n" + "=".repeat(60));
+    console.log("💾 [TIMER RESTORE] Iniciando restauração de timers pendentes...");
+    console.log("=".repeat(60));
+    
+    const pendingTimers = await storage.getPendingAIResponsesForRestore();
+    
+    if (pendingTimers.length === 0) {
+      console.log("✅ [TIMER RESTORE] Nenhum timer pendente encontrado.");
+      return;
+    }
+    
+    console.log(`📋 [TIMER RESTORE] Encontrados ${pendingTimers.length} timer(s) pendente(s) para restaurar`);
+    
+    for (const timer of pendingTimers) {
+      const now = Date.now();
+      const executeAtTime = timer.executeAt.getTime();
+      const remainingMs = executeAtTime - now;
+      
+      // Se já passou do tempo, executar em 5 segundos (dar tempo para sessões conectarem)
+      const delayMs = remainingMs <= 0 ? 5000 : remainingMs;
+      
+      console.log(`   🔄 Restaurando timer:`);
+      console.log(`      📞 Contato: ${timer.contactNumber}`);
+      console.log(`      🆔 conversationId: ${timer.conversationId}`);
+      console.log(`      📝 Mensagens: ${timer.messages.length}`);
+      console.log(`      ⏱️ Tempo restante: ${(delayMs / 1000).toFixed(1)}s`);
+      
+      // Criar objeto PendingResponse
+      const pending: PendingResponse = {
+        timeout: null as any,
+        messages: timer.messages,
+        conversationId: timer.conversationId,
+        userId: timer.userId,
+        contactNumber: timer.contactNumber,
+        jidSuffix: timer.jidSuffix,
+        startTime: timer.scheduledAt.getTime(),
+      };
+      
+      // Agendar o timer
+      pending.timeout = setTimeout(async () => {
+        console.log(`\n${'*'.repeat(60)}`);
+        console.log(`⏰ [TIMER RESTORE] Timer restaurado disparou!`);
+        console.log(`   📞 Contato: ${timer.contactNumber}`);
+        console.log(`   🆔 conversationId: ${timer.conversationId}`);
+        console.log(`${'*'.repeat(60)}\n`);
+        try {
+          await processAccumulatedMessages(pending);
+        } catch (timerError) {
+          console.error(`🚨 [TIMER RESTORE] Erro ao processar timer restaurado:`, timerError);
+        }
+      }, delayMs);
+      
+      pendingResponses.set(timer.conversationId, pending);
+    }
+    
+    console.log(`✅ [TIMER RESTORE] ${pendingTimers.length} timer(s) restaurado(s) com sucesso!`);
+    console.log(`📋 [TIMER RESTORE] Total de timers ativos: ${pendingResponses.size}`);
+    console.log("=".repeat(60) + "\n");
+  } catch (error) {
+    console.error("❌ [TIMER RESTORE] Erro ao restaurar timers pendentes:", error);
+  }
+}
+
 // -----------------------------------------------------------------------
-// ?? CONEX�O VIA PAIRING CODE (SEM QR CODE)
+// 🔑 CONEXÃO VIA PAIRING CODE (SEM QR CODE)
 // -----------------------------------------------------------------------
-// Baileys suporta conex�o via c�digo de pareamento de 8 d�gitos
+// Baileys suporta conexão via código de pareamento de 8 dígitos
 // Isso permite conectar pelo celular sem precisar escanear QR Code
 // -----------------------------------------------------------------------
 

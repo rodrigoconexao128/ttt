@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { restoreExistingSessions, restoreAdminSessions, startConnectionHealthCheck } from "./whatsapp";
+import { restoreExistingSessions, restoreAdminSessions, restorePendingAITimers, startConnectionHealthCheck } from "./whatsapp";
 import { followUpService } from "./followUpService";
 import { appointmentReminderService } from "./appointmentReminderService";
 import { startAutoReactivationService } from "./autoReactivateService";
@@ -176,6 +176,14 @@ app.use((req, res, next) => {
     restoreAdminSessions().catch((error) => {
       console.error("Failed to restore admin WhatsApp sessions:", error);
     });
+    
+    // 💾 Restore pending AI response timers from database
+    // This ensures timers survive server restarts/redeploys
+    setTimeout(() => {
+      restorePendingAITimers().catch((error) => {
+        console.error("Failed to restore pending AI timers:", error);
+      });
+    }, 10000); // Aguardar 10s para sessões estarem conectadas
 
     // Start Follow-up Service
     followUpService.start();

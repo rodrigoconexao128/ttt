@@ -359,6 +359,39 @@ export interface IStorage {
   createAdminBroadcast?(data: any): Promise<string>;
   updateAdminBroadcast?(adminId: string, id: string, data: any): Promise<void>;
   createAdminNotificationLog?(data: any): Promise<string>;
+  
+  // Pending AI Responses (persistent timers)
+  savePendingAIResponse(data: {
+    conversationId: string;
+    userId: string;
+    contactNumber: string;
+    jidSuffix: string;
+    messages: string[];
+    executeAt: Date;
+  }): Promise<void>;
+  getPendingAIResponse(conversationId: string): Promise<{
+    id: string;
+    conversationId: string;
+    userId: string;
+    contactNumber: string;
+    jidSuffix: string;
+    messages: string[];
+    executeAt: Date;
+    status: string;
+  } | null>;
+  updatePendingAIResponseMessages(conversationId: string, messages: string[], executeAt: Date): Promise<void>;
+  deletePendingAIResponse(conversationId: string): Promise<void>;
+  getPendingAIResponsesForRestore(): Promise<Array<{
+    id: string;
+    conversationId: string;
+    userId: string;
+    contactNumber: string;
+    jidSuffix: string;
+    messages: string[];
+    executeAt: Date;
+    scheduledAt: Date;
+  }>>;
+  markPendingAIResponseCompleted(conversationId: string): Promise<void>;
 }
 
 // In-memory storage for campaigns and contact lists
@@ -4467,6 +4500,159 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     } catch (error) {
       console.error('Error creating admin notification log:', error);
       throw error;
+    }
+  }
+
+  // ============================================================
+  // PENDING AI RESPONSES - Persistent Timers
+  // ============================================================
+  
+  async savePendingAIResponse(data: {
+    conversationId: string;
+    userId: string;
+    contactNumber: string;
+    jidSuffix: string;
+    messages: string[];
+    executeAt: Date;
+  }): Promise<void> {
+    try {
+      await db.execute(sql`
+        INSERT INTO pending_ai_responses (
+          conversation_id, user_id, contact_number, jid_suffix,
+          messages, scheduled_at, execute_at, status
+        ) VALUES (
+          ${data.conversationId}, ${data.userId}, ${data.contactNumber}, ${data.jidSuffix},
+          ${JSON.stringify(data.messages)}, NOW(), ${data.executeAt.toISOString()}, 'pending'
+        )
+        ON CONFLICT (conversation_id) DO UPDATE SET
+          messages = ${JSON.stringify(data.messages)},
+          execute_at = ${data.executeAt.toISOString()},
+          status = 'pending',
+          updated_at = NOW()
+      `);
+      console.log(`💾 [PERSISTENT TIMER] Salvo para ${data.contactNumber} - executa às ${data.executeAt.toISOString()}`);
+    } catch (error) {
+      console.error('Error saving pending AI response:', error);
+      throw error;
+    }
+  }
+
+  async getPendingAIResponse(conversationId: string): Promise<{
+    id: string;
+    conversationId: string;
+    userId: string;
+    contactNumber: string;
+    jidSuffix: string;
+    messages: string[];
+    executeAt: Date;
+    status: string;
+  } | null> {
+    try {
+      const result = await db.execute(sql`
+        SELECT id, conversation_id, user_id, contact_number, jid_suffix,
+               messages, execute_at, status
+        FROM pending_ai_responses
+        WHERE conversation_id = ${conversationId} AND status = 'pending'
+      `);
+      
+      if (result.rows && result.rows.length > 0) {
+        const row = result.rows[0] as any;
+        return {
+          id: row.id,
+          conversationId: row.conversation_id,
+          userId: row.user_id,
+          contactNumber: row.contact_number,
+          jidSuffix: row.jid_suffix,
+          messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
+          executeAt: new Date(row.execute_at),
+          status: row.status
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting pending AI response:', error);
+      return null;
+    }
+  }
+
+  async updatePendingAIResponseMessages(conversationId: string, messages: string[], executeAt: Date): Promise<void> {
+    try {
+      await db.execute(sql`
+        UPDATE pending_ai_responses
+        SET messages = ${JSON.stringify(messages)},
+            execute_at = ${executeAt.toISOString()},
+            updated_at = NOW()
+        WHERE conversation_id = ${conversationId} AND status = 'pending'
+      `);
+      console.log(`📝 [PERSISTENT TIMER] Atualizado para conversation ${conversationId} - ${messages.length} msgs`);
+    } catch (error) {
+      console.error('Error updating pending AI response messages:', error);
+      throw error;
+    }
+  }
+
+  async deletePendingAIResponse(conversationId: string): Promise<void> {
+    try {
+      await db.execute(sql`
+        DELETE FROM pending_ai_responses
+        WHERE conversation_id = ${conversationId}
+      `);
+      console.log(`🗑️ [PERSISTENT TIMER] Removido para conversation ${conversationId}`);
+    } catch (error) {
+      console.error('Error deleting pending AI response:', error);
+    }
+  }
+
+  async getPendingAIResponsesForRestore(): Promise<Array<{
+    id: string;
+    conversationId: string;
+    userId: string;
+    contactNumber: string;
+    jidSuffix: string;
+    messages: string[];
+    executeAt: Date;
+    scheduledAt: Date;
+  }>> {
+    try {
+      // Buscar todos os pendentes que ainda não expiraram (execute_at no futuro ou até 5 min no passado)
+      const result = await db.execute(sql`
+        SELECT id, conversation_id, user_id, contact_number, jid_suffix,
+               messages, execute_at, scheduled_at
+        FROM pending_ai_responses
+        WHERE status = 'pending'
+          AND execute_at > NOW() - INTERVAL '5 minutes'
+        ORDER BY execute_at ASC
+      `);
+      
+      if (result.rows && result.rows.length > 0) {
+        return (result.rows as any[]).map(row => ({
+          id: row.id,
+          conversationId: row.conversation_id,
+          userId: row.user_id,
+          contactNumber: row.contact_number,
+          jidSuffix: row.jid_suffix,
+          messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
+          executeAt: new Date(row.execute_at),
+          scheduledAt: new Date(row.scheduled_at)
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting pending AI responses for restore:', error);
+      return [];
+    }
+  }
+
+  async markPendingAIResponseCompleted(conversationId: string): Promise<void> {
+    try {
+      await db.execute(sql`
+        UPDATE pending_ai_responses
+        SET status = 'completed',
+            updated_at = NOW()
+        WHERE conversation_id = ${conversationId}
+      `);
+    } catch (error) {
+      console.error('Error marking pending AI response as completed:', error);
     }
   }
 }
