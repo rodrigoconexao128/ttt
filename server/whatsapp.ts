@@ -7459,14 +7459,17 @@ async function processPendingTimersCron(): Promise<void> {
         continue;
       }
       
-      // Verificar quantas vezes já tentamos (limite de 10 retries = ~20 min)
-      const timeSinceScheduled = Date.now() - timer.scheduledAt.getTime();
-      const maxRetryTimeMs = 30 * 60 * 1000; // 30 minutos máximo
+      // Verificar se o timer está pendente há muito tempo (desde execute_at, não scheduled_at)
+      // Isso porque scheduled_at pode ser de uma mensagem antiga que foi restaurada
+      const timeSinceExecute = Date.now() - timer.executeAt.getTime();
+      const maxRetryTimeMs = 30 * 60 * 1000; // 30 minutos após execute_at
       
-      if (timeSinceScheduled > maxRetryTimeMs) {
-        console.log(`⚠️ [PENDING CRON] ${contactNumber} - Timer muito antigo (${Math.round(timeSinceScheduled/60000)}min), marcando como falha`);
-        // Marcar como "failed" para não tentar mais
-        await storage.markPendingAIResponseCompleted(conversationId);
+      if (timeSinceExecute > maxRetryTimeMs) {
+        console.log(`⚠️ [PENDING CRON] ${contactNumber} - Timer expirado há ${Math.round(timeSinceExecute/60000)}min após execute_at, resetando para retry imediato`);
+        // Em vez de marcar como failed, resetar para processar AGORA
+        // Isso garante que mensagens antigas não sejam perdidas
+        await storage.resetPendingAIResponseForRetry(conversationId);
+        // Não pular - deixar processar no próximo ciclo com novo execute_at
         skipped++;
         continue;
       }
@@ -7512,6 +7515,135 @@ export function stopPendingTimersCron(): void {
     clearInterval(pendingTimersCronInterval);
     pendingTimersCronInterval = null;
     console.log(`🛑 [PENDING CRON] Cron parado`);
+  }
+}
+
+// ==================== CRON JOB: AUTO-RECUPERAÇÃO DE RESPOSTAS FALHADAS ====================
+// Verifica a cada 5 minutos se há timers "completed" que na verdade não receberam resposta
+// Isso é um "safety net" para garantir que nenhum cliente fique sem resposta
+let autoRecoveryCronInterval: NodeJS.Timeout | null = null;
+
+export function startAutoRecoveryCron(): void {
+  if (autoRecoveryCronInterval) {
+    console.log(`🚨 [AUTO-RECOVERY] Cron já está rodando`);
+    return;
+  }
+  
+  console.log(`🚨 [AUTO-RECOVERY] Iniciando cron de auto-recuperação (intervalo: 5min)`);
+  
+  // Executar a cada 5 minutos
+  autoRecoveryCronInterval = setInterval(async () => {
+    await processAutoRecovery();
+  }, 5 * 60 * 1000); // 5 minutos
+  
+  // Primeira execução após 2 minutos
+  setTimeout(async () => {
+    await processAutoRecovery();
+  }, 2 * 60 * 1000);
+}
+
+async function processAutoRecovery(): Promise<void> {
+  try {
+    // Buscar timers "completed" que não têm resposta real
+    const failedTimers = await storage.getCompletedTimersWithoutResponse();
+    
+    if (failedTimers.length === 0) {
+      return; // Nada para recuperar
+    }
+    
+    console.log(`\n🚨 [AUTO-RECOVERY] =========================================`);
+    console.log(`🚨 [AUTO-RECOVERY] Encontrados ${failedTimers.length} timers para recuperar`);
+    
+    // Agrupar por userId para respeitar fila de cada WhatsApp
+    const timersByUser = new Map<string, typeof failedTimers>();
+    for (const timer of failedTimers) {
+      const userTimers = timersByUser.get(timer.userId) || [];
+      userTimers.push(timer);
+      timersByUser.set(timer.userId, userTimers);
+    }
+    
+    console.log(`🚨 [AUTO-RECOVERY] Distribuídos em ${timersByUser.size} usuários (WhatsApps)`);
+    
+    let recovered = 0;
+    let skipped = 0;
+    
+    // Processar 1 timer por usuário por ciclo (respeitar fila de cada WhatsApp)
+    for (const [userId, userTimers] of timersByUser) {
+      // Pegar apenas o primeiro timer deste usuário
+      const timer = userTimers[0];
+      const { conversationId, contactNumber, jidSuffix, messages } = timer;
+      
+      // Verificar se já está em processamento
+      if (conversationsBeingProcessed.has(conversationId)) {
+        console.log(`⏭️ [AUTO-RECOVERY] ${contactNumber} - Em processamento, pulando`);
+        skipped++;
+        continue;
+      }
+      
+      // Verificar se já tem timer em memória
+      if (pendingResponses.has(conversationId)) {
+        console.log(`⏭️ [AUTO-RECOVERY] ${contactNumber} - Já tem timer ativo, pulando`);
+        skipped++;
+        continue;
+      }
+      
+      // Verificar se a sessão do usuário está disponível
+      const session = sessions.get(userId);
+      if (!session?.socket) {
+        console.log(`⏭️ [AUTO-RECOVERY] ${contactNumber} - Sessão ${userId.substring(0,8)}... indisponível, pulando`);
+        skipped++;
+        continue;
+      }
+      
+      console.log(`🔄 [AUTO-RECOVERY] Recuperando resposta para ${contactNumber} (user: ${userId.substring(0,8)}..., ${messages.length} msgs)`);
+      
+      // Resetar o timer para pending e processar
+      await storage.resetPendingAIResponseForRetry(conversationId);
+      
+      // Criar objeto PendingResponse e processar com delay escalonado
+      // IMPORTANTE: O delay aqui é apenas para escalonar os DIFERENTES usuários
+      // Dentro de cada usuário, a messageQueueService cuida da fila anti-ban
+      const pending: PendingResponse = {
+        timeout: null as any,
+        messages,
+        conversationId,
+        userId,
+        contactNumber,
+        jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
+        startTime: Date.now(),
+      };
+      
+      // Delay escalonado entre DIFERENTES WhatsApps (não afeta fila interna)
+      const delayMs = recovered * 3000; // 3s entre cada WhatsApp diferente
+      setTimeout(async () => {
+        await processAccumulatedMessages(pending);
+      }, delayMs + 500);
+      
+      recovered++;
+      
+      // Limitar a 5 usuários por ciclo
+      if (recovered >= 5) {
+        console.log(`🚨 [AUTO-RECOVERY] Limite de 5 usuários por ciclo atingido`);
+        break;
+      }
+    }
+    
+    console.log(`🚨 [AUTO-RECOVERY] Ciclo concluído: ${recovered} recuperados, ${skipped} pulados`);
+    if (timersByUser.size > recovered) {
+      console.log(`🚨 [AUTO-RECOVERY] Restam ${timersByUser.size - recovered} usuários para próximo ciclo`);
+    }
+    console.log(`🚨 [AUTO-RECOVERY] =========================================\n`);
+    
+  } catch (error) {
+    console.error(`❌ [AUTO-RECOVERY] Erro no cron:`, error);
+  }
+}
+
+export function stopAutoRecoveryCron(): void {
+  if (autoRecoveryCronInterval) {
+    clearInterval(autoRecoveryCronInterval);
+    autoRecoveryCronInterval = null;
+    console.log(`🛑 [AUTO-RECOVERY] Cron parado`);
   }
 }
 

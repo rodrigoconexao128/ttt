@@ -392,6 +392,15 @@ export interface IStorage {
     scheduledAt: Date;
   }>>;
   markPendingAIResponseCompleted(conversationId: string): Promise<void>;
+  markPendingAIResponseFailed(conversationId: string, reason: string): Promise<void>;
+  resetPendingAIResponseForRetry(conversationId: string): Promise<void>;
+  getCompletedTimersWithoutResponse(): Promise<Array<{
+    conversationId: string;
+    userId: string;
+    contactNumber: string;
+    jidSuffix: string;
+    messages: string[];
+  }>>;
 }
 
 // In-memory storage for campaigns and contact lists
@@ -4655,6 +4664,92 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       `);
     } catch (error) {
       console.error('Error marking pending AI response as completed:', error);
+    }
+  }
+
+  async markPendingAIResponseFailed(conversationId: string, reason: string): Promise<void> {
+    try {
+      console.log(`⚠️ [DB] Marcando timer como FAILED: ${conversationId} - Razão: ${reason}`);
+      await db.execute(sql`
+        UPDATE pending_ai_responses
+        SET status = 'failed',
+            updated_at = NOW()
+        WHERE conversation_id = ${conversationId}
+      `);
+    } catch (error) {
+      console.error('Error marking pending AI response as failed:', error);
+    }
+  }
+
+  async resetPendingAIResponseForRetry(conversationId: string): Promise<void> {
+    try {
+      // Reset timer para retry: atualizar execute_at para agora + 30s e scheduled_at para agora
+      console.log(`🔄 [DB] Resetando timer para retry: ${conversationId}`);
+      await db.execute(sql`
+        UPDATE pending_ai_responses
+        SET status = 'pending',
+            scheduled_at = NOW(),
+            execute_at = NOW() + INTERVAL '30 seconds',
+            updated_at = NOW()
+        WHERE conversation_id = ${conversationId}
+      `);
+    } catch (error) {
+      console.error('Error resetting pending AI response for retry:', error);
+    }
+  }
+
+  // 🚨 AUTO-RECUPERAÇÃO: Busca timers "completed" que na verdade não receberam resposta
+  // Isso captura casos onde o timer foi marcado completed mas a resposta falhou
+  async getCompletedTimersWithoutResponse(): Promise<Array<{
+    conversationId: string;
+    userId: string;
+    contactNumber: string;
+    jidSuffix: string;
+    messages: string[];
+  }>> {
+    try {
+      // Buscar timers "completed" nas últimas 2 horas onde:
+      // - A última mensagem do cliente é MAIS RECENTE que a última resposta da IA
+      // - Isso indica que o cliente não recebeu resposta
+      const result = await db.execute(sql`
+        SELECT 
+          p.conversation_id,
+          p.user_id,
+          p.contact_number,
+          p.jid_suffix,
+          p.messages
+        FROM pending_ai_responses p
+        JOIN conversations c ON c.id = p.conversation_id
+        WHERE p.status = 'completed'
+          AND p.updated_at > NOW() - INTERVAL '2 hours'
+          AND (
+            -- Última msg do cliente > última resposta da IA
+            (SELECT MAX(m.created_at) FROM messages m WHERE m.conversation_id = p.conversation_id AND m.from_me = false)
+            >
+            COALESCE(
+              (SELECT MAX(m.created_at) FROM messages m WHERE m.conversation_id = p.conversation_id AND m.from_me = true AND m.is_from_agent = true),
+              '1970-01-01'
+            )
+          )
+        ORDER BY p.updated_at DESC
+        LIMIT 20
+      `);
+      
+      if (result.rows && result.rows.length > 0) {
+        console.log(`🚨 [AUTO-RECOVERY] Encontrados ${result.rows.length} timers "completed" sem resposta real`);
+        return (result.rows as any[]).map(row => ({
+          conversationId: row.conversation_id,
+          userId: row.user_id,
+          contactNumber: row.contact_number,
+          jidSuffix: row.jid_suffix || 's.whatsapp.net',
+          messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages
+        }));
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error getting completed timers without response:', error);
+      return [];
     }
   }
 }

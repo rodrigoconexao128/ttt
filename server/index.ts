@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { restoreExistingSessions, restoreAdminSessions, restorePendingAITimers, startConnectionHealthCheck, startPendingTimersCron } from "./whatsapp";
+import { restoreExistingSessions, restoreAdminSessions, restorePendingAITimers, startConnectionHealthCheck, startPendingTimersCron, startAutoRecoveryCron } from "./whatsapp";
 import { followUpService } from "./followUpService";
 import { appointmentReminderService } from "./appointmentReminderService";
 import { startAutoReactivationService } from "./autoReactivateService";
@@ -187,6 +187,10 @@ app.use((req, res, next) => {
       // 🔄 Iniciar Cron de Retry de Timers Pendentes
       // Verifica a cada 2 minutos se há timers órfãos e os processa
       startPendingTimersCron();
+      
+      // 🚨 Iniciar Cron de Auto-Recuperação
+      // Verifica a cada 5 minutos se há timers "completed" que não receberam resposta
+      startAutoRecoveryCron();
     }, 10000); // Aguardar 10s para sessões estarem conectadas
 
     // Start Follow-up Service
