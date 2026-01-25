@@ -3574,26 +3574,29 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   }
 }
 
-// ?? FUN��O PARA PROCESSAR MENSAGENS ACUMULADAS
+// 🔄 FUNÇÃO PARA PROCESSAR MENSAGENS ACUMULADAS
 async function processAccumulatedMessages(pending: PendingResponse): Promise<void> {
   const { conversationId, userId, contactNumber, jidSuffix, messages } = pending;
   
-  // ?? ANTI-DUPLICA��O: Verificar se j� est� processando esta conversa
+  // 🔒 ANTI-DUPLICAÇÃO: Verificar se já está processando esta conversa
   if (conversationsBeingProcessed.has(conversationId)) {
-    console.log(`?? [AI AGENT] ?? Conversa ${conversationId} j� est� sendo processada, IGNORANDO duplicata`);
+    console.log(`🔒 [AI AGENT] ⚠️ Conversa ${conversationId} já está sendo processada, IGNORANDO duplicata`);
     return;
   }
   
-  // ?? Marcar como em processamento ANTES de qualquer coisa
+  // 🔒 Marcar como em processamento ANTES de qualquer coisa
   conversationsBeingProcessed.add(conversationId);
   
   // Remover da fila de pendentes
   pendingResponses.delete(conversationId);
   
   const totalWaitTime = ((Date.now() - pending.startTime) / 1000).toFixed(1);
-  console.log(`\n?? [AI AGENT] =========== PROCESSANDO RESPOSTA ===========`);
-  console.log(`   ?? Aguardou ${totalWaitTime}s | ${messages.length} mensagem(s) acumulada(s)`);
-  console.log(`   ?? Contato: ${contactNumber}`);
+  console.log(`\n🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========`);
+  console.log(`   ⏱️ Aguardou ${totalWaitTime}s | ${messages.length} mensagem(s) acumulada(s)`);
+  console.log(`   📞 Contato: ${contactNumber}`);
+  
+  // 🎯 FLAG DE SUCESSO: Só marca completed se a mensagem foi REALMENTE enviada
+  let responseSuccessful = false;
   
   try {
     const currentSession = sessions.get(userId);
@@ -3980,12 +3983,16 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         console.log(`?? [AI Agent] M�dias enviadas com sucesso!`);
       }
 
-      // ?? FOLLOW-UP: Se agente enviou mensagem, agendar follow-up inicial
+      // 🔄 FOLLOW-UP: Se agente enviou mensagem, agendar follow-up inicial
       try {
         await followUpService.scheduleInitialFollowUp(conversationId);
       } catch (error) {
         console.error("Erro ao agendar follow-up:", error);
       }
+      
+      // ✅ MARCAR COMO SUCESSO - A resposta foi enviada
+      responseSuccessful = true;
+      console.log(`✅ [AI AGENT] Resposta enviada com sucesso para ${contactNumber}`);
     } else {
       console.log(`\n${'='.repeat(60)}`);
       console.log(`⚠️ [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!`);
@@ -3996,20 +4003,30 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       console.log(`   2. Mensagem de BOT detectada`);
       console.log(`   3. agentConfig não encontrado ou isActive=false`);
       console.log(`   4. Trigger phrases configuradas mas nenhuma encontrada`);
+      console.log(`   5. Erro na API de LLM (timeout, rate limit)`);
       console.log(`${'='.repeat(60)}\n`);
+      
+      // ❌ NÃO marcar responseSuccessful - timer será mantido como pending para retry
     }
   } catch (error) {
-    console.error("Error generating AI response:", error);
+    console.error("❌ [AI AGENT] RETURN NULL #6: Exceção capturada no catch externo:", error);
   } finally {
     // 🔒 ANTI-DUPLICAÇÃO: Remover da lista de conversas em processamento
     conversationsBeingProcessed.delete(conversationId);
     
-    // 💾 PERSISTENT TIMER: Marcar como completed no banco
-    try {
-      await storage.markPendingAIResponseCompleted(conversationId);
-      console.log(`✅ [AI AGENT] Timer marcado como completed no banco`);
-    } catch (dbError) {
-      console.error(`⚠️ [AI AGENT] Erro ao marcar timer como completed (não crítico):`, dbError);
+    // 💾 PERSISTENT TIMER: Marcar como completed APENAS se resposta foi enviada com sucesso
+    if (responseSuccessful) {
+      try {
+        await storage.markPendingAIResponseCompleted(conversationId);
+        console.log(`✅ [AI AGENT] Timer marcado como completed - resposta enviada com sucesso!`);
+      } catch (dbError) {
+        console.error(`⚠️ [AI AGENT] Erro ao marcar timer como completed (não crítico):`, dbError);
+      }
+    } else {
+      // ⚠️ IMPORTANTE: NÃO marcar como completed se a resposta não foi enviada
+      // Isso permite retry pelo sistema de restauração de timers
+      console.warn(`⚠️ [AI AGENT] Timer NÃO marcado como completed - resposta NÃO foi enviada (responseSuccessful=false)`);
+      console.warn(`⚠️ [AI AGENT] Conversa ${conversationId} ficará pendente para retry no próximo ciclo`);
     }
     
     console.log(`🔓 [AI AGENT] Conversa ${conversationId} liberada para próximo processamento`);
