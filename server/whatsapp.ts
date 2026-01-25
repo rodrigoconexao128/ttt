@@ -7554,24 +7554,11 @@ async function processAutoRecovery(): Promise<void> {
     console.log(`\n🚨 [AUTO-RECOVERY] =========================================`);
     console.log(`🚨 [AUTO-RECOVERY] Encontrados ${failedTimers.length} timers para recuperar`);
     
-    // Agrupar por userId para respeitar fila de cada WhatsApp
-    const timersByUser = new Map<string, typeof failedTimers>();
-    for (const timer of failedTimers) {
-      const userTimers = timersByUser.get(timer.userId) || [];
-      userTimers.push(timer);
-      timersByUser.set(timer.userId, userTimers);
-    }
-    
-    console.log(`🚨 [AUTO-RECOVERY] Distribuídos em ${timersByUser.size} usuários (WhatsApps)`);
-    
     let recovered = 0;
     let skipped = 0;
     
-    // Processar 1 timer por usuário por ciclo (respeitar fila de cada WhatsApp)
-    for (const [userId, userTimers] of timersByUser) {
-      // Pegar apenas o primeiro timer deste usuário
-      const timer = userTimers[0];
-      const { conversationId, contactNumber, jidSuffix, messages } = timer;
+    for (const timer of failedTimers) {
+      const { conversationId, userId, contactNumber, jidSuffix, messages } = timer;
       
       // Verificar se já está em processamento
       if (conversationsBeingProcessed.has(conversationId)) {
@@ -7597,12 +7584,12 @@ async function processAutoRecovery(): Promise<void> {
       
       console.log(`🔄 [AUTO-RECOVERY] Recuperando resposta para ${contactNumber} (user: ${userId.substring(0,8)}..., ${messages.length} msgs)`);
       
-      // Resetar o timer para pending e processar
+      // Resetar o timer para pending
       await storage.resetPendingAIResponseForRetry(conversationId);
       
-      // Criar objeto PendingResponse e processar com delay escalonado
-      // IMPORTANTE: O delay aqui é apenas para escalonar os DIFERENTES usuários
-      // Dentro de cada usuário, a messageQueueService cuida da fila anti-ban
+      // Criar objeto PendingResponse
+      // NOTA: Cada WhatsApp (userId) tem sua PRÓPRIA fila no messageQueueService
+      // Não precisamos escalonar aqui - a fila anti-ban cuida de tudo
       const pending: PendingResponse = {
         timeout: null as any,
         messages,
@@ -7613,25 +7600,22 @@ async function processAutoRecovery(): Promise<void> {
         startTime: Date.now(),
       };
       
-      // Delay escalonado entre DIFERENTES WhatsApps (não afeta fila interna)
-      const delayMs = recovered * 3000; // 3s entre cada WhatsApp diferente
-      setTimeout(async () => {
-        await processAccumulatedMessages(pending);
-      }, delayMs + 500);
+      // Processar imediatamente - a fila do messageQueueService vai organizar
+      // Cada userId tem sua própria fila, então múltiplos WhatsApps podem processar em paralelo
+      processAccumulatedMessages(pending).catch(err => {
+        console.error(`❌ [AUTO-RECOVERY] Erro ao processar ${contactNumber}:`, err);
+      });
       
       recovered++;
       
-      // Limitar a 5 usuários por ciclo
-      if (recovered >= 5) {
-        console.log(`🚨 [AUTO-RECOVERY] Limite de 5 usuários por ciclo atingido`);
+      // Limitar quantidade por ciclo para não sobrecarregar o servidor
+      if (recovered >= 10) {
+        console.log(`🚨 [AUTO-RECOVERY] Limite de 10 por ciclo atingido, continuará no próximo`);
         break;
       }
     }
     
-    console.log(`🚨 [AUTO-RECOVERY] Ciclo concluído: ${recovered} recuperados, ${skipped} pulados`);
-    if (timersByUser.size > recovered) {
-      console.log(`🚨 [AUTO-RECOVERY] Restam ${timersByUser.size - recovered} usuários para próximo ciclo`);
-    }
+    console.log(`🚨 [AUTO-RECOVERY] Ciclo concluído: ${recovered} enviados para fila, ${skipped} pulados`);
     console.log(`🚨 [AUTO-RECOVERY] =========================================\n`);
     
   } catch (error) {
