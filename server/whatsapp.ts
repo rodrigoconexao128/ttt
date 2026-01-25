@@ -657,12 +657,9 @@ checkForMissedMessages = async function(session: WhatsAppSession): Promise<void>
     
     if (result.rows.length === 0) return;
     
-    // 2. Verificar config do agente (USAR BUSINESS CONFIG - tabela correta)
-    const businessConfig = await storage.getBusinessAgentConfig(userId);
-    if (!businessConfig?.isActive) return;
-    
-    // Buscar delay da config legada para compatibilidade
+    // 2. Verificar config do agente
     const agentConfig = await storage.getAgentConfig(userId);
+    if (!agentConfig?.isActive) return;
     
     // 3. Processar mensagens não respondidas
     for (const row of result.rows) {
@@ -882,14 +879,12 @@ async function checkUnrespondedMessages(session: WhatsAppSession): Promise<void>
   console.log(`   ?? Usu�rio: ${userId}`);
   
   try {
-    // 1. Verificar se o agente est� ativo (USAR BUSINESS CONFIG - tabela correta)
-    const businessConfig = await storage.getBusinessAgentConfig(userId);
-    if (!businessConfig?.isActive) {
+    // 1. Verificar se o agente est� ativo
+    const agentConfig = await storage.getAgentConfig(userId);
+    if (!agentConfig?.isActive) {
       console.log(`?? [UNRESPONDED CHECK] Agente inativo, pulando verifica��o`);
       return;
     }
-    // Buscar config legada para delay
-    const agentConfig = await storage.getAgentConfig(userId);
     
     // 2. Buscar todas as conversas deste usu�rio
     const allConversations = await storage.getConversationsByConnectionId(connectionId);
@@ -2986,27 +2981,20 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     if (shouldPauseOnManualReply) {
       const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversation.id);
       if (!isAlreadyDisabled) {
-        // Pausar com timer de auto-reativação (se configurado)
+        // Pausar com timer de auto-reativa��o (se configurado)
         await storage.disableAgentForConversation(conversation.id, autoReactivateMinutes);
-        console.log(`⏸️ [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversation.id} - dono respondeu manualmente` + 
+        console.log(`?? [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversation.id} - dono respondeu manualmente` + 
           (autoReactivateMinutes ? ` (reativa em ${autoReactivateMinutes}min)` : ' (manual only)'));
         
-        // Cancelar qualquer resposta pendente do agente para esta conversa (memória)
+        // Cancelar qualquer resposta pendente do agente para esta conversa
         const pendingResponse = pendingResponses.get(conversation.id);
         if (pendingResponse) {
           clearTimeout(pendingResponse.timeout);
           pendingResponses.delete(conversation.id);
-          console.log(`🚫 [AUTO-PAUSE] Resposta pendente do agente cancelada (memória) para ${contactNumber}`);
+          console.log(`?? [AUTO-PAUSE] Resposta pendente do agente cancelada para ${contactNumber}`);
         }
         
-        // 💾 Cancelar também no banco (persistência)
-        try {
-          await storage.deletePendingAIResponse(conversation.id);
-        } catch (e) {
-          console.error('⚠️ Erro ao cancelar timer persistente:', e);
-        }
-        
-        // 📢 Notificar que a IA foi pausada para esta conversa (APENAS quando realmente pausar)
+        // ?? Notificar que a IA foi pausada para esta conversa (APENAS quando realmente pausar)
         broadcastToUser(session.userId, {
           type: "agent_auto_paused",
           conversationId: conversation.id,
@@ -3014,26 +3002,19 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
           autoReactivateMinutes,
         });
       } else {
-        // Já estava pausada, apenas atualizar timestamp do dono (reset timer)
+        // J� estava pausada, apenas atualizar timestamp do dono (reset timer)
         await storage.updateDisabledConversationOwnerReply(conversation.id);
-        console.log(`🔄 [AUTO-PAUSE] Timer resetado para conversa ${conversation.id} - dono respondeu novamente`);
+        console.log(`?? [AUTO-PAUSE] Timer resetado para conversa ${conversation.id} - dono respondeu novamente`);
       }
     } else {
-      console.log(`✅ [AUTO-PAUSE DESATIVADO] Dono respondeu manualmente mas pauseOnManualReply está desativado - IA continua ativa`);
+      console.log(`? [AUTO-PAUSE DESATIVADO] Dono respondeu manualmente mas pauseOnManualReply est� desativado - IA continua ativa`);
       
-      // Ainda cancelar resposta pendente para evitar duplicação (memória)
+      // Ainda cancelar resposta pendente para evitar duplica��o
       const pendingResponse = pendingResponses.get(conversation.id);
       if (pendingResponse) {
         clearTimeout(pendingResponse.timeout);
         pendingResponses.delete(conversation.id);
-        console.log(`✅ [AUTO-PAUSE DESATIVADO] Resposta pendente cancelada (dono respondeu primeiro) para ${contactNumber}`);
-        
-        // 💾 Cancelar também no banco (persistência)
-        try {
-          await storage.deletePendingAIResponse(conversation.id);
-        } catch (e) {
-          console.error('⚠️ Erro ao cancelar timer persistente:', e);
-        }
+        console.log(`? [AUTO-PAUSE DESATIVADO] Resposta pendente cancelada (dono respondeu primeiro) para ${contactNumber}`);
       }
     }
   } catch (error) {
@@ -3518,32 +3499,22 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       const targetNumber = contactNumber;
       const finalText = effectiveText;
       
-      // 🚨 FIX CRÍTICO: Buscar configuração do BUSINESS agent (tabela correta)
-      // A tabela business_agent_configs é onde os usuários configuram o agente
-      const businessConfig = await storage.getBusinessAgentConfig(userId);
-      
-      // 🚨 FIX CRÍTICO: Verificar se o agente global está ATIVO
-      // Sem essa verificação, o sistema tenta responder mesmo com agente desativado
-      if (!businessConfig?.isActive) {
-        console.log(`🛑 [AI AGENT] Agente GLOBAL desativado para user ${userId} - não respondendo automaticamente`);
-        console.log(`   👉 Ative o agente em "Meu Agente IA" para respostas automáticas`);
-        return;
-      }
-      
-      // Buscar delay da config antiga (ai_agent_config) para compatibilidade
+      // ?? SISTEMA DE ACUMULA��O: Buscar delay configurado
       const agentConfig = await storage.getAgentConfig(userId);
-      const responseDelaySeconds = businessConfig?.responseDelaySeconds ?? agentConfig?.responseDelaySeconds ?? 30;
+      const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
       const responseDelayMs = responseDelaySeconds * 1000;
       
       // Verificar se j� existe um timeout pendente para esta conversa
       const existingPending = pendingResponses.get(conversationId);
       
       if (existingPending) {
-        // ? ACUMULA��O: Nova mensagem chegou - cancelar timeout anterior e acumular
+        // ✅ ACUMULAÇÃO: Nova mensagem chegou - cancelar timeout anterior e acumular
         clearTimeout(existingPending.timeout);
         existingPending.messages.push(finalText);
-        console.log(`?? [AI AGENT] Mensagem acumulada (${existingPending.messages.length} mensagens) para ${targetNumber}`);
-        console.log(`?? [AI AGENT] Mensagens acumuladas: ${existingPending.messages.map(m => `"${m.substring(0, 30)}..."`).join(' | ')}`);
+        console.log(`📨 [AI AGENT] Mensagem acumulada (${existingPending.messages.length} mensagens) para ${targetNumber}`);
+        console.log(`📝 [AI AGENT] Mensagens acumuladas: ${existingPending.messages.map(m => `"${m.substring(0, 30)}..."`).join(' | ')}`);
+        
+        const executeAt = new Date(Date.now() + responseDelayMs);
         
         // Criar novo timeout com as mensagens acumuladas
         existingPending.timeout = setTimeout(async () => {
@@ -3552,43 +3523,19 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
         
         console.log(`🔄 [AI AGENT] Timer reiniciado: ${responseDelaySeconds}s para ${targetNumber}`);
         
-        // 💾 PERSISTIR no banco (atualizar mensagens e novo tempo)
-        const newExecuteAt = new Date(Date.now() + responseDelayMs);
-        await storage.updatePendingAIResponseMessages(
-          conversationId, 
-          existingPending.messages, 
-          newExecuteAt
-        );
+        // 💾 PERSISTENT TIMER: Atualizar no banco
+        try {
+          await storage.updatePendingAIResponseMessages(conversationId, existingPending.messages, executeAt);
+          console.log(`💾 [AI AGENT] Timer atualizado no banco - ${existingPending.messages.length} msgs - executa às ${executeAt.toISOString()}`);
+        } catch (dbError) {
+          console.error(`⚠️ [AI AGENT] Erro ao atualizar timer no banco (não crítico):`, dbError);
+        }
       } else {
         // Nova conversa - criar entrada de acumulação
-        const timerStartTime = Date.now();
-        const executeAt = new Date(timerStartTime + responseDelayMs);
+        console.log(`🕐 [AI AGENT] Novo timer de ${responseDelaySeconds}s para ${targetNumber}...`);
+        console.log(`📝 [AI AGENT] Primeira mensagem: "${finalText}"`);
         
-        console.log(`\n${'='.repeat(60)}`);
-        console.log(`🤖 [AI AGENT] NOVO TIMER CRIADO`);
-        console.log(`   📞 Contato: ${targetNumber}`);
-        console.log(`   🆔 conversationId: ${conversationId}`);
-        console.log(`   👤 userId: ${userId}`);
-        console.log(`   ⏱️ Delay: ${responseDelaySeconds}s`);
-        console.log(`   📝 Mensagem: "${finalText.substring(0, 100)}..."`);
-        console.log(`   🕐 Timer criado às: ${new Date().toISOString()}`);
-        console.log(`   🎯 Executará às: ${executeAt.toISOString()}`);
-        console.log(`${'='.repeat(60)}\n`);
-        
-        // 💾 PERSISTIR no banco ANTES de criar o timer em memória
-        try {
-          await storage.savePendingAIResponse({
-            conversationId,
-            userId,
-            contactNumber: targetNumber,
-            jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
-            messages: [finalText],
-            executeAt
-          });
-        } catch (persistError) {
-          console.error(`⚠️ [PERSISTENT TIMER] Erro ao persistir timer:`, persistError);
-          // Continua mesmo se falhar a persistência
-        }
+        const executeAt = new Date(Date.now() + responseDelayMs);
         
         const pending: PendingResponse = {
           timeout: null as any,
@@ -3597,30 +3544,29 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
           userId,
           contactNumber: targetNumber,
           jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
-          startTime: timerStartTime,
+          startTime: Date.now(),
         };
         
         pending.timeout = setTimeout(async () => {
-          console.log(`\n${'*'.repeat(60)}`);
-          console.log(`⏰ [AI AGENT] TIMER DISPAROU!`);
-          console.log(`   📞 Contato: ${targetNumber}`);
-          console.log(`   🆔 conversationId: ${conversationId}`);
-          console.log(`   ⏱️ Tempo decorrido: ${((Date.now() - timerStartTime) / 1000).toFixed(1)}s`);
-          console.log(`${'*'.repeat(60)}\n`);
-          try {
-            await processAccumulatedMessages(pending);
-          } catch (timerError) {
-            console.error(`\n${'!'.repeat(60)}`);
-            console.error(`🚨 [AI AGENT] ERRO NO TIMER!`);
-            console.error(`   📞 Contato: ${targetNumber}`);
-            console.error(`   🆔 conversationId: ${conversationId}`);
-            console.error(`   ❌ Erro:`, timerError);
-            console.error(`${'!'.repeat(60)}\n`);
-          }
+          await processAccumulatedMessages(pending);
         }, responseDelayMs);
         
         pendingResponses.set(conversationId, pending);
-        console.log(`📋 [AI AGENT] Total de timers pendentes: ${pendingResponses.size}`);
+        
+        // 💾 PERSISTENT TIMER: Salvar no banco para sobreviver a restarts
+        try {
+          await storage.savePendingAIResponse({
+            conversationId,
+            userId,
+            contactNumber: targetNumber,
+            jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
+            messages: [finalText],
+            executeAt,
+          });
+          console.log(`💾 [AI AGENT] Timer persistido no banco - executa às ${executeAt.toISOString()}`);
+        } catch (dbError) {
+          console.error(`⚠️ [AI AGENT] Erro ao persistir timer (não crítico):`, dbError);
+        }
       }
     }
   } catch (error) {
@@ -3628,66 +3574,28 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   }
 }
 
-// 🔄 FUNÇÃO PARA PROCESSAR MENSAGENS ACUMULADAS
+// ?? FUN��O PARA PROCESSAR MENSAGENS ACUMULADAS
 async function processAccumulatedMessages(pending: PendingResponse): Promise<void> {
   const { conversationId, userId, contactNumber, jidSuffix, messages } = pending;
   
-  // 🔒 ANTI-DUPLICAÇÃO: Verificar se já está processando esta conversa
+  // ?? ANTI-DUPLICA��O: Verificar se j� est� processando esta conversa
   if (conversationsBeingProcessed.has(conversationId)) {
-    console.log(`⚠️ [AI AGENT] 🔒 Conversa ${conversationId} já está sendo processada, IGNORANDO duplicata`);
+    console.log(`?? [AI AGENT] ?? Conversa ${conversationId} j� est� sendo processada, IGNORANDO duplicata`);
     return;
   }
   
-  // 🔒 Marcar como em processamento ANTES de qualquer coisa
+  // ?? Marcar como em processamento ANTES de qualquer coisa
   conversationsBeingProcessed.add(conversationId);
   
-  // Remover da fila de pendentes (memória)
+  // Remover da fila de pendentes
   pendingResponses.delete(conversationId);
   
-  // 💾 Marcar como completado no banco (persistência)
-  try {
-    await storage.markPendingAIResponseCompleted(conversationId);
-  } catch (e) {
-    console.error('⚠️ Erro ao marcar timer como completado:', e);
-  }
-  
   const totalWaitTime = ((Date.now() - pending.startTime) / 1000).toFixed(1);
-  console.log(`\n🤖 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========`);
-  console.log(`   ⏱️ Aguardou ${totalWaitTime}s | ${messages.length} mensagem(s) acumulada(s)`);
-  console.log(`   📞 Contato: ${contactNumber}`);
+  console.log(`\n?? [AI AGENT] =========== PROCESSANDO RESPOSTA ===========`);
+  console.log(`   ?? Aguardou ${totalWaitTime}s | ${messages.length} mensagem(s) acumulada(s)`);
+  console.log(`   ?? Contato: ${contactNumber}`);
   
   try {
-    // 🚨 FIX CRÍTICO: Verificar novamente se o agente global está ativo
-    // O usuário pode ter desativado o agente durante o delay de acumulação
-    // USAR BUSINESS CONFIG - tabela onde usuários configuram via UI
-    const businessConfig = await storage.getBusinessAgentConfig(userId);
-    if (!businessConfig?.isActive) {
-      console.log(`\n${'!'.repeat(60)}`);
-      console.log(`🛑 [AI AGENT] BLOQUEIO: Agente global DESATIVADO`);
-      console.log(`   userId: ${userId}`);
-      console.log(`   conversationId: ${conversationId}`);
-      console.log(`   contactNumber: ${contactNumber}`);
-      console.log(`   👉 Agente foi desativado durante o delay - resposta cancelada`);
-      console.log(`${'!'.repeat(60)}\n`);
-      conversationsBeingProcessed.delete(conversationId);
-      return;
-    }
-    // Buscar config legada para outras propriedades se necessário
-    const agentConfig = await storage.getAgentConfig(userId);
-    
-    // 🚨 FIX: Verificar também se a IA está pausada para esta conversa específica
-    const isAgentDisabled = await storage.isAgentDisabledForConversation(conversationId);
-    if (isAgentDisabled) {
-      console.log(`\n${'!'.repeat(60)}`);
-      console.log(`🛑 [AI AGENT] BLOQUEIO: IA PAUSADA para esta conversa`);
-      console.log(`   conversationId: ${conversationId}`);
-      console.log(`   contactNumber: ${contactNumber}`);
-      console.log(`   👉 IA foi pausada durante o delay - resposta cancelada`);
-      console.log(`${'!'.repeat(60)}\n`);
-      conversationsBeingProcessed.delete(conversationId);
-      return;
-    }
-    
     const currentSession = sessions.get(userId);
     if (!currentSession?.socket) {
       console.log(`\n${'!'.repeat(60)}`);
@@ -3697,7 +3605,6 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       console.log(`   contactNumber: ${contactNumber}`);
       console.log(`   👉 WhatsApp provavelmente desconectado`);
       console.log(`${'!'.repeat(60)}\n`);
-      conversationsBeingProcessed.delete(conversationId);
       return;
     }
     
@@ -3752,7 +3659,6 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             console.log(`   Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
             console.log(`   👉 IA PAUSADA para este cliente - precisa renovar assinatura`);
             console.log(`${'!'.repeat(60)}\n`);
-            conversationsBeingProcessed.delete(conversationId);
             return;
           }
         }
@@ -3766,7 +3672,6 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           console.log(`   👉 Usuário precisa assinar plano`);
           console.log(`${'!'.repeat(60)}\n`);
           // Não enviar resposta - limite atingido
-          conversationsBeingProcessed.delete(conversationId);
           return;
         }
         
@@ -3819,16 +3724,16 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         }
       }
     }
-    console.log(`📁 [AI AGENT] Mídias já enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
+    console.log(`?? [AI AGENT] M�dias j� enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
     
-    // Verificar se modo histórico está ativo
-    const historyAgentConfig = await storage.getAgentConfig(userId);
+    // Verificar se modo hist�rico est� ativo
+    const agentConfig = await storage.getAgentConfig(userId);
     
-    if (historyAgentConfig?.fetchHistoryOnFirstResponse) {
-      console.log(`📜 [AI AGENT] Modo histórico ATIVO - ${conversationHistory.length} mensagens disponíveis para contexto`);
+    if (agentConfig?.fetchHistoryOnFirstResponse) {
+      console.log(`?? [AI AGENT] Modo hist�rico ATIVO - ${conversationHistory.length} mensagens dispon�veis para contexto`);
       
       if (conversationHistory.length > 40) {
-        console.log(`📊 [AI AGENT] Histórico grande - será usado sistema de resumo inteligente`);
+        console.log(`?? [AI AGENT] Hist�rico grande - ser� usado sistema de resumo inteligente`);
       }
     }
 
@@ -3849,8 +3754,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     const mediaActions = aiResult?.mediaActions || [];
 
     // 📢 NOTIFICATION SYSTEM UNIVERSAL (AI + Manual + Resposta do Agente)
-    // Reutilizar businessConfig já declarado no início da função (linha 3663)
-    // const businessConfig = await storage.getBusinessAgentConfig(userId); // REMOVIDO - já existe
+    const businessConfig = await storage.getBusinessAgentConfig(userId);
     
     // 🔍 DEBUG: Log detalhado do businessConfig para diagnóstico
     console.log(`🔔 [NOTIFICATION DEBUG] userId: ${userId}`);
@@ -4097,9 +4001,18 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
   } catch (error) {
     console.error("Error generating AI response:", error);
   } finally {
-    // ?? ANTI-DUPLICA��O: Remover da lista de conversas em processamento
+    // 🔒 ANTI-DUPLICAÇÃO: Remover da lista de conversas em processamento
     conversationsBeingProcessed.delete(conversationId);
-    console.log(`?? [AI AGENT] Conversa ${conversationId} liberada para pr�ximo processamento`);
+    
+    // 💾 PERSISTENT TIMER: Marcar como completed no banco
+    try {
+      await storage.markPendingAIResponseCompleted(conversationId);
+      console.log(`✅ [AI AGENT] Timer marcado como completed no banco`);
+    } catch (dbError) {
+      console.error(`⚠️ [AI AGENT] Erro ao marcar timer como completed (não crítico):`, dbError);
+    }
+    
+    console.log(`🔓 [AI AGENT] Conversa ${conversationId} liberada para próximo processamento`);
   }
 }
 
@@ -4150,13 +4063,12 @@ export async function triggerAgentResponseForConversation(
     console.log(`[TRIGGER] Sessão WhatsApp OK - socket existe`);
     
     // 2. Verificar se o agente está ativo globalmente
-    // IMPORTANTE: Usar getBusinessAgentConfig que é a tabela sincronizada com a UI
-    console.log(`[TRIGGER] Verificando businessConfig...`);
-    const businessConfig = await storage.getBusinessAgentConfig(userId);
-    console.log(`[TRIGGER] businessConfig encontrado: ${businessConfig ? 'SIM' : 'NÃO'}`);
-    console.log(`[TRIGGER] businessConfig.isActive: ${businessConfig?.isActive}`);
+    console.log(`[TRIGGER] Verificando agentConfig...`);
+    const agentConfig = await storage.getAgentConfig(userId);
+    console.log(`[TRIGGER] agentConfig encontrado: ${agentConfig ? 'SIM' : 'NÃO'}`);
+    console.log(`[TRIGGER] agentConfig.isActive: ${agentConfig?.isActive}`);
     
-    if (!businessConfig?.isActive) {
+    if (!agentConfig?.isActive) {
       console.log(`[TRIGGER] FALHA: Agente globalmente inativo`);
       return { triggered: false, reason: "Ative o agente em 'Meu Agente IA' primeiro." };
     }
@@ -6810,87 +6722,10 @@ export async function restoreAdminSessions(): Promise<void> {
   }
 }
 
-// ============================================================
-// 💾 RESTAURAÇÃO DE TIMERS PENDENTES
-// ============================================================
-// Quando o servidor reinicia/redeploya, os timers em memória são perdidos.
-// Esta função restaura os timers que estavam salvos no banco de dados.
-// ============================================================
-
-export async function restorePendingAITimers(): Promise<void> {
-  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log("🔒 [DEV MODE] SKIP_WHATSAPP_RESTORE=true - Pulando restauração de timers pendentes");
-    return;
-  }
-  
-  try {
-    console.log("\n" + "=".repeat(60));
-    console.log("💾 [TIMER RESTORE] Iniciando restauração de timers pendentes...");
-    console.log("=".repeat(60));
-    
-    const pendingTimers = await storage.getPendingAIResponsesForRestore();
-    
-    if (pendingTimers.length === 0) {
-      console.log("✅ [TIMER RESTORE] Nenhum timer pendente encontrado.");
-      return;
-    }
-    
-    console.log(`📋 [TIMER RESTORE] Encontrados ${pendingTimers.length} timer(s) pendente(s) para restaurar`);
-    
-    for (const timer of pendingTimers) {
-      const now = Date.now();
-      const executeAtTime = timer.executeAt.getTime();
-      const remainingMs = executeAtTime - now;
-      
-      // Se já passou do tempo, executar em 5 segundos (dar tempo para sessões conectarem)
-      const delayMs = remainingMs <= 0 ? 5000 : remainingMs;
-      
-      console.log(`   🔄 Restaurando timer:`);
-      console.log(`      📞 Contato: ${timer.contactNumber}`);
-      console.log(`      🆔 conversationId: ${timer.conversationId}`);
-      console.log(`      📝 Mensagens: ${timer.messages.length}`);
-      console.log(`      ⏱️ Tempo restante: ${(delayMs / 1000).toFixed(1)}s`);
-      
-      // Criar objeto PendingResponse
-      const pending: PendingResponse = {
-        timeout: null as any,
-        messages: timer.messages,
-        conversationId: timer.conversationId,
-        userId: timer.userId,
-        contactNumber: timer.contactNumber,
-        jidSuffix: timer.jidSuffix,
-        startTime: timer.scheduledAt.getTime(),
-      };
-      
-      // Agendar o timer
-      pending.timeout = setTimeout(async () => {
-        console.log(`\n${'*'.repeat(60)}`);
-        console.log(`⏰ [TIMER RESTORE] Timer restaurado disparou!`);
-        console.log(`   📞 Contato: ${timer.contactNumber}`);
-        console.log(`   🆔 conversationId: ${timer.conversationId}`);
-        console.log(`${'*'.repeat(60)}\n`);
-        try {
-          await processAccumulatedMessages(pending);
-        } catch (timerError) {
-          console.error(`🚨 [TIMER RESTORE] Erro ao processar timer restaurado:`, timerError);
-        }
-      }, delayMs);
-      
-      pendingResponses.set(timer.conversationId, pending);
-    }
-    
-    console.log(`✅ [TIMER RESTORE] ${pendingTimers.length} timer(s) restaurado(s) com sucesso!`);
-    console.log(`📋 [TIMER RESTORE] Total de timers ativos: ${pendingResponses.size}`);
-    console.log("=".repeat(60) + "\n");
-  } catch (error) {
-    console.error("❌ [TIMER RESTORE] Erro ao restaurar timers pendentes:", error);
-  }
-}
-
 // -----------------------------------------------------------------------
-// 🔑 CONEXÃO VIA PAIRING CODE (SEM QR CODE)
+// ?? CONEX�O VIA PAIRING CODE (SEM QR CODE)
 // -----------------------------------------------------------------------
-// Baileys suporta conexão via código de pareamento de 8 dígitos
+// Baileys suporta conex�o via c�digo de pareamento de 8 d�gitos
 // Isso permite conectar pelo celular sem precisar escanear QR Code
 // -----------------------------------------------------------------------
 
@@ -7398,12 +7233,119 @@ export function stopConnectionHealthCheck(): void {
   if (healthCheckInterval) {
     clearInterval(healthCheckInterval);
     healthCheckInterval = null;
-    console.log("?? [HEALTH CHECK] Monitor parado");
+    console.log("🛑 [HEALTH CHECK] Monitor parado");
   }
 }
 
 // Exportar função para check manual (útil para debug)
 export { connectionHealthCheck };
+
+// ==================== RESTORE PENDING AI TIMERS ====================
+// 💾 Restaura timers de resposta da IA que estavam pendentes antes do restart
+// Isso garante que mensagens não sejam perdidas em deploys/crashes
+export async function restorePendingAITimers(): Promise<void> {
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`💾 [RESTORE TIMERS] Iniciando restauração de timers pendentes...`);
+  console.log(`${'='.repeat(60)}`);
+  
+  try {
+    // Buscar todos os timers pendentes do banco
+    const pendingTimers = await storage.getPendingAIResponsesForRestore();
+    
+    if (pendingTimers.length === 0) {
+      console.log(`✅ [RESTORE TIMERS] Nenhum timer pendente para restaurar`);
+      return;
+    }
+    
+    console.log(`📋 [RESTORE TIMERS] Encontrados ${pendingTimers.length} timers para restaurar`);
+    
+    let restored = 0;
+    let skipped = 0;
+    let processed = 0;
+    
+    for (const timer of pendingTimers) {
+      const { conversationId, userId, contactNumber, jidSuffix, messages, executeAt } = timer;
+      
+      // Verificar se já tem timer em memória
+      if (pendingResponses.has(conversationId)) {
+        console.log(`⏭️ [RESTORE TIMERS] ${contactNumber} - Já tem timer em memória, pulando`);
+        skipped++;
+        continue;
+      }
+      
+      // Verificar se já está sendo processada
+      if (conversationsBeingProcessed.has(conversationId)) {
+        console.log(`⏭️ [RESTORE TIMERS] ${contactNumber} - Em processamento, pulando`);
+        skipped++;
+        continue;
+      }
+      
+      // Calcular tempo restante até execução
+      const now = Date.now();
+      const executeTime = executeAt.getTime();
+      const remainingMs = executeTime - now;
+      
+      // Se o tempo já passou, processar imediatamente (com pequeno delay)
+      if (remainingMs <= 0) {
+        console.log(`🚀 [RESTORE TIMERS] ${contactNumber} - Timer expirado, processando AGORA`);
+        
+        const pending: PendingResponse = {
+          timeout: null as any,
+          messages,
+          conversationId,
+          userId,
+          contactNumber,
+          jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
+          startTime: Date.now() - Math.abs(remainingMs), // Tempo original
+        };
+        
+        // Processar com delay escalonado para não sobrecarregar
+        const delayMs = processed * 3000; // 3s entre cada
+        pending.timeout = setTimeout(async () => {
+          console.log(`🔄 [RESTORE TIMERS] Processando timer restaurado para ${contactNumber}`);
+          await processAccumulatedMessages(pending);
+        }, delayMs + 1000); // Mínimo 1s
+        
+        pendingResponses.set(conversationId, pending);
+        processed++;
+        restored++;
+        
+      } else {
+        // Timer ainda não expirou, re-agendar normalmente
+        console.log(`⏰ [RESTORE TIMERS] ${contactNumber} - Reagendando em ${Math.round(remainingMs/1000)}s`);
+        
+        const pending: PendingResponse = {
+          timeout: null as any,
+          messages,
+          conversationId,
+          userId,
+          contactNumber,
+          jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
+          startTime: Date.now() - (executeTime - now), // Calcular tempo original
+        };
+        
+        pending.timeout = setTimeout(async () => {
+          console.log(`🔄 [RESTORE TIMERS] Executando timer restaurado para ${contactNumber}`);
+          await processAccumulatedMessages(pending);
+        }, remainingMs);
+        
+        pendingResponses.set(conversationId, pending);
+        restored++;
+      }
+    }
+    
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`✅ [RESTORE TIMERS] Restauração concluída!`);
+    console.log(`   📊 Total encontrados: ${pendingTimers.length}`);
+    console.log(`   ✅ Restaurados: ${restored}`);
+    console.log(`   ⏭️ Pulados: ${skipped}`);
+    console.log(`   🚀 Processados imediatamente: ${processed}`);
+    console.log(`${'='.repeat(60)}\n`);
+    
+  } catch (error) {
+    console.error(`❌ [RESTORE TIMERS] Erro na restauração:`, error);
+  }
+}
 
 // ==================== RE-DOWNLOAD DE MÍDIA ====================
 // Função para tentar re-baixar mídia do WhatsApp usando metadados salvos
