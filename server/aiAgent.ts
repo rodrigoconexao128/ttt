@@ -2409,7 +2409,7 @@ export async function generateAIResponse(
     // 📝 DEBUG: Log do config do agente para verificar se prompt está correto
     console.log(`\n🤖 [AI Agent] ═══════════════════════════════════════════════════`);
     console.log(`🤖 [AI Agent] Config para user ${userId} respondendo cliente:`);
-    console.log(`   Model: ${agentConfig.model}`);
+    console.log(`   Model (legacy, ignorado): ${agentConfig.model} → real: system_config.openrouter_model`);
     console.log(`   Active: ${agentConfig.isActive}`);
     console.log(`   Trigger phrases: ${agentConfig.triggerPhrases?.length || 0}`);
     console.log(`   Prompt length: ${agentConfig.prompt?.length || 0} chars`);
@@ -3163,7 +3163,8 @@ Cliente: ${newMessageText.trim()}`;
     // 🎯 TEMPERATURE 0.0 + SEED FIXO: Respostas 100% DETERMINÍSTICAS
     // REMOVIDA VARIAÇÃO: Usuário solicitou remover variação do simulador e WhatsApp debug
     // randomSeed: Garante que mesma pergunta = mesma resposta SEMPRE
-    console.log(`🔧 [AI-CONFIG] DETERMINISM: provider=${currentProvider}, temperature=0.0, randomSeed=42, model=${model || 'auto'}`);
+    // NOTA: O modelo real é definido em llm.ts usando config.openrouterModel do system_config
+    console.log(`🔧 [AI-CONFIG] DETERMINISM: provider=${currentProvider}, temperature=0.0, randomSeed=42, model=from-system-config (llm.ts usa openrouterModel)`);
     const chatResponse = await withRetry(
       async () => {
         return await llmClient.chat.complete({

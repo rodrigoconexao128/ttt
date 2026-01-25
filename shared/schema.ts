@@ -250,7 +250,7 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
   prompt: text("prompt").notNull(),
   isActive: boolean("is_active").default(false).notNull(),
-  model: varchar("model", { length: 100 }).default("mistral-small-latest").notNull(),
+  model: varchar("model", { length: 100 }).default("openai/gpt-oss-20b").notNull(), // CORRIGIDO: usar modelo do OpenRouter
   triggerPhrases: text("trigger_phrases").array(),
   messageSplitChars: integer("message_split_chars").default(400),
   responseDelaySeconds: integer("response_delay_seconds").default(30), // Tempo de espera antes de responder (acumulação de mensagens)
@@ -376,7 +376,7 @@ export const businessAgentConfigs = pgTable("business_agent_configs", {
 
   // System Configuration
   isActive: boolean("is_active").default(false).notNull(),
-  model: varchar("model", { length: 100 }).default("mistral-small-latest").notNull(),
+  model: varchar("model", { length: 100 }).default("openai/gpt-oss-20b").notNull(), // CORRIGIDO: usar modelo do OpenRouter
   triggerPhrases: text("trigger_phrases").array().default([]),
   templateType: varchar("template_type", { length: 50 }), // ecommerce, professional, health, education, realestate
   
@@ -1233,7 +1233,7 @@ export const businessAgentConfigSchema = z.object({
   escalationKeywords: z.array(z.string()).default([]),
   
   isActive: z.boolean().default(false),
-  model: z.string().default("mistral-small-latest"),
+  model: z.string().default("openai/gpt-oss-20b"), // CORRIGIDO: usar modelo do OpenRouter
   triggerPhrases: z.array(z.string()).default([]),
   templateType: z.enum(["ecommerce", "professional", "health", "education", "realestate", "custom"]).optional(),
   

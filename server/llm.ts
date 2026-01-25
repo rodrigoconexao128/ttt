@@ -541,13 +541,13 @@ export async function chatComplete(params: {
     }
   }
   
-  // Fallback para Mistral
+  // Fallback para Mistral (ÚLTIMO RECURSO - após OpenRouter e Groq falharem)
   console.log('🆘 [LLM FALLBACK FINAL] Usando Mistral como último recurso!');
-  console.log(`[LLM] 🚀 chatComplete via Mistral com modelo: ${params.model || 'mistral-small-latest'}`);
+  console.log(`[LLM] 🚀 chatComplete via Mistral (fallback) com modelo: mistral-small-latest`);
   const mistral = await getMistralClient();
   
   const mistralResponse = await mistral.chat.complete({
-    model: params.model || 'mistral-small-latest',
+    model: 'mistral-small-latest', // Mistral só aceita modelos Mistral
     messages: params.messages as any,
     maxTokens: params.maxTokens ?? 500,
     temperature: params.temperature ?? 0.7,
