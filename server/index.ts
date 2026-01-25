@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { restoreExistingSessions, restoreAdminSessions, restorePendingAITimers, startConnectionHealthCheck } from "./whatsapp";
+import { restoreExistingSessions, restoreAdminSessions, restorePendingAITimers, startConnectionHealthCheck, startPendingTimersCron } from "./whatsapp";
 import { followUpService } from "./followUpService";
 import { appointmentReminderService } from "./appointmentReminderService";
 import { startAutoReactivationService } from "./autoReactivateService";
@@ -183,6 +183,10 @@ app.use((req, res, next) => {
       restorePendingAITimers().catch((error) => {
         console.error("Failed to restore pending AI timers:", error);
       });
+      
+      // 🔄 Iniciar Cron de Retry de Timers Pendentes
+      // Verifica a cada 2 minutos se há timers órfãos e os processa
+      startPendingTimersCron();
     }, 10000); // Aguardar 10s para sessões estarem conectadas
 
     // Start Follow-up Service

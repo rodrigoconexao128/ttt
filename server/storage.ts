@@ -4614,13 +4614,15 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     scheduledAt: Date;
   }>> {
     try {
-      // Buscar todos os pendentes que ainda não expiraram (execute_at no futuro ou até 5 min no passado)
+      // 🔧 FIX: Aumentar intervalo de 5 minutos para 2 HORAS
+      // Isso garante que timers não sejam perdidos em deploys/instabilidades longas
+      // Timers muito antigos (>2h) são considerados "abandonados" e serão limpos pelo cleanup
       const result = await db.execute(sql`
         SELECT id, conversation_id, user_id, contact_number, jid_suffix,
                messages, execute_at, scheduled_at
         FROM pending_ai_responses
         WHERE status = 'pending'
-          AND execute_at > NOW() - INTERVAL '5 minutes'
+          AND execute_at > NOW() - INTERVAL '2 hours'
         ORDER BY execute_at ASC
       `);
       

@@ -3608,6 +3608,39 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       console.log(`   contactNumber: ${contactNumber}`);
       console.log(`   👉 WhatsApp provavelmente desconectado`);
       console.log(`${'!'.repeat(60)}\n`);
+      
+      // 🔄 FIX: Reagendar para tentar novamente em 30 segundos
+      // Timer ficará "pending" no banco e será reprocessado
+      console.log(`🔄 [AI AGENT] Reagendando timer para ${contactNumber} em 30s (sessão indisponível)...`);
+      
+      const retryPending: PendingResponse = {
+        timeout: null as any,
+        messages,
+        conversationId,
+        userId,
+        contactNumber,
+        jidSuffix,
+        startTime: pending.startTime, // Manter tempo original
+      };
+      
+      retryPending.timeout = setTimeout(async () => {
+        console.log(`🔄 [AI AGENT] Retry: Tentando processar ${contactNumber} novamente...`);
+        await processAccumulatedMessages(retryPending);
+      }, 30000); // 30 segundos
+      
+      pendingResponses.set(conversationId, retryPending);
+      
+      // Atualizar execute_at no banco para refletir o novo horário
+      const newExecuteAt = new Date(Date.now() + 30000);
+      try {
+        await storage.updatePendingAIResponseMessages(conversationId, messages, newExecuteAt);
+        console.log(`💾 [AI AGENT] Timer reagendado no banco para ${newExecuteAt.toISOString()}`);
+      } catch (dbErr) {
+        console.error(`⚠️ [AI AGENT] Erro ao reagendar no banco:`, dbErr);
+      }
+      
+      // Remover do processamento para permitir retry
+      conversationsBeingProcessed.delete(conversationId);
       return;
     }
     
@@ -7361,6 +7394,124 @@ export async function restorePendingAITimers(): Promise<void> {
     
   } catch (error) {
     console.error(`❌ [RESTORE TIMERS] Erro na restauração:`, error);
+  }
+}
+
+// ==================== CRON JOB: RETRY TIMERS PENDENTES ====================
+// Verifica a cada 2 minutos se há timers pendentes "órfãos" e os processa
+// Isso garante que nenhuma mensagem fique sem resposta, mesmo após instabilidades
+let pendingTimersCronInterval: NodeJS.Timeout | null = null;
+
+export function startPendingTimersCron(): void {
+  if (pendingTimersCronInterval) {
+    console.log(`🔄 [PENDING CRON] Cron já está rodando`);
+    return;
+  }
+  
+  console.log(`🔄 [PENDING CRON] Iniciando cron de retry de timers pendentes (intervalo: 2min)`);
+  
+  // Executar a cada 2 minutos
+  pendingTimersCronInterval = setInterval(async () => {
+    await processPendingTimersCron();
+  }, 2 * 60 * 1000); // 2 minutos
+  
+  // Primeira execução após 30 segundos (dar tempo para sessões conectarem)
+  setTimeout(async () => {
+    await processPendingTimersCron();
+  }, 30 * 1000);
+}
+
+async function processPendingTimersCron(): Promise<void> {
+  try {
+    // Buscar timers pendentes que já expiraram (execute_at no passado)
+    const pendingTimers = await storage.getPendingAIResponsesForRestore();
+    
+    if (pendingTimers.length === 0) {
+      return; // Nada para processar
+    }
+    
+    // Filtrar apenas os que já expiraram e não estão em memória
+    const expiredTimers = pendingTimers.filter(timer => {
+      const isExpired = timer.executeAt.getTime() < Date.now();
+      const isInMemory = pendingResponses.has(timer.conversationId);
+      const isBeingProcessed = conversationsBeingProcessed.has(timer.conversationId);
+      return isExpired && !isInMemory && !isBeingProcessed;
+    });
+    
+    if (expiredTimers.length === 0) {
+      return;
+    }
+    
+    console.log(`\n🔄 [PENDING CRON] =========================================`);
+    console.log(`🔄 [PENDING CRON] Encontrados ${expiredTimers.length} timers órfãos para processar`);
+    
+    let processed = 0;
+    let skipped = 0;
+    
+    for (const timer of expiredTimers) {
+      const { conversationId, userId, contactNumber, jidSuffix, messages } = timer;
+      
+      // Verificar se a sessão do usuário está disponível
+      const session = sessions.get(userId);
+      if (!session?.socket) {
+        console.log(`⏭️ [PENDING CRON] ${contactNumber} - Sessão indisponível, pulando`);
+        skipped++;
+        continue;
+      }
+      
+      // Verificar quantas vezes já tentamos (limite de 10 retries = ~20 min)
+      const timeSinceScheduled = Date.now() - timer.scheduledAt.getTime();
+      const maxRetryTimeMs = 30 * 60 * 1000; // 30 minutos máximo
+      
+      if (timeSinceScheduled > maxRetryTimeMs) {
+        console.log(`⚠️ [PENDING CRON] ${contactNumber} - Timer muito antigo (${Math.round(timeSinceScheduled/60000)}min), marcando como falha`);
+        // Marcar como "failed" para não tentar mais
+        await storage.markPendingAIResponseCompleted(conversationId);
+        skipped++;
+        continue;
+      }
+      
+      console.log(`🚀 [PENDING CRON] Processando ${contactNumber} (timer órfão há ${Math.round(timeSinceScheduled/1000)}s)`);
+      
+      // Criar objeto PendingResponse e processar
+      const pending: PendingResponse = {
+        timeout: null as any,
+        messages,
+        conversationId,
+        userId,
+        contactNumber,
+        jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
+        startTime: timer.scheduledAt.getTime(),
+      };
+      
+      // Processar com delay escalonado
+      const delayMs = processed * 3000;
+      setTimeout(async () => {
+        await processAccumulatedMessages(pending);
+      }, delayMs);
+      
+      processed++;
+      
+      // Limitar a 5 por ciclo para não sobrecarregar
+      if (processed >= 5) {
+        console.log(`🔄 [PENDING CRON] Limite de 5 por ciclo atingido, continuará no próximo ciclo`);
+        break;
+      }
+    }
+    
+    console.log(`🔄 [PENDING CRON] Ciclo concluído: ${processed} processados, ${skipped} pulados`);
+    console.log(`🔄 [PENDING CRON] =========================================\n`);
+    
+  } catch (error) {
+    console.error(`❌ [PENDING CRON] Erro no cron:`, error);
+  }
+}
+
+export function stopPendingTimersCron(): void {
+  if (pendingTimersCronInterval) {
+    clearInterval(pendingTimersCronInterval);
+    pendingTimersCronInterval = null;
+    console.log(`🛑 [PENDING CRON] Cron parado`);
   }
 }
 
