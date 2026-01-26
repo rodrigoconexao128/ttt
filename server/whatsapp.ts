@@ -3961,11 +3961,14 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           isFromAgent: true,
         });
 
-        // S� atualizar conversa na �ltima parte
+        // Só atualizar conversa na última parte
         if (isLast) {
           await storage.updateConversation(conversationId, {
-            lastMessageText: part, // ? CORRIGIDO: usar 'part' em vez de 'finalPart' que n�o existe
+            lastMessageText: part,
             lastMessageTime: new Date(),
+            // 🔧 FIX: Marcar que a conversa foi respondida (IA também conta!)
+            hasReplied: true,
+            lastMessageFromMe: true,
           });
 
           broadcastToUser(userId, {
