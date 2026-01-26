@@ -4059,10 +4059,14 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         console.error(`⚠️ [AI AGENT] Erro ao marcar timer como completed (não crítico):`, dbError);
       }
     } else {
-      // ⚠️ IMPORTANTE: NÃO marcar como completed se a resposta não foi enviada
-      // Isso permite retry pelo sistema de restauração de timers
-      console.warn(`⚠️ [AI AGENT] Timer NÃO marcado como completed - resposta NÃO foi enviada (responseSuccessful=false)`);
-      console.warn(`⚠️ [AI AGENT] Conversa ${conversationId} ficará pendente para retry no próximo ciclo`);
+      // 🔄 FIX: Reagendar timer para retry em 15 segundos
+      // Isso evita processamento imediato em loop quando há erros temporários
+      try {
+        await storage.resetPendingAIResponseForRetry(conversationId);
+        console.warn(`🔄 [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: ${conversationId})`);
+      } catch (dbError) {
+        console.error(`⚠️ [AI AGENT] Erro ao reagendar timer para retry:`, dbError);
+      }
     }
     
     console.log(`🔓 [AI AGENT] Conversa ${conversationId} liberada para próximo processamento`);
@@ -7401,7 +7405,7 @@ export async function restorePendingAITimers(): Promise<void> {
 }
 
 // ==================== CRON JOB: RETRY TIMERS PENDENTES ====================
-// Verifica a cada 2 minutos se há timers pendentes "órfãos" e os processa
+// Verifica a cada 15 segundos se há timers pendentes "órfãos" e os processa
 // Isso garante que nenhuma mensagem fique sem resposta, mesmo após instabilidades
 let pendingTimersCronInterval: NodeJS.Timeout | null = null;
 
@@ -7411,17 +7415,17 @@ export function startPendingTimersCron(): void {
     return;
   }
   
-  console.log(`🔄 [PENDING CRON] Iniciando cron de retry de timers pendentes (intervalo: 30s)`);
+  console.log(`🔄 [PENDING CRON] Iniciando cron de retry de timers pendentes (intervalo: 15s, 25/ciclo)`);
   
-  // Executar a cada 30 segundos para maior responsividade
+  // Executar a cada 15 segundos para maior responsividade
   pendingTimersCronInterval = setInterval(async () => {
     await processPendingTimersCron();
-  }, 30 * 1000); // 30 segundos
+  }, 15 * 1000); // 15 segundos (era 30)
   
-  // Primeira execução após 30 segundos (dar tempo para sessões conectarem)
+  // Primeira execução após 10 segundos (dar tempo para sessões conectarem)
   setTimeout(async () => {
     await processPendingTimersCron();
-  }, 30 * 1000);
+  }, 10 * 1000);
 }
 
 async function processPendingTimersCron(): Promise<void> {
@@ -7471,19 +7475,14 @@ async function processPendingTimersCron(): Promise<void> {
         continue;
       }
       
-      // Verificar se o timer está pendente há muito tempo (desde execute_at, não scheduled_at)
-      // Isso porque scheduled_at pode ser de uma mensagem antiga que foi restaurada
+      // Calcular quanto tempo desde que deveria ter executado
       const timeSinceExecute = Date.now() - timer.executeAt.getTime();
-      const maxRetryTimeMs = 30 * 60 * 1000; // 30 minutos após execute_at
       
-      if (timeSinceExecute > maxRetryTimeMs) {
-        console.log(`⚠️ [PENDING CRON] ${contactNumber} - Timer expirado há ${Math.round(timeSinceExecute/60000)}min após execute_at, resetando para retry imediato`);
-        // Em vez de marcar como failed, resetar para processar AGORA
-        // Isso garante que mensagens antigas não sejam perdidas
-        await storage.resetPendingAIResponseForRetry(conversationId);
-        // Não pular - deixar processar no próximo ciclo com novo execute_at
-        skipped++;
-        continue;
+      // 🔧 FIX: NÃO MAIS RESETAR TIMERS ANTIGOS - PROCESSAR IMEDIATAMENTE!
+      // O bug anterior resetava e pulava, criando loop infinito
+      // Agora processamos independente da idade do timer
+      if (timeSinceExecute > 30 * 60 * 1000) {
+        console.log(`⚠️ [PENDING CRON] ${contactNumber} - Timer MUITO antigo (${Math.round(timeSinceExecute/60000)}min), PROCESSANDO AGORA mesmo assim!`);
       }
       
       console.log(`🚀 [PENDING CRON] Processando ${contactNumber} (timer órfão há ${Math.round(timeSinceExecute/1000)}s)`);
@@ -7499,17 +7498,19 @@ async function processPendingTimersCron(): Promise<void> {
         startTime: timer.scheduledAt.getTime(),
       };
       
-      // Processar com delay escalonado
-      const delayMs = processed * 3000;
+      // Processar com delay escalonado por USUÁRIO (canal)
+      // Delay de 1.5s entre mensagens do mesmo canal evita ban
+      // Mas canais diferentes podem processar em paralelo!
+      const delayMs = processed * 1500; // 1.5s entre cada (era 3s)
       setTimeout(async () => {
         await processAccumulatedMessages(pending);
       }, delayMs);
       
       processed++;
       
-      // Limitar a 15 por ciclo para processar mais rápido sem sobrecarregar
-      if (processed >= 15) {
-        console.log(`🔄 [PENDING CRON] Limite de 15 por ciclo atingido, continuará no próximo ciclo`);
+      // Limitar a 25 por ciclo para processar mais rápido (era 15)
+      if (processed >= 25) {
+        console.log(`🔄 [PENDING CRON] Limite de 25 por ciclo atingido, continuará no próximo ciclo`);
         break;
       }
     }
