@@ -7474,7 +7474,7 @@ async function processPendingTimersCron(): Promise<void> {
         continue;
       }
       
-      console.log(`🚀 [PENDING CRON] Processando ${contactNumber} (timer órfão há ${Math.round(timeSinceScheduled/1000)}s)`);
+      console.log(`🚀 [PENDING CRON] Processando ${contactNumber} (timer órfão há ${Math.round(timeSinceExecute/1000)}s)`);
       
       // Criar objeto PendingResponse e processar
       const pending: PendingResponse = {
