@@ -7435,15 +7435,24 @@ async function processPendingTimersCron(): Promise<void> {
       const isExpired = timer.executeAt.getTime() < Date.now();
       const isInMemory = pendingResponses.has(timer.conversationId);
       const isBeingProcessed = conversationsBeingProcessed.has(timer.conversationId);
+      
+      // 🔍 DEBUG: Logar por que alguns timers são filtrados
+      if (isExpired && (isInMemory || isBeingProcessed)) {
+        console.log(`⏸️ [PENDING CRON] ${timer.contactNumber} - Filtrado: inMemory=${isInMemory}, beingProcessed=${isBeingProcessed}`);
+      }
+      
       return isExpired && !isInMemory && !isBeingProcessed;
     });
     
     if (expiredTimers.length === 0) {
+      // 🔍 DEBUG: Logar quando todos foram filtrados
+      console.log(`🔄 [PENDING CRON] Ciclo: ${pendingTimers.length} timers encontrados, todos filtrados (em memória ou processando)`);
       return;
     }
     
     console.log(`\n🔄 [PENDING CRON] =========================================`);
     console.log(`🔄 [PENDING CRON] Encontrados ${expiredTimers.length} timers órfãos para processar`);
+    console.log(`🔄 [PENDING CRON] Sessões ativas: ${sessions.size}`);
     
     let processed = 0;
     let skipped = 0;
