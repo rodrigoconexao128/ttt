@@ -3587,6 +3587,24 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
   // 🔒 Marcar como em processamento ANTES de qualquer coisa
   conversationsBeingProcessed.add(conversationId);
   
+  // 🚨 CRÍTICO: Verificar se IA foi desativada ANTES de processar timer
+  // Bug: Timer criado quando IA ativa pode executar depois que IA foi desativada
+  const isAgentDisabled = await storage.isAgentDisabledForConversation(conversationId);
+  if (isAgentDisabled) {
+    console.log(`\n${'!'.repeat(60)}`);
+    console.log(`🚫 [AI AGENT] IA DESATIVADA - Timer cancelado`);
+    console.log(`   conversationId: ${conversationId}`);
+    console.log(`   contactNumber: ${contactNumber}`);
+    console.log(`   👉 IA foi desativada entre criação e execução do timer`);
+    console.log(`${'!'.repeat(60)}\n`);
+    
+    // Marcar timer como completed (cancelado) para não reprocessar
+    await storage.markPendingAIResponseCompleted(conversationId);
+    conversationsBeingProcessed.delete(conversationId);
+    pendingResponses.delete(conversationId);
+    return;
+  }
+  
   // Remover da fila de pendentes
   pendingResponses.delete(conversationId);
   
