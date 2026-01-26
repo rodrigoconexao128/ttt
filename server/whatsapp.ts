@@ -7408,12 +7408,12 @@ export function startPendingTimersCron(): void {
     return;
   }
   
-  console.log(`🔄 [PENDING CRON] Iniciando cron de retry de timers pendentes (intervalo: 2min)`);
+  console.log(`🔄 [PENDING CRON] Iniciando cron de retry de timers pendentes (intervalo: 30s)`);
   
-  // Executar a cada 2 minutos
+  // Executar a cada 30 segundos para maior responsividade
   pendingTimersCronInterval = setInterval(async () => {
     await processPendingTimersCron();
-  }, 2 * 60 * 1000); // 2 minutos
+  }, 30 * 1000); // 30 segundos
   
   // Primeira execução após 30 segundos (dar tempo para sessões conectarem)
   setTimeout(async () => {
@@ -7495,9 +7495,9 @@ async function processPendingTimersCron(): Promise<void> {
       
       processed++;
       
-      // Limitar a 5 por ciclo para não sobrecarregar
-      if (processed >= 5) {
-        console.log(`🔄 [PENDING CRON] Limite de 5 por ciclo atingido, continuará no próximo ciclo`);
+      // Limitar a 15 por ciclo para processar mais rápido sem sobrecarregar
+      if (processed >= 15) {
+        console.log(`🔄 [PENDING CRON] Limite de 15 por ciclo atingido, continuará no próximo ciclo`);
         break;
       }
     }

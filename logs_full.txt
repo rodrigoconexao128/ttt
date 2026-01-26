@@ -1,0 +1,1000 @@
+﻿­ƒôü [MediaService] Tag de m├¡dia detectada [MEDIA]: DETALHES_DO_SISTEMA
+­ƒôü [MediaService] Total de 1 m├¡dia(s) para enviar: DETALHES_DO_SISTEMA
+­ƒôü [AI Agent] Tags de m├¡dia detectadas: DETALHES_DO_SISTEMA
+­ƒöä [AI Agent] Placeholders processados na resposta
+­ƒôØ [AI Agent] Using LEGACY system (deterministic) for user eefedb8c-c554-4517-8480-f2d54e317d45
+
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒñû [AI Agent] Config para user eefedb8c-c554-4517-8480-f2d54e317d45 respondendo cliente:
+   Model (legacy, ignorado): openai/gpt-oss-20b ÔåÆ real: system_config.openrouter_model
+   Active: true
+   Trigger phrases: 0
+   Prompt length: 23472 chars
+   Prompt (primeiros 150 chars): **Alessandra** - Assistente do terapeuta Marcelo Marques Santos, especializada em acolher voc├¬ com carinho e profissionalismo desde o primeiro contato...
+[BROADCAST] No WebSocket clients found for user 1f2f40b5-fb3e-4d04-8136-611358c2283d
+[QR CODE] QR Code broadcasted to user 1f2f40b5-fb3e-4d04-8136-611358c2283d
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   Prompt (MD5 para debug): a5469330
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+­ƒºá [AI Agent] Memory analysis: greeted=false, pendingActions=0, sentMedia=0
+­ƒøí´©Å [Blindagem V3] An├ílise do prompt: neg├│cio="Alessandra", tipo="TI/Suporte"
+­ƒöö [AI Agent] Notification system ACTIVE - Trigger: "Me notifique quando o cliente quiser agenda uma co..."
+­ƒöö [AI Agent] Added notification system to prompt
+[CONNECTION UPDATE] User 1f2f40b5-fb3e-4d04-8136-611358c2283d - connection: undefined, hasQR: true, hasLastDisconnect: false
+[QR CODE] Generating QR Code for user 1f2f40b5-fb3e-4d04-8136-611358c2283d...
+[QR CODE] QR Code generated successfully for user 1f2f40b5-fb3e-4d04-8136-611358c2283d, length: 6350
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+12:32:51 AM [express] GET /api/usage 304 in 784ms :: {"agentMessagesCount":609,"limit":-1,"remaining"ÔÇª
+[QR CODE] QR Code saved to database for user 1f2f40b5-fb3e-4d04-8136-611358c2283d (took 191ms)
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=cb9213c3-fde3-479e-a4aa-344171c59735
+­ƒìò [DeliveryAI] DEBUG config: {"id":"758574ce-6000-4032-894d-27283633c04b","user_id":"cb9213c3-fde3-479e-a4aa-344171c59735","is_active":false,"send_to_ai":false,"business_name":null,"business_type":"restaurante","delivery_fee":0,"min_order_value":0,"estimated_delivery_time":45,"delivery_radius_km":10,"payment_methods":["dinheiro","cartao","pix"],"accepts_delivery":true,"accepts_pickup":true,"opening_hours":{"friday":{"open":"18:00","close":"23:59","is_open":true},"monday":{"open":"18:00","close":"23:00","is_open":true},"sunday":{"open":"18:00","close":"22:00","is_open":true},"tuesday":{"open":"18:00","close":"23:00","is_open":true},"saturday":{"open":"18:00","close":"23:59","is_open":true},"thursday":{"open":"18:00","close":"23:00","is_open":true},"wednesday":{"open":"18:00","close":"23:00","is_open":true}},"ai_instructions":"Voc├¬ ├® um atendente de delivery. Seja simp├ítico, ajude o cliente a escolher, anote os pedidos corretamente com todos os detalhes e sempre confirme antes de finalizar.","whatsapp_order_number":null,"created_at":"2026-01-19T01:33:39.745433","updated_at":"2026-01-19T01:38:20.527","display_instructions":"Quando o cliente pedir o card├ípio, liste cada item em uma linha separada com emoji, nome e pre├ºo. Organize por categoria.","accepts_cancellation":false}
+­ƒìò [DeliveryAI] DEBUG configError: null
+­ƒìò [DeliveryAI] DEBUG is_active value: false (type: boolean)
+­ƒìò [DeliveryAI] Delivery n├úo ativo para user cb9213c3-fde3-479e-a4aa-344171c59735
+­ƒìò [DeliveryAI] Motivo: configError=false, config=true, is_active=false
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [NOTIFICATION DEBUG] Checking keyword: "pix"
+­ƒöö [NOTIFICATION DEBUG] Ô£à Entering keyword check block!
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒöö [NOTIFICATION DEBUG] userId: cb9213c3-fde3-479e-a4aa-344171c59735
+­ƒöö [NOTIFICATION DEBUG] Keywords to check: ["pix"]
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] clientMessage: "ol├í! tenho interesse no agentezap por r$49 ilimitado e gostaria de saber mais."
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: true
+­ƒöö [NOTIFICATION DEBUG] agentMessage: "aqui est├í um v├¡deo com detalhes do sistema. depois, se quiser testar gr├ítis e depois ativar o plano "
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: pix
+­ƒöö [NOTIFICATION DEBUG] notificationMode: both
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: 5517991610665
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "Ol├í! Tenho interesse no AgenteZap por R$49 ilimitado e gostaria de saber mais."
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "Aqui est├í um v├¡deo com detalhes do sistema. Depois, se quiser testar gr├ítis e depois ativar o plano "
+­ƒôó [AI Agent] AI detected notification trigger: gatilho personalizado
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":true,"notificationManualKeywords":true,"notificationMode":"both","modeMatches":true}
+­ƒöö [NOTIFICATION DEBUG] Client includes "pix": false
+­ƒöö [NOTIFICATION DEBUG] Agent includes "pix": false
+­ƒôó [AI Agent] NOTIFICATION TRIGGERED via: IA
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒöä [RESTORE TIMERS] Processando timer restaurado para 5511953255293
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 282.2s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511953255293
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   8. [user] Gostei de tudo que foi falado ontem...
+   9. [DONO] Am├®m ­ƒÖÅ... (IGNORADA - msg manual do dono)
+   10. [DONO] Vamos praticar ent├úo... (IGNORADA - msg manual do dono)
+   11. [user] Vamos sim...
+   12. [DONO] https://meet.google.com/gia-xfpy-zjn j├í vamos inic... (IGNORADA - msg manual do dono)
+   13. [DONO] A paz , voc├¬ vai poder participara da reuni├úo onli... (IGNORADA - msg manual do dono)
+­ƒôØ [AI Agent] Using LEGACY prompt (35599 chars) - DETERMINISTIC MODE
+­ƒøí´©Å [AI Agent] Anti-amnesia prompt injetado (19 msgs, sauda├º├úo=false, hasReplies=true, jaDisseNegocio=false)
+   14. [DONO] https://meet.google.com/zch-akao-vqh nossa reuni├úo... (IGNORADA - msg manual do dono)
+­ƒôï [AI Agent] Enviando 19 mensagens de contexto (0 duplicatas removidas):
+   15. [user] N├úo t├┤ com internet boa...
+   1. [DONO] https://youtu.be/HExJYrJsNQc... (IGNORADA - msg manual do dono)
+   2. [DONO] A PAZ QUERIDOS, NOSSO ENCONTRO COMO IGREJA SER├ü HO... (IGNORADA - msg manual do dono)
+   3. [DONO] https://drive.google.com/file/d/109_KkKgCZVSzHp3na... (IGNORADA - msg manual do dono)
+   4. [user] Bom dia a paz...
+   5. [user] Esse assunto foi  tratado ontem, n├úo foi?...
+   6. [DONO] A paz... (IGNORADA - msg manual do dono)
+   7. [DONO] Foi sim... (IGNORADA - msg manual do dono)
+   16. [assistant] Entendo, Sempre Foi Deus. Se quiser, podemos conti...
+   17. [user] Sim! com certeza...
+   18. [assistant] ├ôtimo! Para agendarmos, me informe 2 ou 3 op├º├Áes d...
+   19. [user] N├úo entendi muito bem essa mensagem... (PULADA - duplicata da nova mensagem)
+   20. [user] N├úo entendi muito bem essa mensagem... (NOVA MENSAGEM)
+­ƒÄ» [AI Agent] Pergunta: 35 chars ÔåÆ maxTokens: 1500 (SEM LIMITE - divis├úo em partes ├® depois)
+­ƒöº [AI-CONFIG] DETERMINISM: provider=openrouter, temperature=0.0, randomSeed=42, model=from-system-config (llm.ts usa openrouterModel)
+­ƒöä [AI RETRY] LLM API (openrouter) - Tentativa 1/3...
+[LLM] ­ƒÜÇ chatComplete via OpenRouter com modelo correto: openai/gpt-oss-20b (provider=openrouter)
+­ƒöä [LLM RETRY] OpenRouter chatComplete (openai/gpt-oss-20b) - Tentativa 1/3...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+Ô£à [AI AGENT] Usu├írio tem plano pago ativo e v├ílido: Plano Promo Ilimitado Mensal
+   ?? Texto combinado: "Ol├í ­ƒæï
+
+Este ├® um n├║mero para envio de mensagens autom├íticas e n├úo conseguimos responder por aqui.
+
+Precisa falar com a gente?
+
+­ƒÆ¼ Mande uma mensagem ..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [AI AGENT] Nome do cliente: 5511953255293
+?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒæñ [AI Agent] Nome do cliente: 5511953255293
+­ƒôü [AI Agent] M├¡dias j├í enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒìò [DeliveryAI] Processando mensagem: "Ol├í ­ƒæï
+
+Este ├® um n├║mero para envio de mensagens a..."
+?? [MSG CACHE] Armazenada mensagem AC266F12952CC19ACDF4628452414B06 para user 4bf0c68b... (cache size: 6)
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=f2cad81c-2f6c-456a-b731-e18c768af8f2
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+
+­ƒöì [AI Agent] Verificando configura├º├Áes para user f2cad81c-2f6c-456a-b731-e18c768af8f2:
+   ­ƒôè Legacy (ai_agent_config): exists, isActive=true
+   ­ƒôè Business (business_agent_configs): exists, isActive=true
+   Ô£à [AI Agent] Agent ENABLED (legacy isActive=true), processing response...
+
+­ƒÜ½ [shouldUseFlowEngine] FlowEngine DESABILITADO
+   ÔåÆ Usando IA com Blindagem V3 para user f2cad81c-2f6c-456a-b731-e18c768af8f2
+   ÔåÆ Sistema determin├¡stico de Delivery mantido para card├ípio
+
+­ƒìò [AI Agent] Tentando processar com sistema de delivery...
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒìò [DeliveryAI] DEBUG config: null
+­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
+­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
+­ƒìò [DeliveryAI] Delivery n├úo ativo para user f2cad81c-2f6c-456a-b731-e18c768af8f2
+­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
+­ƒìò [DeliveryAI] Delivery n├úo ativo para este usu├írio
+­ƒìò [AI Agent] Delivery n├úo ativo ou sem resposta - continuando fluxo normal
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôü [AI Agent] Found 2 media items for user f2cad81c-2f6c-456a-b731-e18c768af8f2
+­ƒôØ [AI Agent] Using LEGACY system (deterministic) for user f2cad81c-2f6c-456a-b731-e18c768af8f2
+
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒñû [AI Agent] Config para user f2cad81c-2f6c-456a-b731-e18c768af8f2 respondendo cliente:
+   Model (legacy, ignorado): openai/gpt-oss-20b ÔåÆ real: system_config.openrouter_model
+   Active: true
+   Trigger phrases: 16
+   Prompt length: 9884 chars
+   Prompt (primeiros 150 chars): **Nosde - atendente de corretora de planos de sa├║de.**
+
+**Sempre iniciar a resposta com "**Nosde,**"** Tom claro, transparente e humanizado.
+
+**REGRAS...
+   Prompt (MD5 para debug): 1f966a1f
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+­ƒöì [AI Agent] Verificando trigger phrases (16 configuradas)
+   Trigger phrases: ÔÇ£Especialistas em planos de sa├║de.ÔÇØ  ÔÇ£Consultores treinados para indicar o plano ideal para voc├¬.ÔÇØ  ÔÇ£An├ílise personalizada de acordo com seu perfil.ÔÇØ  ÔÇ£Experi├¬ncia real com as principais operadoras do mercado.ÔÇØ, ÔÇ£Sem complica├º├úo. Sem termos dif├¡ceis.ÔÇØ  ÔÇ£A gente explica tudo antes de voc├¬ decidir.ÔÇØ  ÔÇ£Compare planos de forma simples e transparente.ÔÇØ  ÔÇ£Voc├¬ entende exatamente o que est├í contratando.ÔÇØ, oi, ola, bom dia, boa tarde, boa noite, e ai, eai, opa, b├úo, tudo bem, 2, 2 Moder Diet ├® um fitoter├ípico natural criado para auxiliar no equil├¡brio do organismo e apoiar h├íbitos mais saud├íveis, de forma pr├ítica e complementar ├á rotina do dia a dia., hi, ol├í
+   Procurando "ÔÇ£Especialistas em planos de sa├║de.ÔÇØ  ÔÇ£Consultores treinados para indicar o plano ideal para voc├¬.ÔÇØ  ÔÇ£An├ílise personalizada de acordo com seu perfil.ÔÇØ  ÔÇ£Experi├¬ncia real com as principais operadoras do mercado.ÔÇØ" ÔåÆ last:ÔØî | history:ÔØî
+   Procurando "ÔÇ£Sem complica├º├úo. Sem termos dif├¡ceis.ÔÇØ  ÔÇ£A gente explica tudo antes de voc├¬ decidir.ÔÇØ  ÔÇ£Compare planos de forma simples e transparente.ÔÇØ  ÔÇ£Voc├¬ entende exatamente o que est├í contratando.ÔÇØ" ÔåÆ last:ÔØî | history:ÔØî
+   Procurando "oi" ÔåÆ last:ÔØî | history:ÔØî
+   Procurando "ola" ÔåÆ last:Ô£à | history:ÔØî
+Ô£à [AI Agent] Trigger phrase detected (last) for user f2cad81c-2f6c-456a-b731-e18c768af8f2, proceeding with response
+­ƒºá [AI Agent] Memory analysis: greeted=false, pendingActions=4, sentMedia=0
+­ƒøí´©Å [Blindagem V3] An├ílise do prompt: neg├│cio="Nosde", tipo="TI/Suporte"
+­ƒöö [AI Agent] Notification system ACTIVE - Trigger: "me envie toda e qualquer mensagem, que houver aten..."
+­ƒöö [AI Agent] Added notification system to prompt
+Ignoring group/status message from: status@broadcast
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+Closing session: SessionEntry {
+  _chains: {
+  indexInfo: {
+    BRcBinb1GRrJKnjEQvrsAfztNIh2uuIPp96Sn6lp4e0G: { chainKey: [Object], chainType: 2, messageKeys: {} },
+    baseKey: <Buffer 05 76 51 b6 20 c4 31 99 66 64 1a 2b c7 3f 2f ed d4 b8 98 12 d0 d5 53 b1 75 32 8c c7 96 4e 17 d8 60>,
+    'BSUIYARxyFpe8l4Pkt47D++Ou5E2IibyQYMJB4YEeEMl': { chainKey: [Object], chainType: 1, messageKeys: {} }
+  },
+    baseKeyType: 1,
+    closed: -1,
+  registrationId: 1109960242,
+  currentRatchet: {
+    used: 1769387036831,
+    ephemeralKeyPair: {
+      pubKey: <Buffer 05 25 08 60 04 71 c8 5a 5e f2 5e 0f 92 de 3b 0f ef 8e bb 91 36 22 26 f2 41 83 09 07 86 04 78 43 25>,
+      privKey: <Buffer 58 31 c9 86 c2 d3 c5 c1 83 35 c5 b4 b9 f5 ea a3 64 e2 1b e3 e6 f7 67 22 64 76 5e 47 20 2d 1a 4b>
+    },
+    lastRemoteEphemeralKey: <Buffer 05 17 01 8a 76 f5 19 1a c9 2a 78 c4 42 fa ec 01 fc ed 34 88 76 ba e2 0f a7 de 92 9f a9 69 e1 ed 06>,
+    previousCounter: 0,
+    rootKey: <Buffer 7b d8 27 b1 ab 65 01 8a 9a 19 4f d3 23 a1 7f 60 08 fc 64 28 49 cb 76 d0 0b a7 f7 ef a0 36 8d 6a>
+  },
+    created: 1769387034606,
+    remoteIdentityKey: <Buffer 05 74 d7 1b 24 17 f1 f5 a9 26 2a f6 1c 4c eb 1f a3 98 61 de f3 db 30 62 1a 4f 02 8a 45 f3 20 21 52>
+  }
+}
+?? [MSG CACHE] Armazenada mensagem 3EB0B7F49E9A1458F31B2C para user eefedb8c... (cache size: 4)
+­ƒøí´©Å [ANTI-BLOCK] Ô£à Mensagem enviada - ID: 3EB0B7F49E9A1458F31B2C
+­ƒøí´©Å [ANTI-BAN v5.0] Ô£à Msg enviada - Lote: 2/10
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem 3EB0B7F49E9A1458F31B2C para user eefedb8c... (cache size: 4)
+?? [SYNC] Ignorando mensagem de sincroniza´┐¢´┐¢o (type: append)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒôª [Products] Found 1 active products for user f2cad81c-2f6c-456a-b731-e18c768af8f2
+­ƒôª [Products] Unexpected error: ReferenceError: items is not defined
+    at getProductsForAI (file:///app/dist/index.js:15954:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async generateAIResponse (file:///app/dist/index.js:17586:28)
+Ô£à [FOLLOW-UP] Agendado inicial para conversa 2fdc1e92-64d5-4985-98d6-6aa6d0a29cfe em 10 min
+    at async Timeout._onTimeout (file:///app/dist/index.js:27920:11)
+    at async processAccumulatedMessages (file:///app/dist/index.js:25373:22)
+Ô£à [AI AGENT] Resposta enviada com sucesso para 551221120286
+[BROADCAST] No WebSocket clients found for user eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[AI Agent] Part 1/1 SENT to WhatsApp 551221120286
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem salva: ACB73D892B94C3C4926554DDB202CC55 | Contato: 109779850662082
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöç [TTS-RESPONSE] ├üudio desabilitado para usu├írio eefedb8c...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem ACB73D892B94C3C4926554DDB202CC55 para user 0ead7092... (cache size: 4)
+Ô£à [AI AGENT] Timer marcado como completed - resposta enviada com sucesso!
+­ƒöô [AI AGENT] Conversa 2fdc1e92-64d5-4985-98d6-6aa6d0a29cfe liberada para pr├│ximo processamento
+­ƒöä [RESTORE TIMERS] Processando timer restaurado para 5511953096748
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 273.2s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511953096748
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+
+?? [MESSAGE KEY DEBUG]
+   remoteJid: 109779850662082@lid
+   remoteJidAlt: 553491344883@s.whatsapp.net
+   pushName: Henrique Oliveira
+   participantPn: N/A
+
+? [LID RESOLVIDO] N´┐¢mero real encontrado via remoteJidAlt!
+   LID: 109779850662082@lid
+   JID WhatsApp REAL: 553491344883@s.whatsapp.net
+   N´┐¢mero limpo: 553491344883
+   Nome: Henrique Oliveira
+
+?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem´┐¢ria: 109779850662082@lid ? 553491344883@s.whatsapp.net
+[WhatsApp] Original JID: 109779850662082@lid
+[WhatsApp] Normalized JID: 553491344883@s.whatsapp.net
+[WhatsApp] Clean number: 553491344883
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+??? [AVATAR] Foto de perfil obtida para 553491344883
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôü [AI Agent] Added media block to prompt (3952 chars) - POSITIONED AT END FOR MAXIMUM PRIORITY
+­ƒôØ [AI Agent] Using LEGACY prompt (26593 chars) - DETERMINISTIC MODE
+­ƒøí´©Å [AI Agent] Anti-amnesia prompt injetado (8 msgs, sauda├º├úo=false, hasReplies=true, jaDisseNegocio=false)
+­ƒôï [AI Agent] Enviando 8 mensagens de contexto (0 duplicatas removidas):
+   1. [DONO] Nosde Planos de sa├║de ­ƒÜæ
+Agradecemos sua mensagem.... (IGNORADA - msg manual do dono)
+   2. [user] Ol├í ­ƒæï
+
+Este ├® um n├║mero para envio de mensagens a...
+   3. [assistant] Nosde, isso foge do que eu sei! ­ƒÿà Aqui no Nosde e...
+   4. [user] Ol├í ­ƒæï
+
+Este ├® um n├║mero para envio de mensagens a...
+   5. [assistant] Nosde, Sou o Nosde, seu assistente. Como posso te ...
+   6. [user] Ol├í ­ƒæï
+
+Este ├® um n├║mero para envio de mensagens a...
+   7. [assistant] Nosde, Isso foge do que eu sei! ­ƒÿà Aqui no Nosde e...
+   8. [user] Ol├í ­ƒæï
+
+Este ├® um n├║mero para envio de mensagens a... (PULADA - duplicata da nova mensagem)
+   9. [user] Ol├í ­ƒæï
+
+Este ├® um n├║mero para envio de mensagens a... (NOVA MENSAGEM)
+­ƒÄ» [AI Agent] Pergunta: 340 chars ÔåÆ maxTokens: 2000 (SEM LIMITE - divis├úo em partes ├® depois)
+­ƒöº [AI-CONFIG] DETERMINISM: provider=openrouter, temperature=0.0, randomSeed=42, model=from-system-config (llm.ts usa openrouterModel)
+­ƒöä [AI RETRY] LLM API (openrouter) - Tentativa 1/3...
+[LLM] ­ƒÜÇ chatComplete via OpenRouter com modelo correto: openai/gpt-oss-20b (provider=openrouter)
+­ƒöä [LLM RETRY] OpenRouter chatComplete (openai/gpt-oss-20b) - Tentativa 1/3...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+Ô£à [AI AGENT] Usu├írio tem plano pago ativo e v├ílido: Plano Promo Ilimitado Mensal
+   ?? Texto combinado: "­ƒÄÁ ├üudio..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[LLM] Ô£à OpenRouter chatComplete respondeu
+­ƒöö [AI Agent] Checking for NOTIFY tag in response...
+   Response snippet (last 100 chars): "s de sa├║de, consultas e outras informa├º├Áes relacionadas ao nosso servi├ºo. Como posso te ajudar hoje?"
+­ƒöö [AI Agent] ÔØî No NOTIFY tag found in response
+Ô£à [AI Agent] Resposta gerada: Nosde, Isso foge do que eu sei! ­ƒÿà Aqui no Nosde eu posso te ajudar com planos de sa├║de, consultas e...
+ÔÜá´©Å [AI Agent] TAG N├âO DETECTADA! Response: Nosde, Isso foge do que eu sei! ­ƒÿà Aqui no Nosde eu posso te ajudar com planos de sa├║de, consultas e outras informa├º├Áes relacionadas ao nosso servi├ºo. Como posso te ajudar hoje?
+
+­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
+­ƒÜ¿ [AI Agent] IA principal n├úo detectou m├¡dia - CONSULTANDO IA DE CLASSIFICA├ç├âO...
+­ƒìò [DeliveryAI] Delivery n├úo ativo para user eefedb8c-c554-4517-8480-f2d54e317d45
+
+­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
+­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ¿ [FORCE MEDIA] Iniciando classifica├º├úo com IA...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ¿ [FORCE MEDIA] Mensagem: "Claro! Aqui est├í a mensagem completa, com a lista iniciada no item 1 e continuada at├® o item 12, pro..."
+­ƒÜ¿ [FORCE MEDIA] M├¡dias dispon├¡veis: 2
+­ƒÜ¿ [FORCE MEDIA] M├¡dias j├í enviadas: nenhuma
+
+­ƒñû [MEDIA AI] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒñû [MEDIA AI] Iniciando classifica├º├úo de m├¡dia com LLM...
+[LLM] ­ƒÜÇ chatComplete via OpenRouter com modelo correto: openai/gpt-oss-20b (provider=openrouter)
+­ƒöä [LLM RETRY] OpenRouter chatComplete (openai/gpt-oss-20b) - Tentativa 1/3...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem A5A50D7132FF2A365C634997D4387C6F para user b2a3f4f6... (cache size: 3)
+?? [FROM ME] Mensagem enviada pelo dono no WhatsApp detectada
+?? [FROM ME] LID resolvido: 160571831939208@lid ? 557182459149@s.whatsapp.net
+­ƒøí´©Å [ANTI-BAN v5.0] ­ƒæñ Mensagem MANUAL do DONO detectada
+   ­ƒô▒ Contato: 557182459149
+   ­ƒöä Contador de lote reiniciado
+­ƒøí´©Å [ANTI-BAN v4.0] ­ƒæñ Mensagem MANUAL do DONO registrada - Bot aguardar├í antes de responder
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[LLM] Ô£à OpenRouter chatComplete respondeu
+­ƒöö [AI Agent] Checking for NOTIFY tag in response...
+   Response snippet (last 100 chars): "ro, Sempre Foi Deus. Qual parte da mensagem voc├¬ n├úo entendeu? Posso explicar de forma mais simples."
+­ƒöö [AI Agent] ÔØî No NOTIFY tag found in response
+Ô£à [AI Agent] Resposta gerada: Claro, Sempre Foi Deus. Qual parte da mensagem voc├¬ n├úo entendeu? Posso explicar de forma mais simpl...
+ÔÜá´©Å [AI Agent] TAG N├âO DETECTADA! Response: Claro, Sempre Foi Deus. Qual parte da mensagem voc├¬ n├úo entendeu? Posso explicar de forma mais simples.
+­ƒöä [AI Agent] Placeholders processados na resposta
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [FROM ME] Creating new conversation for 557182459149
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [AI AGENT] Nome do cliente: TUDO POSSO EM DEUS
+?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: VIDA_FINANCEIRA_PR_RAPHAEL, E_BOOK_VIVENDO_PARA_ELE
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒìò [DeliveryAI] DEBUG config: null
+­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [AI AGENT] Modo hist´┐¢rico ATIVO - 9 mensagens dispon´┐¢veis para contexto
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [NOTIFICATION DEBUG] userId: eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: true
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: null
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: 5522999542146
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "N├úo entendi muito bem essa mensagem"
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "Claro, Sempre Foi Deus. Qual parte da mensagem voc├¬ n├úo entendeu? Posso explicar de forma mais simpl"
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":true,"notificationManualKeywords":false,"notificationMode":"ai","modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: "Claro, Sempre Foi Deus. Qual parte da mensagem voc├¬ n├úo entendeu? Posso explicar de forma mais simpl..."
+­ƒøí´©Å [ANTI-BLOCK] ­ƒôñ Enviando mensagem para 5519988126585@s...
+­ƒøí´©Å [ANTI-BAN] Ôî¿´©Å Simulando digita├º├úo por 4s...
+­ƒöä [USER-FOLLOW-UP] Cliente respondeu. Ciclo pausado por 2h para e337711b-74ee-46d6-9592-fcd04f7206b5 (dar espa├ºo ├á conversa)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒæñ [AI Agent] Nome do cliente: TUDO POSSO EM DEUS
+­ƒôü [AI Agent] M├¡dias j├í enviadas: VIDA_FINANCEIRA_PR_RAPHAEL, E_BOOK_VIVENDO_PARA_ELE
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+   ­ƒôè Legacy (ai_agent_config): exists, isActive=true
+[AI Agent] Sending to original JID: 559491805978@s.whatsapp.net (1 parts)
+   ­ƒôè Business (business_agent_configs): exists, isActive=false
+­ƒô£ [AI Agent] MODO HIST├ôRICO ATIVO - 9 mensagens ser├úo analisadas com sistema inteligente
+   Ô£à [AI Agent] Agent ENABLED (legacy isActive=true), processing response...
+
+­ƒÜ½ [shouldUseFlowEngine] FlowEngine DESABILITADO
+   ÔåÆ Usando IA com Blindagem V3 para user 2c8c088d-1a52-43f2-98a7-0a70eca024d2
+
+   ÔåÆ Sistema determin├¡stico de Delivery mantido para card├ípio
+­ƒìò [AI Agent] Tentando processar com sistema de delivery...
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem ACB73D892B94C3C4926554DDB202CC55 marcada como processada
+
+[BROADCAST] No WebSocket clients found for user 0ead7092-10b0-4f54-98a0-0baa26612bd1
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöì [AI Agent] Verificando configura├º├Áes para user 2c8c088d-1a52-43f2-98a7-0a70eca024d2:
+­ƒìò [DeliveryAI] Processando mensagem: "­ƒÄÁ ├üudio..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] Mensagem enfileirada para eefedb8c...
+   ­ƒôè Fila: 1 | Prioridade: high
+   ­ƒôØ Texto: "Claro, Sempre Foi Deus. Qual parte da mensagem voc..."
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando 3.3s antes de enviar...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=2c8c088d-1a52-43f2-98a7-0a70eca024d2
+­ƒìò [DeliveryAI] DEBUG config: null
+­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
+­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
+­ƒìò [DeliveryAI] Delivery n├úo ativo para user 2c8c088d-1a52-43f2-98a7-0a70eca024d2
+­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
+­ƒìò [DeliveryAI] Delivery n├úo ativo para este usu├írio
+­ƒìò [AI Agent] Delivery n├úo ativo ou sem resposta - continuando fluxo normal
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem 181494842A2A7D0EC6 para user eefedb8c... (cache size: 5)
+­ƒöì [EXCLUSION] Verificando lista de exclus├úo para usu├írio 0ead7092-10b0-4f54-98a0-0baa26612bd1 (config=default, isEnabled=default=true)
+­ƒô× [EXCLUSION] Normalizando n├║mero 553491344883 -> varia├º├Áes: [553491344883, 3491344883, 91344883]
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒô× [EXCLUSION] Verificando 553491344883 (varia├º├Áes: 553491344883, 3491344883, 91344883) -> Ô£à Permitido
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem salva: 181494842A2A7D0EC6 | Contato: 45595926511739
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem DA9B02CA7A3E145AC3 para user eefedb8c... (cache size: 6)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+?? [MESSAGE KEY DEBUG]
+   remoteJid: 45595926511739@lid
+   remoteJidAlt: 551221120286@s.whatsapp.net
+   pushName: N/A
+   participantPn: N/A
+
+? [LID RESOLVIDO] N´┐¢mero real encontrado via remoteJidAlt!
+   LID: 45595926511739@lid
+   JID WhatsApp REAL: 551221120286@s.whatsapp.net
+   N´┐¢mero limpo: 551221120286
+   Nome: N/A
+
+?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem´┐¢ria: 45595926511739@lid ? 551221120286@s.whatsapp.net
+[WhatsApp] Original JID: 45595926511739@lid
+[WhatsApp] Normalized JID: 551221120286@s.whatsapp.net
+[WhatsApp] Clean number: 551221120286
+   Prompt (MD5 para debug): b5ce69e6
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+­ƒºá [AI Agent] Memory analysis: greeted=true, pendingActions=0, sentMedia=0
+­ƒøí´©Å [Blindagem V3] An├ílise do prompt: neg├│cio="UMA", tipo="constru├º├úo"
+­ƒöö [AI Agent] Notification system ACTIVE - Trigger: "Me notifique quando o whatsapp estiver desconectad..."
+­ƒöö [AI Agent] Added notification system to prompt
+­ƒôü [AI Agent] Found 27 media items for user 2c8c088d-1a52-43f2-98a7-0a70eca024d2
+­ƒôØ [AI Agent] Using LEGACY system (deterministic) for user 2c8c088d-1a52-43f2-98a7-0a70eca024d2
+
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒñû [AI Agent] Config para user 2c8c088d-1a52-43f2-98a7-0a70eca024d2 respondendo cliente:
+   Model (legacy, ignorado): openai/gpt-oss-20b ÔåÆ real: system_config.openrouter_model
+   Active: true
+   Trigger phrases: 0
+   Prompt length: 5457 chars
+   Prompt (primeiros 150 chars): Para Ele - Atendente espiritual do grupo Para Ele. Tom acolhedor, emp├ítico e inspirador.
+REGRAS INTERNAS: ÔÇó Identifica├º├úo: O agente n├úo deve se identi...
+Ô£à [FOLLOW-UP] Agendado inicial para conversa 5229a830-8341-445f-b384-d2966a62be41 em 10 min
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+   remoteJidAlt: 551221120286@s.whatsapp.net
+   pushName: N/A
+   participantPn: N/A
+
+? [LID RESOLVIDO] N´┐¢mero real encontrado via remoteJidAlt!
+   LID: 45595926511739@lid
+   JID WhatsApp REAL: 551221120286@s.whatsapp.net
+   N´┐¢mero limpo: 551221120286
+   Nome: N/A
+
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem salva: DA9B02CA7A3E145AC3 | Contato: 45595926511739
+?? [MSG CACHE] Armazenada mensagem AEE5C43E89DDD6BA5E para user eefedb8c... (cache size: 7)
+?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem´┐¢ria: 45595926511739@lid ? 551221120286@s.whatsapp.net
+­ƒòÉ [AI AGENT] Novo timer de 10s para 553491344883...
+[WhatsApp] Original JID: 45595926511739@lid
+­ƒôØ [AI AGENT] Primeira mensagem: "Coloquei a play list na tv do cliente aplicativo smartone , mais s├│ fica carregando"
+[WhatsApp] Normalized JID: 551221120286@s.whatsapp.net
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[WhatsApp] Clean number: 551221120286
+
+Ignoring unsupported message type from 551221120286: [ 'messageContextInfo', 'listMessage' ]
+?? [MESSAGE KEY DEBUG]
+   remoteJid: 45595926511739@lid
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÆ¥ [PERSISTENT TIMER] Salvo para 553491344883 - executa ├ás 2026-01-26T00:33:07.958Z
+­ƒÆ¥ [AI AGENT] Timer persistido no banco - executa ├ás 2026-01-26T00:33:07.958Z
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem salva: AEE5C43E89DDD6BA5E | Contato: 45595926511739
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 10.0s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5517981679818
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+??? [AVATAR] Foto de perfil obtida para 551221120286
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+?? [MESSAGE KEY DEBUG]
+   remoteJid: 45595926511739@lid
+   remoteJidAlt: 551221120286@s.whatsapp.net
+   pushName: N/A
+   participantPn: N/A
+
+? [LID RESOLVIDO] N´┐¢mero real encontrado via remoteJidAlt!
+   LID: 45595926511739@lid
+   JID WhatsApp REAL: 551221120286@s.whatsapp.net
+   N´┐¢mero limpo: 551221120286
+   Nome: N/A
+
+?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem´┐¢ria: 45595926511739@lid ? 551221120286@s.whatsapp.net
+[WhatsApp] Original JID: 45595926511739@lid
+[WhatsApp] Normalized JID: 551221120286@s.whatsapp.net
+[WhatsApp] Clean number: 551221120286
+­ƒöä [RESTORE TIMERS] Processando timer restaurado para 553891944375
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 261.5s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 553891944375
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒñû [STORAGE] IA desativada para conversa 5229a830-8341-445f-b384-d2966a62be41 (follow-up permanece no estado atual)
+?? [AUTO-PAUSE] IA pausada automaticamente para conversa 5229a830-8341-445f-b384-d2966a62be41 - dono respondeu manualmente (manual only)
+[BROADCAST] No WebSocket clients found for user b2a3f4f6-d943-41ba-b303-4c4523c9e413
+[BROADCAST] No WebSocket clients found for user b2a3f4f6-d943-41ba-b303-4c4523c9e413
+?? [FROM ME] Mensagem sincronizada: 557182459149 - "Oi quero comprar meu Iphone."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[LLM] Ô£à OpenRouter chatComplete respondeu
+­ƒñû [MEDIA AI] ­ƒôÑ Resposta bruta (2794ms): 
+­ƒñû [MEDIA AI] ÔÜá´©Å N├úo conseguiu extrair JSON
+­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒÜ¿ [FORCE MEDIA] ÔØî IA decidiu N├âO enviar m├¡dia
+­ƒÜ¿ [FORCE MEDIA] ­ƒÆí Raz├úo: Resposta n├úo ├® JSON v├ílido
+­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+­ƒÜ¿ [AI Agent] ÔØî IA de classifica├º├úo decidiu N├âO enviar m├¡dia
+­ƒÜ¿ [AI Agent] ­ƒÆí Raz├úo: Resposta n├úo ├® JSON v├ílido
+­ƒöä [AI Agent] Placeholders processados na resposta
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [AI AGENT] Usu├írio tem plano pago ativo e v├ílido: IMPLEMENTA├ç├âO DIFEREN├çA
+   ?? Texto combinado: "Qual etapa voc├¬ precisa de ajuda, RASTRO CITY? Cadastro, instala├º├úo, suporte t├®cnico ou outra?..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=f2cad81c-2f6c-456a-b731-e18c768af8f2
+­ƒìò [DeliveryAI] DEBUG config: null
+­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
+­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
+­ƒìò [DeliveryAI] Delivery n├úo ativo para user f2cad81c-2f6c-456a-b731-e18c768af8f2
+­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+??? [AVATAR] Foto de perfil obtida para 551221120286
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [AI AGENT] Nome do cliente: Suporte ao Cliente
+?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [NOTIFICATION DEBUG] userId: f2cad81c-2f6c-456a-b731-e18c768af8f2
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: true
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: moder diet, planos de sa├║de, planos de saude, bom dia, boa tarde, boa noite, ol├í. oie, oi, tudo bem, e ai, eai, como vai, como vai ?, como vai, opa, 
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: +5531992122000
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "Claro! Aqui est├í a mensagem completa, com a lista iniciada no item 1 e continuada at├® o item 12, pro"
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "Nosde, Isso foge do que eu sei! ­ƒÿà Aqui no Nosde eu posso te ajudar com planos de sa├║de, consultas e"
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":true,"notificationManualKeywords":true,"notificationMode":"ai","modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: "Nosde, Isso foge do que eu sei! ­ƒÿà Aqui no Nosde eu posso te ajudar com planos de sa├║de, consultas e..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [AI AGENT] Modo hist´┐¢rico ATIVO - 353 mensagens dispon´┐¢veis para contexto
+?? [AI AGENT] Hist´┐¢rico grande - ser´┐¢ usado sistema de resumo inteligente
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ôä╣´©Å [USER-FOLLOW-UP] Follow-up global desativado para usu├írio eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôü [AI Agent] Added media block to prompt (25873 chars) - POSITIONED AT END FOR MAXIMUM PRIORITY
+­ƒôØ [AI Agent] Using LEGACY prompt (43489 chars) - DETERMINISTIC MODE
+­ƒô£ [AI Agent] Instru├º├úo de hist├│rico adicionada (j├í respondeu: true)
+   6. [assistant] *├üudio*...
+   7. [assistant] *Documento*...
+   8. [user] ­ƒÖÅ...
+   9. [user] ­ƒÄÁ ├üudio... (PULADA - duplicata da nova mensagem)
+   10. [user] ­ƒÄÁ ├üudio... (NOVA MENSAGEM)
+­ƒÄ» [AI Agent] Pergunta: 8 chars ÔåÆ maxTokens: 1200 (SEM LIMITE - divis├úo em partes ├® depois)
+­ƒöº [AI-CONFIG] DETERMINISM: provider=openrouter, temperature=0.0, randomSeed=42, model=from-system-config (llm.ts usa openrouterModel)
+­ƒöä [AI RETRY] LLM API (openrouter) - Tentativa 1/3...
+[LLM] ­ƒÜÇ chatComplete via OpenRouter com modelo correto: openai/gpt-oss-20b (provider=openrouter)
+­ƒöä [LLM RETRY] OpenRouter chatComplete (openai/gpt-oss-20b) - Tentativa 1/3...
+­ƒôè [AI AGENT] Uso: 25/25 mensagens
+­ƒôï [AI Agent] Hist├│rico pequeno (9 msgs) - Enviando tudo na ├¡ntegra
+­ƒøí´©Å [AI Agent] Anti-amnesia prompt injetado (9 msgs, sauda├º├úo=false, hasReplies=true, jaDisseNegocio=false)
+­ƒôï [AI Agent] Enviando 9 mensagens de contexto (0 duplicatas removidas):
+   1. [user] bom dia esteja orando por mim e pra minha fam├¡lia...
+   2. [assistant] Ol├í! Espero voc├¬ que tenha gostado de assistir aos...
+   3. [user] Nivaldo eu pe├ºo ora├º├úo na ├írea profissional e na ├í...
+   4. [user] obrigado pelo retorno...
+   5. [assistant] Que Deus aben├ºoe sempre sua vida Nivaldo. Nossos p...
+   ?? Texto combinado: "Uso o xciptv..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒæñ [AI Agent] Nome do cliente: Suporte ao Cliente
+­ƒôü [AI Agent] M├¡dias j├í enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[AI Agent] Sending to original JID: 18002428478@s.whatsapp.net (1 parts)
+­ƒøí´©Å [ANTI-BLOCK v5.0] Mensagem enfileirada para f2cad81c...
+   ­ƒôè Fila: 1 | Prioridade: high
+   ­ƒôØ Texto: "Nosde, Isso foge do que eu sei! ­ƒÿà Aqui no Nosde e..."
+Ôä╣´©Å [USER-FOLLOW-UP] Follow-up global desativado para usu├írio eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem 181494842A2A7D0EC6 marcada como processada
+[BROADCAST] No WebSocket clients found for user eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [AI AGENT] Nome do cliente: ­ƒ¬À
+?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöì [AI Agent] Verificando configura├º├Áes para user 4bf0c68b-78ee-4d8c-bca3-6644e51015c4:
+   ­ƒôè Legacy (ai_agent_config): exists, isActive=true
+   ­ƒôè Business (business_agent_configs): exists, isActive=false
+­ƒô£ [AI Agent] MODO HIST├ôRICO ATIVO - 353 mensagens ser├úo analisadas com sistema inteligente
+   Ô£à [AI Agent] Agent ENABLED (legacy isActive=true), processing response...
+
+­ƒÜ½ [shouldUseFlowEngine] FlowEngine DESABILITADO
+   ÔåÆ Usando IA com Blindagem V3 para user 4bf0c68b-78ee-4d8c-bca3-6644e51015c4
+   ÔåÆ Sistema determin├¡stico de Delivery mantido para card├ípio
+
+­ƒìò [AI Agent] Tentando processar com sistema de delivery...
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒìò [DeliveryAI] Processando mensagem: "Qual etapa voc├¬ precisa de ajuda, RASTRO CITY? Cad..."
+­ƒøí´©Å [ANTI-BLOCK] ­ƒôñ Enviando mensagem para 18002428478@s.w...
+­ƒøí´©Å [ANTI-BAN] Ôî¿´©Å Simulando digita├º├úo por 4s...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
+­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
+­ƒìò [DeliveryAI] Delivery n├úo ativo para user 4bf0c68b-78ee-4d8c-bca3-6644e51015c4
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒìò [DeliveryAI] Delivery n├úo ativo para este usu├írio
+[LLM] Ô£à OpenRouter chatComplete respondeu
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=4bf0c68b-78ee-4d8c-bca3-6644e51015c4
+ÔÜá´©Å [AI Agent] TAG N├âO DETECTADA! Response: 
+­ƒìò [DeliveryAI] DEBUG config: null
+­ƒìò [AI Agent] Delivery n├úo ativo ou sem resposta - continuando fluxo normal
+
+­ƒÜ¿ [AI Agent] IA principal n├úo detectou m├¡dia - CONSULTANDO IA DE CLASSIFICA├ç├âO...
+
+­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒÜ¿ [FORCE MEDIA] Iniciando classifica├º├úo com IA...
+­ƒÜ¿ [FORCE MEDIA] Mensagem: "N├úo tenho essa informa├º├úo espec├¡fica. Posso te ajudar com agendamento ou com algum tratamento? Exper..."
+­ƒÜ¿ [FORCE MEDIA] M├¡dias dispon├¡veis: 10
+­ƒÜ¿ [FORCE MEDIA] M├¡dias j├í enviadas: MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR, COMO_FUNCIONA, AGENDAMENTO, DETALHES_DO_SISTEMA
+
+­ƒñû [MEDIA AI] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒñû [MEDIA AI] Iniciando classifica├º├úo de m├¡dia com LLM...
+[LLM] ­ƒÜÇ chatComplete via OpenRouter com modelo correto: openai/gpt-oss-20b (provider=openrouter)
+­ƒöä [LLM RETRY] OpenRouter chatComplete (openai/gpt-oss-20b) - Tentativa 1/3...
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem AEE5C43E89DDD6BA5E marcada como processada
+[BROADCAST] No WebSocket clients found for user eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöì [EXCLUSION] Verificando lista de exclus├úo para usu├írio eefedb8c-c554-4517-8480-f2d54e317d45 (config=default, isEnabled=default=true)
+­ƒô× [EXCLUSION] Normalizando n├║mero 551221120286 -> varia├º├Áes: [551221120286, 1221120286, 21120286]
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒæñ [AI Agent] Nome do cliente: ­ƒ¬À
+­ƒôü [AI Agent] M├¡dias j├í enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôØ [AI Agent] Using LEGACY system (deterministic) for user 4bf0c68b-78ee-4d8c-bca3-6644e51015c4
+
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒñû [AI Agent] Config para user 4bf0c68b-78ee-4d8c-bca3-6644e51015c4 respondendo cliente:
+   Model (legacy, ignorado): openai/gpt-oss-20b ÔåÆ real: system_config.openrouter_model
+   Active: true
+   Trigger phrases: 0
+   Prompt length: 9310 chars
+   Prompt (primeiros 150 chars): ­ƒñû **PROMPT OFICIAL ÔÇö BOT IA
+
+RASTRO CITY RASTREAMENTO VEICULAR**
+
+­ƒÅó IDENTIDADE DO BOT
+
+Voc├¬ ├® o assistente virtual oficial da Rastro City Rastreamen...
+   Prompt (MD5 para debug): ee3ff845
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+­ƒºá [AI Agent] Memory analysis: greeted=true, pendingActions=1, sentMedia=0
+­ƒøí´©Å [Blindagem V3] An├ílise do prompt: neg├│cio="PROMPT OFICIAL  BOT IA
+
+RASTRO CITY RASTREAMENTO VEICULAR", tipo="el├®trica"
+­ƒöö [AI Agent] Notification system ACTIVE - Trigger: "Me notifique quando o cliente solicitar o Pix..."
+­ƒöö [AI Agent] Added notification system to prompt
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒô× [EXCLUSION] Verificando 551221120286 (varia├º├Áes: 551221120286, 1221120286, 21120286) -> Ô£à Permitido
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöì [EXCLUSION] Verificando lista de exclus├úo para usu├írio eefedb8c-c554-4517-8480-f2d54e317d45 (config=default, isEnabled=default=true)
+­ƒô× [EXCLUSION] Normalizando n├║mero 551221120286 -> varia├º├Áes: [551221120286, 1221120286, 21120286]
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöì [AI Agent] Verificando configura├º├Áes para user f58d9e3c-ef53-4cbb-b6d6-a818683259f7:
+   ­ƒôè Legacy (ai_agent_config): exists, isActive=false
+   ­ƒôè Business (business_agent_configs): NOT FOUND
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔØî [AI Agent] RETURN NULL #3: agentConfig n├úo encontrado ou INATIVO
+   userId: f58d9e3c-ef53-4cbb-b6d6-a818683259f7
+   agentConfig exists: true
+   agentConfig.isActive: false
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[LLM] Ô£à OpenRouter chatComplete respondeu
+­ƒöö [AI Agent] Checking for NOTIFY tag in response...
+   Response snippet (last 100 chars): "seguir o Instagram do terapeuta Marcelo: https://www.instagram.com/marcelosantosterapeuta. At├® mais!"
+­ƒöö [AI Agent] ÔØî No NOTIFY tag found in response
+Ô£à [AI Agent] Resposta gerada: Para agendar sua consulta, preciso saber seu nome e os dias e hor├írios que voc├¬ tem disponibilidade....
+ÔÜá´©Å [AI Agent] TAG N├âO DETECTADA! Response: Para agendar sua consulta, preciso saber seu nome e os dias e hor├írios que voc├¬ tem disponibilidade. Se quiser, posso ajudar a marcar. Se preferir encerrar, tudo bem. Se quiser acompanhar conte├║dos sobre sa├║de emocional, pode seguir o Instagram do terapeuta Marcelo: https://www.instagram.com/marcelo
+­ƒöä [AI Agent] Placeholders processados na resposta
+­ƒô× [EXCLUSION] Verificando 551221120286 (varia├º├Áes: 551221120286, 1221120286, 21120286) -> Ô£à Permitido
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒòÉ [AI AGENT] Novo timer de 30s para 551221120286...
+­ƒôØ [AI AGENT] Primeira mensagem: "Como n├úo entendi sua resposta, estarei te direcionando para uma de nossas equipes."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   1. Usu├írio SUSPENSO
+   2. Mensagem de BOT detectada
+­ƒöö [NOTIFICATION DEBUG] userId: f58d9e3c-ef53-4cbb-b6d6-a818683259f7
+   3. agentConfig n├úo encontrado ou isActive=false
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: false
+   4. Trigger phrases configuradas mas nenhuma encontrada
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "Uso o xciptv"
+   5. Erro na API de LLM (timeout, rate limit)
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "null"
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":false,"notificationManualKeywords":false,"modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+============================================================
+?? [AI Agent] generateAIResponse retornou: NULL
+
+
+ÔÜá´©Å [AI AGENT] Timer N├âO marcado como completed - resposta N├âO foi enviada (responseSuccessful=false)
+============================================================
+ÔÜá´©Å [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!
+   conversationId: 48173389-4eb6-4e62-a3e4-2248d2621b54
+   contactNumber: 553891944375
+   Poss├¡veis causas (verifique logs acima para "RETURN NULL"):
+­ƒöô [AI AGENT] Conversa 48173389-4eb6-4e62-a3e4-2248d2621b54 liberada para pr├│ximo processamento
+ÔÜá´©Å [AI AGENT] Conversa 48173389-4eb6-4e62-a3e4-2248d2621b54 ficar├í pendente para retry no pr├│ximo ciclo
+­ƒøí´©Å [ANTI-BLOCK] ­ƒôñ Enviando mensagem para 559491805978@s....
+­ƒøí´©Å [ANTI-BAN] Ôî¿´©Å Simulando digita├º├úo por 3s...
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒìò [DeliveryAI] DEBUG config: null
+­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
+­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
+­ƒìò [DeliveryAI] Delivery n├úo ativo para user eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÆ¥ [PERSISTENT TIMER] Salvo para 551221120286 - executa ├ás 2026-01-26T00:33:30.420Z
+­ƒÆ¥ [AI AGENT] Timer persistido no banco - executa ├ás 2026-01-26T00:33:30.420Z
+­ƒöö [NOTIFICATION DEBUG] userId: eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: true
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: null
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: 5522999542146
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "Vou encerrar nossa conversa por aqui. Sempre que precisar, ├® s├│ me enviar uma mensagem. ­ƒÿë"
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "Para agendar sua consulta, preciso saber seu nome e os dias e hor├írios que voc├¬ tem disponibilidade."
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":true,"notificationManualKeywords":false,"notificationMode":"ai","modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: "Para agendar sua consulta, preciso saber seu nome e os dias e hor├írios que voc├¬ tem disponibilidade...."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [AI Agent] Anti-amnesia prompt injetado (353 msgs, sauda├º├úo=false, hasReplies=true, jaDisseNegocio=false)
+­ƒôï [AI Agent] Enviando 30 mensagens de contexto (0 duplicatas removidas):
+   1. [DONO] ­ƒÜÿ­ƒø░´©Å *RASTRO CITY* ÔÇô Rastreamento Veicular
+­ƒô¿ [AI AGENT] Mensagem acumulada (2 mensagens) para 551221120286
+­ƒôØ [AI AGENT] Mensagens acumuladas: "Como n├úo entendi sua resposta,..." | "Desculpe, mas no momento n├úo e..."
+­ƒöä [AI AGENT] Timer reiniciado: 30s para 551221120286
+­ƒÆ¥ [AI AGENT] Timer atualizado no banco - 2 msgs - executa ├ás 2026-01-26T00:33:30.748Z
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[AI Agent] Sending to original JID: 551140046648@s.whatsapp.net (1 parts)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] Mensagem enfileirada para eefedb8c...
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation 2fdc1e92-64d5-4985-98d6-6aa6d0a29cfe - 2 msgs
+   ­ƒôè Fila: 1 | Prioridade: high
+   ­ƒôØ Texto: "Para agendar sua consulta, preciso saber seu nome ..."
+­ƒôØ [AI Agent] Using LEGACY prompt (23768 chars) - DETERMINISTIC MODE
+­ƒô£ [AI Agent] Instru├º├úo de hist├│rico adicionada (j├í respondeu: true)
+­ƒôÜ [AI Agent] Hist├│rico grande (353 msgs) - Resumindo 323 antigas + 30 recentes na ├¡ntegra
+­ƒôÜ [AI Agent] Inten├º├Áes detectadas: preco, agendamento, duvida, problema, compra, informacao
+Conhe├º... (IGNORADA - msg manual do dono)
+   2. [DONO] ­ƒöº*INSTALA├ç├âO GR├üTIS*
+Voc├¬ paga apenas o valor do ... (IGNORADA - msg manual do dono)
+   3. [DONO] ­ƒöÉ*Bloqueio do Ve├¡culo*
+O bloqueio tamb├®m estar├í d... (IGNORADA - msg manual do dono)
+   4. [DONO] ­ƒÜÿ­ƒø░´©Å*Venha conferir nossas ofertas*
+Ô£ö´©Å Rastreamen... (IGNORADA - msg manual do dono)
+   5. [DONO] ­ƒô▓ *Funcionalidades do Aplicativo*
+­ƒôó Receba alert... (IGNORADA - msg manual do dono)
+   6. [DONO] ­ƒôî*Sobre Fidelidade e Cancelamento*
+Nossos planos ... (IGNORADA - msg manual do dono)
+   7. [DONO] ­ƒÆ│ *Pagamento na Instala├º├úo*
+No ato da instala├º├úo,... (IGNORADA - msg manual do dono)
+   8. [DONO] ÔØô*PERGUNTAS FREQUENTES* ÔÇô *RASTRO CITY*
+­ƒö╣ *Precis... (IGNORADA - msg manual do dono)
+   9. [DONO] Alguma d├║vida?... (IGNORADA - msg manual do dono)
+   10. [user] Deixa eu te perguntar, o foco ├® levar o cliente pa...
+   11. [DONO] Tem que mandar essas informa├º├Áes... (IGNORADA - msg manual do dono)
+   12. [DONO] o foco dela ├® apenas ├® informar sobre os nossos se... (IGNORADA - msg manual do dono)
+   13. [DONO] Toda vez eu tenho que entrar na conversa pra n├úo p... (IGNORADA - msg manual do dono)
+   14. [user] T├í, ent├úo vamos no foco. Ela tem que vender isso d...
+   15. [DONO] A gente que agenda, ela n├úo vende nada... (IGNORADA - msg manual do dono)
+   16. [DONO] Se o cliente quiser agendar ├® pra ela passar para ... (IGNORADA - msg manual do dono)
+   17. [user] Maravilha, ent├úo. Ent├úo, vamos calibrar isso aqui ...
+   18. [DONO] Blz... (IGNORADA - msg manual do dono)
+   19. [user] Boa noite me envie...
+   22. [user] atuaklziacao que tinha subid...
+   23. [user] Ô£à Atualiza├º├úo finalizada!
+   20. [user] noticias...
+O AgenteZap j├í est├í no a...
+   24. [DONO] Boa tarde... (IGNORADA - msg manual do dono)
+   21. [user] ok...
+   25. [DONO] Meu agente n├úo est├í legal... (IGNORADA - msg manual do dono)
+   26. [user] Oi, RASTRO CITY! ­ƒÿò Pode me explicar melhor o que ...
+   27. [assistant] O AgenteZap ├® o nosso assistente virtual que faz o...
+   28. [user] Claro, RASTRO CITY! Me diga qual passo voc├¬ quer a...
+   29. [assistant] Qual etapa voc├¬ precisa de ajuda? Cadastro, instal...
+   30. [user] Qual etapa voc├¬ precisa de ajuda, RASTRO CITY? Cad... (PULADA - duplicata da nova mensagem)
+   31. [user] Qual etapa voc├¬ precisa de ajuda, RASTRO CITY? Cad... (NOVA MENSAGEM)
+­ƒÄ» [AI Agent] Pergunta: 94 chars ÔåÆ maxTokens: 2000 (SEM LIMITE - divis├úo em partes ├® depois)
+
+   ­ƒô× Contato: 5521975762557
+­ƒöä [AI RETRY] LLM API (openrouter) - Tentativa 1/3...
+­ƒöº [AI-CONFIG] DETERMINISM: provider=openrouter, temperature=0.0, randomSeed=42, model=from-system-config (llm.ts usa openrouterModel)
+[LLM] ­ƒÜÇ chatComplete via OpenRouter com modelo correto: openai/gpt-oss-20b (provider=openrouter)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒöä [LLM RETRY] OpenRouter chatComplete (openai/gpt-oss-20b) - Tentativa 1/3...
+­ƒöä [RESTORE TIMERS] Processando timer restaurado para 5521975762557
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 264.2s | 1 mensagem(s) acumulada(s)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+   userId: d87308a1-2184-426b-95fa-d7e56bce02ae
+   contactNumber: 5521975762557
+   Mensagens usadas: 4608/25
+   ­ƒæë IA PAUSADA para este cliente - precisa renovar assinatura
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+ÔÜá´©Å [AI AGENT] Timer N├âO marcado como completed - resposta N├âO foi enviada (responseSuccessful=false)
+ÔÜá´©Å [AI AGENT] Conversa 0d477307-676e-4ee7-94fe-8fd214ab19b1 ficar├í pendente para retry no pr├│ximo ciclo
+­ƒöô [AI AGENT] Conversa 0d477307-676e-4ee7-94fe-8fd214ab19b1 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ½ [AI AGENT] PLANO VENCIDO! data_fim: 2026-01-21T17:07:22.936Z < agora: 2026-01-26T00:33:01.947Z
+Closing session: SessionEntry {
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+  _chains: {
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+    BUBoM4NWUahbtEXIrJp5Ghc9gikx48i0tlV2OuW1GRV2: { chainKey: [Object], chainType: 1, messageKeys: {} }
+­ƒÜ½ [AI AGENT] Plano vencido! Cliente volta ao limite de 25 mensagens de teste.
+   ­ƒôè Mensagens usadas: 4608/25
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido
+    baseKey: <Buffer 05 24 d4 f0 9b 93 1a 2a 8b 94 b8 e4 fe bd 63 b3 09 ed 6e fa 53 2c d3 b6 6c 32 94 f6 3b 4e 2d 58 26>,
+  },
+  registrationId: 1668812108,
+  currentRatchet: {
+    ephemeralKeyPair: {
+      pubKey: <Buffer 05 40 68 33 83 56 51 a8 5b b4 45 c8 ac 9a 79 1a 17 3d 82 29 31 e3 c8 b4 b6 55 76 3a e5 b5 19 15 76>,
+      privKey: <Buffer 30 13 5b 73 ec d5 a6 c3 59 6a 53 f7 6f 6d 9f 54 18 78 9d 0c fc b6 58 36 77 cf 61 71 f4 23 da 56>
+    },
+    lastRemoteEphemeralKey: <Buffer 05 4f 98 3b 81 b1 51 cb 33 10 68 f6 ec 6a 6f 49 d1 0c 9c 24 a9 90 7f 45 86 58 86 4e a5 61 ef d7 2e>,
+    previousCounter: 0,
+    rootKey: <Buffer 81 da 28 7c ca 2f 6b 90 b2 29 61 6c 4b e3 56 4c ba 14 62 9d d2 92 8c 16 6e fd ed 95 01 69 2b 2c>
+  },
+  indexInfo: {
+    baseKey: <Buffer 05 24 d4 f0 9b 93 1a 2a 8b 94 b8 e4 fe bd 63 b3 09 ed 6e fa 53 2c d3 b6 6c 32 94 f6 3b 4e 2d 58 26>,
+    baseKeyType: 1,
+    closed: -1,
+    used: 1769355853261,
+    created: 1769355853261,
+    remoteIdentityKey: <Buffer 05 ab 56 80 18 1f ca d7 72 ec 77 eb 03 af e8 fb 37 2a 48 a4 c6 4e 55 f6 62 b7 d8 55 8e 69 2f 9c 1b>
+  },
+  pendingPreKey: {
+    signedKeyId: 12627841,
+­ƒøí´©Å [ANTI-BAN v5.0] Ô£à Msg enviada - Lote: 3/10
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando 8.0s antes de enviar...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem 3EB02B91B93BC033FE2A91 para user cb9213c3... (cache size: 5)
+?? [SYNC] Ignorando mensagem de sincroniza´┐¢´┐¢o (type: append)
+    preKeyId: 162599
+  }
+}
+?? [MSG CACHE] Armazenada mensagem 3EB02B91B93BC033FE2A91 para user cb9213c3... (cache size: 5)
+­ƒøí´©Å [ANTI-BLOCK] Ô£à Mensagem enviada - ID: 3EB02B91B93BC033FE2A91
+12:33:02 AM [express] GET /api/usage 304 in 624ms :: {"agentMessagesCount":609,"limit":-1,"remaining"ÔÇª
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+Decrypted message with closed session.
+?? [MSG CACHE] Armazenada mensagem 3EB02B91B93BC033FE2A91 para user admin_81... (cache size: 5)
+­ƒôñ [ADMIN] Mensagem enviada pelo admin detectada
+­ƒôñ [ADMIN FROM ME] Salvando mensagem do admin: Segue um fluxo pronto que voc├¬ pode copiar e colar...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem 3EB02B91B93BC033FE2A91 para user b1c40e76... (cache size: 1)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[LLM] Ô£à OpenRouter chatComplete respondeu
+­ƒñû [MEDIA AI] ­ƒôÑ Resposta bruta (2730ms): {"decision":"NO_MEDIA","mediaName":null,"confidence
+­ƒñû [MEDIA AI] ÔÜá´©Å N├úo conseguiu extrair JSON
+­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒÜ¿ [FORCE MEDIA] ÔØî IA decidiu N├âO enviar m├¡dia
+­ƒÜ¿ [FORCE MEDIA] ­ƒÆí Raz├úo: Resposta n├úo ├® JSON v├ílido
+­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+­ƒÜ¿ [AI Agent] ÔØî IA de classifica├º├úo decidiu N├âO enviar m├¡dia
+­ƒÜ¿ [AI Agent] ­ƒÆí Raz├úo: Resposta n├úo ├® JSON v├ílido
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[CONNECTION UPDATE] User de1112e5-8277-4438-94d7-5aacab30a951 - connection: close, hasQR: false, hasLastDisconnect: true
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[BROADCAST] Sent message to 2/2 clients for user cb9213c3-fde3-479e-a4aa-344171c59735, type: agent_response
+[AI Agent] Part 1/1 SENT to WhatsApp 5519988126585
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem salva: 3EB02B91B93BC033FE2A91 | Contato: 5517981679818
+­ƒöö [NOTIFICATION DEBUG] userId: cb9213c3-fde3-479e-a4aa-344171c59735
+­ƒöö [NOTIFICATION DEBUG] Client includes "pix": false
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: true
+­ƒöö [NOTIFICATION DEBUG] Agent includes "pix": false
+?? [AI Agent] generateAIResponse retornou: NULL
+­ƒöö [NOTIFICATION DEBUG] notificationMode: both
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: pix
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: 5517991610665
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "N├úo tenho essa informa├º├úo espec├¡fica. Posso te ajudar com agendamento ou com algum tratamento? Exper"
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "null"
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":true,"notificationManualKeywords":true,"notificationMode":"both","modeMatches":true}
+­ƒöö [NOTIFICATION DEBUG] Ô£à Entering keyword check block!
+­ƒöö [NOTIFICATION DEBUG] Keywords to check: ["pix"]
+­ƒöö [NOTIFICATION DEBUG] clientMessage: "n├úo tenho essa informa├º├úo espec├¡fica. posso te ajudar com agendamento ou com algum tratamento? exper"
+­ƒöö [NOTIFICATION DEBUG] agentMessage: ""
+­ƒöö [NOTIFICATION DEBUG] Checking keyword: "pix"
+ÔÜá´©Å [AI AGENT] Conversa a16cfc3b-6c3b-4201-a25f-8def087a6f93 ficar├í pendente para retry no pr├│ximo ciclo
+
+   2. Mensagem de BOT detectada
+============================================================
+   3. agentConfig n├úo encontrado ou isActive=false
+ÔÜá´©Å [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!
+   4. Trigger phrases configuradas mas nenhuma encontrada
+   conversationId: a16cfc3b-6c3b-4201-a25f-8def087a6f93
+   5. Erro na API de LLM (timeout, rate limit)
+   contactNumber: 557192635636
+============================================================
+
+   Poss├¡veis causas (verifique logs acima para "RETURN NULL"):
+   1. Usu├írio SUSPENSO
+ÔÜá´©Å [AI AGENT] Timer N├âO marcado como completed - resposta N├âO foi enviada (responseSuccessful=false)
+­ƒöô [AI AGENT] Conversa a16cfc3b-6c3b-4201-a25f-8def087a6f93 liberada para pr├│ximo processamento
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+      contactNumber: 5517981679818
+[WhatsApp] Normalized JID: 5517981679818@s.whatsapp.net
+      jidSuffix: s.whatsapp.net
+[WhatsApp] Clean number: 5517981679818
+      normalizedJid: 5517981679818@s.whatsapp.net
+   ========== DEBUG END ==========
+
+
+[WhatsApp] Original JID: 5517981679818@s.whatsapp.net
+?? [MESSAGE KEY DEBUG]
+   remoteJid: 5517981679818@s.whatsapp.net
+   remoteJidAlt: 150878426235051@lid
+   pushName: Suporte ao Cliente
+   participantPn: N/A
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöç [TTS-RESPONSE] ├üudio desabilitado para usu├írio cb9213c3...
+?? [parseRemoteJid] ========== DEBUG START ==========
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   Input remoteJid: 5517981679818@s.whatsapp.net
+   Decoded user: 5517981679818
+   Decoded server: s.whatsapp.net
+   Is @lid?: false
+   Cache size: 33
+   ConnectionId provided: b4b3948a-dc04-46b8-88db-cb61ff35bc48
+   ?? [parseRemoteJid] Resultado final:
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [FOLLOW-UP] Agendado inicial para conversa 3cb6fb36-43a5-4082-8923-941e14a67392 em 10 min
+Ô£à [AI AGENT] Resposta enviada com sucesso para 5519988126585
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ¿ [RECOVERY] ­ƒôí Desconex├úo registrada - 0 mensagens pendentes
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+??? [AVATAR] Foto de perfil obtida para 5517981679818
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [ADMIN FROM ME] Mensagem salva na conversa cdea5b9f-7fbb-46aa-91f1-e92acc366ff0
+Ô£à [AI AGENT] Timer marcado como completed - resposta enviada com sucesso!
+­ƒöô [AI AGENT] Conversa 3cb6fb36-43a5-4082-8923-941e14a67392 liberada para pr├│ximo processamento
+User de1112e5-8277-4438-94d7-5aacab30a951 WhatsApp disconnected temporarily, reconnecting in 5 seconds... (attempt 1/5)
+[BROADCAST] No WebSocket clients found for user de1112e5-8277-4438-94d7-5aacab30a951
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
