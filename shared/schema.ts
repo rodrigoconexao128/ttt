@@ -146,6 +146,34 @@ export const whatsappConnections = pgTable("whatsapp_connections", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// =============================================================================
+// CONTACT LISTS - Sistema de Listas de Contatos para Envio em Massa
+// Persistido no banco para não perder dados em restart
+// =============================================================================
+export const contactLists = pgTable("contact_lists", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  // Array de contatos em JSONB para flexibilidade
+  contacts: jsonb("contacts").$type<Array<{
+    id: string;
+    name: string;
+    phone: string;
+  }>>().default([]),
+  // Contagem de contatos (denormalizado para performance)
+  contactCount: integer("contact_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_contact_lists_user").on(table.userId),
+  index("idx_contact_lists_created").on(table.createdAt),
+]);
+
+export const insertContactListSchema = createInsertSchema(contactLists);
+export type ContactList = typeof contactLists.$inferSelect;
+export type InsertContactList = z.infer<typeof insertContactListSchema>;
+
 // WhatsApp Contacts Cache table (FIX LID 2025 - Persistent storage)
 // Armazena mapeamento de @lid → phoneNumber para contatos do Instagram/Facebook
 export const whatsappContacts = pgTable("whatsapp_contacts", {

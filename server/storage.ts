@@ -14,6 +14,7 @@ import {
   paymentHistory,
   systemConfig,
   whatsappContacts,
+  contactLists,
   adminConversations,
   adminMessages,
   adminAgentMedia,
@@ -343,6 +344,7 @@ export interface IStorage {
   updateContactList?(userId: string, id: string, data: any): Promise<any>;
   deleteContactList?(userId: string, id: string): Promise<void>;
   addContactsToList?(userId: string, listId: string, contacts: any[]): Promise<any>;
+  removeContactFromList?(userId: string, listId: string, phone: string): Promise<any>;
   getSyncedContacts?(userId: string): Promise<any[]>;
   saveSyncedContacts?(userId: string, contacts: any[]): Promise<void>;
   getUserActiveConnection?(userId: string): Promise<any | undefined>;
@@ -1072,7 +1074,8 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     // 🔥 OTIMIZAÇÃO: Query 100% SQL para minimizar Egress
     // Usa cálculo de tempo direto no PostgreSQL ao invés de filtrar em JS
     // Retorna APENAS registros que precisam ser reativados AGORA
-    // 🆕 FIX: Usar COALESCE para definir 5 minutos como padrão quando auto_reactivate_after_minutes é NULL
+    // 🐛 FIX CRÍTICO: NÃO usar COALESCE! Quando auto_reactivate_after_minutes é NULL,
+    // significa "NUNCA reativar automaticamente" - essas conversas NÃO devem ser incluídas!
     try {
       const { pool } = await import("./db");
       const result = await pool.query(`
@@ -1083,7 +1086,8 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
         WHERE 
           client_has_pending_message = true
           AND owner_last_reply_at IS NOT NULL
-          AND owner_last_reply_at + (COALESCE(auto_reactivate_after_minutes, 5) || ' minutes')::interval <= NOW()
+          AND auto_reactivate_after_minutes IS NOT NULL
+          AND owner_last_reply_at + (auto_reactivate_after_minutes || ' minutes')::interval <= NOW()
         LIMIT 10
       `);
       
@@ -1099,8 +1103,9 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
 
   /**
    * 🔥 OTIMIZAÇÃO: Verifica rapidamente se há conversas para reativar
-   * Usa COUNT(*) que é muito mais leve que SELECT * para verificação
-   * 🆕 FIX: Usar COALESCE para definir 5 minutos como padrão quando auto_reactivate_after_minutes é NULL
+   * Usa EXISTS que é muito mais leve que SELECT * para verificação
+   * 🐛 FIX CRÍTICO: NÃO usar COALESCE! Quando auto_reactivate_after_minutes é NULL,
+   * significa "NUNCA reativar automaticamente" - essas conversas NÃO devem ser consideradas!
    */
   async hasConversationsToAutoReactivate(): Promise<boolean> {
     try {
@@ -1111,7 +1116,8 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
           WHERE 
             client_has_pending_message = true
             AND owner_last_reply_at IS NOT NULL
-            AND owner_last_reply_at + (COALESCE(auto_reactivate_after_minutes, 5) || ' minutes')::interval <= NOW()
+            AND auto_reactivate_after_minutes IS NOT NULL
+            AND owner_last_reply_at + (auto_reactivate_after_minutes || ' minutes')::interval <= NOW()
           LIMIT 1
         ) as has_pending
       `);
@@ -1124,7 +1130,8 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
 
   /**
    * 🔥 OTIMIZAÇÃO: Conta conversas com timers ativos (para ajuste dinâmico de intervalo)
-   * 🆕 FIX: Contar TODAS as conversas pausadas com mensagem pendente (não apenas as com timer explícito)
+   * 🐛 FIX: Contar APENAS conversas que têm auto_reactivate_after_minutes configurado
+   * Conversas com NULL não devem ser contadas pois nunca serão reativadas automaticamente
    */
   async countActiveAutoReactivateTimers(): Promise<number> {
     try {
@@ -1133,6 +1140,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
         SELECT COUNT(*) as count 
         FROM agent_disabled_conversations
         WHERE client_has_pending_message = true
+        AND auto_reactivate_after_minutes IS NOT NULL
       `);
       return parseInt(result.rows[0]?.count || '0', 10);
     } catch (error) {
@@ -1913,60 +1921,175 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     campaignsStore.set(userId, filtered);
   }
 
-  // ==================== CONTACT LIST OPERATIONS (In-Memory) ====================
+  // ==================== CONTACT LIST OPERATIONS (Supabase/PostgreSQL) ====================
 
   async getContactLists(userId: string): Promise<any[]> {
-    return contactListsStore.get(userId) || [];
+    try {
+      const result = await db
+        .select()
+        .from(contactLists)
+        .where(eq(contactLists.userId, userId))
+        .orderBy(desc(contactLists.createdAt));
+      return result;
+    } catch (error) {
+      console.error("[CONTACT_LISTS] Error fetching lists:", error);
+      return [];
+    }
   }
 
   async getContactList(userId: string, id: string): Promise<any | undefined> {
-    const lists = contactListsStore.get(userId) || [];
-    return lists.find(l => l.id === id);
+    try {
+      const [result] = await db
+        .select()
+        .from(contactLists)
+        .where(and(
+          eq(contactLists.userId, userId),
+          eq(contactLists.id, id)
+        ))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error("[CONTACT_LISTS] Error fetching list:", error);
+      return undefined;
+    }
   }
 
   async createContactList(list: any): Promise<any> {
-    const userId = list.userId;
-    const lists = contactListsStore.get(userId) || [];
-    const newList = {
-      ...list,
-      id: `list_${Date.now()}`,
-      contacts: list.contacts || [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    lists.push(newList);
-    contactListsStore.set(userId, lists);
-    return newList;
+    try {
+      const contactsArray = list.contacts || [];
+      const [result] = await db
+        .insert(contactLists)
+        .values({
+          userId: list.userId,
+          name: list.name,
+          description: list.description || null,
+          contacts: contactsArray,
+          contactCount: contactsArray.length,
+        })
+        .returning();
+      return result;
+    } catch (error) {
+      console.error("[CONTACT_LISTS] Error creating list:", error);
+      throw error;
+    }
   }
 
   async updateContactList(userId: string, id: string, data: any): Promise<any> {
-    const lists = contactListsStore.get(userId) || [];
-    const index = lists.findIndex(l => l.id === id);
-    if (index !== -1) {
-      lists[index] = { ...lists[index], ...data, updatedAt: new Date() };
-      contactListsStore.set(userId, lists);
-      return lists[index];
+    try {
+      const updateData: any = {
+        updatedAt: new Date(),
+      };
+      if (data.name !== undefined) updateData.name = data.name;
+      if (data.description !== undefined) updateData.description = data.description;
+      if (data.contacts !== undefined) {
+        updateData.contacts = data.contacts;
+        updateData.contactCount = data.contacts.length;
+      }
+
+      const [result] = await db
+        .update(contactLists)
+        .set(updateData)
+        .where(and(
+          eq(contactLists.userId, userId),
+          eq(contactLists.id, id)
+        ))
+        .returning();
+      return result;
+    } catch (error) {
+      console.error("[CONTACT_LISTS] Error updating list:", error);
+      return null;
     }
-    return null;
   }
 
   async deleteContactList(userId: string, id: string): Promise<void> {
-    const lists = contactListsStore.get(userId) || [];
-    const filtered = lists.filter(l => l.id !== id);
-    contactListsStore.set(userId, filtered);
+    try {
+      await db
+        .delete(contactLists)
+        .where(and(
+          eq(contactLists.userId, userId),
+          eq(contactLists.id, id)
+        ));
+    } catch (error) {
+      console.error("[CONTACT_LISTS] Error deleting list:", error);
+    }
   }
 
   async addContactsToList(userId: string, listId: string, contacts: any[]): Promise<any> {
-    const lists = contactListsStore.get(userId) || [];
-    const index = lists.findIndex(l => l.id === listId);
-    if (index !== -1) {
-      const existingContacts = lists[index].contacts || [];
-      lists[index].contacts = [...existingContacts, ...contacts];
-      lists[index].updatedAt = new Date();
-      contactListsStore.set(userId, lists);
-      return { success: true, totalContacts: lists[index].contacts.length };
+    try {
+      // Buscar lista atual
+      const [list] = await db
+        .select()
+        .from(contactLists)
+        .where(and(
+          eq(contactLists.userId, userId),
+          eq(contactLists.id, listId)
+        ))
+        .limit(1);
+
+      if (!list) {
+        return { success: false, message: "Lista não encontrada" };
+      }
+
+      const existingContacts = (list.contacts as any[]) || [];
+      // Evitar duplicatas por telefone
+      const existingPhones = new Set(existingContacts.map(c => c.phone));
+      const newContacts = contacts.filter(c => !existingPhones.has(c.phone));
+      const mergedContacts = [...existingContacts, ...newContacts];
+
+      const [result] = await db
+        .update(contactLists)
+        .set({
+          contacts: mergedContacts,
+          contactCount: mergedContacts.length,
+          updatedAt: new Date(),
+        })
+        .where(eq(contactLists.id, listId))
+        .returning();
+
+      return {
+        success: true,
+        totalContacts: mergedContacts.length,
+        addedCount: newContacts.length
+      };
+    } catch (error) {
+      console.error("[CONTACT_LISTS] Error adding contacts:", error);
+      return { success: false };
     }
-    return { success: false };
+  }
+
+  async removeContactFromList(userId: string, listId: string, phone: string): Promise<any> {
+    try {
+      const [list] = await db
+        .select()
+        .from(contactLists)
+        .where(and(
+          eq(contactLists.userId, userId),
+          eq(contactLists.id, listId)
+        ))
+        .limit(1);
+
+      if (!list) {
+        return { success: false, message: "Lista não encontrada" };
+      }
+
+      const existingContacts = (list.contacts as any[]) || [];
+      const filteredContacts = existingContacts.filter(c => c.phone !== phone);
+
+      const [result] = await db
+        .update(contactLists)
+        .set({
+          contacts: filteredContacts,
+          contactCount: filteredContacts.length,
+          updatedAt: new Date(),
+        })
+        .where(eq(contactLists.id, listId))
+        .returning();
+
+      return { success: true, totalContacts: filteredContacts.length };
+    } catch (error) {
+      console.error("[CONTACT_LISTS] Error removing contact:", error);
+      return { success: false };
+    }
   }
 
   async getSyncedContacts(userId: string): Promise<any[]> {

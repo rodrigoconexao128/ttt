@@ -1,4 +1,4 @@
-import type { Express, Request, Response, NextFunction } from "express";
+﻿import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
@@ -5780,6 +5780,175 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
     } catch (error) {
       console.error("Error generating prompt:", error);
       res.status(500).json({ message: "Failed to generate prompt" });
+    }
+  });
+
+  // ============ EDITOR DE PROMPTS COM AUTO-CALIBRAÇÃO (SSE - STREAMING) ============
+  // 🎯 Sistema de IA Cliente vs IA Agente com logs em tempo real
+  app.post("/api/agent/edit-prompt-stream", isAuthenticated, async (req: any, res) => {
+    // Configurar SSE (Server-Sent Events)
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const sendEvent = (data: any) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      const userId = getUserId(req);
+      const { currentPrompt, instruction, skipCalibration = false } = req.body;
+
+      if (!currentPrompt || !instruction) {
+        sendEvent({ type: 'error', message: 'currentPrompt e instruction são obrigatórios' });
+        res.end();
+        return;
+      }
+
+      // Linha removida
+
+      // Buscar chave API
+      const mistralConfig = await storage.getSystemConfig('mistral_api_key');
+      const mistralApiKey = mistralConfig?.valor || process.env.MISTRAL_API_KEY || '';
+
+      if (!mistralApiKey) {
+        sendEvent({ type: 'error', message: 'Chave API não configurada' });
+        res.end();
+        return;
+      }
+
+      // Verificar limite para usuários free
+      const subscription = await storage.getUserSubscription(userId);
+      const hasActiveSubscription = subscription?.status === 'active';
+      
+      if (!hasActiveSubscription) {
+        const dailyUsage = await storage.getDailyUsage(userId);
+        if (dailyUsage.promptEditsCount >= FREE_DAILY_CALIBRATION_LIMIT) {
+          sendEvent({ 
+            type: 'limit_reached', 
+            message: `Limite de ${FREE_DAILY_CALIBRATION_LIMIT} calibrações atingido`,
+            used: dailyUsage.promptEditsCount,
+            limit: FREE_DAILY_CALIBRATION_LIMIT 
+          });
+          res.end();
+          return;
+        }
+      }
+
+      sendEvent({ type: 'log', message: '🚀 Iniciando processamento...' });
+      sendEvent({ type: 'log', message: '📝 Analisando sua instrução...' });
+      sendEvent({ type: 'log', message: '🔍 Lendo prompt atual...' });
+
+      // Editar prompt via IA
+      const { editarPromptViaIA } = await import("./promptEditService");
+      const { salvarVersaoPrompt, salvarMensagemChat } = await import("./promptHistoryService");
+      const { calibrarPromptEditado } = await import("./promptCalibrationService");
+
+      sendEvent({ type: 'log', message: '🤖 Enviando para IA...' });
+      sendEvent({ type: 'log', message: '⏳ Aguardando resposta do modelo...' });
+      const result = await editarPromptViaIA(currentPrompt, instruction, mistralApiKey, "mistral");
+
+      if (!result.success || result.novoPrompt === currentPrompt) {
+        sendEvent({ type: 'log', message: '💬 ' + (result.mensagemChat || 'Não foi possível aplicar essa mudança') });
+        sendEvent({ type: 'complete', success: false, feedbackMessage: result.mensagemChat });
+        res.end();
+        return;
+      }
+
+      sendEvent({ type: 'log', message: '✅ IA respondeu!' });
+      const numEdicoes = result.edicoes?.length || 0;
+      if (numEdicoes > 0) {
+        sendEvent({ type: 'log', message: `📝 ${numEdicoes} edição(ões) identificadas` });
+        sendEvent({ type: 'log', message: '✅ Edições aplicadas no prompt!' });
+      }
+      sendEvent({ type: 'log', message: '🔄 Iniciando validação automática...' });
+      sendEvent({ type: 'log', message: '🎯 Preparando cenários de teste...' });
+
+      // Calibração com streaming de logs
+      let calibrationResult: any = null;
+      let promptFinal = result.novoPrompt;
+
+      if (!skipCalibration) {
+        const progressCallback = (log: any) => {
+          // IMPORTANTE: Sempre usar type='calibration_log' para o frontend processar
+          // O log.type original é preservado em 'logType' para contexto
+          sendEvent({ 
+            type: 'calibration_log', 
+            logType: log.type,  // tipo original do log (scenario_running, etc)
+            message: log.message,
+            data: log.data,
+            timestamp: log.timestamp
+          });
+        };
+
+        try {
+          calibrationResult = await calibrarPromptEditado(
+            result.novoPrompt,
+            instruction,
+            mistralApiKey,
+            "mistral",
+            {
+              numeroCenarios: 2,
+              maxTentativasReparo: 10, // Aumentado - loop até score >= 60
+              scoreMinimoAprovacao: 60
+            },
+            progressCallback
+          );
+
+          if (calibrationResult.sucesso) {
+            promptFinal = calibrationResult.promptFinal;
+          }
+        } catch (calibError: any) {
+          sendEvent({ type: 'calibration_log', message: `⚠️ Erro na calibração: ${calibError.message}` });
+        }
+      }
+
+      // Salvar alterações
+      await storage.updateAgentConfig(userId, { prompt: promptFinal });
+      
+      if (!hasActiveSubscription) {
+        await storage.incrementPromptEdits(userId);
+      }
+
+      // Salvar histórico
+      await salvarMensagemChat({
+        userId,
+        configType: 'ai_agent_config',
+        role: 'user',
+        content: instruction
+      });
+
+      const calibrationMessage = calibrationResult 
+        ? (calibrationResult.sucesso 
+          ? `\n\n✅ *Validação:* Score ${calibrationResult.scoreGeral}/100 (${calibrationResult.tentativasReparo} ajustes)`
+          : `\n\n⚠️ *Atenção:* Score ${calibrationResult.scoreGeral}/100 - Recomendamos testar no simulador.`)
+        : '';
+
+      await salvarMensagemChat({
+        userId,
+        configType: 'ai_agent_config',
+        role: 'assistant',
+        content: result.mensagemChat + calibrationMessage
+      });
+
+      sendEvent({ 
+        type: 'complete', 
+        success: true, 
+        newPrompt: promptFinal,
+        feedbackMessage: result.mensagemChat + calibrationMessage,
+        calibration: calibrationResult ? {
+          score: calibrationResult.scoreGeral,
+          success: calibrationResult.sucesso,
+          repairs: calibrationResult.tentativasReparo
+        } : null
+      });
+
+    } catch (error: any) {
+      console.error('[Edit Prompt Stream] Erro:', error);
+      sendEvent({ type: 'error', message: error.message || 'Erro ao processar' });
+    } finally {
+      res.end();
     }
   });
 
@@ -14050,6 +14219,59 @@ Responda APENAS com o JSON, sem texto adicional.`;
     } catch (error) {
       console.error("Error adding contacts to list:", error);
       res.status(500).json({ message: "Failed to add contacts to list" });
+    }
+  });
+
+  // Atualizar uma lista (nome/descrição)
+  app.put("/api/contacts/lists/:listId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { listId } = req.params;
+      const { name, description } = req.body;
+
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ message: "Nome da lista é obrigatório" });
+      }
+
+      const result = await storage.updateContactList?.(userId, listId, { name, description });
+      if (!result) {
+        return res.status(404).json({ message: "Lista não encontrada" });
+      }
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating contact list:", error);
+      res.status(500).json({ message: "Failed to update contact list" });
+    }
+  });
+
+  // Excluir uma lista
+  app.delete("/api/contacts/lists/:listId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { listId } = req.params;
+
+      await storage.deleteContactList?.(userId, listId);
+      res.json({ success: true, message: "Lista excluída com sucesso" });
+    } catch (error) {
+      console.error("Error deleting contact list:", error);
+      res.status(500).json({ message: "Failed to delete contact list" });
+    }
+  });
+
+  // Remover um contato de uma lista
+  app.delete("/api/contacts/lists/:listId/contacts/:phone", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { listId, phone } = req.params;
+
+      const result = await storage.removeContactFromList?.(userId, listId, phone);
+      if (!result?.success) {
+        return res.status(404).json({ message: result?.message || "Erro ao remover contato" });
+      }
+      res.json(result);
+    } catch (error) {
+      console.error("Error removing contact from list:", error);
+      res.status(500).json({ message: "Failed to remove contact from list" });
     }
   });
 
@@ -22561,3 +22783,5 @@ function generateRandomPassword(): string {
   }
   return password;
 }
+
+
