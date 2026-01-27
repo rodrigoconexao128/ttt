@@ -65,12 +65,25 @@ export interface ConfiguracaoCalibracao {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG_PADRAO: ConfiguracaoCalibracao = {
-  maxTentativasReparo: 4, // Aumentado para forçar loop até atingir score mínimo
-  numeroCenarios: 2, // Reduzido para 2 para ser mais rápido
+  maxTentativasReparo: 10, // Loop até atingir score >= 60
+  numeroCenarios: 2, // 2 cenários para balancear velocidade
   turnosConversaMax: 2,
-  scoreMinimoAprovacao: 80, // Aumentado de 70 para 80 - obrigatório!
-  timeoutMs: 45000 // Aumentado para permitir mais tentativas
+  scoreMinimoAprovacao: 60, // Score mínimo obrigatório
+  timeoutMs: 120000 // 2 minutos - tempo suficiente para várias rodadas
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CALLBACK DE PROGRESSO PARA STREAMING
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type ProgressCallback = (log: CalibrationLog) => void;
+
+export interface CalibrationLog {
+  type: 'start' | 'scenario_generated' | 'scenario_running' | 'scenario_result' | 'score_update' | 'repair_start' | 'repair_done' | 'loop_iteration' | 'final_result' | 'error';
+  message: string;
+  data?: any;
+  timestamp: number;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROMPTS DO SISTEMA
@@ -194,12 +207,29 @@ RETORNE JSON:
 
 export class PromptCalibrationService {
   private config: ConfiguracaoCalibracao;
+  private progressCallback?: ProgressCallback;
 
-  constructor(config?: Partial<ConfiguracaoCalibracao>) {
+  constructor(config?: Partial<ConfiguracaoCalibracao>, progressCallback?: ProgressCallback) {
     // 🚀 Agora usa OpenRouter/Chutes automaticamente via chatComplete()
     // Não precisa mais de apiKey ou modelo - usa config do sistema
     this.config = { ...CONFIG_PADRAO, ...config };
+    this.progressCallback = progressCallback;
     console.log(`🎯 [Calibração] Inicializado com OpenRouter/Chutes (mesmo LLM da produção)`);
+  }
+
+  /**
+   * Emite log de progresso para streaming
+   */
+  private emitProgress(type: CalibrationLog['type'], message: string, data?: any): void {
+    if (this.progressCallback) {
+      this.progressCallback({
+        type,
+        message,
+        data,
+        timestamp: Date.now()
+      });
+    }
+    console.log(`📡 [Calibração] ${message}`);
   }
 
   /**
@@ -294,42 +324,96 @@ export class PromptCalibrationService {
     let scoreGeral = 0;
     let cenariosAprovados = 0;
 
+    this.emitProgress('start', '🎯 Iniciando testes com clientes simulados...', {
+      instrucao: instrucaoUsuario.substring(0, 100)
+    });
+
     console.log(`\n🎯 [Calibração] Iniciando calibração...`);
     console.log(`📝 [Calibração] Instrução: "${instrucaoUsuario}"`);
 
     try {
       // 1. Gerar cenários de teste
+      this.emitProgress('scenario_generated', '🧪 Gerando perguntas de clientes simulados...', {});
       const cenarios = await this.gerarCenarios(instrucaoUsuario, this.config.numeroCenarios);
+      this.emitProgress('scenario_generated', `✅ ${cenarios.length} perguntas prontas!`, {});
+      
+      // Mostrar cada cenário gerado
+      for (let i = 0; i < cenarios.length; i++) {
+        const c = cenarios[i];
+        this.emitProgress('scenario_generated', `📋 Cenário ${i + 1}: "${c.perguntaCliente}"`, {});
+      }
       console.log(`✅ [Calibração] ${cenarios.length} cenários gerados`);
 
-      // Loop de calibração com reparo
+      // Loop de calibração com reparo - CONTINUA ATÉ ATINGIR SCORE >= 60
       while (tentativasReparo <= this.config.maxTentativasReparo) {
+        this.emitProgress('loop_iteration', `🔄 Rodada ${tentativasReparo + 1}/${this.config.maxTentativasReparo} - Simulando conversas...`, {
+          rodada: tentativasReparo + 1,
+          maxRodadas: this.config.maxTentativasReparo + 1
+        });
+        
         resultados = [];
         cenariosAprovados = 0;
 
         // 2. Executar cada cenário
-        for (const cenario of cenarios) {
+        for (let i = 0; i < cenarios.length; i++) {
+          const cenario = cenarios[i];
+          
+          // Log: Cliente vai perguntar
+          this.emitProgress('scenario_running', `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, {});
+          this.emitProgress('scenario_running', `🧪 TESTE ${i + 1}/${cenarios.length}`, {});
+          this.emitProgress('scenario_running', `👤 CLIENTE PERGUNTA:`, {});
+          this.emitProgress('scenario_running', `   "${cenario.perguntaCliente}"`, {});
+          
           const resultado = await this.executarCenario(promptAtual, cenario, instrucaoUsuario);
           resultados.push(resultado);
           if (resultado.passou) cenariosAprovados++;
+          
+          // Log: Resposta do agente (MOSTRA TUDO)
+          this.emitProgress('scenario_running', `🤖 AGENTE RESPONDE:`, {});
+          // Quebra resposta em linhas menores para exibição
+          const respostaLinhas = resultado.respostaAgente.match(/.{1,80}/g) || [resultado.respostaAgente];
+          for (const linha of respostaLinhas.slice(0, 5)) { // Máximo 5 linhas
+            this.emitProgress('scenario_running', `   ${linha}`, {});
+          }
+          if (respostaLinhas.length > 5) {
+            this.emitProgress('scenario_running', `   [...mais ${respostaLinhas.length - 5} linhas]`, {});
+          }
+          
+          // Log: Análise
+          this.emitProgress('scenario_running', `📊 ANÁLISE:`, {});
+          this.emitProgress('scenario_result', `${resultado.passou ? '✅' : '❌'} Nota: ${resultado.score}/100 - ${resultado.motivo}`, {});
+          
           console.log(`  ${resultado.passou ? '✅' : '❌'} Cenário ${cenario.id}: ${resultado.score}/100`);
         }
 
         // 3. Calcular score geral
         scoreGeral = resultados.reduce((acc, r) => acc + r.score, 0) / resultados.length;
+        
+        this.emitProgress('score_update', `📊 Score atual: ${scoreGeral.toFixed(0)}/100 (meta: ${this.config.scoreMinimoAprovacao}+)`, {
+          score: Math.round(scoreGeral),
+          aprovados: cenariosAprovados,
+          total: cenarios.length,
+          rodada: tentativasReparo + 1
+        });
+        
         console.log(`📊 [Calibração] Score geral: ${scoreGeral.toFixed(1)}/100 (${cenariosAprovados}/${cenarios.length} aprovados)`);
         console.log(`📊 [Calibração] Mínimo para aprovar: ${this.config.scoreMinimoAprovacao}/100`);
 
-        // 4. Verificar se passou
-        // 🚀 RELAXADO: Score >= mínimo OU 100% dos cenários aprovados
-        // Antes exigia AMBAS as condições, agora aceita qualquer uma
+        // 4. Verificar se passou - SCORE >= 60
         if (scoreGeral >= this.config.scoreMinimoAprovacao || cenariosAprovados === cenarios.length) {
+          this.emitProgress('final_result', `🎉 Aprovado! Score final: ${Math.round(scoreGeral)}/100`, {
+            success: true,
+            score: Math.round(scoreGeral),
+            rodadasUsadas: tentativasReparo + 1
+          });
           console.log(`🎉 [Calibração] APROVADO! Prompt calibrado com sucesso.`);
           break;
         }
 
-        // 5. Tentar reparar se não passou
+        // 5. Tentar reparar se não passou E ainda tem tentativas
         if (tentativasReparo < this.config.maxTentativasReparo) {
+          this.emitProgress('repair_start', `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`, {});
+          this.emitProgress('repair_start', `🔧 INICIANDO AJUSTE ${tentativasReparo + 1}/${this.config.maxTentativasReparo}`, {});
           console.log(`🔧 [Calibração] Tentando reparo (${tentativasReparo + 1}/${this.config.maxTentativasReparo})...`);
           
           // Encontrar cenário que falhou pior
@@ -339,6 +423,12 @@ export class PromptCalibrationService {
           const cenarioFalhou = cenarios.find(c => c.id === piorResultado.cenarioId);
 
           if (cenarioFalhou) {
+            this.emitProgress('repair_start', `❌ Problema identificado:`, {});
+            this.emitProgress('repair_start', `   Pergunta: "${cenarioFalhou.perguntaCliente}"`, {});
+            this.emitProgress('repair_start', `   Score: ${piorResultado.score}/100`, {});
+            this.emitProgress('repair_start', `   Motivo: ${piorResultado.motivo}`, {});
+            this.emitProgress('repair_start', `💡 Ajustando prompt para corrigir...`, {});
+            
             const promptReparado = await this.repararPrompt(
               promptAtual,
               instrucaoUsuario,
@@ -348,16 +438,40 @@ export class PromptCalibrationService {
 
             if (promptReparado && promptReparado !== promptAtual) {
               promptAtual = promptReparado;
+              this.emitProgress('repair_done', `✅ Ajuste aplicado! Retestando...`, {
+                reparo: true
+              });
               console.log(`✅ [Calibração] Reparo aplicado`);
+            } else {
+              this.emitProgress('repair_done', `⚠️ Não foi possível ajustar. Tentando abordagem diferente...`, {
+                reparo: false
+              });
             }
           }
+        } else {
+          // Atingiu máximo de tentativas mas não passou
+          this.emitProgress('final_result', `⚠️ Ajustes finalizados. Pontuação final: ${Math.round(scoreGeral)}/100`, {
+            success: false,
+            score: Math.round(scoreGeral),
+            rodadasUsadas: tentativasReparo + 1
+          });
         }
 
         tentativasReparo++;
       }
 
+      const sucesso = scoreGeral >= this.config.scoreMinimoAprovacao;
+      this.emitProgress('final_result', sucesso 
+        ? `✅ Calibração concluída com sucesso! Score: ${Math.round(scoreGeral)}/100`
+        : `⚠️ Calibração finalizada. Score: ${Math.round(scoreGeral)}/100 - Recomendamos testar no simulador.`, 
+      {
+        success: sucesso,
+        score: Math.round(scoreGeral),
+        tempoMs: Date.now() - inicio
+      });
+
       return {
-        sucesso: scoreGeral >= this.config.scoreMinimoAprovacao,
+        sucesso,
         scoreGeral: Math.round(scoreGeral),
         cenariosTotais: cenarios.length,
         cenariosAprovados,
@@ -368,6 +482,7 @@ export class PromptCalibrationService {
       };
 
     } catch (error: any) {
+      this.emitProgress('error', `❌ Erro na calibração: ${error.message}`, { error: error.message });
       console.error(`❌ [Calibração] Erro:`, error.message);
       return {
         sucesso: false,
@@ -614,9 +729,10 @@ export async function calibrarPromptEditado(
   instrucaoUsuario: string,
   _apiKey?: string,  // Ignorado - usa config do sistema
   _modelo?: "mistral" | "openai",  // Ignorado - usa OpenRouter/Chutes
-  config?: Partial<ConfiguracaoCalibracao>
+  config?: Partial<ConfiguracaoCalibracao>,
+  progressCallback?: ProgressCallback
 ): Promise<ResultadoCalibracao> {
-  const service = new PromptCalibrationService(config);
+  const service = new PromptCalibrationService(config, progressCallback);
   return service.calibrarPrompt(promptEditado, instrucaoUsuario);
 }
 

@@ -4155,6 +4155,18 @@ export async function triggerAgentResponseForConversation(
     }
     console.log(`[TRIGGER] Agente está ATIVO`);
     
+    // 2.5 🐛 FIX: Verificar também businessAgentConfig (toggle "IA ON" em /agent-config)
+    console.log(`[TRIGGER] Verificando businessAgentConfig...`);
+    const businessAgentConfig = await storage.getBusinessAgentConfig(userId);
+    console.log(`[TRIGGER] businessAgentConfig encontrado: ${businessAgentConfig ? 'SIM' : 'NÃO'}`);
+    console.log(`[TRIGGER] businessAgentConfig.isActive: ${businessAgentConfig?.isActive}`);
+    
+    if (!businessAgentConfig?.isActive) {
+      console.log(`[TRIGGER] FALHA: IA desativada globalmente em businessAgentConfig`);
+      return { triggered: false, reason: "A IA está desativada globalmente. Ative em 'Configurações' primeiro." };
+    }
+    console.log(`[TRIGGER] businessAgentConfig ATIVO`);
+    
     // 3. Buscar dados da conversa
     console.log(`[TRIGGER] Buscando conversa...`);
     const conversation = await storage.getConversation(conversationId);

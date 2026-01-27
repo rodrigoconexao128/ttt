@@ -179,6 +179,23 @@ async function checkAndReactivateConversations() {
           continue;
         }
 
+        // 🐛 FIX CRÍTICO: Verificar se a IA está ativa GLOBALMENTE antes de reativar
+        // Se o usuário desligou a IA no toggle "IA ON" em /meu-agente-ia, NÃO reativar
+        const businessAgentConfig = await storage.getBusinessAgentConfig(connection.userId);
+        if (!businessAgentConfig?.isActive) {
+          console.log(`🚫 [AUTO-REACTIVATE] IA desativada GLOBALMENTE para user ${connection.userId} - NÃO reativando conversa ${conv.conversationId}`);
+          // Não remove da tabela de disabled - mantém pausada
+          // Quando o usuário reativar globalmente, as mensagens pendentes serão processadas
+          continue;
+        }
+
+        // 🐛 FIX: Verificar também o agentConfig (tabela ai_agent_config)
+        const agentConfig = await storage.getAgentConfig(connection.userId);
+        if (!agentConfig?.isActive) {
+          console.log(`🚫 [AUTO-REACTIVATE] Agente IA desativado em ai_agent_config para user ${connection.userId} - NÃO reativando`);
+          continue;
+        }
+
         console.log(`🔄 [AUTO-REACTIVATE] Reativando IA para conversa ${conv.conversationId} (${conversation.contactName || conversation.contactNumber})`);
 
         // 3. Reativar a IA (remover da tabela de desabilitados)

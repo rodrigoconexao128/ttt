@@ -706,7 +706,19 @@ export function AgentStudioUnified() {
     }
   }, [promptHistory, queryClient, toast, isRestoring]);
 
-  // ============ EDIÇÃO VIA CHAT ============
+  // Estado para logs de calibração em tempo real
+  const [calibrationLogs, setCalibrationLogs] = useState<string[]>([]);
+  const [showCalibrationLogs, setShowCalibrationLogs] = useState(false);
+  const calibrationLogsRef = useRef<HTMLDivElement>(null);
+  
+  // Auto-scroll para mostrar os logs mais recentes
+  useEffect(() => {
+    if (calibrationLogsRef.current) {
+      calibrationLogsRef.current.scrollTop = calibrationLogsRef.current.scrollHeight;
+    }
+  }, [calibrationLogs]);
+
+  // ============ EDIÇÃO VIA CHAT COM STREAMING ============
   const handleEditPrompt = async () => {
     if (!editInput.trim() || isProcessing) return;
 
@@ -721,110 +733,140 @@ export function AgentStudioUnified() {
     setChatMessages(prev => [...prev, userMessage]);
     setEditInput("");
     setIsProcessing(true);
+    setCalibrationLogs([]);
+    setShowCalibrationLogs(true);
+
+    // Criar mensagem placeholder que vai receber os logs
+    const processingMessageId = `processing-${Date.now()}`;
+    const processingMessage: ChatMessage = {
+      id: processingMessageId,
+      role: "assistant",
+      content: "🔄 Processando sua solicitação...",
+      timestamp: new Date()
+    };
+    setChatMessages(prev => [...prev, processingMessage]);
 
     try {
-      const response = await apiRequest("POST", "/api/agent/edit-prompt", {
-        currentPrompt,
-        instruction: currentInstruction
+      const token = await getAuthToken();
+      const response = await fetch("/api/agent/edit-prompt-stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          currentPrompt,
+          instruction: currentInstruction
+        })
       });
-      
-      const data = await response.json();
-      
-      // 🔒 Verificar se atingiu limite de calibrações
-      if (data.limitReached) {
-        setUpgradeModal({
-          isOpen: true,
-          title: "Você atingiu o limite de calibrações",
-          description: data.message || "Assine um plano para continuar calibrando seu agente de IA.",
-          used: data.used || 5,
-          limit: data.limit || 5,
-          type: "calibration"
-        });
-        
-        // Mensagem no chat sobre o limite
-        const limitMessage: ChatMessage = {
-          id: `limit-${Date.now()}`,
-          role: "assistant",
-          content: `🚀 Você usou todas as ${data.limit} calibrações gratuitas de hoje! Para continuar aperfeiçoando seu agente, assine um plano PRO.`,
-          timestamp: new Date()
-        };
-        setChatMessages(prev => [...prev, limitMessage]);
-        return;
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
-      
-      if (data.success && data.newPrompt && data.newPrompt !== currentPrompt) {
-        addToHistory(data.newPrompt, currentInstruction, data.summary || "Edição aplicada");
-        setCurrentPrompt(data.newPrompt);
-        setHasChanges(false);
-        
-        const feedbackContent = data.feedbackMessage || data.summary || "Mudanças aplicadas!";
-        const assistantMessage: ChatMessage = {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: feedbackContent,
-          timestamp: new Date()
-        };
-        setChatMessages(prev => [...prev, assistantMessage]);
-        
-        // Auto-save
-        updateConfigMutation.mutate({ prompt: data.newPrompt });
-        
-        // 🔄 Refetch limites diários após calibração bem-sucedida
-        refetchDailyLimits();
-      } else if (data.conflictDetected) {
-        // 🚨 CONFLITO COM MÓDULO ATIVO (Delivery/Catálogo)
-        const conflictMessage: ChatMessage = {
-          id: `conflict-${Date.now()}`,
-          role: "assistant",
-          content: data.feedbackMessage || data.message,
-          timestamp: new Date()
-        };
-        setChatMessages(prev => [...prev, conflictMessage]);
-        
-        // Não conta como calibração (não consumiu)
-      } else {
-        const warningMessage: ChatMessage = {
-          id: `warning-${Date.now()}`,
-          role: "assistant",
-          content: data.feedbackMessage || `⚠️ Não consegui aplicar essa mudança. Tente ser mais específico.`,
-          timestamp: new Date()
-        };
-        setChatMessages(prev => [...prev, warningMessage]);
-      }
-    } catch (error: any) {
-      // 🔒 Verificar se erro 403 é limite atingido
-      if (error.message?.includes('403') || error.status === 403) {
-        try {
-          const errorData = await error.json?.();
-          if (errorData?.limitReached) {
-            setUpgradeModal({
-              isOpen: true,
-              title: "Você atingiu o limite de calibrações",
-              description: errorData.message || "Assine um plano para continuar calibrando seu agente.",
-              used: errorData.used || 5,
-              limit: errorData.limit || 5,
-              type: "calibration"
-            });
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let currentLogs: string[] = [];
+
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value);
+        const lines = text.split('\n').filter(line => line.startsWith('data: '));
+
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line.slice(6));
             
-            const limitMessage: ChatMessage = {
-              id: `limit-${Date.now()}`,
-              role: "assistant",
-              content: `🚀 Você usou todas as ${errorData.limit || 5} calibrações gratuitas de hoje! Assine um plano PRO para continuar.`,
-              timestamp: new Date()
-            };
-            setChatMessages(prev => [...prev, limitMessage]);
-            return;
+            if (data.type === 'log' || data.type === 'calibration_log') {
+              // Adicionar mensagem ao log (evitar duplicatas)
+              const newMessage = data.message;
+              if (!currentLogs.includes(newMessage)) {
+                currentLogs = [...currentLogs, newMessage];
+                setCalibrationLogs([...currentLogs]);
+              }
+              
+              // Atualizar mensagem do assistente mostrando TODOS os logs em tempo real
+              const logText = currentLogs.map(log => `• ${log}`).join('\n');
+              
+              setChatMessages(prev => prev.map(msg => 
+                msg.id === processingMessageId 
+                  ? { ...msg, content: `🔄 **Calibrando seu agente...**\n\n${logText}\n\n⏳ *Aguarde, testando cenários...*` }
+                  : msg
+              ));
+            }
+            
+            if (data.type === 'limit_reached') {
+              setUpgradeModal({
+                isOpen: true,
+                title: "Você atingiu o limite de calibrações",
+                description: data.message || "Assine um plano para continuar calibrando.",
+                used: data.used || 5,
+                limit: data.limit || 5,
+                type: "calibration"
+              });
+              
+              setChatMessages(prev => prev.map(msg => 
+                msg.id === processingMessageId 
+                  ? { ...msg, content: `🚀 Você usou todas as ${data.limit} calibrações gratuitas de hoje! Assine um plano PRO para continuar.` }
+                  : msg
+              ));
+              return;
+            }
+            
+            if (data.type === 'complete') {
+              setShowCalibrationLogs(false);
+              
+              if (data.success && data.newPrompt) {
+                addToHistory(data.newPrompt, currentInstruction, "Edição aplicada");
+                setCurrentPrompt(data.newPrompt);
+                setHasChanges(false);
+                
+                const calibInfo = data.calibration 
+                  ? `\n\n✅ Calibração: Score ${data.calibration.score}/100 (${data.calibration.repairs} ajustes)`
+                  : '';
+                
+                setChatMessages(prev => prev.map(msg => 
+                  msg.id === processingMessageId 
+                    ? { ...msg, content: (data.feedbackMessage || "Mudanças aplicadas!") + calibInfo }
+                    : msg
+                ));
+                
+                updateConfigMutation.mutate({ prompt: data.newPrompt });
+                refetchDailyLimits();
+              } else {
+                setChatMessages(prev => prev.map(msg => 
+                  msg.id === processingMessageId 
+                    ? { ...msg, content: data.feedbackMessage || "⚠️ Não foi possível aplicar essa mudança." }
+                    : msg
+                ));
+              }
+            }
+            
+            if (data.type === 'error') {
+              setShowCalibrationLogs(false);
+              setChatMessages(prev => prev.map(msg => 
+                msg.id === processingMessageId 
+                  ? { ...msg, content: `❌ Erro: ${data.message}` }
+                  : msg
+              ));
+            }
+          } catch (e) {
+            console.warn('Erro ao parsear SSE:', e);
           }
-        } catch {}
+        }
       }
+
+    } catch (error: any) {
+      console.error('Erro no streaming:', error);
+      setShowCalibrationLogs(false);
       
-      const errorMessage: ChatMessage = {
-        id: `error-${Date.now()}`,
-        role: "assistant",
-        content: `❌ Erro ao processar. Tente novamente.`,
-        timestamp: new Date()
-      };
-      setChatMessages(prev => [...prev, errorMessage]);
+      setChatMessages(prev => prev.map(msg => 
+        msg.id === `processing-${Date.now()}` || msg.content.includes('🔄')
+          ? { ...msg, content: `❌ Erro ao processar. Tente novamente.` }
+          : msg
+      ));
     } finally {
       setIsProcessing(false);
     }
@@ -1524,10 +1566,79 @@ export function AgentStudioUnified() {
                 
                 {isProcessing && (
                   <div className="flex justify-start">
-                    <div className="bg-muted px-4 py-3 rounded-2xl rounded-bl-md">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm text-muted-foreground">Aplicando mudanças...</span>
+                    <div className="bg-muted px-4 py-3 rounded-2xl rounded-bl-md max-w-[90%] w-full">
+                      <div className="flex flex-col gap-1">
+                        {/* Header com spinner */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                          <span className="text-sm font-medium text-primary">
+                            {calibrationLogs.some(l => l.includes('Calibr') || l.includes('Testando')) 
+                              ? '🤖 IA trabalhando...' 
+                              : '⏳ Processando...'}
+                          </span>
+                        </div>
+                        
+                        {/* Logs em tempo real - CADA LOG APARECE INDIVIDUALMENTE */}
+                        <div 
+                          ref={calibrationLogsRef}
+                          className="space-y-0.5 text-xs font-mono bg-slate-900/90 rounded-lg p-3 max-h-[400px] overflow-y-auto scroll-smooth"
+                        >
+                          {calibrationLogs.length === 0 ? (
+                            <div className="text-slate-400 animate-pulse">Iniciando...</div>
+                          ) : (
+                            calibrationLogs.map((log, idx) => (
+                              <div 
+                                key={idx} 
+                                className={cn(
+                                  "py-0.5 leading-relaxed animate-in fade-in slide-in-from-left-2 duration-300",
+                                  // Separadores
+                                  log.includes('━') && "text-slate-600 text-[10px]",
+                                  // Sucesso
+                                  log.includes('✅') && "text-emerald-400",
+                                  // Erro
+                                  log.includes('❌') && "text-red-400",
+                                  // Processando
+                                  log.includes('🔄') && "text-blue-400",
+                                  // Reparo
+                                  log.includes('🔧') && "text-amber-400 font-semibold",
+                                  // Score
+                                  log.includes('📊') && "text-purple-400 font-semibold",
+                                  // Sucesso final
+                                  log.includes('🎉') && "text-emerald-400 font-bold text-sm",
+                                  // Atenção
+                                  log.includes('⚠️') && "text-amber-400",
+                                  // Iniciando
+                                  log.includes('🚀') && "text-cyan-400",
+                                  // Análise
+                                  log.includes('📝') && "text-slate-300",
+                                  // Agente
+                                  log.includes('🤖') && "text-blue-400 font-medium",
+                                  // Cliente/Conversa
+                                  log.includes('💬') && "text-indigo-400",
+                                  log.includes('👤') && "text-green-400 font-medium",
+                                  // Teste
+                                  log.includes('🧪') && "text-pink-400 font-medium",
+                                  log.includes('TESTE') && "text-pink-400 font-bold",
+                                  // Alvo
+                                  log.includes('🎯') && "text-orange-400",
+                                  // Documentação
+                                  log.includes('📋') && "text-teal-400",
+                                  // Ideia
+                                  log.includes('💡') && "text-yellow-300",
+                                  // Linhas com texto recuado (respostas)
+                                  log.startsWith('   ') && "text-slate-400 pl-4 border-l-2 border-slate-700",
+                                  // Default
+                                  !log.match(/[✅❌🔄🔧📊🎉⚠️🚀📝🤖💬🧪🎯📋💡👤━]/) && !log.startsWith('   ') && "text-slate-400"
+                                )}
+                                style={{ animationDelay: `${Math.min(idx * 30, 500)}ms` }}
+                              >
+                                {log}
+                              </div>
+                            ))
+                          )}
+                          {/* Cursor piscando no final */}
+                          <div className="inline-block w-2 h-4 bg-primary/70 animate-pulse ml-1" />
+                        </div>
                       </div>
                     </div>
                   </div>

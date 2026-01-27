@@ -156,6 +156,53 @@ setTimeout(async () => {
   }
 }, 1000);
 
+// ============================================================================
+// AUTO-MIGRATION: Criar tabelas que podem não existir ainda
+// ============================================================================
+setTimeout(async () => {
+  console.log('[DB] Verificando tabelas necessárias...');
+  try {
+    const client = await pool.connect();
+
+    // Verificar se tabela contact_lists existe
+    const checkTable = await client.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'contact_lists'
+      );
+    `);
+
+    if (!checkTable.rows[0].exists) {
+      console.log('[DB] Tabela contact_lists não existe, criando...');
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS contact_lists (
+          id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          contacts JSONB DEFAULT '[]'::jsonb,
+          contact_count INTEGER DEFAULT 0 NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_contact_lists_user ON contact_lists(user_id);
+        CREATE INDEX IF NOT EXISTS idx_contact_lists_created ON contact_lists(created_at);
+      `);
+
+      console.log('✅ [DB] Tabela contact_lists criada com sucesso!');
+    } else {
+      console.log('✅ [DB] Tabela contact_lists já existe');
+    }
+
+    client.release();
+  } catch (error: any) {
+    console.error('❌ [DB] Erro ao verificar/criar tabelas:', error.message);
+  }
+}, 5000);
+
 // Configurar drizzle SEM prepared statements para compatibilidade com PgBouncer
 // PgBouncer em modo "transaction" não suporta prepared statements
 export const db = drizzle({ 
