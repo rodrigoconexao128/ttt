@@ -65,10 +65,10 @@ export interface ConfiguracaoCalibracao {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG_PADRAO: ConfiguracaoCalibracao = {
-  maxTentativasReparo: 10, // Loop até atingir score >= 60
+  maxTentativasReparo: 10, // Loop até atingir score >= 70
   numeroCenarios: 2, // 2 cenários para balancear velocidade
   turnosConversaMax: 2,
-  scoreMinimoAprovacao: 60, // Score mínimo obrigatório
+  scoreMinimoAprovacao: 70, // Score mínimo obrigatório
   timeoutMs: 120000 // 2 minutos - tempo suficiente para várias rodadas
 };
 
@@ -165,39 +165,52 @@ CRITÉRIOS:
 - Score 50-69: Resposta ambígua, não fica claro se edição funcionou
 - Score 0-49: Resposta incorreta, edição claramente não funcionou`;
 
-const PROMPT_REPARADOR = `Você é um especialista em consertar prompts que não estão funcionando como esperado.
+const PROMPT_REPARADOR = `Você é um especialista em otimizar prompts de agentes de IA para WhatsApp.
 
 CONTEXTO:
-Uma edição foi feita no prompt, mas quando testada com clientes simulados, não funcionou corretamente.
+Uma edição foi solicitada no prompt, mas ao testar com clientes simulados, a resposta não está adequada.
 
 PROMPT ATUAL:
 \`\`\`
 {{PROMPT}}
 \`\`\`
 
-INSTRUÇÃO ORIGINAL DO USUÁRIO:
+INSTRUÇÃO DO USUÁRIO:
 "{{INSTRUCAO}}"
 
-PROBLEMA DETECTADO:
+PROBLEMA:
 {{PROBLEMA}}
 
-CENÁRIO QUE FALHOU:
-- Pergunta do cliente: "{{PERGUNTA}}"
-- Resposta do agente: "{{RESPOSTA}}"
-- O que esperávamos: "{{EXPECTATIVA}}"
+TESTE QUE FALHOU:
+- Cliente perguntou: "{{PERGUNTA}}"
+- Agente respondeu: "{{RESPOSTA}}"
+- Esperávamos: "{{EXPECTATIVA}}"
 
 TAREFA:
-Corrija o prompt para que a edição funcione corretamente.
+Analise o prompt e ADICIONE ou MODIFIQUE instruções para garantir que o agente responda corretamente.
+
+IMPORTANTE:
+- Se a instrução não está clara no prompt, ADICIONE uma seção específica
+- Seja DIRETO e ESPECÍFICO nas modificações
+- Use texto que EXISTE no prompt atual para o campo "buscar"
+- Se não encontrar texto para substituir, ADICIONE no início ou fim do prompt
 
 RETORNE JSON:
 {
-  "resposta_chat": "Explicação amigável do que foi corrigido",
+  "resposta_chat": "Explicação do ajuste",
   "operacao": "editar",
   "edicoes": [
     {
-      "buscar": "texto exato a encontrar",
-      "substituir": "texto corrigido"
+      "buscar": "TEXTO EXATO que existe no prompt",
+      "substituir": "TEXTO MODIFICADO com a correção"
     }
+  ]
+}
+
+Se precisar ADICIONAR algo novo, use um trecho existente e adicione o conteúdo junto:
+{
+  "buscar": "REGRAS:",
+  "substituir": "REGRAS:\\n- NOVA REGRA ADICIONADA\\n-"
   ]
 }`;
 
@@ -389,7 +402,7 @@ export class PromptCalibrationService {
         // 3. Calcular score geral
         scoreGeral = resultados.reduce((acc, r) => acc + r.score, 0) / resultados.length;
         
-        this.emitProgress('score_update', `📊 Score atual: ${scoreGeral.toFixed(0)}/100 (meta: ${this.config.scoreMinimoAprovacao}+)`, {
+        this.emitProgress('score_update', `📊 Score atual: ${scoreGeral.toFixed(0)}/100 (meta: 70+)`, {
           score: Math.round(scoreGeral),
           aprovados: cenariosAprovados,
           total: cenarios.length,
@@ -397,7 +410,7 @@ export class PromptCalibrationService {
         });
         
         console.log(`📊 [Calibração] Score geral: ${scoreGeral.toFixed(1)}/100 (${cenariosAprovados}/${cenarios.length} aprovados)`);
-        console.log(`📊 [Calibração] Mínimo para aprovar: ${this.config.scoreMinimoAprovacao}/100`);
+        console.log(`📊 [Calibração] Mínimo para aprovar: 70/100`);
 
         // 4. Verificar se passou - SCORE >= 60
         if (scoreGeral >= this.config.scoreMinimoAprovacao || cenariosAprovados === cenarios.length) {
@@ -691,7 +704,7 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
     try {
       const content = await this.callLLM(
         promptReparo,
-        "Corrija o prompt e retorne as edições em JSON:",
+        "Analise e corrija o prompt. Retorne APENAS o JSON com as edições:",
         { temperature: 0.3, maxTokens: 2000, jsonMode: true }
       );
 
@@ -699,12 +712,45 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
 
       if (parsed.operacao === "editar" && parsed.edicoes?.length > 0) {
         let promptReparado = promptAtual;
+        let edicoesAplicadas = 0;
+        
         for (const edicao of parsed.edicoes) {
-          if (edicao.buscar && promptReparado.includes(edicao.buscar)) {
-            promptReparado = promptReparado.replace(edicao.buscar, edicao.substituir || "");
+          if (!edicao.buscar || !edicao.substituir) continue;
+          
+          // Tentar match exato primeiro
+          if (promptReparado.includes(edicao.buscar)) {
+            promptReparado = promptReparado.replace(edicao.buscar, edicao.substituir);
+            edicoesAplicadas++;
+            this.emitProgress('repair_done', `   ✓ Edição aplicada (match exato)`, {});
+            continue;
+          }
+          
+          // Tentar match case-insensitive
+          const promptLower = promptReparado.toLowerCase();
+          const buscarLower = edicao.buscar.toLowerCase();
+          const indexCI = promptLower.indexOf(buscarLower);
+          
+          if (indexCI !== -1) {
+            const textoOriginal = promptReparado.substring(indexCI, indexCI + edicao.buscar.length);
+            promptReparado = promptReparado.replace(textoOriginal, edicao.substituir);
+            edicoesAplicadas++;
+            this.emitProgress('repair_done', `   ✓ Edição aplicada (fuzzy match)`, {});
+            continue;
+          }
+          
+          // Se não encontrou, tentar adicionar no final (como regra adicional)
+          if (edicao.substituir && edicao.substituir.length > 20) {
+            // Adiciona como nova instrução no final do prompt
+            promptReparado = promptReparado.trim() + "\n\n" + edicao.substituir;
+            edicoesAplicadas++;
+            this.emitProgress('repair_done', `   ✓ Nova instrução adicionada ao prompt`, {});
           }
         }
-        return promptReparado;
+        
+        if (edicoesAplicadas > 0) {
+          this.emitProgress('repair_done', `   📝 ${edicoesAplicadas} edição(ões) aplicadas`, {});
+          return promptReparado;
+        }
       }
 
       return null;

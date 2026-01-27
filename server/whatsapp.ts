@@ -2205,6 +2205,127 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       console.log(`[CONTACTS SYNC] ? ${agendaContacts.length} contatos salvos em cache (mem�ria)`);
     });
 
+    // ======================================================================
+    // 📚 HISTORY SYNC - BUSCA TODOS OS CONTATOS DO HISTÓRICO DO WHATSAPP
+    // ======================================================================
+    // Este evento é disparado durante o sync inicial e traz TODOS os contatos
+    // do histórico do WhatsApp (chats, contacts, messages)
+    // Ref: https://baileys.wiki/docs/socket/history-sync/
+    // ======================================================================
+    sock.ev.on("messaging-history.set", async ({ chats, contacts, messages, isLatest }) => {
+      console.log(`\n========================================`);
+      console.log(`[HISTORY SYNC] 📚 Baileys emitiu messaging-history.set`);
+      console.log(`[HISTORY SYNC] User ID: ${userId}`);
+      console.log(`[HISTORY SYNC] Chats: ${chats?.length || 0}`);
+      console.log(`[HISTORY SYNC] Contacts: ${contacts?.length || 0}`);
+      console.log(`[HISTORY SYNC] Messages: ${messages?.length || 0}`);
+      console.log(`[HISTORY SYNC] isLatest: ${isLatest}`);
+      console.log(`========================================\n`);
+
+      // Processar contatos do histórico
+      if (contacts && contacts.length > 0) {
+        const agendaContacts: AgendaContact[] = [];
+
+        for (const contact of contacts) {
+          // Extrair número do contact.id
+          let phoneNumber: string | null = null;
+
+          // Tentar pegar do phoneNumber primeiro
+          if (contact.id) {
+            const match = contact.id.match(/^(\d+)@/);
+            if (match && match[1].length >= 8) {
+              phoneNumber = match[1];
+            }
+          }
+
+          if (phoneNumber) {
+            // Adicionar ao cache da sessão
+            contactsCache.set(contact.id, contact);
+
+            // Adicionar ao array de agenda
+            agendaContacts.push({
+              id: contact.id,
+              phoneNumber: phoneNumber,
+              name: contact.name || contact.notify || '',
+              lid: undefined,
+            });
+          }
+        }
+
+        // Merge com contatos existentes no cache
+        const existingCache = getAgendaContacts(userId);
+        const existingContacts = existingCache?.contacts || [];
+        const existingPhones = new Set(existingContacts.map(c => c.phoneNumber));
+
+        // Adicionar novos contatos (sem duplicatas)
+        const newContacts = agendaContacts.filter(c => !existingPhones.has(c.phoneNumber));
+        const mergedContacts = [...existingContacts, ...newContacts];
+
+        if (mergedContacts.length > 0) {
+          saveAgendaToCache(userId, mergedContacts);
+
+          console.log(`[HISTORY SYNC] ✅ ${newContacts.length} novos contatos adicionados`);
+          console.log(`[HISTORY SYNC] 📊 Total no cache: ${mergedContacts.length} contatos`);
+
+          // Broadcast para o frontend
+          broadcastToUser(userId, {
+            type: "agenda_synced",
+            count: mergedContacts.length,
+            status: "ready",
+            message: `📚 ${mergedContacts.length} contatos sincronizados do histórico!`
+          });
+        }
+      }
+
+      // Processar chats para extrair contatos adicionais
+      if (chats && chats.length > 0) {
+        const chatContacts: AgendaContact[] = [];
+
+        for (const chat of chats) {
+          // Ignorar grupos
+          if (chat.id?.endsWith('@g.us')) continue;
+
+          // Extrair número do chat.id
+          const match = chat.id?.match(/^(\d+)@/);
+          if (match && match[1].length >= 8) {
+            const phoneNumber = match[1];
+
+            // Verificar se já não está no cache
+            const existingCache = getAgendaContacts(userId);
+            const existingPhones = new Set((existingCache?.contacts || []).map(c => c.phoneNumber));
+
+            if (!existingPhones.has(phoneNumber)) {
+              chatContacts.push({
+                id: chat.id,
+                phoneNumber: phoneNumber,
+                name: chat.name || '',
+                lid: undefined,
+              });
+            }
+          }
+        }
+
+        if (chatContacts.length > 0) {
+          const existingCache = getAgendaContacts(userId);
+          const existingContacts = existingCache?.contacts || [];
+          const mergedContacts = [...existingContacts, ...chatContacts];
+
+          saveAgendaToCache(userId, mergedContacts);
+
+          console.log(`[HISTORY SYNC] 💬 ${chatContacts.length} contatos adicionados dos chats`);
+          console.log(`[HISTORY SYNC] 📊 Total no cache: ${mergedContacts.length} contatos`);
+
+          // Broadcast atualizado
+          broadcastToUser(userId, {
+            type: "agenda_synced",
+            count: mergedContacts.length,
+            status: "ready",
+            message: `📚 ${mergedContacts.length} contatos sincronizados!`
+          });
+        }
+      }
+    });
+
     sock.ev.on("creds.update", saveCreds);
 
     sock.ev.on("connection.update", async (update) => {

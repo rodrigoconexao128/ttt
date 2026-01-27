@@ -5710,7 +5710,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           {
             numeroCenarios: 2,        // Igual à edição
             maxTentativasReparo: 2,   // Igual à edição
-            scoreMinimoAprovacao: 60  // Igual à edição
+            scoreMinimoAprovacao: 70  // Score mínimo 70
           }
         );
         
@@ -5727,7 +5727,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
           finalPrompt = calibrationResult.promptFinal;
           console.log(`🎯 [Generate Prompt] ✅ Prompt CALIBRADO com sucesso! Usando versão otimizada.`);
         } else {
-          console.log(`🎯 [Generate Prompt] ⚠️ Calibração não atingiu score mínimo (60%), usando prompt original`);
+          console.log(`🎯 [Generate Prompt] ⚠️ Calibração não atingiu score mínimo (70%), usando prompt original`);
         }
       } catch (calibrationError) {
         console.error(`🎯 [Generate Prompt] ❌ Erro na calibração:`, calibrationError);
@@ -5857,10 +5857,11 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
       }
 
       sendEvent({ type: 'log', message: '✅ IA respondeu!' });
-      const numEdicoes = result.edicoes?.length || 0;
+      const numEdicoes = result.edicoesAplicadas || 0;
       if (numEdicoes > 0) {
-        sendEvent({ type: 'log', message: `📝 ${numEdicoes} edição(ões) identificadas` });
-        sendEvent({ type: 'log', message: '✅ Edições aplicadas no prompt!' });
+        sendEvent({ type: 'log', message: `📝 ${numEdicoes} edição(ões) aplicadas no prompt!` });
+      } else {
+        sendEvent({ type: 'log', message: '💬 Analisando resposta...' });
       }
       sendEvent({ type: 'log', message: '🔄 Iniciando validação automática...' });
       sendEvent({ type: 'log', message: '🎯 Preparando cenários de teste...' });
@@ -5890,8 +5891,8 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
             "mistral",
             {
               numeroCenarios: 2,
-              maxTentativasReparo: 10, // Aumentado - loop até score >= 60
-              scoreMinimoAprovacao: 60
+              maxTentativasReparo: 10, // Aumentado - loop até score >= 70
+              scoreMinimoAprovacao: 70
             },
             progressCallback
           );
@@ -5921,7 +5922,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       const calibrationMessage = calibrationResult 
         ? (calibrationResult.sucesso 
-          ? `\n\n✅ *Validação:* Score ${calibrationResult.scoreGeral}/100 (${calibrationResult.tentativasReparo} ajustes)`
+          ? `\n\n✅ *Calibração:* Score ${calibrationResult.scoreGeral}/100 (${calibrationResult.tentativasReparo} ajustes)`
           : `\n\n⚠️ *Atenção:* Score ${calibrationResult.scoreGeral}/100 - Recomendamos testar no simulador.`)
         : '';
 
@@ -6351,7 +6352,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
         {
           numeroCenarios: testScenarios?.length || 3,
           maxTentativasReparo: 0, // Não reparar em teste manual
-          scoreMinimoAprovacao: 60
+          scoreMinimoAprovacao: 70
         }
       );
       
