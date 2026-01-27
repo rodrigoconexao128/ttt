@@ -31,6 +31,7 @@ interface LLMConfigCache {
   groqModel: string;
   openrouterApiKey: string;
   openrouterModel: string;
+  openrouterProvider: string; // Provider específico do OpenRouter (ex: 'chutes', 'hyperbolic')
   timestamp: number;
 }
 let llmConfigCache: LLMConfigCache | null = null;
@@ -133,13 +134,15 @@ export function invalidateLLMConfigCache(): void {
 
 /**
  * Obtém configurações de LLM do banco de dados
+ * 🔄 EXPORTADA para uso em outros módulos (aiAgent.ts, testAgentService.ts)
  */
-async function getLLMConfig(): Promise<{ 
+export async function getLLMConfig(): Promise<{ 
   provider: string; 
   groqApiKey: string; 
   groqModel: string;
   openrouterApiKey: string;
   openrouterModel: string;
+  openrouterProvider: string;
 }> {
   // Verificar cache
   if (llmConfigCache && (Date.now() - llmConfigCache.timestamp < LLM_CONFIG_CACHE_TTL_MS)) {
@@ -148,7 +151,8 @@ async function getLLMConfig(): Promise<{
       groqApiKey: llmConfigCache.groqApiKey,
       groqModel: llmConfigCache.groqModel,
       openrouterApiKey: llmConfigCache.openrouterApiKey,
-      openrouterModel: llmConfigCache.openrouterModel
+      openrouterModel: llmConfigCache.openrouterModel,
+      openrouterProvider: llmConfigCache.openrouterProvider
     };
   }
   
@@ -178,26 +182,33 @@ async function getLLMConfig(): Promise<{
       .from(systemConfig)
       .where(eq(systemConfig.chave, 'openrouter_model'));
     
+    const openrouterProviderResult = await db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.chave, 'openrouter_provider'));
+    
     const provider = configs[0]?.valor || 'mistral';
     const groqApiKey = groqKeyResult[0]?.valor || '';
     const groqModel = groqModelResult[0]?.valor || 'openai/gpt-oss-20b';
     const openrouterApiKey = openrouterKeyResult[0]?.valor || '';
     const openrouterModel = openrouterModelResult[0]?.valor || 'openai/gpt-oss-20b';
+    const openrouterProvider = openrouterProviderResult[0]?.valor || 'chutes'; // Default: Chutes (mais barato)
     
     // Salvar no cache
-    llmConfigCache = { provider, groqApiKey, groqModel, openrouterApiKey, openrouterModel, timestamp: Date.now() };
+    llmConfigCache = { provider, groqApiKey, groqModel, openrouterApiKey, openrouterModel, openrouterProvider, timestamp: Date.now() };
     
-    console.log(`[LLM] Config loaded: provider=${provider}, model=${provider === 'openrouter' ? openrouterModel : (provider === 'groq' ? groqModel : 'mistral-small-latest')}`);
-    return { provider, groqApiKey, groqModel, openrouterApiKey, openrouterModel };
+    console.log(`[LLM] Config loaded: provider=${provider}, model=${provider === 'openrouter' ? openrouterModel : (provider === 'groq' ? groqModel : 'mistral-small-latest')}, openrouterProvider=${openrouterProvider}`);
+    return { provider, groqApiKey, groqModel, openrouterApiKey, openrouterModel, openrouterProvider };
   } catch (error) {
     console.error('[LLM] Erro ao carregar configuração:', error);
-    return { provider: 'mistral', groqApiKey: '', groqModel: 'openai/gpt-oss-20b', openrouterApiKey: '', openrouterModel: 'openai/gpt-oss-20b' };
+    return { provider: 'mistral', groqApiKey: '', groqModel: 'openai/gpt-oss-20b', openrouterApiKey: '', openrouterModel: 'openai/gpt-oss-20b', openrouterProvider: 'chutes' };
   }
 }
 
 /**
  * Chama o OpenRouter API COM RETRY AUTOMÁTICO
  * Implementa exponential backoff para lidar com rate limits e erros temporários
+ * Suporta provider dinâmico configurado pelo admin (ex: 'together', 'chutes', etc)
  */
 async function callOpenRouterAPI(
   messages: ChatMessage[],
@@ -206,14 +217,35 @@ async function callOpenRouterAPI(
     model?: string;
     temperature?: number;
     maxTokens?: number;
+    openrouterProvider?: string; // Provider dinâmico (ex: 'together', 'chutes', 'hyperbolic', 'auto')
   }
 ): Promise<string> {
-  const model = options?.model || 'meta-llama/llama-3.3-70b-instruct:free';
+  const model = options?.model || 'google/gemma-3n-e4b-it';
+  const providerSlug = options?.openrouterProvider || 'together';
   
-  console.log(`[LLM] 🚀 Chamando OpenRouter API com modelo: ${model}`);
+  // 🎯 Só pula provider se for explicitamente 'auto' ou vazio
+  const isAutoProvider = providerSlug === 'auto' || providerSlug === '';
+  
+  console.log(`[LLM] 🚀 Chamando OpenRouter API com modelo: ${model}, provider: ${isAutoProvider ? 'auto (OpenRouter escolhe)' : providerSlug}`);
   
   // 🔄 Usar retry automático para lidar com erros temporários
   return await withRetryLLM(async () => {
+    // Construir body da requisição
+    const requestBody: any = {
+      model,
+      messages,
+      temperature: options?.temperature ?? 0.7,
+      max_tokens: options?.maxTokens ?? 500
+    };
+    
+    // 🎯 Adiciona provider se NÃO for 'auto'
+    if (!isAutoProvider) {
+      requestBody.provider = {
+        order: [providerSlug],
+        allow_fallbacks: true  // Permitir fallback para outros providers se necessário
+      };
+    }
+    
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -222,12 +254,7 @@ async function callOpenRouterAPI(
         'HTTP-Referer': 'https://agentezap.online',
         'X-Title': 'AgenteZap'
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: options?.temperature ?? 0.7,
-        max_tokens: options?.maxTokens ?? 500,
-      }),
+      body: JSON.stringify(requestBody),
     });
     
     if (!response.ok) {
@@ -243,7 +270,7 @@ async function callOpenRouterAPI(
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     
-    console.log(`[LLM] ✅ OpenRouter respondeu com ${content?.length || 0} caracteres`);
+    console.log(`[LLM] ✅ OpenRouter respondeu com ${content?.length || 0} caracteres (provider: ${providerSlug})`);
     return typeof content === 'string' ? content : '';
   }, `OpenRouter API (${model})`);
 }
@@ -356,7 +383,8 @@ export async function callGroq(
       try {
         return await callOpenRouterAPI(formattedMessages, config.openrouterApiKey, {
           ...options,
-          model: options?.model || config.openrouterModel
+          model: options?.model || config.openrouterModel,
+          openrouterProvider: config.openrouterProvider // 🎯 Provider dinâmico!
         });
       } catch (openrouterError) {
         console.error('[LLM] Erro no OpenRouter, tentando fallback para Groq:', openrouterError);
@@ -426,16 +454,67 @@ export async function chatComplete(params: {
 }): Promise<LLMChatResponse> {
   const config = await getLLMConfig();
   
+  // 🔐 VERIFICAÇÃO DE API KEY - Verificar se pelo menos UM provider tem chave configurada
+  const hasOpenRouterKey = config.openrouterApiKey && config.openrouterApiKey.length > 20;
+  const hasGroqKey = config.groqApiKey && config.groqApiKey.length > 20;
+  const hasMistralKey = !!process.env.MISTRAL_API_KEY && process.env.MISTRAL_API_KEY.length > 10;
+  
+  if (!hasOpenRouterKey && !hasGroqKey && !hasMistralKey) {
+    console.error('❌ [LLM] ERRO: Nenhuma API key configurada!');
+    console.error('   └─ Configure uma chave em: Admin → Configurações → Provedor de IA');
+    console.error('   └─ Provider atual: ' + config.provider);
+    throw new Error('API key não configurada. Configure uma chave de API em: Admin → Configurações → Provedor de IA (LLM)');
+  }
+  
   // Se provider é OpenRouter e tem API key válida
   if (config.provider === 'openrouter' && config.openrouterApiKey && config.openrouterApiKey.length > 20) {
     try {
       // SEMPRE usar o modelo do OpenRouter configurado no admin
       // Ignorar o params.model pois pode ser um modelo do Mistral (ex: mistral-small-latest)
       const model = config.openrouterModel;
-      console.log(`[LLM] 🚀 chatComplete via OpenRouter com modelo correto: ${model} (provider=${config.provider})`);
+      
+      // 🎯 DETECTAR PROVIDER AUTOMATICAMENTE BASEADO NO MODELO
+      // Cada modelo tem providers específicos no OpenRouter
+      // - google/gemma-3n-* → Together
+      // - openai/* → vários (deixar auto)
+      // - meta-llama/* → vários (deixar auto)
+      // Se forçar provider errado, a API retorna resposta VAZIA!
+      const modelToProviderMap: Record<string, string> = {
+        'google/gemma-3n-e4b-it': 'together',
+        'google/gemma-3n-e2b-it': 'together',
+        'google/gemma-3n-e4b-it:free': 'together',
+        'google/gemma-3n-e2b-it:free': 'together',
+      };
+      
+      // Usar provider específico do modelo, ou 'auto' para deixar OpenRouter decidir
+      const autoProvider = modelToProviderMap[model] || 'auto';
+      const configuredProvider = config.openrouterProvider || 'auto';
+      
+      // Se o modelo precisa de provider específico, usar esse; senão, usar o configurado
+      const providerSlug = autoProvider !== 'auto' ? autoProvider : configuredProvider;
+      
+      console.log(`[LLM] 🚀 chatComplete via OpenRouter com modelo: ${model}, provider: ${providerSlug} (auto-detected: ${autoProvider}, configured: ${configuredProvider})`);
       
       // 🔄 Usar retry automático para lidar com erros temporários
       const data = await withRetryLLM(async () => {
+        // 🎯 Construir body da requisição
+        // Se provider é 'auto', NÃO incluir campo provider (OpenRouter decide)
+        // Se provider é específico, incluir com allow_fallbacks: true
+        const requestBody: any = {
+          model,
+          messages: params.messages,
+          max_tokens: params.maxTokens ?? 500,
+          temperature: params.temperature ?? 0.7,
+        };
+        
+        // Só adicionar provider se NÃO for 'auto'
+        if (providerSlug !== 'auto') {
+          requestBody.provider = {
+            order: [providerSlug],
+            allow_fallbacks: true  // ✅ Permitir fallback se provider não tiver o modelo
+          };
+        }
+        
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -444,16 +523,7 @@ export async function chatComplete(params: {
             'HTTP-Referer': 'https://agentezap.online',
             'X-Title': 'AgenteZap'
           },
-          body: JSON.stringify({
-            model,
-            messages: params.messages,
-            max_tokens: params.maxTokens ?? 500,
-            temperature: params.temperature ?? 0.7,
-            provider: {
-              order: ['hyperbolic'],  // Priorizar Hyperbolic (mais barato: $0.04/M input e output)
-              allow_fallbacks: true   // Permite outros providers se Hyperbolic falhar
-            }
-          }),
+          body: JSON.stringify(requestBody),
         });
         
         if (!response.ok) {
@@ -467,9 +537,25 @@ export async function chatComplete(params: {
         }
         
         return await response.json();
-      }, `OpenRouter chatComplete (${model})`);
+      }, `OpenRouter chatComplete (${model} via ${providerSlug})`);
       
-      console.log(`[LLM] ✅ OpenRouter chatComplete respondeu`);
+      // 🔍 DEBUG: Log detalhado da resposta do OpenRouter
+      const responseContent = data.choices?.[0]?.message?.content;
+      const finishReason = data.choices?.[0]?.finish_reason;
+      const promptTokens = data.usage?.prompt_tokens;
+      const completionTokens = data.usage?.completion_tokens;
+      
+      console.log(`[LLM] ✅ OpenRouter chatComplete respondeu (provider: ${providerSlug})`);
+      console.log(`[LLM] 📊 Tokens: prompt=${promptTokens || 'N/A'}, completion=${completionTokens || 'N/A'}`);
+      console.log(`[LLM] 📊 finish_reason: ${finishReason || 'N/A'}`);
+      console.log(`[LLM] 📊 Response length: ${responseContent?.length || 0} chars`);
+      
+      if (!responseContent || responseContent.length === 0) {
+        console.warn(`[LLM] ⚠️ RESPOSTA VAZIA do OpenRouter! finish_reason=${finishReason}`);
+        console.warn(`[LLM] ⚠️ Full response: ${JSON.stringify(data).substring(0, 500)}`);
+      } else {
+        console.log(`[LLM] 📝 Response preview: "${responseContent.substring(0, 100)}..."`);
+      }
       
       return {
         choices: data.choices?.map((c: any) => ({

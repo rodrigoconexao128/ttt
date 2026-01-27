@@ -153,6 +153,12 @@ let missedMessagePollingStarted = false;
 
 // Função para iniciar o polling (será chamada depois que sessions for declarado)
 function startMissedMessagePolling() {
+  // ?? MODO DEV: Pular polling de missed messages se DISABLE_WHATSAPP_PROCESSING=true
+  if (process.env.DISABLE_WHATSAPP_PROCESSING === 'true') {
+    console.log(`⏸️ [MISSED MSG] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
+    return;
+  }
+  
   if (missedMessagePollingStarted) return;
   missedMessagePollingStarted = true;
   
@@ -7319,6 +7325,12 @@ export { connectionHealthCheck };
 // 💾 Restaura timers de resposta da IA que estavam pendentes antes do restart
 // Isso garante que mensagens não sejam perdidas em deploys/crashes
 export async function restorePendingAITimers(): Promise<void> {
+  // ?? MODO DEV: Pular restauração de timers se DISABLE_WHATSAPP_PROCESSING=true
+  if (process.env.DISABLE_WHATSAPP_PROCESSING === 'true') {
+    console.log(`⏸️ [RESTORE TIMERS] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
+    return;
+  }
+  
   console.log(`\n${'='.repeat(60)}`);
   console.log(`💾 [RESTORE TIMERS] Iniciando restauração de timers pendentes...`);
   console.log(`${'='.repeat(60)}`);
@@ -7428,6 +7440,12 @@ export async function restorePendingAITimers(): Promise<void> {
 let pendingTimersCronInterval: NodeJS.Timeout | null = null;
 
 export function startPendingTimersCron(): void {
+  // ?? MODO DEV: Pular cron de timers pendentes se DISABLE_WHATSAPP_PROCESSING=true
+  if (process.env.DISABLE_WHATSAPP_PROCESSING === 'true') {
+    console.log(`⏸️ [PENDING CRON] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
+    return;
+  }
+  
   if (pendingTimersCronInterval) {
     console.log(`🔄 [PENDING CRON] Cron já está rodando`);
     return;
@@ -7555,6 +7573,12 @@ export function stopPendingTimersCron(): void {
 let autoRecoveryCronInterval: NodeJS.Timeout | null = null;
 
 export function startAutoRecoveryCron(): void {
+  // ?? MODO DEV: Pular cron de auto-recovery se DISABLE_WHATSAPP_PROCESSING=true
+  if (process.env.DISABLE_WHATSAPP_PROCESSING === 'true') {
+    console.log(`⏸️ [AUTO-RECOVERY] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
+    return;
+  }
+  
   if (autoRecoveryCronInterval) {
     console.log(`🚨 [AUTO-RECOVERY] Cron já está rodando`);
     return;

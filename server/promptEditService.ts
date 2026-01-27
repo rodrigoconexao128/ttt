@@ -7,7 +7,7 @@
  * 
  * FLUXO:
  * 1. Usuário pede alteração em linguagem natural
- * 2. Enviamos prompt atual + instrução para a IA (OpenRouter/Hyperbolic)
+ * 2. Enviamos prompt atual + instrução para a IA (OpenRouter/Chutes)
  * 3. IA retorna JSON com {resposta_chat, operacao, edicoes: [{buscar, substituir}]}
  * 4. Sistema aplica as edições localmente com fuzzy matching
  * 5. Retornamos o prompt editado + mensagem de chat para o histórico
@@ -17,7 +17,7 @@
  * - 80% mais barato (menos tokens)
  * - 100% do resto preservado (só muda o necessário)
  * 
- * 🚀 ATUALIZADO: Agora usa OpenRouter/Hyperbolic (mesmo LLM do chat produção)
+ * 🚀 ATUALIZADO: Agora usa OpenRouter/Chutes (mesmo LLM do chat produção)
  */
 
 import { chatComplete, type ChatMessage } from "./llm";
@@ -55,57 +55,72 @@ export interface ResultadoEdicao {
 // SYSTEM PROMPT PARA A IA
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SYSTEM_PROMPT = `Você é um assistente especializado em editar prompts e playbooks de agentes de IA.
+const SYSTEM_PROMPT = `Você é um EDITOR DE PROMPTS. Sua função é MODIFICAR o prompt do agente conforme a instrução do usuário.
 
-CRÍTICO: NUNCA reescreva o documento inteiro! Use search-and-replace para ser RÁPIDO e PRECISO.
+VOCÊ DEVE SEMPRE:
+1. Analisar o PROMPT ATUAL fornecido
+2. Identificar partes que precisam ser MODIFICADAS conforme a instrução
+3. Gerar EDIÇÕES no formato buscar/substituir
+4. Responder APENAS com JSON válido
+
+⚠️ IMPORTANTE: Quando o usuário pede uma mudança (ex: "não use emojis", "seja mais formal", "adicione X"), você DEVE:
+- Encontrar os trechos relevantes no prompt atual
+- Criar edições para modificá-los
+- Usar operacao="editar" com edicoes preenchidas
+
+FORMATO OBRIGATÓRIO (JSON puro, sem markdown):
+{"resposta_chat":"mensagem","operacao":"editar","edicoes":[{"buscar":"texto exato do prompt","substituir":"texto modificado"}]}
+
+EXEMPLOS:
+
+Instrução: "não use emojis"
+Se o prompt tiver "Olá! 😊 Bem-vindo!", responda:
+{"resposta_chat":"Pronto! Removi os emojis.","operacao":"editar","edicoes":[{"buscar":"Olá! 😊 Bem-vindo!","substituir":"Olá! Bem-vindo!"}]}
+
+Instrução: "seja mais formal"
+Se o prompt tiver "E aí, blz? Posso ajudar?", responda:
+{"resposta_chat":"Deixei mais formal.","operacao":"editar","edicoes":[{"buscar":"E aí, blz? Posso ajudar?","substituir":"Olá, como posso ajudá-lo?"}]}
+
+Instrução: "adicione saudação personalizada"
+Se o prompt tiver "Atenda os clientes", responda:
+{"resposta_chat":"Adicionei saudação personalizada.","operacao":"editar","edicoes":[{"buscar":"Atenda os clientes","substituir":"Comece sempre com 'Olá! É um prazer atendê-lo!' e depois atenda os clientes"}]}
 
 REGRAS:
-1. Para PERGUNTAS ou quando não precisa editar: use operacao="nenhuma"
-2. Para EDIÇÕES: use operacao="editar" e forneça array de edicoes
-3. Cada edição tem: "buscar" (texto EXATO do documento) e "substituir" (novo texto)
-4. O campo "buscar" DEVE conter texto que existe EXATAMENTE no documento
-5. Use múltiplas edições pequenas (2-5) ao invés de reescrever seções grandes
-6. A resposta_chat deve ser natural, como se você estivesse conversando com o usuário
-
-EXEMPLOS DE EDIÇÃO:
-- Mudar nome: {"buscar": "Carlos", "substituir": "Roberto"}
-- Mudar tom: {"buscar": "Olá, bom dia!", "substituir": "E aí! 🔥"}
-- Adicionar info: {"buscar": "Nosso horário é das 9h às 18h.", "substituir": "Nosso horário é das 9h às 18h. Também atendemos aos sábados!"}
-- Remover algo: {"buscar": "Texto para remover.", "substituir": ""}
-
-IMPORTANTE:
-- Copie o texto EXATAMENTE como aparece no documento (incluindo pontuação, espaços, emojis)
-- Nunca invente texto que não existe no documento
-- Se não encontrar algo para editar, use operacao="nenhuma" e explique
-- Seja criativo e proativo nas sugestões`;
+- O campo "buscar" DEVE conter texto que EXISTE no prompt atual
+- SEMPRE gere edições quando o usuário pedir mudanças
+- Use operacao="nenhuma" APENAS para perguntas informativas
+- Responda SOMENTE o JSON, sem explicações antes ou depois`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FUNÇÃO PRINCIPAL: Editar Prompt via IA
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Edita um prompt via IA usando OpenRouter/Hyperbolic
+ * Edita um prompt via IA usando OpenRouter/Chutes
  * 🚀 ATUALIZADO: Parâmetros apiKey e modelo são ignorados - usa config do sistema
  */
 export async function editarPromptViaIA(
   promptAtual: string,
   instrucaoUsuario: string,
   _apiKey?: string,  // Ignorado - usa config do sistema
-  _modelo?: "mistral" | "openai"  // Ignorado - usa OpenRouter/Hyperbolic
+  _modelo?: "mistral" | "openai"  // Ignorado - usa OpenRouter/Chutes
 ): Promise<ResultadoEdicao> {
   
-  console.log(`[EditService] Iniciando edição via IA (OpenRouter/Hyperbolic)`);
+  console.log(`[EditService] Iniciando edição via IA (OpenRouter/Chutes)`);
   
-  // Monta a mensagem do usuário
-  const userMessage = `PROMPT ATUAL DO AGENTE:
-\`\`\`
+  // Monta a mensagem do usuário com instruções claras de formato
+  const userMessage = `ANALISE O PROMPT ABAIXO E APLIQUE A MODIFICAÇÃO SOLICITADA:
+
+═══════════════════════════════════════
+PROMPT ATUAL DO AGENTE:
+═══════════════════════════════════════
 ${promptAtual}
-\`\`\`
+═══════════════════════════════════════
 
-INSTRUÇÃO DO USUÁRIO:
-"${instrucaoUsuario}"
+INSTRUÇÃO DO USUÁRIO: "${instrucaoUsuario}"
 
-Analise o prompt e retorne as edições necessárias em JSON.`;
+TAREFA: Encontre os trechos do prompt acima que precisam ser modificados e gere as edições.
+RESPONDA com JSON: {"resposta_chat":"...", "operacao":"editar", "edicoes":[{"buscar":"trecho exato", "substituir":"novo trecho"}]}`;
 
   // 🚀 RETRY: Tenta até 3 vezes para garantir sucesso
   const MAX_RETRIES = 3;
@@ -134,25 +149,77 @@ Analise o prompt e retorne as edições necessárias em JSON.`;
         throw new Error("Resposta vazia do LLM");
       }
       
-      // Tentar extrair JSON da resposta (pode vir com markdown)
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        content = jsonMatch[0];
+      console.log(`[EditService] Resposta bruta do LLM (${content.length} chars): ${content.substring(0, 200)}...`);
+      
+      // 🔧 ROBUSTO: Múltiplas tentativas de extrair JSON
+      let jsonContent = content;
+      
+      // Tentar 1: Extrair JSON de markdown code blocks
+      const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        jsonContent = codeBlockMatch[1].trim();
+        console.log(`[EditService] JSON extraído de code block`);
       } else {
+        // Tentar 2: Extrair primeiro objeto JSON encontrado
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonContent = jsonMatch[0];
+          console.log(`[EditService] JSON extraído via regex`);
+        }
+      }
+      
+      // 🔧 Limpar caracteres problemáticos comuns
+      jsonContent = jsonContent
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove caracteres de controle
+        .replace(/,\s*}/g, '}')  // Remove trailing commas antes de }
+        .replace(/,\s*]/g, ']')  // Remove trailing commas antes de ]
+        .trim();
+      
+      if (!jsonContent || jsonContent === '') {
         throw new Error("JSON não encontrado na resposta");
       }
       
       // Parse do JSON com validação
       let respostaIA: RespostaIA;
       try {
-        respostaIA = JSON.parse(content);
+        respostaIA = JSON.parse(jsonContent);  // 🔧 CORRIGIDO: usar jsonContent
         
         // Validar estrutura mínima do JSON
         if (!respostaIA.resposta_chat && !respostaIA.operacao) {
-          throw new Error("JSON incompleto - falta resposta_chat ou operacao");
+          // 🔧 Tentar extrair resposta conversacional se JSON está incompleto
+          if (typeof respostaIA === 'object') {
+            console.log(`[EditService] JSON parcial detectado, tentando recuperar...`);
+            respostaIA.resposta_chat = respostaIA.resposta_chat || "Entendi sua solicitação.";
+            respostaIA.operacao = respostaIA.operacao || "nenhuma";
+            respostaIA.edicoes = respostaIA.edicoes || [];
+          } else {
+            throw new Error("JSON incompleto - falta resposta_chat ou operacao");
+          }
         }
+        
+        // Garantir que edicoes é um array
+        if (!Array.isArray(respostaIA.edicoes)) {
+          respostaIA.edicoes = [];
+        }
+        
       } catch (e: any) {
         console.warn(`[EditService] Erro ao parsear JSON (tentativa ${attempt}):`, e.message);
+        console.warn(`[EditService] JSON tentado: ${jsonContent.substring(0, 300)}...`);
+        
+        // 🔧 FALLBACK: Se o modelo retornou algo mas não é JSON válido,
+        // tentar extrair uma resposta útil
+        if (attempt === MAX_RETRIES) {
+          // Na última tentativa, retornar uma resposta genérica ao invés de erro
+          return {
+            success: false,
+            novoPrompt: promptAtual,
+            mensagemChat: "Entendi sua solicitação! Por favor, tente novamente com instruções mais específicas sobre o que deseja alterar.",
+            edicoesAplicadas: 0,
+            edicoesFalharam: 0,
+            detalhes: []
+          };
+        }
+        
         throw new Error(`JSON inválido: ${e.message}`);
       }
     

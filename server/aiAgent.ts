@@ -1,6 +1,6 @@
 ﻿import { storage } from "./storage";
 import type { Message, MistralResponse } from "@shared/schema";
-import { getLLMClient, getCurrentProvider } from "./llm";
+import { getLLMClient, getCurrentProvider, getLLMConfig } from "./llm";
 import { supabase } from "./supabaseAuth";
 // NOTA: generateSystemPrompt, detectJailbreak, detectOffTopic foram removidos
 // pois o sistema ADVANCED foi desativado para garantir determinismo nas respostas
@@ -2296,10 +2296,16 @@ export async function generateAIResponse(
         console.log(`   → FLUXO EXECUTA ações determinísticas`);
         console.log(`   → IA HUMANIZA a resposta\n`);
         
-        // Obter chave da API para humanização
-        const mistralKey = process.env.MISTRAL_API_KEY;
-        if (!mistralKey) {
-          console.log(`⚠️ [Flow Engine] Sem API key Mistral, usando sistema legado`);
+        // 🔧 CORREÇÃO: Obter API key do provider configurado (OpenRouter/Groq/Mistral)
+        const llmConfig = await getLLMConfig();
+        const apiKey = llmConfig.provider === 'openrouter' 
+          ? llmConfig.openrouterApiKey 
+          : llmConfig.provider === 'groq' 
+            ? llmConfig.groqApiKey 
+            : process.env.MISTRAL_API_KEY || '';
+            
+        if (!apiKey) {
+          console.log(`⚠️ [Flow Engine] Sem API key para provider ${llmConfig.provider}, usando sistema legado`);
         } else {
           // Gerar ID de conversa persistente
           const conversationId = options?.conversationId || 
@@ -2309,7 +2315,7 @@ export async function generateAIResponse(
             userId,
             conversationId,
             newMessageText,
-            mistralKey,
+            apiKey,
             {
               contactName,
               history: conversationHistory.map(m => ({ 
@@ -3655,6 +3661,23 @@ export async function testAgentResponse(
     console.log(`🧪 [SIMULADOR] Nome do contato: ${contactName}`);
     console.log(`🧪 ═══════════════════════════════════════════════════════════════`);
     
+    // 🔐 VERIFICAÇÃO DE API KEY ANTES DE TUDO
+    // Se não houver API key configurada, retorna mensagem de erro amigável
+    const llmConfig = await getLLMConfig();
+    const hasOpenRouterKey = llmConfig.openrouterApiKey && llmConfig.openrouterApiKey.length > 20;
+    const hasGroqKey = llmConfig.groqApiKey && llmConfig.groqApiKey.length > 20;
+    const hasMistralKey = !!process.env.MISTRAL_API_KEY && process.env.MISTRAL_API_KEY.length > 10;
+    
+    if (!hasOpenRouterKey && !hasGroqKey && !hasMistralKey) {
+      console.error('🧪 [SIMULADOR] ❌ ERRO: Nenhuma API key configurada!');
+      return {
+        text: "⚠️ **Simulador Indisponível**\n\nNenhuma chave de API (LLM) está configurada.\n\n📋 Para resolver:\n1. Vá em **Admin → Configurações**\n2. Escolha um provedor (OpenRouter é gratuito!)\n3. Cole sua chave de API\n4. Salve e teste novamente\n\n💡 Dica: OpenRouter oferece modelos gratuitos como GPT-OSS 20B",
+        mediaActions: [],
+        appointmentCreated: undefined,
+        deliveryOrderCreated: undefined
+      };
+    }
+    
     const agentConfig = await storage.getAgentConfig(userId);
 
     if (!agentConfig) {
@@ -3683,35 +3706,47 @@ export async function testAgentResponse(
         throw new Error("LLM não configurado");
       }
       
-      // Gerar ID de conversa simulada (persistente por sessão do simulador)
-      // Usa hash do userId + data para manter estado durante uma sessão de teste
-      const today = new Date().toISOString().split('T')[0];
-      const simulatorConversationId = `simulator-${userId}-${today}`;
+      // 🔧 CORREÇÃO: Obter API key do provider configurado (OpenRouter/Groq/Mistral)
+      const llmConfig = await getLLMConfig();
+      const apiKey = llmConfig.provider === 'openrouter' 
+        ? llmConfig.openrouterApiKey 
+        : llmConfig.provider === 'groq' 
+          ? llmConfig.groqApiKey 
+          : process.env.MISTRAL_API_KEY || '';
       
-      const flowResult = await processWithFlowEngine(
-        userId,
-        simulatorConversationId,
-        testMessage,
-        apiKeyResult.apiKey,
-        {
-          contactName,
-          history: history.map(m => ({ fromMe: m.fromMe, text: m.text || '' }))
-        }
-      );
-      
-      if (flowResult) {
-        console.log(`🧪 [SIMULADOR] ✅ FlowEngine respondeu: "${flowResult.text?.substring(0, 80)}..."`);
-        console.log(`🧪 ═══════════════════════════════════════════════════════════════\n`);
+      if (!apiKey) {
+        console.log(`⚠️ [SIMULADOR] Sem API key para provider ${llmConfig.provider}, usando sistema legado`);
+      } else {
+        // Gerar ID de conversa simulada (persistente por sessão do simulador)
+        // Usa hash do userId + data para manter estado durante uma sessão de teste
+        const today = new Date().toISOString().split('T')[0];
+        const simulatorConversationId = `simulator-${userId}-${today}`;
         
-        return {
-          text: flowResult.text,
-          mediaActions: flowResult.mediaActions || [],
-          appointmentCreated: undefined,
-          deliveryOrderCreated: undefined
-        };
+        const flowResult = await processWithFlowEngine(
+          userId,
+          simulatorConversationId,
+          testMessage,
+          apiKey,
+          {
+            contactName,
+            history: history.map(m => ({ fromMe: m.fromMe, text: m.text || '' }))
+          }
+        );
+        
+        if (flowResult) {
+          console.log(`🧪 [SIMULADOR] ✅ FlowEngine respondeu: "${flowResult.text?.substring(0, 80)}..."`);
+          console.log(`🧪 ═══════════════════════════════════════════════════════════════\n`);
+          
+          return {
+            text: flowResult.text,
+            mediaActions: flowResult.mediaActions || [],
+            appointmentCreated: undefined,
+            deliveryOrderCreated: undefined
+          };
+        }
+        
+        console.log(`🧪 [SIMULADOR] ⚠️ FlowEngine sem resposta, fallback para sistema legado`);
       }
-      
-      console.log(`🧪 [SIMULADOR] ⚠️ FlowEngine sem resposta, fallback para sistema legado`);
     } else {
       console.log(`🧪 [SIMULADOR] 📋 Usando sistema LEGADO (IA livre)`);
       if (customPrompt) {

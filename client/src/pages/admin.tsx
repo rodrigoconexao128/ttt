@@ -3122,7 +3122,7 @@ function ResellersManager() {
   );
 }
 
-function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?: string; zai_api_key?: string; llm_provider?: string; groq_api_key?: string; groq_model?: string; openrouter_api_key?: string; openrouter_model?: string } | undefined }) {
+function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?: string; zai_api_key?: string; llm_provider?: string; groq_api_key?: string; groq_model?: string; openrouter_api_key?: string; openrouter_model?: string; openrouter_provider?: string } | undefined }) {
   const { toast } = useToast();
   const [mistralKey, setMistralKey] = useState(config?.mistral_api_key || "");
   const [pixKey, setPixKey] = useState(config?.pix_key || "");
@@ -3132,6 +3132,7 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
   const [groqModel, setGroqModel] = useState(config?.groq_model || "openai/gpt-oss-20b");
   const [openrouterKey, setOpenrouterKey] = useState(config?.openrouter_api_key || "");
   const [openrouterModel, setOpenrouterModel] = useState(config?.openrouter_model || "openai/gpt-oss-20b");
+  const [openrouterProvider, setOpenrouterProvider] = useState(config?.openrouter_provider || "chutes");
   const [showMistralKey, setShowMistralKey] = useState(false);
   const [showZaiKey, setShowZaiKey] = useState(false);
   const [showGroqKey, setShowGroqKey] = useState(false);
@@ -3139,6 +3140,14 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
   const [testingMistral, setTestingMistral] = useState(false);
   const [testingGroq, setTestingGroq] = useState(false);
   const [testingOpenrouter, setTestingOpenrouter] = useState(false);
+  
+  // 🆕 Estado para modelos dinâmicos do OpenRouter
+  const [openrouterModels, setOpenrouterModels] = useState<Array<{id: string; name: string; description?: string; pricing?: any; context_length?: number}>>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [showAllModels, setShowAllModels] = useState(false);
+  
+  // 🆕 Modelo selecionado para exibir detalhes
+  const selectedModelDetails = openrouterModels.find(m => m.id === openrouterModel);
 
   // Sincronizar estado com config quando carregar
   useEffect(() => {
@@ -3151,8 +3160,32 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
       setGroqModel(config.groq_model || "openai/gpt-oss-20b");
       setOpenrouterKey(config.openrouter_api_key || "");
       setOpenrouterModel(config.openrouter_model || "openai/gpt-oss-20b");
+      setOpenrouterProvider(config.openrouter_provider || "chutes");
     }
   }, [config]);
+  
+  // 🆕 Fetch modelos do OpenRouter quando selecionado
+  useEffect(() => {
+    if (llmProvider === "openrouter") {
+      fetchOpenRouterModels();
+    }
+  }, [llmProvider]);
+  
+  const fetchOpenRouterModels = async () => {
+    setLoadingModels(true);
+    try {
+      const response = await apiRequest("GET", "/api/admin/openrouter/models");
+      const data = await response.json();
+      if (data.models) {
+        setOpenrouterModels(data.models);
+      }
+    } catch (error: any) {
+      console.error("Error fetching OpenRouter models:", error);
+      toast({ title: "Erro ao carregar modelos", description: error.message, variant: "destructive" });
+    } finally {
+      setLoadingModels(false);
+    }
+  };
 
   const testMistralKey = async () => {
     setTestingMistral(true);
@@ -3206,7 +3239,7 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
   };
 
   const updateConfigMutation = useMutation({
-    mutationFn: async (data: { mistral_api_key: string; pix_key: string; zai_api_key: string; llm_provider: string; groq_api_key: string; groq_model: string; openrouter_api_key: string; openrouter_model: string }) => {
+    mutationFn: async (data: { mistral_api_key: string; pix_key: string; zai_api_key: string; llm_provider: string; groq_api_key: string; groq_model: string; openrouter_api_key: string; openrouter_model: string; openrouter_provider: string }) => {
       return await apiRequest("PUT", "/api/admin/config", data);
     },
     onSuccess: () => {
@@ -3220,6 +3253,28 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 🔐 VALIDAÇÃO: Alertar se API key não está configurada para o provider selecionado
+    if (llmProvider === "openrouter" && (!openrouterKey || openrouterKey.length < 20)) {
+      toast({ 
+        title: "⚠️ Atenção: API Key não configurada", 
+        description: "O simulador e agentes não funcionarão sem uma chave de API do OpenRouter válida.",
+        variant: "destructive" 
+      });
+    } else if (llmProvider === "groq" && (!groqKey || groqKey.length < 20)) {
+      toast({ 
+        title: "⚠️ Atenção: API Key não configurada", 
+        description: "O simulador e agentes não funcionarão sem uma chave de API do Groq válida.",
+        variant: "destructive" 
+      });
+    } else if (llmProvider === "mistral" && (!mistralKey || mistralKey.length < 10)) {
+      toast({ 
+        title: "⚠️ Atenção: API Key não configurada", 
+        description: "O simulador e agentes não funcionarão sem uma chave de API do Mistral válida.",
+        variant: "destructive" 
+      });
+    }
+    
     updateConfigMutation.mutate({ 
       mistral_api_key: mistralKey, 
       pix_key: pixKey, 
@@ -3228,7 +3283,8 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
       groq_api_key: groqKey,
       groq_model: groqModel,
       openrouter_api_key: openrouterKey,
-      openrouter_model: openrouterModel
+      openrouter_model: openrouterModel,
+      openrouter_provider: openrouterProvider
     });
   };
 
@@ -3241,9 +3297,20 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
     { value: "gemma2-9b-it", label: "Gemma 2 9B IT" },
     { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
   ];
+  
+  // Lista de providers do OpenRouter
+  const openrouterProviders = [
+    { value: "chutes", label: "🥇 Chutes ($0.02-0.10/M) - MAIS BARATO" },
+    { value: "hyperbolic", label: "🥈 Hyperbolic ($0.04-0.12/M) - Barato" },
+    { value: "deepinfra", label: "DeepInfra ($0.05-0.15/M) - Rápido" },
+    { value: "together", label: "Together AI ($0.10-0.30/M) - Confiável" },
+    { value: "fireworks", label: "Fireworks - Alta performance" },
+    { value: "lepton", label: "Lepton - Baixa latência" },
+    { value: "novita", label: "Novita AI - Alternativa econômica" },
+  ];
 
-  // Lista de modelos OpenRouter disponíveis (Hyperbolic = mais barato)
-  const openrouterModels = [
+  // Lista de modelos OpenRouter disponíveis (fallback se API não carregar)
+  const defaultOpenrouterModels = [
     { value: "openai/gpt-oss-20b", label: "GPT-OSS 20B via Hyperbolic (Recomendado ~$0.04/M) ✨" },
     { value: "openai/gpt-oss-20b:free", label: "GPT-OSS 20B (GRÁTIS - 50 req/dia) 🆓" },
     { value: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B Instruct" },
@@ -3373,9 +3440,11 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
           {llmProvider === "openrouter" && (
             <div className="p-4 border rounded-lg border-purple-200 bg-purple-50/50 space-y-4">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg">🆓</span>
-                <span className="text-sm font-semibold text-purple-700">Modelos 100% GRÁTIS - Sem limite de uso!</span>
+                <span className="text-lg">�</span>
+                <span className="text-sm font-semibold text-purple-700">OpenRouter - Múltiplos Modelos e Providers</span>
               </div>
+              
+              {/* API Key */}
               <div className="grid gap-2">
                 <Label htmlFor="openrouterKey">OpenRouter API Key</Label>
                 <div className="flex gap-2">
@@ -3415,23 +3484,139 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
                 </p>
               </div>
 
+              {/* Provider Selection */}
               <div className="grid gap-2">
-                <Label htmlFor="openrouterModel">Modelo OpenRouter</Label>
+                <Label htmlFor="openrouterProvider">🏭 Provider (Infraestrutura)</Label>
                 <select
-                  id="openrouterModel"
-                  value={openrouterModel}
-                  onChange={(e) => setOpenrouterModel(e.target.value)}
+                  id="openrouterProvider"
+                  value={openrouterProvider}
+                  onChange={(e) => setOpenrouterProvider(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  data-testid="select-openrouter-model"
+                  data-testid="select-openrouter-provider"
                 >
-                  {openrouterModels.map((model) => (
-                    <option key={model.value} value={model.value}>
-                      {model.label}
+                  {openrouterProviders.map((provider) => (
+                    <option key={provider.value} value={provider.value}>
+                      {provider.label}
                     </option>
                   ))}
                 </select>
                 <p className="text-sm text-muted-foreground">
-                  Todos os modelos são 100% gratuitos! Llama 3.3 70B é o mais potente.
+                  Escolha o provider de infraestrutura. Chutes é o mais econômico ($0.02-0.10/M tokens).
+                </p>
+              </div>
+
+              {/* Model Selection */}
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="openrouterModel">🤖 Modelo de IA</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={fetchOpenRouterModels}
+                    disabled={loadingModels}
+                    className="h-7 text-xs"
+                  >
+                    {loadingModels ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <span className="mr-1">🔄</span>}
+                    Atualizar lista
+                  </Button>
+                </div>
+                {loadingModels ? (
+                  <div className="flex items-center justify-center h-10 border rounded-md bg-muted/50">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <span className="text-sm text-muted-foreground">Carregando modelos da API...</span>
+                  </div>
+                ) : openrouterModels.length > 0 ? (
+                  <>
+                    <select
+                      id="openrouterModel"
+                      value={openrouterModel}
+                      onChange={(e) => setOpenrouterModel(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      data-testid="select-openrouter-model"
+                    >
+                      {(showAllModels ? openrouterModels : openrouterModels.slice(0, 20)).map((model) => {
+                        const rawInputPrice = model.pricing?.prompt ? parseFloat(model.pricing.prompt) * 1000000 : 0;
+                        const rawOutputPrice = model.pricing?.completion ? parseFloat(model.pricing.completion) * 1000000 : 0;
+                        // Tratar preços inválidos/negativos
+                        const inputPrice = rawInputPrice < 0 || rawInputPrice > 100000 ? 0 : rawInputPrice;
+                        const outputPrice = rawOutputPrice < 0 || rawOutputPrice > 100000 ? 0 : rawOutputPrice;
+                        const isPriceUnknown = rawInputPrice < 0 || rawOutputPrice < 0;
+                        const contextK = model.context_length ? Math.round(model.context_length / 1000) : 0;
+                        return (
+                          <option key={model.id} value={model.id}>
+                            {model.name} | {isPriceUnknown ? 'Preço variável' : `In: $${inputPrice.toFixed(2)} Out: $${outputPrice.toFixed(2)}/M`} | {contextK}K ctx
+                          </option>
+                        );
+                      })}
+                    </select>
+                    
+                    {/* 🆕 Detalhes do modelo selecionado */}
+                    {selectedModelDetails && (() => {
+                      const rawInput = selectedModelDetails.pricing?.prompt ? parseFloat(selectedModelDetails.pricing.prompt) * 1000000 : 0;
+                      const rawOutput = selectedModelDetails.pricing?.completion ? parseFloat(selectedModelDetails.pricing.completion) * 1000000 : 0;
+                      const validInput = rawInput >= 0 && rawInput < 100000 ? rawInput.toFixed(4) : 'variável';
+                      const validOutput = rawOutput >= 0 && rawOutput < 100000 ? rawOutput.toFixed(4) : 'variável';
+                      return (
+                      <div className="p-3 rounded-md bg-purple-50 border border-purple-200 text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span className="font-semibold text-purple-700">📊 Detalhes do Modelo:</span>
+                          <span className="text-purple-600">{selectedModelDetails.name}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-purple-700">
+                          <div>
+                            <span className="font-medium">💰 Input:</span>
+                            <span className="ml-1">{validInput === 'variável' ? validInput : `$${validInput}/M`}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium">💸 Output:</span>
+                            <span className="ml-1">{validOutput === 'variável' ? validOutput : `$${validOutput}/M`}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium">📏 Contexto:</span>
+                            <span className="ml-1">{selectedModelDetails.context_length ? `${Math.round(selectedModelDetails.context_length / 1000)}K` : 'N/A'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      );
+                    })()}
+                    
+                    {openrouterModels.length > 20 && (
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        onClick={() => setShowAllModels(!showAllModels)}
+                        className="h-6 text-xs p-0"
+                      >
+                        {showAllModels ? `Mostrar apenas top 20` : `Ver todos os ${openrouterModels.length} modelos`}
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <select
+                    id="openrouterModel"
+                    value={openrouterModel}
+                    onChange={(e) => setOpenrouterModel(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    data-testid="select-openrouter-model"
+                  >
+                    {defaultOpenrouterModels.map((model) => (
+                      <option key={model.value} value={model.value}>
+                        {model.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  Modelos ordenados por custo. Modelos :free têm limite de 50 req/dia.
+                </p>
+              </div>
+              
+              {/* Info box com configuração atual */}
+              <div className="p-3 rounded-md bg-purple-100/50 border border-purple-200">
+                <p className="text-xs text-purple-700">
+                  <strong>Configuração atual:</strong> {openrouterModel.split('/').pop()} via {openrouterProvider}
                 </p>
               </div>
             </div>

@@ -20,7 +20,7 @@
  * - FlowStorage: Persiste fluxos no Supabase
  * - HybridFlowEngine: Executa fluxos com IA híbrida
  * 
- * 🚀 ATUALIZADO: Agora usa OpenRouter/Hyperbolic (mesmo LLM do chat produção)
+ * 🚀 ATUALIZADO: Agora usa OpenRouter/Chutes (mesmo LLM do chat produção)
  */
 
 import { supabase } from "./supabaseAuth";
@@ -212,11 +212,11 @@ export class FlowStorage {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export class AIInterpreter {
-  // 🚀 Agora usa OpenRouter/Hyperbolic automaticamente via chatComplete()
+  // 🚀 Agora usa OpenRouter/Chutes automaticamente via chatComplete()
 
   constructor() {
     // Não precisa mais de apiKey ou model - usa config do sistema
-    console.log(`[AIInterpreter] Inicializado com OpenRouter/Hyperbolic`);
+    console.log(`[AIInterpreter] Inicializado com OpenRouter/Chutes`);
   }
 
   /**
@@ -954,11 +954,11 @@ export class SystemExecutor {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export class AIHumanizer {
-  // 🚀 Agora usa OpenRouter/Hyperbolic automaticamente via chatComplete()
+  // 🚀 Agora usa OpenRouter/Chutes automaticamente via chatComplete()
 
   constructor() {
     // Não precisa mais de apiKey ou model - usa config do sistema
-    console.log(`[AIHumanizer] Inicializado com OpenRouter/Hyperbolic`);
+    console.log(`[AIHumanizer] Inicializado com OpenRouter/Chutes`);
   }
 
   /**

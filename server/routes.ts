@@ -5893,7 +5893,7 @@ REGRAS:
 Responda APENAS com o JSON, sem texto adicional.`;
 
         try {
-          // 🚀 Chamada via chatComplete (usa OpenRouter/Hyperbolic automaticamente)
+          // 🚀 Chamada via chatComplete (usa OpenRouter/Chutes automaticamente)
           const { chatComplete } = await import("./llm");
           
           const intentResponse = await chatComplete({
@@ -8522,7 +8522,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
   // Get system config
   app.get("/api/admin/config", isAdmin, async (_req, res) => {
     try {
-      const [mistralKey, pixKey, zaiKey, llmProvider, groqKey, groqModel, openrouterKey, openrouterModel] = await withRetry(() => 
+      const [mistralKey, pixKey, zaiKey, llmProvider, groqKey, groqModel, openrouterKey, openrouterModel, openrouterProvider] = await withRetry(() => 
         Promise.all([
           storage.getSystemConfig("mistral_api_key"),
           storage.getSystemConfig("pix_key"),
@@ -8532,6 +8532,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
           storage.getSystemConfig("groq_model"),
           storage.getSystemConfig("openrouter_api_key"),
           storage.getSystemConfig("openrouter_model"),
+          storage.getSystemConfig("openrouter_provider"),
         ])
       );
       res.json({
@@ -8543,6 +8544,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
         groq_model: groqModel?.valor || "openai/gpt-oss-20b",
         openrouter_api_key: openrouterKey?.valor || "",
         openrouter_model: openrouterModel?.valor || "meta-llama/llama-3.3-70b-instruct:free",
+        openrouter_provider: openrouterProvider?.valor || "chutes",
       });
     } catch (error) {
       console.error("Error fetching config:", error);
@@ -8553,7 +8555,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
   // Update system config
   app.put("/api/admin/config", isAdmin, async (req, res) => {
     try {
-      const { mistral_api_key, pix_key, zai_api_key, llm_provider, groq_api_key, groq_model, openrouter_api_key, openrouter_model } = req.body;
+      const { mistral_api_key, pix_key, zai_api_key, llm_provider, groq_api_key, groq_model, openrouter_api_key, openrouter_model, openrouter_provider } = req.body;
 
       if (mistral_api_key !== undefined) {
         // Limpar espaços e caracteres invisíveis da chave antes de salvar
@@ -8611,10 +8613,130 @@ Responda APENAS com o JSON, sem texto adicional.`;
         console.log(`[Admin] OpenRouter model set to: ${openrouter_model.trim()}`);
       }
 
+      // OpenRouter provider (ex: chutes, hyperbolic, deepinfra)
+      if (openrouter_provider !== undefined) {
+        await storage.updateSystemConfig("openrouter_provider", openrouter_provider.trim().toLowerCase());
+        invalidateLLMConfigCache(); // Invalida cache
+        console.log(`[Admin] OpenRouter provider set to: ${openrouter_provider.trim()}`);
+      }
+
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating config:", error);
       res.status(500).json({ message: "Failed to update config" });
+    }
+  });
+
+  // ==================== OPENROUTER MODELS & PROVIDERS API ====================
+  
+  // Fetch available models from OpenRouter API
+  app.get("/api/admin/openrouter/models", isAdmin, async (_req, res) => {
+    try {
+      console.log(`[Admin] Fetching OpenRouter models list...`);
+      
+      const response = await fetch('https://openrouter.ai/api/v1/models', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Filtrar modelos de chat (excluir embedding, moderation, etc)
+      // e retornar apenas campos relevantes para reduzir payload
+      const models = (data.data || [])
+        .filter((model: any) => {
+          // Excluir modelos de embedding, moderation, e modelos que não são de chat
+          const id = model.id?.toLowerCase() || '';
+          return !id.includes('embed') && 
+                 !id.includes('guard') && 
+                 !id.includes('moderation') &&
+                 !id.includes('tts') &&
+                 !id.includes('whisper') &&
+                 !id.includes('vision-preview');
+        })
+        .map((model: any) => ({
+          id: model.id,
+          name: model.name,
+          description: model.description,
+          context_length: model.context_length,
+          pricing: model.pricing,
+          top_provider: model.top_provider,
+          architecture: model.architecture,
+        }))
+        .sort((a: any, b: any) => {
+          // Ordenar por preço (mais barato primeiro)
+          const priceA = parseFloat(a.pricing?.prompt || '999');
+          const priceB = parseFloat(b.pricing?.prompt || '999');
+          return priceA - priceB;
+        });
+      
+      console.log(`[Admin] Found ${models.length} chat models from OpenRouter`);
+      res.json({ models });
+    } catch (error: any) {
+      console.error("Error fetching OpenRouter models:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get providers for a specific model from OpenRouter
+  app.get("/api/admin/openrouter/providers/:modelId", isAdmin, async (req, res) => {
+    try {
+      const modelId = decodeURIComponent(req.params.modelId);
+      console.log(`[Admin] Fetching providers for model: ${modelId}`);
+      
+      // OpenRouter não tem endpoint específico para providers, 
+      // mas podemos extrair do endpoint de modelos
+      const response = await fetch('https://openrouter.ai/api/v1/models', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const model = (data.data || []).find((m: any) => m.id === modelId);
+      
+      if (!model) {
+        return res.status(404).json({ message: `Model ${modelId} not found` });
+      }
+      
+      // Lista comum de providers do OpenRouter
+      // O provider exato depende do modelo, mas estes são os mais comuns
+      const commonProviders = [
+        { slug: 'chutes', name: 'Chutes', description: 'Mais barato, $0.02-0.10/M tokens (bf16)' },
+        { slug: 'hyperbolic', name: 'Hyperbolic', description: 'Barato, $0.04-0.12/M tokens' },
+        { slug: 'deepinfra', name: 'DeepInfra', description: 'Rápido, $0.05-0.15/M tokens' },
+        { slug: 'together', name: 'Together AI', description: 'Confiável, $0.10-0.30/M tokens' },
+        { slug: 'fireworks', name: 'Fireworks', description: 'Alta performance' },
+        { slug: 'lepton', name: 'Lepton', description: 'Baixa latência' },
+        { slug: 'novita', name: 'Novita AI', description: 'Alternativa econômica' },
+        { slug: 'avian', name: 'Avian', description: 'API simples' },
+      ];
+      
+      // Retornar info do modelo com providers sugeridos
+      res.json({
+        model: {
+          id: model.id,
+          name: model.name,
+          pricing: model.pricing,
+          top_provider: model.top_provider,
+        },
+        providers: commonProviders,
+        recommended: 'chutes', // Sempre recomendar Chutes por ser mais barato
+      });
+    } catch (error: any) {
+      console.error("Error fetching providers:", error);
+      res.status(500).json({ message: error.message });
     }
   });
 
@@ -11308,7 +11430,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
         body: JSON.stringify({
           model: model,
           messages: [{ role: "user", content: "Say OK" }],
-          max_tokens: 5
+          max_tokens: 5,
+          provider: {
+            order: ['chutes'],  // ⚠️ FORÇAR APENAS Chutes ($0.02/M input, $0.10/M output - bf16)
+            allow_fallbacks: false  // 🚫 NÃO permitir outros providers!
+          }
         })
       });
       

@@ -15,7 +15,7 @@
  * 
  * Baseado em técnicas de: Anthropic, LangSmith, Microsoft Promptbase
  * 
- * 🚀 ATUALIZADO: Agora usa OpenRouter/Hyperbolic (mesmo LLM do chat produção)
+ * 🚀 ATUALIZADO: Agora usa OpenRouter/Chutes (mesmo LLM do chat produção)
  */
 
 import { chatComplete, type ChatMessage } from "./llm";
@@ -196,10 +196,10 @@ export class PromptCalibrationService {
   private config: ConfiguracaoCalibracao;
 
   constructor(config?: Partial<ConfiguracaoCalibracao>) {
-    // 🚀 Agora usa OpenRouter/Hyperbolic automaticamente via chatComplete()
+    // 🚀 Agora usa OpenRouter/Chutes automaticamente via chatComplete()
     // Não precisa mais de apiKey ou modelo - usa config do sistema
     this.config = { ...CONFIG_PADRAO, ...config };
-    console.log(`🎯 [Calibração] Inicializado com OpenRouter/Hyperbolic (mesmo LLM da produção)`);
+    console.log(`🎯 [Calibração] Inicializado com OpenRouter/Chutes (mesmo LLM da produção)`);
   }
 
   /**
@@ -606,14 +606,14 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
 
 /**
  * Função simplificada para calibrar prompts
- * 🚀 ATUALIZADO: Agora usa OpenRouter/Hyperbolic automaticamente
+ * 🚀 ATUALIZADO: Agora usa OpenRouter/Chutes automaticamente
  * Os parâmetros apiKey e modelo são mantidos por compatibilidade mas ignorados
  */
 export async function calibrarPromptEditado(
   promptEditado: string,
   instrucaoUsuario: string,
   _apiKey?: string,  // Ignorado - usa config do sistema
-  _modelo?: "mistral" | "openai",  // Ignorado - usa OpenRouter/Hyperbolic
+  _modelo?: "mistral" | "openai",  // Ignorado - usa OpenRouter/Chutes
   config?: Partial<ConfiguracaoCalibracao>
 ): Promise<ResultadoCalibracao> {
   const service = new PromptCalibrationService(config);
