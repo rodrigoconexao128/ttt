@@ -119,7 +119,7 @@ export default function AgentConfig() {
     escalateToHuman: true,
     escalationKeywords: [],
     isActive: true,
-    model: "mistral-small-latest",
+    model: "mistral-medium-latest",
     triggerPhrases: [],
     templateType: "custom"
   });

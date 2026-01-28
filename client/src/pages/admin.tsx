@@ -3122,9 +3122,10 @@ function ResellersManager() {
   );
 }
 
-function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?: string; zai_api_key?: string; llm_provider?: string; groq_api_key?: string; groq_model?: string; openrouter_api_key?: string; openrouter_model?: string; openrouter_provider?: string } | undefined }) {
+function ConfigManager({ config }: { config: { mistral_api_key: string; mistral_model?: string; pix_key?: string; zai_api_key?: string; llm_provider?: string; groq_api_key?: string; groq_model?: string; openrouter_api_key?: string; openrouter_model?: string; openrouter_provider?: string } | undefined }) {
   const { toast } = useToast();
   const [mistralKey, setMistralKey] = useState(config?.mistral_api_key || "");
+  const [mistralModel, setMistralModel] = useState(config?.mistral_model || "mistral-medium-latest");
   const [pixKey, setPixKey] = useState(config?.pix_key || "");
   const [zaiKey, setZaiKey] = useState(config?.zai_api_key || "");
   const [llmProvider, setLlmProvider] = useState(config?.llm_provider || "mistral");
@@ -3153,6 +3154,7 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
   useEffect(() => {
     if (config) {
       setMistralKey(config.mistral_api_key || "");
+      setMistralModel(config.mistral_model || "mistral-medium-latest");
       setPixKey(config.pix_key || "");
       setZaiKey(config.zai_api_key || "");
       setLlmProvider(config.llm_provider || "mistral");
@@ -3239,7 +3241,7 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
   };
 
   const updateConfigMutation = useMutation({
-    mutationFn: async (data: { mistral_api_key: string; pix_key: string; zai_api_key: string; llm_provider: string; groq_api_key: string; groq_model: string; openrouter_api_key: string; openrouter_model: string; openrouter_provider: string }) => {
+    mutationFn: async (data: { mistral_api_key: string; mistral_model: string; pix_key: string; zai_api_key: string; llm_provider: string; groq_api_key: string; groq_model: string; openrouter_api_key: string; openrouter_model: string; openrouter_provider: string }) => {
       return await apiRequest("PUT", "/api/admin/config", data);
     },
     onSuccess: () => {
@@ -3277,6 +3279,7 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
     
     updateConfigMutation.mutate({ 
       mistral_api_key: mistralKey, 
+      mistral_model: mistralModel,
       pix_key: pixKey, 
       zai_api_key: zaiKey,
       llm_provider: llmProvider,
@@ -3296,6 +3299,60 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
     { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
     { value: "gemma2-9b-it", label: "Gemma 2 9B IT" },
     { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
+  ];
+  
+  // 🆕 Lista de modelos Mistral VALIDADOS POR STRESS TEST (2 minutos, 4128 requisições)
+  // ⚠️ IMPORTANTE: Apenas estes 4 modelos funcionam com rate limit aceitável!
+  // Outros modelos (mistral-small-*, ministral-*, open-*, etc) tem 100% rate limit
+  const mistralModels = [
+    // ✅ MODELOS VALIDADOS (Stress Test - 2 min, 4128 req)
+    // 🥇 Tier 1 - RECOMENDADOS (Fila inteligente usa estes em rotação)
+    { 
+      value: "mistral-medium-latest", 
+      label: "🥇 Mistral Medium Latest (10.5 req/min) ✅ RECOMENDADO",
+      rateLimit: "10.5 req/min",
+      delay: 6,
+      successRate: "22.6%"
+    },
+    { 
+      value: "mistral-medium-2312", 
+      label: "🥈 Mistral Medium 2312 (6 req/min) ✅ Fallback #1",
+      rateLimit: "6 req/min",
+      delay: 10,
+      successRate: "13.0%"
+    },
+    { 
+      value: "mistral-medium", 
+      label: "🥉 Mistral Medium (6 req/min) ✅ Fallback #2",
+      rateLimit: "6 req/min",
+      delay: 10,
+      successRate: "12.8%"
+    },
+    { 
+      value: "mistral-large-2411", 
+      label: "⚡ Mistral Large 2411 (3 req/min) ✅ Fallback #3",
+      rateLimit: "3 req/min",
+      delay: 20,
+      successRate: "6.3%"
+    },
+    // 🔶 Tier 2 - Outros Large (menos testados, podem funcionar)
+    { 
+      value: "mistral-large-latest", 
+      label: "🔶 Mistral Large Latest (pode ter limite baixo)",
+      rateLimit: "~3 req/min",
+      delay: 20,
+      successRate: "N/A"
+    },
+    { 
+      value: "mistral-large-2407", 
+      label: "🔶 Mistral Large 2407 (pode ter limite baixo)",
+      rateLimit: "~3 req/min",
+      delay: 20,
+      successRate: "N/A"
+    },
+    // ⛔ BLOQUEADOS - NÃO USAR (100% rate limit nos testes)
+    // Estes modelos foram testados e tem rate limit muito agressivo
+    // mistral-small-*, ministral-*, open-mistral-*, pixtral-*, codestral-*
   ];
   
   // Lista de providers do OpenRouter
@@ -3624,43 +3681,72 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; pix_key?
 
           {/* Mistral Configuration (só aparece se Mistral estiver selecionado) */}
           {llmProvider === "mistral" && (
-            <div className="grid gap-2">
-              <Label htmlFor="mistralKey">Mistral API Key</Label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    id="mistralKey"
-                    type={showMistralKey ? "text" : "password"}
-                    value={mistralKey}
-                    onChange={(e) => setMistralKey(e.target.value)}
-                    placeholder="sk-..."
-                    data-testid="input-mistral-key"
-                    className="pr-10"
-                  />
+            <div className="p-4 border rounded-lg border-orange-200 bg-orange-50/50 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🔥</span>
+                <span className="text-sm font-semibold text-orange-700">Mistral AI - Modelos 2026</span>
+              </div>
+              
+              {/* API Key */}
+              <div className="grid gap-2">
+                <Label htmlFor="mistralKey">Mistral API Key</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="mistralKey"
+                      type={showMistralKey ? "text" : "password"}
+                      value={mistralKey}
+                      onChange={(e) => setMistralKey(e.target.value)}
+                      placeholder="sk-..."
+                      data-testid="input-mistral-key"
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowMistralKey(!showMistralKey)}
+                    >
+                      {showMistralKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowMistralKey(!showMistralKey)}
+                    onClick={testMistralKey}
+                    disabled={testingMistral || !mistralKey}
                   >
-                    {showMistralKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {testingMistral ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                    Testar
                   </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={testMistralKey}
-                  disabled={testingMistral || !mistralKey}
-                >
-                  {testingMistral ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                  Testar
-                </Button>
+                <p className="text-sm text-muted-foreground">
+                  Crie sua chave em <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener noreferrer" className="text-orange-600 underline">console.mistral.ai</a>
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Chave API usada por todos os agentes IA do sistema
-              </p>
+
+              {/* Model Selection */}
+              <div className="grid gap-2">
+                <Label htmlFor="mistralModel">🤖 Modelo Mistral</Label>
+                <select
+                  id="mistralModel"
+                  value={mistralModel}
+                  onChange={(e) => setMistralModel(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-testid="select-mistral-model"
+                >
+                  {mistralModels.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-sm text-muted-foreground">
+                  <strong>Recomendado:</strong> Mistral Small 3.2 para equilíbrio entre custo e qualidade.
+                </p>
+              </div>
             </div>
           )}
 

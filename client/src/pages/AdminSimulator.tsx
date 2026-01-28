@@ -44,7 +44,7 @@ const AVAILABLE_MODELS = [
 ];
 
 export default function AdminSimulator() {
-  const [selectedModel, setSelectedModel] = useState("mistral-small-latest");
+  const [selectedModel, setSelectedModel] = useState("mistral-medium-latest");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
