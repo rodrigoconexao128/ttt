@@ -1949,7 +1949,7 @@ export async function forceFullContactSync(userId: string): Promise<{ success: b
   console.log(`========================================\n`);
 
   // Limpar cache de agenda existente para forçar nova sincronização
-  agendaCache.delete(userId);
+  agendaContactsCache.delete(userId);
   console.log(`📱 [FORCE FULL SYNC] Cache de agenda limpo`);
 
   // Verificar se existe sessão ativa
