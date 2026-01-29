@@ -1186,9 +1186,32 @@ export async function processChatbotMessage(
     }
   } else if (currentNode.node_type === 'buttons') {
     // Encontrar botão clicado
-    const button = currentNode.content.buttons?.find(
+    // CORREÇÃO: Também aceitar números (1, 2, 3) como resposta aos botões
+    // Isso é necessário quando os botões são convertidos para texto numerado
+    const buttons = currentNode.content.buttons || [];
+    let button = buttons.find(
       (btn: any) => btn.title.toLowerCase() === messageLower || btn.id === message
     );
+    
+    // Se não encontrou, tentar por índice numérico (1, 2, 3, etc)
+    if (!button) {
+      const numericInput = parseInt(message.trim(), 10);
+      if (!isNaN(numericInput) && numericInput >= 1 && numericInput <= buttons.length) {
+        button = buttons[numericInput - 1]; // Índice base 0
+        console.log(`🔢 [BUTTONS] Entrada numérica detectada: ${numericInput} -> ${button?.title}`);
+      }
+    }
+    
+    // Também tentar match por título sem emoji (ex: "Pizzas" ao invés de "🍕 Pizzas")
+    if (!button) {
+      button = buttons.find((btn: any) => {
+        const titleNoEmoji = btn.title.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim().toLowerCase();
+        return titleNoEmoji === messageLower || messageLower.includes(titleNoEmoji);
+      });
+      if (button) {
+        console.log(`🔤 [BUTTONS] Match por título sem emoji: ${message} -> ${button.title}`);
+      }
+    }
 
     if (button) {
       const handle = `button_${button.id}`;
@@ -1280,9 +1303,30 @@ export async function processChatbotMessage(
       }
     });
     
-    const option = allRows.find(
+    // CORREÇÃO: Também aceitar números (1, 2, 3) como resposta às listas
+    let option = allRows.find(
       (row: any) => row.title.toLowerCase() === messageLower || row.id === message
     );
+    
+    // Se não encontrou, tentar por índice numérico (1, 2, 3, etc)
+    if (!option) {
+      const numericInput = parseInt(message.trim(), 10);
+      if (!isNaN(numericInput) && numericInput >= 1 && numericInput <= allRows.length) {
+        option = allRows[numericInput - 1]; // Índice base 0
+        console.log(`🔢 [LIST] Entrada numérica detectada: ${numericInput} -> ${option?.title}`);
+      }
+    }
+    
+    // Também tentar match por título parcial
+    if (!option) {
+      option = allRows.find((row: any) => {
+        const titleNoEmoji = row.title.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim().toLowerCase();
+        return titleNoEmoji === messageLower || messageLower.includes(titleNoEmoji) || titleNoEmoji.includes(messageLower);
+      });
+      if (option) {
+        console.log(`🔤 [LIST] Match parcial: ${message} -> ${option.title}`);
+      }
+    }
 
     if (option) {
       const handle = `row_${option.id}`;
