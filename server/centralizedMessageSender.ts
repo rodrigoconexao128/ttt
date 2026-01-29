@@ -449,20 +449,59 @@ class CentralizedMessageSender {
 
   /**
    * Envia botões (se suportado)
+   * @param payload - Pode ser objeto completo {body, buttons, header?, footer?} ou text simples
+   * 
+   * ⚠️ IMPORTANTE: WhatsApp deprecou botões interativos para contas normais
+   * Agora enviamos como texto formatado com opções numeradas
    */
   async sendButtons(
     userId: string,
     jid: string,
-    text: string,
-    buttons: any[],
+    payload: any, // Aceita payload completo ou text simples
     socket: WASocket,
     origin: MessageOrigin,
     options?: Partial<SendMessageOptions>
   ): Promise<SendResult> {
+    // Se payload é objeto com body, converter para texto formatado
+    let content: any;
+    
+    if (typeof payload === 'object' && payload.body) {
+      // ⚠️ WhatsApp deprecou botões para contas não-business
+      // Converter botões para texto formatado com emojis
+      let formattedText = payload.body;
+      
+      // Adicionar footer se existir
+      if (payload.footer?.text) {
+        formattedText += `\n\n${payload.footer.text}`;
+      }
+      
+      // Adicionar botões como opções de texto
+      if (payload.buttons && payload.buttons.length > 0) {
+        formattedText += '\n\n';
+        payload.buttons.forEach((btn: any, index: number) => {
+          const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][index] || `${index + 1}.`;
+          const title = btn.reply?.title || btn.title || `Opção ${index + 1}`;
+          formattedText += `${emoji} ${title}\n`;
+        });
+        formattedText += '\n_Digite o número da opção desejada_';
+      }
+      
+      content = { text: formattedText };
+      
+      // Log para debug
+      console.log(`📱 [BUTTONS→TEXT] Convertendo ${payload.buttons?.length || 0} botões para texto para ${jid.substring(0, 15)}...`);
+    } else if (typeof payload === 'string') {
+      // Formato simples - texto direto
+      content = { text: payload };
+    } else {
+      // Fallback - usar como está
+      content = payload;
+    }
+    
     return this.sendMessage({
       userId,
       jid,
-      content: { text, buttons } as any,
+      content,
       socket,
       origin,
       ...options,
@@ -471,21 +510,70 @@ class CentralizedMessageSender {
 
   /**
    * Envia lista
+   * @param payload - Pode ser objeto completo {body, buttonText, sections, header?, footer?} ou text simples
+   * 
+   * ⚠️ IMPORTANTE: WhatsApp deprecou listas interativas para contas normais
+   * Agora enviamos como texto formatado com opções
    */
   async sendList(
     userId: string,
     jid: string,
-    text: string,
-    buttonText: string,
-    sections: any[],
+    payload: any, // Aceita payload completo ou parâmetros individuais
     socket: WASocket,
     origin: MessageOrigin,
     options?: Partial<SendMessageOptions>
   ): Promise<SendResult> {
+    // Se payload é objeto com body, converter para texto formatado
+    let content: any;
+    
+    if (typeof payload === 'object' && payload.body) {
+      // ⚠️ WhatsApp deprecou listas para contas não-business
+      // Converter lista para texto formatado
+      let formattedText = payload.body;
+      
+      // Adicionar footer se existir
+      if (payload.footer?.text) {
+        formattedText += `\n\n${payload.footer.text}`;
+      }
+      
+      // Adicionar seções e itens como texto
+      if (payload.sections && payload.sections.length > 0) {
+        let itemIndex = 1;
+        payload.sections.forEach((section: any) => {
+          if (section.title) {
+            formattedText += `\n\n*${section.title}*`;
+          }
+          if (section.rows && section.rows.length > 0) {
+            section.rows.forEach((row: any) => {
+              const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][itemIndex - 1] || `${itemIndex}.`;
+              formattedText += `\n${emoji} ${row.title}`;
+              if (row.description) {
+                formattedText += ` - _${row.description}_`;
+              }
+              itemIndex++;
+            });
+          }
+        });
+        formattedText += '\n\n_Digite o número ou nome da opção desejada_';
+      }
+      
+      content = { text: formattedText };
+      
+      // Log para debug
+      const totalItems = payload.sections?.reduce((acc: number, s: any) => acc + (s.rows?.length || 0), 0) || 0;
+      console.log(`📋 [LIST→TEXT] Convertendo lista com ${totalItems} itens para texto para ${jid.substring(0, 15)}...`);
+    } else if (typeof payload === 'string') {
+      // Formato simples - texto direto
+      content = { text: payload };
+    } else {
+      // Fallback - usar como está
+      content = payload;
+    }
+    
     return this.sendMessage({
       userId,
       jid,
-      content: { text, buttonText, sections } as any,
+      content,
       socket,
       origin,
       ...options,
