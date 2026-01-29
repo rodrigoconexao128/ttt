@@ -225,8 +225,8 @@ export default function SyncedContactsPage() {
       return apiRequest('POST', '/api/contacts/full-sync', { force });
     },
     onSuccess: (data: any) => {
-      toast({ 
-        title: data.success ? '✅ Sincronização Completa' : '⏳ Aguarde', 
+      toast({
+        title: data.success ? '✅ Sincronização Completa' : '⏳ Aguarde',
         description: data.message,
       });
       // Atualizar a cada 5 segundos enquanto sincroniza
@@ -236,10 +236,42 @@ export default function SyncedContactsPage() {
       }, 3000);
     },
     onError: (error: any) => {
-      toast({ 
-        title: 'Erro na sincronização completa', 
-        description: error.message, 
-        variant: 'destructive' 
+      toast({
+        title: 'Erro na sincronização completa',
+        description: error.message,
+        variant: 'destructive'
+      });
+    },
+  });
+
+  // ======================================================================
+  // 📱 SINCRONIZAÇÃO COMPLETA DA AGENDA DO WHATSAPP
+  // ======================================================================
+  // Este mutation força uma reconexão do WhatsApp que dispara o syncFullHistory
+  // e faz o Baileys emitir TODOS os contatos da agenda via contacts.upsert
+  // ======================================================================
+  const syncAgendaMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/contacts/sync-agenda');
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: data.success ? '📱 Sincronização Iniciada!' : '⚠️ Aviso',
+        description: data.message,
+      });
+      // Polling para atualizar contatos enquanto sincroniza
+      let attempts = 0;
+      const interval = setInterval(() => {
+        refetchAgenda();
+        attempts++;
+        if (attempts >= 30) clearInterval(interval); // 60 segundos máximo
+      }, 2000);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Erro na sincronização da agenda',
+        description: error.message,
+        variant: 'destructive'
       });
     },
   });
@@ -426,8 +458,8 @@ export default function SyncedContactsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* ÚNICO BOTÃO: Sincronizar Agenda */}
-          <Button 
+          {/* Botão 1: Sincronizar Agenda (rápido - do cache) */}
+          <Button
             onClick={() => {
               agendaSyncMutation.mutate();
             }}
@@ -443,12 +475,37 @@ export default function SyncedContactsPage() {
             ) : agendaData?.status === 'ready' ? (
               <>
                 <RefreshCw className="h-5 w-5 mr-2" />
-                Atualizar Agenda
+                Atualizar
               </>
             ) : (
               <>
                 <Smartphone className="h-5 w-5 mr-2" />
-                📱 Sincronizar Agenda
+                Sincronizar
+              </>
+            )}
+          </Button>
+
+          {/* Botão 2: Sincronizar AGENDA COMPLETA (força reconexão) */}
+          <Button
+            onClick={() => {
+              if (window.confirm('Isso vai reconectar seu WhatsApp para buscar TODOS os contatos da agenda. Continuar?')) {
+                syncAgendaMutation.mutate();
+              }
+            }}
+            disabled={syncAgendaMutation.isPending || !whatsappStatus?.isConnected}
+            variant="outline"
+            className="border-blue-400 text-blue-700 hover:bg-blue-50"
+            size="lg"
+          >
+            {syncAgendaMutation.isPending ? (
+              <>
+                <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
+                Reconectando...
+              </>
+            ) : (
+              <>
+                <Database className="h-5 w-5 mr-2" />
+                Buscar Agenda Completa
               </>
             )}
           </Button>

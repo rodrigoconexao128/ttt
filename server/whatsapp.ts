@@ -8,6 +8,7 @@ import makeWASocket, {
   jidNormalizedUser,
   jidDecode,
   makeCacheableSignalKeyStore,
+  Browsers,
 } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
 import pino from "pino";
@@ -2066,8 +2067,21 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       },
       logger: pino({ level: "silent" }),
       printQRInTerminal: false,
-      // FIX 2025: Habilitar sync completo de contatos e hist�rico
-      // Isso faz o Baileys emitir TODOS os contatos do WhatsApp via contacts.upsert
+      // ======================================================================
+      // 📱 FIX 2025: SINCRONIZAÇÃO COMPLETA DE CONTATOS DA AGENDA
+      // ======================================================================
+      // IMPORTANTE: Estas configurações fazem o Baileys receber TODOS os
+      // contatos da agenda do WhatsApp na PRIMEIRA conexão após scan do QR.
+      //
+      // 1. browser: Browsers.macOS('Desktop') - Emula conexão desktop para
+      //    receber histórico completo (mais contatos e mensagens)
+      // 2. syncFullHistory: true - Habilita sync completo de contatos e histórico
+      //
+      // O evento contacts.upsert será disparado com TODOS os contatos logo
+      // após o QR Code ser escaneado e conexão estabelecida.
+      // Ref: https://github.com/WhiskeySockets/Baileys/issues/266
+      // ======================================================================
+      browser: Browsers.macOS('Desktop'),
       syncFullHistory: true,
       // -----------------------------------------------------------------------
       // ?? FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE)
@@ -2144,26 +2158,31 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     }
 
     // ======================================================================
-    // ?? CONTACTS SYNC - OTIMIZADO PARA CACHE EM MEM�RIA
+    // 📱 CONTACTS SYNC - SINCRONIZAÇÃO COMPLETA DA AGENDA DO WHATSAPP
     // ======================================================================
-    // IMPORTANTE: N�O salva mais no banco de dados Supabase!
-    // Contatos s�o mantidos APENAS em mem�ria para:
-    // 1. Resolver @lid ? phoneNumber (cache local por sess�o)
-    // 2. Envio em Massa (cache de agenda com TTL de 30min)
-    // Isso evita crescimento exponencial do banco e otimiza Egress/Disk IO
+    // IMPORTANTE: Este evento é disparado pelo Baileys com TODOS os contatos
+    // da agenda do WhatsApp na PRIMEIRA conexão após scan do QR Code.
+    //
+    // Com a configuração browser: Browsers.macOS('Desktop') + syncFullHistory: true,
+    // o Baileys emula uma conexão desktop que recebe histórico completo.
+    //
+    // Ref: https://github.com/WhiskeySockets/Baileys/issues/266
+    // "After scanning the QR code and establishing the first connection,
+    // 'contacts.upsert' transmits the entire contact list once."
     // ======================================================================
     sock.ev.on("contacts.upsert", async (contacts) => {
       console.log(`\n========================================`);
-      console.log(`[CONTACTS SYNC] ? Baileys emitiu ${contacts.length} contatos`);
-      console.log(`[CONTACTS SYNC] User ID: ${userId}`);
-      console.log(`[CONTACTS SYNC] ?? Salvando em MEM�RIA (n�o no banco)`);
+      console.log(`📱 [CONTACTS.UPSERT] Baileys emitiu ${contacts.length} contatos`);
+      console.log(`📱 [CONTACTS.UPSERT] User ID: ${userId}`);
+      console.log(`📱 [CONTACTS.UPSERT] Primeiro contato: ${contacts[0]?.id || 'N/A'}`);
+      console.log(`📱 [CONTACTS.UPSERT] Último contato: ${contacts[contacts.length - 1]?.id || 'N/A'}`);
       console.log(`========================================\n`);
-      
-      // Array para salvar no cache de agenda (envio em massa)
-      const agendaContacts: AgendaContact[] = [];
-      
+
+      // Array para novos contatos desta batch
+      const newAgendaContacts: AgendaContact[] = [];
+
       for (const contact of contacts) {
-        // Extrair n�mero do contact.id quando phoneNumber n�o vem preenchido
+        // Extrair número do contact.id quando phoneNumber não vem preenchido
         let phoneNumber = contact.phoneNumber || null;
         if (!phoneNumber && contact.id) {
           const match = contact.id.match(/^(\d+)@/);
@@ -2171,38 +2190,49 @@ export async function connectWhatsApp(userId: string): Promise<void> {
             phoneNumber = match[1];
           }
         }
-        
-        // 1. Atualizar cache em mem�ria da sess�o (para resolver @lid)
+
+        // 1. Atualizar cache em memória da sessão (para resolver @lid)
         contactsCache.set(contact.id, contact);
         if (contact.lid) {
           contactsCache.set(contact.lid, contact);
         }
-        
-        // 2. Adicionar ao array de agenda (se tiver n�mero v�lido)
+
+        // 2. Adicionar ao array de agenda (se tiver número válido)
         if (phoneNumber && phoneNumber.length >= 8) {
-          agendaContacts.push({
+          newAgendaContacts.push({
             id: contact.id,
             phoneNumber: phoneNumber,
-            name: contact.name || '',
+            name: contact.name || contact.notify || '',
             lid: contact.lid,
           });
         }
       }
-      
-      // 3. Salvar no cache de agenda (para Envio em Massa)
-      if (agendaContacts.length > 0) {
-        saveAgendaToCache(userId, agendaContacts);
-        
-        // Broadcast para o frontend informando que os contatos est�o prontos
-        broadcastToUser(userId, { 
+
+      // 3. IMPORTANTE: Mesclar com contatos existentes no cache (acumula múltiplas batches)
+      // O Baileys pode emitir contacts.upsert múltiplas vezes durante a sincronização inicial
+      const existingCache = getAgendaContacts(userId);
+      const existingContacts = existingCache?.contacts || [];
+      const existingPhones = new Set(existingContacts.map(c => c.phoneNumber));
+
+      // Filtrar apenas contatos novos (evitar duplicatas)
+      const uniqueNewContacts = newAgendaContacts.filter(c => !existingPhones.has(c.phoneNumber));
+      const mergedContacts = [...existingContacts, ...uniqueNewContacts];
+
+      if (mergedContacts.length > 0) {
+        saveAgendaToCache(userId, mergedContacts);
+
+        // Broadcast para o frontend informando que os contatos estão prontos
+        broadcastToUser(userId, {
           type: "agenda_synced",
-          count: agendaContacts.length,
+          count: mergedContacts.length,
           status: "ready",
-          message: `? ${agendaContacts.length} contatos sincronizados!`
+          message: `📱 ${mergedContacts.length} contatos sincronizados da agenda!`
         });
+
+        console.log(`📱 [CONTACTS.UPSERT] ✅ Novos: ${uniqueNewContacts.length} | Total no cache: ${mergedContacts.length}`);
+      } else {
+        console.log(`📱 [CONTACTS.UPSERT] ⚠️ Nenhum contato válido encontrado nesta batch`);
       }
-      
-      console.log(`[CONTACTS SYNC] ? ${agendaContacts.length} contatos salvos em cache (mem�ria)`);
     });
 
     // ======================================================================
@@ -3597,6 +3627,26 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     if (isExcluded) {
       console.log(`?? [AI AGENT] N�mero ${contactNumber} est� na LISTA DE EXCLUS�O - n�o responder automaticamente`);
       return;
+    }
+
+    // 🤖 CHATBOT DE FLUXO: Verificar se o usuário tem chatbot ativo ANTES da IA
+    // O chatbot tem prioridade sobre a IA quando ambos estão configurados
+    const { tryProcessChatbotMessage, isNewContact } = await import("./chatbotIntegration");
+    const isFirstContact = await isNewContact(conversation.id);
+    const chatbotResult = await tryProcessChatbotMessage(
+      session.userId,
+      conversation.id,
+      contactNumber,
+      effectiveText,
+      isFirstContact
+    );
+    
+    if (chatbotResult.handled) {
+      console.log(`🤖 [CHATBOT] Mensagem processada pelo chatbot de fluxo`);
+      if (chatbotResult.transferToHuman) {
+        console.log(`🤖 [CHATBOT] Conversa transferida para humano - IA desativada`);
+      }
+      return; // Chatbot já processou, não precisa da IA
     }
     
     // ?? CR�TICO: Verificar se �ltima mensagem foi do cliente (n�o do agente)
