@@ -3635,6 +3635,70 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       mediaUrl = null;
     }
   }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔘 RESPOSTA DE BOTÃO INTERATIVO (interactiveResponseMessage)
+  // Quando usuário clica em botão nativo (nativeFlowMessage quick_reply)
+  // ═══════════════════════════════════════════════════════════════════════════
+  else if (msg?.interactiveResponseMessage) {
+    try {
+      const interactiveResponse = msg.interactiveResponseMessage;
+      const nativeFlowResponse = interactiveResponse?.nativeFlowResponseMessage;
+      
+      if (nativeFlowResponse?.paramsJson) {
+        // Extrair ID e texto do botão clicado
+        const params = JSON.parse(nativeFlowResponse.paramsJson);
+        messageText = params.id || params.display_text || 'Opção selecionada';
+        console.log(`🔘 [INTERACTIVE] Resposta de botão nativo recebida: "${messageText}"`);
+        console.log(`   📋 Params: ${JSON.stringify(params)}`);
+      } else if (interactiveResponse?.body?.text) {
+        // Fallback: usar texto do body
+        messageText = interactiveResponse.body.text;
+        console.log(`🔘 [INTERACTIVE] Resposta interativa (body): "${messageText}"`);
+      } else {
+        messageText = 'Opção selecionada';
+        console.log(`🔘 [INTERACTIVE] Resposta interativa sem texto, usando fallback`);
+      }
+    } catch (parseError) {
+      console.error(`⚠️ [INTERACTIVE] Erro ao parsear resposta:`, parseError);
+      messageText = 'Opção selecionada';
+    }
+  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📋 RESPOSTA DE LISTA INTERATIVA (listResponseMessage)  
+  // Quando usuário seleciona item de lista nativa (single_select)
+  // ═══════════════════════════════════════════════════════════════════════════
+  else if (msg?.listResponseMessage) {
+    try {
+      const listResponse = msg.listResponseMessage;
+      const selectedRowId = listResponse?.singleSelectReply?.selectedRowId;
+      const title = listResponse?.title;
+      
+      // Usar o ID do item selecionado (que foi definido no nó)
+      messageText = selectedRowId || title || 'Opção selecionada';
+      console.log(`📋 [LIST-RESPONSE] Item de lista selecionado: "${messageText}"`);
+      console.log(`   🆔 Row ID: ${selectedRowId || 'N/A'}`);
+      console.log(`   📝 Title: ${title || 'N/A'}`);
+    } catch (parseError) {
+      console.error(`⚠️ [LIST-RESPONSE] Erro ao parsear resposta:`, parseError);
+      messageText = 'Opção selecionada';
+    }
+  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔘 RESPOSTA DE BOTÃO ANTIGO (buttonsResponseMessage)
+  // Compatibilidade com formato antigo de botões
+  // ═══════════════════════════════════════════════════════════════════════════
+  else if (msg?.buttonsResponseMessage) {
+    try {
+      const buttonsResponse = msg.buttonsResponseMessage;
+      messageText = buttonsResponse?.selectedButtonId || 
+                    buttonsResponse?.selectedDisplayText || 
+                    'Opção selecionada';
+      console.log(`🔘 [BUTTONS-RESPONSE] Botão antigo selecionado: "${messageText}"`);
+    } catch (parseError) {
+      console.error(`⚠️ [BUTTONS-RESPONSE] Erro ao parsear resposta:`, parseError);
+      messageText = 'Opção selecionada';
+    }
+  }
     // Ignorar mensagens de tipos não suportados (reações, status, etc)
   else {
     console.log(`Ignoring unsupported message type from ${contactNumber}:`, Object.keys(msg || {}));

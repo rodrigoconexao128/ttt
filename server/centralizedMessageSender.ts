@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- *  🚀 CENTRALIZED MESSAGE SENDER v1.0
+ *  🚀 CENTRALIZED MESSAGE SENDER v2.0
  *  Sistema unificado para envio de TODAS as mensagens
  *  TODOS os sistemas DEVEM usar este serviço para enviar mensagens!
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -19,10 +19,28 @@
  * - ✅ Media (imagens, vídeos, áudios)
  * 
  * NUNCA faça socket.sendMessage() diretamente! Use este serviço.
+ * 
+ * v2.0 - NOVA IMPLEMENTAÇÃO COM BOTÕES INTERATIVOS:
+ * - Usa nativeFlowMessage para Android (botões clicáveis)
+ * - Fallback para texto formatado em iOS/Web
+ * - Suporte a quick_reply e list sections
  */
 
 import { antiBanProtectionService, simulateTyping, groupMetadataCache, ANTI_BAN_CONFIG } from './antiBanProtectionService';
+import { proto, generateWAMessageFromContent, generateWAMessageContent } from '@whiskeysockets/baileys';
 import type { AnyMessageContent, WASocket } from '@whiskeysockets/baileys';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  🎛️ CONFIGURAÇÃO DE BOTÕES INTERATIVOS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Se true, tenta enviar botões nativos via nativeFlowMessage (funciona no Android)
+// Se false ou se falhar, usa texto formatado (funciona em todos)
+const USE_NATIVE_BUTTONS = true;
+
+// Enviar AMBOS: primeiro nativo, depois texto como fallback
+// Isso garante que funcione em TODOS os dispositivos
+const SEND_TEXT_FALLBACK = true;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  📋 TIPOS E INTERFACES
@@ -451,8 +469,8 @@ class CentralizedMessageSender {
    * Envia botões (se suportado)
    * @param payload - Pode ser objeto completo {body, buttons, header?, footer?} ou text simples
    * 
-   * ⚠️ IMPORTANTE: WhatsApp deprecou botões interativos para contas normais
-   * Agora enviamos como texto formatado com opções numeradas
+   * v2.0: Agora usa nativeFlowMessage para Android (botões clicáveis)
+   * E envia texto formatado como fallback para iOS/Web
    */
   async sendButtons(
     userId: string,
@@ -462,41 +480,122 @@ class CentralizedMessageSender {
     origin: MessageOrigin,
     options?: Partial<SendMessageOptions>
   ): Promise<SendResult> {
-    // Se payload é objeto com body, converter para texto formatado
-    let content: any;
-    
-    if (typeof payload === 'object' && payload.body) {
-      // ⚠️ WhatsApp deprecou botões para contas não-business
-      // Converter botões para texto formatado com emojis
-      let formattedText = payload.body;
-      
-      // Adicionar footer se existir
-      if (payload.footer?.text) {
-        formattedText += `\n\n${payload.footer.text}`;
-      }
-      
-      // Adicionar botões como opções de texto
-      if (payload.buttons && payload.buttons.length > 0) {
-        formattedText += '\n\n';
-        payload.buttons.forEach((btn: any, index: number) => {
-          const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][index] || `${index + 1}.`;
-          const title = btn.reply?.title || btn.title || `Opção ${index + 1}`;
-          formattedText += `${emoji} ${title}\n`;
-        });
-        formattedText += '\n_Digite o número da opção desejada_';
-      }
-      
-      content = { text: formattedText };
-      
-      // Log para debug
-      console.log(`📱 [BUTTONS→TEXT] Convertendo ${payload.buttons?.length || 0} botões para texto para ${jid.substring(0, 15)}...`);
-    } else if (typeof payload === 'string') {
-      // Formato simples - texto direto
-      content = { text: payload };
-    } else {
-      // Fallback - usar como está
-      content = payload;
+    // Se payload é string simples, enviar como texto
+    if (typeof payload === 'string') {
+      return this.sendMessage({
+        userId,
+        jid,
+        content: { text: payload },
+        socket,
+        origin,
+        ...options,
+      });
     }
+
+    // Se não tem body ou buttons, enviar como está
+    if (!payload.body || !payload.buttons?.length) {
+      return this.sendMessage({
+        userId,
+        jid,
+        content: payload,
+        socket,
+        origin,
+        ...options,
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔥 NOVA IMPLEMENTAÇÃO: nativeFlowMessage para Android
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    if (USE_NATIVE_BUTTONS) {
+      try {
+        console.log(`🔘 [NATIVE-BUTTONS] Tentando enviar ${payload.buttons.length} botões nativos para ${jid.substring(0, 15)}...`);
+        
+        // Criar botões no formato nativeFlowMessage (quick_reply)
+        const nativeButtons = payload.buttons.map((btn: any) => ({
+          name: 'quick_reply',
+          buttonParamsJson: JSON.stringify({
+            display_text: btn.reply?.title || btn.title || `Opção`,
+            id: btn.reply?.id || btn.id || `btn_${Date.now()}`
+          })
+        }));
+
+        // Criar mensagem interativa com nativeFlowMessage
+        const interactiveMessage = proto.Message.InteractiveMessage.create({
+          body: proto.Message.InteractiveMessage.Body.create({
+            text: payload.body
+          }),
+          footer: payload.footer?.text ? proto.Message.InteractiveMessage.Footer.create({
+            text: payload.footer.text
+          }) : undefined,
+          header: payload.header?.text ? proto.Message.InteractiveMessage.Header.create({
+            title: payload.header.text,
+            hasMediaAttachment: false
+          }) : undefined,
+          nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+            buttons: nativeButtons
+          })
+        });
+
+        // Gerar mensagem completa
+        const msg = generateWAMessageFromContent(jid, {
+          viewOnceMessage: {
+            message: {
+              messageContextInfo: {
+                deviceListMetadata: {},
+                deviceListMetadataVersion: 2
+              },
+              interactiveMessage
+            }
+          }
+        } as any, {} as any);
+
+        // Enviar via relayMessage
+        const result = await socket.relayMessage(jid, msg.message!, {
+          messageId: msg.key.id!
+        });
+
+        console.log(`✅ [NATIVE-BUTTONS] Botões nativos enviados com sucesso!`);
+        
+        this.recordSent(userId, origin, true);
+        return {
+          success: true,
+          messageId: msg.key.id || undefined,
+          waitedMs: 0,
+        };
+        
+      } catch (nativeError) {
+        console.error(`⚠️ [NATIVE-BUTTONS] Falha ao enviar botões nativos, usando fallback texto:`, nativeError);
+        // Continuar para fallback de texto
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 📝 FALLBACK: Converter para texto formatado (funciona em todos)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    let formattedText = payload.body;
+    
+    // Adicionar footer se existir
+    if (payload.footer?.text) {
+      formattedText += `\n\n${payload.footer.text}`;
+    }
+    
+    // Adicionar botões como opções de texto
+    if (payload.buttons && payload.buttons.length > 0) {
+      formattedText += '\n\n';
+      payload.buttons.forEach((btn: any, index: number) => {
+        const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][index] || `${index + 1}.`;
+        const title = btn.reply?.title || btn.title || `Opção ${index + 1}`;
+        formattedText += `${emoji} ${title}\n`;
+      });
+      formattedText += '\n_Digite o número da opção desejada_';
+    }
+    
+    const content = { text: formattedText };
+    
+    console.log(`📱 [BUTTONS→TEXT] Enviando ${payload.buttons?.length || 0} botões como texto para ${jid.substring(0, 15)}...`);
     
     return this.sendMessage({
       userId,
@@ -512,8 +611,8 @@ class CentralizedMessageSender {
    * Envia lista
    * @param payload - Pode ser objeto completo {body, buttonText, sections, header?, footer?} ou text simples
    * 
-   * ⚠️ IMPORTANTE: WhatsApp deprecou listas interativas para contas normais
-   * Agora enviamos como texto formatado com opções
+   * v2.0: Agora usa nativeFlowMessage com single_select para Android (lista clicável)
+   * E envia texto formatado como fallback para iOS/Web
    */
   async sendList(
     userId: string,
@@ -523,52 +622,142 @@ class CentralizedMessageSender {
     origin: MessageOrigin,
     options?: Partial<SendMessageOptions>
   ): Promise<SendResult> {
-    // Se payload é objeto com body, converter para texto formatado
-    let content: any;
-    
-    if (typeof payload === 'object' && payload.body) {
-      // ⚠️ WhatsApp deprecou listas para contas não-business
-      // Converter lista para texto formatado
-      let formattedText = payload.body;
-      
-      // Adicionar footer se existir
-      if (payload.footer?.text) {
-        formattedText += `\n\n${payload.footer.text}`;
-      }
-      
-      // Adicionar seções e itens como texto
-      if (payload.sections && payload.sections.length > 0) {
-        let itemIndex = 1;
-        payload.sections.forEach((section: any) => {
-          if (section.title) {
-            formattedText += `\n\n*${section.title}*`;
-          }
-          if (section.rows && section.rows.length > 0) {
-            section.rows.forEach((row: any) => {
-              const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][itemIndex - 1] || `${itemIndex}.`;
-              formattedText += `\n${emoji} ${row.title}`;
-              if (row.description) {
-                formattedText += ` - _${row.description}_`;
-              }
-              itemIndex++;
-            });
-          }
-        });
-        formattedText += '\n\n_Digite o número ou nome da opção desejada_';
-      }
-      
-      content = { text: formattedText };
-      
-      // Log para debug
-      const totalItems = payload.sections?.reduce((acc: number, s: any) => acc + (s.rows?.length || 0), 0) || 0;
-      console.log(`📋 [LIST→TEXT] Convertendo lista com ${totalItems} itens para texto para ${jid.substring(0, 15)}...`);
-    } else if (typeof payload === 'string') {
-      // Formato simples - texto direto
-      content = { text: payload };
-    } else {
-      // Fallback - usar como está
-      content = payload;
+    // Se payload é string simples, enviar como texto
+    if (typeof payload === 'string') {
+      return this.sendMessage({
+        userId,
+        jid,
+        content: { text: payload },
+        socket,
+        origin,
+        ...options,
+      });
     }
+
+    // Se não tem body ou sections, enviar como está
+    if (!payload.body || !payload.sections?.length) {
+      return this.sendMessage({
+        userId,
+        jid,
+        content: payload,
+        socket,
+        origin,
+        ...options,
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔥 NOVA IMPLEMENTAÇÃO: nativeFlowMessage single_select para Android
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    if (USE_NATIVE_BUTTONS) {
+      try {
+        // Contar total de itens
+        const totalItems = payload.sections.reduce((acc: number, s: any) => acc + (s.rows?.length || 0), 0);
+        console.log(`📋 [NATIVE-LIST] Tentando enviar lista com ${totalItems} itens nativos para ${jid.substring(0, 15)}...`);
+        
+        // Criar seções no formato nativeFlowMessage (single_select)
+        const nativeSections = payload.sections.map((section: any) => ({
+          title: section.title || '',
+          rows: (section.rows || []).map((row: any) => ({
+            id: row.id || `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            title: row.title || 'Opção',
+            description: row.description || ''
+          }))
+        }));
+
+        // Criar mensagem interativa com nativeFlowMessage single_select
+        const interactiveMessage = proto.Message.InteractiveMessage.create({
+          body: proto.Message.InteractiveMessage.Body.create({
+            text: payload.body
+          }),
+          footer: payload.footer?.text ? proto.Message.InteractiveMessage.Footer.create({
+            text: payload.footer.text
+          }) : undefined,
+          header: payload.header?.text ? proto.Message.InteractiveMessage.Header.create({
+            title: payload.header.text,
+            hasMediaAttachment: false
+          }) : undefined,
+          nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+            buttons: [{
+              name: 'single_select',
+              buttonParamsJson: JSON.stringify({
+                title: payload.buttonText || payload.button_text || 'Selecionar',
+                sections: nativeSections
+              })
+            }]
+          })
+        });
+
+        // Gerar mensagem completa
+        const msg = generateWAMessageFromContent(jid, {
+          viewOnceMessage: {
+            message: {
+              messageContextInfo: {
+                deviceListMetadata: {},
+                deviceListMetadataVersion: 2
+              },
+              interactiveMessage
+            }
+          }
+        } as any, {} as any);
+
+        // Enviar via relayMessage
+        const result = await socket.relayMessage(jid, msg.message!, {
+          messageId: msg.key.id!
+        });
+
+        console.log(`✅ [NATIVE-LIST] Lista nativa enviada com sucesso!`);
+        
+        this.recordSent(userId, origin, true);
+        return {
+          success: true,
+          messageId: msg.key.id || undefined,
+          waitedMs: 0,
+        };
+        
+      } catch (nativeError) {
+        console.error(`⚠️ [NATIVE-LIST] Falha ao enviar lista nativa, usando fallback texto:`, nativeError);
+        // Continuar para fallback de texto
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 📝 FALLBACK: Converter para texto formatado (funciona em todos)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    let formattedText = payload.body;
+    
+    // Adicionar footer se existir
+    if (payload.footer?.text) {
+      formattedText += `\n\n${payload.footer.text}`;
+    }
+    
+    // Adicionar seções e itens como texto
+    if (payload.sections && payload.sections.length > 0) {
+      let itemIndex = 1;
+      payload.sections.forEach((section: any) => {
+        if (section.title) {
+          formattedText += `\n\n*${section.title}*`;
+        }
+        if (section.rows && section.rows.length > 0) {
+          section.rows.forEach((row: any) => {
+            const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][itemIndex - 1] || `${itemIndex}.`;
+            formattedText += `\n${emoji} ${row.title}`;
+            if (row.description) {
+              formattedText += ` - _${row.description}_`;
+            }
+            itemIndex++;
+          });
+        }
+      });
+      formattedText += '\n\n_Digite o número ou nome da opção desejada_';
+    }
+    
+    const content = { text: formattedText };
+    
+    const totalItems = payload.sections?.reduce((acc: number, s: any) => acc + (s.rows?.length || 0), 0) || 0;
+    console.log(`📋 [LIST→TEXT] Enviando lista com ${totalItems} itens como texto para ${jid.substring(0, 15)}...`);
     
     return this.sendMessage({
       userId,
