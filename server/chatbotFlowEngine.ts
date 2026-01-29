@@ -8,10 +8,25 @@
  * 3. Processar a mensagem do usuário e determinar o próximo nó
  * 4. Enviar as respostas apropriadas
  * 5. Gerenciar o estado da conversa (variáveis coletadas, nó atual)
+ * 6. [HÍBRIDO] Interpretar linguagem natural e acionar nós corretos
  */
 
 import { db, withRetry } from "./db";
 import { sql } from "drizzle-orm";
+import {
+  parseNaturalDate,
+  parseNaturalTime,
+  extractDateFromText,
+  extractTimeFromText,
+  detectIntent,
+  processUserInputWithNaturalLanguage,
+  findNodeByIntent,
+  applyExtractedDataToVariables,
+  getHybridConfig,
+  logHybridDecision,
+  type IntentCategory,
+  type HybridFlowConfig
+} from "./hybridAIFlowEngine";
 
 // Interfaces
 interface ChatbotConfig {
@@ -710,6 +725,107 @@ async function processNode(
         console.error('[CHATBOT_ENGINE] Erro ao verificar horário:', hoursError);
       }
       break;
+
+    // ============================================================
+    // 📅 CREATE_APPOINTMENT - Criar agendamento
+    // ============================================================
+    case 'create_appointment':
+      try {
+        console.log(`📅 [CHATBOT_ENGINE] Processando nó create_appointment`);
+        
+        // Extrair dados do agendamento das variáveis
+        const clientName = variables['nome'] || variables['cliente_nome'] || 'Cliente';
+        const clientPhone = variables['telefone'] || variables['cliente_telefone'] || '';
+        const clientEmail = variables['email'] || variables['cliente_email'] || '';
+        const serviceName = variables['servico'] || variables['servico_nome'] || node.content?.service_name || '';
+        const serviceId = variables['servico_id'] || node.content?.service_id || '';
+        const professionalName = variables['profissional'] || variables['profissional_nome'] || node.content?.professional_name || '';
+        const professionalId = variables['profissional_id'] || node.content?.professional_id || '';
+        const appointmentDate = variables['data'] || variables['data_agendamento'] || '';
+        const appointmentTime = variables['horario'] || variables['hora'] || variables['horario_agendamento'] || '';
+        const durationMinutes = parseInt(variables['duracao'] || node.content?.duration_minutes || '60') || 60;
+        const customerNotes = variables['observacoes'] || variables['notas'] || '';
+        const location = variables['local'] || node.content?.location || '';
+        const locationType = variables['tipo_atendimento'] || node.content?.location_type || 'presencial';
+        
+        // Validar dados obrigatórios
+        if (!appointmentDate || !appointmentTime) {
+          console.log(`📅 [CHATBOT_ENGINE] Faltam dados obrigatórios - data: ${appointmentDate}, hora: ${appointmentTime}`);
+          messages.push({
+            type: 'text',
+            content: interpolateVariables(
+              node.content?.missing_data_message || '❌ Desculpe, preciso da data e horário para agendar. Pode informar?',
+              variables
+            ),
+            delay: config.typing_delay_ms
+          });
+          break;
+        }
+
+        // Montar dados do agendamento
+        const appointmentData = {
+          client_name: clientName,
+          client_phone: clientPhone,
+          client_email: clientEmail,
+          service_id: serviceId,
+          service_name: serviceName,
+          professional_id: professionalId,
+          professional_name: professionalName,
+          appointment_date: appointmentDate,
+          start_time: appointmentTime,
+          duration_minutes: durationMinutes,
+          notes: customerNotes,
+          location: location,
+          location_type: locationType,
+          status: 'pendente'
+        };
+
+        console.log(`📅 [CHATBOT_ENGINE] Criando agendamento:`, JSON.stringify(appointmentData, null, 2));
+
+        // Salvar agendamento no banco (será tratado pelo chatbotIntegration que tem acesso ao userId)
+        // Armazenar dados do agendamento nas variáveis para processamento posterior
+        variables['__appointment_data'] = JSON.stringify(appointmentData);
+        variables['__appointment_pending'] = 'true';
+        
+        // Atualizar variáveis para interpolação
+        variables['agendamento_data'] = appointmentDate;
+        variables['agendamento_horario'] = appointmentTime;
+        variables['agendamento_servico'] = serviceName;
+        variables['agendamento_profissional'] = professionalName;
+        variables['agendamento_duracao'] = String(durationMinutes);
+
+        // Mensagem de confirmação
+        const confirmAppointmentMsg = interpolateVariables(
+          node.content?.confirmation_message || 
+          `✅ *Agendamento Confirmado!*\n\n📅 Data: {{agendamento_data}}\n⏰ Horário: {{agendamento_horario}}\n💼 Serviço: {{agendamento_servico}}\n👤 Profissional: {{agendamento_profissional}}\n⏱️ Duração: {{agendamento_duracao}} minutos\n\nAguardamos você! 📋`,
+          variables
+        );
+        
+        messages.push({
+          type: 'text',
+          content: confirmAppointmentMsg,
+          delay: config.typing_delay_ms
+        });
+
+        // Ir para próximo nó
+        const nextAfterAppointment = findNextNode(node.node_id, 'default', nodes, connections);
+        if (nextAfterAppointment) {
+          const nextResponse = await processNode(nextAfterAppointment, { ...state, visited_nodes: visitedNodes, variables }, nodes, connections, config);
+          return {
+            ...nextResponse,
+            messages: [...messages, ...nextResponse.messages],
+            variables: { ...variables, ...nextResponse.variables }
+          };
+        }
+      } catch (appointmentError) {
+        console.error('[CHATBOT_ENGINE] Erro ao criar agendamento:', appointmentError);
+        messages.push({
+          type: 'text',
+          content: '❌ Desculpe, ocorreu um erro ao processar seu agendamento. Tente novamente.',
+          delay: config.typing_delay_ms
+        });
+      }
+      break;
   }
 
   return {
@@ -846,6 +962,9 @@ function applyHumanization(response: ChatbotResponse, config: ChatbotConfig): Ch
 /**
  * Processa uma mensagem recebida pelo chatbot
  * Retorna null se o chatbot não estiver ativo ou não tiver fluxo configurado
+ * 
+ * SISTEMA HÍBRIDO: Se habilitado, a IA interpreta a intenção do usuário
+ * e aciona o nó correto do fluxo. A resposta SEMPRE vem do fluxo.
  */
 export async function processChatbotMessage(
   userId: string,
@@ -879,6 +998,48 @@ export async function processChatbotMessage(
   }
 
   const messageLower = message.toLowerCase().trim();
+
+  // ==============================================================
+  // 🤖 SISTEMA HÍBRIDO: Carregar configuração e processar entrada
+  // ==============================================================
+  let hybridConfig: HybridFlowConfig | null = null;
+  let processedInput: ReturnType<typeof processUserInputWithNaturalLanguage> | null = null;
+  
+  try {
+    hybridConfig = await getHybridConfig(userId);
+    
+    if (hybridConfig?.enable_hybrid_ai) {
+      // Processar entrada com interpretação de linguagem natural
+      processedInput = processUserInputWithNaturalLanguage(message, hybridConfig);
+      
+      // Log da decisão do sistema híbrido
+      logHybridDecision(
+        message,
+        processedInput.intent,
+        processedInput.intent.confidence >= (hybridConfig.ai_confidence_threshold || 0.7) ? 'hybrid' : 'flow'
+      );
+      
+      // Aplicar dados extraídos (data, hora) às variáveis
+      if (processedInput.extractedDate || processedInput.extractedTime) {
+        const updatedVars = applyExtractedDataToVariables(
+          state.variables,
+          processedInput.extractedDate,
+          processedInput.extractedTime,
+          processedInput.intent
+        );
+        
+        // Atualizar variáveis no estado
+        await updateConversationState(conversationId, config.id, {
+          variables: updatedVars
+        });
+        
+        state.variables = updatedVars;
+      }
+    }
+  } catch (hybridError) {
+    console.error('[CHATBOT_ENGINE] Erro no sistema híbrido:', hybridError);
+    // Continuar com fluxo normal se híbrido falhar
+  }
 
   // Verificar palavra-chave de reinício
   const restartKeywords = config.restart_keywords || ['menu', 'início', 'inicio', 'voltar', 'reiniciar'];
@@ -1046,7 +1207,63 @@ export async function processChatbotMessage(
         return applyHumanization(response, config);
       }
     } else {
-      // Resposta não reconhecida
+      // ==============================================================
+      // 🤖 SISTEMA HÍBRIDO: Tentar interpretar a intenção do usuário
+      // ==============================================================
+      if (hybridConfig?.enable_hybrid_ai && processedInput) {
+        const intent = processedInput.intent;
+        const threshold = hybridConfig.ai_confidence_threshold || 0.7;
+        
+        // Se a IA tem confiança suficiente, tentar encontrar botão por similaridade
+        if (intent.confidence >= threshold) {
+          // Tentar match parcial com botões
+          const partialButton = currentNode.content.buttons?.find((btn: any) => {
+            const btnLower = btn.title.toLowerCase();
+            const msgWords = messageLower.split(/\s+/);
+            return msgWords.some((word: string) => word.length > 2 && btnLower.includes(word)) ||
+                   intent.keywords.some(kw => btnLower.includes(kw));
+          });
+          
+          if (partialButton) {
+            console.log(`🤖 [HYBRID_AI] Match parcial encontrado: ${partialButton.title}`);
+            const handle = `button_${partialButton.id}`;
+            const nextNode = findNextNode(currentNode.node_id, handle, nodes, connections) ||
+                            findNextNode(currentNode.node_id, 'default', nodes, connections);
+            
+            if (nextNode) {
+              const response = await processNode(nextNode, { ...state, variables, visited_nodes: [...state.visited_nodes, currentNode.node_id] }, nodes, connections, config);
+              
+              await updateConversationState(conversationId, config.id, {
+                current_node_id: response.currentNodeId,
+                variables: { ...variables, ...response.variables },
+                visited_nodes: [...state.visited_nodes, currentNode.node_id]
+              });
+
+              return applyHumanization(response, config);
+            }
+          }
+          
+          // Tentar encontrar nó por intenção
+          const intentNodeId = findNodeByIntent(intent, nodes, { variables, currentNodeId: currentNode.node_id });
+          if (intentNodeId && intentNodeId !== currentNode.node_id) {
+            const intentNode = nodes.find(n => n.node_id === intentNodeId);
+            if (intentNode) {
+              console.log(`🤖 [HYBRID_AI] Redirecionando para nó por intenção: ${intentNode.name}`);
+              const response = await processNode(intentNode, { ...state, variables, visited_nodes: [...state.visited_nodes, currentNode.node_id] }, nodes, connections, config);
+              
+              await updateConversationState(conversationId, config.id, {
+                current_node_id: response.currentNodeId,
+                variables: { ...variables, ...response.variables },
+                visited_nodes: [...state.visited_nodes, currentNode.node_id]
+              });
+
+              return applyHumanization(response, config);
+            }
+          }
+        }
+      }
+      
+      // Resposta não reconhecida (fallback)
       return applyHumanization({
         messages: [{ type: 'text', content: config.fallback_message, delay: config.typing_delay_ms }],
         waitingForInput: true,
@@ -1056,7 +1273,14 @@ export async function processChatbotMessage(
     }
   } else if (currentNode.node_type === 'list') {
     // Encontrar opção selecionada
-    const option = currentNode.content.sections?.[0]?.rows?.find(
+    const allRows: any[] = [];
+    currentNode.content.sections?.forEach((section: any) => {
+      if (section.rows) {
+        allRows.push(...section.rows);
+      }
+    });
+    
+    const option = allRows.find(
       (row: any) => row.title.toLowerCase() === messageLower || row.id === message
     );
 
@@ -1077,7 +1301,67 @@ export async function processChatbotMessage(
         return applyHumanization(response, config);
       }
     } else {
-      // Resposta não reconhecida
+      // ==============================================================
+      // 🤖 SISTEMA HÍBRIDO: Tentar interpretar a intenção para listas
+      // ==============================================================
+      if (hybridConfig?.enable_hybrid_ai && processedInput) {
+        const intent = processedInput.intent;
+        const threshold = hybridConfig.ai_confidence_threshold || 0.7;
+        
+        if (intent.confidence >= threshold) {
+          // Tentar match parcial com opções da lista
+          const partialOption = allRows.find((row: any) => {
+            const rowLower = row.title.toLowerCase();
+            const descLower = (row.description || '').toLowerCase();
+            const msgWords = messageLower.split(/\s+/);
+            return msgWords.some((word: string) => word.length > 2 && (rowLower.includes(word) || descLower.includes(word))) ||
+                   intent.keywords.some(kw => rowLower.includes(kw) || descLower.includes(kw));
+          });
+          
+          if (partialOption) {
+            console.log(`🤖 [HYBRID_AI] Match parcial em lista: ${partialOption.title}`);
+            // Salvar a opção escolhida nas variáveis
+            variables['opcao_escolhida'] = partialOption.title;
+            variables['opcao_id'] = partialOption.id;
+            
+            const handle = `row_${partialOption.id}`;
+            const nextNode = findNextNode(currentNode.node_id, handle, nodes, connections) ||
+                            findNextNode(currentNode.node_id, 'default', nodes, connections);
+            
+            if (nextNode) {
+              const response = await processNode(nextNode, { ...state, variables, visited_nodes: [...state.visited_nodes, currentNode.node_id] }, nodes, connections, config);
+              
+              await updateConversationState(conversationId, config.id, {
+                current_node_id: response.currentNodeId,
+                variables: { ...variables, ...response.variables },
+                visited_nodes: [...state.visited_nodes, currentNode.node_id]
+              });
+
+              return applyHumanization(response, config);
+            }
+          }
+          
+          // Tentar encontrar nó por intenção
+          const intentNodeId = findNodeByIntent(intent, nodes, { variables, currentNodeId: currentNode.node_id });
+          if (intentNodeId && intentNodeId !== currentNode.node_id) {
+            const intentNode = nodes.find(n => n.node_id === intentNodeId);
+            if (intentNode) {
+              console.log(`🤖 [HYBRID_AI] Redirecionando para nó por intenção: ${intentNode.name}`);
+              const response = await processNode(intentNode, { ...state, variables, visited_nodes: [...state.visited_nodes, currentNode.node_id] }, nodes, connections, config);
+              
+              await updateConversationState(conversationId, config.id, {
+                current_node_id: response.currentNodeId,
+                variables: { ...variables, ...response.variables },
+                visited_nodes: [...state.visited_nodes, currentNode.node_id]
+              });
+
+              return applyHumanization(response, config);
+            }
+          }
+        }
+      }
+      
+      // Resposta não reconhecida (fallback)
       return applyHumanization({
         messages: [{ type: 'text', content: config.fallback_message, delay: config.typing_delay_ms }],
         waitingForInput: true,

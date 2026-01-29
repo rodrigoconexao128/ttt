@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useBranding } from "@/hooks/useBranding";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput, Package, UtensilsCrossed, ClipboardList, Mic } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput, Package, UtensilsCrossed, ClipboardList, Mic, Workflow } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,7 @@ import ProductsPage from "@/pages/products";
 import DeliveryMenuPage from "@/pages/delivery-menu";
 import DeliveryOrdersPage from "@/pages/delivery-orders";
 import AudioConfigPage from "@/pages/audio-config";
+import FlowBuilderPage from "@/pages/flow-builder";
 import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation, useRoute } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan, Conversation } from "@shared/schema";
@@ -154,6 +155,7 @@ export default function Dashboard() {
   const isDeliveryMenuRoute = location.startsWith("/delivery-cardapio");
   const isDeliveryOrdersRoute = location.startsWith("/delivery-pedidos");
   const isAudioConfigRoute = location.startsWith("/falar-por-audio");
+  const isFlowBuilderRoute = location.startsWith("/construtor-fluxo");
   const isDashboardMode =
     !isConversasRoute &&
     !isConexaoRoute &&
@@ -183,7 +185,8 @@ export default function Dashboard() {
     !isProductsRoute &&
     !isDeliveryMenuRoute &&
     !isDeliveryOrdersRoute &&
-    !isAudioConfigRoute;
+    !isAudioConfigRoute &&
+    !isFlowBuilderRoute;
   const isToolsRoute =
     isMassSendRoute ||
     isCampaignsRoute ||
@@ -204,7 +207,8 @@ export default function Dashboard() {
     isProductsRoute ||
     isDeliveryMenuRoute ||
     isDeliveryOrdersRoute ||
-    isAudioConfigRoute;
+    isAudioConfigRoute ||
+    isFlowBuilderRoute;
   
   // Rotas do menu Configurações
   const isConfigRoute =
@@ -376,6 +380,18 @@ const toolsNavigation: ToolNavItem[] = [
       goToSection("agent");
     },
   },
+  { 
+    label: "🤖 Robô / Fluxo", 
+    icon: Workflow, 
+    tooltip: "Chatbot com fluxo predefinido", 
+    isActive: isFlowBuilderRoute || isDeliveryOrdersRoute || isSchedulingRoute, 
+    testId: "button-nav-flow-builder",
+    subItems: [
+      { label: "Construtor", href: "/construtor-fluxo", icon: Workflow, tooltip: "Construtor de fluxo visual", isActive: isFlowBuilderRoute, testId: "button-nav-flow-constructor" },
+      { label: "Pedidos Delivery", href: "/delivery-pedidos", icon: ClipboardList, tooltip: "Painel de pedidos gerados pelo fluxo", isActive: isDeliveryOrdersRoute, testId: "button-nav-flow-orders" },
+      { label: "📅 Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Painel de agendamentos gerados pelo fluxo", isActive: isSchedulingRoute, testId: "button-nav-flow-scheduling" },
+    ]
+  },
   { label: "Follow-up Inteligente", href: "/followup", icon: Sparkles, tooltip: "Mensagens automáticas para recuperar conversas", isActive: isFollowupRoute, testId: "button-nav-followup" },
   { label: "Lista de Exclusão", href: "/lista-exclusao", icon: Ban, tooltip: "Números que a IA não deve responder", isActive: isExclusionListRoute, testId: "button-nav-exclusion-list" },
   { label: "Falar por Áudio", href: "/falar-por-audio", icon: Mic, tooltip: "Respostas em áudio com TTS", isActive: isAudioConfigRoute, testId: "button-nav-audio-config" },
@@ -391,20 +407,9 @@ const toolsNavigation: ToolNavItem[] = [
     { label: "Etiquetas", href: "/etiquetas", icon: Tags, tooltip: "Etiquetas", isActive: isTagsRoute, testId: "button-nav-tags" },
     { label: "Campos Personalizados", href: "/campos-personalizados", icon: FormInput, tooltip: "Campos personalizados de contatos", isActive: isCustomFieldsRoute, testId: "button-nav-custom-fields" },
     { label: "Catálogo de Produtos", href: "/produtos", icon: Package, tooltip: "Lista de produtos e preços", isActive: isProductsRoute, testId: "button-nav-products" },
-    { 
-      label: "🍕 Delivery", 
-      icon: UtensilsCrossed, 
-      tooltip: "Sistema de Delivery", 
-      isActive: isDeliveryMenuRoute || isDeliveryOrdersRoute, 
-      testId: "button-nav-delivery",
-      subItems: [
-        { label: "Cardápio", href: "/delivery-cardapio", icon: UtensilsCrossed, tooltip: "Cardápio para pedidos delivery", isActive: isDeliveryMenuRoute, testId: "button-nav-delivery-menu" },
-        { label: "Pedidos", href: "/delivery-pedidos", icon: ClipboardList, tooltip: "Painel de pedidos delivery (PDV)", isActive: isDeliveryOrdersRoute, testId: "button-nav-delivery-orders" },
-      ]
-    },
+    { label: "📦 Cardápio Delivery", href: "/delivery-cardapio", icon: UtensilsCrossed, tooltip: "Cardápio para pedidos delivery", isActive: isDeliveryMenuRoute, testId: "button-nav-delivery-menu" },
     { label: "Funil", href: "/funil", icon: Filter, tooltip: "Funil de vendas", isActive: isFunnelRoute, testId: "button-nav-funnel" },
     { label: "Integrações", href: "/integracoes", icon: Plug, tooltip: "Integrações", isActive: isIntegrationsRoute, testId: "button-nav-integrations" },
-    { label: "Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Agendamentos", isActive: isSchedulingRoute, testId: "button-nav-scheduling" },
     { label: "Reservas", href: "/reservas", icon: BedDouble, tooltip: "Reservas", isActive: isReservationsRoute, testId: "button-nav-reservations" },
   ];
 
@@ -1004,6 +1009,11 @@ const toolsNavigation: ToolNavItem[] = [
           {isAudioConfigRoute && (
             <div className="flex-1 overflow-auto">
               <AudioConfigPage />
+            </div>
+          )}
+          {isFlowBuilderRoute && (
+            <div className="flex-1 overflow-auto">
+              <FlowBuilderPage />
             </div>
           )}
           

@@ -1250,6 +1250,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== AI MATCHING PARA FLOW BUILDER ====================
+  // Rota para a IA analisar semanticamente a mensagem do usuário e encontrar
+  // a melhor opção correspondente no fluxo (botões ou lista)
+  app.post("/api/ai/match-flow-option", async (req, res) => {
+    try {
+      const { userMessage, options, optionsList, businessContext } = req.body;
+      
+      if (!userMessage || !optionsList || !Array.isArray(optionsList) || optionsList.length === 0) {
+        return res.status(400).json({ 
+          error: "userMessage and optionsList are required",
+          matchedIndex: null,
+          confidence: 0
+        });
+      }
+
+      console.log(`🤖 [AI-MATCH] Analisando: "${userMessage}" contra ${optionsList.length} opções`);
+      if (businessContext) {
+        console.log(`🤖 [AI-MATCH] Contexto do negócio: ${businessContext}`);
+      }
+
+      // Importar função de LLM
+      const { generateWithLLM } = await import("./llm");
+
+      // Criar prompt para a IA fazer matching semântico COM CONTEXTO
+      const systemPrompt = `Você é um assistente de atendimento especializado em identificar a intenção do cliente e fazer correspondência precisa com as opções disponíveis.
+
+${businessContext ? `CONTEXTO DO NEGÓCIO: ${businessContext}` : ''}
+
+REGRAS DE MATCHING (siga rigorosamente):
+1. A mensagem do cliente DEVE estar relacionada ao tipo de serviço oferecido
+2. Se a mensagem não faz sentido para o negócio (ex: "cortar cabelo" em empresa elétrica), responda NULL
+3. Entenda a INTENÇÃO semântica - não seja literal demais
+4. Correspondências válidas:
+   - "quero pedir" → opções de pedido/delivery/cardápio
+   - "quanto custa" → opções de preços/orçamento/valores
+   - "agendar/marcar" → opções de agendamento/horários/visita
+   - "falar com alguém" → opções de suporte/atendente/técnico
+   - "dúvidas/informações" → opções de ajuda/FAQ/sobre
+5. Números diretos (1, 2, 3) indicam a opção diretamente
+6. Saudações genéricas (oi, olá, bom dia) → NULL (não são escolhas)
+7. Mensagens sem relação com as opções → NULL
+
+FORMATO DE RESPOSTA:
+- Responda APENAS com o índice (0 a N) da opção correspondente
+- Se não houver correspondência válida, responda NULL
+- Sem explicações adicionais`;
+
+      const userPrompt = `MENSAGEM DO CLIENTE: "${userMessage}"
+
+OPÇÕES DISPONÍVEIS:
+${optionsList.map((opt: string, i: number) => `${i}. ${opt}`).join('\n')}
+
+A mensagem do cliente corresponde a alguma dessas opções? 
+Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL:`;
+
+      try {
+        const aiResponse = await generateWithLLM(systemPrompt, userPrompt, {
+          temperature: 0.1, // Baixa temperatura para respostas mais consistentes
+          maxTokens: 10
+        });
+
+        const cleanResponse = aiResponse.trim().toUpperCase();
+        console.log(`🤖 [AI-MATCH] Resposta da IA: "${cleanResponse}"`);
+
+        // Verificar se a resposta é um número válido
+        if (cleanResponse === 'NULL' || cleanResponse === 'NENHUMA' || cleanResponse === 'NONE') {
+          console.log(`🤖 [AI-MATCH] IA não encontrou correspondência`);
+          return res.json({ matchedIndex: null, confidence: 0 });
+        }
+
+        // Extrair número da resposta
+        const match = cleanResponse.match(/\d+/);
+        if (match) {
+          const index = parseInt(match[0], 10);
+          if (index >= 0 && index < optionsList.length) {
+            console.log(`🤖 [AI-MATCH] ✅ Match encontrado: "${userMessage}" → "${optionsList[index]}" (índice: ${index})`);
+            return res.json({ 
+              matchedIndex: index, 
+              confidence: 85, // Confiança alta quando IA encontra match
+              matchedOption: optionsList[index]
+            });
+          }
+        }
+
+        // Resposta inválida da IA
+        console.log(`🤖 [AI-MATCH] Resposta inválida da IA: "${cleanResponse}"`);
+        return res.json({ matchedIndex: null, confidence: 0 });
+
+      } catch (llmError: any) {
+        console.error(`❌ [AI-MATCH] Erro na LLM:`, llmError?.message || llmError);
+        return res.json({ 
+          matchedIndex: null, 
+          confidence: 0,
+          error: "LLM error"
+        });
+      }
+
+    } catch (error: any) {
+      console.error("❌ [AI-MATCH] Erro geral:", error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        matchedIndex: null,
+        confidence: 0
+      });
+    }
+  });
+
   // Auth routes
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {

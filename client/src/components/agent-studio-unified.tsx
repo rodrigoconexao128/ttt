@@ -824,7 +824,7 @@ export function AgentStudioUnified() {
                 setHasChanges(false);
                 
                 const calibInfo = data.calibration 
-                  ? `\n\n✅ Calibração: Score ${data.calibration.score}/100 (${data.calibration.repairs} ajustes)`
+                  ? `\n\n✅ Calibração: Score ${data.calibration.score}/100 (${data.calibration.repairs} edições)`
                   : '';
                 
                 setChatMessages(prev => prev.map(msg => 

@@ -214,6 +214,73 @@ export async function tryProcessChatbotMessage(
       }
     }
 
+    // ============================================================
+    // 📅 PROCESSAR AGENDAMENTO SE HOUVER
+    // ============================================================
+    if (response.variables?.__appointment_pending === 'true' && response.variables?.__appointment_data) {
+      try {
+        const appointmentData = JSON.parse(response.variables.__appointment_data);
+        console.log(`📅 [CHATBOT] Salvando agendamento na tabela appointments`);
+        
+        // Buscar nome do contato
+        const conversation = await storage.getConversation(conversationId);
+        const clientName = appointmentData.client_name || conversation?.contactName || 'Cliente';
+        
+        // Calcular end_time baseado em duration_minutes
+        const durationMinutes = appointmentData.duration_minutes || 60;
+        const startTime = appointmentData.start_time || '09:00';
+        const [hours, minutes] = startTime.split(':').map(Number);
+        const endDate = new Date(2000, 0, 1, hours, minutes + durationMinutes);
+        const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+        
+        // Gerar ID único para o agendamento
+        const appointmentId = `apt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Salvar na tabela appointments
+        const { data: savedAppointment, error: saveError } = await supabase
+          .from('appointments')
+          .insert({
+            id: appointmentId,
+            user_id: userId,
+            conversation_id: conversationId,
+            client_name: clientName,
+            client_phone: contactNumber,
+            client_email: appointmentData.client_email || null,
+            service_id: appointmentData.service_id || null,
+            service_name: appointmentData.service_name || 'Serviço não especificado',
+            professional_id: appointmentData.professional_id || null,
+            professional_name: appointmentData.professional_name || null,
+            appointment_date: appointmentData.appointment_date,
+            start_time: startTime,
+            end_time: endTime,
+            duration_minutes: durationMinutes,
+            location: appointmentData.location || null,
+            location_type: appointmentData.location_type || 'presencial',
+            status: 'pendente',
+            confirmed_by_client: false,
+            confirmed_by_business: false,
+            created_by_ai: true,
+            ai_confirmation_pending: true,
+            client_notes: appointmentData.notes || null,
+            ai_conversation_context: {
+              conversationId,
+              createdAt: new Date().toISOString(),
+              variables: response.variables
+            }
+          })
+          .select()
+          .single();
+
+        if (saveError) {
+          console.error(`📅 [CHATBOT] Erro ao salvar agendamento:`, saveError);
+        } else {
+          console.log(`📅 [CHATBOT] Agendamento ${savedAppointment?.id} salvo com sucesso na tabela appointments`);
+        }
+      } catch (appointmentError) {
+        console.error(`📅 [CHATBOT] Erro ao processar agendamento:`, appointmentError);
+      }
+    }
+
     return {
       handled: true,
       transferToHuman: response.shouldTransferToHuman

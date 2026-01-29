@@ -63,6 +63,7 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const [pixCopied, setPixCopied] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(true);
   
   const { data: accessStatus, isLoading } = useQuery<AccessStatus>({
     queryKey: ["/api/access-status"],
@@ -97,6 +98,11 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
 
   // If access should be blocked, show overlay modal while keeping background visible
   if (accessStatus?.shouldBlock) {
+    // Se o modal foi fechado pelo usuário, permitir acesso temporário
+    if (!isModalOpen) {
+      return <>{children}</>;
+    }
+
     const isExpired = accessStatus.blockReason === 'subscription_expired' || accessStatus.blockReason === 'reseller_client_expired';
     const isResellerClient = (accessStatus.blockReason === 'reseller_client_expired' || accessStatus.blockReason === 'reseller_blocked') && accessStatus.resellerInfo;
     const isResellerBlocked = accessStatus.blockReason === 'reseller_blocked'; // Novo: bloqueio em cascata
@@ -110,8 +116,22 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
         </div>
         
         {/* Professional Modal Overlay */}
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
+        <div 
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setIsModalOpen(false)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Botão X para fechar */}
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              aria-label="Fechar"
+            >
+              <X className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+            </button>
             {/* Header Section */}
             <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 p-6 text-center border-b border-slate-200 dark:border-slate-700">
               <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 flex items-center justify-center mb-4 shadow-sm">

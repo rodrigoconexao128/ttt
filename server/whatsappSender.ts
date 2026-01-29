@@ -167,3 +167,112 @@ export async function sendWhatsAppMediaFromUser(
   }
 }
 
+/**
+ * Envia uma mensagem WhatsApp com botões interativos
+ * ⚠️ USA SISTEMA ANTI-BAN CENTRALIZADO
+ */
+export async function sendWhatsAppButtonsFromUser(
+  userId: string,
+  phoneNumber: string,
+  payload: {
+    body: string;
+    buttons: Array<{
+      type: 'reply';
+      reply: { id: string; title: string };
+    }>;
+    header?: { type: 'text'; text: string };
+    footer?: { text: string };
+  },
+  origin: MessageOrigin = 'chatbot_flow'
+): Promise<boolean> {
+  try {
+    const socket = activeSessions.get(userId);
+    
+    if (!socket) {
+      console.log(`⚠️ [WhatsApp Sender] Nenhuma sessão ativa para userId: ${userId}`);
+      return false;
+    }
+    
+    // Formatar JID
+    const cleanNumber = phoneNumber.replace(/\D/g, '');
+    const jid = `${cleanNumber}@s.whatsapp.net`;
+    
+    // 🛡️ USAR SISTEMA ANTI-BAN CENTRALIZADO
+    const result = await centralizedMessageSender.sendButtons(
+      userId,
+      jid,
+      payload,
+      socket,
+      origin
+    );
+    
+    if (result.success) {
+      console.log(`✅ [WhatsApp Sender] Botões enviados para ${cleanNumber} via sistema anti-ban`);
+    } else {
+      console.error(`❌ [WhatsApp Sender] Falha no envio de botões: ${result.error}`);
+    }
+    
+    return result.success;
+  } catch (error) {
+    console.error(`❌ [WhatsApp Sender] Erro ao enviar botões:`, error);
+    return false;
+  }
+}
+
+/**
+ * Envia uma mensagem WhatsApp com lista interativa
+ * ⚠️ USA SISTEMA ANTI-BAN CENTRALIZADO
+ */
+export async function sendWhatsAppListFromUser(
+  userId: string,
+  phoneNumber: string,
+  payload: {
+    body: string;
+    buttonText: string;
+    sections: Array<{
+      title: string;
+      rows: Array<{
+        id: string;
+        title: string;
+        description?: string;
+      }>;
+    }>;
+    header?: { type: 'text'; text: string };
+    footer?: { text: string };
+  },
+  origin: MessageOrigin = 'chatbot_flow'
+): Promise<boolean> {
+  try {
+    const socket = activeSessions.get(userId);
+    
+    if (!socket) {
+      console.log(`⚠️ [WhatsApp Sender] Nenhuma sessão ativa para userId: ${userId}`);
+      return false;
+    }
+    
+    // Formatar JID
+    const cleanNumber = phoneNumber.replace(/\D/g, '');
+    const jid = `${cleanNumber}@s.whatsapp.net`;
+    
+    // 🛡️ USAR SISTEMA ANTI-BAN CENTRALIZADO
+    const result = await centralizedMessageSender.sendList(
+      userId,
+      jid,
+      payload,
+      socket,
+      origin
+    );
+    
+    if (result.success) {
+      console.log(`✅ [WhatsApp Sender] Lista enviada para ${cleanNumber} via sistema anti-ban`);
+    } else {
+      console.error(`❌ [WhatsApp Sender] Falha no envio de lista: ${result.error}`);
+    }
+    
+    return result.success;
+  } catch (error) {
+    console.error(`❌ [WhatsApp Sender] Erro ao enviar lista:`, error);
+    return false;
+  }
+}
+

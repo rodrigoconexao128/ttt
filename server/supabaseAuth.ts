@@ -341,6 +341,7 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
 
     // Adicionar usuário ao request (compatível com código existente)
     req.user = {
+      id: user.id, // Adicionar id diretamente para compatibilidade
       claims: {
         sub: user.id,
         email: user.email,

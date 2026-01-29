@@ -54,6 +54,7 @@ type MessageOrigin =
   | 'media'
   | 'notification'
   | 'whatsapp_sender'
+  | 'chatbot_flow'
   | 'unknown';
 
 type MessagePriority = 'low' | 'normal' | 'high' | 'urgent';

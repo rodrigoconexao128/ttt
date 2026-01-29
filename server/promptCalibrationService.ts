@@ -49,6 +49,7 @@ export interface ResultadoCalibracao {
   resultados: ResultadoCenario[];
   promptFinal: string;
   tentativasReparo: number;
+  edicoesAplicadas: number; // Total de edições que foram efetivamente aplicadas ao prompt
   tempoMs: number;
 }
 
@@ -333,6 +334,7 @@ export class PromptCalibrationService {
     const inicio = Date.now();
     let promptAtual = promptEditado;
     let tentativasReparo = 0;
+    let totalEdicoesAplicadas = 0; // Contador de edições efetivamente aplicadas
     let resultados: ResultadoCenario[] = [];
     let scoreGeral = 0;
     let cenariosAprovados = 0;
@@ -412,8 +414,8 @@ export class PromptCalibrationService {
         console.log(`📊 [Calibração] Score geral: ${scoreGeral.toFixed(1)}/100 (${cenariosAprovados}/${cenarios.length} aprovados)`);
         console.log(`📊 [Calibração] Mínimo para aprovar: 70/100`);
 
-        // 4. Verificar se passou - SCORE >= 60
-        if (scoreGeral >= this.config.scoreMinimoAprovacao || cenariosAprovados === cenarios.length) {
+        // 4. Verificar se passou - SCORE >= 70 OBRIGATÓRIO
+        if (scoreGeral >= this.config.scoreMinimoAprovacao) {
           this.emitProgress('final_result', `🎉 Aprovado! Score final: ${Math.round(scoreGeral)}/100`, {
             success: true,
             score: Math.round(scoreGeral),
@@ -442,19 +444,22 @@ export class PromptCalibrationService {
             this.emitProgress('repair_start', `   Motivo: ${piorResultado.motivo}`, {});
             this.emitProgress('repair_start', `💡 Ajustando prompt para corrigir...`, {});
             
-            const promptReparado = await this.repararPrompt(
+            const repairResult = await this.repararPrompt(
               promptAtual,
               instrucaoUsuario,
               cenarioFalhou,
               piorResultado
             );
 
-            if (promptReparado && promptReparado !== promptAtual) {
-              promptAtual = promptReparado;
-              this.emitProgress('repair_done', `✅ Ajuste aplicado! Retestando...`, {
-                reparo: true
+            if (repairResult.promptReparado && repairResult.promptReparado !== promptAtual) {
+              promptAtual = repairResult.promptReparado;
+              totalEdicoesAplicadas += repairResult.edicoesAplicadas; // Acumula edições
+              this.emitProgress('repair_done', `✅ ${repairResult.edicoesAplicadas} ajuste(s) aplicado(s)! Retestando...`, {
+                reparo: true,
+                edicoesNesteTurno: repairResult.edicoesAplicadas,
+                totalEdicoes: totalEdicoesAplicadas
               });
-              console.log(`✅ [Calibração] Reparo aplicado`);
+              console.log(`✅ [Calibração] ${repairResult.edicoesAplicadas} edições aplicadas (total: ${totalEdicoesAplicadas})`);
             } else {
               this.emitProgress('repair_done', `⚠️ Não foi possível ajustar. Tentando abordagem diferente...`, {
                 reparo: false
@@ -475,11 +480,12 @@ export class PromptCalibrationService {
 
       const sucesso = scoreGeral >= this.config.scoreMinimoAprovacao;
       this.emitProgress('final_result', sucesso 
-        ? `✅ Calibração concluída com sucesso! Score: ${Math.round(scoreGeral)}/100`
+        ? `✅ Calibração concluída com sucesso! Score: ${Math.round(scoreGeral)}/100 (${totalEdicoesAplicadas} edições)`
         : `⚠️ Calibração finalizada. Score: ${Math.round(scoreGeral)}/100 - Recomendamos testar no simulador.`, 
       {
         success: sucesso,
         score: Math.round(scoreGeral),
+        edicoesAplicadas: totalEdicoesAplicadas,
         tempoMs: Date.now() - inicio
       });
 
@@ -491,6 +497,7 @@ export class PromptCalibrationService {
         resultados,
         promptFinal: promptAtual,
         tentativasReparo,
+        edicoesAplicadas: totalEdicoesAplicadas, // Total de edições efetivamente aplicadas
         tempoMs: Date.now() - inicio
       };
 
@@ -505,6 +512,7 @@ export class PromptCalibrationService {
         resultados: [],
         promptFinal: promptEditado,
         tentativasReparo,
+        edicoesAplicadas: 0,
         tempoMs: Date.now() - inicio
       };
     }
@@ -684,7 +692,7 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Reparar Prompt
+  // Reparar Prompt - Retorna objeto com prompt e número de edições
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async repararPrompt(
@@ -692,7 +700,7 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
     instrucaoOriginal: string,
     cenarioFalhou: CenarioTeste,
     resultadoFalhou: ResultadoCenario
-  ): Promise<string | null> {
+  ): Promise<{ promptReparado: string | null; edicoesAplicadas: number }> {
     const promptReparo = PROMPT_REPARADOR
       .replace("{{PROMPT}}", promptAtual)
       .replace("{{INSTRUCAO}}", instrucaoOriginal)
@@ -749,14 +757,14 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
         
         if (edicoesAplicadas > 0) {
           this.emitProgress('repair_done', `   📝 ${edicoesAplicadas} edição(ões) aplicadas`, {});
-          return promptReparado;
+          return { promptReparado, edicoesAplicadas };
         }
       }
 
-      return null;
+      return { promptReparado: null, edicoesAplicadas: 0 };
     } catch (error) {
       console.error("[Calibração] Erro ao reparar prompt:", error);
-      return null;
+      return { promptReparado: null, edicoesAplicadas: 0 };
     }
   }
 }

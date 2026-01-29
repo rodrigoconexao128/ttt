@@ -52,6 +52,11 @@ export async function setupVite(app: Express, server: Server) {
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
+    // Skip API routes - let Express handle them
+    if (url.startsWith('/api/')) {
+      return next();
+    }
+
     // Skip serving React app for root route if user is not authenticated
     // This allows the static landing page to be served instead
     if (url === '/' && !req.headers.cookie?.includes('connect.sid')) {
@@ -93,7 +98,11 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  // BUT skip API routes - let Express handle them
+  app.use("*", (_req, res, next) => {
+    if (_req.originalUrl.startsWith('/api/')) {
+      return next();
+    }
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

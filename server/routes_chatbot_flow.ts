@@ -169,8 +169,23 @@ export function registerChatbotFlowRoutes(app: Express) {
         collect_user_data,
         send_welcome_on_first_contact,
         restart_on_keyword,
-        restart_keywords
+        restart_keywords,
+        advanced_settings
       } = req.body;
+
+      // Default para advanced_settings
+      const defaultAdvancedSettings = {
+        enable_hybrid_ai: true,
+        ai_confidence_threshold: 0.7,
+        fallback_to_flow: true,
+        interpret_dates: true,
+        interpret_times: true,
+        intent_keywords: {}
+      };
+
+      const finalAdvancedSettings = advanced_settings 
+        ? { ...defaultAdvancedSettings, ...advanced_settings }
+        : defaultAdvancedSettings;
 
       const result = await withRetry(async () => {
         return db.execute(sql`
@@ -178,7 +193,7 @@ export function registerChatbotFlowRoutes(app: Express) {
             user_id, name, description, welcome_message, fallback_message,
             goodbye_message, is_active, is_published, typing_delay_ms,
             message_delay_ms, collect_user_data, send_welcome_on_first_contact,
-            restart_on_keyword, restart_keywords
+            restart_on_keyword, restart_keywords, advanced_settings
           ) VALUES (
             ${userId}, ${name || 'Meu Robô'}, ${description || null}, 
             ${welcome_message || 'Olá! 👋 Como posso ajudar você hoje?'},
@@ -188,7 +203,8 @@ export function registerChatbotFlowRoutes(app: Express) {
             ${typing_delay_ms ?? 1500}, ${message_delay_ms ?? 500},
             ${collect_user_data ?? true}, ${send_welcome_on_first_contact ?? true},
             ${restart_on_keyword ?? true}, 
-            ${restart_keywords ? `{${restart_keywords.join(',')}}` : '{menu,início,inicio,voltar,reiniciar}'}
+            ${restart_keywords ? `{${restart_keywords.join(',')}}` : '{menu,início,inicio,voltar,reiniciar}'},
+            ${JSON.stringify(finalAdvancedSettings)}::jsonb
           )
           ON CONFLICT (user_id) DO UPDATE SET
             name = EXCLUDED.name,
@@ -204,6 +220,7 @@ export function registerChatbotFlowRoutes(app: Express) {
             send_welcome_on_first_contact = EXCLUDED.send_welcome_on_first_contact,
             restart_on_keyword = EXCLUDED.restart_on_keyword,
             restart_keywords = EXCLUDED.restart_keywords,
+            advanced_settings = EXCLUDED.advanced_settings,
             updated_at = now(),
             version = chatbot_configs.version + 1
           RETURNING *
@@ -2200,12 +2217,30 @@ ESTRUTURA DO JSON DE RESPOSTA:
 
 EXEMPLOS DE CONTEÚDO POR TIPO DE NÓ:
 
-message:
+message (mensagem simples):
 { "text": "Olá! Bem-vindo à nossa loja!", "format_whatsapp": true }
 
-buttons:
+message (usando variáveis no resumo/confirmação):
+{ "text": "✅ *Resumo do Pedido*\n\n👤 Nome: {{nome}}\n📍 Endereço: {{endereco}}\n🍕 Pedido: {{pedido}}\n💰 Pagamento: {{pagamento}}\n\nConfirma?", "format_whatsapp": true }
+
+IMPORTANTE SOBRE VARIÁVEIS:
+- Use {{nome_variavel}} (duas chaves) para exibir o valor de variáveis nas mensagens
+- Sempre use save_variable em botões e listas para salvar a escolha do usuário
+- O save_variable salva o TITLE do botão/item que o usuário clicou
+
+buttons (COM save_variable para salvar escolha):
 {
-  "body": "Escolha uma opção:",
+  "body": "Escolha a forma de pagamento:",
+  "buttons": [
+    { "id": "btn_pix", "title": "💰 PIX", "next_node": "node_confirmar", "save_variable": "pagamento" },
+    { "id": "btn_dinheiro", "title": "💵 Dinheiro", "next_node": "node_confirmar", "save_variable": "pagamento" },
+    { "id": "btn_cartao", "title": "💳 Cartão", "next_node": "node_confirmar", "save_variable": "pagamento" }
+  ]
+}
+
+buttons (navegação simples sem salvar):
+{
+  "body": "Menu Principal:",
   "buttons": [
     { "id": "btn_1", "title": "Ver Cardápio", "next_node": "node_cardapio" },
     { "id": "btn_2", "title": "Fazer Pedido", "next_node": "node_pedido" },
@@ -2213,7 +2248,7 @@ buttons:
   ]
 }
 
-list:
+list (COM save_variable para salvar item selecionado):
 {
   "body": "Selecione o produto:",
   "button_text": "Ver produtos",
@@ -2221,17 +2256,17 @@ list:
     {
       "title": "Pizzas",
       "rows": [
-        { "id": "pizza_1", "title": "Margherita", "description": "R$ 35,00", "next_node": "node_margherita" },
-        { "id": "pizza_2", "title": "Calabresa", "description": "R$ 38,00", "next_node": "node_calabresa" }
+        { "id": "pizza_1", "title": "Margherita - R$35", "description": "Molho, muçarela e manjericão", "next_node": "node_sabor_selecionado", "save_variable": "pedido" },
+        { "id": "pizza_2", "title": "Calabresa - R$38", "description": "Calabresa e cebola", "next_node": "node_sabor_selecionado", "save_variable": "pedido" }
       ]
     }
   ]
 }
 
-input:
+input (coleta dados e salva em variável):
 {
   "prompt": "Qual é o seu nome?",
-  "variable_name": "nome_cliente",
+  "variable_name": "nome",
   "input_type": "text",
   "required": true
 }
@@ -2253,6 +2288,56 @@ transfer_human:
   "message": "Aguarde, vou transferir para um atendente...",
   "notify_admin": true
 }
+
+REGRAS CRÍTICAS PARA VARIÁVEIS:
+1. Use save_variable em TODOS os botões/listas onde a escolha do usuário importa
+2. Use variable_name em TODOS os inputs para salvar dados digitados
+3. No nó de confirmação/resumo, use {{nome_variavel}} para mostrar os valores
+4. Nomes de variáveis devem ser simples: nome, endereco, pedido, pagamento, servico, horario
+
+TEMPLATES CONDICIONAIS SUPORTADOS (use quando necessário):
+- {{#if variavel}}conteúdo{{/if}} - Mostra conteúdo se variável existe e não é vazia
+- {{#if variavel}}se sim{{else}}se não{{/if}} - Com alternativa
+- {{#ifEqual variavel "valor"}}conteúdo{{/ifEqual}} - Mostra se variável == valor
+- {{#ifNotEqual variavel "valor"}}conteúdo{{/ifNotEqual}} - Mostra se variável != valor
+- {{#ifContains variavel "texto"}}conteúdo{{/ifContains}} - Mostra se variável contém texto
+- {{#unless variavel}}conteúdo{{/unless}} - Mostra se variável NÃO existe ou é vazia
+
+EXEMPLO DE RESUMO COM CONDICIONAL (para delivery):
+{
+  "text": "✅ *Resumo do Pedido*\\n\\n👤 Nome: {{nome}}\\n{{#ifEqual tipo_entrega \"🏠 Entrega (R$5)\"}}📍 Endereço: {{endereco}}\\n🚚 Taxa: R$5{{/ifEqual}}{{#ifEqual tipo_entrega \"🏬 Retirada\"}}🏬 Retirar na loja{{/ifEqual}}\\n🍕 Pedido: {{pedido}}\\n💰 Pagamento: {{pagamento}}\\n\\nTudo certo?"
+}
+
+EXEMPLO SIMPLES DE RESUMO (sem condicional):
+{
+  "text": "✅ *Resumo do Pedido*\\n\\n👤 Nome: {{nome}}\\n📍 Endereço: {{endereco}}\\n🍕 Pedido: {{pedido}}\\n💰 Pagamento: {{pagamento}}\\n🚚 Entrega: {{tipo_entrega}}\\n\\nTudo certo?"
+}
+
+FLUXO PARA DELIVERY/PIZZARIA/RESTAURANTE:
+Deve incluir nós para:
+- Menu principal com opções (cardápio, pedido, promoções)
+- Lista de produtos COM save_variable para salvar escolha
+- Coleta de nome (input com variable_name: "nome")
+- Coleta de endereço (input com variable_name: "endereco")
+- Forma de pagamento (botões COM save_variable: "pagamento")
+- Nó de confirmação MOSTRANDO todas as variáveis: {{nome}}, {{endereco}}, {{pedido}}, {{pagamento}}
+
+FLUXO PARA CLÍNICA/CONSULTÓRIO:
+Deve incluir nós para:
+- Menu com especialidades
+- Lista de serviços COM save_variable: "servico"
+- Coleta de nome (input com variable_name: "nome")
+- Preferência de horário (botões COM save_variable: "horario")
+- Nó de confirmação: "Agendamento para {{nome}}\nServiço: {{servico}}\nHorário: {{horario}}"
+
+FLUXO PARA SALÃO/BARBEARIA:
+Deve incluir nós para:
+- Menu com tipos de serviço (corte, barba, tratamentos)
+- Lista de serviços COM save_variable: "servico"
+- Lista de profissionais COM save_variable: "profissional"
+- Preferência de horário COM save_variable: "horario"
+- Coleta de nome (input com variable_name: "nome")
+- Nó de confirmação: "{{nome}}, seu agendamento:\n✂️ {{servico}}\n👤 {{profissional}}\n🕐 {{horario}}"
 
 EXEMPLO COMPLETO - PIZZARIA:
 Se o usuário pedir: "Crie um chatbot para uma pizzaria chamada 'Pizza Express' com opções de cardápio, pedidos e promoções"
@@ -2328,51 +2413,159 @@ INSTRUÇÕES:
 
       // Chamar API de IA (usar Mistral ou OpenRouter)
       let aiResponse: string | null = null;
+      let usedFallback = false;
+      let attemptNumber = 0;
 
-      // Usar o sistema LLM centralizado (chatComplete do llm.ts)
-      try {
-        const { chatComplete } = await import('./llm');
+      // ============================================================
+      // ESTRATÉGIA DE RETRY COM IA - NUNCA USAR TEMPLATES LOCAIS
+      // Igual ao comportamento do llm.ts que tenta múltiplos modelos
+      // ============================================================
+      const { chatComplete } = await import('./llm');
 
-        console.log(`🤖 [FLOW_GENERATOR] Chamando LLM para gerar fluxo PERSONALIZADO...`);
-        console.log(`📝 [FLOW_GENERATOR] Prompt do usuário: ${message}`);
+      // Função para fazer chamada LLM com prompt específico
+      const tryLLMCall = async (
+        sysPrompt: string, 
+        usrPrompt: string, 
+        attempt: number,
+        timeoutMs: number = 60000 // 60 segundos por tentativa
+      ): Promise<string | null> => {
+        try {
+          console.log(`🤖 [FLOW_GENERATOR] Tentativa ${attempt} - Chamando LLM...`);
+          
+          const timeoutPromise = new Promise<null>((_, reject) => {
+            setTimeout(() => reject(new Error(`TIMEOUT após ${timeoutMs/1000}s`)), timeoutMs);
+          });
 
-        const llmResponse = await chatComplete({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0.3, // Mais baixo para mais consistência
-          maxTokens: 8000  // Mais tokens para fluxos completos
-        });
+          const llmPromise = chatComplete({
+            messages: [
+              { role: 'system', content: sysPrompt },
+              { role: 'user', content: usrPrompt }
+            ],
+            temperature: attempt === 1 ? 0.3 : 0.5, // Aumentar temperatura nos retries
+            maxTokens: 8000
+          });
 
-        aiResponse = llmResponse.choices?.[0]?.message?.content || null;
-        console.log(`✅ [FLOW_GENERATOR] Resposta LLM recebida (${aiResponse?.length || 0} chars)`);
-        console.log(`📋 [FLOW_GENERATOR] Preview: ${aiResponse?.substring(0, 300)}...`);
-
-      } catch (aiError: any) {
-        console.error('[FLOW_GENERATOR] Erro ao chamar LLM:', aiError?.message || aiError);
-
-        // Fallback inteligente: criar fluxo baseado no contexto da mensagem
-        const msgLower = message.toLowerCase();
-        let flowTemplate: any;
-
-        // Detectar tipo de negócio pela mensagem
-        if (msgLower.includes('pizzaria') || msgLower.includes('pizza')) {
-          flowTemplate = createPizzariaFlow(message);
-        } else if (msgLower.includes('restaurante') || msgLower.includes('lanchonete') || msgLower.includes('delivery')) {
-          flowTemplate = createDeliveryFlow(message);
-        } else if (msgLower.includes('clínica') || msgLower.includes('clinica') || msgLower.includes('médico') || msgLower.includes('dentista')) {
-          flowTemplate = createClinicaFlow(message);
-        } else if (msgLower.includes('imobiliária') || msgLower.includes('imobiliaria') || msgLower.includes('imóveis')) {
-          flowTemplate = createImobiliariaFlow(message);
-        } else if (msgLower.includes('loja') || msgLower.includes('ecommerce') || msgLower.includes('produtos')) {
-          flowTemplate = createLojaFlow(message);
-        } else {
-          flowTemplate = createGenericFlow(message);
+          const response = await Promise.race([llmPromise, timeoutPromise]) as any;
+          
+          if (response?.choices?.[0]?.message?.content) {
+            const content = response.choices[0].message.content;
+            console.log(`✅ [FLOW_GENERATOR] Tentativa ${attempt} - Resposta recebida (${content.length} chars)`);
+            return content;
+          }
+          return null;
+        } catch (err: any) {
+          console.warn(`⚠️ [FLOW_GENERATOR] Tentativa ${attempt} falhou: ${err?.message || err}`);
+          return null;
         }
+      };
 
-        aiResponse = JSON.stringify(flowTemplate);
+      // Prompt simplificado para retry (mais direto e curto)
+      const simplifiedSystemPrompt = `Você é um assistente que cria fluxos de chatbot para WhatsApp.
+Responda APENAS com JSON válido no formato:
+{
+  "message": "Mensagem de sucesso",
+  "flow": {
+    "config": { "name": "Nome do Negócio", "welcome_message": "Bem-vindo!", "fallback_message": "Não entendi", "goodbye_message": "Obrigado!" },
+    "nodes": [array de nós do fluxo]
+  }
+}
+
+Tipos de nós disponíveis: start, message, buttons, input, transfer_human, end
+
+Exemplo de nó buttons:
+{
+  "node_id": "node_menu",
+  "name": "Menu",
+  "node_type": "buttons",
+  "content": {
+    "body": "Escolha uma opção:",
+    "buttons": [
+      {"id": "btn_1", "title": "Opção 1", "next_node": "node_opcao1"},
+      {"id": "btn_2", "title": "Opção 2", "next_node": "node_opcao2"}
+    ]
+  }
+}`;
+
+      const simplifiedUserPrompt = `Crie um fluxo de chatbot para: ${message}
+
+Inclua no mínimo:
+- Nó start (início)
+- Nó menu com botões
+- 2-3 opções de serviço
+- Opção de falar com atendente
+- Nó end (fim)
+
+Responda APENAS com o JSON do fluxo.`;
+
+      // Prompt ultra-simples para último retry
+      const ultraSimplePrompt = `Crie um JSON de fluxo de chatbot simples para "${message}".
+Use este formato EXATO:
+{
+  "message": "Fluxo criado!",
+  "flow": {
+    "config": { "name": "Meu Negócio", "welcome_message": "Olá!", "fallback_message": "Não entendi", "goodbye_message": "Até logo!" },
+    "nodes": [
+      {"node_id": "node_start", "name": "Início", "node_type": "start", "content": {}, "next_node_id": "node_menu"},
+      {"node_id": "node_menu", "name": "Menu", "node_type": "buttons", "content": {"body": "Como posso ajudar?", "buttons": [{"id": "btn_1", "title": "Informações", "next_node": "node_info"}, {"id": "btn_2", "title": "Atendente", "next_node": "node_transfer"}]}},
+      {"node_id": "node_info", "name": "Info", "node_type": "message", "content": {"text": "Aqui estão nossas informações."}, "next_node_id": "node_menu"},
+      {"node_id": "node_transfer", "name": "Atendente", "node_type": "transfer_human", "content": {"message": "Transferindo..."}},
+      {"node_id": "node_end", "name": "Fim", "node_type": "end", "content": {}}
+    ]
+  }
+}
+Personalize os textos para o negócio solicitado. Responda APENAS o JSON.`;
+
+      // ============================================================
+      // TENTATIVA 1: Prompt completo (60 segundos)
+      // ============================================================
+      attemptNumber = 1;
+      console.log(`🚀 [FLOW_GENERATOR] === TENTATIVA 1/3: Prompt completo ===`);
+      console.log(`📝 [FLOW_GENERATOR] Prompt do usuário: ${message}`);
+      
+      aiResponse = await tryLLMCall(systemPrompt, userPrompt, 1, 60000);
+
+      // ============================================================
+      // TENTATIVA 2: Prompt simplificado (45 segundos)
+      // ============================================================
+      if (!aiResponse || aiResponse.trim() === '' || aiResponse === '{}') {
+        attemptNumber = 2;
+        console.log(`🔄 [FLOW_GENERATOR] === TENTATIVA 2/3: Prompt simplificado ===`);
+        usedFallback = true;
+        
+        aiResponse = await tryLLMCall(simplifiedSystemPrompt, simplifiedUserPrompt, 2, 45000);
       }
+
+      // ============================================================
+      // TENTATIVA 3: Prompt ultra-simples (45 segundos)
+      // ============================================================
+      if (!aiResponse || aiResponse.trim() === '' || aiResponse === '{}') {
+        attemptNumber = 3;
+        console.log(`🔄 [FLOW_GENERATOR] === TENTATIVA 3/3: Prompt ultra-simples ===`);
+        usedFallback = true;
+        
+        aiResponse = await tryLLMCall(
+          'Você é um gerador de JSON. Responda APENAS com JSON válido.',
+          ultraSimplePrompt,
+          3,
+          45000
+        );
+      }
+
+      // ============================================================
+      // VALIDAÇÃO FINAL: Se todas as tentativas falharam
+      // ============================================================
+      if (!aiResponse || aiResponse.trim() === '' || aiResponse === '{}') {
+        console.error(`❌ [FLOW_GENERATOR] Todas as 3 tentativas falharam!`);
+        // Retornar mensagem amigável pedindo para tentar novamente
+        return res.json({
+          needsConfirmation: true,
+          confirmationMessage: `Estou processando seu pedido... Por favor, tente novamente em alguns segundos. Nosso sistema está trabalhando para criar o fluxo perfeito para você! 🚀`,
+          message: `Por favor, repita sua solicitação: "${message}"`
+        });
+      }
+      
+      console.log(`✅ [FLOW_GENERATOR] Resposta obtida na tentativa ${attemptNumber}`);
+      console.log(`📋 [FLOW_GENERATOR] Preview: ${aiResponse?.substring(0, 300)}...`);
 
       // Parsear resposta da IA
       let parsedResponse: any;
@@ -2443,9 +2636,15 @@ INSTRUÇÕES:
           });
         }
         
-        return res.status(500).json({
-          error: "Erro ao processar resposta da IA",
-          message: "Tente novamente com uma descrição mais detalhada do que deseja criar."
+        // ============================================================
+        // FALLBACK: Se parse falhou, pedir para tentar novamente
+        // NUNCA retornar erro 500 para o usuário!
+        // ============================================================
+        console.log(`🔄 [FLOW_GENERATOR] Parse falhou, pedindo para tentar novamente...`);
+        return res.json({
+          needsConfirmation: true,
+          confirmationMessage: `Quase lá! Estou finalizando a criação do seu fluxo. Por favor, envie sua solicitação novamente para que eu possa concluir: "${message}"`,
+          message: `Por favor, repita: ${message}`
         });
       }
 
@@ -2462,6 +2661,148 @@ INSTRUÇÕES:
       }
 
       console.log(`✅ [FLOW_GENERATOR] Fluxo gerado com ${parsedResponse.flow?.nodes?.length || 0} nós`);
+      console.log(`📋 [FLOW_GENERATOR] Config recebido: ${JSON.stringify(parsedResponse.config || 'NENHUM')}`);
+
+      // ============================================================
+      // AUTO-REVISÃO: Verificar e corrigir o fluxo gerado
+      // ============================================================
+      if (parsedResponse.flow?.nodes?.length > 0) {
+        console.log(`🔍 [FLOW_GENERATOR] Iniciando auto-revisão do fluxo...`);
+        
+        const nodes = parsedResponse.flow.nodes;
+        let corrections = 0;
+        
+        // Mapeamento de variáveis encontradas
+        const declaredVariables: Set<string> = new Set();
+        const usedVariables: Set<string> = new Set();
+        
+        // Primeira passagem: identificar todas as variáveis declaradas
+        for (const node of nodes) {
+          const content = node.content || {};
+          
+          // Input nodes - variable_name
+          if (node.node_type === 'input' && content.variable_name) {
+            declaredVariables.add(content.variable_name);
+          }
+          
+          // Buttons com save_variable
+          if (content.buttons && Array.isArray(content.buttons)) {
+            for (const btn of content.buttons) {
+              if (btn.save_variable) {
+                declaredVariables.add(btn.save_variable);
+              }
+            }
+          }
+          
+          // Lists com save_variable
+          if (content.sections && Array.isArray(content.sections)) {
+            for (const section of content.sections) {
+              if (section.rows && Array.isArray(section.rows)) {
+                for (const row of section.rows) {
+                  if (row.save_variable) {
+                    declaredVariables.add(row.save_variable);
+                  }
+                }
+              }
+            }
+          }
+          
+          // set_variable nodes
+          if (node.node_type === 'set_variable' && content.variable) {
+            declaredVariables.add(content.variable);
+          }
+        }
+        
+        console.log(`📋 [AUTO-REVISAO] Variáveis declaradas: ${Array.from(declaredVariables).join(', ')}`);
+        
+        // Segunda passagem: verificar uso de variáveis e corrigir problemas
+        for (const node of nodes) {
+          const content = node.content || {};
+          
+          // Verificar mensagens que usam variáveis {{var}}
+          if (content.text && typeof content.text === 'string') {
+            const matches = content.text.match(/\{\{(\w+)\}\}/g);
+            if (matches) {
+              for (const match of matches) {
+                const varName = match.replace(/\{\{|\}\}/g, '');
+                usedVariables.add(varName);
+              }
+            }
+          }
+          
+          // AUTO-CORREÇÃO 1: Botões de escolha sem save_variable
+          // Se um botão leva a um nó de coleta de dados ou confirmação, provavelmente deveria salvar a escolha
+          if (content.buttons && Array.isArray(content.buttons)) {
+            const bodyLower = (content.body || '').toLowerCase();
+            const shouldSave = 
+              bodyLower.includes('forma de pagamento') ||
+              bodyLower.includes('escolha') ||
+              bodyLower.includes('selecione') ||
+              bodyLower.includes('como prefere') ||
+              bodyLower.includes('horário') ||
+              bodyLower.includes('tipo de');
+            
+            if (shouldSave) {
+              // Determinar nome da variável baseado no contexto
+              let varName = 'escolha';
+              if (bodyLower.includes('pagamento')) varName = 'pagamento';
+              else if (bodyLower.includes('horário') || bodyLower.includes('hora')) varName = 'horario';
+              else if (bodyLower.includes('serviço')) varName = 'servico';
+              else if (bodyLower.includes('tamanho')) varName = 'tamanho';
+              
+              for (const btn of content.buttons) {
+                if (!btn.save_variable && btn.next_node) {
+                  btn.save_variable = varName;
+                  corrections++;
+                  console.log(`🔧 [AUTO-REVISAO] Adicionado save_variable="${varName}" ao botão "${btn.title}"`);
+                }
+              }
+            }
+          }
+          
+          // AUTO-CORREÇÃO 2: Listas sem save_variable que deveriam ter
+          if (content.sections && Array.isArray(content.sections)) {
+            const bodyLower = (content.body || '').toLowerCase();
+            const shouldSave = 
+              bodyLower.includes('escolha') ||
+              bodyLower.includes('selecione') ||
+              bodyLower.includes('cardápio') ||
+              bodyLower.includes('menu') ||
+              bodyLower.includes('serviço') ||
+              bodyLower.includes('produto');
+            
+            if (shouldSave) {
+              let varName = 'pedido';
+              if (bodyLower.includes('serviço')) varName = 'servico';
+              else if (bodyLower.includes('profissional')) varName = 'profissional';
+              
+              for (const section of content.sections) {
+                if (section.rows && Array.isArray(section.rows)) {
+                  for (const row of section.rows) {
+                    if (!row.save_variable && row.next_node) {
+                      row.save_variable = varName;
+                      corrections++;
+                      console.log(`🔧 [AUTO-REVISAO] Adicionado save_variable="${varName}" ao item "${row.title}"`);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        // Verificar variáveis usadas mas não declaradas
+        for (const usedVar of usedVariables) {
+          if (!declaredVariables.has(usedVar)) {
+            console.log(`⚠️ [AUTO-REVISAO] Variável {{${usedVar}}} usada mas não declarada`);
+          }
+        }
+        
+        console.log(`✅ [AUTO-REVISAO] Revisão completa. ${corrections} correções aplicadas.`);
+        
+        // Atualizar os nós no parsedResponse
+        parsedResponse.flow.nodes = nodes;
+      }
 
       // ============================================================
       // AUTO-SAVE: Salvar versão automaticamente após gerar fluxo
@@ -2479,14 +2820,37 @@ INSTRUÇÕES:
           // Criar config se não existir
           const newConfig = await withRetry(async () => {
             return db.execute(sql`
-              INSERT INTO chatbot_configs (user_id, name)
-              VALUES (${userId}, ${parsedResponse.config?.name || 'Meu Robô'})
+              INSERT INTO chatbot_configs (user_id, name, welcome_message, fallback_message, goodbye_message)
+              VALUES (
+                ${userId}, 
+                ${parsedResponse.config?.name || 'Meu Robô'},
+                ${parsedResponse.config?.welcome_message || null},
+                ${parsedResponse.config?.fallback_message || null},
+                ${parsedResponse.config?.goodbye_message || null}
+              )
               RETURNING id
             `);
           });
           chatbotId = (newConfig.rows[0] as any).id;
         } else {
           chatbotId = (configResult.rows[0] as any).id;
+          
+          // IMPORTANTE: Atualizar o config existente com os novos dados da IA
+          if (parsedResponse.config) {
+            console.log(`🔄 [FLOW_GENERATOR] Atualizando config existente com nome: ${parsedResponse.config.name}`);
+            await withRetry(async () => {
+              return db.execute(sql`
+                UPDATE chatbot_configs 
+                SET 
+                  name = COALESCE(${parsedResponse.config.name}, name),
+                  welcome_message = COALESCE(${parsedResponse.config.welcome_message}, welcome_message),
+                  fallback_message = COALESCE(${parsedResponse.config.fallback_message}, fallback_message),
+                  goodbye_message = COALESCE(${parsedResponse.config.goodbye_message}, goodbye_message),
+                  updated_at = NOW()
+                WHERE id = ${chatbotId}
+              `);
+            });
+          }
         }
 
         // Obter próximo número de versão

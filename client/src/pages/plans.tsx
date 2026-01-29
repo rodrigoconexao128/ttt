@@ -99,6 +99,9 @@ export default function PlansPage() {
   const [appliedCoupon, setAppliedCoupon] = useState<CouponValidation | null>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   
+  // Estado para controlar quando o usuário quer ver outros planos além do atribuído
+  const [showAllPlans, setShowAllPlans] = useState(false);
+  
   // Estado para plano personalizado
   const [customPlanCode, setCustomPlanCode] = useState("");
   const [customPlan, setCustomPlan] = useState<CustomPlanValidation | null>(null);
@@ -198,17 +201,22 @@ export default function PlansPage() {
   const removeCustomPlan = () => {
     setCustomPlan(null);
     setCustomPlanCode("");
+    // Se tinha um plano atribuído via link, mostrar todos os planos agora
+    if (assignedPlanData?.hasAssignedPlan) {
+      setShowAllPlans(true);
+    }
   };
 
   // Auto-preencher customPlan quando usuário tem plano atribuído via link
+  // Mas NÃO preencher se o usuário optou por ver outros planos
   useEffect(() => {
-    if (assignedPlanData?.hasAssignedPlan && assignedPlanData?.plan && !customPlan) {
+    if (assignedPlanData?.hasAssignedPlan && assignedPlanData?.plan && !customPlan && !showAllPlans) {
       setCustomPlan({
         valid: true,
         plan: assignedPlanData.plan
       });
     }
-  }, [assignedPlanData, customPlan]);
+  }, [assignedPlanData, customPlan, showAllPlans]);
 
   const handleSelectCustomPlan = () => {
     if (customPlan?.plan) {
@@ -290,7 +298,11 @@ export default function PlansPage() {
   };
 
   const showAssignedPlan = assignedPlanData?.hasAssignedPlan && assignedPlanData?.plan;
-  const showOnlyMensal = !showAssignedPlan;
+  // Mostra apenas o plano mensal quando:
+  // 1. Não tem plano atribuído via link E
+  // 2. Não tem assinatura ativa (para upgrades, mostrar todos os planos)
+  // 3. Não está em modo "ver todos os planos"
+  const showOnlyMensal = !showAssignedPlan && !hasActiveSubscription && !showAllPlans;
   const showCouponSection = false;
 
   // Preço a exibir (com ou sem cupom)
@@ -653,44 +665,42 @@ export default function PlansPage() {
           </div>
         )}
 
-        {/* Seção de Plano Personalizado ou Campo de Busca */}
-        {!customPlan?.valid && (
-          <div className="max-w-sm mx-auto mb-8">
-            <details className="group">
-              <summary className="cursor-pointer flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors py-2 select-none">
-                <Key className="w-4 h-4" />
-                <span>Tem um código de plano exclusivo?</span>
-                <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
-                <div className="flex gap-2">
-                  <Input
-                    type="text"
-                    placeholder="Digite o código do plano"
-                    value={customPlanCode}
-                    onChange={(e) => setCustomPlanCode(e.target.value.toUpperCase())}
-                    className="h-11 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 focus:border-purple-500 focus:ring-purple-500/20 uppercase font-medium text-center tracking-widest transition-all"
-                    onKeyDown={(e) => e.key === 'Enter' && validateCustomPlanCode()}
-                  />
-                  <Button 
-                    onClick={validateCustomPlanCode}
-                    disabled={isValidatingCustomPlan || !customPlanCode.trim()}
-                    className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
-                  >
-                    {isValidatingCustomPlan ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Buscar"
-                    )}
-                  </Button>
-                </div>
+        {/* Seção de Plano Personalizado ou Campo de Busca - SEMPRE VISÍVEL */}
+        <div className="max-w-sm mx-auto mb-8">
+          <details className="group" open={customPlan?.valid ? false : undefined}>
+            <summary className="cursor-pointer flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors py-2 select-none">
+              <Key className="w-4 h-4" />
+              <span>Tem um código de plano exclusivo?</span>
+              <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
+            </summary>
+            <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="Digite o código do plano"
+                  value={customPlanCode}
+                  onChange={(e) => setCustomPlanCode(e.target.value.toUpperCase())}
+                  className="h-11 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 focus:border-purple-500 focus:ring-purple-500/20 uppercase font-medium text-center tracking-widest transition-all"
+                  onKeyDown={(e) => e.key === 'Enter' && validateCustomPlanCode()}
+                />
+                <Button 
+                  onClick={validateCustomPlanCode}
+                  disabled={isValidatingCustomPlan || !customPlanCode.trim()}
+                  className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+                >
+                  {isValidatingCustomPlan ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Buscar"
+                  )}
+                </Button>
               </div>
-            </details>
-          </div>
-        )}
+            </div>
+          </details>
+        </div>
 
         {/* Plano Personalizado - Centralizado */}
-        {customPlan?.valid && customPlan.plan ? (
+        {customPlan?.valid && customPlan.plan && (
           (() => {
             const isAssignedPlan = showAssignedPlan && assignedPlanData?.plan?.id === customPlan.plan.id;
             return (
@@ -830,7 +840,10 @@ export default function PlansPage() {
           </div>
             );
           })()
-        ) : (
+        )}
+
+        {/* Mostra os planos padrão quando não tem plano personalizado OU quando showAllPlans está ativo */}
+        {(!customPlan?.valid || showAllPlans) && (
           <>
             {/* Mobile: Cards empilhados estilo Shopify */}
             <div className="space-y-3 md:hidden mb-8">

@@ -779,10 +779,20 @@ export default function SchedulingPage() {
 
   // Handle service save
   const handleSaveService = () => {
+    // Converter snake_case para camelCase antes de enviar ao backend
+    const serviceData = {
+      name: serviceForm.name,
+      description: serviceForm.description,
+      durationMinutes: serviceForm.duration_minutes, // Backend espera camelCase
+      price: serviceForm.price,
+      color: serviceForm.color,
+      isActive: serviceForm.is_active, // Backend espera camelCase
+    };
+    
     if (editingService) {
-      updateServiceMutation.mutate({ id: editingService.id, data: serviceForm });
+      updateServiceMutation.mutate({ id: editingService.id, data: serviceData });
     } else {
-      createServiceMutation.mutate(serviceForm);
+      createServiceMutation.mutate(serviceData);
     }
   };
 

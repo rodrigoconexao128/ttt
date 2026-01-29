@@ -3618,17 +3618,42 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       mediaType,
   });
 
-  // ?? AI Agent Auto-Response com SISTEMA DE ACUMULA��O DE MENSAGENS
+  // 🤖 AI Agent/Chatbot Auto-Response com SISTEMA DE ACUMULAÇÃO DE MENSAGENS
+  // ⚠️ IMPORTANTE: O check de "isAgentDisabled" se aplica TANTO à IA quanto ao CHATBOT/FLUXO!
+  // Quando o dono responde manualmente, AMBOS os sistemas são pausados.
   try {
     const isAgentDisabled = await storage.isAgentDisabledForConversation(conversation.id);
     
-    // ?? LISTA DE EXCLUS�O: Verificar se o n�mero est� na lista de exclus�o
+    // 🚫 LISTA DE EXCLUSÃO: Verificar se o número está na lista de exclusão
     const isExcluded = await storage.isNumberExcluded(session.userId, contactNumber);
     if (isExcluded) {
-      console.log(`?? [AI AGENT] N�mero ${contactNumber} est� na LISTA DE EXCLUS�O - n�o responder automaticamente`);
+      console.log(`🚫 [AI AGENT] Número ${contactNumber} está na LISTA DE EXCLUSÃO - não responder automaticamente`);
       return;
     }
-
+    
+    // ┌─────────────────────────────────────────────────────────────────────────┐
+    // │ 🔴 FIX CRÍTICO: Verificar se AMBOS (IA E CHATBOT) estão pausados       │
+    // │ Quando dono responde manualmente, o sistema inteiro pausa, não só IA!  │
+    // │ Data: 2025-01-XX - Sincronização Flow Builder + IA Agent               │
+    // └─────────────────────────────────────────────────────────────────────────┘
+    if (isAgentDisabled) {
+      console.log(`⏸️ [AUTO-PAUSE ATIVO] IA/Chatbot pausados para conversa ${conversation.id}`);
+      console.log(`   📱 Contato: ${contactNumber} | Motivo: dono respondeu manualmente ou transferência`);
+      
+      // Marcar que cliente tem mensagem pendente (para auto-reativação responder depois)
+      try {
+        await storage.markClientPendingMessage(conversation.id);
+        console.log(`📌 [AUTO-REATIVATE] Cliente enviou mensagem enquanto pausado - marcado como pendente`);
+      } catch (err) {
+        console.error("Erro ao marcar mensagem pendente:", err);
+      }
+      
+      // ⚠️ NÃO processar nem pelo chatbot nem pela IA enquanto pausado!
+      return;
+    }
+    
+    // ✅ Agente/Chatbot NÃO está pausado - processar normalmente
+    
     // 🤖 CHATBOT DE FLUXO: Verificar se o usuário tem chatbot ativo ANTES da IA
     // O chatbot tem prioridade sobre a IA quando ambos estão configurados
     const { tryProcessChatbotMessage, isNewContact } = await import("./chatbotIntegration");
@@ -3644,33 +3669,23 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     if (chatbotResult.handled) {
       console.log(`🤖 [CHATBOT] Mensagem processada pelo chatbot de fluxo`);
       if (chatbotResult.transferToHuman) {
-        console.log(`🤖 [CHATBOT] Conversa transferida para humano - IA desativada`);
+        console.log(`🤖 [CHATBOT] Conversa transferida para humano - IA/Chatbot desativados para esta conversa`);
       }
       return; // Chatbot já processou, não precisa da IA
     }
     
-    // ?? CR�TICO: Verificar se �ltima mensagem foi do cliente (n�o do agente)
-    // Se �ltima mensagem for do agente, N�O responder (evita loop)
+    // 🔴 CRÍTICO: Verificar se última mensagem foi do cliente (não do agente)
+    // Se última mensagem for do agente, NÃO responder (evita loop)
     const recentMessages = await storage.getMessagesByConversationId(conversation.id);
     const lastMessage = recentMessages[recentMessages.length - 1];
     
     if (lastMessage && lastMessage.fromMe) {
-      console.log(`?? [AI AGENT] �ltima mensagem foi do agente, n�o respondendo (evita loop)`);
+      console.log(`🔴 [AI AGENT] Última mensagem foi do agente, não respondendo (evita loop)`);
       return;
     }
     
-    // ?? AUTO-REATIVA��O: Se IA est� pausada, marcar que cliente tem mensagem pendente
-    // Isso permite que o sistema de auto-reativa��o saiba que deve responder
-    if (isAgentDisabled) {
-      try {
-        await storage.markClientPendingMessage(conversation.id);
-        console.log(`?? [AUTO-REATIVATE] Cliente enviou mensagem enquanto IA pausada - marcado como pendente`);
-      } catch (err) {
-        console.error("Erro ao marcar mensagem pendente:", err);
-      }
-    }
-    
-    if (!isAgentDisabled) {
+    // ✅ IA pode responder (não está pausada e chatbot não processou)
+    {
       const userId = session.userId;
       const conversationId = conversation.id;
       const targetNumber = contactNumber;
@@ -4397,16 +4412,50 @@ export async function triggerAgentResponseForConversation(
       }
     }
     
-    // 6. Verificar se j� tem resposta pendente
+    // 6. Verificar se já tem resposta pendente
     if (pendingResponses.has(conversationId)) {
-      console.log(`? [TRIGGER] J� existe resposta pendente para esta conversa`);
-      return { triggered: false, reason: "Resposta j� em processamento. Aguarde." };
+      console.log(`⚠️ [TRIGGER] Já existe resposta pendente para esta conversa`);
+      return { triggered: false, reason: "Resposta já em processamento. Aguarde." };
     }
     
-    console.log(`?? [TRIGGER] ${messagesToProcess.length} mensagem(s) para processar`);
-    console.log(`   ?? Cliente: ${conversation.contactNumber}`);
+    console.log(`📋 [TRIGGER] ${messagesToProcess.length} mensagem(s) para processar`);
+    console.log(`   📞 Cliente: ${conversation.contactNumber}`);
     
-    // 7. Criar resposta pendente com delay m�nimo (1s quando for�ado, sen�o 3s)
+    // ┌─────────────────────────────────────────────────────────────────────────┐
+    // │ 🤖 FIX: Tentar CHATBOT primeiro antes de usar IA                       │
+    // │ Quando auto-reativação ocorre, precisamos respeitar a prioridade:      │
+    // │ 1º CHATBOT/FLOW (se ativo)                                             │
+    // │ 2º IA AGENT (se chatbot não processou)                                 │
+    // │ Data: 2025-01-XX - Sincronização Flow Builder + IA Agent               │
+    // └─────────────────────────────────────────────────────────────────────────┘
+    try {
+      const { tryProcessChatbotMessage, isNewContact } = await import("./chatbotIntegration");
+      const isFirstContact = await isNewContact(conversationId);
+      const combinedText = messagesToProcess.join('\n\n');
+      
+      console.log(`🤖 [TRIGGER] Tentando processar via CHATBOT primeiro...`);
+      const chatbotResult = await tryProcessChatbotMessage(
+        userId,
+        conversationId,
+        conversation.contactNumber,
+        combinedText,
+        isFirstContact
+      );
+      
+      if (chatbotResult.handled) {
+        console.log(`✅ [TRIGGER] Mensagem processada pelo CHATBOT de fluxo!`);
+        if (chatbotResult.transferToHuman) {
+          console.log(`🤖 [TRIGGER] Conversa transferida para humano - IA/Chatbot desativados`);
+        }
+        return { triggered: true, reason: "Resposta processada pelo chatbot de fluxo!" };
+      }
+      
+      console.log(`📋 [TRIGGER] Chatbot não processou (inativo ou sem match), delegando para IA...`);
+    } catch (chatbotError) {
+      console.error(`⚠️ [TRIGGER] Erro ao tentar chatbot (continuando com IA):`, chatbotError);
+    }
+    
+    // 7. Criar resposta pendente com delay mínimo (1s quando forçado, senão 3s)
     const responseDelaySeconds = forceRespond ? 1 : Math.max(agentConfig?.responseDelaySeconds ?? 3, 3);
     
     const pending: PendingResponse = {
