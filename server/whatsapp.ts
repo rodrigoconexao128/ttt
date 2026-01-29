@@ -1925,6 +1925,109 @@ export async function forceReconnectWhatsApp(userId: string): Promise<void> {
   await connectWhatsApp(userId);
 }
 
+// ======================================================================
+// 📱 FORCE FULL CONTACT SYNC - Reconecta para buscar TODOS os contatos
+// ======================================================================
+// Esta função força uma reconexão REAL do WhatsApp para que o Baileys
+// dispare novamente o evento contacts.upsert com TODOS os contatos.
+//
+// Segundo a documentação do Baileys:
+// - contacts.upsert envia TODOS os contatos na PRIMEIRA conexão
+// - Para forçar novo envio, precisa reconectar a sessão
+// - Ref: https://github.com/WhiskeySockets/Baileys/issues/266
+// ======================================================================
+export async function forceFullContactSync(userId: string): Promise<{ success: boolean; message: string }> {
+  // 🛡️ MODO DESENVOLVIMENTO: Bloquear reconexões
+  if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+    console.log(`\n🛡️ [DEV MODE] forceFullContactSync bloqueado para user ${userId}`);
+    return { success: false, message: 'Modo desenvolvimento - WhatsApp desabilitado' };
+  }
+
+  console.log(`\n========================================`);
+  console.log(`📱 [FORCE FULL SYNC] Iniciando sincronização COMPLETA de contatos`);
+  console.log(`📱 [FORCE FULL SYNC] User ID: ${userId}`);
+  console.log(`========================================\n`);
+
+  // Limpar cache de agenda existente para forçar nova sincronização
+  agendaCache.delete(userId);
+  console.log(`📱 [FORCE FULL SYNC] Cache de agenda limpo`);
+
+  // Verificar se existe sessão ativa
+  const existingSession = sessions.get(userId);
+  if (!existingSession?.socket) {
+    console.log(`📱 [FORCE FULL SYNC] Nenhuma sessão ativa - conectando do zero...`);
+    await connectWhatsApp(userId);
+    return { success: true, message: 'Conexão iniciada - aguarde os contatos serem sincronizados' };
+  }
+
+  console.log(`📱 [FORCE FULL SYNC] Sessão encontrada - reconectando para buscar todos os contatos...`);
+
+  try {
+    // 1. Fechar socket atual (mantém credenciais)
+    console.log(`📱 [FORCE FULL SYNC] Fechando conexão atual...`);
+    try {
+      existingSession.socket.end(undefined);
+    } catch (e) {
+      console.log(`📱 [FORCE FULL SYNC] Erro ao fechar socket (ignorando):`, e);
+    }
+
+    // 2. Limpar da memória
+    sessions.delete(userId);
+    unregisterWhatsAppSession(userId);
+    pendingConnections.delete(userId);
+    reconnectAttempts.delete(userId);
+
+    // 3. Aguardar um pouco para garantir que fechou
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // 4. Reconectar - isso vai disparar contacts.upsert com TODOS os contatos
+    console.log(`📱 [FORCE FULL SYNC] Reconectando para sincronizar todos os contatos...`);
+    await connectWhatsApp(userId);
+
+    // 5. Aguardar sync inicial (o contacts.upsert acontece automaticamente)
+    console.log(`📱 [FORCE FULL SYNC] Aguardando sincronização de contatos...`);
+
+    // Aguardar até 30 segundos para os contatos serem sincronizados
+    let attempts = 0;
+    const maxAttempts = 15;
+    let contactCount = 0;
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const agendaData = getAgendaContacts(userId);
+      contactCount = agendaData?.contacts?.length || 0;
+
+      console.log(`📱 [FORCE FULL SYNC] Tentativa ${attempts + 1}/${maxAttempts} - ${contactCount} contatos encontrados`);
+
+      // Se tiver mais de 100 contatos, provavelmente terminou o sync inicial
+      if (contactCount > 100) {
+        console.log(`📱 [FORCE FULL SYNC] ✅ Sync parece completo com ${contactCount} contatos`);
+        break;
+      }
+
+      attempts++;
+    }
+
+    console.log(`\n========================================`);
+    console.log(`📱 [FORCE FULL SYNC] ✅ CONCLUÍDO!`);
+    console.log(`📱 [FORCE FULL SYNC] Total de contatos sincronizados: ${contactCount}`);
+    console.log(`========================================\n`);
+
+    return {
+      success: true,
+      message: `✅ Sincronização completa! ${contactCount} contatos encontrados.`
+    };
+
+  } catch (error) {
+    console.error(`📱 [FORCE FULL SYNC] ❌ Erro:`, error);
+    return {
+      success: false,
+      message: `Erro na sincronização: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+    };
+  }
+}
+
 // Força reset COMPLETO - apaga arquivos de autenticação (força novo QR Code)
 export async function forceResetWhatsApp(userId: string): Promise<void> {
   // 🛡️ MODO DESENVOLVIMENTO: Bloquear reset para evitar conflito com produção

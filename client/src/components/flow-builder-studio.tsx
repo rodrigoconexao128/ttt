@@ -558,6 +558,12 @@ Quanto mais detalhes voce me der, melhor sera o fluxo que vou criar!`,
         return;
       }
 
+      // PRIMEIRO: Atualizar config local se a IA retornou config
+      if (data.config) {
+        setChatbotConfig(prev => ({ ...prev, ...data.config }));
+        setHasChanges(true);
+      }
+
       if (data.flow && data.flow.nodes) {
         // Normalizar nós da IA para formato do frontend
         const normalizedNodes = normalizeAINodes(data.flow.nodes);
@@ -579,11 +585,6 @@ Quanto mais detalhes voce me der, melhor sera o fluxo que vou criar!`,
         } catch (saveError) {
           console.error("Erro no auto-save:", saveError);
         }
-      }
-
-      if (data.config) {
-        setChatbotConfig(prev => ({ ...prev, ...data.config }));
-        setHasChanges(true);
       }
 
       // Mensagem de sucesso com botões de próximas ações
@@ -626,8 +627,7 @@ Quanto mais detalhes voce me der, melhor sera o fluxo que vou criar!`,
     switch (action) {
       case "test_simulator":
         setMobileView("simulator");
-        // Aguardar um pouco para garantir que os nós foram atualizados no estado
-        // e recarregar da API se necessário
+        // Recarregar nós da API para garantir dados atualizados
         try {
           const res = await apiRequest("GET", "/api/chatbot/nodes");
           const freshNodes = await res.json();
@@ -635,8 +635,8 @@ Quanto mais detalhes voce me der, melhor sera o fluxo que vou criar!`,
             const normalizedNodes = normalizeAINodes(freshNodes);
             setFlowNodes(normalizedNodes);
             console.log('🔄 Nós recarregados da API:', normalizedNodes.length);
-            // Aguardar o próximo tick para garantir que o estado foi atualizado
-            setTimeout(() => startSimulation(), 100);
+            // Passar nós diretamente para evitar problemas de timing do estado
+            startSimulation(normalizedNodes);
           } else {
             // Se não há nós na API, usar os do estado atual
             startSimulation();
@@ -765,12 +765,15 @@ Diga o que você precisa e eu te ajudo! 😊`,
   };
 
   // ============ FUNCOES DO SIMULADOR ============
-  const startSimulation = () => {
-    // Debug: Verificar nós disponíveis
-    console.log('🎮 Iniciando simulador - flowNodes:', flowNodes.length);
-    console.log('🎮 Tipos de nós:', flowNodes.map(n => ({ id: n.node_id, type: n.node_type, name: n.name })));
+  const startSimulation = (nodesToUse?: FlowNode[]) => {
+    // Usar nós passados como parâmetro ou os do estado
+    const nodes = nodesToUse || flowNodes;
     
-    // Reset do simulador
+    // Debug: Verificar nós disponíveis
+    console.log('🎮 Iniciando simulador - nós:', nodes.length);
+    console.log('🎮 Tipos de nós:', nodes.map(n => ({ id: n.node_id, type: n.node_type, name: n.name })));
+    
+    // Reset do simulador - GARANTIR LIMPEZA COMPLETA
     setSimulatorMessages([]);
     setSimulatorVariables({});
     simulatorVariablesRef.current = {}; // Reset da ref também
@@ -778,15 +781,15 @@ Diga o que você precisa e eu te ajudo! 😊`,
     setPendingInputNode(null);
 
     // Encontrar no de inicio - procurar por node_type 'start' ou node_id contendo 'start'
-    let startNode = flowNodes.find(n => n.node_type === 'start');
+    let startNode = nodes.find(n => n.node_type === 'start');
     if (!startNode) {
       // Fallback: procurar por node_id que contenha 'start'
-      startNode = flowNodes.find(n => n.node_id && n.node_id.toLowerCase().includes('start'));
+      startNode = nodes.find(n => n.node_id && n.node_id.toLowerCase().includes('start'));
     }
-    if (!startNode && flowNodes.length > 0) {
+    if (!startNode && nodes.length > 0) {
       // Fallback 2: pegar o primeiro nó como início
       console.log('⚠️ Nó start não encontrado, usando primeiro nó como início');
-      startNode = flowNodes[0];
+      startNode = nodes[0];
     }
     
     if (!startNode) {
@@ -2178,7 +2181,22 @@ Diga o que você precisa e eu te ajudo! 😊`,
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={startSimulation}
+                  onClick={async () => {
+                    // Recarregar nós da API antes de iniciar simulação
+                    try {
+                      const res = await apiRequest("GET", "/api/chatbot/nodes");
+                      const freshNodes = await res.json();
+                      if (freshNodes && freshNodes.length > 0) {
+                        const normalizedNodes = normalizeAINodes(freshNodes);
+                        setFlowNodes(normalizedNodes);
+                        startSimulation(normalizedNodes);
+                      } else {
+                        startSimulation();
+                      }
+                    } catch {
+                      startSimulation();
+                    }
+                  }}
                   className="text-white hover:bg-white/10"
                 >
                   <Play className="w-4 h-4 mr-1" />
