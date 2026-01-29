@@ -2174,12 +2174,21 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       console.log(`\n========================================`);
       console.log(`📱 [CONTACTS.UPSERT] Baileys emitiu ${contacts.length} contatos`);
       console.log(`📱 [CONTACTS.UPSERT] User ID: ${userId}`);
+      console.log(`📱 [CONTACTS.UPSERT] Connection ID: ${connection.id}`);
       console.log(`📱 [CONTACTS.UPSERT] Primeiro contato: ${contacts[0]?.id || 'N/A'}`);
       console.log(`📱 [CONTACTS.UPSERT] Último contato: ${contacts[contacts.length - 1]?.id || 'N/A'}`);
       console.log(`========================================\n`);
 
       // Array para novos contatos desta batch
       const newAgendaContacts: AgendaContact[] = [];
+      // Array para persistir no banco de dados
+      const dbContacts: Array<{
+        connectionId: string;
+        contactId: string;
+        lid?: string;
+        phoneNumber?: string;
+        name?: string;
+      }> = [];
 
       for (const contact of contacts) {
         // Extrair número do contact.id quando phoneNumber não vem preenchido
@@ -2197,7 +2206,16 @@ export async function connectWhatsApp(userId: string): Promise<void> {
           contactsCache.set(contact.lid, contact);
         }
 
-        // 2. Adicionar ao array de agenda (se tiver número válido)
+        // 2. Preparar para salvar no banco de dados
+        dbContacts.push({
+          connectionId: connection.id,
+          contactId: contact.id,
+          lid: contact.lid || undefined,
+          phoneNumber: phoneNumber || undefined,
+          name: contact.name || contact.notify || undefined,
+        });
+
+        // 3. Adicionar ao array de agenda (se tiver número válido)
         if (phoneNumber && phoneNumber.length >= 8) {
           newAgendaContacts.push({
             id: contact.id,
@@ -2208,7 +2226,18 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         }
       }
 
-      // 3. IMPORTANTE: Mesclar com contatos existentes no cache (acumula múltiplas batches)
+      // 4. PERSISTIR NO BANCO DE DADOS - IMPORTANTE!
+      // Salvar contatos no banco para não perder em restart
+      try {
+        if (dbContacts.length > 0) {
+          await storage.batchUpsertContacts(dbContacts);
+          console.log(`📱 [CONTACTS.UPSERT] 💾 Salvou ${dbContacts.length} contatos no banco de dados`);
+        }
+      } catch (dbError) {
+        console.error(`📱 [CONTACTS.UPSERT] ❌ Erro ao salvar contatos no DB:`, dbError);
+      }
+
+      // 5. IMPORTANTE: Mesclar com contatos existentes no cache (acumula múltiplas batches)
       // O Baileys pode emitir contacts.upsert múltiplas vezes durante a sincronização inicial
       const existingCache = getAgendaContacts(userId);
       const existingContacts = existingCache?.contacts || [];

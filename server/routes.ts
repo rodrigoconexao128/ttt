@@ -14605,55 +14605,92 @@ Responda APENAS com o JSON, sem texto adicional.`;
   // Sincroniza TODOS os contatos (WhatsApp + Conversas)
   // ============================================
 
-  // 📱 FORÇAR RECONEXÃO WHATSAPP - Sincroniza TODA a agenda do celular
-  // Esta função força reconexão do WhatsApp que triggera o syncFullHistory
-  // e faz o Baileys emitir TODOS os contatos da agenda via contacts.upsert
+  // 📱 SINCRONIZAÇÃO DE CONTATOS - Busca contatos do WhatsApp e salva no banco
+  // Esta função NÃO força reconexão - apenas sincroniza contatos existentes
+  // Os contatos são persistidos no banco de dados para não perder em restart
   app.post("/api/contacts/sync-agenda", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
-      console.log(`\n[SYNC AGENDA] 📱 User ${userId} solicitou sincronização da agenda completa`);
-      
+      console.log(`\n[SYNC AGENDA] 📱 User ${userId} solicitou sincronização da agenda`);
+
       // Verificar conexão WhatsApp
       const connection = await storage.getConnectionByUserId(userId);
       if (!connection) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          message: "❌ Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro." 
-        });
-      }
-      
-      if (!connection.isConnected) {
-        return res.status(400).json({ 
-          success: false,
-          message: "❌ WhatsApp desconectado. Reconecte para sincronizar a agenda." 
+          message: "❌ Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro."
         });
       }
 
-      // Contar contatos antes da reconexão
-      const contactsBefore = await storage.getContactsByConnectionId(connection.id);
-      const countBefore = contactsBefore.length;
-      console.log(`[SYNC AGENDA] 📊 Contatos antes da reconexão: ${countBefore}`);
+      // Verificar se está conectado na sessão ativa
+      const { getSession, syncAgendaFromSessionCache } = await import("./whatsapp");
+      const session = getSession(userId);
 
-      // Forçar reconexão do WhatsApp (sem perder auth)
-      // Isso vai triggar o syncFullHistory: true e o Baileys vai emitir
-      // TODOS os contatos da agenda do celular via contacts.upsert
-      console.log(`[SYNC AGENDA] 🔄 Forçando reconexão do WhatsApp...`);
-      await forceReconnectWhatsApp(userId);
-      
-      // Aguardar um momento para iniciar a reconexão
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      res.json({ 
+      if (!session) {
+        // WhatsApp não está ativo na memória - verificar banco
+        if (!connection.isConnected) {
+          return res.status(400).json({
+            success: false,
+            message: "❌ WhatsApp desconectado. Reconecte para sincronizar a agenda."
+          });
+        }
+
+        // Está marcado como conectado no banco mas sem sessão - tentar reconectar automaticamente
+        console.log(`[SYNC AGENDA] ⚠️ Sessão não encontrada, mas DB diz conectado. Tentando reconectar...`);
+
+        try {
+          const { connectWhatsApp } = await import("./whatsapp");
+          await connectWhatsApp(userId);
+
+          // Aguardar conexão estabilizar
+          await new Promise(resolve => setTimeout(resolve, 5000));
+
+          // Tentar sincronizar novamente
+          const newSession = getSession(userId);
+          if (newSession) {
+            const syncResult = syncAgendaFromSessionCache(userId);
+            console.log(`[SYNC AGENDA] 📊 Resultado após reconexão: ${syncResult.count} contatos`);
+
+            // Contar contatos no banco
+            const dbContacts = await storage.getContactsByConnectionId(connection.id);
+
+            return res.json({
+              success: true,
+              message: `✅ ${dbContacts.length} contatos sincronizados!`,
+              count: dbContacts.length,
+              info: `Contatos salvos no banco de dados. Eles serão preservados mesmo após reiniciar.`
+            });
+          }
+        } catch (reconnectError) {
+          console.error(`[SYNC AGENDA] Erro na reconexão:`, reconnectError);
+        }
+
+        return res.status(400).json({
+          success: false,
+          message: "❌ Não foi possível conectar ao WhatsApp. Tente reconectar manualmente."
+        });
+      }
+
+      // Sessão existe - sincronizar do cache da sessão
+      console.log(`[SYNC AGENDA] ✅ Sessão encontrada, sincronizando contatos...`);
+      const syncResult = syncAgendaFromSessionCache(userId);
+
+      // Contar contatos no banco de dados
+      const dbContacts = await storage.getContactsByConnectionId(connection.id);
+      console.log(`[SYNC AGENDA] 📊 Contatos no banco: ${dbContacts.length}`);
+
+      res.json({
         success: true,
-        message: `✅ WhatsApp está reconectando para sincronizar toda a agenda! Aguarde alguns minutos...`,
-        countBefore,
-        info: `O WhatsApp irá enviar todos os contatos da sua agenda. Isso pode levar alguns minutos dependendo do número de contatos.`
+        message: syncResult.message || `✅ ${dbContacts.length} contatos sincronizados!`,
+        count: dbContacts.length,
+        cacheCount: syncResult.count,
+        info: `Contatos salvos no banco de dados. Eles serão preservados mesmo após reiniciar.`
       });
     } catch (error) {
       console.error("[SYNC AGENDA] Erro:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        message: "❌ Erro ao iniciar sincronização da agenda" 
+        message: "❌ Erro ao sincronizar contatos"
       });
     }
   });

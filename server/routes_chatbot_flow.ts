@@ -2140,6 +2140,24 @@ FORMATO DE RESPOSTA PARA AÇÃO (quando executar):
   "config": { "name": "...", ... }
 }
 
+🚨🚨🚨 REGRA CRÍTICA OBRIGATÓRIA - CONFIG É OBRIGATÓRIO 🚨🚨🚨
+Ao criar um NOVO fluxo (não edição), você DEVE SEMPRE incluir o objeto "config" completo com TODOS os campos:
+- "name": Nome do negócio/chatbot (extraído da mensagem do usuário)
+- "welcome_message": Mensagem de boas-vindas personalizada para o tipo de negócio
+- "fallback_message": Mensagem quando o bot não entende (ex: "Desculpe, não entendi. Por favor, escolha uma opção do menu.")
+- "goodbye_message": Mensagem de despedida (ex: "Obrigado por utilizar nosso atendimento! Até logo! 👋")
+
+EXEMPLO DE CONFIG OBRIGATÓRIO:
+"config": {
+  "name": "Pizzaria Bella Napoli",
+  "welcome_message": "🍕 Olá! Bem-vindo à Pizzaria Bella Napoli! Como posso ajudar?",
+  "fallback_message": "Desculpe, não entendi. Por favor, escolha uma opção do menu.",
+  "goodbye_message": "Obrigado por escolher a Pizzaria Bella Napoli! Até a próxima! 🍕"
+}
+
+⚠️ SE VOCÊ NÃO INCLUIR O CONFIG, A CONFIGURAÇÃO DO CHATBOT NÃO SERÁ ATUALIZADA E O USUÁRIO VERÁ DADOS ANTIGOS!
+🚨🚨🚨 FIM DA REGRA CRÍTICA 🚨🚨🚨
+
 ANALISE A SOLICITAÇÃO DO CLIENTE COM CUIDADO:
 - Se ele menciona "pizzaria", crie um fluxo COMPLETO para pizzaria com cardápio, pedidos, promoções
 - Se ele menciona "clínica", crie um fluxo para agendamento médico, especialidades, convênios
@@ -2802,6 +2820,89 @@ Personalize os textos para o negócio solicitado. Responda APENAS o JSON.`;
         
         // Atualizar os nós no parsedResponse
         parsedResponse.flow.nodes = nodes;
+      }
+
+      // ============================================================
+      // FORÇAR IA A GERAR CONFIG: Loop até IA retornar corretamente
+      // ============================================================
+      if (!parsedResponse.config && !isDefinitelyEdit) {
+        console.log(`⚠️ [FLOW_GENERATOR] IA não retornou config. Fazendo chamadas adicionais até obter o config...`);
+        
+        // Limpar prefixos de sistema para obter mensagem original
+        let cleanMessage = message
+          .replace(/^(Criar novo fluxo do zero:\s*)/i, '')
+          .replace(/^(Criar novo fluxo:\s*)/i, '')
+          .replace(/^(Novo fluxo:\s*)/i, '')
+          .trim();
+        
+        // Tentar até 3 vezes para obter o config da IA
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts && !parsedResponse.config; attempt++) {
+          console.log(`🔄 [FLOW_GENERATOR] Tentativa ${attempt}/${maxAttempts} para obter config da IA...`);
+          
+          const configPrompt = `
+TAREFA CRÍTICA: Extrair configuração do chatbot.
+
+Solicitação original do usuário:
+"${cleanMessage}"
+
+Você DEVE retornar um JSON válido com a configuração do chatbot.
+
+FORMATO OBRIGATÓRIO (copie e preencha):
+{
+  "config": {
+    "name": "[NOME EXATO DO NEGÓCIO DA MENSAGEM]",
+    "welcome_message": "[BOAS-VINDAS PERSONALIZADA COM NOME E EMOJIS]",
+    "fallback_message": "[MENSAGEM PARA QUANDO NÃO ENTENDER]",
+    "goodbye_message": "[DESPEDIDA COM NOME DO NEGÓCIO E EMOJIS]"
+  }
+}
+
+EXEMPLOS:
+- Se a mensagem menciona "Loja de Roupas Fashion Style", o name deve ser exatamente "Loja de Roupas Fashion Style"
+- Se a mensagem menciona "Clínica Médica Saúde Total", o name deve ser exatamente "Clínica Médica Saúde Total"
+
+RESPONDA APENAS COM O JSON, NADA MAIS.`;
+
+          try {
+            // Usar chatComplete que já está importado no escopo
+            const configResponse = await chatComplete({
+              model: 'mistral-medium-latest',
+              messages: [{ role: 'user', content: configPrompt }],
+              temperature: 0.1,
+              maxTokens: 600,
+            });
+            
+            // chatComplete retorna { choices: [{ message: { content: "..." } }] }
+            // Extrair o conteúdo da resposta corretamente
+            const configContent = configResponse?.choices?.[0]?.message?.content || '';
+            
+            console.log(`📝 [FLOW_GENERATOR] Tentativa ${attempt} - Resposta: ${configContent.substring(0, 300)}...`);
+            
+            // Extrair JSON da resposta
+            const jsonMatch = configContent.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                const configJson = JSON.parse(jsonMatch[0]);
+                if (configJson.config && configJson.config.name) {
+                  parsedResponse.config = configJson.config;
+                  console.log(`✅ [FLOW_GENERATOR] Config obtido na tentativa ${attempt}: "${parsedResponse.config.name}"`);
+                  break;
+                }
+              } catch (parseErr) {
+                console.log(`⚠️ [FLOW_GENERATOR] Tentativa ${attempt} - Erro ao parsear JSON: ${parseErr}`);
+              }
+            }
+          } catch (configError) {
+            console.log(`❌ [FLOW_GENERATOR] Tentativa ${attempt} - Erro na chamada: ${configError}`);
+          }
+        }
+        
+        // Se após todas as tentativas ainda não tem config, lança erro
+        if (!parsedResponse.config) {
+          console.log(`❌ [FLOW_GENERATOR] FALHA CRÍTICA: Não foi possível obter config após ${maxAttempts} tentativas`);
+          throw new Error('Não foi possível gerar a configuração do chatbot. Por favor, tente novamente com uma descrição mais detalhada do seu negócio.');
+        }
       }
 
       // ============================================================
