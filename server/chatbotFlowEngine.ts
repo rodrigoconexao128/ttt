@@ -1041,6 +1041,59 @@ export async function processChatbotMessage(
     // Continuar com fluxo normal se híbrido falhar
   }
 
+  // ==============================================================
+  // 🤖 DETECÇÃO COM IA: Usar detectIntent para interpretar a mensagem
+  // ==============================================================
+  const intent = detectIntent(message);
+  console.log(`🤖 [IA] Intenção detectada: ${intent.category} (confiança: ${(intent.confidence * 100).toFixed(0)}%)`);
+  
+  // Se IA detectou SAUDAÇÃO com confiança >= 70%, reiniciar fluxo
+  if (intent.category === 'greeting' && intent.confidence >= 0.7) {
+    console.log(`👋 [IA] Saudação detectada: "${message}" - Iniciando/reiniciando fluxo`);
+    
+    // Reiniciar estado para saudação
+    await updateConversationState(conversationId, config.id, {
+      current_node_id: undefined,
+      variables: {},
+      visited_nodes: []
+    });
+
+    // Processar desde o início
+    const startNode = nodes.find(n => n.node_type === 'start');
+    if (startNode) {
+      const response = await processNode(startNode, { ...state, variables: {}, visited_nodes: [] }, nodes, connections, config);
+      await updateConversationState(conversationId, config.id, {
+        current_node_id: response.currentNodeId,
+        variables: response.variables,
+        visited_nodes: [startNode.node_id]
+      });
+      return applyHumanization(response, config);
+    }
+  }
+  
+  // Se IA detectou MENU com confiança >= 70%, mostrar menu inicial
+  if (intent.category === 'menu' && intent.confidence >= 0.7) {
+    console.log(`📋 [IA] Pedido de menu detectado: "${message}" - Mostrando menu inicial`);
+    
+    // Reiniciar para mostrar menu inicial
+    const startNode = nodes.find(n => n.node_type === 'start');
+    if (startNode) {
+      await updateConversationState(conversationId, config.id, {
+        current_node_id: undefined,
+        variables: {},
+        visited_nodes: []
+      });
+      
+      const response = await processNode(startNode, { ...state, variables: {}, visited_nodes: [] }, nodes, connections, config);
+      await updateConversationState(conversationId, config.id, {
+        current_node_id: response.currentNodeId,
+        variables: response.variables,
+        visited_nodes: [startNode.node_id]
+      });
+      return applyHumanization(response, config);
+    }
+  }
+
   // Verificar palavra-chave de reinício
   const restartKeywords = config.restart_keywords || ['menu', 'início', 'inicio', 'voltar', 'reiniciar'];
   if (config.restart_on_keyword && restartKeywords.some(kw => messageLower === kw.toLowerCase())) {
@@ -1214,6 +1267,20 @@ export async function processChatbotMessage(
     }
 
     if (button) {
+      // ====================================================================
+      // 📌 CORREÇÃO CRÍTICA: Salvar variável quando usuário seleciona botão
+      // ====================================================================
+      // Prioridade 1: save_variable dentro do próprio botão (estrutura nova)
+      if (button.save_variable) {
+        variables[button.save_variable] = button.title;
+        console.log(`💾 [BUTTONS] Salvando variável (do botão) ${button.save_variable} = "${button.title}"`);
+      }
+      // Prioridade 2: save_variable no nó (estrutura antiga/fallback)
+      else if (currentNode.content.save_variable) {
+        variables[currentNode.content.save_variable] = button.title;
+        console.log(`💾 [BUTTONS] Salvando variável (do nó) ${currentNode.content.save_variable} = "${button.title}"`);
+      }
+      
       const handle = `button_${button.id}`;
       const nextNode = findNextNode(currentNode.node_id, handle, nodes, connections) ||
                       findNextNode(currentNode.node_id, 'default', nodes, connections);
@@ -1249,6 +1316,16 @@ export async function processChatbotMessage(
           
           if (partialButton) {
             console.log(`🤖 [HYBRID_AI] Match parcial encontrado: ${partialButton.title}`);
+            
+            // 📌 CORREÇÃO: Salvar variável quando match híbrido encontra botão
+            if (partialButton.save_variable) {
+              variables[partialButton.save_variable] = partialButton.title;
+              console.log(`💾 [HYBRID_AI] Salvando variável ${partialButton.save_variable} = "${partialButton.title}"`);
+            } else if (currentNode.content.save_variable) {
+              variables[currentNode.content.save_variable] = partialButton.title;
+              console.log(`💾 [HYBRID_AI] Salvando variável ${currentNode.content.save_variable} = "${partialButton.title}"`);
+            }
+            
             const handle = `button_${partialButton.id}`;
             const nextNode = findNextNode(currentNode.node_id, handle, nodes, connections) ||
                             findNextNode(currentNode.node_id, 'default', nodes, connections);
@@ -1286,7 +1363,49 @@ export async function processChatbotMessage(
         }
       }
       
-      // Resposta não reconhecida (fallback)
+      // ==============================================================
+      // 🔄 FALLBACK INTELIGENTE COM IA: Redirecionar por intenção
+      // ==============================================================
+      // A IA já detectou a intenção no início. Se chegou aqui sem match de botão,
+      // verificar se a intenção pode ser mapeada para uma opção
+      if (intent.confidence >= 0.6) {
+        // Tentar encontrar botão que corresponda à intenção
+        const matchedButton = currentNode.content.buttons?.find((btn: any) => {
+          const btnText = btn.title.toLowerCase();
+          // Verificar se alguma keyword da intenção está no texto do botão
+          return intent.keywords.some(kw => btnText.includes(kw.toLowerCase()));
+        });
+        
+        if (matchedButton) {
+          console.log(`🤖 [IA] Intenção "${intent.category}" mapeada para botão: ${matchedButton.title}`);
+          
+          // 📌 CORREÇÃO: Salvar variável quando IA mapeia intenção para botão
+          if (matchedButton.save_variable) {
+            variables[matchedButton.save_variable] = matchedButton.title;
+            console.log(`💾 [IA_INTENT] Salvando variável ${matchedButton.save_variable} = "${matchedButton.title}"`);
+          } else if (currentNode.content.save_variable) {
+            variables[currentNode.content.save_variable] = matchedButton.title;
+            console.log(`💾 [IA_INTENT] Salvando variável ${currentNode.content.save_variable} = "${matchedButton.title}"`);
+          }
+          
+          const handle = `button_${matchedButton.id}`;
+          const nextNode = findNextNode(currentNode.node_id, handle, nodes, connections) ||
+                          findNextNode(currentNode.node_id, 'default', nodes, connections);
+          
+          if (nextNode) {
+            const response = await processNode(nextNode, { ...state, variables, visited_nodes: [...state.visited_nodes, currentNode.node_id] }, nodes, connections, config);
+            await updateConversationState(conversationId, config.id, {
+              current_node_id: response.currentNodeId,
+              variables: { ...variables, ...response.variables },
+              visited_nodes: [...state.visited_nodes, currentNode.node_id]
+            });
+            return applyHumanization(response, config);
+          }
+        }
+      }
+      
+      // Resposta não reconhecida (fallback) - repetir menu atual
+      console.log(`⚠️ [CHATBOT_ENGINE] Mensagem não reconhecida: "${message}" - Mostrando fallback com menu`);
       return applyHumanization({
         messages: [{ type: 'text', content: config.fallback_message, delay: config.typing_delay_ms }],
         waitingForInput: true,
@@ -1329,6 +1448,20 @@ export async function processChatbotMessage(
     }
 
     if (option) {
+      // ====================================================================
+      // 📌 CORREÇÃO CRÍTICA: Salvar variável quando usuário seleciona item da lista
+      // ====================================================================
+      // Prioridade 1: save_variable dentro do próprio item (estrutura nova)
+      if (option.save_variable) {
+        variables[option.save_variable] = option.title;
+        console.log(`💾 [LIST] Salvando variável (do item) ${option.save_variable} = "${option.title}"`);
+      }
+      // Prioridade 2: save_variable no nó (estrutura antiga/fallback)
+      else if (currentNode.content.save_variable) {
+        variables[currentNode.content.save_variable] = option.title;
+        console.log(`💾 [LIST] Salvando variável (do nó) ${currentNode.content.save_variable} = "${option.title}"`);
+      }
+      
       const handle = `row_${option.id}`;
       const nextNode = findNextNode(currentNode.node_id, handle, nodes, connections) ||
                       findNextNode(currentNode.node_id, 'default', nodes, connections);
@@ -1364,7 +1497,16 @@ export async function processChatbotMessage(
           
           if (partialOption) {
             console.log(`🤖 [HYBRID_AI] Match parcial em lista: ${partialOption.title}`);
-            // Salvar a opção escolhida nas variáveis
+            
+            // 📌 CORREÇÃO: Salvar variável quando match híbrido encontra item
+            if (partialOption.save_variable) {
+              variables[partialOption.save_variable] = partialOption.title;
+              console.log(`💾 [HYBRID_AI] Salvando variável ${partialOption.save_variable} = "${partialOption.title}"`);
+            } else if (currentNode.content.save_variable) {
+              variables[currentNode.content.save_variable] = partialOption.title;
+              console.log(`💾 [HYBRID_AI] Salvando variável ${currentNode.content.save_variable} = "${partialOption.title}"`);
+            }
+            // Manter compatibilidade com código antigo
             variables['opcao_escolhida'] = partialOption.title;
             variables['opcao_id'] = partialOption.id;
             
@@ -1405,7 +1547,49 @@ export async function processChatbotMessage(
         }
       }
       
+      // ==============================================================
+      // 🔄 FALLBACK INTELIGENTE COM IA para LISTAS
+      // ==============================================================
+      // A IA já detectou a intenção no início. Se chegou aqui sem match de lista,
+      // verificar se a intenção pode ser mapeada para uma opção
+      if (intent.confidence >= 0.6) {
+        // Tentar encontrar row que corresponda à intenção
+        const matchedRow = allRows.find((row: any) => {
+          const rowText = row.title.toLowerCase();
+          // Verificar se alguma keyword da intenção está no texto da row
+          return intent.keywords.some(kw => rowText.includes(kw.toLowerCase()));
+        });
+        
+        if (matchedRow) {
+          console.log(`🤖 [IA] Intenção "${intent.category}" mapeada para lista: ${matchedRow.title}`);
+          
+          // ✅ CORREÇÃO: Salvar variável do item da lista selecionado
+          if (matchedRow.save_variable) {
+            variables[matchedRow.save_variable] = matchedRow.title;
+            console.log(`💾 [IA_INTENT] Salvando variável (da lista) ${matchedRow.save_variable} = "${matchedRow.title}"`);
+          } else if (currentNode.content.save_variable) {
+            variables[currentNode.content.save_variable] = matchedRow.title;
+            console.log(`💾 [IA_INTENT] Salvando variável (do nó) ${currentNode.content.save_variable} = "${matchedRow.title}"`);
+          }
+          
+          const handle = `row_${matchedRow.id}`;
+          const nextNode = findNextNode(currentNode.node_id, handle, nodes, connections) ||
+                          findNextNode(currentNode.node_id, 'default', nodes, connections);
+          
+          if (nextNode) {
+            const response = await processNode(nextNode, { ...state, variables, visited_nodes: [...state.visited_nodes, currentNode.node_id] }, nodes, connections, config);
+            await updateConversationState(conversationId, config.id, {
+              current_node_id: response.currentNodeId,
+              variables: { ...variables, ...response.variables },
+              visited_nodes: [...state.visited_nodes, currentNode.node_id]
+            });
+            return applyHumanization(response, config);
+          }
+        }
+      }
+      
       // Resposta não reconhecida (fallback)
+      console.log(`⚠️ [CHATBOT_ENGINE] Lista - Mensagem não reconhecida: "${message}" - Mostrando fallback`);
       return applyHumanization({
         messages: [{ type: 'text', content: config.fallback_message, delay: config.typing_delay_ms }],
         waitingForInput: true,
