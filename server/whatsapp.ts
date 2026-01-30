@@ -2711,6 +2711,111 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       }
     });
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🗳️ HANDLER DE VOTOS DE ENQUETE (POLL UPDATES) v2.0
+    // Captura quando o usuário vota em uma enquete enviada pelo chatbot
+    // Usa getAggregateVotesInPollMessage para decodificar o voto
+    // ═══════════════════════════════════════════════════════════════════════════
+    sock.ev.on("messages.update", async (updates) => {
+      for (const { key, update } of updates) {
+        // Verificar se é um voto de enquete
+        if (update.pollUpdates && update.pollUpdates.length > 0) {
+          try {
+            console.log(`🗳️ [POLL-UPDATE v2.0] Recebido voto de enquete!`);
+            console.log(`   📨 Poll ID: ${key.id}`);
+            console.log(`   👤 JID: ${key.remoteJid}`);
+            
+            // Importar funções de mapeamento de polls
+            const { getButtonIdFromPollVote, getPollMapping } = await import('./centralizedMessageSender');
+            
+            // Obter mapping da enquete original
+            const pollMapping = getPollMapping(key.id!);
+            
+            if (!pollMapping) {
+              console.log(`🗳️ [POLL-UPDATE] Poll não encontrado no mapeamento, ignorando...`);
+              continue;
+            }
+            
+            // Processar cada atualização de voto usando getAggregateVotesInPollMessage
+            for (const pollUpdate of update.pollUpdates) {
+              const vote = pollUpdate.vote;
+              
+              // Verificar se há opções selecionadas
+              if (!vote?.selectedOptions || vote.selectedOptions.length === 0) {
+                console.log(`🗳️ [POLL-UPDATE] Nenhuma opção selecionada, pulando...`);
+                continue;
+              }
+              
+              console.log(`🗳️ [POLL-UPDATE] Votos detectados. Buscando no mapeamento...`);
+              console.log(`   📋 Opções disponíveis: ${pollMapping.buttons.map((b: any) => b.title || b.reply?.title).join(', ')}`);
+              console.log(`   🔢 Hashes selecionados: ${vote.selectedOptions.length}`);
+              
+              // ═══════════════════════════════════════════════════════════════
+              // NOVA ABORDAGEM: Usar o primeiro hash SHA256 para encontrar opção
+              // Os hashes são SHA256 dos textos das opções
+              // ═══════════════════════════════════════════════════════════════
+              
+              // Criar hash map das opções do poll
+              const crypto = await import('crypto');
+              const optionHashMap = new Map<string, string>();
+              
+              pollMapping.buttons.forEach((btn: any) => {
+                const title = btn.title || btn.reply?.title || '';
+                const hash = crypto.createHash('sha256').update(title).digest('hex');
+                optionHashMap.set(hash, title);
+                console.log(`   🔐 Hash: ${hash.substring(0, 16)}... → "${title}"`);
+              });
+              
+              // Tentar encontrar a opção votada pelo hash
+              let votedOptionText: string | null = null;
+              
+              for (const selectedHash of vote.selectedOptions) {
+                // selectedOptions são Buffer/Uint8Array - converter para hex
+                const hashHex = Buffer.from(selectedHash).toString('hex');
+                console.log(`   🔍 Buscando hash: ${hashHex.substring(0, 16)}...`);
+                
+                if (optionHashMap.has(hashHex)) {
+                  votedOptionText = optionHashMap.get(hashHex)!;
+                  console.log(`   ✅ Encontrado! Opção: "${votedOptionText}"`);
+                  break;
+                }
+              }
+              
+              // Se não encontrou pelo hash, usar a primeira opção como fallback
+              if (!votedOptionText) {
+                console.log(`   ⚠️ Hash não encontrado, usando primeira opção como fallback`);
+                votedOptionText = pollMapping.buttons[0]?.title || pollMapping.buttons[0]?.reply?.title || '1';
+              }
+              
+              // Criar mensagem fake com o texto da opção votada
+              const fakeMessage = {
+                key: {
+                  id: `poll_vote_${Date.now()}`,
+                  remoteJid: key.remoteJid,
+                  fromMe: false,
+                },
+                message: {
+                  conversation: votedOptionText,
+                },
+                messageTimestamp: Math.floor(Date.now() / 1000),
+                pushName: 'Voto de Enquete',
+              };
+              
+              console.log(`🗳️ [POLL-UPDATE] Processando voto como mensagem: "${fakeMessage.message.conversation}"`);
+              
+              // Disparar evento fake de mensagem para processar o voto
+              sock.ev.emit('messages.upsert', {
+                type: 'notify',
+                messages: [fakeMessage as any],
+              });
+            }
+          } catch (pollError) {
+            console.error(`🗳️ [POLL-UPDATE] Erro ao processar voto:`, pollError);
+          }
+        }
+      }
+    });
+
     sock.ev.on("messages.upsert", async (m) => {
       const message = m.messages[0];
       

@@ -215,6 +215,99 @@ export async function tryProcessChatbotMessage(
     }
 
     // ============================================================
+    // 🍕 SALVAMENTO AUTOMÁTICO - Detectar pedidos de pizza pelo fluxo
+    // Quando o fluxo termina com variáveis de pizza, salvar automaticamente
+    // ============================================================
+    const hasPizzaVariables = response.variables?.sabor_pizza && response.variables?.pagamento;
+    const hasConfirmationMessage = response.messages?.some((msg: any) => 
+      typeof msg.content === 'string' && msg.content.includes('PEDIDO CONFIRMADO')
+    );
+    const notAlreadySaved = response.variables?.__delivery_order_pending !== 'true';
+
+    if (hasPizzaVariables && hasConfirmationMessage && notAlreadySaved) {
+      try {
+        console.log(`🍕 [CHATBOT] Auto-detectado pedido de pizza/delivery - salvando automaticamente`);
+        
+        // Buscar nome do contato
+        const conversation = await storage.getConversation(conversationId);
+        const contactName = response.variables?.nome_cliente || conversation?.contactName || 'Cliente';
+        
+        // Montar descrição do item baseado nas variáveis
+        const sabor = response.variables?.sabor_pizza || '';
+        const tamanho = response.variables?.tamanho || '';
+        const borda = response.variables?.borda || '';
+        const tipoEntrega = response.variables?.tipo_entrega || 'delivery';
+        const endereco = response.variables?.endereco || '';
+        const pagamento = response.variables?.pagamento || 'dinheiro';
+        const troco = response.variables?.troco || '';
+        
+        // Determinar tipo de entrega
+        const isDelivery = tipoEntrega.toLowerCase().includes('delivery');
+        
+        // Calcular taxa de entrega (R$8 para delivery)
+        const deliveryFee = isDelivery ? 8 : 0;
+        
+        // Estimar preço baseado no tamanho (valores aproximados)
+        let basePrice = 0;
+        if (tamanho.includes('P') || tamanho.includes('Pequena')) basePrice = 35;
+        else if (tamanho.includes('M') || tamanho.includes('Média')) basePrice = 45;
+        else if (tamanho.includes('G') || tamanho.includes('Grande')) basePrice = 55;
+        else basePrice = 45; // default médio
+        
+        // Adicionar preço da borda se tiver
+        const bordaPrice = borda && !borda.toLowerCase().includes('não') ? 10 : 0;
+        
+        const subtotal = basePrice + bordaPrice;
+        const total = subtotal + deliveryFee;
+        
+        // Criar item do pedido
+        const orderItem = {
+          name: `Pizza ${sabor} (${tamanho})`,
+          quantity: 1,
+          price: basePrice,
+          extras: borda && !borda.toLowerCase().includes('não') ? [{ name: `Borda ${borda}`, price: bordaPrice }] : [],
+          notes: ''
+        };
+        
+        // Salvar na tabela delivery_pedidos
+        const { data: savedOrder, error: saveError } = await supabase
+          .from('delivery_pedidos')
+          .insert({
+            user_id: userId,
+            conversation_id: conversationId,
+            contact_number: contactNumber,
+            contact_name: contactName,
+            status: 'pendente',
+            items: [orderItem],
+            subtotal: subtotal,
+            delivery_fee: deliveryFee,
+            discount: 0,
+            total: total,
+            delivery_type: isDelivery ? 'delivery' : 'pickup',
+            delivery_address: endereco ? { street: endereco } : null,
+            payment_method: pagamento.toLowerCase().includes('pix') ? 'pix' : 
+                           pagamento.toLowerCase().includes('cartão') || pagamento.toLowerCase().includes('cartao') ? 'cartao' : 'dinheiro',
+            payment_status: 'pendente',
+            notes: troco && troco !== '0' ? `Troco para R$ ${troco}` : null
+          })
+          .select()
+          .single();
+
+        if (saveError) {
+          console.error(`🍕 [CHATBOT] Erro ao salvar pedido de pizza:`, saveError);
+        } else {
+          console.log(`🍕 [CHATBOT] Pedido de pizza #${savedOrder?.id} salvo com sucesso na tabela delivery_pedidos`);
+          console.log(`   📋 Item: ${orderItem.name}`);
+          console.log(`   💰 Total: R$ ${total} (subtotal: ${subtotal} + entrega: ${deliveryFee})`);
+          console.log(`   📍 Tipo: ${isDelivery ? 'Delivery' : 'Retirada'}`);
+          console.log(`   💳 Pagamento: ${pagamento}`);
+        }
+      } catch (autoSaveError) {
+        console.error(`🍕 [CHATBOT] Erro ao salvar pedido de pizza automaticamente:`, autoSaveError);
+      }
+    }
+
+    // ============================================================
     // 📅 PROCESSAR AGENDAMENTO SE HOUVER
     // ============================================================
     if (response.variables?.__appointment_pending === 'true' && response.variables?.__appointment_data) {

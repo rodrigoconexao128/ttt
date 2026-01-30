@@ -10,6 +10,8 @@ import { validateAgentResponse } from "./agentValidation";
 import { shouldUseFlowEngine, processWithFlowEngine, FlowStorage } from "./flowIntegration";
 // 🛡️ BLINDAGEM UNIVERSAL V3.1 - Sistema de hardening de prompts (inclui pré-blindagem anti-alucinação)
 import { analyzeUserPrompt, generateUniversalBlindagem, generatePreBlindagem, validateResponse, extractBusinessName } from "./promptBlindagem";
+// 🤖 CHATBOT VISUAL - Suporte ao Flow Builder (chatbot de fluxo predefinido)
+import { processChatbotMessage, isChatbotActive } from "./chatbotFlowEngine";
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🤖 SISTEMA ANTI-BOT - DETECTA E IGNORA MENSAGENS DE BOTS
@@ -3689,6 +3691,107 @@ export async function testAgentResponse(
     
     console.log(`🧪 [SIMULADOR] Histórico: ${history.length} mensagens`);
     console.log(`🧪 [SIMULADOR] Mídias já enviadas: ${sentMedias?.length || 0}`);
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🤖 CHATBOT VISUAL (FLOW BUILDER) - VERIFICAR PRIMEIRO
+    // O chatbot visual tem prioridade sobre FlowEngine e IA
+    // ═══════════════════════════════════════════════════════════════════════
+    if (!customPrompt) {
+      const chatbotActive = await isChatbotActive(userId);
+      
+      if (chatbotActive) {
+        console.log(`🧪 [SIMULADOR] 🤖 Chatbot Visual ATIVO - usando Flow Builder`);
+        
+        // Gerar ID de conversa simulada para manter estado
+        const today = new Date().toISOString().split('T')[0];
+        const simulatorConversationId = `simulator-chatbot-${userId}-${today}`;
+        const simulatorContactNumber = `simulator-${Date.now()}`;
+        
+        // Determinar se é primeiro contato (histórico vazio)
+        const isFirstContact = !history || history.length === 0;
+        
+        const chatbotResponse = await processChatbotMessage(
+          userId,
+          simulatorConversationId,
+          simulatorContactNumber,
+          testMessage,
+          isFirstContact
+        );
+        
+        if (chatbotResponse && chatbotResponse.messages.length > 0) {
+          console.log(`🧪 [SIMULADOR] ✅ Chatbot Visual respondeu com ${chatbotResponse.messages.length} mensagens`);
+          
+          // Converter resposta do chatbot para formato do simulador
+          const responseTexts: string[] = [];
+          const mediaActions: MistralResponse['actions'] = [];
+          
+          for (const msg of chatbotResponse.messages) {
+            if (msg.type === 'text') {
+              responseTexts.push(msg.content);
+            } else if (msg.type === 'buttons') {
+              // Formatar botões como texto para o simulador (com indicador de POLL)
+              let buttonText = msg.content.body || '';
+              if (msg.content.header) {
+                buttonText = `*${msg.content.header}*\n\n${buttonText}`;
+              }
+              buttonText += '\n\n📊 *ENQUETE (Poll):*';
+              for (const btn of msg.content.buttons) {
+                buttonText += `\n🔘 ${btn.title}`;
+              }
+              if (msg.content.footer) {
+                buttonText += `\n\n_${msg.content.footer}_`;
+              }
+              responseTexts.push(buttonText);
+            } else if (msg.type === 'list') {
+              // Formatar lista como texto para o simulador
+              let listText = msg.content.body || '';
+              if (msg.content.header) {
+                listText = `*${msg.content.header}*\n\n${listText}`;
+              }
+              listText += `\n\n📋 *LISTA (${msg.content.button_text || 'Ver opções'}):*`;
+              for (const section of msg.content.sections || []) {
+                if (section.title) {
+                  listText += `\n\n*${section.title}*`;
+                }
+                for (const row of section.rows || []) {
+                  listText += `\n• ${row.title}`;
+                  if (row.description) {
+                    listText += ` - ${row.description}`;
+                  }
+                }
+              }
+              if (msg.content.footer) {
+                listText += `\n\n_${msg.content.footer}_`;
+              }
+              responseTexts.push(listText);
+            } else if (msg.type === 'media') {
+              mediaActions.push({
+                type: 'send_media',
+                media_name: msg.content.url,
+                media_url: msg.content.url,
+                caption: msg.content.caption
+              });
+              if (msg.content.caption) {
+                responseTexts.push(`📎 *Mídia*: ${msg.content.caption}`);
+              }
+            }
+          }
+          
+          const fullResponse = responseTexts.join('\n\n---\n\n');
+          console.log(`🧪 [SIMULADOR] 🤖 Chatbot Visual resposta: "${fullResponse.substring(0, 100)}..."`);
+          console.log(`🧪 ═══════════════════════════════════════════════════════════════\n`);
+          
+          return {
+            text: fullResponse,
+            mediaActions,
+            appointmentCreated: undefined,
+            deliveryOrderCreated: undefined
+          };
+        }
+        
+        console.log(`🧪 [SIMULADOR] ⚠️ Chatbot Visual não gerou resposta, fallback para FlowEngine/IA`);
+      }
+    }
     
     // 🚀 VERIFICAR SE DEVE USAR FLOW ENGINE (Sistema Híbrido)
     // Se customPrompt foi fornecido, NÃO usar FlowEngine (teste de prompt não salvo)

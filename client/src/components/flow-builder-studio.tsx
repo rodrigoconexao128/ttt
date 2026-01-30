@@ -978,6 +978,14 @@ Diga o que você precisa e eu te ajudo! 😊`,
   };
 
   const handleMessageNode = (node: FlowNode) => {
+    // DEBUG: Verificar se next_node_id existe
+    console.log('[DEBUG handleMessageNode]', {
+      nodeId: node.node_id,
+      nodeType: node.node_type,
+      next_node_id: node.next_node_id,
+      hasNextNode: !!node.next_node_id
+    });
+    
     // Interpolar variáveis no texto da mensagem
     const interpolatedText = interpolateVariables(node.content.text || "");
     
@@ -990,15 +998,31 @@ Diga o que você precisa e eu te ajudo! 😊`,
     setSimulatorMessages(prev => [...prev, msg]);
 
     if (node.next_node_id) {
-      setTimeout(() => processNextNode(node.next_node_id!), chatbotConfig.message_delay_ms);
+      console.log('[DEBUG] Agendando processNextNode para:', node.next_node_id, 'em', chatbotConfig.message_delay_ms, 'ms');
+      setTimeout(() => {
+        console.log('[DEBUG] Executando processNextNode para:', node.next_node_id);
+        processNextNode(node.next_node_id!);
+      }, chatbotConfig.message_delay_ms);
+    } else {
+      console.log('[DEBUG] Nó sem next_node_id, fluxo para aqui');
     }
   };
 
   const handleButtonsNode = (node: FlowNode) => {
+    // Gerar texto com menu numérico
+    let menuText = interpolateVariables(node.content.body || "");
+    if (node.content.buttons && node.content.buttons.length > 0) {
+      menuText += "\n\n*📋 Escolha uma opção:*";
+      node.content.buttons.forEach((btn: any, index: number) => {
+        menuText += `\n*${index + 1}.* ${btn.title}`;
+      });
+      menuText += "\n\n_👆 Digite o número ou escreva sua escolha_";
+    }
+    
     const msg: SimulatorMessage = {
       id: `btn_${Date.now()}`,
       role: "bot",
-      message: interpolateVariables(node.content.body || ""),
+      message: menuText,
       time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       buttons: node.content.buttons,
       saveVariable: node.content.save_variable // Nome da variável para salvar a escolha
@@ -1007,10 +1031,31 @@ Diga o que você precisa e eu te ajudo! 😊`,
   };
 
   const handleListNode = (node: FlowNode) => {
+    // Gerar texto com menu numérico para listas
+    let menuText = interpolateVariables(node.content.body || "");
+    if (node.content.sections && node.content.sections.length > 0) {
+      let itemIndex = 1;
+      node.content.sections.forEach((section: any) => {
+        if (section.title) {
+          menuText += `\n\n*📂 ${section.title}*`;
+        }
+        if (section.rows && section.rows.length > 0) {
+          section.rows.forEach((row: any) => {
+            menuText += `\n*${itemIndex}.* ${row.title}`;
+            if (row.description) {
+              menuText += `\n   _${row.description}_`;
+            }
+            itemIndex++;
+          });
+        }
+      });
+      menuText += "\n\n_👆 Digite o número ou escreva sua escolha_";
+    }
+    
     const msg: SimulatorMessage = {
       id: `list_${Date.now()}`,
       role: "bot",
-      message: interpolateVariables(node.content.body || ""),
+      message: menuText,
       time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       listSections: node.content.sections,
       saveVariable: node.content.save_variable // Nome da variável para salvar a escolha
@@ -1253,11 +1298,24 @@ Diga o que você precisa e eu te ajudo! 😊`,
   };
 
   // Busca semântica local - análise de similaridade sem keywords fixas
+  // ATUALIZADO: Agora aceita NÚMEROS como entrada (1, 2, 3, etc)
   const findMatchingOptionLocal = (
     userMessage: string, 
     options: Array<{ type: 'button' | 'list'; option: any; title: string }>,
     saveVariable?: string
   ): { type: 'button' | 'list'; option: any; saveVariable?: string } | null => {
+    
+    // 🔢 PRIMEIRO: Verificar se é uma entrada numérica (1, 2, 3, etc)
+    const numericInput = parseInt(userMessage.trim(), 10);
+    if (!isNaN(numericInput) && numericInput >= 1 && numericInput <= options.length) {
+      const selectedOption = options[numericInput - 1];
+      console.log(`🔢 Entrada numérica: ${numericInput} → "${selectedOption.title}"`);
+      return {
+        type: selectedOption.type,
+        option: selectedOption.option,
+        saveVariable
+      };
+    }
     
     // Normalizar texto removendo acentos e convertendo para minúsculas
     const normalize = (text: string) => text.toLowerCase()
@@ -1397,16 +1455,102 @@ Diga o que você precisa e eu te ajudo! 😊`,
       if (chatbotConfig.restart_on_keyword && chatbotConfig.restart_keywords.some(k =>
         currentInput.toLowerCase().includes(k.toLowerCase())
       )) {
-        startSimulation();
+        // Mensagem já adicionada acima - só reiniciar fluxo (simula WhatsApp real)
+        
+        // Reiniciar fluxo (como faria o backend no WhatsApp)
+        setCurrentNodeId(null);
+        simulatorVariablesRef.current = {};
+        setSimulatorVariables({});
+        
+        // Processar do início
+        const startNode = flowNodes.find(n => n.node_type === 'start');
+        if (startNode) {
+          setTimeout(() => processNextNode(startNode.node_id), 500);
+        }
+        return;
       } else {
-        // ============ SISTEMA HÍBRIDO - tentar encontrar match inteligente ============
+        const inputLower = currentInput.toLowerCase().trim()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // Remove acentos para melhor matching
+        
+        // ==============================================================
+        // 🤖 DETECÇÃO COM IA: Sistema genérico para QUALQUER negócio
+        // (Simula exatamente como o backend vai processar no WhatsApp)
+        // ==============================================================
+        
+        // Saudações genéricas (universal para qualquer negócio)
+        const greetingPatterns = [
+          /^(oi|ola|oie|oii|hey|hi|hello|eae|eai|fala|salve|opa|bom\s*dia|boa\s*tarde|boa\s*noite)$/i,
+          /^(oi|ola|oie|hey|eae|eai|fala|salve|opa)\s/i,
+          /^(tudo\s*bem|tudo\s*bom|como\s*vai|beleza|blz)/i
+        ];
+        const isGreeting = greetingPatterns.some(pattern => pattern.test(inputLower));
+        
+        if (isGreeting) {
+          console.log(`👋 [IA] Saudação detectada: "${currentInput}" - Simulando reinício de fluxo`);
+          
+          // Mensagem já adicionada acima - só reiniciar fluxo (simula comportamento do backend)
+          setCurrentNodeId(null);
+          simulatorVariablesRef.current = {};
+          setSimulatorVariables({});
+          
+          // Processar do início
+          const startNode = flowNodes.find(n => n.node_type === 'start');
+          if (startNode) {
+            setTimeout(() => processNextNode(startNode.node_id), 500);
+          }
+          return;
+        }
+        
+        // Pedidos de menu/catálogo (genérico - funciona para qualquer negócio)
+        const menuPatterns = [
+          /\b(menu|cardapio|catalogo|opcoes|servicos|produtos)\b/i,
+          /\b(quero\s*ver|o\s*que\s*tem)\b/i
+        ];
+        const isMenuRequest = menuPatterns.some(pattern => pattern.test(inputLower));
+        
+        if (isMenuRequest) {
+          console.log(`📋 [IA] Pedido de menu detectado: "${currentInput}" - Simulando menu inicial`);
+          
+          // Mensagem já adicionada acima - só reiniciar fluxo
+          setCurrentNodeId(null);
+          simulatorVariablesRef.current = {};
+          setSimulatorVariables({});
+          
+          // Processar do início
+          const startNode = flowNodes.find(n => n.node_type === 'start');
+          if (startNode) {
+            setTimeout(() => processNextNode(startNode.node_id), 500);
+          }
+          return;
+        }
+        
+        // ============ PRIMEIRO: Verificar entrada numérica (prioridade máxima) ============
+        const numericInput = parseInt(currentInput.trim(), 10);
+        const isNumeric = !isNaN(numericInput) && currentInput.trim().match(/^\d+$/);
+        
+        // Tentar match local primeiro (funciona com números)
+        const localMatch = findMatchingOption(currentInput);
+        
+        if (localMatch) {
+          console.log(`✅ Match local encontrado: "${currentInput}" → "${localMatch.option.title}"${isNumeric ? ' (entrada numérica)' : ''}`);
+          if (localMatch.saveVariable) {
+            simulatorVariablesRef.current = { ...simulatorVariablesRef.current, [localMatch.saveVariable]: localMatch.option.title };
+            setSimulatorVariables(prev => ({ ...prev, [localMatch.saveVariable]: localMatch.option.title }));
+          }
+          if (localMatch.option.next_node) {
+            setTimeout(() => processNextNode(localMatch.option.next_node!), 500);
+          }
+          return; // Sair aqui - não precisa chamar IA
+        }
+        
+        // ============ SISTEMA HÍBRIDO - tentar com IA apenas se match local falhou ============
         const advSettings = chatbotConfig.advanced_settings || { enable_hybrid_ai: true };
         const hybridEnabled = advSettings.enable_hybrid_ai !== false;
         
         let foundMatch = false;
         
-        if (hybridEnabled) {
-          // Primeiro tentar com a IA (assíncrono)
+        if (hybridEnabled && !isNumeric) {
+          // Tentar com a IA (assíncrono) - mas NÃO para entradas numéricas
           console.log('🧠 Sistema Híbrido: tentando match com IA para:', currentInput);
           
           try {
@@ -1435,32 +1579,32 @@ Diga o que você precisa e eu te ajudo! 😊`,
               }
             }
           } catch (error) {
-            console.log('⚠️ Erro na IA, tentando fallback local:', error);
+            console.log('⚠️ Erro na IA:', error);
           }
+        }
           
-          // Se IA não encontrou, tentar match local
-          if (!foundMatch) {
-            const localMatch = findMatchingOption(currentInput);
-            if (localMatch) {
-              foundMatch = true;
-              console.log('🧠 Match local encontrado:', localMatch);
+        // Fallback local já foi tentado acima
+        if (!foundMatch) {
+          const localMatchFinal = findMatchingOption(currentInput);
+          if (localMatchFinal) {
+            foundMatch = true;
+            console.log('🧠 Match local encontrado:', localMatchFinal);
               
-              if (localMatch.type === 'button') {
-                if (localMatch.saveVariable) {
-                  simulatorVariablesRef.current = { ...simulatorVariablesRef.current, [localMatch.saveVariable]: localMatch.option.title };
-                  setSimulatorVariables(prev => ({ ...prev, [localMatch.saveVariable]: localMatch.option.title }));
-                }
-                if (localMatch.option.next_node) {
-                  setTimeout(() => processNextNode(localMatch.option.next_node!), 500);
-                }
-              } else if (localMatch.type === 'list') {
-                if (localMatch.saveVariable) {
-                  simulatorVariablesRef.current = { ...simulatorVariablesRef.current, [localMatch.saveVariable]: localMatch.option.title };
-                  setSimulatorVariables(prev => ({ ...prev, [localMatch.saveVariable]: localMatch.option.title }));
-                }
-                if (localMatch.option.next_node) {
-                  setTimeout(() => processNextNode(localMatch.option.next_node!), 500);
-                }
+            if (localMatchFinal.type === 'button') {
+              if (localMatchFinal.saveVariable) {
+                simulatorVariablesRef.current = { ...simulatorVariablesRef.current, [localMatchFinal.saveVariable]: localMatchFinal.option.title };
+                setSimulatorVariables(prev => ({ ...prev, [localMatchFinal.saveVariable]: localMatchFinal.option.title }));
+              }
+              if (localMatchFinal.option.next_node) {
+                setTimeout(() => processNextNode(localMatchFinal.option.next_node!), 500);
+              }
+            } else if (localMatchFinal.type === 'list') {
+              if (localMatchFinal.saveVariable) {
+                simulatorVariablesRef.current = { ...simulatorVariablesRef.current, [localMatchFinal.saveVariable]: localMatchFinal.option.title };
+                setSimulatorVariables(prev => ({ ...prev, [localMatchFinal.saveVariable]: localMatchFinal.option.title }));
+              }
+              if (localMatchFinal.option.next_node) {
+                setTimeout(() => processNextNode(localMatchFinal.option.next_node!), 500);
               }
             }
           }

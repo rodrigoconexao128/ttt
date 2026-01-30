@@ -267,22 +267,36 @@ export async function handleEditPrompt(
 /**
  * Verifica se deve usar FlowEngine ou sistema legado
  * AGORA: Cria FlowDefinition automaticamente se não existir! 🚀
+ * 
+ * v3.1 - RE-HABILITADO para usar ENQUETES do WhatsApp como botões
  */
 export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🚫 FLOW ENGINE DESABILITADO - BLINDAGEM V3 EM USO
+  // ✅ FLOW ENGINE RE-HABILITADO - USANDO ENQUETES/POLLS COMO BOTÕES
   // ═══════════════════════════════════════════════════════════════════════════
-  // A partir de 2025-01-19, o sistema usa APENAS IA com Blindagem V3.
-  // O FlowEngine/chatbot foi substituído por:
-  // - Blindagem Universal V3 (anti-alucinação + anti-jailbreak)
-  // - Sistema determinístico de Delivery (para cardápio/pedidos)
+  // O FlowEngine foi re-habilitado para permitir:
+  // - ENQUETES do WhatsApp simulando botões (funciona em TODOS dispositivos)
+  // - Fluxos determinísticos com menus interativos
+  // - Cardápio com navegação via enquetes
   // 
-  // Motivo: IA com blindagem obedece 100% ao prompt sem precisar de fluxos
+  // O sistema de enquetes está em centralizedMessageSender.ts v3.0
   // ═══════════════════════════════════════════════════════════════════════════
-  console.log(`\n🚫 [shouldUseFlowEngine] FlowEngine DESABILITADO`);
-  console.log(`   → Usando IA com Blindagem V3 para user ${userId}`);
-  console.log(`   → Sistema determinístico de Delivery mantido para cardápio\n`);
-  return false;
+  console.log(`\n✅ [shouldUseFlowEngine] FlowEngine HABILITADO - Usando enquetes`);
+  console.log(`   → Verificando FlowDefinition para user ${userId}`);
+  
+  // Verificar se usuário tem um FlowDefinition configurado
+  try {
+    const flow = await FlowStorage.loadFlow(userId);
+    if (flow) {
+      console.log(`   ✅ FlowDefinition encontrado: ${flow.nodes?.length || 0} nodes`);
+      return true;
+    }
+    console.log(`   ⚠️ Sem FlowDefinition, usando IA com Blindagem`);
+    return false;
+  } catch (error) {
+    console.error(`   ❌ Erro ao verificar FlowEngine:`, error);
+    return false;
+  }
   
   /*
   // ════════════════════════════════════════════════════════════════════════

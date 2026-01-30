@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- *  🚀 CENTRALIZED MESSAGE SENDER v2.0
+ *  🚀 CENTRALIZED MESSAGE SENDER v3.0 - POLL-BASED BUTTONS
  *  Sistema unificado para envio de TODAS as mensagens
  *  TODOS os sistemas DEVEM usar este serviço para enviar mensagens!
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -20,27 +20,27 @@
  * 
  * NUNCA faça socket.sendMessage() diretamente! Use este serviço.
  * 
- * v2.0 - NOVA IMPLEMENTAÇÃO COM BOTÕES INTERATIVOS:
- * - Usa nativeFlowMessage para Android (botões clicáveis)
- * - Fallback para texto formatado em iOS/Web
- * - Suporte a quick_reply e list sections
+ * v3.0 - NOVA IMPLEMENTAÇÃO COM ENQUETES/POLLS:
+ * - Usa ENQUETES (polls) do WhatsApp para simular botões
+ * - FUNCIONA EM TODOS OS DISPOSITIVOS (Android, iOS, Web)
+ * - As enquetes aparecem como opções clicáveis
+ * - Usuário vota na enquete = seleciona opção
  */
 
 import { antiBanProtectionService, simulateTyping, groupMetadataCache, ANTI_BAN_CONFIG } from './antiBanProtectionService';
-import { proto, generateWAMessageFromContent, generateWAMessageContent } from '@whiskeysockets/baileys';
+import { proto, generateWAMessageFromContent, generateWAMessageContent, getAggregateVotesInPollMessage } from '@whiskeysockets/baileys';
 import type { AnyMessageContent, WASocket } from '@whiskeysockets/baileys';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  🎛️ CONFIGURAÇÃO DE BOTÕES INTERATIVOS
+//  🎛️ CONFIGURAÇÃO DE MENU NUMÉRICO
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Se true, tenta enviar botões nativos via nativeFlowMessage (funciona no Android)
-// Se false ou se falhar, usa texto formatado (funciona em todos)
-const USE_NATIVE_BUTTONS = true;
+// DESABILITADO: Agora usamos TEXTO COM NÚMEROS para melhor compatibilidade
+// O cliente digita o número ou escreve o que quer
+const USE_POLLS_FOR_BUTTONS = false;
 
-// Enviar AMBOS: primeiro nativo, depois texto como fallback
-// Isso garante que funcione em TODOS os dispositivos
-const SEND_TEXT_FALLBACK = true;
+// Enviar texto antes explicando as opções
+const SEND_CONTEXT_BEFORE_POLL = false;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  📋 TIPOS E INTERFACES
@@ -102,6 +102,54 @@ interface SendStats {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  🗳️ MAPEAMENTO DE POLLS PARA CAPTURAR VOTOS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface PollMapping {
+  pollMsgId: string;
+  jid: string;
+  buttons: any[]; // Array original de botões
+  createdAt: number;
+}
+
+// Mapa global de polls: pollMsgId -> PollMapping
+const pollMappings = new Map<string, PollMapping>();
+
+// Limpar polls antigos (mais de 1 hora)
+setInterval(() => {
+  const oneHourAgo = Date.now() - (60 * 60 * 1000);
+  const entries = Array.from(pollMappings.entries());
+  for (const [msgId, mapping] of entries) {
+    if (mapping.createdAt < oneHourAgo) {
+      pollMappings.delete(msgId);
+    }
+  }
+}, 10 * 60 * 1000); // Limpar a cada 10 minutos
+
+// Exportar função para buscar mapping
+export function getPollMapping(pollMsgId: string): PollMapping | undefined {
+  return pollMappings.get(pollMsgId);
+}
+
+// Exportar função para obter ID do botão pelo texto votado
+export function getButtonIdFromPollVote(pollMsgId: string, votedText: string): string | null {
+  const mapping = pollMappings.get(pollMsgId);
+  if (!mapping) return null;
+  
+  // Encontrar o botão cujo título corresponde ao texto votado
+  const button = mapping.buttons.find((btn: any) => {
+    const btnTitle = btn.reply?.title || btn.title || '';
+    return btnTitle.toLowerCase() === votedText.toLowerCase();
+  });
+  
+  if (button) {
+    return button.reply?.id || button.id || votedText;
+  }
+  
+  return votedText; // Retorna o próprio texto se não encontrar
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  🎯 CLASSE PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -111,10 +159,25 @@ class CentralizedMessageSender {
   private queues = new Map<string, QueuedMessage[]>();
 
   constructor() {
-    console.log('🚀 [CENTRALIZED-SENDER v1.0] Sistema unificado de envio inicializado');
+    console.log('🚀 [CENTRALIZED-SENDER v3.0] Sistema com ENQUETES inicializado');
+    console.log(`   🗳️ Polls: ${USE_POLLS_FOR_BUTTONS ? 'ATIVADO' : 'DESATIVADO'}`);
     console.log(`   ⏱️ Delays: ${ANTI_BAN_CONFIG.MIN_DELAY_MS/1000}s - ${ANTI_BAN_CONFIG.MAX_DELAY_MS/1000}s`);
     console.log(`   ⌨️ Typing: ${ANTI_BAN_CONFIG.TYPING_ENABLED ? 'ATIVADO' : 'DESATIVADO'}`);
     console.log(`   📦 Batch: ${ANTI_BAN_CONFIG.BATCH_SIZE} msgs, pausa ${ANTI_BAN_CONFIG.BATCH_PAUSE_MS/1000}s`);
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  🗳️ REGISTRO DE POLL MAPPING
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  private registerPollMapping(pollMsgId: string, jid: string, buttons: any[]): void {
+    pollMappings.set(pollMsgId, {
+      pollMsgId,
+      jid,
+      buttons,
+      createdAt: Date.now()
+    });
+    console.log(`🗳️ [POLL-MAPPING] Registrado poll ${pollMsgId.substring(0, 10)}... com ${buttons.length} opções`);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -466,11 +529,11 @@ class CentralizedMessageSender {
   }
 
   /**
-   * Envia botões (se suportado)
+   * Envia botões usando ENQUETES (polls) do WhatsApp
    * @param payload - Pode ser objeto completo {body, buttons, header?, footer?} ou text simples
    * 
-   * v2.0: Agora usa nativeFlowMessage para Android (botões clicáveis)
-   * E envia texto formatado como fallback para iOS/Web
+   * v3.0: Usa ENQUETES para simular botões interativos
+   * FUNCIONA EM TODOS OS DISPOSITIVOS (Android, iOS, Web)
    */
   async sendButtons(
     userId: string,
@@ -505,74 +568,79 @@ class CentralizedMessageSender {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 🔥 NOVA IMPLEMENTAÇÃO: nativeFlowMessage para Android
+    // 🗳️ NOVA IMPLEMENTAÇÃO v3.0: Usar ENQUETES (polls) do WhatsApp
+    // Funciona em TODOS os dispositivos (Android, iOS, Web)
     // ═══════════════════════════════════════════════════════════════════════
     
-    if (USE_NATIVE_BUTTONS) {
+    if (USE_POLLS_FOR_BUTTONS) {
       try {
-        console.log(`🔘 [NATIVE-BUTTONS] Tentando enviar ${payload.buttons.length} botões nativos para ${jid.substring(0, 15)}...`);
+        console.log(`🗳️ [POLL-BUTTONS] Enviando ${payload.buttons.length} opções como enquete para ${jid.substring(0, 15)}...`);
         
-        // Criar botões no formato nativeFlowMessage (quick_reply)
-        const nativeButtons = payload.buttons.map((btn: any) => ({
-          name: 'quick_reply',
-          buttonParamsJson: JSON.stringify({
-            display_text: btn.reply?.title || btn.title || `Opção`,
-            id: btn.reply?.id || btn.id || `btn_${Date.now()}`
-          })
-        }));
-
-        // Criar mensagem interativa com nativeFlowMessage
-        const interactiveMessage = proto.Message.InteractiveMessage.create({
-          body: proto.Message.InteractiveMessage.Body.create({
-            text: payload.body
-          }),
-          footer: payload.footer?.text ? proto.Message.InteractiveMessage.Footer.create({
-            text: payload.footer.text
-          }) : undefined,
-          header: payload.header?.text ? proto.Message.InteractiveMessage.Header.create({
-            title: payload.header.text,
-            hasMediaAttachment: false
-          }) : undefined,
-          nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
-            buttons: nativeButtons
-          })
-        });
-
-        // Gerar mensagem completa
-        const msg = generateWAMessageFromContent(jid, {
-          viewOnceMessage: {
-            message: {
-              messageContextInfo: {
-                deviceListMetadata: {},
-                deviceListMetadataVersion: 2
-              },
-              interactiveMessage
-            }
+        // 1. Primeiro, enviar o texto de contexto (body + footer)
+        if (SEND_CONTEXT_BEFORE_POLL) {
+          let contextText = payload.body;
+          if (payload.footer?.text) {
+            contextText += `\n\n${payload.footer.text}`;
           }
-        } as any, {} as any);
-
-        // Enviar via relayMessage
-        const result = await socket.relayMessage(jid, msg.message!, {
-          messageId: msg.key.id!
+          
+          // Aguardar proteção anti-ban
+          const contactNumber = jid.replace(/@.*$/, '');
+          const canSendResult = antiBanProtectionService.canSendMessage(userId);
+          
+          if (canSendResult.canSend) {
+            const delay = antiBanProtectionService.calculateDelay(userId, contactNumber);
+            await new Promise(r => setTimeout(r, delay));
+            
+            // Enviar texto de contexto
+            await socket.sendMessage(jid, { text: contextText });
+            antiBanProtectionService.registerMessageSent(userId, contactNumber);
+            console.log(`📝 [POLL-BUTTONS] Texto de contexto enviado`);
+            
+            // Pequeno delay antes da enquete
+            await new Promise(r => setTimeout(r, 500));
+          }
+        }
+        
+        // 2. Extrair opções dos botões para a enquete
+        const pollOptions = payload.buttons.map((btn: any) => 
+          btn.reply?.title || btn.title || `Opção`
+        );
+        
+        // 3. Criar o nome da enquete (pergunta)
+        const pollName = payload.header?.text || 'Selecione uma opção:';
+        
+        // 4. Enviar a enquete usando sendMessage com poll
+        // Formato do Baileys para polls: { poll: { name, values, selectableCount } }
+        const pollResult = await socket.sendMessage(jid, {
+          poll: {
+            name: pollName,
+            values: pollOptions,
+            selectableCount: 1 // Usuário só pode votar em UMA opção
+          }
         });
 
-        console.log(`✅ [NATIVE-BUTTONS] Botões nativos enviados com sucesso!`);
+        console.log(`✅ [POLL-BUTTONS] Enquete enviada com sucesso! ID: ${pollResult?.key?.id}`);
+        
+        // Registrar mapeamento do poll para depois capturar o voto
+        if (pollResult?.key?.id) {
+          this.registerPollMapping(pollResult.key.id, jid, payload.buttons);
+        }
         
         this.recordSent(userId, origin, true);
         return {
           success: true,
-          messageId: msg.key.id || undefined,
-          waitedMs: 0,
+          messageId: pollResult?.key?.id || undefined,
+          waitedMs: 500,
         };
         
-      } catch (nativeError) {
-        console.error(`⚠️ [NATIVE-BUTTONS] Falha ao enviar botões nativos, usando fallback texto:`, nativeError);
+      } catch (pollError) {
+        console.error(`⚠️ [POLL-BUTTONS] Falha ao enviar enquete, usando fallback texto:`, pollError);
         // Continuar para fallback de texto
       }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 📝 FALLBACK: Converter para texto formatado (funciona em todos)
+    // 📝 MENU NUMÉRICO: Cliente digita o número da opção
     // ═══════════════════════════════════════════════════════════════════════
     
     let formattedText = payload.body;
@@ -582,16 +650,19 @@ class CentralizedMessageSender {
       formattedText += `\n\n${payload.footer.text}`;
     }
     
-    // Adicionar botões como opções de texto
+    // Adicionar botões como menu numérico
     if (payload.buttons && payload.buttons.length > 0) {
-      formattedText += '\n\n';
+      formattedText += '\n\n*📋 Escolha uma opção:*\n';
       payload.buttons.forEach((btn: any, index: number) => {
-        const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][index] || `${index + 1}.`;
-        const title = btn.reply?.title || btn.title || `Opção ${index + 1}`;
-        formattedText += `${emoji} ${title}\n`;
+        const number = index + 1;
+        const title = btn.reply?.title || btn.title || `Opção ${number}`;
+        formattedText += `\n*${number}.* ${title}`;
       });
-      formattedText += '\n_Digite o número da opção desejada_';
+      formattedText += '\n\n_👆 Digite o número ou escreva sua escolha_';
     }
+    
+    console.log(`🔢 [MENU-NUMERICO] Enviando ${payload.buttons?.length || 0} opções como texto numerado`);
+    
     
     const content = { text: formattedText };
     
@@ -608,11 +679,11 @@ class CentralizedMessageSender {
   }
 
   /**
-   * Envia lista
+   * Envia lista usando ENQUETES (polls) do WhatsApp
    * @param payload - Pode ser objeto completo {body, buttonText, sections, header?, footer?} ou text simples
    * 
-   * v2.0: Agora usa nativeFlowMessage com single_select para Android (lista clicável)
-   * E envia texto formatado como fallback para iOS/Web
+   * v3.0: Usa ENQUETES para simular listas interativas
+   * FUNCIONA EM TODOS OS DISPOSITIVOS (Android, iOS, Web)
    */
   async sendList(
     userId: string,
@@ -647,83 +718,94 @@ class CentralizedMessageSender {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 🔥 NOVA IMPLEMENTAÇÃO: nativeFlowMessage single_select para Android
+    // 🗳️ NOVA IMPLEMENTAÇÃO v3.0: Usar ENQUETES (polls) para listas
+    // Funciona em TODOS os dispositivos (Android, iOS, Web)
     // ═══════════════════════════════════════════════════════════════════════
     
-    if (USE_NATIVE_BUTTONS) {
+    if (USE_POLLS_FOR_BUTTONS) {
       try {
         // Contar total de itens
         const totalItems = payload.sections.reduce((acc: number, s: any) => acc + (s.rows?.length || 0), 0);
-        console.log(`📋 [NATIVE-LIST] Tentando enviar lista com ${totalItems} itens nativos para ${jid.substring(0, 15)}...`);
+        console.log(`🗳️ [POLL-LIST] Enviando lista com ${totalItems} itens como enquete para ${jid.substring(0, 15)}...`);
         
-        // Criar seções no formato nativeFlowMessage (single_select)
-        const nativeSections = payload.sections.map((section: any) => ({
-          title: section.title || '',
-          rows: (section.rows || []).map((row: any) => ({
-            id: row.id || `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            title: row.title || 'Opção',
-            description: row.description || ''
-          }))
-        }));
-
-        // Criar mensagem interativa com nativeFlowMessage single_select
-        const interactiveMessage = proto.Message.InteractiveMessage.create({
-          body: proto.Message.InteractiveMessage.Body.create({
-            text: payload.body
-          }),
-          footer: payload.footer?.text ? proto.Message.InteractiveMessage.Footer.create({
-            text: payload.footer.text
-          }) : undefined,
-          header: payload.header?.text ? proto.Message.InteractiveMessage.Header.create({
-            title: payload.header.text,
-            hasMediaAttachment: false
-          }) : undefined,
-          nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
-            buttons: [{
-              name: 'single_select',
-              buttonParamsJson: JSON.stringify({
-                title: payload.buttonText || payload.button_text || 'Selecionar',
-                sections: nativeSections
-              })
-            }]
-          })
-        });
-
-        // Gerar mensagem completa
-        const msg = generateWAMessageFromContent(jid, {
-          viewOnceMessage: {
-            message: {
-              messageContextInfo: {
-                deviceListMetadata: {},
-                deviceListMetadataVersion: 2
-              },
-              interactiveMessage
-            }
+        // 1. Primeiro, enviar o texto de contexto (body + footer)
+        if (SEND_CONTEXT_BEFORE_POLL) {
+          let contextText = payload.body;
+          if (payload.footer?.text) {
+            contextText += `\n\n${payload.footer.text}`;
           }
-        } as any, {} as any);
-
-        // Enviar via relayMessage
-        const result = await socket.relayMessage(jid, msg.message!, {
-          messageId: msg.key.id!
+          
+          // Aguardar proteção anti-ban
+          const contactNumber = jid.replace(/@.*$/, '');
+          const canSendResult = antiBanProtectionService.canSendMessage(userId);
+          
+          if (canSendResult.canSend) {
+            const delay = antiBanProtectionService.calculateDelay(userId, contactNumber);
+            await new Promise(r => setTimeout(r, delay));
+            
+            // Enviar texto de contexto
+            await socket.sendMessage(jid, { text: contextText });
+            antiBanProtectionService.registerMessageSent(userId, contactNumber);
+            console.log(`📝 [POLL-LIST] Texto de contexto enviado`);
+            
+            // Pequeno delay antes da enquete
+            await new Promise(r => setTimeout(r, 500));
+          }
+        }
+        
+        // 2. Extrair TODOS os itens das seções (flatten)
+        const allItems: any[] = [];
+        const buttonMappings: any[] = [];
+        
+        for (const section of payload.sections) {
+          for (const row of (section.rows || [])) {
+            allItems.push(row.title || 'Opção');
+            buttonMappings.push({
+              reply: { id: row.id, title: row.title },
+              id: row.id,
+              title: row.title
+            });
+          }
+        }
+        
+        // WhatsApp limita polls a 12 opções
+        const pollOptions = allItems.slice(0, 12);
+        const limitedMappings = buttonMappings.slice(0, 12);
+        
+        // 3. Criar o nome da enquete (pergunta)
+        const pollName = payload.header?.text || payload.buttonText || 'Selecione uma opção:';
+        
+        // 4. Enviar a enquete usando sendMessage com poll
+        const pollResult = await socket.sendMessage(jid, {
+          poll: {
+            name: pollName,
+            values: pollOptions,
+            selectableCount: 1 // Usuário só pode votar em UMA opção
+          }
         });
 
-        console.log(`✅ [NATIVE-LIST] Lista nativa enviada com sucesso!`);
+        console.log(`✅ [POLL-LIST] Enquete enviada com sucesso! ID: ${pollResult?.key?.id}`);
+        
+        // Registrar mapeamento do poll para depois capturar o voto
+        if (pollResult?.key?.id) {
+          this.registerPollMapping(pollResult.key.id, jid, limitedMappings);
+        }
         
         this.recordSent(userId, origin, true);
         return {
           success: true,
-          messageId: msg.key.id || undefined,
-          waitedMs: 0,
+          messageId: pollResult?.key?.id || undefined,
+          waitedMs: 500,
         };
         
-      } catch (nativeError) {
-        console.error(`⚠️ [NATIVE-LIST] Falha ao enviar lista nativa, usando fallback texto:`, nativeError);
+      } catch (pollError) {
+        console.error(`⚠️ [POLL-LIST] Falha ao enviar enquete, usando fallback texto:`, pollError);
         // Continuar para fallback de texto
       }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 📝 FALLBACK: Converter para texto formatado (funciona em todos)
+    // 📝 MENU NUMÉRICO PARA LISTAS: Cliente digita o número
     // ═══════════════════════════════════════════════════════════════════════
     
     let formattedText = payload.body;
@@ -733,25 +815,24 @@ class CentralizedMessageSender {
       formattedText += `\n\n${payload.footer.text}`;
     }
     
-    // Adicionar seções e itens como texto
+    // Adicionar seções e itens como menu numérico
     if (payload.sections && payload.sections.length > 0) {
       let itemIndex = 1;
       payload.sections.forEach((section: any) => {
         if (section.title) {
-          formattedText += `\n\n*${section.title}*`;
+          formattedText += `\n\n*📂 ${section.title}*`;
         }
         if (section.rows && section.rows.length > 0) {
           section.rows.forEach((row: any) => {
-            const emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][itemIndex - 1] || `${itemIndex}.`;
-            formattedText += `\n${emoji} ${row.title}`;
+            formattedText += `\n*${itemIndex}.* ${row.title}`;
             if (row.description) {
-              formattedText += ` - _${row.description}_`;
+              formattedText += `\n   _${row.description}_`;
             }
             itemIndex++;
           });
         }
       });
-      formattedText += '\n\n_Digite o número ou nome da opção desejada_';
+      formattedText += '\n\n_👆 Digite o número ou escreva sua escolha_';
     }
     
     const content = { text: formattedText };

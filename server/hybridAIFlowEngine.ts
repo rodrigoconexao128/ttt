@@ -506,7 +506,13 @@ export function detectIntent(message: string): DetectedIntent {
     
     if (matches > 0) {
       // Calcular confiança baseada em quantas palavras-chave foram encontradas
-      const confidence = Math.min(matches / 2, 1) * 0.9;
+      // Para saudações simples (1 palavra), dar confiança alta
+      let confidence = Math.min(matches / 2, 1) * 0.9;
+      
+      // Se for uma palavra exata (mensagem == keyword), aumentar confiança
+      if (keywords.some(kw => normalized === kw || normalized === kw.replace(/[áàâã]/g, 'a').replace(/[éèê]/g, 'e').replace(/[óòôõ]/g, 'o'))) {
+        confidence = 0.95; // Match exato = 95% confiança
+      }
       
       if (confidence > bestConfidence) {
         bestConfidence = confidence;
