@@ -1265,6 +1265,60 @@ export async function processChatbotMessage(
         console.log(`🔤 [BUTTONS] Match por título sem emoji: ${message} -> ${button.title}`);
       }
     }
+    
+    // ==============================================================
+    // 🧠 MATCH INTELIGENTE: Busca parcial flexível
+    // Permite: "Salgadas" → "🍕 Pizzas Salgadas", "Grande" → "G - Grande"
+    // ==============================================================
+    if (!button && messageLower.length >= 2) {
+      button = buttons.find((btn: any) => {
+        const titleLower = btn.title.toLowerCase();
+        const titleNoEmoji = btn.title.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim().toLowerCase();
+        const titleNormalized = titleNoEmoji
+          .replace(/^[a-z]\s*-\s*/i, '') // Remove prefixos como "G - ", "M - ", "P - "
+          .replace(/[^\w\sáéíóúàèìòùãõâêîôûç]/gi, '') // Remove caracteres especiais
+          .trim();
+        
+        // Verificar se o título CONTÉM a mensagem do usuário
+        const containsMatch = titleNoEmoji.includes(messageLower) || 
+                             titleNormalized.includes(messageLower);
+        
+        // Verificar match de tamanho: "grande" → "G - Grande", "media" → "M - Média"
+        const sizeMap: Record<string, string[]> = {
+          'p': ['pequena', 'pequeno', 'peq', 'p'],
+          'm': ['media', 'média', 'medio', 'médio', 'med', 'm'],
+          'g': ['grande', 'grd', 'g'],
+          'gg': ['gigante', 'familia', 'família', 'gg']
+        };
+        
+        let sizeMatch = false;
+        for (const [prefix, aliases] of Object.entries(sizeMap)) {
+          if (aliases.includes(messageLower)) {
+            // Verificar se o título começa com esse prefixo
+            if (titleNoEmoji.startsWith(prefix + ' ') || 
+                titleNoEmoji.startsWith(prefix + ' -') ||
+                titleNoEmoji === prefix) {
+              sizeMatch = true;
+              break;
+            }
+          }
+        }
+        
+        // Verificar match de palavras-chave importantes
+        const msgWords = messageLower.split(/\s+/).filter(w => w.length >= 3);
+        const keywordMatch = msgWords.some(word => 
+          titleNoEmoji.split(/\s+/).some(titleWord => 
+            titleWord.includes(word) || word.includes(titleWord)
+          )
+        );
+        
+        return containsMatch || sizeMatch || keywordMatch;
+      });
+      
+      if (button) {
+        console.log(`🧠 [SMART_MATCH] Match inteligente: "${message}" → "${button.title}"`);
+      }
+    }
 
     if (button) {
       // ====================================================================
