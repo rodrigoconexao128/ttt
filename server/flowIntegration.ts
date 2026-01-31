@@ -272,26 +272,48 @@ export async function handleEditPrompt(
  */
 export async function shouldUseFlowEngine(userId: string): Promise<boolean> {
   // ═══════════════════════════════════════════════════════════════════════════
-  // ✅ FLOW ENGINE RE-HABILITADO - USANDO ENQUETES/POLLS COMO BOTÕES
+  // ✅ LÓGICA CORRETA: VERIFICAR chatbot_configs.is_active PRIMEIRO
   // ═══════════════════════════════════════════════════════════════════════════
-  // O FlowEngine foi re-habilitado para permitir:
-  // - ENQUETES do WhatsApp simulando botões (funciona em TODOS dispositivos)
-  // - Fluxos determinísticos com menus interativos
-  // - Cardápio com navegação via enquetes
   // 
-  // O sistema de enquetes está em centralizedMessageSender.ts v3.0
+  // REGRA DE NEGÓCIO:
+  // - Se chatbot_configs.is_active = TRUE → Usar FlowEngine (Construtor Fluxo)
+  // - Se chatbot_configs.is_active = FALSE → Usar Agente IA (prompt)
+  // 
+  // O usuário controla isso em:
+  // - /meu-agente-ia → Ativa agente IA, desativa fluxo
+  // - /construtor-fluxo → Ativa fluxo, desativa agente IA
   // ═══════════════════════════════════════════════════════════════════════════
-  console.log(`\n✅ [shouldUseFlowEngine] FlowEngine HABILITADO - Usando enquetes`);
-  console.log(`   → Verificando FlowDefinition para user ${userId}`);
+  console.log(`\n🔍 [shouldUseFlowEngine] Verificando para user ${userId}`);
   
-  // Verificar se usuário tem um FlowDefinition configurado
   try {
+    // PRIMEIRO: Verificar se o Construtor de Fluxo está ATIVO em chatbot_configs
+    const { data: chatbotConfig, error: chatbotError } = await supabase
+      .from('chatbot_configs')
+      .select('is_active, name')
+      .eq('user_id', userId)
+      .single();
+    
+    if (chatbotError && chatbotError.code !== 'PGRST116') {
+      console.error(`   ❌ Erro ao verificar chatbot_configs:`, chatbotError);
+    }
+    
+    // Se chatbot_configs.is_active é FALSE ou não existe, NÃO usar FlowEngine
+    const flowAtivo = chatbotConfig?.is_active === true;
+    console.log(`   → chatbot_configs.is_active: ${chatbotConfig?.is_active ?? 'não existe'}`);
+    
+    if (!flowAtivo) {
+      console.log(`   ⚠️ FlowEngine DESATIVADO - Usando Agente IA (prompt)`);
+      return false;
+    }
+    
+    // SEGUNDO: Verificar se tem FlowDefinition no banco
     const flow = await FlowStorage.loadFlow(userId);
     if (flow) {
-      console.log(`   ✅ FlowDefinition encontrado: ${flow.nodes?.length || 0} nodes`);
+      console.log(`   ✅ FlowEngine ATIVO - FlowDefinition encontrado: ${flow.type}`);
       return true;
     }
-    console.log(`   ⚠️ Sem FlowDefinition, usando IA com Blindagem`);
+    
+    console.log(`   ⚠️ FlowEngine ativo mas sem FlowDefinition, usando Agente IA`);
     return false;
   } catch (error) {
     console.error(`   ❌ Erro ao verificar FlowEngine:`, error);

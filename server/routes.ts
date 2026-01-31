@@ -5798,6 +5798,24 @@ ${config.ai_instructions || ''}
             });
             console.log(`[AGENT CONFIG] ✅ Criado business_agent_configs com isActive=${result.data.isActive}`);
           }
+          
+          // 🔄 TOGGLE EXCLUSIVO: Ativar Meu Agente = desativar Robô Fluxo (chatbot)
+          // Isso evita conflitos entre os dois sistemas
+          if (result.data.isActive === true) {
+            console.log(`[AGENT CONFIG] 🔄 Desativando Robô Fluxo (chatbot) para usuário ${userId}`);
+            // Usar db já importado no topo do arquivo, e sql também
+            await db.execute(sql`
+              UPDATE chatbot_configs SET
+                is_active = false,
+                updated_at = now()
+              WHERE user_id = ${userId}
+            `);
+            
+            // Limpar cache do fluxo
+            const { clearFlowCache } = await import("./chatbotFlowEngine");
+            clearFlowCache(userId);
+            console.log(`[AGENT CONFIG] ✅ Robô Fluxo desativado para usuário ${userId}`);
+          }
         } catch (syncError) {
           console.error(`[AGENT CONFIG] ⚠️ Erro ao sincronizar business_agent_configs:`, syncError);
           // Continua mesmo se falhar
@@ -5837,20 +5855,12 @@ ${config.ai_instructions || ''}
         }
         console.log(`[AGENT CONFIG] ═══════════════════════════════════════════════════\n`);
         
-        // ATUALIZAR FLOW DEFINITION QUANDO PROMPT E ATUALIZADO
-        try {
-          const { FlowStorage, buildFlowForUserPrompt } = await import("./flowIntegration");
-
-          console.log(`[AGENT CONFIG] Atualizando FlowDefinition...`);
-
-          const flow = await buildFlowForUserPrompt(userId, result.data.prompt);
-          const saved = await FlowStorage.saveFlow(userId, flow);
-          console.log(`[AGENT CONFIG] FlowDefinition: ${saved ? 'OK' : 'FALHA'}`);
-          console.log(`[AGENT CONFIG] Tipo de flow: ${flow.type}`);
-        } catch (flowError) {
-          console.error(`[AGENT CONFIG] Erro ao atualizar FlowDefinition:`, flowError);
-          // Continua mesmo se falhar - o sistema legado sera usado
-        }
+        // ⚠️ REMOVIDO: Não criar FlowDefinition automaticamente quando salva prompt
+        // A criação do FlowDefinition deve ser feita APENAS quando o usuário ativa 
+        // o Construtor de Fluxo (chatbot_configs.is_active = true)
+        // Isso evita conflito entre Meu Agente IA e Construtor de Fluxo
+        // Se o usuário usa "Meu Agente IA", NÃO deve ter FlowDefinition ativo
+        // Se o usuário usa "Construtor de Fluxo", aí sim cria FlowDefinition
 
       }
 
@@ -7855,6 +7865,31 @@ Responda APENAS com o JSON, sem texto adicional.`;
         ...configData,
         userId,
       });
+      
+      // 🔄 TOGGLE EXCLUSIVO: Se Meu Agente IA está sendo ativado, desativar Robô Fluxo
+      if (configData.isActive === true) {
+        console.log(`[BUSINESS CONFIG] 🔄 Desativando Robô Fluxo para usuário ${userId} (ativou Meu Agente)`);
+        // Usar db e sql já importados no topo do arquivo
+        await db.execute(sql`
+          UPDATE chatbot_configs SET
+            is_active = false,
+            updated_at = now()
+          WHERE user_id = ${userId}
+        `);
+        
+        // Limpar cache do fluxo
+        const { clearFlowCache } = await import("./chatbotFlowEngine");
+        clearFlowCache(userId);
+        
+        // Sincronizar ai_agent_config também
+        await db.execute(sql`
+          UPDATE ai_agent_config SET
+            is_active = true,
+            updated_at = now()
+          WHERE user_id = ${userId}
+        `);
+        console.log(`[BUSINESS CONFIG] ✅ Robô Fluxo desativado, Meu Agente sincronizado`);
+      }
       
       res.json({ config, message: "Business agent configuration saved successfully" });
     } catch (error) {
