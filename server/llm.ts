@@ -1404,18 +1404,48 @@ Analise e decida se alguma mídia deve ser enviada. Responda APENAS o JSON.`;
     const rawResponse = response.choices[0].message.content as string;
     console.log(`🤖 [MEDIA AI] 📥 Resposta bruta (${elapsedMs}ms): ${rawResponse}`);
     
-    // Tentar extrair JSON
+    // 🔧 FIX: Extração robusta de JSON com fallback para JSON incompleto
+    let jsonToParse: string | null = null;
+    
+    // Tentar extrair JSON completo primeiro
     const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    if (jsonMatch) {
+      jsonToParse = jsonMatch[0];
+    } else {
+      // Tentar consertar JSON incompleto (sem } final)
+      const incompleteMatch = rawResponse.match(/\{[\s\S]*/);
+      if (incompleteMatch) {
+        let attempt = incompleteMatch[0].trim();
+        // Remover markdown se existir
+        attempt = attempt.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '');
+        // Contar { e } para adicionar os faltantes
+        const openBraces = (attempt.match(/\{/g) || []).length;
+        const closeBraces = (attempt.match(/\}/g) || []).length;
+        const missingBraces = openBraces - closeBraces;
+        if (missingBraces > 0) {
+          attempt += '}'.repeat(missingBraces);
+          console.log(`🤖 [MEDIA AI] 🔧 JSON consertado (adicionado ${missingBraces} chave(s) faltante(s))`);
+        }
+        jsonToParse = attempt;
+      }
+    }
+    
+    if (!jsonToParse) {
       console.log(`🤖 [MEDIA AI] ⚠️ Não conseguiu extrair JSON`);
       return { shouldSend: false, mediaName: null, confidence: 0, reason: 'Resposta não é JSON válido' };
     }
     
     try {
-      const parsed = JSON.parse(jsonMatch[0]);
+      // Limpar markdown code blocks se presentes
+      jsonToParse = jsonToParse.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
+      const parsed = JSON.parse(jsonToParse);
+      
+      // 🔧 FIX: Reduzir threshold de confiança de 60% para 40% para não perder mídias
+      // A IA é muito conservadora e precisa de threshold mais baixo
+      const confidenceThreshold = 40;
       
       const result: MediaClassificationResult = {
-        shouldSend: parsed.decision === 'SEND' && parsed.confidence >= 60,
+        shouldSend: parsed.decision === 'SEND' && parsed.confidence >= confidenceThreshold,
         mediaName: parsed.mediaName || null,
         confidence: parsed.confidence || 0,
         reason: parsed.reason || 'Sem razão especificada'
@@ -1425,7 +1455,11 @@ Analise e decida se alguma mídia deve ser enviada. Responda APENAS o JSON.`;
       if (result.shouldSend) {
         console.log(`🤖 [MEDIA AI] ✅ DECISÃO: ENVIAR "${result.mediaName}"`);
       } else {
-        console.log(`🤖 [MEDIA AI] ❌ DECISÃO: NÃO ENVIAR`);
+        console.log(`🤖 [MEDIA AI] ❌ DECISÃO: NÃO ENVIAR (threshold=${confidenceThreshold}%)`);
+        // 🔧 FIX: Log extra para debug quando confidence está entre 40-60%
+        if (parsed.confidence >= 30 && parsed.confidence < confidenceThreshold) {
+          console.log(`🤖 [MEDIA AI] ⚠️ ATENÇÃO: Confiança ${parsed.confidence}% próxima do threshold`);
+        }
       }
       console.log(`🤖 [MEDIA AI] 📊 Confiança: ${result.confidence}%`);
       console.log(`🤖 [MEDIA AI] 💡 Razão: ${result.reason}`);

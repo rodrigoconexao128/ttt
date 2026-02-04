@@ -436,12 +436,23 @@ export async function forceMediaDetection(
     return { shouldSendMedia: false, mediaToSend: null, matchedKeywords: [], reason: 'Nenhuma mídia disponível' };
   }
   
+  // 🔧 FIX: Filtrar mídias já enviadas ANTES de processar
+  const availableMedias = mediaLibrary.filter(m => {
+    const alreadySent = sentMedias.some(sent => sent.toUpperCase() === m.name.toUpperCase());
+    return !alreadySent && m.isActive !== false;
+  });
+  
+  if (availableMedias.length === 0) {
+    console.log(`🚨 [FORCE MEDIA] ❌ Todas as mídias já foram enviadas`);
+    return { shouldSendMedia: false, mediaToSend: null, matchedKeywords: [], reason: 'Todas as mídias já foram enviadas' };
+  }
+  
   try {
     // Chamar IA para classificação (usa Groq ou Mistral conforme configuração do admin)
     const aiResult = await classifyMediaWithLLM({
       clientMessage,
       conversationHistory,
-      mediaLibrary: mediaLibrary.map(m => ({
+      mediaLibrary: availableMedias.map(m => ({
         name: m.name,
         type: m.type,
         whenToUse: m.whenToUse,
@@ -452,7 +463,7 @@ export async function forceMediaDetection(
     
     if (aiResult.shouldSend && aiResult.mediaName) {
       // Encontrar a mídia correspondente
-      const mediaToSend = mediaLibrary.find(m => 
+      const mediaToSend = availableMedias.find(m => 
         m.name.toUpperCase() === aiResult.mediaName!.toUpperCase()
       );
       
@@ -472,18 +483,173 @@ export async function forceMediaDetection(
       }
     }
     
+    // 🔧 FIX v2: FALLBACK apenas quando IA falhou (JSON inválido, erro, etc)
+    // NÃO fazer fallback quando IA decidiu NO_MEDIA com alta confiança
+    const aiConfidentlyDecidedNoMedia = 
+      !aiResult.shouldSend && 
+      aiResult.confidence >= 60 && 
+      aiResult.reason && 
+      !aiResult.reason.includes('JSON') && 
+      !aiResult.reason.includes('Erro');
+    
+    if (aiConfidentlyDecidedNoMedia) {
+      // IA decidiu explicitamente não enviar - respeitar a decisão
+      console.log(`🚨 [FORCE MEDIA] ════════════════════════════════════════════════`);
+      console.log(`🚨 [FORCE MEDIA] ❌ IA decidiu NÃO enviar mídia`);
+      console.log(`🚨 [FORCE MEDIA] 💡 Razão: ${aiResult.reason}`);
+      console.log(`🚨 [FORCE MEDIA] ════════════════════════════════════════════════\n`);
+      return { shouldSendMedia: false, mediaToSend: null, matchedKeywords: [], reason: aiResult.reason };
+    }
+    
+    // Fallback: IA não conseguiu decidir (JSON inválido, erro, baixa confiança)
+    console.log(`🚨 [FORCE MEDIA] ⚠️ IA não decidiu - tentando FALLBACK por keywords...`);
+    const fallbackResult = keywordBasedMediaFallback(clientMessage, conversationHistory, availableMedias);
+    
+    if (fallbackResult.shouldSendMedia && fallbackResult.mediaToSend) {
+      console.log(`🚨 [FORCE MEDIA] ════════════════════════════════════════════════`);
+      console.log(`🚨 [FORCE MEDIA] 🔄 FALLBACK FUNCIONOU: ${fallbackResult.mediaToSend.name}`);
+      console.log(`🚨 [FORCE MEDIA] 🔑 Keywords: ${fallbackResult.matchedKeywords.join(', ')}`);
+      console.log(`🚨 [FORCE MEDIA] ════════════════════════════════════════════════\n`);
+      return fallbackResult;
+    }
+    
     console.log(`🚨 [FORCE MEDIA] ════════════════════════════════════════════════`);
-    console.log(`🚨 [FORCE MEDIA] ❌ IA decidiu NÃO enviar mídia`);
-    console.log(`🚨 [FORCE MEDIA] 💡 Razão: ${aiResult.reason}`);
+    console.log(`🚨 [FORCE MEDIA] ❌ Sem mídia para enviar`);
+    console.log(`🚨 [FORCE MEDIA] 💡 Razão: ${aiResult.reason || 'Nenhum match'}`);
     console.log(`🚨 [FORCE MEDIA] ════════════════════════════════════════════════\n`);
     
     return { shouldSendMedia: false, mediaToSend: null, matchedKeywords: [], reason: aiResult.reason };
     
   } catch (error: any) {
-    console.error(`🚨 [FORCE MEDIA] ❌ ERRO na classificação: ${error.message}`);
-    // Em caso de erro, não enviar mídia (fail-safe)
+    console.error(`🚨 [FORCE MEDIA] ❌ ERRO na classificação IA: ${error.message}`);
+    
+    // 🔧 FIX: FALLBACK por keywords quando IA falha completamente
+    console.log(`🚨 [FORCE MEDIA] 🔄 Tentando FALLBACK por keywords após erro...`);
+    const fallbackResult = keywordBasedMediaFallback(clientMessage, conversationHistory, availableMedias);
+    
+    if (fallbackResult.shouldSendMedia && fallbackResult.mediaToSend) {
+      console.log(`🚨 [FORCE MEDIA] ✅ FALLBACK SALVOU: ${fallbackResult.mediaToSend.name}`);
+      return fallbackResult;
+    }
+    
     return { shouldSendMedia: false, mediaToSend: null, matchedKeywords: [], reason: `Erro: ${error.message}` };
   }
+}
+
+/**
+ * 🔧 FALLBACK: Sistema de detecção por keywords
+ * Usado quando a IA não consegue classificar ou falha
+ * Analisa o campo whenToUse de cada mídia e busca keywords na mensagem
+ */
+function keywordBasedMediaFallback(
+  clientMessage: string,
+  conversationHistory: Array<{ text?: string | null; fromMe?: boolean }>,
+  mediaLibrary: AgentMedia[]
+): ForceMediaResult {
+  const msgLower = clientMessage.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  // Detectar primeira mensagem (saudação)
+  const clientMsgCount = conversationHistory.filter(m => !m.fromMe).length;
+  const isFirstMessage = clientMsgCount <= 1;
+  const isSaudacao = /^(oi|ola|olá|bom dia|boa tarde|boa noite|eai|e ai|hey|hello|hi)[\s!?.,]*$/i.test(clientMessage.trim());
+  
+  interface MediaScore {
+    media: AgentMedia;
+    score: number;
+    keywords: string[];
+    reason: string;
+  }
+  
+  const mediaScores: MediaScore[] = [];
+  
+  for (const media of mediaLibrary) {
+    let score = 0;
+    const matchedKeywords: string[] = [];
+    let reason = '';
+    
+    // Extrair keywords do nome da mídia
+    const mediaNameWords = media.name.toLowerCase().replace(/_/g, ' ').split(/\s+/);
+    
+    // Extrair keywords do whenToUse
+    const whenToUse = (media.whenToUse || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    // Verificar se é mídia de primeira mensagem/saudação
+    const mediaNameLower = media.name.toLowerCase();
+    const isWelcomeMedia = /primeira|inicio|comeco|oi|ola|saudacao|boas.?vindas|bem.?vindo|mensagem.?inicio|cliente.?vem.?conversar|welcome|greeting/.test(whenToUse) ||
+                          /inicio|welcome|greeting|saudacao|primeira|mensagem.*inicio|cliente.*vem.*conversar/.test(mediaNameLower);
+    
+    if ((isFirstMessage || isSaudacao) && isWelcomeMedia) {
+      score += 100; // 🔧 FIX: Score mais alto para garantir que primeira mensagem tenha prioridade
+      matchedKeywords.push('PRIMEIRA_MENSAGEM');
+      reason = 'Primeira mensagem do cliente - mídia de boas-vindas';
+    }
+    
+    // Verificar keywords do nome da mídia na mensagem
+    for (const word of mediaNameWords) {
+      if (word.length > 3 && msgLower.includes(word)) {
+        score += 15;
+        matchedKeywords.push(word);
+      }
+    }
+    
+    // Verificar keywords do whenToUse na mensagem
+    const whenToUseWords = whenToUse
+      .replace(/enviar apenas quando:|nao enviar:|quando:/gi, '')
+      .replace(/quando|se|ou|e|o|a|cliente|solicitar|pedir|enviar|quiser|falar|mencionar|perguntar|sobre|apenas|somente/gi, ' ')
+      .split(/[,\s]+/)
+      .filter(k => k.length > 3);
+    
+    for (const word of whenToUseWords) {
+      if (msgLower.includes(word)) {
+        score += 10;
+        if (!matchedKeywords.includes(word)) {
+          matchedKeywords.push(word);
+        }
+      }
+    }
+    
+    // Keywords comuns para tipos de mídia
+    const commonKeywords: Record<string, string[]> = {
+      'video': ['mostrar', 'ver', 'demonstracao', 'demo', 'como funciona', 'funcionamento'],
+      'audio': ['ouvir', 'escutar', 'audio', 'voz'],
+      'image': ['foto', 'imagem', 'ver', 'mostra'],
+      'document': ['documento', 'pdf', 'arquivo', 'baixar']
+    };
+    
+    const typeKeywords = commonKeywords[media.mediaType] || [];
+    for (const kw of typeKeywords) {
+      if (msgLower.includes(kw)) {
+        score += 5;
+        if (!matchedKeywords.includes(kw)) {
+          matchedKeywords.push(kw);
+        }
+      }
+    }
+    
+    if (score > 0) {
+      mediaScores.push({
+        media,
+        score,
+        keywords: matchedKeywords,
+        reason: reason || `Keywords encontradas: ${matchedKeywords.join(', ')}`
+      });
+    }
+  }
+  
+  // Ordenar por score e retornar o melhor
+  mediaScores.sort((a, b) => b.score - a.score);
+  
+  if (mediaScores.length > 0 && mediaScores[0].score >= 10) {
+    const winner = mediaScores[0];
+    return {
+      shouldSendMedia: true,
+      mediaToSend: winner.media,
+      matchedKeywords: winner.keywords,
+      reason: `FALLBACK: ${winner.reason} (score: ${winner.score})`
+    };
+  }
+  
+  return { shouldSendMedia: false, mediaToSend: null, matchedKeywords: [], reason: 'Nenhum match significativo (fallback)' };
 }
 
 // Manter a versão sync para compatibilidade (usa a função async internamente via wrapper)
@@ -1083,6 +1249,15 @@ export async function executeMediaActions(
     return;
   }
 
+  const urlActions = actions.filter(action => action.type === 'send_media_url') as Array<{
+    type: 'send_media_url';
+    media_url: string;
+    media_type: 'audio' | 'image' | 'video' | 'document';
+    caption?: string;
+    file_name?: string;
+    delay_seconds?: number;
+  }>;
+
   // Agrupar ações por media_name para enviar mídias relacionadas juntas
   const groupedActions = new Map<string, typeof actions>();
   
@@ -1095,8 +1270,83 @@ export async function executeMediaActions(
     }
   }
 
+  // Enviar mídias diretas por URL (sem biblioteca)
+  for (const action of urlActions) {
+    try {
+      if (action.delay_seconds && action.delay_seconds > 0) {
+        await new Promise(resolve => setTimeout(resolve, action.delay_seconds * 1000));
+      }
+
+      let sendResult: { success: boolean; messageId?: string; error?: string } = { success: false };
+
+      if (wapiConfig) {
+        sendResult = await sendMediaViaWApi(wapiConfig, {
+          to: jid.split('@')[0],
+          mediaType: action.media_type,
+          mediaUrl: action.media_url,
+          caption: action.caption || undefined,
+          fileName: action.file_name || undefined,
+          isPtt: action.media_type === 'audio',
+        });
+      } else if (socket) {
+        const payload: Record<string, any> = {};
+        if (action.media_type === 'image') {
+          payload.image = { url: action.media_url };
+          if (action.caption) payload.caption = action.caption;
+        } else if (action.media_type === 'video') {
+          payload.video = { url: action.media_url };
+          if (action.caption) payload.caption = action.caption;
+        } else if (action.media_type === 'document') {
+          payload.document = { url: action.media_url };
+          if (action.caption) payload.caption = action.caption;
+          if (action.file_name) payload.fileName = action.file_name;
+        } else if (action.media_type === 'audio') {
+          payload.audio = { url: action.media_url };
+          payload.ptt = true;
+        }
+
+        const result = await socket.sendMessage(jid, payload);
+        sendResult = {
+          success: true,
+          messageId: result?.key?.id,
+        };
+      }
+
+      if (sendResult.success && sendResult.messageId) {
+        registerAgentMessageId(sendResult.messageId);
+      }
+
+      if (sendResult.success && conversationId) {
+        try {
+          const messageId = sendResult.messageId || `media-url-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+          const messageText = action.caption || (action.media_type === 'image' ? '*Imagem*' : '*Mídia*');
+
+          await db.insert(messages).values({
+            conversationId,
+            messageId,
+            fromMe: true,
+            text: messageText,
+            timestamp: new Date(),
+            status: 'sent',
+            isFromAgent: true,
+            mediaType: action.media_type,
+            mediaUrl: action.media_url,
+            mediaCaption: '[MEDIA:URL]',
+          });
+        } catch (saveError) {
+          console.error('[MediaService] Erro ao salvar mensagem de mídia URL:', saveError);
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error('[MediaService] Erro ao enviar mídia por URL:', error);
+    }
+  }
+
   // Processa cada grupo de mídias
   for (const [mediaName, mediaActions] of Array.from(groupedActions.entries())) {
+    console.log(`\n📁 [MediaService] ════════════════════════════════════════════════`);
     console.log(`📁 [MediaService] Processando mídia: ${mediaName} (${mediaActions.length} ações)`);
     
     // Busca TODAS as mídias com esse nome de diferentes tipos
@@ -1104,134 +1354,164 @@ export async function executeMediaActions(
     const allMediasForName = await getMediasByNamePattern(userId, mediaName);
     
     if (allMediasForName.length === 0) {
-      console.warn(`[MediaService] Nenhuma mídia encontrada para: ${mediaName} para user ${userId}`);
+      console.error(`📁 [MediaService] ❌ ERRO CRÍTICO: Nenhuma mídia encontrada para: "${mediaName}" (userId: ${userId})`);
+      console.error(`📁 [MediaService] 💡 Verifique se a mídia existe no banco de dados`);
       continue;
     }
 
-    console.log(`📁 [MediaService] Encontradas ${allMediasForName.length} mídias para "${mediaName}": ${allMediasForName.map(m => `${m.mediaType}(${m.name})`).join(', ')}`);
+    console.log(`📁 [MediaService] ✅ Encontradas ${allMediasForName.length} mídias para "${mediaName}":`);
+    allMediasForName.forEach(m => {
+      console.log(`   - ${m.mediaType}: ${m.name} | URL: ${m.storageUrl?.substring(0, 60)}...`);
+    });
 
     // Enviar todas as mídias relacionadas
     for (const media of allMediasForName) {
-      try {
-        // Delay opcional antes de enviar (com verificação de undefined)
-        const delaySeconds = mediaActions[0]?.delay_seconds;
-        if (delaySeconds && delaySeconds > 0) {
-          console.log(`⏳ [MediaService] Aguardando ${delaySeconds}s antes de enviar ${media.mediaType}...`);
-          await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
-        }
+      let retryCount = 0;
+      const maxRetries = 2;
+      let sendSuccess = false;
+      
+      while (retryCount <= maxRetries && !sendSuccess) {
+        try {
+          // Delay opcional antes de enviar (com verificação de undefined)
+          const delaySeconds = mediaActions[0]?.delay_seconds;
+          if (delaySeconds && delaySeconds > 0 && retryCount === 0) {
+            console.log(`⏳ [MediaService] Aguardando ${delaySeconds}s antes de enviar ${media.mediaType}...`);
+            await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+          }
+          
+          // Retry delay
+          if (retryCount > 0) {
+            console.log(`🔄 [MediaService] Retry ${retryCount}/${maxRetries} para ${media.name}...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          }
 
-        console.log(`📤 [MediaService] Enviando ${media.mediaType} "${media.name}" para ${jid}...`);
+          console.log(`📤 [MediaService] Enviando ${media.mediaType} "${media.name}" para ${jid}...`);
+          
+          // Validar URL antes de enviar
+          if (!media.storageUrl || media.storageUrl.length < 10) {
+            console.error(`📁 [MediaService] ❌ URL inválida para mídia ${media.name}: "${media.storageUrl}"`);
+            break; // Não faz retry para URL inválida
+          }
 
-        let sendResult: { success: boolean; messageId?: string; error?: string } = { success: false };
+          let sendResult: { success: boolean; messageId?: string; error?: string } = { success: false };
 
-        // Tenta enviar via W-API primeiro, depois Baileys
-        if (wapiConfig) {
-          sendResult = await sendMediaViaWApi(wapiConfig, {
-            to: jid.split('@')[0],
-            mediaType: media.mediaType as any,
-            mediaUrl: media.storageUrl,
-            caption: media.mediaType !== 'audio' ? (media.caption || undefined) : undefined,
-            fileName: media.fileName || undefined,
-            isPtt: media.isPtt !== false, // PTT por padrão para áudio
-          });
-        } else if (socket) {
-          sendResult = await sendMediaViaBaileys(socket, jid, media, userId);
-        } else {
-          console.error(`[MediaService] ❌ Nenhum transporte disponível para enviar mídia ${media.name}`);
-          continue;
-        }
+          // Tenta enviar via W-API primeiro, depois Baileys
+          if (wapiConfig) {
+            sendResult = await sendMediaViaWApi(wapiConfig, {
+              to: jid.split('@')[0],
+              mediaType: media.mediaType as any,
+              mediaUrl: media.storageUrl,
+              caption: media.mediaType !== 'audio' ? (media.caption || undefined) : undefined,
+              fileName: media.fileName || undefined,
+              isPtt: media.isPtt !== false, // PTT por padrão para áudio
+            });
+          } else if (socket) {
+            sendResult = await sendMediaViaBaileys(socket, jid, media, userId);
+          } else {
+            console.error(`[MediaService] ❌ Nenhum transporte disponível para enviar mídia ${media.name}`);
+            break;
+          }
 
-        // � CRÍTICO: Registrar messageId para evitar que handleOutgoingMessage pause a IA
-        // Quando Baileys envia mídia, dispara evento fromMe:true que pode ser confundido com mensagem manual
-        if (sendResult.success && sendResult.messageId) {
-          registerAgentMessageId(sendResult.messageId);
-        }
-
-        // �📝 SALVAR MENSAGEM DE MÍDIA NO BANCO DE DADOS
-        if (sendResult.success && conversationId) {
-          try {
-            let transcriptionText: string | null = null;
+          if (sendResult.success) {
+            sendSuccess = true;
+            console.log(`📁 [MediaService] ✅ MÍDIA ENVIADA COM SUCESSO: ${media.name}`);
             
-            // 🎤 Se for áudio, transcrever para manter contexto na conversa
-            if (media.mediaType === 'audio') {
-              console.log(`🎤 [MediaService] Transcrevendo áudio enviado "${media.name}"...`);
-              
-              // Primeiro verificar se já temos transcrição salva na mídia
-              if (media.transcription) {
-                transcriptionText = media.transcription;
-                console.log(`🎤 [MediaService] Usando transcrição existente da mídia`);
-              } else {
-                // Transcrever o áudio
-                try {
-                  const audioBuffer = await downloadMediaAsBuffer(media.storageUrl);
-                  transcriptionText = await transcribeAudioWithMistral(audioBuffer, {
-                    fileName: media.fileName || 'agent-audio.ogg',
-                  });
+            // Registrar messageId para evitar que handleOutgoingMessage pause a IA
+            if (sendResult.messageId) {
+              registerAgentMessageId(sendResult.messageId);
+            }
+          } else {
+            console.error(`📁 [MediaService] ❌ Falha ao enviar ${media.name}: ${sendResult.error}`);
+            retryCount++;
+          }
+        } catch (error: any) {
+          console.error(`📁 [MediaService] ❌ Exceção ao enviar ${media.name}: ${error.message}`);
+          retryCount++;
+        }
+      }
+      
+      if (!sendSuccess) {
+        console.error(`📁 [MediaService] ❌ FALHA DEFINITIVA após ${maxRetries} retries para: ${media.name}`);
+      }
+
+      // 📝 SALVAR MENSAGEM DE MÍDIA NO BANCO DE DADOS
+      if (sendSuccess && conversationId) {
+        try {
+          let transcriptionText: string | null = null;
+          
+          // 🎤 Se for áudio, transcrever para manter contexto na conversa
+          if (media.mediaType === 'audio') {
+            console.log(`🎤 [MediaService] Transcrevendo áudio enviado "${media.name}"...`);
+            
+            // Primeiro verificar se já temos transcrição salva na mídia
+            if (media.transcription) {
+              transcriptionText = media.transcription;
+              console.log(`🎤 [MediaService] Usando transcrição existente da mídia`);
+            } else {
+              // Transcrever o áudio
+              try {
+                const audioBuffer = await downloadMediaAsBuffer(media.storageUrl);
+                transcriptionText = await transcribeAudioWithMistral(audioBuffer, {
+                  fileName: media.fileName || 'agent-audio.ogg',
+                });
+                
+                if (transcriptionText) {
+                  console.log(`🎤 [MediaService] Áudio transcrito: "${transcriptionText.substring(0, 100)}..."`);
                   
-                  if (transcriptionText) {
-                    console.log(`🎤 [MediaService] Áudio transcrito: "${transcriptionText.substring(0, 100)}..."`);
-                    
-                    // Atualizar a mídia com a transcrição para uso futuro
-                    await db
-                      .update(agentMediaLibrary)
-                      .set({ transcription: transcriptionText, updatedAt: new Date() })
-                      .where(eq(agentMediaLibrary.id, media.id));
-                  }
-                } catch (transcribeError) {
-                  console.error(`🎤 [MediaService] Erro ao transcrever áudio:`, transcribeError);
+                  // Atualizar a mídia com a transcrição para uso futuro
+                  await db
+                    .update(agentMediaLibrary)
+                    .set({ transcription: transcriptionText, updatedAt: new Date() })
+                    .where(eq(agentMediaLibrary.id, media.id));
                 }
+              } catch (transcribeError) {
+                console.error(`🎤 [MediaService] Erro ao transcrever áudio:`, transcribeError);
               }
             }
-
-            // Gerar texto descritivo da mensagem
-            // IMPORTANTE: Usar formato SIMPLES que NÃO confunde a IA quando volta no contexto
-            // A IA estava copiando o formato "[Áudio enviado: ...]" na resposta
-            // MAS precisamos salvar o NOME da mídia para detectar repetições
-            let messageText = '';
-            if (media.mediaType === 'audio') {
-              // Salvar apenas "*Áudio*" - formato simples que IA não imita
-              messageText = '*Áudio*';
-            } else if (media.mediaType === 'image') {
-              messageText = media.caption || '*Imagem*';
-            } else if (media.mediaType === 'video') {
-              messageText = media.caption || '*Vídeo*';
-            } else if (media.mediaType === 'document') {
-              messageText = '*Documento*';
-            }
-
-            // Salvar mensagem no banco
-            // IMPORTANTE: Salvar o NOME da mídia no media_caption para detectar repetições
-            const messageId = sendResult.messageId || `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            
-            await db.insert(messages).values({
-              conversationId: conversationId,
-              messageId: messageId,
-              fromMe: true,
-              text: messageText,
-              timestamp: new Date(),
-              status: 'sent',
-              isFromAgent: true,
-              mediaType: media.mediaType,
-              mediaUrl: media.storageUrl,
-              mediaMimeType: media.mimeType || undefined,
-              mediaDuration: media.durationSeconds || undefined,
-              // 🛡️ CRÍTICO: Salvar nome da mídia para detectar repetições
-              mediaCaption: `[MEDIA:${media.name}]`,
-            });
-
-            console.log(`📝 [MediaService] Mensagem de mídia salva no banco (conversationId: ${conversationId}, type: ${media.mediaType})`);
-          } catch (saveError) {
-            console.error(`📝 [MediaService] Erro ao salvar mensagem de mídia:`, saveError);
           }
-        }
 
-        // Pequeno delay entre envios para não sobrecarregar
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error) {
-        console.error(`[MediaService] ❌ Erro ao enviar ${media.mediaType} "${media.name}":`, error);
+          // Gerar texto descritivo da mensagem
+          let messageText = '';
+          if (media.mediaType === 'audio') {
+            messageText = '*Áudio*';
+          } else if (media.mediaType === 'image') {
+            messageText = media.caption || '*Imagem*';
+          } else if (media.mediaType === 'video') {
+            messageText = media.caption || '*Vídeo*';
+          } else if (media.mediaType === 'document') {
+            messageText = '*Documento*';
+          }
+
+          // Salvar mensagem no banco
+          const messageId = `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          await db.insert(messages).values({
+            conversationId: conversationId,
+            messageId: messageId,
+            fromMe: true,
+            text: messageText,
+            timestamp: new Date(),
+            status: 'sent',
+            isFromAgent: true,
+            mediaType: media.mediaType,
+            mediaUrl: media.storageUrl,
+            mediaMimeType: media.mimeType || undefined,
+            mediaDuration: media.durationSeconds || undefined,
+            mediaCaption: `[MEDIA:${media.name}]`,
+          });
+
+          console.log(`📝 [MediaService] Mensagem de mídia salva no banco (conversationId: ${conversationId}, type: ${media.mediaType})`);
+        } catch (saveError) {
+          console.error(`📝 [MediaService] Erro ao salvar mensagem de mídia:`, saveError);
+        }
       }
+
+      // Pequeno delay entre envios para não sobrecarregar
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
+  
+  console.log(`📁 [MediaService] ════════════════════════════════════════════════\n`);
 }
 
 /**
