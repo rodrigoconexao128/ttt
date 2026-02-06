@@ -7749,6 +7749,37 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
 // ?? ENVIAR MENSAGEM VIA WHATSAPP DO ADMIN
 // -----------------------------------------------------------------------
 
+// -----------------------------------------------------------------------
+// ??? ANTI-SPAM (ADMIN AUTO SEND)
+// -----------------------------------------------------------------------
+// Protege contra loops acidentais (follow-up/recovery) que podem enviar v?rias
+// mensagens parecidas para o mesmo lead.
+//
+// Regra: limitar bursts por n?mero e impor cooldown m?nimo.
+// Observa??o: envios manuais do admin normalmente N?O usam sendAdminMessage.
+
+type AdminAutoSendState = {
+  windowStart: number;
+  count: number;
+  lastSentAt: number;
+  lastNorm: string;
+};
+
+const adminAutoSendState = new Map<string, AdminAutoSendState>();
+const ADMIN_AUTOSEND_WINDOW_MS = 20 * 60 * 1000;
+const ADMIN_AUTOSEND_MAX_PER_WINDOW = 3;
+const ADMIN_AUTOSEND_MIN_INTERVAL_MS = 90 * 1000;
+const ADMIN_AUTOSEND_IDENTICAL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+function normalizeAutoSendText(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[​-‍﻿]/g, '')
+    .trim()
+    .slice(0, 400);
+}
+
 export async function sendAdminMessage(
   toNumber: string, 
   text: string,
@@ -7777,6 +7808,29 @@ export async function sendAdminMessage(
     }
     
     const cleanNumber = toNumber.replace(/\D/g, "");
+    const nowMs = Date.now();
+    const norm = normalizeAutoSendText(text);
+    const prev = adminAutoSendState.get(cleanNumber);
+
+    if (prev) {
+      const inWindow = nowMs - prev.windowStart < ADMIN_AUTOSEND_WINDOW_MS;
+      const tooSoon = nowMs - prev.lastSentAt < ADMIN_AUTOSEND_MIN_INTERVAL_MS;
+      const identicalTooSoon = prev.lastNorm && norm && prev.lastNorm === norm && (nowMs - prev.lastSentAt) < ADMIN_AUTOSEND_IDENTICAL_COOLDOWN_MS;
+      const tooMany = inWindow && prev.count >= ADMIN_AUTOSEND_MAX_PER_WINDOW;
+
+      if (identicalTooSoon || tooSoon || tooMany) {
+        console.warn(`??? [ADMIN MSG] Bloqueado por anti-spam para ${cleanNumber}: ` +
+          (identicalTooSoon ? 'texto id?ntico recente' : tooSoon ? 'cooldown' : 'burst')); 
+        return false;
+      }
+    }
+
+    // Reserve slot (prevents concurrent loops from flooding before the first send completes)
+    const nextState: AdminAutoSendState = prev && (nowMs - prev.windowStart < ADMIN_AUTOSEND_WINDOW_MS)
+      ? { windowStart: prev.windowStart, count: prev.count + 1, lastSentAt: nowMs, lastNorm: norm }
+      : { windowStart: nowMs, count: 1, lastSentAt: nowMs, lastNorm: norm };
+    adminAutoSendState.set(cleanNumber, nextState);
+
     const jid = `${cleanNumber}@${DEFAULT_JID_SUFFIX}`;
     
     if (media) {

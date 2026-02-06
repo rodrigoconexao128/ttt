@@ -30,6 +30,8 @@ type ScheduledContactCallback = (phoneNumber: string, reason: string) => Promise
 export class FollowUpService {
   private checkInterval: NodeJS.Timeout | null = null;
   private isRunning = false;
+  // Prevent overlapping cycles (timer overlap can spam leads)
+  private isProcessingCycle = false;
   private onFollowUpReady: FollowUpCallback | null = null;
   private onScheduledContactReady: ScheduledContactCallback | null = null;
 
@@ -67,6 +69,12 @@ export class FollowUpService {
    * Processa conversas pendentes de follow-up
    */
   private async processFollowUps() {
+    if (this.isProcessingCycle) {
+      console.log("? [FOLLOW-UP] Verifica??o anterior ainda em execu??o, pulando ciclo para evitar duplicatas");
+      return;
+    }
+
+    this.isProcessingCycle = true;
     try {
       const now = new Date();
       
@@ -97,6 +105,30 @@ export class FollowUpService {
     console.log(`👉 [FOLLOW-UP] Processando ${conversation.contactNumber} (Estágio ${conversation.followupStage})`);
 
     try {
+      // Anti-spam: if a follow-up was sent very recently, do not send again.
+      // Protects against accidental re-entry/retries and avoids flooding the lead.
+      try {
+        const recent = await db.query.followupLogs.findFirst({
+          where: and(
+            eq(followupLogs.conversationId, conversation.id),
+            eq(followupLogs.status, 'sent'),
+          ),
+          orderBy: (logs, { desc }) => [desc(logs.executedAt)],
+        });
+
+        if (recent?.executedAt) {
+          const ageMs = Date.now() - new Date(recent.executedAt as any).getTime();
+          const cooldownMs = 7 * 60 * 1000;
+          if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs < cooldownMs) {
+            console.log(`??? [FOLLOW-UP] Cooldown ativo (${Math.round(ageMs / 1000)}s) para ${conversation.contactNumber}, evitando spam`);
+            await this.scheduleNextFollowUp(conversation, 30);
+            return;
+          }
+        }
+      } catch (cooldownErr) {
+        console.warn('?? [FOLLOW-UP] Falha ao checar cooldown, continuando:', cooldownErr);
+      }
+
       // ⚠️ IMPORTANTE: Follow-up é INDEPENDENTE da IA!
       // A desativação da IA (isAgentEnabled) NÃO deve cancelar o follow-up
       // Follow-up só deve ser cancelado quando:
