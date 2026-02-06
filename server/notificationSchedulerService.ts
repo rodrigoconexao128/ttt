@@ -562,11 +562,23 @@ async function getAdminUsers(adminId: string): Promise<any[]> {
         u.id,
         u.phone,
         u.name,
-        u.whatsapp_connected,
-        u.whatsapp_disconnected_at,
+        COALESCE(wc.is_connected, false) as whatsapp_connected,
+        CASE
+          WHEN COALESCE(wc.is_connected, false) = false THEN wc.updated_at
+          ELSE NULL
+        END as whatsapp_disconnected_at,
         s.expires_at as plan_expires_at,
         s.status as subscription_status
       FROM users u
+      LEFT JOIN LATERAL (
+        SELECT
+          c.is_connected,
+          c.updated_at
+        FROM whatsapp_connections c
+        WHERE c.user_id = u.id
+        ORDER BY c.created_at DESC
+        LIMIT 1
+      ) wc ON true
       LEFT JOIN subscriptions s ON s.user_id = u.id
       WHERE u.id = ${adminId}
          OR u.parent_id = ${adminId}
