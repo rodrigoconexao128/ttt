@@ -3,6 +3,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { restoreExistingSessions, restoreAdminSessions, restorePendingAITimers, startConnectionHealthCheck, startPendingTimersCron, startAutoRecoveryCron } from "./whatsapp";
+import { startWhatsAppLeaderElection } from "./whatsappLeaderLock";
 import { followUpService } from "./followUpService";
 import { appointmentReminderService } from "./appointmentReminderService";
 import { startAutoReactivationService } from "./autoReactivateService";
@@ -14,6 +15,7 @@ import path from "path";
 import fs from "fs";
 
 const BOOT_ID = new Date().toISOString();
+process.env.BOOT_ID = BOOT_ID;
 console.log(`🚀 [BOOT] Starting server (bootId=${BOOT_ID})`);
 console.log(`🚀 [BOOT] node=${process.version} env=${process.env.NODE_ENV || 'unknown'} port=${process.env.PORT || 'unknown'}`);
 console.log(`🚀 [BOOT] railwayCommit=${process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_GIT_COMMIT || 'unknown'}`);
@@ -103,9 +105,16 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Serve static assets from findeas theme
+  // Serve static assets from findeas theme and client public (fallback)
   const findeasThemePath = path.join(process.cwd(), 'findeas theme');
-  app.use('/assets', express.static(path.join(findeasThemePath, 'assets')));
+  const clientPublicAssetsPath = path.join(process.cwd(), 'client', 'public', 'assets');
+
+  if (fs.existsSync(clientPublicAssetsPath)) {
+    app.use('/assets', express.static(clientPublicAssetsPath));
+  }
+  if (fs.existsSync(path.join(findeasThemePath, 'assets'))) {
+    app.use('/assets', express.static(path.join(findeasThemePath, 'assets')));
+  }
 
   // Lightweight health endpoints for uptime checks
   app.get('/health', (_req: Request, res: Response) => {
@@ -167,55 +176,57 @@ app.use((req, res, next) => {
     // Aguardar mais um pouco antes de restaurar sessões
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Restore WhatsApp sessions after server starts
-    restoreExistingSessions().catch((error) => {
-      console.error("Failed to restore WhatsApp sessions:", error);
-    });
+    const disableBackgroundJobs = process.env.DISABLE_WHATSAPP_PROCESSING === 'true';
 
-    // Restore admin WhatsApp sessions
-    restoreAdminSessions().catch((error) => {
-      console.error("Failed to restore admin WhatsApp sessions:", error);
-    });
-    
-    // 💾 Restore pending AI response timers from database
-    // This ensures timers survive server restarts/redeploys
-    setTimeout(() => {
-      restorePendingAITimers().catch((error) => {
-        console.error("Failed to restore pending AI timers:", error);
-      });
-      
-      // 🔄 Iniciar Cron de Retry de Timers Pendentes
-      // Verifica a cada 2 minutos se há timers órfãos e os processa
-      startPendingTimersCron();
-      
-      // 🚨 Iniciar Cron de Auto-Recuperação
-      // Verifica a cada 5 minutos se há timers "completed" que não receberam resposta
-      startAutoRecoveryCron();
-    }, 10000); // Aguardar 10s para sessões estarem conectadas
+    if (disableBackgroundJobs) {
+      console.log('?? [DEV MODE] Background jobs desabilitados (DISABLE_WHATSAPP_PROCESSING=true)');
+      return;
+    }
 
-    // Start Follow-up Service
-    followUpService.start();
-    
-    // 🔔 Start Appointment Reminder Service (lembretes via IA)
-    appointmentReminderService.start();
-    
-    // ⏰ Start Auto-Reactivation Service (reativa IA após timer)
-    startAutoReactivationService();
-    
-    // 🔄 Iniciar Health Check Monitor para reconexão automática
-    // Verifica a cada 5 minutos se as conexões estão saudáveis
-    startConnectionHealthCheck();
-    
-    // 📱 Iniciar Cron Job de Sincronização Diária de Contatos
-    // Sincroniza TODOS os contatos de TODOS os clientes 1x por dia às 03:00 BRT
-    startDailySyncCron();
-    
-    // 🗑️ Iniciar Serviço de Limpeza de Mídias
-    // Deleta mídias do Storage com mais de 1 hora para economizar Egress
-    startMediaCleanupService();
-    
-    // 🔔 Iniciar Scheduler de Notificações Admin
-    // Lembretes de pagamento, check-ins periódicos, alertas de desconexão
-    startNotificationScheduler();
+    startWhatsAppLeaderElection({
+      onLeader: async () => {
+        // Restore WhatsApp sessions after server starts
+        restoreExistingSessions().catch((error) => {
+          console.error('Failed to restore WhatsApp sessions:', error);
+        });
+
+        // Restore admin WhatsApp sessions
+        restoreAdminSessions().catch((error) => {
+          console.error('Failed to restore admin WhatsApp sessions:', error);
+        });
+
+        // Restore pending AI response timers from database
+        setTimeout(() => {
+          restorePendingAITimers().catch((error) => {
+            console.error('Failed to restore pending AI timers:', error);
+          });
+
+          // Retry orphan timers and auto-recovery
+          startPendingTimersCron();
+          startAutoRecoveryCron();
+        }, 10000);
+
+        // Start Follow-up Service
+        followUpService.start();
+
+        // Start Appointment Reminder Service
+        appointmentReminderService.start();
+
+        // Start Auto-Reactivation Service
+        startAutoReactivationService();
+
+        // Start health check monitor for reconnection
+        startConnectionHealthCheck();
+
+        // Start daily contacts sync
+        startDailySyncCron();
+
+        // Start media cleanup
+        startMediaCleanupService();
+
+        // Start admin notification scheduler
+        startNotificationScheduler();
+      },
+    });
   });
 })();

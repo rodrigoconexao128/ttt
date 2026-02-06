@@ -22,6 +22,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { WAMessage, proto } from '@whiskeysockets/baileys';
+import { createHash } from 'crypto';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  TIPOS E INTERFACES
@@ -192,16 +193,25 @@ class PendingMessageRecoveryService {
   }): Promise<{ id: string; isDuplicate: boolean }> {
     const { userId, connectionId, waMessage, messageContent, messageType = 'text' } = params;
     
-    const messageId = waMessage.key.id;
     const remoteJid = waMessage.key.remoteJid;
     
-    if (!messageId || !remoteJid) {
-      console.log('🚨 [RECOVERY] Mensagem sem ID ou JID, ignorando save');
+    if (!remoteJid) {
+      console.log('?? [RECOVERY] Mensagem sem remoteJid, ignorando save');
       return { id: '', isDuplicate: false };
+    }
+
+    // Alguns eventos podem chegar sem key.id (stub/protocol/history edge-cases).
+    // Persistimos com um id deterministico para nao perder o lead.
+    let messageId = waMessage.key.id;
+    if (!messageId) {
+      const ts = Number((waMessage as any)?.messageTimestamp) || 0;
+      const base = `${remoteJid}|${ts}|${messageType}|${messageContent || ''}`;
+      const hash = createHash('sha1').update(base).digest('hex').slice(0, 16);
+      messageId = `noid_${hash}`;
     }
     
     // Extrair número do contato
-    const contactNumber = remoteJid.split('@')[0];
+    const contactNumber = remoteJid.split('@')[0].split(':')[0].replace(/\D/g, '');
     
     try {
       const { data, error } = await this.supabase

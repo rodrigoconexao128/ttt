@@ -1770,6 +1770,49 @@ function cleanContactNumber(input?: string | null): string {
   return (input?.split(":")[0] || "").replace(/\D/g, "");
 }
 
+function getWAMessageTimestamp(waMessage: WAMessage): Date {
+  const raw = (waMessage as any)?.messageTimestamp;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n > 0) return new Date(n * 1000);
+  return new Date();
+}
+
+// New leads (notably Meta ads) can wrap the real payload in envelopes (ephemeral/viewOnce).
+// We unwrap only generic envelopes so existing specific handlers still work.
+function unwrapIncomingMessageContent(message: any): any {
+  let m = message;
+  for (let i = 0; i < 5; i++) {
+    if (!m) return m;
+    if (m.ephemeralMessage?.message) {
+      m = m.ephemeralMessage.message;
+      continue;
+    }
+    if (m.viewOnceMessage?.message) {
+      m = m.viewOnceMessage.message;
+      continue;
+    }
+    if (m.viewOnceMessageV2?.message) {
+      m = m.viewOnceMessageV2.message;
+      continue;
+    }
+    if (m.viewOnceMessageV2Extension?.message) {
+      m = m.viewOnceMessageV2Extension.message;
+      continue;
+    }
+    break;
+  }
+  return m;
+}
+
+function parseVCardBasic(vcard?: string | null): { waid?: string; phone?: string } {
+  if (!vcard) return {};
+  const m = vcard.match(/waid=(\d+):\+?([0-9 +()\\-]+)/i);
+  if (m) return { waid: m[1], phone: m[2]?.trim() };
+  const m2 = vcard.match(/\bTEL[^:]*:\s*(\+?[0-9 +()\\-]{8,})/i);
+  if (m2) return { phone: m2[1]?.trim() };
+  return {};
+}
+
 async function parseRemoteJid(remoteJid: string, contactsCache?: Map<string, Contact>, connectionId?: string) {
   const decoded = jidDecode(remoteJid);
   const rawUser = decoded?.user || remoteJid.split("@")[0] || "";
@@ -2729,7 +2772,7 @@ export async function connectWhatsApp(userId: string): Promise<void> {
             const { getButtonIdFromPollVote, getPollMapping } = await import('./centralizedMessageSender');
             
             // Obter mapping da enquete original
-            const pollMapping = getPollMapping(key.id!);
+            const pollMapping = key.id ? getPollMapping(key.id) : null;
             
             if (!pollMapping) {
               console.log(`🗳️ [POLL-UPDATE] Poll não encontrado no mapeamento, ignorando...`);
@@ -2817,104 +2860,136 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     });
 
     sock.ev.on("messages.upsert", async (m) => {
-      const message = m.messages[0];
-      
-      if (!message.message) return;
-      
-      // -----------------------------------------------------------------------
-      // ?? CACHEAR TODAS AS MENSAGENS PARA getMessage() - FIX "AGUARDANDO MENSAGEM"
-      // -----------------------------------------------------------------------
-      // Armazenar mensagem no cache assim que ela chegar, independente do tipo
-      // Isso permite que Baileys recupere a mensagem se precisar fazer retry
-      if (message.key.id && message.message) {
-        cacheMessage(userId, message.key.id, message.message);
-      }
-      
-      // -----------------------------------------------------------------------
-      // 🚨 SISTEMA DE RECUPERAÇÃO: Salvar mensagem IMEDIATAMENTE
-      // -----------------------------------------------------------------------
-      // Salva mensagem na tabela pending_incoming_messages ANTES de processar
-      // Isso garante que se houver crash/desconexão, a mensagem será recuperada
-      // -----------------------------------------------------------------------
-      if (m.type === "notify" && !message.key.fromMe && message.key.remoteJid) {
-        const remoteJid = message.key.remoteJid;
-        // Só salvar mensagens individuais (não grupos)
-        if (!remoteJid.includes("@g.us") && !remoteJid.includes("@broadcast")) {
-          try {
-            // Extrair conteúdo textual básico para log
-            const msg = message.message;
-            let textContent: string | null = null;
-            let msgType = "text";
-            
-            if (msg?.conversation) {
-              textContent = msg.conversation;
-            } else if (msg?.extendedTextMessage?.text) {
-              textContent = msg.extendedTextMessage.text;
-            } else if (msg?.imageMessage) {
-              textContent = msg.imageMessage.caption || "📷 Imagem";
-              msgType = "image";
-            } else if (msg?.audioMessage) {
-              textContent = "🎵 Áudio";
-              msgType = "audio";
-            } else if (msg?.videoMessage) {
-              textContent = msg.videoMessage.caption || "🎬 Vídeo";
-              msgType = "video";
-            } else if (msg?.documentMessage) {
-              textContent = msg.documentMessage.fileName || "📄 Documento";
-              msgType = "document";
-            } else if (msg?.stickerMessage) {
-              textContent = "🎨 Sticker";
-              msgType = "sticker";
+      const source = m.type;
+
+      for (const message of m.messages || []) {
+        if (!message) continue;
+
+        const remoteJid = message.key.remoteJid || null;
+        const rawTs = (message as any)?.messageTimestamp;
+        const nTs = Number(rawTs);
+        const hasValidTs = Number.isFinite(nTs) && nTs > 0;
+        const eventTs = hasValidTs ? new Date(nTs * 1000) : new Date();
+        const ageMs = Math.max(0, Date.now() - eventTs.getTime());
+
+        // Avoid processing long history sync. Meta ads leads sometimes arrive via append.
+        const isAppendRecent =
+          source === "append" &&
+          ((hasValidTs && ageMs <= 2 * 60 * 1000) || (!hasValidTs && (m.messages?.length || 0) <= 3 && !!message.key.id));
+        const shouldProcess = source === "notify" || isAppendRecent;
+
+        // Cache message for getMessage() retries
+        if (message.key.id && message.message) {
+          cacheMessage(userId, message.key.id, message.message);
+        }
+
+        if (!shouldProcess) continue;
+
+        // Save to pending_incoming_messages BEFORE processing, so we can recover after crashes.
+        if (!message.key.fromMe && remoteJid) {
+          if (!remoteJid.includes("@g.us") && !remoteJid.includes("@broadcast")) {
+            try {
+              const msg = unwrapIncomingMessageContent(message.message as any);
+              let textContent: string | null = null;
+              let msgType = "text";
+
+              if (!message.message) {
+                msgType = "stub";
+                const stubType = (message as any).messageStubType;
+                textContent = stubType != null ? `[WhatsApp] Mensagem incompleta (stubType=${stubType})` : null;
+              } else if (msg?.conversation) {
+                textContent = msg.conversation;
+              } else if (msg?.extendedTextMessage?.text) {
+                textContent = msg.extendedTextMessage.text;
+              } else if (msg?.imageMessage) {
+                textContent = msg.imageMessage.caption || "[Imagem]";
+                msgType = "image";
+              } else if (msg?.audioMessage) {
+                textContent = "[Audio]";
+                msgType = "audio";
+              } else if (msg?.videoMessage) {
+                textContent = msg.videoMessage.caption || "[Video]";
+                msgType = "video";
+              } else if (msg?.documentMessage) {
+                textContent = msg.documentMessage.fileName || "[Documento]";
+                msgType = "document";
+              } else if (msg?.stickerMessage) {
+                textContent = "[Sticker]";
+                msgType = "sticker";
+              } else if (msg?.contactMessage) {
+                const displayName = msg.contactMessage.displayName || "Contato";
+                const parsed = parseVCardBasic(msg.contactMessage.vcard || "");
+                textContent = `[Contato] ${displayName}${parsed.phone ? ` - ${parsed.phone}` : ""}`;
+                msgType = "contact";
+              } else if (msg?.protocolMessage) {
+                const protoType = msg.protocolMessage.type;
+                if (protoType === 0 || protoType === "REVOKE") {
+                  textContent = "[Mensagem apagada]";
+                  msgType = "protocol_revoke";
+                } else {
+                  textContent = "[Mensagem de protocolo]";
+                  msgType = "protocol";
+                }
+              } else if (msg?.contactsArrayMessage) {
+                const count = msg.contactsArrayMessage.contacts?.length || 0;
+                textContent = `[${count} contatos compartilhados]`;
+                msgType = "contacts";
+              } else if (msg?.locationMessage) {
+                textContent = "[Localizacao]";
+                msgType = "location";
+              } else if (msg?.liveLocationMessage) {
+                textContent = "[Localizacao em tempo real]";
+                msgType = "live_location";
+              } else {
+                msgType = "unknown";
+                textContent = "[Mensagem nao suportada]";
+              }
+
+              await saveIncomingMessage({
+                userId: userId,
+                connectionId: session.connectionId,
+                waMessage: message,
+                messageContent: textContent,
+                messageType: msgType,
+              });
+            } catch (saveErr) {
+              console.error(`[RECOVERY] Erro ao salvar mensagem pendente:`, saveErr);
             }
-            
-            await saveIncomingMessage({
-              userId: userId,
-              connectionId: session.connectionId,
-              waMessage: message,
-              messageContent: textContent,
-              messageType: msgType,
-            });
-          } catch (saveErr) {
-            console.error(`🚨 [RECOVERY] Erro ao salvar mensagem pendente:`, saveErr);
-            // Não bloqueia processamento se salvar falhar
           }
         }
-      }
-      
-      // ?? IMPORTANTE: Ignorar mensagens de sincroniza��o/hist�rico
-      // m.type === "notify" = mensagem NOVA (em tempo real)
-      // m.type === "append" = sincroniza��o de hist�rico (ao abrir conversa)
-      // S� processar mensagens novas para evitar pausar IA ao entrar na conversa!
-      if (m.type !== "notify") {
-        console.log(`?? [SYNC] Ignorando mensagem de sincroniza��o (type: ${m.type})`);
-        return;
-      }
-      
-      // ?? NOVA L�GICA: Capturar mensagens enviadas pelo pr�prio usu�rio (fromMe: true)
-      if (message.key.fromMe) {
-        console.log(`?? [FROM ME] Mensagem enviada pelo dono no WhatsApp detectada`);
-        try {
-          await handleOutgoingMessage(session, message);
-        } catch (err) {
-          console.error("Error handling outgoing message:", err);
-        }
-        return;
-      }
-      
-      // Verificação extra: ignorar se o remoteJid é o próprio número
-      if (message.key.remoteJid && session.phoneNumber) {
-        const remoteNumber = cleanContactNumber(message.key.remoteJid);
-        const myNumber = cleanContactNumber(session.phoneNumber);
-        if (remoteNumber && myNumber && remoteNumber === myNumber) {
-          console.log(`Ignoring echo message from own number: ${remoteNumber}`);
-          return;
-        }
-      }
 
-      try {
-        await handleIncomingMessage(session, message);
-      } catch (err) {
-        console.error("Error handling incoming message:", err);
+        // Outgoing messages (fromMe): sync only in realtime.
+        if (message.key.fromMe) {
+          try {
+            if (source === "notify") {
+              await handleOutgoingMessage(session, message);
+            }
+          } catch (err) {
+            console.error("Error handling outgoing message:", err);
+          }
+          continue;
+        }
+
+        // Extra check: ignore echo from own number
+        if (message.key.remoteJid && session.phoneNumber) {
+          const remoteNumber = cleanContactNumber(message.key.remoteJid);
+          const myNumber = cleanContactNumber(session.phoneNumber);
+          if (remoteNumber && myNumber && remoteNumber === myNumber) {
+            console.log(`Ignoring echo message from own number: ${remoteNumber}`);
+            continue;
+          }
+        }
+
+        try {
+          await handleIncomingMessage(session, message, {
+            source,
+            allowAutoReply: source === "notify" || isAppendRecent,
+            isAppendRecent,
+            eventTs,
+          });
+        } catch (err) {
+          console.error("Error handling incoming message:", err);
+        }
       }
     });
 
@@ -2952,7 +3027,6 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
 
   const remoteJid = waMessage.key.remoteJid;
   if (!remoteJid) return;
-
   // ?? FIX BUG DUPLICATA: Ignorar mensagens enviadas pelo agente IA
   // Quando IA envia via socket.sendMessage(), Baileys dispara evento fromMe:true
   // MAS a mensagem j� foi salva no createMessage() do setTimeout do agente.
@@ -3264,6 +3338,8 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     contactNumber
   );
 
+  const wasNewConversation = !conversation;
+
   if (!conversation) {
     console.log(`?? [FROM ME] Creating new conversation for ${contactNumber}`);
     conversation = await storage.createConversation({
@@ -3282,13 +3358,13 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
 
   // ?? VERIFICA��O DE DUPLICATA: Antes de salvar, verificar se a mensagem j� existe no banco
   // Isso resolve race conditions onde o agente pode salvar antes ou depois deste handler
-  let existingMessage = await storage.getMessageByMessageId(waMessage.key.id!);
+  let existingMessage = waMessage.key.id ? await storage.getMessageByMessageId(waMessage.key.id) : null;
   
   // ?? RACE CONDITION FIX: Se n�o existe, esperar 500ms e verificar novamente
   // O agente pode estar salvando a mensagem neste exato momento
   if (!existingMessage) {
     await new Promise(resolve => setTimeout(resolve, 500));
-    existingMessage = await storage.getMessageByMessageId(waMessage.key.id!);
+    existingMessage = waMessage.key.id ? await storage.getMessageByMessageId(waMessage.key.id) : null;
   }
   
   if (existingMessage) {
@@ -3314,7 +3390,7 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   try {
     await storage.createMessage({
       conversationId: conversation.id,
-      messageId: waMessage.key.id!,
+      messageId: waMessage.key.id || `msg_${Date.now()}`,
       fromMe: true,
       text: messageText,
       timestamp: new Date(Number(waMessage.messageTimestamp) * 1000),
@@ -3333,7 +3409,7 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
       console.log(`?? [FROM ME] Erro de duplicata ao salvar - mensagem j� existe (messageId: ${waMessage.key.id})`);
       
       // Re-verificar se � do agente
-      const recheck = await storage.getMessageByMessageId(waMessage.key.id!);
+      const recheck = waMessage.key.id ? await storage.getMessageByMessageId(waMessage.key.id) : null;
       if (recheck?.isFromAgent) {
         console.log(`? [FROM ME] Confirmado: mensagem � do agente - N�O pausar IA`);
         return;
@@ -3426,7 +3502,11 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   console.log(`?? [FROM ME] Mensagem sincronizada: ${contactNumber} - "${messageText}"`);
 }
 
-async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMessage) {
+async function handleIncomingMessage(
+  session: WhatsAppSession,
+  waMessage: WAMessage,
+  opts?: { source?: string; allowAutoReply?: boolean; isAppendRecent?: boolean; eventTs?: Date }
+) {
   // ?? MODO DEV: Pular processamento se DISABLE_WHATSAPP_PROCESSING=true
   if (DISABLE_MESSAGE_PROCESSING) {
     console.log(`?? [DEV MODE] Ignorando mensagem recebida (processamento desabilitado)`);
@@ -3435,6 +3515,11 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
 
   const remoteJid = waMessage.key.remoteJid;
   if (!remoteJid) return;
+
+  const source = opts?.source ?? "notify";
+  const isAppendRecent = opts?.isAppendRecent ?? false;
+  const allowAutoReplyRequested = opts?.allowAutoReply ?? (source === "notify");
+  const eventTs = opts?.eventTs ?? getWAMessageTimestamp(waMessage);
 
   // ┌───────────────────────────────────────────────────────────────────────┐
   // │  🛡️ ANTI-REENVIO: VERIFICAÇÃO DE DEDUPLICAÇÃO DE MENSAGENS          │
@@ -3572,6 +3657,8 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   
   // Extract message data including media
   let messageText = "";
+  let canAutoReplyThis = true;
+  let messageKind: "normal" | "stub" | "contact" | "protocol" | "unsupported" = "normal";
   let mediaType: string | null = null;
   let mediaUrl: string | null = null;
   let mediaMimeType: string | null = null;
@@ -3584,10 +3671,15 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   let directPath: string | null = null;    // Caminho no servidor WhatsApp
   let mediaUrlOriginal: string | null = null; // URL original do WhatsApp
 
-  const msg = waMessage.message;
-
+  const msg = unwrapIncomingMessageContent(waMessage.message as any);
+    if (!msg) {
+    messageKind = "stub";
+    canAutoReplyThis = false;
+    const stubType = (waMessage as any).messageStubType;
+    messageText = stubType != null ? `[WhatsApp] Mensagem incompleta (stubType=${stubType})` : "[WhatsApp] Mensagem incompleta";
+  }
   // Check for text messages
-  if (msg?.conversation) {
+  else if (msg?.conversation) {
     messageText = msg.conversation;
   } else if (msg?.extendedTextMessage?.text) {
     messageText = msg.extendedTextMessage.text;
@@ -3741,6 +3833,26 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     }
   }
   // ═══════════════════════════════════════════════════════════════════════════
+  // -----------------------------------------------------------------------
+  // Contato compartilhado (vCard)
+  // -----------------------------------------------------------------------
+  else if (msg?.contactMessage) {
+    const displayName = msg.contactMessage.displayName || "Contato";
+    const parsed = parseVCardBasic(msg.contactMessage.vcard || "");
+    messageText = `?? Contato: ${displayName}${parsed.phone ? ` - ${parsed.phone}` : ""}`;
+    canAutoReplyThis = false;
+    messageKind = "contact";
+  }
+  // -----------------------------------------------------------------------
+  // Mensagens de protocolo (ex: revoke/delete)
+  // -----------------------------------------------------------------------
+  else if (msg?.protocolMessage) {
+    const protoType = msg.protocolMessage.type;
+    messageText = protoType === 0 || protoType === "REVOKE" ? "[Mensagem apagada]" : "[Mensagem de protocolo]";
+    canAutoReplyThis = false;
+    messageKind = "protocol";
+  }
+
   // 🔘 RESPOSTA DE BOTÃO INTERATIVO (interactiveResponseMessage)
   // Quando usuário clica em botão nativo (nativeFlowMessage quick_reply)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -3806,8 +3918,11 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   }
     // Ignorar mensagens de tipos não suportados (reações, status, etc)
   else {
-    console.log(`Ignoring unsupported message type from ${contactNumber}:`, Object.keys(msg || {}));
-    return; // Não processar mensagens não suportadas
+    const msgTypes = Object.keys(msg || {});
+    console.log(`Ignoring unsupported message type from ${contactNumber}:`, msgTypes);
+    messageText = msgTypes.length ? `[Mensagem nao suportada: ${msgTypes.join(', ')}]` : '[Mensagem nao suportada]';
+    canAutoReplyThis = false;
+    messageKind = 'unsupported';
   }
 
   // ??? BUSCAR FOTO DE PERFIL DO CONTATO
@@ -3840,7 +3955,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       contactName: waMessage.pushName,
       contactAvatar, // ??? Foto de perfil
       lastMessageText: messageText,
-      lastMessageTime: new Date(),
+      lastMessageTime: eventTs,
       lastMessageFromMe: false,
       unreadCount: 1,
     });
@@ -3849,7 +3964,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       remoteJid: normalizedJid, // Atualizar JID (pode mudar)
       jidSuffix,
       lastMessageText: messageText,
-      lastMessageTime: new Date(),
+      lastMessageTime: eventTs,
       lastMessageFromMe: false,
       unreadCount: (conversation.unreadCount || 0) + 1,
       contactName: waMessage.pushName || conversation.contactName,
@@ -3865,12 +3980,15 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     console.error("Erro ao resetar follow-up do usu�rio:", error);
   }
 
+    const inboundMessageId =
+      waMessage.key.id || `wa_${eventTs.getTime()}_${Math.random().toString(16).slice(2, 10)}`;
+
     const savedMessage = await storage.createMessage({
       conversationId: conversation.id,
-      messageId: waMessage.key.id!,
+      messageId: inboundMessageId,
       fromMe: false,
       text: messageText,
-    timestamp: new Date(Number(waMessage.messageTimestamp) * 1000),
+    timestamp: eventTs,
     isFromAgent: false,
     mediaType,
       mediaUrl,
@@ -3908,7 +4026,7 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
     if (effectiveText !== messageText) {
       await storage.updateConversation(conversation.id, {
         lastMessageText: effectiveText,
-        lastMessageTime: new Date(),
+        lastMessageTime: eventTs,
       });
     }
 
@@ -3923,6 +4041,20 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
   // ⚠️ IMPORTANTE: O check de "isAgentDisabled" se aplica TANTO à IA quanto ao CHATBOT/FLUXO!
   // Quando o dono responde manualmente, AMBOS os sistemas são pausados.
   try {
+    const appendEligible =
+      source === "append" && isAppendRecent && (wasNewConversation || !conversation.hasReplied);
+    const allowAutoReplyCandidate =
+      allowAutoReplyRequested && (source === "notify" || appendEligible);
+
+    if (!allowAutoReplyCandidate) {
+      return;
+    }
+
+    // If we have no usable text, do not trigger chatbot/IA.
+    if (!effectiveText || !effectiveText.trim()) {
+      return;
+    }
+
     const isAgentDisabled = await storage.isAgentDisabledForConversation(conversation.id);
     
     // 🚫 LISTA DE EXCLUSÃO: Verificar se o número está na lista de exclusão
@@ -3953,6 +4085,24 @@ async function handleIncomingMessage(session: WhatsAppSession, waMessage: WAMess
       return;
     }
     
+    if (!canAutoReplyThis) {
+      if (messageKind === "stub") {
+        // WhatsApp sometimes delivers a "stub" for first-lead messages (client sees "carregando mensagem").
+        // We still keep the lead in the CRM and ask the client to resend.
+        try {
+          await sendMessage(
+            session.userId,
+            conversation.id,
+            "Oi! Sua mensagem chegou incompleta aqui. Pode reenviar por favor?",
+            { isFromAgent: true }
+          );
+        } catch (sendErr) {
+          console.error("Erro ao enviar pedido de reenvio (stub):", sendErr);
+        }
+      }
+      return;
+    }
+
     // ✅ Agente/Chatbot NÃO está pausado - processar normalmente
     
     // 🤖 CHATBOT DE FLUXO: Verificar se o usuário tem chatbot ativo ANTES da IA
@@ -4476,7 +4626,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         if (isLast) {
           await storage.updateConversation(conversationId, {
             lastMessageText: part,
-            lastMessageTime: new Date(),
+            lastMessageTime: eventTs,
             // 🔧 FIX: Marcar que a conversa foi respondida (IA também conta!)
             hasReplied: true,
             lastMessageFromMe: true,
@@ -4964,7 +5114,7 @@ export async function sendMessage(
   // ?? FIX: Quando o dono envia mensagem, resetar unreadCount para 0
   await storage.updateConversation(conversationId, {
     lastMessageText: text,
-    lastMessageTime: new Date(),
+    lastMessageTime: eventTs,
     lastMessageFromMe: true,
     hasReplied: true,
     unreadCount: 0,
@@ -5034,7 +5184,7 @@ export async function sendAdminConversationMessage(adminId: string, conversation
 
   await storage.updateAdminConversation(conversationId, {
     lastMessageText: text,
-    lastMessageTime: new Date(),
+    lastMessageTime: eventTs,
   });
 }
 
@@ -5290,7 +5440,7 @@ export async function sendAdminMediaMessage(
 
   await storage.updateAdminConversation(conversationId, {
     lastMessageText: media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)}]`,
-    lastMessageTime: new Date(),
+    lastMessageTime: eventTs,
   });
 }
 
@@ -5428,7 +5578,7 @@ export async function sendUserMediaMessage(
 
   await storage.updateConversation(conversationId, {
     lastMessageText: media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)}]`,
-    lastMessageTime: new Date(),
+    lastMessageTime: eventTs,
   });
 
   // ?? AUTO-PAUSE IA: Quando o dono envia m�dia pelo sistema, PAUSA a IA
@@ -6478,7 +6628,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         // Atualizar última mensagem da conversa
         await storage.updateAdminConversation(conversation.id, {
           lastMessageText: messageText.substring(0, 255),
-          lastMessageTime: new Date(),
+          lastMessageTime: eventTs,
         });
         
         console.log(`✅ [ADMIN FROM ME] Mensagem salva na conversa ${conversation.id}`);
@@ -6807,7 +6957,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           // Atualizar �ltima mensagem da conversa
           await storage.updateAdminConversation(conversation.id, {
             lastMessageText: messageText.substring(0, 255),
-            lastMessageTime: new Date(),
+            lastMessageTime: eventTs,
           });
           
           console.log(`?? [ADMIN] Mensagem salva na conversa ${conversation.id}`);
@@ -6898,7 +7048,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
               
               await storage.updateAdminConversation(conversation.id, {
                 lastMessageText: response.text.substring(0, 255),
-                lastMessageTime: new Date(),
+                lastMessageTime: eventTs,
               });
               
               console.log(`?? [ADMIN AGENT] Resposta (m�dia) salva na conversa ${conversation.id}`);
@@ -7471,43 +7621,89 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
         }
       }
     });
-    
+
     // Handler de mensagens
     sock.ev.on("messages.upsert", async (m) => {
-      const message = m.messages[0];
-      if (!message.message) return;
-      
-      // -----------------------------------------------------------------------
-      // ?? CACHEAR MENSAGEM PARA getMessage() - FIX "AGUARDANDO MENSAGEM" PAIRING
-      // -----------------------------------------------------------------------
-      if (message.key.id && message.message) {
-        cacheMessage(userId, message.key.id, message.message);
-      }
-      
-      // ?? IMPORTANTE: Ignorar mensagens de sincroniza��o/hist�rico
-      // m.type === "notify" = mensagem NOVA (em tempo real)
-      // m.type === "append" = sincroniza��o de hist�rico (ao abrir conversa)
-      if (m.type !== "notify") {
-        console.log(`?? [SYNC] Ignorando mensagem de sincroniza��o (type: ${m.type})`);
-        return;
-      }
-      
-      if (message.key.fromMe) {
-        try {
-          await handleOutgoingMessage(session, message);
-        } catch (err) {
-          console.error("Error handling outgoing message:", err);
+      const source = m.type;
+
+      for (const message of m.messages || []) {
+        if (!message) continue;
+
+        const remoteJid = message.key.remoteJid || null;
+        const rawTs = (message as any)?.messageTimestamp;
+        const nTs = Number(rawTs);
+        const hasValidTs = Number.isFinite(nTs) && nTs > 0;
+        const eventTs = hasValidTs ? new Date(nTs * 1000) : new Date();
+        const ageMs = Math.max(0, Date.now() - eventTs.getTime());
+
+        const isAppendRecent =
+          source === "append" &&
+          ((hasValidTs && ageMs <= 2 * 60 * 1000) || (!hasValidTs && (m.messages?.length || 0) <= 3 && !!message.key.id));
+        const shouldProcess = source === "notify" || isAppendRecent;
+
+        if (message.key.id && message.message) {
+          cacheMessage(userId, message.key.id, message.message);
         }
-        return;
-      }
-      
-      try {
-        await handleIncomingMessage(session, message);
-      } catch (err) {
-        console.error("Error handling incoming message:", err);
+
+        if (!shouldProcess) continue;
+
+        if (!message.key.fromMe && remoteJid) {
+          if (!remoteJid.includes("@g.us") && !remoteJid.includes("@broadcast")) {
+            try {
+              const msg = unwrapIncomingMessageContent(message.message as any);
+              let textContent: string | null = null;
+              let msgType = "text";
+
+              if (!message.message) {
+                msgType = "stub";
+                const stubType = (message as any).messageStubType;
+                textContent = stubType != null ? `[WhatsApp] Mensagem incompleta (stubType=${stubType})` : null;
+              } else if (msg?.conversation) {
+                textContent = msg.conversation;
+              } else if (msg?.extendedTextMessage?.text) {
+                textContent = msg.extendedTextMessage.text;
+              } else {
+                msgType = "unknown";
+                textContent = "[Mensagem nao suportada]";
+              }
+
+              await saveIncomingMessage({
+                userId: userId,
+                connectionId: session.connectionId,
+                waMessage: message,
+                messageContent: textContent,
+                messageType: msgType,
+              });
+            } catch (saveErr) {
+              console.error(`[RECOVERY] Erro ao salvar mensagem pendente (pairing):`, saveErr);
+            }
+          }
+        }
+
+        if (message.key.fromMe) {
+          try {
+            if (source === "notify") {
+              await handleOutgoingMessage(session, message);
+            }
+          } catch (err) {
+            console.error("Error handling outgoing message:", err);
+          }
+          continue;
+        }
+
+        try {
+          await handleIncomingMessage(session, message, {
+            source,
+            allowAutoReply: source === "notify" || isAppendRecent,
+            isAppendRecent,
+            eventTs,
+          });
+        } catch (err) {
+          console.error("Error handling incoming message:", err);
+        }
       }
     });
-    
+
     // Formatar n�mero para pairing (sem + e sem @)
     const cleanNumber = phoneNumber.replace(/\D/g, "");
     console.log(`?? [PAIRING] N�mero formatado para pareamento: ${cleanNumber}`);
