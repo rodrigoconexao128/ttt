@@ -29,7 +29,7 @@ import { eq } from "drizzle-orm";
 import { uploadMediaToStorage } from "./mediaStorageService";
 import { processAudioResponseForAgent } from "./audioResponseService";
 // 🆕 ANTI-REENVIO: Importar serviço de deduplicação para proteção contra instabilidade
-import { canProcessIncomingMessage, canSendMessage, getDeduplicationStats, MessageType, MessageSource } from "./messageDeduplicationService";
+import { isIncomingMessageProcessed, markIncomingMessageProcessed, canSendMessage, getDeduplicationStats, MessageType, MessageSource } from "./messageDeduplicationService";
 // 🆕 v4.0 ANTI-BAN: Serviço de proteção contra bloqueio (rate limiting, safe mode, etc)
 import { antiBanProtectionService } from "./antiBanProtectionService";
 
@@ -3526,25 +3526,31 @@ async function handleIncomingMessage(
   // │  Protege contra reprocessamento após instabilidade/restart           │
   // └───────────────────────────────────────────────────────────────────────┘
   const whatsappMessageId = waMessage.key.id;
-  if (whatsappMessageId) {
-    const contactNumber = remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', '');
-    const conversationId = `${session.connectionId}:${contactNumber}`;
-    
-    // 🐛 FIX: Usar session.userId ao invés de session.connectionId
-    // O incoming_message_log precisa do userId real para que o sistema
-    // encontre o ai_agent_config correto ao processar mensagens
-    const canProcess = await canProcessIncomingMessage({
-      whatsappMessageId,
-      userId: session.userId,  // CORRIGIDO: Era session.connectionId (bug que impedia respostas)
-      conversationId,
-      contactNumber,
-    });
-    
-    if (!canProcess) {
-      console.log(`🛡️ [ANTI-REENVIO] 🚫 Mensagem recebida BLOQUEADA (já processada)!`);
-      console.log(`   📧 De: ${remoteJid.substring(0, 20)}...`);
-      console.log(`   🆔 WhatsApp ID: ${whatsappMessageId}`);
-      console.log(`   ⚠️ Proteção anti-reenvio após instabilidade/restart`);
+  const incomingDedupeParams = whatsappMessageId
+    ? {
+        whatsappMessageId,
+        userId: session.userId,
+        // Use a stable key for incoming dedupe (not the DB conversation UUID).
+        conversationId: `${session.connectionId}:${remoteJid
+          .replace("@s.whatsapp.net", "")
+          .replace("@lid", "")
+          .replace("@g.us", "")}`,
+        contactNumber: remoteJid
+          .replace("@s.whatsapp.net", "")
+          .replace("@lid", "")
+          .replace("@g.us", ""),
+      }
+    : null;
+
+  // ANTI-REENVIO (incoming): check-only first.
+  // IMPORTANT: do NOT mark as processed before we know the message is not a stub/incomplete.
+  // Meta ads leads sometimes arrive as 'stub' (WhatsApp shows "carregando mensagem").
+  if (incomingDedupeParams) {
+    const alreadyProcessed = await isIncomingMessageProcessed(incomingDedupeParams);
+    if (alreadyProcessed) {
+      console.log(`[ANTI-REENVIO] Mensagem recebida BLOQUEADA (ja processada)`);
+      console.log(`   De: ${remoteJid.substring(0, 20)}...`);
+      console.log(`   WhatsApp ID: ${whatsappMessageId}`);
       return;
     }
   }
@@ -3946,6 +3952,9 @@ async function handleIncomingMessage(
     contactNumber
   );
 
+  // Used later to decide append-based auto-reply eligibility (Meta/Instagram leads).
+  const wasNewConversation = !conversation;
+
   if (!conversation) {
     conversation = await storage.createConversation({
       connectionId: session.connectionId,
@@ -4000,6 +4009,16 @@ async function handleIncomingMessage(
       directPath,
       mediaUrlOriginal,
     });
+
+    // Marcar como processada no anti-reenvio APENAS quando nao for stub/incompleta.
+    // Isso evita perder mensagens de leads Meta que chegam primeiro como stub e depois descriptografam.
+    if (incomingDedupeParams && messageKind !== 'stub') {
+      try {
+        await markIncomingMessageProcessed(incomingDedupeParams);
+      } catch (dedupErr) {
+        console.error('??????? [ANTI-REENVIO] Erro ao registrar incoming processado (nao critico):', dedupErr);
+      }
+    }
     
     // -----------------------------------------------------------------------
     // 🚨 SISTEMA DE RECUPERAÇÃO: Marcar mensagem como PROCESSADA com sucesso
@@ -4042,7 +4061,7 @@ async function handleIncomingMessage(
   // Quando o dono responde manualmente, AMBOS os sistemas são pausados.
   try {
     const appendEligible =
-      source === "append" && isAppendRecent && (wasNewConversation || !conversation.hasReplied);
+      source === "append" && isAppendRecent;
     const allowAutoReplyCandidate =
       allowAutoReplyRequested && (source === "notify" || appendEligible);
 
@@ -4260,6 +4279,21 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
   let responseSuccessful = false;
   
   try {
+    // Idempotency: if the conversation already has a reply (owner or agent) newer than
+    // the last customer message, this timer is obsolete and must not re-send.
+    try {
+      const { lastCustomerAt, lastAgentAt, lastOwnerAt } = await storage.getConversationLastMessageTimes(conversationId);
+      const lastReplyAt = [lastAgentAt, lastOwnerAt].filter(Boolean).reduce((a: any, b: any) => (a && a > b ? a : b), null as any);
+
+      if (lastCustomerAt && lastReplyAt && lastReplyAt > lastCustomerAt) {
+        console.log(`?? [AI AGENT] Timer obsoleto: j? existe resposta mais recente que a ?ltima msg do cliente. Marcando como completed.`);
+        responseSuccessful = true;
+        return;
+      }
+    } catch (stateErr) {
+      console.warn(`?? [AI AGENT] Falha ao checar estado de idempot?ncia (n?o cr?tico):`, stateErr);
+    }
+
     const currentSession = sessions.get(userId);
     if (!currentSession?.socket) {
       console.log(`\n${'!'.repeat(60)}`);
@@ -4582,9 +4616,13 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         : `${contactNumber}@${jidSuffix || DEFAULT_JID_SUFFIX}`;
       
       // ?? ANTI-DUPLICA��O: Verificar se resposta j� foi enviada recentemente
+      // NOTE: N?o chamar canSendMessage aqui antes do envio. A fila (messageQueueService) j? faz o dedupe
+      // e o pre-check registrava a mensagem como enviada, fazendo o envio real ser BLOQUEADO.
+
       if (isRecentDuplicate(conversationId, aiResponse)) {
         console.log(`?? [AI AGENT] ?? Resposta ID�NTICA j� enviada nos �ltimos 2 minutos, IGNORANDO duplicata`);
         console.log(`   ?? Texto: "${aiResponse.substring(0, 100)}..."`);
+        responseSuccessful = true;
         return;
       }
       
@@ -4610,28 +4648,40 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           priority: 'high', // Respostas da IA = prioridade alta
         });
 
-        const messageId = queueResult.messageId || `${Date.now()}-${i}`;
+        // Se a fila bloqueou por dedupe, n?o salvar de novo no banco nem tratar como erro.
+        if (queueResult.messageId !== 'DEDUPLICATED_BLOCKED') {
+          const messageId = queueResult.messageId || `${Date.now()}-${i}`;
 
-        await storage.createMessage({
-          conversationId: conversationId,
-          messageId,
-          fromMe: true,
-          text: part, // ? Texto original sem varia��o
-          timestamp: new Date(),
-          status: "sent",
-          isFromAgent: true,
-        });
-
+          try {
+            await storage.createMessage({
+              conversationId: conversationId,
+              messageId,
+              fromMe: true,
+              text: part, // ? Texto original sem varia??o
+              timestamp: new Date(),
+              status: "sent",
+              isFromAgent: true,
+            });
+          } catch (dbSendErr) {
+            // A mensagem j? pode ter sido enviada no WhatsApp; n?o fazer retry agressivo por falha de DB.
+            console.warn(`?? [AI AGENT] Falha ao salvar mensagem enviada no banco (n?o cr?tico):`, dbSendErr);
+          }
+        } else {
+          console.log(`??? [AI AGENT] Parte bloqueada por dedupe (j? enviada antes). Pulando persist?ncia no DB.`);
+        }
         // Só atualizar conversa na última parte
         if (isLast) {
-          await storage.updateConversation(conversationId, {
-            lastMessageText: part,
-            lastMessageTime: eventTs,
-            // 🔧 FIX: Marcar que a conversa foi respondida (IA também conta!)
-            hasReplied: true,
-            lastMessageFromMe: true,
-          });
-
+          try {
+            await storage.updateConversation(conversationId, {
+              lastMessageText: part,
+              lastMessageTime: new Date(),
+              // ?? FIX: Marcar que a conversa foi respondida (IA tamb?m conta!)
+              hasReplied: true,
+              lastMessageFromMe: true,
+            });
+          } catch (dbConvErr) {
+            console.warn(`?? [AI AGENT] Falha ao atualizar conversa no banco (n?o cr?tico):`, dbConvErr);
+          }
           broadcastToUser(userId, {
             type: "agent_response",
             conversationId: conversationId,
@@ -4642,6 +4692,10 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         console.log(`[AI Agent] Part ${i+1}/${messageParts.length} SENT to WhatsApp ${contactNumber}`);
       }
       
+      // ? MARCAR COMO SUCESSO assim que o texto foi enviado (evita retry/spam se tarefas n?o-cr?ticas falharem)
+      responseSuccessful = true;
+      console.log(`? [AI AGENT] Texto enviado com sucesso (marcando timer como completed ao final)`);
+
       // 🎤 TTS: Gerar e enviar áudio da resposta (se configurado)
       try {
         const audioSent = await processAudioResponseForAgent(
@@ -4669,6 +4723,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         
         await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1000));
         
+        try {
         await executeMediaActions({
           userId,
           jid: mediaJid,
@@ -4676,6 +4731,9 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           actions: mediaActions,
           socket: currentSession.socket,
         });
+        } catch (mediaErr) {
+          console.error(`?? [AI Agent] Erro ao executar a??es de m?dia (n?o cr?tico):`, mediaErr);
+        }
         
         console.log(`?? [AI Agent] M�dias enviadas com sucesso!`);
       }
@@ -5041,7 +5099,7 @@ export async function sendMessage(
   userId: string, 
   conversationId: string, 
   text: string,
-  options?: { isFromAgent?: boolean }
+  options?: { isFromAgent?: boolean; source?: "owner" | "agent" | "followup" | "system" }
 ): Promise<void> {
   const session = sessions.get(userId);
   if (!session?.socket) {
@@ -5059,66 +5117,72 @@ export async function sendMessage(
     throw new Error("Unauthorized access to conversation");
   }
 
-  // ?? ANTI-DUPLICA��O: Verificar se mensagem j� foi enviada recentemente (para follow-up)
+  // ANTI-DUPLICACAO: Verificar se mensagem ja foi enviada recentemente (para follow-up)
   if (options?.isFromAgent) {
     if (isRecentDuplicate(conversationId, text)) {
-      console.log(`?? [sendMessage] ?? Mensagem ID�NTICA j� enviada recentemente, IGNORANDO duplicata`);
-      console.log(`   ?? Texto: "${text.substring(0, 80)}..."`);
-      return; // Silenciosamente ignorar duplicata
+      console.log(`?? [sendMessage] Mensagem IDENTICA ja enviada recentemente, IGNORANDO duplicata`);
+      console.log(`   Texto: "${text.substring(0, 80)}..."`);
+      return;
     }
-    // Registrar mensagem no cache
     registerSentMessageCache(conversationId, text);
   }
 
+  const messageSource = options?.source ?? (options?.isFromAgent ? "agent" : "owner");
+
   // Usar remoteJid normalizado do banco (suporta @lid, @s.whatsapp.net, etc)
   const jid = buildSendJid(conversation);
-  
-  console.log(`[sendMessage] Sending to: ${jid}${options?.isFromAgent ? ' (from agent/follow-up)' : ''}`);
-  
-  // ??? ANTI-BLOQUEIO: Usar fila de mensagens para garantir delay entre envios
-  // Cada WhatsApp tem sua pr�pria fila - m�ltiplos usu�rios podem enviar ao mesmo tempo
-  // ? Texto enviado EXATAMENTE como recebido (varia��o REMOVIDA do sistema)
+
+  console.log(`[sendMessage] Sending to: ${jid}${options?.isFromAgent ? " (from agent/follow-up)" : ""}`);
+
   const queueResult = await messageQueueService.enqueue(userId, jid, text, {
     isFromAgent: options?.isFromAgent,
-    priority: options?.isFromAgent ? 'normal' : 'high', // Mensagens manuais do dono = prioridade alta
+    priority: options?.isFromAgent ? "normal" : "high", // Mensagens manuais do dono = prioridade alta
   });
+
+  // Se a fila bloqueou por dedupe, nada foi enviado. Nao persistir e nem disparar side-effects.
+  if (queueResult.messageId === "DEDUPLICATED_BLOCKED") {
+    console.log(`?? [sendMessage] Dedupe bloqueou envio. Ignorando persistencia/side-effects.`);
+    return;
+  }
 
   const messageId = queueResult.messageId || Date.now().toString();
 
-  await storage.createMessage({
-    conversationId,
-    messageId,
-    fromMe: true,
-    text: text, // ? Texto original sem varia��o
-    timestamp: new Date(),
-    status: "sent",
-    // ?? FIX: Marcar mensagens de follow-up como isFromAgent para que a IA
-    // saiba que foi ela quem enviou quando retomar a conversa
-    isFromAgent: options?.isFromAgent ?? false,
-  });
-
-  // ?? FOLLOW-UP ADMIN: Continua usando sistema antigo para admin_conversations
   try {
-    await followUpService.scheduleInitialFollowUp(conversationId);
-  } catch (error) {
-    console.error("Erro ao agendar follow-up admin:", error);
+    await storage.createMessage({
+      conversationId,
+      messageId,
+      fromMe: true,
+      text: text,
+      timestamp: new Date(),
+      status: "sent",
+      isFromAgent: options?.isFromAgent ?? false,
+    });
+  } catch (dbErr) {
+    // A mensagem pode ter sido enviada no WhatsApp; nao fazer retry agressivo por falha de DB.
+    console.warn(`?? [sendMessage] Falha ao salvar mensagem enviada no DB (nao critico):`, dbErr);
   }
 
-  // ?? FOLLOW-UP USU�RIOS: Ativar follow-up para conversas de usu�rios
-  try {
-    await userFollowUpService.enableFollowUp(conversationId);
-  } catch (error) {
-    console.error("Erro ao ativar follow-up do usu�rio:", error);
+  // FOLLOW-UP USUARIOS: (re)ativar somente apos mensagens do dono/agente, nunca apos um follow-up.
+  // Caso contrario, o follow-up reativa a si mesmo e entra em loop.
+  if (messageSource != "followup") {
+    try {
+      await userFollowUpService.enableFollowUp(conversationId);
+    } catch (error) {
+      console.error("Erro ao ativar follow-up do usuario:", error);
+    }
   }
 
-  // ?? FIX: Quando o dono envia mensagem, resetar unreadCount para 0
-  await storage.updateConversation(conversationId, {
-    lastMessageText: text,
-    lastMessageTime: eventTs,
-    lastMessageFromMe: true,
-    hasReplied: true,
-    unreadCount: 0,
-  });
+  try {
+    await storage.updateConversation(conversationId, {
+      lastMessageText: text,
+      lastMessageTime: new Date(),
+      lastMessageFromMe: true,
+      hasReplied: true,
+      unreadCount: 0,
+    });
+  } catch (dbErr) {
+    console.warn(`?? [sendMessage] Falha ao atualizar conversa no DB (nao critico):`, dbErr);
+  }
 
   broadcastToUser(userId, {
     type: "message_sent",
@@ -5184,7 +5248,7 @@ export async function sendAdminConversationMessage(adminId: string, conversation
 
   await storage.updateAdminConversation(conversationId, {
     lastMessageText: text,
-    lastMessageTime: eventTs,
+    lastMessageTime: new Date(),
   });
 }
 
@@ -5440,7 +5504,7 @@ export async function sendAdminMediaMessage(
 
   await storage.updateAdminConversation(conversationId, {
     lastMessageText: media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)}]`,
-    lastMessageTime: eventTs,
+    lastMessageTime: new Date(),
   });
 }
 
@@ -5578,7 +5642,7 @@ export async function sendUserMediaMessage(
 
   await storage.updateConversation(conversationId, {
     lastMessageText: media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)}]`,
-    lastMessageTime: eventTs,
+    lastMessageTime: new Date(),
   });
 
   // ?? AUTO-PAUSE IA: Quando o dono envia m�dia pelo sistema, PAUSA a IA
@@ -6628,7 +6692,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         // Atualizar última mensagem da conversa
         await storage.updateAdminConversation(conversation.id, {
           lastMessageText: messageText.substring(0, 255),
-          lastMessageTime: eventTs,
+          lastMessageTime: new Date(),
         });
         
         console.log(`✅ [ADMIN FROM ME] Mensagem salva na conversa ${conversation.id}`);
@@ -6957,7 +7021,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           // Atualizar �ltima mensagem da conversa
           await storage.updateAdminConversation(conversation.id, {
             lastMessageText: messageText.substring(0, 255),
-            lastMessageTime: eventTs,
+            lastMessageTime: new Date(),
           });
           
           console.log(`?? [ADMIN] Mensagem salva na conversa ${conversation.id}`);
@@ -7048,7 +7112,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
               
               await storage.updateAdminConversation(conversation.id, {
                 lastMessageText: response.text.substring(0, 255),
-                lastMessageTime: eventTs,
+                lastMessageTime: new Date(),
               });
               
               console.log(`?? [ADMIN AGENT] Resposta (m�dia) salva na conversa ${conversation.id}`);
@@ -7493,6 +7557,69 @@ export async function restoreAdminSessions(): Promise<void> {
 // Isso permite conectar pelo celular sem precisar escanear QR Code
 // -----------------------------------------------------------------------
 
+/**
+ * Helper para aguardar o WebSocket do Baileys abrir antes de enviar mensagens.
+ * O Baileys lanza erro se tentar enviar antes do WS estar aberto (Connection Closed).
+ */
+async function waitForBaileysWsOpen(sock: any, timeoutMs: number = 15000): Promise<void> {
+  const ws = sock?.ws;
+  if (!ws) {
+    throw new Error('WebSocket não encontrado no socket Baileys');
+  }
+
+  // Já está aberto
+  if (ws.isOpen === true) {
+    console.log(`[WS] WebSocket já está aberto (isOpen=true)`);
+    return;
+  }
+
+  console.log(`[WS] Aguardando WebSocket abrir... (ws.isOpen=${ws.isOpen}, timeout=${timeoutMs}ms)`);
+
+  return new Promise<void>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timeout aguardando conexão WebSocket (${timeoutMs}ms). O WebSocket não abriu a tempo.`));
+    }, timeoutMs);
+
+    const onOpen = () => {
+      console.log(`[WS] WebSocket aberto com sucesso!`);
+      cleanup();
+      resolve();
+    };
+
+    const onClose = () => {
+      cleanup();
+      reject(new Error('WebSocket fechado antes de abrir (connection closed)'));
+    };
+
+    const onError = (err: any) => {
+      cleanup();
+      reject(new Error(`WebSocket erro antes de abrir: ${err?.message || err}`));
+    };
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      try {
+        ws.off('open', onOpen);
+        ws.off('close', onClose);
+        ws.off('error', onError);
+      } catch (e) {
+        // Ignorar erros ao remover listeners
+      }
+    };
+
+    // Inscrever listeners
+    try {
+      ws.on('open', onOpen);
+      ws.on('close', onClose);
+      ws.on('error', onError);
+    } catch (e) {
+      cleanup();
+      reject(new Error(`Erro ao inscrever listeners no WebSocket: ${e}`));
+    }
+  });
+}
+
 export async function requestClientPairingCode(userId: string, phoneNumber: string): Promise<string | null> {
   // 🛡️ MODO DESENVOLVIMENTO: Bloquear pairing para evitar conflito com produção
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
@@ -7518,12 +7645,15 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       const existingSession = sessions.get(userId);
       if (existingSession?.socket) {
         try {
-          console.log(`?? [PAIRING] Limpando sess�o anterior...`);
-          await existingSession.socket.logout();
+          console.log(`?? [PAIRING] Limpando sessão anterior (encerrando conexão local)...`);
+          // Usar end() em vez de logout() para não enviar logout remoto
+          // Isso evita desconectar a sessão do celular do usuário
+          await existingSession.socket.end(undefined);
         } catch (e) {
-          console.log(`?? [PAIRING] Erro ao fazer logout da sess�o anterior (ignorando):`, e);
+          console.log(`?? [PAIRING] Erro ao encerrar sessão anterior (ignorando):`, e);
         }
         sessions.delete(userId);
+        unregisterWhatsAppSession(userId);
       }
     
     // Criar/obter conex�o
@@ -7706,8 +7836,22 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
 
     // Formatar n�mero para pairing (sem + e sem @)
     const cleanNumber = phoneNumber.replace(/\D/g, "");
-    console.log(`?? [PAIRING] N�mero formatado para pareamento: ${cleanNumber}`);
-    
+    console.log(`?? [PAIRING] Número formatado para pareamento: ${cleanNumber}`);
+
+    // -----------------------------------------------------------------------
+    // ?? FIX: Aguardar WebSocket abrir antes de solicitar pairing code
+    // -----------------------------------------------------------------------
+    // O Baileys lança "Connection Closed" se chamarmos requestPairingCode
+    // antes do WebSocket estar aberto (ws.isOpen === true)
+    try {
+      console.log(`?? [PAIRING] Aguardando WebSocket do Baileys abrir antes de solicitar código...`);
+      await waitForBaileysWsOpen(sock, 15000);
+      console.log(`?? [PAIRING] WebSocket aberto, solicitando pairing code para ${cleanNumber}`);
+    } catch (wsError: any) {
+      console.error(`?? [PAIRING] Erro ao aguardar WebSocket:`, wsError);
+      throw new Error(`Não foi possível estabelecer conexão com o WhatsApp: ${wsError.message}`);
+    }
+
     // Solicitar c�digo de pareamento
     // O c�digo ser� enviado via WhatsApp para o n�mero informado
     try {

@@ -25,7 +25,8 @@ import {
   Shield,
   Lock,
   MessageSquare,
-  Mail
+  Mail,
+  Wallet
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
@@ -35,6 +36,7 @@ import { format, isPast, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import { SubscribeModal } from "@/components/subscribe-modal";
 
 // Declaração global para MercadoPago SDK
 declare global {
@@ -189,6 +191,7 @@ export default function MySubscription() {
   const [showPaymentMethodDialog, setShowPaymentMethodDialog] = useState(false);
   const [showAnnualDialog, setShowAnnualDialog] = useState(false);
   const [showAdvancePaymentDialog, setShowAdvancePaymentDialog] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false); // Modal de pagamento com cartão/PIX
   
   // Estados para formulário de cartão (Cadastrar Cartão)
   const [cardNumber, setCardNumber] = useState("");
@@ -229,6 +232,29 @@ export default function MySubscription() {
     },
     enabled: showPaymentMethodDialog,
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // BUSCAR DOCUMENTO SALVO DO USUÁRIO PARA PRÉ-PREENCHER
+  // ═══════════════════════════════════════════════════════════════════
+  const { data: savedDocument } = useQuery({
+    queryKey: ["user-document"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/user/document");
+      return res.json();
+    },
+  });
+  
+  // Pré-preencher documento salvo quando carregar
+  useEffect(() => {
+    if (savedDocument) {
+      if (savedDocument.document_type) {
+        setDocType(savedDocument.document_type);
+      }
+      if (savedDocument.document_number) {
+        setDocNumber(savedDocument.document_number);
+      }
+    }
+  }, [savedDocument]);
 
   // Inicializar MercadoPago SDK quando abrir dialog de cartão
   useEffect(() => {
@@ -864,6 +890,7 @@ export default function MySubscription() {
                 : parseFloat(resellerInfo?.clientPrice || plan?.valor || "0");
               
               // Verificar se é assinatura com cartão (tem mpSubscriptionId)
+              // Para clientes de revendedor, o backend já retorna mpSubscriptionId=null
               const hasCardSubscription = !!subscription.mpSubscriptionId;
               
               return (
@@ -906,7 +933,7 @@ export default function MySubscription() {
                       </p>
                     </div>
                     
-                    {/* Se tem assinatura com cartão, cobrança é automática */}
+                    {/* Se tem assinatura com cartão (e NÃO é cliente revendedor), cobrança é automática */}
                     {hasCardSubscription ? (
                       <div className="text-center">
                         <Badge variant="secondary" className="flex items-center gap-1">
@@ -915,20 +942,13 @@ export default function MySubscription() {
                         </Badge>
                       </div>
                     ) : (
-                      /* Só mostrar botão de pagar antecipado para PIX */
-                      <Button 
-                        onClick={() => generatePixMutation.mutate(subscription.id)}
-                        disabled={generatePixMutation.isPending}
+                      /* Botão para abrir modal de pagamento (Cartão ou PIX) - igual para todos os clientes */
+                      <Button
+                        onClick={() => setShowPaymentModal(true)}
                         className={isOverdue ? "bg-red-600 hover:bg-red-700" : ""}
                       >
-                        {generatePixMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <>
-                            <QrCode className="w-4 h-4 mr-2" />
-                            {isOverdue ? "Pagar Agora" : "Pagar Antecipado"}
-                          </>
-                        )}
+                        <Wallet className="w-4 h-4 mr-2" />
+                        {isOverdue ? "Pagar Agora" : "Pagar Antecipado"}
                       </Button>
                     )}
                   </div>
@@ -1049,25 +1069,24 @@ export default function MySubscription() {
               )}
               
               {/* Antecipar Pagamento - SÓ PARA PIX (sem assinatura de cartão) */}
-              {subscription.status === "active" && 
-               subscription.daysRemaining <= 30 && 
+              {subscription.status === "active" &&
+               subscription.daysRemaining <= 30 &&
                !subscription.mpSubscriptionId && (
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
-                  onClick={() => generatePixMutation.mutate(subscription.id)}
+                  onClick={() => setShowPaymentModal(true)}
                   className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
-                  disabled={generatePixMutation.isPending}
                 >
                   <CalendarClock className="w-4 h-4 mr-2" />
                   Antecipar Pagamento
                 </Button>
               )}
-              
-              {/* Para clientes sem cartão cadastrado - opção de cadastrar */}
-              {subscription.status === "active" && !subscription.mpSubscriptionId && (
-                <Button 
-                  variant="outline" 
+
+              {/* Para clientes sem cartão cadastrado - opção de cadastrar - NÃO mostrar para clientes revendedor */}
+              {subscription.status === "active" && !subscription.mpSubscriptionId && !resellerInfo?.isResellerClient && (
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => setShowPaymentMethodDialog(true)}
                   className="w-full border-purple-200 text-purple-700 hover:bg-purple-50"
@@ -1409,12 +1428,12 @@ export default function MySubscription() {
                   </Button>
                 )}
                 
-                {/* Opção de PIX sempre disponível */}
+                {/* Botão de PIX Anual - Sem campo de documento */}
                 <Button 
                   className={`w-full ${subscription?.mpSubscriptionId ? 'bg-green-500 hover:bg-green-600' : 'bg-green-600 hover:bg-green-700'}`}
                   onClick={() => generateAnnualPixMutation.mutate({ 
                     subscriptionId: subscription!.id, 
-                    discountPercent: annualDiscountPercent 
+                    discountPercent: annualDiscountPercent,
                   })}
                   disabled={generateAnnualPixMutation.isPending}
                 >
@@ -1586,6 +1605,17 @@ export default function MySubscription() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Pagamento com opções de Cartão e PIX */}
+      <SubscribeModal
+        open={showPaymentModal}
+        onOpenChange={setShowPaymentModal}
+        subscriptionId={subscription?.id || null}
+        onSuccess={() => {
+          refetch();
+          setShowPaymentModal(false);
+        }}
+      />
     </div>
   );
 }
