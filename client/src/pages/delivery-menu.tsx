@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAuthToken } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,10 @@ import {
   Store,
   CreditCard,
   Sparkles,
-  XCircle
+  XCircle,
+  User,
+  ShieldCheck,
+  MessageSquare
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -125,6 +128,7 @@ interface DeliveryConfig {
   send_to_ai: boolean;
   business_name: string | null;
   business_type: string;
+  menu_send_mode?: 'text' | 'image' | 'image_text';
   delivery_fee: number;
   min_order_value: number;
   estimated_delivery_time: number;
@@ -137,6 +141,16 @@ interface DeliveryConfig {
   ai_instructions: string;
   display_instructions: string | null;
   whatsapp_order_number: string | null;
+  welcome_message?: string;
+  order_confirmation_message?: string;
+  order_ready_message?: string;
+  out_for_delivery_message?: string;
+  closed_message?: string;
+  use_customer_name?: boolean;
+  humanize_responses?: boolean;
+  response_variation?: boolean;
+  response_delay_min?: number;
+  response_delay_max?: number;
 }
 
 interface ItemsResponse {
@@ -157,6 +171,12 @@ export default function DeliveryMenuPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+
+  const [welcomeMessage, setWelcomeMessage] = useState('');
+  const [orderConfirmationMessage, setOrderConfirmationMessage] = useState('');
+  const [orderReadyMessage, setOrderReadyMessage] = useState('');
+  const [outForDeliveryMessage, setOutForDeliveryMessage] = useState('');
+  const [closedMessage, setClosedMessage] = useState('');
   
   // Modal states
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
@@ -166,6 +186,7 @@ export default function DeliveryMenuPage() {
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [editingCategory, setEditingCategory] = useState<MenuCategory | null>(null);
   const [isLoadingImage, setIsLoadingImage] = useState(false);
+  const [isUploadingCategoryImage, setIsUploadingCategoryImage] = useState(false);
   
   // Form state para item
   const [itemForm, setItemForm] = useState({
@@ -226,6 +247,21 @@ export default function DeliveryMenuPage() {
   const { data: config, isLoading: isLoadingConfig } = useQuery<DeliveryConfig>({
     queryKey: ["/api/delivery-config"],
   });
+
+  useEffect(() => {
+    if (!config) return;
+    setWelcomeMessage(config.welcome_message || '');
+    setOrderConfirmationMessage(config.order_confirmation_message || '');
+    setOrderReadyMessage(config.order_ready_message || '');
+    setOutForDeliveryMessage(config.out_for_delivery_message || '');
+    setClosedMessage(config.closed_message || '');
+  }, [
+    config?.welcome_message,
+    config?.order_confirmation_message,
+    config?.order_ready_message,
+    config?.out_for_delivery_message,
+    config?.closed_message,
+  ]);
 
   // Helper para invalidar queries
   const invalidateDeliveryQueries = () => {
@@ -450,6 +486,33 @@ export default function DeliveryMenuPage() {
       toast({ title: "Erro ao buscar imagem", variant: "destructive" });
     } finally {
       setIsLoadingImage(false);
+    }
+  };
+
+  const uploadCategoryImage = async (file: File) => {
+    setIsUploadingCategoryImage(true);
+    try {
+      const token = await getAuthToken();
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/agent/media/upload', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (data?.storageUrl) {
+        setCategoryForm(prev => ({ ...prev, imageUrl: data.storageUrl }));
+        toast({ title: "Imagem enviada!", description: "Imagem aplicada à categoria." });
+      } else {
+        throw new Error(data?.message || 'Falha ao enviar imagem');
+      }
+    } catch (error) {
+      toast({ title: "Erro ao enviar imagem", variant: "destructive" });
+    } finally {
+      setIsUploadingCategoryImage(false);
     }
   };
 
@@ -1194,6 +1257,26 @@ export default function DeliveryMenuPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
+                  <Label>Modo de envio do cardápio</Label>
+                  <Select
+                    value={config?.menu_send_mode || 'text'}
+                    onValueChange={(value) => updateConfigMutation.mutate({ menu_send_mode: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o modo de envio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="text">Somente texto</SelectItem>
+                      <SelectItem value="image_text">Imagem + texto</SelectItem>
+                      <SelectItem value="image">Somente imagem</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Use as imagens das categorias para enviar o cardápio visual pelo WhatsApp.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="display_instructions">Instruções de Apresentação</Label>
                   <textarea
                     id="display_instructions"
@@ -1236,6 +1319,203 @@ export default function DeliveryMenuPage() {
                   <p className="text-sm text-amber-800">
                     <strong>📝 Dica:</strong> Para editar os itens do cardápio (nomes, preços, descrições), 
                     use a aba "Cardápio". Esta seção é apenas para configurar o <em>comportamento</em> da IA ao apresentar.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Mensagens Personalizadas */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  Mensagens Personalizadas
+                </CardTitle>
+                <CardDescription>
+                  Configure as mensagens que a IA envia em cada etapa do atendimento.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>📋 Mensagem de Boas-vindas</Label>
+                  <textarea
+                    className="w-full min-h-[80px] p-3 text-sm rounded-lg border border-input bg-background resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Olá! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?"
+                    value={welcomeMessage}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setWelcomeMessage(value);
+                      updateConfigMutation.mutate({ welcome_message: value });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">Enviada quando o cliente inicia uma conversa</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>✅ Confirmação de Pedido</Label>
+                  <textarea
+                    className="w-full min-h-[80px] p-3 text-sm rounded-lg border border-input bg-background resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Seu pedido foi recebido! ✅ Em breve enviaremos a confirmação."
+                    value={orderConfirmationMessage}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setOrderConfirmationMessage(value);
+                      updateConfigMutation.mutate({ order_confirmation_message: value });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">Enviada quando o pedido é finalizado pelo cliente</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>🍕 Pedido Pronto</Label>
+                  <textarea
+                    className="w-full min-h-[80px] p-3 text-sm rounded-lg border border-input bg-background resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Seu pedido está pronto! 🍕"
+                    value={orderReadyMessage}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setOrderReadyMessage(value);
+                      updateConfigMutation.mutate({ order_ready_message: value });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">Enviada quando você marca o pedido como "Pronto"</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>🚚 Saiu para Entrega</Label>
+                  <textarea
+                    className="w-full min-h-[80px] p-3 text-sm rounded-lg border border-input bg-background resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Seu pedido saiu para entrega! 🚚 Aguarde!"
+                    value={outForDeliveryMessage}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setOutForDeliveryMessage(value);
+                      updateConfigMutation.mutate({ out_for_delivery_message: value });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">Enviada quando o pedido sai para entrega</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>🔒 Estabelecimento Fechado</Label>
+                  <textarea
+                    className="w-full min-h-[80px] p-3 text-sm rounded-lg border border-input bg-background resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Estamos fechados no momento. Nosso horário de funcionamento é: {horarios}"
+                    value={closedMessage}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setClosedMessage(value);
+                      updateConfigMutation.mutate({ closed_message: value });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">Enviada quando cliente tenta pedir fora do horário. Use {'{horarios}'} para inserir os horários automaticamente</p>
+                </div>
+
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>💡 Dica:</strong> Use variáveis como {'{cliente_nome}'} para personalizar as mensagens. 
+                    A IA irá substituir automaticamente pelo nome do cliente.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Humanização e Anti-Ban */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  Humanização e Anti-Ban
+                </CardTitle>
+                <CardDescription>
+                  Configure como a IA deve responder para parecer mais humana e evitar bloqueios do WhatsApp.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <div>
+                      <span className="font-medium">Chamar pelo Nome</span>
+                      <p className="text-xs text-muted-foreground">
+                        A IA chama o cliente pelo nome quando disponível
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={config?.use_customer_name ?? true}
+                    onCheckedChange={(checked) => updateConfigMutation.mutate({ use_customer_name: checked })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-4 w-4" />
+                    <div>
+                      <span className="font-medium">Humanizar Respostas</span>
+                      <p className="text-xs text-muted-foreground">
+                        A IA varia as respostas para parecer mais humana
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={config?.humanize_responses ?? true}
+                    onCheckedChange={(checked) => updateConfigMutation.mutate({ humanize_responses: checked })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4" />
+                    <div>
+                      <span className="font-medium">Variação de Resposta</span>
+                      <p className="text-xs text-muted-foreground">
+                        Varia estrutura das mensagens para evitar detecção de bot
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={config?.response_variation ?? true}
+                    onCheckedChange={(checked) => updateConfigMutation.mutate({ response_variation: checked })}
+                  />
+                </div>
+
+                <div className="p-4 border rounded-lg bg-amber-50 border-amber-200">
+                  <Label className="flex items-center gap-2 mb-3">
+                    <Clock className="h-4 w-4" />
+                    Delay Anti-Ban (segundos)
+                  </Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Mínimo</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={config?.response_delay_min || 2}
+                        onChange={(e) => updateConfigMutation.mutate({ response_delay_min: parseInt(e.target.value) || 2 })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Máximo</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="60"
+                        value={config?.response_delay_max || 5}
+                        onChange={(e) => updateConfigMutation.mutate({ response_delay_max: parseInt(e.target.value) || 5 })}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-amber-700 mt-2">
+                    ⚠️ Intervalo aleatório entre mensagens para evitar bloqueio do WhatsApp
+                  </p>
+                </div>
+
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    <strong>✅ Recomendação:</strong> Mantenha todas as opções ativas e use delay entre 2-5 segundos 
+                    para uma experiência natural e segura.
                   </p>
                 </div>
               </CardContent>
@@ -1681,6 +1961,36 @@ export default function DeliveryMenuPage() {
                 onChange={(e) => setCategoryForm({ ...categoryForm, imageUrl: e.target.value })}
                 placeholder="URL da imagem da categoria"
               />
+            </div>
+            <div className="grid gap-2">
+              <Label>Enviar imagem da categoria</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    uploadCategoryImage(file);
+                    e.currentTarget.value = '';
+                  }
+                }}
+                disabled={isUploadingCategoryImage}
+              />
+              {categoryForm.imageUrl && (
+                <div className="flex items-center gap-3 rounded-lg border p-2">
+                  <img
+                    src={categoryForm.imageUrl}
+                    alt="Prévia da categoria"
+                    className="h-12 w-12 rounded-md object-cover"
+                  />
+                  <div className="text-xs text-muted-foreground break-all">
+                    {categoryForm.imageUrl}
+                  </div>
+                </div>
+              )}
+              {isUploadingCategoryImage && (
+                <p className="text-xs text-muted-foreground">Enviando imagem...</p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Checkbox 

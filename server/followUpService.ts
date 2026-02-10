@@ -96,6 +96,9 @@ export class FollowUpService {
     } catch (error) {
       console.error("❌ [FOLLOW-UP] Erro ao processar follow-ups:", error);
     }
+    finally {
+      this.isProcessingCycle = false;
+    }
   }
 
   /**

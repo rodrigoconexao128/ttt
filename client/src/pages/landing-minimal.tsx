@@ -195,6 +195,26 @@ export default function LandingMinimal() {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     document.title = 'AgenteZap — IA para WhatsApp | Plataforma Tudo-em-Um de Atendimento e Vendas';
+
+    const prevBodyOverflowY = document.body.style.overflowY;
+    const prevHtmlOverflowY = document.documentElement.style.overflowY;
+    const prevBodyPosition = document.body.style.position;
+    const prevBodyTouchAction = document.body.style.touchAction;
+    const prevHtmlTouchAction = document.documentElement.style.touchAction;
+    const prevBodyOverscroll = document.body.style.overscrollBehaviorY as string;
+    const prevHtmlOverscroll = document.documentElement.style.overscrollBehaviorY as string;
+    const prevBodyHeight = document.body.style.height;
+    const prevHtmlHeight = document.documentElement.style.height;
+
+    document.body.style.overflowY = 'auto';
+    document.documentElement.style.overflowY = 'auto';
+    document.body.style.position = 'static';
+    document.body.style.touchAction = 'pan-y';
+    document.documentElement.style.touchAction = 'pan-y';
+    document.body.style.overscrollBehaviorY = 'auto';
+    document.documentElement.style.overscrollBehaviorY = 'auto';
+    document.body.style.height = 'auto';
+    document.documentElement.style.height = 'auto';
     
     // SEO Meta Tags
     const metaDescription = document.querySelector('meta[name="description"]');
@@ -250,6 +270,15 @@ export default function LandingMinimal() {
       if (script.parentNode) {
         script.parentNode.removeChild(script);
       }
+      document.body.style.overflowY = prevBodyOverflowY;
+      document.documentElement.style.overflowY = prevHtmlOverflowY;
+      document.body.style.position = prevBodyPosition;
+      document.body.style.touchAction = prevBodyTouchAction;
+      document.documentElement.style.touchAction = prevHtmlTouchAction;
+      document.body.style.overscrollBehaviorY = prevBodyOverscroll;
+      document.documentElement.style.overscrollBehaviorY = prevHtmlOverscroll;
+      document.body.style.height = prevBodyHeight;
+      document.documentElement.style.height = prevHtmlHeight;
     };
   }, []);
 
@@ -300,7 +329,7 @@ export default function LandingMinimal() {
   ];
 
   return (
-    <div className="min-h-screen bg-white overflow-x-hidden">
+    <div className="min-h-screen bg-white overflow-x-hidden touch-pan-y">
       {/* Header */}
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-sm shadow-sm' : 'bg-transparent'}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6">

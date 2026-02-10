@@ -40,6 +40,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const headers: Record<string, string> = {
     ...options.headers as Record<string, string>,
     'Content-Type': 'application/json',
+    'Accept': 'application/json', // Correção: header necessário para evitar erro 406
   };
 
   if (token) {

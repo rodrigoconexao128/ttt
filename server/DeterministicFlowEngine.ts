@@ -495,8 +495,8 @@ Retorne JSON neste formato EXATO:
         return String(entities[trimmed]);
       }
 
-      // Se não encontrou, manter o placeholder
-      return match;
+      // Se não encontrou, remover o placeholder
+      return '';
     });
 
     return response;

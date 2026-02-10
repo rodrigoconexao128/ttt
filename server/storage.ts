@@ -250,7 +250,7 @@ export interface IStorage {
   isAgentDisabledForConversation(conversationId: string): Promise<boolean>;
   disableAgentForConversation(conversationId: string, autoReactivateAfterMinutes?: number | null): Promise<void>;
   enableAgentForConversation(conversationId: string): Promise<void>;
-  updateDisabledConversationOwnerReply(conversationId: string): Promise<void>;
+  updateDisabledConversationOwnerReply(conversationId: string, autoReactivateAfterMinutes?: number | null): Promise<void>;
   markClientPendingMessage(conversationId: string): Promise<void>;
   getConversationsToAutoReactivate(): Promise<Array<{ conversationId: string; clientLastMessageAt: Date | null }>>;
   getDisabledConversationDetails(conversationId: string): Promise<{ ownerLastReplyAt: Date | null; autoReactivateAfterMinutes: number | null; clientHasPendingMessage: boolean } | null>;
@@ -1050,13 +1050,23 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     console.log(`✅ [STORAGE] IA reativada para conversa ${conversationId} (follow-up permanece no estado atual)`);
   }
 
-  async updateDisabledConversationOwnerReply(conversationId: string): Promise<void> {
+  async updateDisabledConversationOwnerReply(conversationId: string, autoReactivateAfterMinutes?: number | null): Promise<void> {
+    const updateData: Partial<{
+      ownerLastReplyAt: Date;
+      clientHasPendingMessage: boolean;
+      autoReactivateAfterMinutes: number | null;
+    }> = {
+      ownerLastReplyAt: new Date(),
+      clientHasPendingMessage: false, // Reset when owner replies again
+    };
+
+    if (autoReactivateAfterMinutes !== undefined) {
+      updateData.autoReactivateAfterMinutes = autoReactivateAfterMinutes;
+    }
+
     await db
       .update(agentDisabledConversations)
-      .set({ 
-        ownerLastReplyAt: new Date(),
-        clientHasPendingMessage: false, // Reset when owner replies again
-      })
+      .set(updateData)
       .where(eq(agentDisabledConversations.conversationId, conversationId));
   }
 
@@ -4823,7 +4833,36 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
 
   // 🚨 AUTO-RECUPERAÇÃO: Busca timers "completed" que na verdade não receberam resposta
   // Isso captura casos onde o timer foi marcado completed mas a resposta falhou
-  async getCompletedTimersWithoutResponse(): Promise<Array<{
+  
+
+  // Idempotency helper for AI timers: cheap DB check to avoid re-sending when a reply already exists.
+  async getConversationLastMessageTimes(conversationId: string): Promise<{
+    lastCustomerAt: Date | null;
+    lastAgentAt: Date | null;
+    lastOwnerAt: Date | null;
+  }> {
+    try {
+      const result = await db.execute(sql`
+        SELECT
+          MAX(timestamp) FILTER (WHERE from_me = false) AS last_customer_at,
+          MAX(timestamp) FILTER (WHERE from_me = true AND is_from_agent = true) AS last_agent_at,
+          MAX(timestamp) FILTER (WHERE from_me = true AND COALESCE(is_from_agent, false) = false) AS last_owner_at
+        FROM messages
+        WHERE conversation_id = ${conversationId}
+      `);
+
+      const row = (result.rows as any[] | undefined)?.[0];
+      return {
+        lastCustomerAt: row?.last_customer_at ? new Date(row.last_customer_at) : null,
+        lastAgentAt: row?.last_agent_at ? new Date(row.last_agent_at) : null,
+        lastOwnerAt: row?.last_owner_at ? new Date(row.last_owner_at) : null,
+      };
+    } catch (error) {
+      console.error('Error getting conversation last message times:', error);
+      return { lastCustomerAt: null, lastAgentAt: null, lastOwnerAt: null };
+    }
+  }
+async getCompletedTimersWithoutResponse(): Promise<Array<{
     conversationId: string;
     userId: string;
     contactNumber: string;
@@ -4847,10 +4886,10 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
           AND p.updated_at > NOW() - INTERVAL '2 hours'
           AND (
             -- Última msg do cliente > última resposta da IA
-            (SELECT MAX(m.created_at) FROM messages m WHERE m.conversation_id = p.conversation_id AND m.from_me = false)
+            (SELECT MAX(m.timestamp) FROM messages m WHERE m.conversation_id = p.conversation_id AND m.from_me = false)
             >
             COALESCE(
-              (SELECT MAX(m.created_at) FROM messages m WHERE m.conversation_id = p.conversation_id AND m.from_me = true AND m.is_from_agent = true),
+              (SELECT MAX(m.timestamp) FROM messages m WHERE m.conversation_id = p.conversation_id AND m.from_me = true AND m.is_from_agent = true),
               '1970-01-01'
             )
           )

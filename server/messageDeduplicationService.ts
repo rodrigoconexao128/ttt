@@ -350,34 +350,29 @@ class MessageDeduplicationService {
    * 
    * Retorna TRUE se pode processar, FALSE se já foi processada
    */
-  async canProcessIncomingMessage(params: {
+  async checkIncomingMessageProcessed(params: {
     whatsappMessageId: string;
     userId: string;
     contactNumber?: string;
     conversationId?: string;
-  }): Promise<boolean> {
+  }): Promise<{ processed: boolean; source: "cache" | "db" | "none" }> {
     const { whatsappMessageId, userId, contactNumber, conversationId } = params;
-    
-    // 1️⃣ VERIFICAÇÃO RÁPIDA: Cache em memória
+
+    // 1) Cache em memoria
     if (this.incomingCache.has(whatsappMessageId)) {
-      console.log(`🛡️ [ANTI-REENVIO] ❌ Mensagem já processada (cache): ${whatsappMessageId}`);
-      this.stats.incomingBlocked++;
-      return false;
+      return { processed: true, source: "cache" };
     }
-    
-    // 2️⃣ VERIFICAÇÃO PERSISTENTE: Banco de dados
+
+    // 2) Banco de dados
     try {
-      const { data: existing, error } = await this.supabase
+      const { data: existing } = await this.supabase
         .from('incoming_message_log')
         .select('id')
         .eq('whatsapp_message_id', whatsappMessageId)
         .single();
-      
+
       if (existing) {
-        console.log(`🛡️ [ANTI-REENVIO] ❌ Mensagem já processada (banco): ${whatsappMessageId}`);
-        this.stats.incomingBlocked++;
-        
-        // Adicionar ao cache para próxima verificação ser mais rápida
+        // Adicionar ao cache para proxima verificacao ser mais rapida
         this.incomingCache.set(whatsappMessageId, {
           whatsappMessageId,
           userId,
@@ -386,24 +381,69 @@ class MessageDeduplicationService {
           processed: true,
           receivedAt: Date.now(),
         });
-        
-        return false;
+        return { processed: true, source: "db" };
       }
     } catch (err) {
-      // Ignorar erros de banco para não bloquear mensagens legítimas
-      console.error('🛡️ [ANTI-REENVIO] Erro ao verificar incoming:', err);
+      // Ignorar erros de banco para nao bloquear mensagens legitimas
+      console.error('??????? [ANTI-REENVIO] Erro ao verificar incoming:', err);
     }
-    
-    // ✅ PODE PROCESSAR - Registrar para evitar reprocessamento
+
+    return { processed: false, source: "none" };
+  }
+
+  /**
+   * ??????? Verifica se uma mensagem recebida ja foi processada
+   * 
+   * Retorna TRUE se pode processar, FALSE se ja foi processada
+   */
+  async canProcessIncomingMessage(params: {
+    whatsappMessageId: string;
+    userId: string;
+    contactNumber?: string;
+    conversationId?: string;
+  }): Promise<boolean> {
+    const { whatsappMessageId, userId, contactNumber, conversationId } = params;
+
+    const check = await this.checkIncomingMessageProcessed({
+      whatsappMessageId,
+      userId,
+      contactNumber,
+      conversationId,
+    });
+
+    if (check.processed) {
+      if (check.source === "cache") {
+        console.log(`??????? [ANTI-REENVIO] ??? Mensagem ja processada (cache): ${whatsappMessageId}`);
+      } else {
+        console.log(`??????? [ANTI-REENVIO] ??? Mensagem ja processada (banco): ${whatsappMessageId}`);
+      }
+      this.stats.incomingBlocked++;
+      return false;
+    }
+
+    // Pode processar: registrar para evitar reprocessamento (apenas para caminho legacy)
     await this.registerIncomingMessage({
       whatsappMessageId,
       userId,
       contactNumber,
       conversationId,
     });
-    
+
     this.stats.incomingAllowed++;
     return true;
+  }
+
+  /**
+   * ??????? Check-only: TRUE se ja foi processada (nao registra).
+   */
+  async isIncomingMessageProcessed(params: {
+    whatsappMessageId: string;
+    userId: string;
+    contactNumber?: string;
+    conversationId?: string;
+  }): Promise<boolean> {
+    const check = await this.checkIncomingMessageProcessed(params);
+    return check.processed;
   }
 
   /**
@@ -603,6 +643,24 @@ export async function canProcessIncomingMessage(params: {
   conversationId?: string;
 }): Promise<boolean> {
   return messageDeduplicationService.canProcessIncomingMessage(params);
+}
+
+export async function isIncomingMessageProcessed(params: {
+  whatsappMessageId: string;
+  userId: string;
+  contactNumber?: string;
+  conversationId?: string;
+}): Promise<boolean> {
+  return messageDeduplicationService.isIncomingMessageProcessed(params);
+}
+
+export async function markIncomingMessageProcessed(params: {
+  whatsappMessageId: string;
+  userId: string;
+  contactNumber?: string;
+  conversationId?: string;
+}): Promise<void> {
+  return messageDeduplicationService.registerIncomingMessage(params);
 }
 
 export function getDeduplicationStats() {

@@ -210,19 +210,44 @@ export default function MyAgent() {
     fetchMediaList();
   }, [fetchMediaList]);
 
+  // 🔄 HELPER: Retry com backoff exponencial para chamadas de API
+  const retryWithBackoff = async <T,>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    initialDelay: number = 1000
+  ): Promise<T> => {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error as Error;
+        if (attempt < maxRetries - 1) {
+          const delay = initialDelay * Math.pow(2, attempt);
+          console.log(`🔄 [RETRY] Tentativa ${attempt + 1}/${maxRetries} falhou. Aguardando ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    throw lastError;
+  };
+
   // Mutations
   const saveConfigMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/agent/config", {
-        prompt,
-        isActive,
-        triggerPhrases,
-        messageSplitChars,
-        responseDelaySeconds,
-        fetchHistoryOnFirstResponse,
-        pauseOnManualReply,
-        autoReactivateMinutes,
-      });
+      // 🔄 RETRY AUTOMÁTICO: até 3 tentativas com backoff exponencial
+      return await retryWithBackoff(async () => {
+        return await apiRequest("POST", "/api/agent/config", {
+          prompt,
+          isActive,
+          triggerPhrases,
+          messageSplitChars,
+          responseDelaySeconds,
+          fetchHistoryOnFirstResponse,
+          pauseOnManualReply,
+          autoReactivateMinutes,
+        });
+      }, 3, 1000);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/config"] });
@@ -234,7 +259,7 @@ export default function MyAgent() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao salvar",
-        description: error.message,
+        description: `${error.message}. Tente novamente em alguns segundos.`,
         variant: "destructive",
       });
     },
@@ -248,12 +273,15 @@ export default function MyAgent() {
         content: msg.message
       }));
       
-      const response = await apiRequest("POST", "/api/agent/test", {
-        message: userMsg,
-        // 🆕 ENVIAR HISTÓRICO E MÍDIAS PARA SIMULADOR UNIFICADO
-        history: historyForBackend,
-        sentMedias: sentMedias
-      });
+      // 🔄 RETRY AUTOMÁTICO: até 5 tentativas com backoff exponencial (Mistral pode dar rate limit)
+      const response = await retryWithBackoff(async () => {
+        return await apiRequest("POST", "/api/agent/test", {
+          message: userMsg,
+          // 🆕 ENVIAR HISTÓRICO E MÍDIAS PARA SIMULADOR UNIFICADO
+          history: historyForBackend,
+          sentMedias: sentMedias
+        });
+      }, 5, 2000);
       const data = await response.json();
       return data;
     },
@@ -264,7 +292,7 @@ export default function MyAgent() {
       setTestMessage(""); // Limpa o input
     },
     onSuccess: (data: any) => {
-      const agentResponse = data?.response || "Sem resposta";
+      const agentResponse = typeof data?.response === "string" ? data.response : "";
       setTestResponse(agentResponse);
       const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       
@@ -279,6 +307,15 @@ export default function MyAgent() {
             newMessages.push({
               role: 'agent',
               message: '', // Sem texto - apenas mídia
+              time,
+              mediaUrl: action.media_url,
+              mediaType: action.media_type || 'image'
+            });
+          }
+          if (action.type === 'send_media_url' && action.media_url) {
+            newMessages.push({
+              role: 'agent',
+              message: '',
               time,
               mediaUrl: action.media_url,
               mediaType: action.media_type || 'image'

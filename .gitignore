@@ -85,3 +85,7 @@ lid-mapping-*.json
 logs/
 tmp/
 temp_audio/
+
+# App code (do not ignore)
+!client/src/lib/queryClient.ts
+

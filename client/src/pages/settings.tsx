@@ -308,7 +308,11 @@ export default function SettingsPage() {
                   className="h-11"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Máximo 50 caracteres. Aparecerá como: <strong>*{signature || "Nome"}:*</strong> sua mensagem
+                  Máximo 50 caracteres. Aparecerá como:
+                  <span className="block">
+                    <strong>*{signature || "Nome"}:*</strong>
+                  </span>
+                  <span className="block">sua mensagem</span>
                 </p>
               </div>
 
@@ -316,7 +320,8 @@ export default function SettingsPage() {
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-xs text-muted-foreground mb-1">Prévia:</p>
                   <p className="text-sm">
-                    <strong>*{signature}:*</strong> Olá, como posso ajudar?
+                    <strong>*{signature}:*</strong>
+                    <span className="block">Olá, como posso ajudar?</span>
                   </p>
                 </div>
               )}

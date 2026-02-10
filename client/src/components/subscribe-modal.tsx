@@ -14,10 +14,13 @@ import {
   QrCode,
   Copy,
   CheckCircle2,
-  Clock
+  Clock,
+  Upload,
+  FileImage
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { getAuthToken } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -123,6 +126,13 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
   
   const mpInstanceRef = useRef<any>(null);
   const pixPollingRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Estados para upload de comprovante PIX
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
 
   // Resetar estados de parcelas quando o modal abre ou subscriptionId muda
   useEffect(() => {
@@ -161,6 +171,62 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
     },
     enabled: open,
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // VERIFICAR SE PIX MANUAL ESTÁ ATIVADO NO ADMIN
+  // Se sim, forçar método de pagamento para PIX e esconder opção cartão
+  // ═══════════════════════════════════════════════════════════════════
+  const { data: checkoutConfig } = useQuery({
+    queryKey: ["checkout-config"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/checkout/config");
+      return res.json();
+    },
+    enabled: open,
+  });
+  
+  const pixManualEnabled = checkoutConfig?.pix_manual_enabled === true;
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // BUSCAR DOCUMENTO SALVO DO USUÁRIO PARA PRÉ-PREENCHER
+  // ═══════════════════════════════════════════════════════════════════
+  const { data: savedDocument } = useQuery({
+    queryKey: ["user-document"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/user/document");
+      return res.json();
+    },
+    enabled: open,
+  });
+  
+  // Pré-preencher documento salvo quando carregar
+  useEffect(() => {
+    if (savedDocument && open) {
+      if (savedDocument.document_type && !docType) {
+        setDocType(savedDocument.document_type);
+      }
+      if (savedDocument.document_number && !docNumber) {
+        setDocNumber(savedDocument.document_number);
+      }
+    }
+  }, [savedDocument, open]);
+  
+  // Forçar PIX quando pix_manual_enabled está ativo
+  useEffect(() => {
+    if (pixManualEnabled && paymentMethod !== "pix") {
+      setPaymentMethod("pix");
+    }
+  }, [pixManualEnabled, paymentMethod]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // AUTO-GERAR PIX QUANDO MODAL ABRIR COM PIX SELECIONADO
+  // ═══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (open && paymentMethod === "pix" && !pixData && !isProcessing && subscriptionId && email) {
+      console.log("[Auto-PIX] Gerando PIX automaticamente...");
+      handlePixSubmit();
+    }
+  }, [open, paymentMethod, subscriptionId, email]);
 
   // Inicializar MP
   useEffect(() => {
@@ -504,6 +570,96 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
   };
 
   // ═══════════════════════════════════════════════════════════════════════════════
+  // UPLOAD DE COMPROVANTE PIX - Libera acesso temporário
+  // ═══════════════════════════════════════════════════════════════════════════════
+  const handleReceiptUpload = async () => {
+    if (!receiptFile || !subscriptionId || !pixData) {
+      toast({ title: "Erro", description: "Selecione um arquivo para enviar.", variant: "destructive" });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("receipt", receiptFile);
+      formData.append("subscriptionId", subscriptionId);
+      formData.append("paymentId", pixData.paymentId);
+      formData.append("amount", pixData.amount.toString());
+
+      // Obter token de autenticação
+      const memberToken = localStorage.getItem("memberToken");
+      const token = memberToken || await getAuthToken();
+      
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch("/api/payment-receipts/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+        headers
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Erro ao enviar comprovante");
+      }
+
+      setUploadSuccess(true);
+      setShowUploadModal(false);
+      setReceiptFile(null);
+      
+      toast({ 
+        title: "Comprovante enviado!", 
+        description: "Seu acesso foi liberado. Aguarde a confirmação do administrador." 
+      });
+      
+      // Fechar modal principal e notificar sucesso
+      setTimeout(() => {
+        onOpenChange(false);
+        if (onSuccess) onSuccess();
+      }, 2000);
+      
+    } catch (error: any) {
+      toast({ 
+        title: "Erro ao enviar", 
+        description: error.message || "Tente novamente mais tarde.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validar tipo de arquivo (imagens e PDF)
+      const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"];
+      if (!validTypes.includes(file.type)) {
+        toast({ 
+          title: "Formato inválido", 
+          description: "Envie uma imagem (JPG, PNG, GIF, WebP) ou PDF.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      // Validar tamanho (máximo 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ 
+          title: "Arquivo muito grande", 
+          description: "O arquivo deve ter no máximo 5MB.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      setReceiptFile(file);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════════
   // HANDLE SUBMIT - VERSÃO 2025: Gerar DOIS tokens para cobrança imediata + assinatura
   // ═══════════════════════════════════════════════════════════════════════════════
   // O MercadoPago.js permite gerar múltiplos tokens do mesmo cartão
@@ -605,9 +761,9 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
   const totalInitial = hasSetupFee ? setupFee : monthlyPrice;
   
   // Verificar se é plano de implementação elegível para parcelamento
-  // Permite parcelar se: tem valor de implementação >= R$100 ou é plano tipo implementacao
+  // Permite parcelar se: tem valor de implementação >= R$100, é plano tipo implementacao, ou é plano anual
   const isImplementationPlan = hasSetupFee || plan?.tipo === "implementacao" || plan?.tipo === "implementacao_mensal";
-  const canInstallment = isImplementationPlan && totalInitial >= 100;
+  const canInstallment = (isImplementationPlan || isAnnual) && totalInitial >= 100;
   
   // Calcular valor da parcela baseado nas opções da API ou valor total
   const selectedInstallmentOption = installmentOptions.find(o => o.installments === installments);
@@ -687,7 +843,7 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
               <div className="mt-6 pt-4 border-t border-white/10">
                 <div className="flex items-center gap-2 text-xs text-gray-400">
                   <Shield className="w-3 h-3" />
-                  <span>Pagamento 100% seguro via Mercado Pago</span>
+                  <span>{pixManualEnabled ? "Pagamento 100% seguro via PIX" : "Pagamento 100% seguro via Mercado Pago"}</span>
                 </div>
               </div>
             </div>
@@ -696,29 +852,33 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
             <div className="w-full md:w-[58%] p-8 md:p-10 bg-[#fafafa]">
               {/* Seleção de método */}
               <div className="mb-4 space-y-2">
-                <div 
-                  className={cn(
-                    "border rounded-lg p-3 flex items-center justify-between cursor-pointer transition-all",
-                    paymentMethod === "card" 
-                      ? "border-primary ring-1 ring-primary/20 bg-gray-50" 
-                      : "border-gray-200 hover:border-gray-300"
-                  )}
-                  onClick={() => { setPaymentMethod("card"); setPixData(null); setError(null); }}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={cn(
-                      "w-4 h-4 rounded-full border-2",
-                      paymentMethod === "card" ? "border-[4px] border-primary" : "border-gray-300"
-                    )} />
-                    <CreditCard className="w-4 h-4 text-gray-600" />
-                    <span className="font-medium text-sm">Cartão de crédito</span>
+                {/* Opção Cartão de Crédito - ESCONDIDA quando PIX manual está ativo */}
+                {!pixManualEnabled && (
+                  <div 
+                    className={cn(
+                      "border rounded-lg p-3 flex items-center justify-between cursor-pointer transition-all",
+                      paymentMethod === "card" 
+                        ? "border-primary ring-1 ring-primary/20 bg-gray-50" 
+                        : "border-gray-200 hover:border-gray-300"
+                    )}
+                    onClick={() => { setPaymentMethod("card"); setPixData(null); setError(null); }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "w-4 h-4 rounded-full border-2",
+                        paymentMethod === "card" ? "border-[4px] border-primary" : "border-gray-300"
+                      )} />
+                      <CreditCard className="w-4 h-4 text-gray-600" />
+                      <span className="font-medium text-sm">Cartão de crédito</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <img src="https://img.icons8.com/color/48/visa.png" alt="Visa" className="h-4" />
+                      <img src="https://img.icons8.com/color/48/mastercard.png" alt="Master" className="h-4" />
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <img src="https://img.icons8.com/color/48/visa.png" alt="Visa" className="h-4" />
-                    <img src="https://img.icons8.com/color/48/mastercard.png" alt="Master" className="h-4" />
-                  </div>
-                </div>
+                )}
 
+                {/* Opção PIX - Sempre visível, com texto diferente para PIX manual */}
                 <div 
                   className={cn(
                     "border rounded-lg p-3 flex items-center justify-between cursor-pointer transition-all",
@@ -736,7 +896,7 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                     <QrCode className="w-4 h-4 text-green-600" />
                     <span className="font-medium text-sm">PIX</span>
                     <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">
-                      Imediato
+                      {pixManualEnabled ? "Manual" : "Imediato"}
                     </span>
                   </div>
                 </div>
@@ -822,7 +982,7 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                   {canInstallment && (
                     <div className="p-4 bg-muted/40 border border-border rounded-lg">
                       <label className="text-sm font-medium text-foreground mb-2 block">
-                        Parcelamento da implementação
+                        {isAnnual ? "Parcelamento do plano anual" : "Parcelamento da implementação"}
                       </label>
                       
                       {loadingInstallments ? (
@@ -852,10 +1012,17 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                         </div>
                       )}
                       
-                      {/* Nota simples (sem taxa/alerta) */}
-                      {installmentOptions.length > 0 && (
+                      {/* Nota para planos com implementação (não anuais) */}
+                      {installmentOptions.length > 0 && !isAnnual && (
                         <p className="mt-2 text-xs text-muted-foreground">
                           A mensalidade de R$ {monthlyPrice.toFixed(2).replace(".", ",")}/{periodLabel} será cobrada somente a partir do mês seguinte à confirmação do pagamento da implementação.
+                        </p>
+                      )}
+                      
+                      {/* Nota para planos anuais */}
+                      {installmentOptions.length > 0 && isAnnual && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Pagamento único parcelado no cartão de crédito. Seu plano anual estará ativo por 12 meses.
                         </p>
                       )}
                     </div>
@@ -880,6 +1047,10 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                         </div>
                         <span className="text-xs opacity-80">Aguarde, não clique novamente</span>
                       </div>
+                    ) : isAnnual ? (
+                      installments > 1 
+                        ? `Pagar em ${installments}x de R$ ${installmentValue.toFixed(2).replace(".", ",")}`
+                        : `Pagar R$ ${totalInitial.toFixed(2).replace(".", ",")} à vista`
                     ) : installments > 1 ? (
                       `Assinar em ${installments}x de R$ ${installmentValue.toFixed(2).replace(".", ",")}`
                     ) : (
@@ -896,32 +1067,18 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                 </form>
               )}
 
-              {/* FORM PIX */}
+              {/* FORM PIX - AUTO-GERA AUTOMATICAMENTE */}
               {paymentMethod === "pix" && !pixData && (
-                <div className="space-y-3">
+                <div className="space-y-3 text-center py-8">
                   {error && (
-                    <div className="p-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs">
+                    <div className="p-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs mb-4">
                       {error}
                     </div>
                   )}
 
-                  <Button 
-                    onClick={handlePixSubmit}
-                    disabled={isProcessing}
-                    className="w-full h-10 bg-green-600 hover:bg-green-700"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Gerando PIX...
-                      </>
-                    ) : (
-                      <>
-                        <QrCode className="w-4 h-4 mr-2" />
-                        Gerar QR Code PIX
-                      </>
-                    )}
-                  </Button>
+                  <Loader2 className="w-10 h-10 mx-auto mb-4 animate-spin text-green-600" />
+                  <p className="text-base font-medium text-gray-700">Gerando QR Code PIX...</p>
+                  <p className="text-sm text-gray-500">Aguarde alguns instantes</p>
                 </div>
               )}
 
@@ -941,6 +1098,13 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                     <p className="text-xl font-bold text-primary">
                       R$ {pixData.amount.toFixed(2).replace(".", ",")}
                     </p>
+                  </div>
+
+                  <div className="text-left bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Pix Copia e Cola</p>
+                    <code className="block text-[11px] leading-relaxed font-mono text-gray-800 break-all">
+                      {pixData.qrCode}
+                    </code>
                   </div>
                   
                   {/* Cronômetro */}
@@ -974,6 +1138,104 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                     <Loader2 className="w-3 h-3 animate-spin" />
                     <span>Aguardando pagamento...</span>
                   </div>
+
+                  {/* Botão "Já paguei" - minimalista */}
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="text-xs text-primary hover:text-primary/80 underline underline-offset-2 transition-colors"
+                  >
+                    Já paguei? Enviar comprovante
+                  </button>
+
+                  {/* Modal de Upload do Comprovante */}
+                  {showUploadModal && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+                      <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-md mx-4 shadow-xl">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold">Enviar Comprovante</h3>
+                          <button 
+                            onClick={() => {
+                              setShowUploadModal(false);
+                              setReceiptFile(null);
+                            }}
+                            className="text-gray-500 hover:text-gray-700"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-4">
+                          Envie o comprovante de pagamento PIX para liberarmos seu acesso.
+                        </p>
+
+                        {/* Área de upload */}
+                        <div 
+                          onClick={() => receiptInputRef.current?.click()}
+                          className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
+                        >
+                          <input
+                            ref={receiptInputRef}
+                            type="file"
+                            accept="image/*,application/pdf"
+                            onChange={handleFileChange}
+                            className="hidden"
+                          />
+                          {receiptFile ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <FileImage className="w-10 h-10 text-green-500" />
+                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {receiptFile.name}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {(receiptFile.size / 1024).toFixed(1)} KB
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-2">
+                              <Upload className="w-10 h-10 text-gray-400" />
+                              <span className="text-sm text-gray-500">
+                                Clique para selecionar o comprovante
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                Imagem ou PDF (máx. 5MB)
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Botões */}
+                        <div className="flex gap-3 mt-6">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setShowUploadModal(false);
+                              setReceiptFile(null);
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            className="flex-1"
+                            onClick={handleReceiptUpload}
+                            disabled={!receiptFile || isUploading}
+                          >
+                            {isUploading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Enviando...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-4 h-4 mr-2" />
+                                Enviar
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

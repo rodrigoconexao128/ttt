@@ -5,21 +5,39 @@ interface PixPaymentData {
   planNome: string;
   valor: number;
   subscriptionId: string;
+  pixKeyOverride?: string;
 }
 
 export async function generatePixQRCode(paymentData: PixPaymentData) {
   try {
     const pixKeyConfig = await storage.getSystemConfig('pix_key');
-    const pixKeyRaw = pixKeyConfig?.valor || 'rodrigoconexao128@gmail.com';
+    const merchantNameConfig = await storage.getSystemConfig('merchant_name');
+    const merchantCityConfig = await storage.getSystemConfig('merchant_city');
+    
+    const pixKeyRaw = paymentData.pixKeyOverride || pixKeyConfig?.valor || 'rodrigoconexao128@gmail.com';
+    const merchantNameRaw = merchantNameConfig?.valor || 'RODRIGO MACEDO';
+    const merchantCityRaw = merchantCityConfig?.valor || 'COSMORAMA';
 
-    // Formata a chave PIX seguindo o padrão do plugin de referência (Parser::parse)
-    // Se for telefone (apenas dígitos), adiciona +55 no início
+    // Formata a chave PIX seguindo o padrão EMV BR Code
+    // Se for telefone (apenas dígitos), formata como +55XXXXXXXXXXX
     let pixKey = String(pixKeyRaw).replace(/\s+/g, '').trim();
 
-    // Detecta se é telefone (10 ou 11 dígitos) e adiciona +55
-    const onlyDigits = pixKey.replace(/\D/g, '');
-    if (onlyDigits.length === 10 || onlyDigits.length === 11) {
-      // É telefone - formata como +55XXXXXXXXXXX
+    // Seguindo exatamente o padrão Piggly parsePhone():
+    // 1. Remove +55 se existir
+    // 2. Remove caracteres não numéricos  
+    // 3. Se começa com 55 (DDI), remove o 55
+    // 4. Adiciona +55 no início
+    
+    const cleanKey = pixKey.replace(/\+55/g, ''); // Remove +55 se existir
+    let onlyDigits = cleanKey.replace(/\D/g, ''); // Apenas dígitos
+    
+    // Se for telefone (10-13 dígitos), formata corretamente
+    if (onlyDigits.length >= 10 && onlyDigits.length <= 13) {
+      // Se começa com 55 (DDI Brasil já incluído), remove para não duplicar
+      if (onlyDigits.length >= 12 && onlyDigits.startsWith('55')) {
+        onlyDigits = onlyDigits.substring(2); // Remove o 55 do início
+      }
+      // Agora adiciona +55 (resultado: +55 + DDD + número)
       pixKey = '+55' + onlyDigits;
     }
 
@@ -40,14 +58,14 @@ export async function generatePixQRCode(paymentData: PixPaymentData) {
       (s || '')
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-        .replace(/[^A-Za-z0-9 \-]/g, '') // Mantém apenas A-Z, a-z, 0-9, espaço e hífen
+        .replace(/[^A-Za-z0-9 ]/g, '')   // Mantém apenas A-Z, a-z, 0-9 e espaço (SEM hífen)
         .replace(/\s+/g, ' ')            // Normaliza espaços múltiplos
         .trim()
         .toUpperCase()                   // Converte para maiúsculas
         .slice(0, max);                  // Limita ao tamanho máximo
 
-    const name = sanitize('WHATSAPP CRM SAAS', 25);
-    const city = sanitize('SAO PAULO', 15);
+    const name = sanitize(merchantNameRaw, 25);
+    const city = sanitize(merchantCityRaw, 15);
     const message = sanitize(`Pagamento ${paymentData.planNome || ''}`, 50);
 
     // TLV helpers
@@ -84,6 +102,15 @@ export async function generatePixQRCode(paymentData: PixPaymentData) {
     }
     const crcHex = crc.toString(16).toUpperCase().padStart(4, '0');
     const payload = crcInput + crcHex;
+
+    // Log para debug do PIX
+    console.log('[PIX Generation]', {
+      pixKeyRaw,
+      pixKeyFormatted: pixKey,
+      amount: valor,
+      txid,
+      payload: payload.substring(0, 100) + '...'
+    });
 
     // Gera imagem do QR
     const pixQrCode = await QRCode.toDataURL(payload, { errorCorrectionLevel: 'M', type: 'image/png', margin: 1, width: 300 });

@@ -9,6 +9,7 @@ import makeWASocket, {
   jidDecode,
   makeCacheableSignalKeyStore,
   Browsers,
+  fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
 import pino from "pino";
@@ -378,6 +379,82 @@ export function registerAgentMessageId(messageId: string): void {
 // Evita m�ltiplas solicita��es simult�neas para o mesmo usu�rio
 const pendingPairingRequests = new Map<string, Promise<string | null>>();
 
+// ?? Map para rastrear sess�es de pairing ativas com expiração
+// Se o usuário não digitar o código em 3 minutos, limpa a sessão automaticamente
+interface PairingSession {
+  startedAt: number;
+  phone: string;
+  codeIssuedAt?: number;
+  expiresAt: number;
+  timeoutId?: NodeJS.Timeout;
+}
+const pairingSessions = new Map<string, PairingSession>();
+const PAIRING_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos - WhatsApp às vezes demora para achar a opção
+
+// -----------------------------------------------------------------------
+// ?? PAIRING STATE MANAGER - Gerencia estado de pairing com restart automático
+// -----------------------------------------------------------------------
+// Mantém o estado do pairing entre restarts do socket (515 restartRequired)
+// Permite reconexão automática sem perder o auth_pairing
+// -----------------------------------------------------------------------
+interface PairingState {
+  userId: string;
+  authPath: string;
+  phone: string;
+  code?: string;
+  startedAt: number;
+  expiresAt: number;
+  retryCount: number;
+  lastRetryAt: number;
+  isRestarting: boolean;
+  socketRef?: any;  // Referência ao socket atual
+  sessionRef?: WhatsAppSession;  // Referência à sessão atual
+}
+const pairingStateMap = new Map<string, PairingState>();
+
+// Funções auxiliares do pairing manager
+function getPairingState(userId: string): PairingState | undefined {
+  return pairingStateMap.get(userId);
+}
+
+function setPairingState(userId: string, state: Partial<PairingState>): PairingState {
+  const current = pairingStateMap.get(userId) || {
+    userId,
+    authPath: '',
+    phone: '',
+    startedAt: Date.now(),
+    expiresAt: Date.now() + PAIRING_SESSION_TIMEOUT_MS,
+    retryCount: 0,
+    lastRetryAt: 0,
+    isRestarting: false,
+  };
+
+  const updated = { ...current, ...state };
+  pairingStateMap.set(userId, updated);
+  return updated;
+}
+
+function clearPairingState(userId: string): void {
+  pairingStateMap.delete(userId);
+}
+
+function isPairingExpired(userId: string): boolean {
+  const state = pairingStateMap.get(userId);
+  if (!state) return true;
+  return Date.now() > state.expiresAt;
+}
+
+// ?? Map para controle de cooldown de rate limit (429)
+// Quando o WhatsApp retorna rate limit, bloqueia novas tentativas por X minutos
+const pairingRateLimitCooldown = new Map<string, { until: number; statusCode: number }>();
+const RATE_LIMIT_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutos de cooldown
+
+// ?? Map para controle de retries de pairing (para tratar 515 restartRequired)
+// Quando o Baileys fecha com 515, precisamos reconectar mantendo o mesmo auth
+const pairingRetries = new Map<string, { count: number; lastAttempt: number }>();
+const MAX_PAIRING_RETRIES = 5; // Máximo de restarts permitidos
+const PAIRING_RETRY_COOLDOWN_MS = 10000; // 10 segundos entre retries
+
 // ?? Map para rastrear conex�es em andamento
 // Evita m�ltiplas tentativas de conex�o simult�neas para o mesmo usu�rio
 const pendingConnections = new Map<string, Promise<void>>();
@@ -390,6 +467,16 @@ interface ReconnectAttempt {
 const reconnectAttempts = new Map<string, ReconnectAttempt>();
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconexão
+
+// ?? Map para rastrear auto-retry após logout (QR Code)
+// Permite um único auto-retry quando auth inválido causa logout imediato
+interface LogoutAutoRetry {
+  count: number;
+  lastAttempt: number;
+}
+const logoutAutoRetry = new Map<string, LogoutAutoRetry>();
+const LOGOUT_AUTO_RETRY_COOLDOWN_MS = 60000; // 60 segundos
+const MAX_LOGOUT_AUTO_RETRY = 1; // Apenas 1 tentativa automática
 
 // 🔄 Iniciar polling de mensagens não processadas
 // (variáveis necessárias já foram declaradas acima)
@@ -2535,8 +2622,36 @@ export async function connectWhatsApp(userId: string): Promise<void> {
 
     sock.ev.on("connection.update", async (update) => {
       const { connection: conn, lastDisconnect, qr } = update;
-      
-      console.log(`[CONNECTION UPDATE] User ${userId} - connection: ${conn}, hasQR: ${!!qr}, hasLastDisconnect: ${!!lastDisconnect}`);
+
+      // -----------------------------------------------------------------------
+      // ?? LOGS ESTRUTURADOS PARA DEBUG
+      // -----------------------------------------------------------------------
+      const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+      const errorMessage = (lastDisconnect?.error as any)?.message;
+
+      console.log(`[CONNECTION UPDATE] User ${userId.substring(0, 8)}... - connection: ${conn}, hasQR: ${!!qr}, statusCode: ${statusCode || 'none'}`);
+
+      // Log adicional em caso de close para diagnóstico
+      if (conn === "close") {
+        console.log(`[CONNECTION CLOSE] Details:`, {
+          userId: userId.substring(0, 8) + '...',
+          statusCode,
+          errorMessage: errorMessage || 'none',
+          DisconnectReason: statusCode === DisconnectReason.loggedOut ? 'loggedOut' :
+                           statusCode === DisconnectReason.connectionClosed ? 'connectionClosed' :
+                           statusCode === DisconnectReason.timedOut ? 'timedOut' :
+                           `unknown(${statusCode})`
+        });
+
+        // Logar estado dos arquivos de auth (apenas contagem, sem conteúdo sensível)
+        try {
+          const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+          const files = await fs.readdir(userAuthPath).catch(() => []);
+          console.log(`[CONNECTION CLOSE] Auth files count: ${files.length}, files: ${files.join(', ')}`);
+        } catch (e) {
+          console.log(`[CONNECTION CLOSE] Could not read auth directory`);
+        }
+      }
 
       if (qr) {
         console.log(`[QR CODE] Generating QR Code for user ${userId}...`);
@@ -2577,20 +2692,39 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       if (conn === "close") {
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        
+
+        // -----------------------------------------------------------------------
+        // ?? GUARD CONTRA SOCKET STALE
+        // -----------------------------------------------------------------------
+        // Um socket "antigo" pode fechar depois que um socket mais novo já conectou.
+        // Se processarmos o close do socket antigo, vamos apagar a sessão nova e
+        // marcar isConnected=false no banco, mesmo com o socket ativo.
+        //
+        // Solução: verificar se este sock ainda é o socket atual antes de tomar
+        // ações destrutivas (delete, update DB, reconnect).
+        // -----------------------------------------------------------------------
+        const currentSession = sessions.get(userId);
+
+        if (currentSession?.socket !== sock) {
+          console.log(`[CONNECTION CLOSE] ?? STALE SOCKET IGNORED - User ${userId.substring(0, 8)}...`);
+          console.log(`[CONNECTION CLOSE] Current socket differs from closing socket, ignoring close event`);
+          // Não fazer nada - o socket atual está ativo, este é um socket antigo
+          return;
+        }
+
         // -----------------------------------------------------------------------
         // 🚨 SISTEMA DE RECUPERAÇÃO: Registrar desconexão
         // -----------------------------------------------------------------------
         // Salvar evento de desconexão para diagnóstico e recuperação
         try {
-          const disconnectReason = (lastDisconnect?.error as any)?.message || 
+          const disconnectReason = (lastDisconnect?.error as any)?.message ||
                                    `statusCode: ${statusCode}`;
           await logConnectionDisconnection(userId, session.connectionId, disconnectReason);
         } catch (logErr) {
           console.error(`🚨 [RECOVERY] Erro ao logar desconexão:`, logErr);
         }
 
-        // Sempre deletar a sess�o primeiro
+        // Sempre deletar a sessão primeiro (só se for o socket atual, verificado acima)
         sessions.delete(userId);
         pendingConnections.delete(userId); // Limpar da lista de pendentes
 
@@ -2634,23 +2768,69 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         } else {
           // Foi logout (desconectado pelo celular), limpar TUDO
           console.log(`User ${userId} logged out from device, clearing all auth files...`);
-          
+
           const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
           await clearAuthFiles(userAuthPath);
 
           broadcastToUser(userId, { type: "disconnected", reason: "logout" });
-          
+
           // Resetar tentativas de reconex�o
           reconnectAttempts.delete(userId);
 
-          // N�O reconectar automaticamente ap�s logout - o usu�rio deve clicar em "Conectar" novamente
-          console.log(`User ${userId} needs to click Connect again to generate new QR code.`);
+          // -----------------------------------------------------------------------
+          // ?? AUTO-RETRY APÓS LOGOUT: Recuperar automaticamente se o usuário estiver na tela
+          // -----------------------------------------------------------------------
+          // Quando há um auth inválido no volume, o Baileys retorna loggedOut imediatamente.
+          // Se o usuário clicou em "Conectar" (tem WS client ativo), faremos um auto-retry
+          // único para gerar o QR code sem exigir um segundo clique.
+          // -----------------------------------------------------------------------
+          const now = Date.now();
+          const hasLiveClient = wsClients.has(userId); // Cliente está na tela
+          const retryState = logoutAutoRetry.get(userId) || { count: 0, lastAttempt: 0 };
+
+          // Resetar contador se passou do cooldown
+          if (now - retryState.lastAttempt > LOGOUT_AUTO_RETRY_COOLDOWN_MS) {
+            retryState.count = 0;
+          }
+
+          console.log(`[LOGOUT AUTO-RETRY] User ${userId.substring(0, 8)}... - hasLiveClient: ${hasLiveClient}, retryCount: ${retryState.count}/${MAX_LOGOUT_AUTO_RETRY}`);
+
+          if (hasLiveClient && retryState.count < MAX_LOGOUT_AUTO_RETRY) {
+            // Incrementar e registrar
+            retryState.count++;
+            retryState.lastAttempt = now;
+            logoutAutoRetry.set(userId, retryState);
+
+            console.log(`[LOGOUT AUTO-RETRY] Iniciando auto-retry para ${userId.substring(0, 8)}... em 750ms`);
+            // Pequeno delay para garantir que broadcast foi recebido
+            setTimeout(() => {
+              console.log(`[LOGOUT AUTO-RETRY] Executando connectWhatsApp para ${userId.substring(0, 8)}...`);
+              connectWhatsApp(userId).catch((err) => {
+                console.error(`[LOGOUT AUTO-RETRY] Erro na reconexão automática:`, err);
+              });
+            }, 750);
+          } else {
+            // Sem auto-retry: remover estado se atingiu limite ou não tem cliente
+            if (retryState.count >= MAX_LOGOUT_AUTO_RETRY) {
+              console.log(`[LOGOUT AUTO-RETRY] Limite atingido para ${userId.substring(0, 8)}..., removendo estado`);
+              logoutAutoRetry.delete(userId);
+            }
+            console.log(`User ${userId} needs to click Connect again to generate new QR code.`);
+          }
         }
       } else if (conn === "open") {
-        // Conex�o estabelecida com sucesso - resetar tentativas de reconex�o e limpar pendentes
+        // -----------------------------------------------------------------------
+        // ?? CONSISTÊNCIA: Garantir que este socket está registrado como atual
+        // -----------------------------------------------------------------------
+        // Em casos de reconexão rápida, pode haver múltiplos sockets. Garantimos
+        // que sessions.set aponta para este socket que acabou de abrir.
+        // -----------------------------------------------------------------------
+        sessions.set(userId, session);
+
+        // Conexão estabelecida com sucesso - resetar tentativas de reconexão e limpar pendentes
         reconnectAttempts.delete(userId);
         pendingConnections.delete(userId);
-        
+
         const phoneNumber = sock.user?.id?.split(":")[0] || "";
         session.phoneNumber = phoneNumber;
 
@@ -7620,6 +7800,339 @@ async function waitForBaileysWsOpen(sock: any, timeoutMs: number = 15000): Promi
   });
 }
 
+// -----------------------------------------------------------------------
+// ?? HELPER PARA AGUARDAR QR EVENT ANTES DO PAIRING CODE
+// -----------------------------------------------------------------------
+// O Baileys requer explicitamente: "WAIT TILL QR EVENT BEFORE REQUESTING
+// THE PAIRING CODE". Se chamarmos requestPairingCode antes do socket estar
+// pronto (evento QR recebido), o código pode até ser gerado mas o pareamento
+// falha com "Não foi possível conectar o dispositivo" no celular.
+// Ref: https://www.npmjs.com/package/@whiskeysockets/baileys
+// -----------------------------------------------------------------------
+
+interface QrEventResult {
+  success: boolean;
+  closedBeforeQr?: boolean;
+  statusCode?: number;
+  errorMessage?: string;
+}
+
+async function waitForBaileysQrEvent(sock: any, timeoutMs: number = 20000): Promise<QrEventResult> {
+  console.log(`[QR EVENT] Aguardando evento QR do Baileys antes do pairing (timeout=${timeoutMs}ms)...`);
+
+  return new Promise<QrEventResult>((resolve) => {
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      console.log(`[QR EVENT] Timeout aguardando QR event`);
+      resolve({ success: false });
+    }, timeoutMs);
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      clearTimeout(timeoutId);
+      try {
+        sock.ev.off("connection.update", onConnectionUpdate);
+      } catch (e) {
+        // Ignorar erros ao remover listener
+      }
+    };
+
+    const onConnectionUpdate = (update: any) => {
+      const { connection: conn, qr, lastDisconnect } = update;
+
+      // QR recebido = socket está pronto para pairing
+      if (qr) {
+        console.log(`[QR EVENT] ✓ QR event recebido! Socket pronto para pairing.`);
+        cleanup();
+        resolve({ success: true });
+        return;
+      }
+
+      // Conexão fechada antes do QR
+      if (conn === "close") {
+        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+        const errorMessage = (lastDisconnect?.error as any)?.message || "Connection closed";
+
+        console.log(`[QR EVENT] ✗ Conexão fechada antes do QR - statusCode: ${statusCode}`);
+
+        cleanup();
+        resolve({
+          success: false,
+          closedBeforeQr: true,
+          statusCode,
+          errorMessage
+        });
+        return;
+      }
+
+      // Conexão aberta (não deveria acontecer antes do QR/pairing, mas logamos)
+      if (conn === "open") {
+        console.log(`[QR EVENT] Conexão aberta inesperadamente antes do pairing`);
+        cleanup();
+        resolve({ success: true }); // Consideramos sucesso pois já está conectado
+        return;
+      }
+    };
+
+    // Inscrever listener
+    try {
+      sock.ev.on("connection.update", onConnectionUpdate);
+    } catch (e) {
+      cleanup();
+      console.error(`[QR EVENT] Erro ao inscrever listener:`, e);
+      resolve({ success: false, errorMessage: String(e) });
+    }
+  });
+}
+
+// -----------------------------------------------------------------------
+// ?? FUNÇÃO AUXILIAR: Criar socket de pairing com configuração otimizada
+// -----------------------------------------------------------------------
+// Cria um socket Baileys com version, browser e configurações recomendadas
+// para pairing code, reduzindo a ocorrência de 515 restartRequired.
+// -----------------------------------------------------------------------
+async function createPairingSocket(
+  userId: string,
+  authPath: string,
+  connectionId: string
+): Promise<{ sock: any; state: any; saveCreds: (creds: any) => void }> {
+  // Buscar versão mais recente do Baileys
+  const { version } = await fetchLatestBaileysVersion();
+  console.log(`?? [PAIRING] Baileys version: ${version}`);
+
+  const { state, saveCreds } = await useMultiFileAuthState(authPath);
+
+  const sock = makeWASocket({
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
+    },
+    printQRInTerminal: false,
+    logger: pino({ level: "silent" }),
+    version,
+    // -----------------------------------------------------------------------
+    // ?? BROWSER CONFIG: Ubuntu + Chrome (compatível com WhatsApp Web)
+    // -----------------------------------------------------------------------
+    browser: Browsers.ubuntu('Chrome'),
+    // -----------------------------------------------------------------------
+    // ?? REDUZIR INSTABILIDADE: Configurações recomendadas para pairing
+    // -----------------------------------------------------------------------
+    defaultQueryTimeoutMs: undefined,  // Reduz "Connection Closed"
+    syncFullHistory: false,  // Pairing é só autenticar, sync depois
+    // -----------------------------------------------------------------------
+    // ?? getMessage handler para retry de mensagens
+    // -----------------------------------------------------------------------
+    getMessage: async (key) => {
+      if (!key.id) return undefined;
+      const cached = getCachedMessage(userId, key.id);
+      if (cached) return cached;
+      try {
+        const dbMessage = await storage.getMessageByMessageId(key.id);
+        if (dbMessage && dbMessage.text) {
+          return { conversation: dbMessage.text };
+        }
+      } catch (err) {
+        // Ignorar
+      }
+      return undefined;
+    },
+  });
+
+  return { sock, state, saveCreds };
+}
+
+// -----------------------------------------------------------------------
+// ?? FUNÇÃO AUXILIAR: Handler de conexão para pairing com restart
+// -----------------------------------------------------------------------
+// Configura os handlers de connection.update para um socket de pairing,
+// tratando automaticamente restartRequired (515) com reconexão.
+// -----------------------------------------------------------------------
+function setupPairingConnectionHandler(
+  userId: string,
+  sock: any,
+  session: WhatsAppSession,
+  authPath: string,
+  onRestartNeeded: () => void
+): void {
+  sock.ev.on("connection.update", async (update) => {
+    const { connection: conn, lastDisconnect } = update;
+
+    if (conn === "open") {
+      const phoneNum = sock.user?.id?.split(":")[0] || "";
+      session.phoneNumber = phoneNum;
+
+      // Promover auth_pairing -> auth
+      try {
+        const mainAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+        await clearAuthFiles(mainAuthPath);
+        await ensureDirExists(mainAuthPath);
+
+        const pairingFiles = await fs.readdir(authPath);
+        for (const file of pairingFiles) {
+          const srcPath = path.join(authPath, file);
+          const destPath = path.join(mainAuthPath, file);
+          const content = await fs.readFile(srcPath);
+          await fs.writeFile(destPath, content);
+        }
+
+        console.log(`?? [PAIRING] Auth promovido: ${authPath.split('/').pop()} -> auth_${userId.substring(0, 8)}...`);
+        await clearAuthFiles(authPath);
+      } catch (promoteErr) {
+        console.error(`?? [PAIRING] Erro ao promover auth:`, promoteErr);
+      }
+
+      // Cancelar timeout de expiração
+      const pairingRecord = pairingSessions.get(userId);
+      if (pairingRecord?.timeoutId) {
+        clearTimeout(pairingRecord.timeoutId);
+      }
+      pairingSessions.delete(userId);
+      clearPairingState(userId);
+
+      await storage.updateConnection(session.connectionId, {
+        isConnected: true,
+        phoneNumber: phoneNum,
+        qrCode: null,
+      });
+
+      console.log(`? [PAIRING] WhatsApp conectado: ${phoneNum}`);
+      broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum });
+    }
+
+    if (conn === "close") {
+      const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+      const errorMessage = (lastDisconnect?.error as any)?.message || "";
+
+      console.log(`?? [PAIRING] Close - statusCode: ${statusCode}, errorMessage: ${errorMessage?.substring(0, 50)}`);
+
+      // -----------------------------------------------------------------------
+      // ?? TRATAMENTO DE STATUS CODES
+      // -----------------------------------------------------------------------
+      // 515 / restartRequired: Reconectar automaticamente
+      // 429 / rate-overlimit: Cooldown de 30 min
+      // 401 / loggedOut: Erro definitivo
+      // 408 / timedOut, 428 / connectionClosed: Reconectar
+      // -----------------------------------------------------------------------
+
+      // 429 Rate Limit
+      if (statusCode === 429 || errorMessage.includes('rate-overlimit')) {
+        console.error(`?? [PAIRING] RATE LIMIT 429`);
+
+        pairingRateLimitCooldown.set(userId, {
+          until: Date.now() + RATE_LIMIT_COOLDOWN_MS,
+          statusCode: 429
+        });
+
+        try {
+          await clearAuthFiles(authPath);
+          await ensureDirExists(authPath);
+        } catch (e) {}
+
+        const pairingRecord = pairingSessions.get(userId);
+        if (pairingRecord?.timeoutId) clearTimeout(pairingRecord.timeoutId);
+        pairingSessions.delete(userId);
+        clearPairingState(userId);
+
+        broadcastToUser(userId, { type: "disconnected", reason: "pairing_rate_limited" });
+        return;
+      }
+
+      // 401 loggedOut - Erro definitivo
+      if (statusCode === DisconnectReason.loggedOut) {
+        console.log(`?? [PAIRING] LoggedOut - limpando auth`);
+
+        try {
+          await clearAuthFiles(authPath);
+          await ensureDirExists(authPath);
+        } catch (e) {}
+
+        const pairingRecord = pairingSessions.get(userId);
+        if (pairingRecord?.timeoutId) clearTimeout(pairingRecord.timeoutId);
+        pairingSessions.delete(userId);
+        clearPairingState(userId);
+
+        await storage.updateConnection(session.connectionId, {
+          isConnected: false,
+          qrCode: null,
+        });
+
+        broadcastToUser(userId, { type: "disconnected", reason: "pairing_failed" });
+        return;
+      }
+
+      // -----------------------------------------------------------------------
+      // ?? 515 restartRequired / 408 timedOut / 428 connectionClosed
+      // -----------------------------------------------------------------------
+      // Estes são "closes transitórios" que devem iniciar reconexão automática
+      // -----------------------------------------------------------------------
+      if (statusCode === DisconnectReason.restartRequired || statusCode === 515 ||
+          statusCode === DisconnectReason.timedOut || statusCode === 408 ||
+          statusCode === DisconnectReason.connectionClosed || statusCode === 428) {
+
+        console.log(`?? [PAIRING] Close transitorio (${statusCode}) - iniciando restart...`);
+
+        const state = getPairingState(userId);
+        if (!state) {
+          console.log(`?? [PAIRING] Estado de pairing não encontrado, abortando restart`);
+          return;
+        }
+
+        // Verificar limite de retries
+        const now = Date.now();
+        const timeSinceLastRetry = now - state.lastRetryAt;
+
+        // Resetar contador se passou do cooldown
+        if (timeSinceLastRetry > PAIRING_RETRY_COOLDOWN_MS) {
+          state.retryCount = 0;
+        }
+
+        if (state.retryCount >= MAX_PAIRING_RETRIES) {
+          console.error(`?? [PAIRING] Limite de restarts (${MAX_PAIRING_RETRIES}) atingido`);
+
+          try {
+            await clearAuthFiles(authPath);
+            await ensureDirExists(authPath);
+          } catch (e) {}
+
+          const pairingRecord = pairingSessions.get(userId);
+          if (pairingRecord?.timeoutId) clearTimeout(pairingRecord.timeoutId);
+          pairingSessions.delete(userId);
+          clearPairingState(userId);
+
+          broadcastToUser(userId, {
+            type: "disconnected",
+            reason: "pairing_failed_restart_loop"
+          });
+          return;
+        }
+
+        // Incrementar e agendar restart
+        state.retryCount++;
+        state.lastRetryAt = now;
+        state.isRestarting = true;
+        setPairingState(userId, state);
+
+        console.log(`?? [PAIRING] Restart ${state.retryCount}/${MAX_PAIRING_RETRIES} agendado em 3s...`);
+
+        broadcastToUser(userId, {
+          type: "pairing_restarting",
+          retryCount: state.retryCount,
+          maxRetries: MAX_PAIRING_RETRIES
+        });
+
+        // Chamar callback de restart (será tratado fora do handler)
+        setTimeout(() => onRestartNeeded(), 3000);
+        return;
+      }
+
+      // Outros closes - log e aguardar
+      console.log(`?? [PAIRING] Close não tratado (statusCode: ${statusCode}), aguardando...`);
+    }
+  });
+}
+
 export async function requestClientPairingCode(userId: string, phoneNumber: string): Promise<string | null> {
   // 🛡️ MODO DESENVOLVIMENTO: Bloquear pairing para evitar conflito com produção
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
@@ -7628,20 +8141,32 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
     console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
     throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
   }
-  
+
+  // Verificar cooldown de rate limit
+  const cooldown = pairingRateLimitCooldown.get(userId);
+  if (cooldown && cooldown.until > Date.now()) {
+    const remainingMinutes = Math.ceil((cooldown.until - Date.now()) / 60000);
+    throw new Error(`WhatsApp limitou as tentativas de conexão. Aguarde ${remainingMinutes} minutos antes de tentar novamente.`);
+  }
+
   // Verificar se já há uma solicitação em andamento para este usuário
   const existingRequest = pendingPairingRequests.get(userId);
   if (existingRequest) {
     console.log(`? [PAIRING] J� existe solicita��o em andamento para ${userId}, aguardando...`);
     return existingRequest;
   }
-  
+
   // Criar Promise da solicita��o
   const requestPromise = (async () => {
+    // Usar auth_pairing_<userId> para isolar do QR normal
+    const pairingAuthPath = path.join(SESSIONS_BASE, `auth_pairing_${userId}`);
+    let sock: any = null;  // Socket atual do pairing (pode ser substituído em restarts)
+    let pairingTimeoutId: NodeJS.Timeout | undefined;
+
     try {
       console.log(`?? [PAIRING] Solicitando c�digo para ${phoneNumber} (user: ${userId})`);
-      
-      // Limpar sess�o anterior se existir
+
+      // Limpar sessão anterior se existir
       const existingSession = sessions.get(userId);
       if (existingSession?.socket) {
         try {
@@ -7655,63 +8180,42 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
         sessions.delete(userId);
         unregisterWhatsAppSession(userId);
       }
-    
-    // Criar/obter conex�o
-    let connection = await storage.getConnectionByUserId(userId);
-    
-    if (!connection) {
-      connection = await storage.createConnection({
-        userId,
-        isConnected: false,
-      });
-    }
-    
-    const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
-    
-    // Limpar auth anterior para come�ar do zero
-    await clearAuthFiles(userAuthPath);
 
-    // Recriar a pasta para o multi-file auth state
-    await ensureDirExists(userAuthPath);
-    
-    const { state, saveCreds } = await useMultiFileAuthState(userAuthPath);
-    
-    const sock = makeWASocket({
-      auth: {
-        creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
-      },
-      printQRInTerminal: false,
-      logger: pino({ level: "silent" }),
+      // Criar/obter conex�o
+      let connection = await storage.getConnectionByUserId(userId);
+
+      if (!connection) {
+        connection = await storage.createConnection({
+          userId,
+          isConnected: false,
+        });
+      }
+
       // -----------------------------------------------------------------------
-      // ?? FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE) - PAIRING
+      // ?? ISOLAMENTO DO AUTH DE PAIRING
       // -----------------------------------------------------------------------
-      getMessage: async (key) => {
-        if (!key.id) return undefined;
-        
-        console.log(`?? [getMessage PAIRING] Baileys solicitou mensagem ${key.id} para retry`);
-        
-        // Tentar recuperar do cache em mem�ria
-        const cached = getCachedMessage(userId, key.id);
-        if (cached) {
-          return cached;
-        }
-        
-        // Fallback: tentar buscar do banco de dados
-        try {
-          const dbMessage = await storage.getMessageByMessageId(key.id);
-          if (dbMessage && dbMessage.text) {
-            console.log(`?? [getMessage PAIRING] Mensagem ${key.id} recuperada do banco de dados`);
-            return { conversation: dbMessage.text };
-          }
-        } catch (err) {
-          console.error(`? [getMessage PAIRING] Erro ao buscar mensagem do banco:`, err);
-        }
-        
-        console.log(`?? [getMessage PAIRING] Mensagem ${key.id} n�o encontrada em nenhum cache`);
-        return undefined;
-      },
-    });
+      // Usar auth_pairing_<userId> separado para não interferir no QR normal.
+      // Se o pairing falhar, apenas limpamos essa pasta específica.
+      // -----------------------------------------------------------------------
+
+      // Limpar auth de pairing anterior (se existir)
+      await clearAuthFiles(pairingAuthPath);
+
+      // Recriar a pasta para o multi-file auth state
+      await ensureDirExists(pairingAuthPath);
+
+      // -----------------------------------------------------------------------
+      // ?? CRIAR SOCKET USANDO fetchLatestBaileysVersion
+      // -----------------------------------------------------------------------
+      // A função createPairingSocket já busca a versão mais recente do Baileys
+      // e configura o browser como Ubuntu Chrome para melhor compatibilidade.
+      // -----------------------------------------------------------------------
+      const { sock: newSock, state, saveCreds } = await createPairingSocket(
+        userId,
+        pairingAuthPath,
+        connection.id
+      );
+      sock = newSock;
     
     const contactsCache = new Map<string, Contact>();
     
@@ -7729,25 +8233,334 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
     // Handler de conex�o
     sock.ev.on("connection.update", async (update) => {
       const { connection: conn, lastDisconnect } = update;
-      
+
       if (conn === "open") {
         const phoneNum = sock.user?.id?.split(":")[0] || "";
         session.phoneNumber = phoneNum;
-        
+
+        // -----------------------------------------------------------------------
+        // ?? PROMOVER AUTH_PAIRING PARA AUTH PRINCIPAL
+        // -----------------------------------------------------------------------
+        // Quando o pairing tem sucesso, o auth_pairing_<userId> contém a
+        // sessão válida. Precisamos promover para auth_<userId> para que
+        // restaurações futuras funcionem normalmente via QR.
+        // -----------------------------------------------------------------------
+        try {
+          const mainAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+          // pairingAuthPath já está definido no escopo da função
+
+          // Copiar arquivos do pairing para o principal
+          await clearAuthFiles(mainAuthPath); // Limpar auth principal antigo
+          await ensureDirExists(mainAuthPath);
+
+          const pairingFiles = await fs.readdir(pairingAuthPath);
+          for (const file of pairingFiles) {
+            const srcPath = path.join(pairingAuthPath, file);
+            const destPath = path.join(mainAuthPath, file);
+            const content = await fs.readFile(srcPath);
+            await fs.writeFile(destPath, content);
+          }
+
+          console.log(`?? [PAIRING] Auth promovido: auth_pairing_${userId.substring(0, 8)}... -> auth_${userId.substring(0, 8)}...`);
+
+          // Limpar auth_pairing (não é mais necessário)
+          await clearAuthFiles(pairingAuthPath);
+        } catch (promoteErr) {
+          console.error(`?? [PAIRING] Erro ao promover auth (não crítico, sessão já funciona):`, promoteErr);
+        }
+
+        // Cancelar timeout de expiração
+        const pairingRecord = pairingSessions.get(userId);
+        if (pairingRecord?.timeoutId) {
+          clearTimeout(pairingRecord.timeoutId);
+          pairingSessions.delete(userId);
+          console.log(`?? [PAIRING] Timeout de expiração cancelado, sessão estável`);
+        }
+
         await storage.updateConnection(session.connectionId, {
           isConnected: true,
           phoneNumber: phoneNum,
           qrCode: null,
         });
-        
+
         console.log(`? [PAIRING] WhatsApp conectado: ${phoneNum}`);
         broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum });
       }
-      
+
       if (conn === "close") {
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
-        if (statusCode !== DisconnectReason.loggedOut) {
-          console.log(`?? [PAIRING] Desconectado temporariamente, aguardando...`);
+        const errorMessage = (lastDisconnect?.error as any)?.message || "";
+
+        // -----------------------------------------------------------------------
+        // ?? DETECTAR RATE LIMIT 429
+        // -----------------------------------------------------------------------
+        if (statusCode === 429 || errorMessage.includes('rate-overlimit') || errorMessage.includes('429')) {
+          console.error(`?? [PAIRING] RATE LIMIT DETECTED (429) durante pairing`);
+
+          // Aplicar cooldown
+          pairingRateLimitCooldown.set(userId, {
+            until: Date.now() + RATE_LIMIT_COOLDOWN_MS,
+            statusCode: 429
+          });
+
+          // Limpar auth de pairing
+          try {
+            await clearAuthFiles(pairingAuthPath);
+            await ensureDirExists(pairingAuthPath);
+          } catch (e) {
+            console.error(`?? [PAIRING] Erro ao limpar auth após rate limit:`, e);
+          }
+
+          // Cancelar timeout
+          const pairingRecord = pairingSessions.get(userId);
+          if (pairingRecord?.timeoutId) {
+            clearTimeout(pairingRecord.timeoutId);
+          }
+          pairingSessions.delete(userId);
+
+          broadcastToUser(userId, {
+            type: "disconnected",
+            reason: "pairing_rate_limited"
+          });
+
+          return;
+        }
+
+        // -----------------------------------------------------------------------
+        // ?? TRATAR 515 restartRequired - RECONEXÃO AUTOMÁTICA
+        // -----------------------------------------------------------------------
+        // O statusCode 515 (restartRequired) é comum após requestPairingCode.
+        // O Baileys fecha a conexão mas o auth_pairing ainda é válido.
+        // Precisamos reconectar sem limpar o auth para que o código continue funcionando.
+        // -----------------------------------------------------------------------
+        if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
+          console.log(`?? [PAIRING RESTART] restartRequired (515) detectado - iniciando reconexão automática...`);
+
+          // Verificar limite de retries
+          const now = Date.now();
+          let retryState = pairingRetries.get(userId) || { count: 0, lastAttempt: 0 };
+
+          // Resetar contador se passou do cooldown
+          if (now - retryState.lastAttempt > PAIRING_RETRY_COOLDOWN_MS) {
+            retryState.count = 0;
+          }
+
+          if (retryState.count >= MAX_PAIRING_RETRIES) {
+            console.error(`?? [PAIRING RESTART] Limite de retries atingido (${MAX_PAIRING_RETRIES}), desistindo`);
+
+            // Limpar tudo
+            try {
+              await clearAuthFiles(pairingAuthPath);
+              await ensureDirExists(pairingAuthPath);
+            } catch (e) {
+              console.error(`?? [PAIRING] Erro ao limpar auth:`, e);
+            }
+
+            const pairingRecord = pairingSessions.get(userId);
+            if (pairingRecord?.timeoutId) {
+              clearTimeout(pairingRecord.timeoutId);
+            }
+            pairingSessions.delete(userId);
+            pairingRetries.delete(userId);
+
+            broadcastToUser(userId, {
+              type: "disconnected",
+              reason: "pairing_failed"
+            });
+
+            return;
+          }
+
+          // Incrementar e agendar reconexão
+          retryState.count++;
+          retryState.lastAttempt = now;
+          pairingRetries.set(userId, retryState);
+
+          console.log(`?? [PAIRING RESTART] Agendando retry ${retryState.count}/${MAX_PAIRING_RETRIES} em 5s...`);
+
+          // Notificar frontend sobre reconexão
+          broadcastToUser(userId, {
+            type: "pairing_restarting",
+            retryCount: retryState.count,
+            maxRetries: MAX_PAIRING_RETRIES
+          });
+
+          // Agendar reconexão após delay
+          setTimeout(async () => {
+            try {
+              console.log(`?? [PAIRING RESTART] Executando reconexão ${retryState.count}/${MAX_PAIRING_RETRIES}...`);
+
+              // Criar novo socket com o mesmo auth
+              const { state: newState, saveCreds: newSaveCreds } = await useMultiFileAuthState(pairingAuthPath);
+
+              const newSock = makeWASocket({
+                auth: {
+                  creds: newState.creds,
+                  keys: makeCacheableSignalKeyStore(newState.keys, pino({ level: "silent" })),
+                },
+                printQRInTerminal: false,
+                logger: pino({ level: "silent" }),
+                browser: Browsers.macOS('Desktop'),
+                getMessage: async (key) => {
+                  if (!key.id) return undefined;
+                  const cached = getCachedMessage(userId, key.id);
+                  if (cached) return cached;
+                  try {
+                    const dbMessage = await storage.getMessageByMessageId(key.id);
+                    if (dbMessage && dbMessage.text) {
+                      return { conversation: dbMessage.text };
+                    }
+                  } catch (err) {
+                    // Ignorar
+                  }
+                  return undefined;
+                },
+              });
+
+              // Atualizar sessão
+              session.socket = newSock;
+              sessions.set(userId, session);
+
+              // Re-configurar handlers
+              newSock.ev.on("creds.update", newSaveCreds);
+
+              // Re-atribuir handler de connection.update (recursivamente)
+              // Nota: isso é simplificado; em produção idealmente usaríamos uma função reutilizável
+              newSock.ev.on("connection.update", async (update: any) => {
+                const { connection: newConn, lastDisconnect: newLastDisconnect } = update;
+
+                if (newConn === "open") {
+                  const phoneNum = newSock.user?.id?.split(":")[0] || "";
+                  session.phoneNumber = phoneNum;
+
+                  // Promover auth
+                  try {
+                    const mainAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+                    await clearAuthFiles(mainAuthPath);
+                    await ensureDirExists(mainAuthPath);
+
+                    const pairingFiles = await fs.readdir(pairingAuthPath);
+                    for (const file of pairingFiles) {
+                      const srcPath = path.join(pairingAuthPath, file);
+                      const destPath = path.join(mainAuthPath, file);
+                      const content = await fs.readFile(srcPath);
+                      await fs.writeFile(destPath, content);
+                    }
+
+                    console.log(`?? [PAIRING RESTART] Auth promovido após restart`);
+
+                    await clearAuthFiles(pairingAuthPath);
+                  } catch (promoteErr) {
+                    console.error(`?? [PAIRING RESTART] Erro ao promover auth:`, promoteErr);
+                  }
+
+                  // Cancelar timeouts
+                  const pRecord = pairingSessions.get(userId);
+                  if (pRecord?.timeoutId) {
+                    clearTimeout(pRecord.timeoutId);
+                  }
+                  pairingSessions.delete(userId);
+                  pairingRetries.delete(userId);
+
+                  await storage.updateConnection(session.connectionId, {
+                    isConnected: true,
+                    phoneNumber: phoneNum,
+                    qrCode: null,
+                  });
+
+                  console.log(`? [PAIRING RESTART] WhatsApp conectado após restart: ${phoneNum}`);
+                  broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum });
+                }
+
+                if (newConn === "close") {
+                  // Recursivamente tratar close (esta mesma lógica)
+                  const newStatusCode = (newLastDisconnect?.error as any)?.output?.statusCode;
+                  console.log(`?? [PAIRING RESTART] Close após restart - statusCode: ${newStatusCode}`);
+                  // A lógica continuará sendo tratada pelo handler principal
+                }
+              });
+
+              console.log(`?? [PAIRING RESTART] Novo socket configurado, aguardando conexão...`);
+
+            } catch (restartErr) {
+              console.error(`?? [PAIRING RESTART] Erro na reconexão:`, restartErr);
+              // Em caso de erro, tentará novamente no próximo ciclo (count aumenta)
+            }
+          }, 5000);
+
+          return;
+        }
+
+        // -----------------------------------------------------------------------
+        // ?? LIMPEZA FORTE NO CLOSE DURING PAIRING
+        // -----------------------------------------------------------------------
+        // Se a conexão fechar durante o pairing (antes de open), emitir evento
+        // de falha para o frontend e limpar auth_pairing para não "envenenar" o QR.
+        // -----------------------------------------------------------------------
+        console.log(`?? [PAIRING] Conexão fechada durante pairing - statusCode: ${statusCode}`);
+
+        // pairingAuthPath já está definido no escopo da função
+
+        if (statusCode === DisconnectReason.loggedOut) {
+          // Logout durante pairing = auth inválido ou erro de formato
+          console.log(`?? [PAIRING] Logout durante pairing - limpando auth_pairing e notificando falha`);
+
+          try {
+            await clearAuthFiles(pairingAuthPath);
+            await ensureDirExists(pairingAuthPath);
+          } catch (cleanupErr) {
+            console.error(`?? [PAIRING] Erro ao limpar auth_pairing:`, cleanupErr);
+          }
+
+          // Cancelar timeout
+          const pairingRecord = pairingSessions.get(userId);
+          if (pairingRecord?.timeoutId) {
+            clearTimeout(pairingRecord.timeoutId);
+          }
+          pairingSessions.delete(userId);
+          pairingRetries.delete(userId);
+
+          // Atualizar DB
+          try {
+            await storage.updateConnection(session.connectionId, {
+              isConnected: false,
+              qrCode: null,
+            });
+          } catch (dbErr) {
+            console.error(`?? [PAIRING] Erro ao atualizar DB:`, dbErr);
+          }
+
+          // Notificar falha específica
+          broadcastToUser(userId, {
+            type: "disconnected",
+            reason: "pairing_failed"
+          });
+        } else if (statusCode !== undefined) {
+          // Outro erro de conexão (não loggedOut, não restartRequired)
+          console.log(`?? [PAIRING] Desconectado temporariamente (statusCode: ${statusCode}), aguardando...`);
+          // Não limpamos auth aqui pois pode ser reconexão temporária
+        } else {
+          // Close sem statusCode ( WebSocket fechado, timeout, etc)
+          console.log(`?? [PAIRING] Conexão fechada sem statusCode - limpando auth_pairing`);
+          try {
+            await clearAuthFiles(pairingAuthPath);
+            await ensureDirExists(pairingAuthPath);
+          } catch (cleanupErr) {
+            console.error(`?? [PAIRING] Erro ao limpar auth_pairing:`, cleanupErr);
+          }
+
+          // Cancelar timeout
+          const pairingRecord = pairingSessions.get(userId);
+          if (pairingRecord?.timeoutId) {
+            clearTimeout(pairingRecord.timeoutId);
+          }
+          pairingSessions.delete(userId);
+          pairingRetries.delete(userId);
+
+          broadcastToUser(userId, {
+            type: "disconnected",
+            reason: "pairing_failed"
+          });
         }
       }
     });
@@ -7839,43 +8652,189 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
     console.log(`?? [PAIRING] Número formatado para pareamento: ${cleanNumber}`);
 
     // -----------------------------------------------------------------------
-    // ?? FIX: Aguardar WebSocket abrir antes de solicitar pairing code
+    // ?? FIX: Aguardar QR Event antes de solicitar pairing code (RECOMENDAÇÃO BAILEYS)
     // -----------------------------------------------------------------------
-    // O Baileys lança "Connection Closed" se chamarmos requestPairingCode
-    // antes do WebSocket estar aberto (ws.isOpen === true)
+    // O Baileys requer explicitamente: "WAIT TILL QR EVENT BEFORE REQUESTING
+    // THE PAIRING CODE". Se chamarmos requestPairingCode antes do socket estar
+    // pronto (evento QR recebido), o código pode até ser gerado mas o pareamento
+    // falha com "Não foi possível conectar o dispositivo" no celular.
+    // Ref: https://www.npmjs.com/package/@whiskeysockets/baileys
+    // -----------------------------------------------------------------------
     try {
-      console.log(`?? [PAIRING] Aguardando WebSocket do Baileys abrir antes de solicitar código...`);
-      await waitForBaileysWsOpen(sock, 15000);
-      console.log(`?? [PAIRING] WebSocket aberto, solicitando pairing code para ${cleanNumber}`);
+      console.log(`?? [PAIRING] Aguardando QR Event do Baileys antes do pairing...`);
+      const qrEventResult = await waitForBaileysQrEvent(sock, 20000);
+
+      if (!qrEventResult.success) {
+        if (qrEventResult.closedBeforeQr) {
+          // Verificar se foi rate limit
+          if (qrEventResult.statusCode === 429 ||
+              qrEventResult.errorMessage?.includes('rate-overlimit') ||
+              qrEventResult.errorMessage?.includes('429')) {
+            console.error(`?? [PAIRING] RATE LIMIT DETECTED (429) antes do QR`);
+
+            // Aplicar cooldown
+            pairingRateLimitCooldown.set(userId, {
+              until: Date.now() + RATE_LIMIT_COOLDOWN_MS,
+              statusCode: 429
+            });
+
+            broadcastToUser(userId, {
+              type: "disconnected",
+              reason: "pairing_rate_limited"
+            });
+
+            throw new Error('WhatsApp limitou as tentativas. Aguarde 20-40 minutos e tente novamente.');
+          }
+
+          // Outro erro de conexão
+          throw new Error(`Conexão fechada antes do QR event: ${qrEventResult.errorMessage || 'statusCode ' + qrEventResult.statusCode}`);
+        }
+
+        // Timeout ou outro erro
+        throw new Error('Timeout aguardando QR event. Tente novamente.');
+      }
+
+      console.log(`?? [PAIRING] QR Event recebido, aguardando WebSocket abrir...`);
+      // WebSocket geralmente já está aberto depois do QR event, mas vamos garantir
+      await waitForBaileysWsOpen(sock, 5000);
+      console.log(`?? [PAIRING] Socket pronto, solicitando pairing code para ${cleanNumber}`);
     } catch (wsError: any) {
-      console.error(`?? [PAIRING] Erro ao aguardar WebSocket:`, wsError);
-      throw new Error(`Não foi possível estabelecer conexão com o WhatsApp: ${wsError.message}`);
+      console.error(`?? [PAIRING] Erro ao aguardar socket pronto:`, wsError);
+      throw wsError; // Propagar para o catch geral fazer limpeza
     }
 
     // Solicitar c�digo de pareamento
     // O c�digo ser� enviado via WhatsApp para o n�mero informado
+    let code: string | undefined;
     try {
-      const code = await sock.requestPairingCode(cleanNumber);
-      
+      code = await sock.requestPairingCode(cleanNumber);
+
       console.log(`? [PAIRING] C�digo gerado com sucesso: ${code}`);
-      
+
+      // -----------------------------------------------------------------------
+      // ?? RETENÇÃO DE SESSÃO: Manter vivo por 3 minutos
+      // -----------------------------------------------------------------------
+      // Se o usuário não digitar o código, a sessão expira automaticamente
+      // -----------------------------------------------------------------------
+      const expiresAt = Date.now() + PAIRING_SESSION_TIMEOUT_MS;
+
+      pairingSessions.set(userId, {
+        startedAt: Date.now(),
+        phone: cleanNumber,
+        codeIssuedAt: Date.now(),
+        expiresAt
+      });
+
+      console.log(`?? [PAIRING] Sessão registrada, expira em ${PAIRING_SESSION_TIMEOUT_MS / 1000} segundos`);
+
+      // Configurar timeout de expiração
+      pairingTimeoutId = setTimeout(async () => {
+        console.log(`?? [PAIRING] Sessão expirou para ${userId.substring(0, 8)}... (usuário não digitou o código)`);
+
+        // Limpar auth de pairing
+        try {
+          await clearAuthFiles(pairingAuthPath);
+        } catch (e) {
+          console.error(`?? [PAIRING] Erro ao limpar auth expirado:`, e);
+        }
+
+        // Remover da memória
+        pairingSessions.delete(userId);
+
+        // Notificar frontend (se ainda estiver conectado)
+        broadcastToUser(userId, {
+          type: "disconnected",
+          reason: "pairing_expired"
+        });
+      }, PAIRING_SESSION_TIMEOUT_MS);
+
+      // Armazenar o timeoutId no pairingSession para poder cancelar se conectar
+      const sessionRecord = pairingSessions.get(userId);
+      if (sessionRecord) {
+        sessionRecord.timeoutId = pairingTimeoutId;
+      }
+
       // Aguardar um pouco para garantir que o c�digo foi processado
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       return code;
-    } catch (pairingError) {
+    } catch (pairingError: any) {
       console.error(`? [PAIRING] Erro ao chamar requestPairingCode:`, pairingError);
-      console.error(`? [PAIRING] Stack trace:`, (pairingError as Error).stack);
+      console.error(`? [PAIRING] Stack trace:`, (pairingError).stack);
+
+      // Verificar se é erro de rate limit
+      const errorMsg = String(pairingError?.message || pairingError || '');
+      if (errorMsg.includes('429') || errorMsg.includes('rate-overlimit') || errorMsg.includes('rate limit')) {
+        console.error(`?? [PAIRING] RATE LIMIT DETECTED (429) ao solicitar código`);
+
+        // Aplicar cooldown
+        pairingRateLimitCooldown.set(userId, {
+          until: Date.now() + RATE_LIMIT_COOLDOWN_MS,
+          statusCode: 429
+        });
+
+        broadcastToUser(userId, {
+          type: "disconnected",
+          reason: "pairing_rate_limited"
+        });
+
+        throw new Error('WhatsApp limitou as tentativas. Aguarde 20-40 minutos e tente novamente.');
+      }
+
       throw pairingError;
     }
   } catch (error) {
     console.error(`?? [PAIRING] Erro geral ao solicitar c�digo:`, error);
     console.error(`?? [PAIRING] Tipo de erro:`, typeof error);
     console.error(`?? [PAIRING] Mensagem:`, (error as Error).message);
-    
-    // Limpar sess�o em caso de erro
+
+    // -----------------------------------------------------------------------
+    // ?? LIMPEZA FORTE EM ERRO: Evitar credenciais parciais que "envenenam" o QR
+    // -----------------------------------------------------------------------
+    // Se houver erro durante o pairing, é possível que creds.json parcial tenha
+    // sido criado. Se não limparmos, a próxima tentativa de QR vai falhar com
+    // loggedOut imediato porque o Baileys tenta usar esse auth parcial.
+    // -----------------------------------------------------------------------
+
+    // 1. Limpar sessão da memória
     sessions.delete(userId);
-    
+    unregisterWhatsAppSession(userId);
+
+    // Cancelar timeout de expiração se existir
+    const pairingSession = pairingSessions.get(userId);
+    if (pairingSession?.timeoutId) {
+      clearTimeout(pairingSession.timeoutId);
+    }
+    pairingSessions.delete(userId);
+
+    // 2. Limpar arquivos de auth de pairing (NÃO o auth principal!)
+    try {
+      await clearAuthFiles(pairingAuthPath);
+      await ensureDirExists(pairingAuthPath); // Recriar pasta vazia
+      console.log(`?? [PAIRING] Auth pairing limpo após erro: ${pairingAuthPath}`);
+    } catch (cleanupErr) {
+      console.error(`?? [PAIRING] Erro ao limpar auth pairing:`, cleanupErr);
+    }
+
+    // 3. Atualizar banco para estado limpo
+    try {
+      const conn = await storage.getConnectionByUserId(userId);
+      if (conn) {
+        await storage.updateConnection(conn.id, {
+          isConnected: false,
+          qrCode: null,
+        });
+      }
+    } catch (dbErr) {
+      console.error(`?? [PAIRING] Erro ao atualizar DB:`, dbErr);
+    }
+
+    // 4. Notificar frontend sobre falha específica
+    broadcastToUser(userId, {
+      type: "disconnected",
+      reason: "pairing_failed"
+    });
+
     return null;
   } finally {
     // Remover da fila de pendentes
@@ -8092,9 +9051,10 @@ async function connectionHealthCheck(): Promise<void> {
   console.log(`?? [HEALTH CHECK] Timestamp: ${new Date().toISOString()}`);
   
   try {
-    // 1. Verificar conex�es de usu�rios
+    // 1. Verificar conexões de usuários
     const connections = await storage.getAllConnections();
     let reconnectedUsers = 0;
+    let healedUsers = 0;  // DB=false mas socket ativo (curado)
     let healthyUsers = 0;
     let disconnectedUsers = 0;
     
@@ -8146,12 +9106,39 @@ async function connectionHealthCheck(): Promise<void> {
         }
       } else if (isDbConnected && hasActiveSocket) {
         healthyUsers++;
+      } else if (!isDbConnected && hasActiveSocket) {
+        // -----------------------------------------------------------------------
+        // ?? HEALER: DB=false mas socket ativo (caso inverso do zumbi)
+        // -----------------------------------------------------------------------
+        // Isso acontece quando:
+        // 1. Um follower atualizou DB para false incorretamente
+        // 2. O líder reconectou mas não atualizou o DB ainda
+        // 3. Deploy/reconnect causou discrepância temporária
+        //
+        // Como estamos no líder (health check só roda no líder),
+        // podemos curar o estado global.
+        // -----------------------------------------------------------------------
+        console.log(`?? [HEALTH CHECK] CURANDO user ${connection.userId.substring(0, 8)}...: DB=false mas socket ATIVO`);
+
+        try {
+          const phoneNumber = session.socket.user.id.split(':')[0];
+          await storage.updateConnection(connection.id, {
+            isConnected: true,
+            phoneNumber,
+            qrCode: null,
+          });
+          console.log(`? [HEALTH CHECK] User ${connection.userId.substring(0, 8)}... curado - DB atualizado para connected`);
+          healedUsers++;
+        } catch (healErr) {
+          console.error(`? [HEALTH CHECK] Erro ao curar user ${connection.userId.substring(0, 8)}...:`, healErr);
+        }
       }
     }
-    
-    // 2. Verificar conex�es de admin
+
+    // 2. Verificar conexões de admin
     const allAdmins = await storage.getAllAdmins();
     let reconnectedAdmins = 0;
+    let healedAdmins = 0;
     let healthyAdmins = 0;
     
     for (const admin of allAdmins) {
@@ -8196,12 +9183,30 @@ async function connectionHealthCheck(): Promise<void> {
         }
       } else if (isDbConnected && hasActiveSocket) {
         healthyAdmins++;
+      } else if (!isDbConnected && hasActiveSocket) {
+        // -----------------------------------------------------------------------
+        // ?? HEALER: Admin DB=false mas socket ativo
+        // -----------------------------------------------------------------------
+        console.log(`?? [HEALTH CHECK] CURANDO admin ${admin.id}: DB=false mas socket ATIVO`);
+
+        try {
+          const phoneNumber = adminSession.socket.user.id.split(':')[0];
+          await storage.updateAdminWhatsappConnection(admin.id, {
+            isConnected: true,
+            phoneNumber,
+            qrCode: null,
+          });
+          console.log(`? [HEALTH CHECK] Admin ${admin.id} curado - DB atualizado para connected`);
+          healedAdmins++;
+        } catch (healErr) {
+          console.error(`? [HEALTH CHECK] Erro ao curar admin ${admin.id}:`, healErr);
+        }
       }
     }
-    
+
     console.log(`\n?? [HEALTH CHECK] Resumo:`);
-    console.log(`   ?? Usu�rios: ${healthyUsers} saud�veis, ${reconnectedUsers} reconectados, ${disconnectedUsers} desconectados`);
-    console.log(`   ?? Admins: ${healthyAdmins} saud�veis, ${reconnectedAdmins} reconectados`);
+    console.log(`   ?? Usuários: ${healthyUsers} saudáveis, ${healedUsers} curados, ${reconnectedUsers} reconectados, ${disconnectedUsers} desconectados`);
+    console.log(`   ?? Admins: ${healthyAdmins} saudáveis, ${healedAdmins} curados, ${reconnectedAdmins} reconectados`);
     console.log(`?? [HEALTH CHECK] -------------------------------------------\n`);
     
   } catch (error) {

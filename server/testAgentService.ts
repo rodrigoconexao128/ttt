@@ -68,6 +68,7 @@ export type TestAgentDeps = {
 export type TestAgentResult = {
   response: string;
   mediaActions?: unknown;
+  deliveryOrderCreated?: any;
   mode: "client_agent" | "sales_demo";
   resolvedUserId?: string;
 };
@@ -159,15 +160,26 @@ export async function handleTestAgentMessage(
                 caption: mediaItem.caption || mediaItem.description,
               });
             }
+          } else if (action.type === 'send_media_url' && action.media_url) {
+            mediaActions.push({
+              type: 'send_media_url',
+              media_url: action.media_url,
+              media_type: action.media_type || 'image',
+              caption: action.caption,
+            });
           }
         }
       }
 
       console.log('🧪 ═══════════════════════════════════════════════════════════════\n');
 
+      const responseText = typeof result.text === "string" ? result.text : "";
+      const shouldFallback = responseText.length === 0 && mediaActions.length === 0;
+
       return {
-        response: result.text || "Desculpe, não consegui processar.",
+        response: shouldFallback ? "Desculpe, não consegui processar." : responseText,
         mediaActions,
+        deliveryOrderCreated: (result as any).deliveryOrderCreated,
         mode: "client_agent",
         resolvedUserId,
       };

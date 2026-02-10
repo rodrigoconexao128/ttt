@@ -17,12 +17,13 @@ import {
   CheckCircle2, Wand2, RefreshCw, Settings, Zap,
   Undo2, Redo2, History, ChevronUp,
   Image as ImageIcon, Music, Video, FileText, Plus, Trash2, Upload, Check,
-  Clock, Brain, Pause, X, Save, Pencil, File, Rocket
+  Clock, Brain, Pause, X, Save, Pencil, File, Rocket, Wrench
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { getAuthToken } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { CalibrationChat } from "@/components/calibration-chat";
 
 // 🔒 Modal de upgrade estilo Lovable
 interface UpgradeModalProps {
@@ -170,7 +171,7 @@ interface PromptHistoryEntry {
   summary: string;
 }
 
-type Section = 'chat' | 'code' | 'media' | 'config';
+type Section = 'chat' | 'code' | 'media' | 'config' | 'tools';
 
 // ============ HELPER: FORMATAÇÃO WHATSAPP ============
 function formatWhatsAppText(text: string): string {
@@ -756,7 +757,8 @@ export function AgentStudioUnified() {
         },
         body: JSON.stringify({
           currentPrompt,
-          instruction: currentInstruction
+          instruction: currentInstruction,
+          skipCalibration: true
         })
       });
 
@@ -787,12 +789,12 @@ export function AgentStudioUnified() {
                 setCalibrationLogs([...currentLogs]);
               }
               
-              // Atualizar mensagem do assistente mostrando TODOS os logs em tempo real
-              const logText = currentLogs.map(log => `• ${log}`).join('\n');
+              // Atualizar mensagem com logs simples (sem calibração)
+              const logText = currentLogs.slice(-3).map(log => `• ${log}`).join('\n');
               
               setChatMessages(prev => prev.map(msg => 
                 msg.id === processingMessageId 
-                  ? { ...msg, content: `🔄 **Calibrando seu agente...**\n\n${logText}\n\n⏳ *Aguarde, testando cenários...*` }
+                  ? { ...msg, content: `🔄 **Editando seu agente...**\n${logText}` }
                   : msg
               ));
             }
@@ -823,13 +825,9 @@ export function AgentStudioUnified() {
                 setCurrentPrompt(data.newPrompt);
                 setHasChanges(false);
                 
-                const calibInfo = data.calibration 
-                  ? `\n\n✅ Calibração: Score ${data.calibration.score}/100 (${data.calibration.repairs} edições)`
-                  : '';
-                
                 setChatMessages(prev => prev.map(msg => 
                   msg.id === processingMessageId 
-                    ? { ...msg, content: (data.feedbackMessage || "Mudanças aplicadas!") + calibInfo }
+                    ? { ...msg, content: data.feedbackMessage || "✅ Mudanças aplicadas!" }
                     : msg
                 ));
                 
@@ -862,9 +860,10 @@ export function AgentStudioUnified() {
       console.error('Erro no streaming:', error);
       setShowCalibrationLogs(false);
       
+      // Mensagem mais amigável para o usuário com instrução para tentar novamente
       setChatMessages(prev => prev.map(msg => 
         msg.id === `processing-${Date.now()}` || msg.content.includes('🔄')
-          ? { ...msg, content: `❌ Erro ao processar. Tente novamente.` }
+          ? { ...msg, content: `⚠️ O sistema está processando. Por favor, envie sua solicitação novamente em alguns segundos. Sua edição será aplicada na próxima tentativa.` }
           : msg
       ));
     } finally {
@@ -905,7 +904,9 @@ export function AgentStudioUnified() {
         customPrompt: currentPrompt,
         // 🆕 ENVIAR HISTÓRICO E MÍDIAS PARA SIMULADOR UNIFICADO
         history: historyForBackend,
-        sentMedias: simulatorSentMedias
+        sentMedias: simulatorSentMedias,
+        // Limpar carrinho se for primeira mensagem (sem histórico)
+        clearCart: historyForBackend.length === 0
       });
       
       const data = await response.json();
@@ -956,6 +957,16 @@ export function AgentStudioUnified() {
               mediaType: action.media_type || 'audio'
             });
           }
+          if (action.type === 'send_media_url' && action.media_url) {
+            newMessages.push({
+              id: `sim-media-${Date.now()}-${Math.random()}`,
+              role: "agent",
+              message: '',
+              time: agentTime,
+              mediaUrl: action.media_url,
+              mediaType: action.media_type || 'image'
+            });
+          }
         }
         
         // Rastrear mídias enviadas
@@ -982,7 +993,7 @@ export function AgentStudioUnified() {
           }
         }
         console.log(`📱 [Simulador] Exibindo ${splitResponses.length} bolhas de mensagem`);
-      } else if (data?.response && data.response.trim()) {
+      } else if (typeof data?.response === 'string' && data.response.trim()) {
         // Fallback: usa resposta completa se splitResponses não existir
         newMessages.push({
           id: `sim-agent-${Date.now()}`,
@@ -1363,6 +1374,15 @@ export function AgentStudioUnified() {
                   <Settings className="w-3 h-3 mr-1" />
                   Config
                 </Button>
+                <Button
+                  variant={activeSection === "tools" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveSection("tools")}
+                  className="h-7 px-2 text-xs"
+                >
+                  <Wrench className="w-3 h-3 mr-1" />
+                  Corrigir
+                </Button>
               </div>
               
               {/* Save Button */}
@@ -1433,6 +1453,15 @@ export function AgentStudioUnified() {
             >
               <Settings className="w-3 h-3 mr-1" />
               Config
+            </Button>
+            <Button
+              variant={activeSection === "tools" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setActiveSection("tools")}
+              className="h-7 px-2 text-xs flex-shrink-0"
+            >
+              <Wrench className="w-3 h-3 mr-1" />
+              Corrigir
             </Button>
           </div>
 
@@ -2138,6 +2167,20 @@ export function AgentStudioUnified() {
                 </Button>
               </div>
             </ScrollArea>
+          )}
+
+          {/* ============ SECTION: TOOLS (CALIBRAÇÃO VIA CHAT) ============ */}
+          {activeSection === "tools" && (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <CalibrationChat 
+                currentPrompt={currentPrompt}
+                onPromptUpdated={(newPrompt) => {
+                  setCurrentPrompt(newPrompt);
+                  setHasChanges(false);
+                }}
+                className="h-full border-0 rounded-none"
+              />
+            </div>
           )}
         </div>
 

@@ -503,7 +503,7 @@ export default function TeamMembersManager() {
                   <div className="space-y-3 border-t pt-3">
                     <Label className="font-medium">Assinatura de Mensagens</Label>
                     <p className="text-xs text-muted-foreground">
-                      Ao ativar, o nome/apelido aparecerá em *negrito* antes das mensagens enviadas
+                      Ao ativar, o nome/apelido aparecerá em *negrito* acima da mensagem enviada
                     </p>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Ativar assinatura</span>
@@ -527,7 +527,11 @@ export default function TeamMembersManager() {
                           maxLength={100}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Exemplo: <strong>*{formData.signature || "Rodrigo"}:*</strong> Olá, como posso ajudar?
+                          Exemplo:
+                          <span className="block">
+                            <strong>*{formData.signature || "Rodrigo"}:*</strong>
+                          </span>
+                          <span className="block">Olá, como posso ajudar?</span>
                         </p>
                       </div>
                     )}

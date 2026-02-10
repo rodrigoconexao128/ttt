@@ -395,7 +395,7 @@ export function SubscriptionExpiringBanner() {
   }
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[90] bg-gradient-to-r from-amber-500 to-orange-500 text-white py-2.5 px-4 shadow-md">
+    <div className="sticky top-0 z-[80] bg-gradient-to-r from-amber-500 to-orange-500 text-white py-2.5 px-4 shadow-md">
       <div className="container max-w-6xl mx-auto flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-white/20 px-2.5 py-1 rounded-full text-xs font-medium">

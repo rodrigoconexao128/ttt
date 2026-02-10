@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -46,6 +47,7 @@ interface ChatAreaProps {
 
 export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPanel }: ChatAreaProps) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [messageText, setMessageText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
@@ -625,13 +627,10 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
   }, []);
 
   // Função helper para adicionar assinatura à mensagem
+  // Assinatura é aplicada no backend para evitar duplicidade
   const applySignature = useCallback((text: string): string => {
-    if (currentUser?.signatureEnabled && currentUser?.signature) {
-      // Formata como negrito no WhatsApp: *nome:* mensagem
-      return `*${currentUser.signature}:* ${text}`;
-    }
     return text;
-  }, [currentUser?.signatureEnabled, currentUser?.signature]);
+  }, []);
 
   const handleSend = () => {
     if (!messageText.trim() || !conversationId) return;
@@ -802,10 +801,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              const el = document.querySelector('[data-testid="button-nav-connection"]') as HTMLButtonElement;
-              el?.click();
-            }}
+            onClick={() => setLocation("/conexao")}
             data-testid="button-minimal-connect-whatsapp"
           >
             Conectar WhatsApp

@@ -94,6 +94,9 @@ function Router() {
       <Route path="/produtos" component={Dashboard} />
       <Route path="/delivery-cardapio" component={Dashboard} />
       <Route path="/delivery-pedidos" component={Dashboard} />
+      <Route path="/delivery-relatorios" component={Dashboard} />
+      <Route path="/salon-menu" component={Dashboard} />
+      <Route path="/salon-agendamentos" component={Dashboard} />
       <Route path="/falar-por-audio" component={Dashboard} />
       <Route path="/construtor-fluxo" component={Dashboard} />
       {/* Rotas de Revenda com sub-navegação - URLs claras */}

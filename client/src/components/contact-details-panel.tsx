@@ -329,7 +329,7 @@ export function ContactDetailsPanel({ conversation, connectionId, onClose }: Con
     (conversation.remoteJid?.split("@")[0].split(":")[0]) || "";
 
   return (
-    <div className="w-80 border-l bg-card flex flex-col h-full">
+    <div className="w-80 border-l bg-card flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-semibold">Dados do Contato</h3>
@@ -410,7 +410,7 @@ export function ContactDetailsPanel({ conversation, connectionId, onClose }: Con
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <TabsList className="grid w-full grid-cols-3 px-4 pt-2">
           <TabsTrigger value="fields" className="text-xs">
             <Edit3 className="h-3 w-3 mr-1" />
@@ -426,7 +426,7 @@ export function ContactDetailsPanel({ conversation, connectionId, onClose }: Con
           </TabsTrigger>
         </TabsList>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           {/* Tab: Campos Personalizados */}
           <TabsContent value="fields" className="p-4 space-y-4 mt-0">
             {/* Botão de Extração com IA */}

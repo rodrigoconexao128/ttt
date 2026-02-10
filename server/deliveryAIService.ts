@@ -1,36 +1,27 @@
 /**
- * ═══════════════════════════════════════════════════════════════════════════════
- * 🍕 DELIVERY AI SERVICE - SISTEMA SIMPLIFICADO E DETERMINÍSTICO
- * ═══════════════════════════════════════════════════════════════════════════════
- * 
- * ARQUITETURA NOVA (2025):
- * 1. Sistema detecta intenção do cliente ANTES de chamar a IA
- * 2. Dados do cardápio são injetados AUTOMATICAMENTE pelo sistema
- * 3. IA recebe APENAS o contexto necessário (não prompt gigante)
- * 4. Validação de preços/produtos contra banco de dados
- * 5. Retorno estruturado em JSON com "bolhas" de mensagem
- * 
- * PROBLEMAS RESOLVIDOS:
- * - IA ignorando instruções de tag [ENVIAR_CARDAPIO_COMPLETO]
- * - IA inventando preços/produtos
- * - Cardápio incompleto (3 itens vs 36)
- * - Respostas inconsistentes
+ * DELIVERY AI SERVICE - SIMPLIFIED AND DETERMINISTIC
+ *
+ * ARCHITECTURE (2025):
+ * 1. Detects intent before calling the LLM
+ * 2. Menu data is injected by the system
+ * 3. LLM receives only necessary context
+ * 4. Prices/products validated against database
+ * 5. Structured JSON responses with message bubbles
  */
 
 import { supabase } from "./supabaseAuth";
 import { getLLMClient } from "./llm";
+import type { MistralResponse } from "@shared/schema";
 
-// ═══════════════════════════════════════════════════════════════════════
-// 📦 TIPOS E INTERFACES
-// ═══════════════════════════════════════════════════════════════════════
+// TYPES AND INTERFACES
 
 export interface MenuItemOption {
-  name: string;           // "Tamanho", "Borda", etc
-  type: 'single' | 'multiple';
+  name: string; // "Size", "Crust", etc
+  type: "single" | "multiple";
   required: boolean;
   options: Array<{
-    name: string;         // "Pequena (P)", "Média (M)", "Grande (G)"
-    price: number;        // Preço dessa variação
+    name: string; // "Small", "Medium", "Large"
+    price: number; // Price for this option
   }>;
 }
 
@@ -42,7 +33,7 @@ export interface MenuItem {
   category_name: string;
   is_highlight: boolean;
   is_available: boolean;
-  options?: MenuItemOption[];  // Variações do produto (tamanhos, bordas, etc)
+  options?: MenuItemOption[]; // Product variations
 }
 
 export interface DeliveryConfig {
@@ -50,15 +41,26 @@ export interface DeliveryConfig {
   user_id: string;
   business_name: string;
   business_type: string;
+  menu_send_mode?: 'text' | 'image' | 'image_text';
   delivery_fee: number;
   min_order_value: number;
   estimated_delivery_time: number;
   accepts_delivery: boolean;
   accepts_pickup: boolean;
-  accepts_cancellation: boolean;  // Se permite cancelamento pelo cliente
+  accepts_cancellation: boolean; // Allows customer cancellation
   payment_methods: string[];
   is_active: boolean;
   opening_hours?: Record<string, { enabled: boolean; open: string; close: string }>;
+  welcome_message?: string;
+  order_confirmation_message?: string;
+  order_ready_message?: string;
+  out_for_delivery_message?: string;
+  closed_message?: string;
+  humanize_responses?: boolean;
+  use_customer_name?: boolean;
+  response_variation?: boolean;
+  response_delay_min?: number;
+  response_delay_max?: number;
 }
 
 // Interface para horário de funcionamento
@@ -90,12 +92,12 @@ export function isBusinessOpen(openingHours?: Record<string, OpeningHoursDay>): 
     friday: 'sexta-feira',
     saturday: 'sábado'
   };
-  
+
   const currentDay = dayNames[brazilTime.getDay()];
   const currentHour = brazilTime.getHours().toString().padStart(2, '0');
   const currentMinute = brazilTime.getMinutes().toString().padStart(2, '0');
   const currentTime = `${currentHour}:${currentMinute}`;
-  
+
   // Se não tem horários configurados, assume aberto
   if (!openingHours || Object.keys(openingHours).length === 0) {
     return {
@@ -105,7 +107,7 @@ export function isBusinessOpen(openingHours?: Record<string, OpeningHoursDay>): 
       message: ''
     };
   }
-  
+
   const todayHours = openingHours[currentDay];
   
   // Se não tem configuração para hoje ou está desabilitado
@@ -169,6 +171,120 @@ export function isBusinessOpen(openingHours?: Record<string, OpeningHoursDay>): 
   }
 }
 
+function formatBusinessHours(openingHours?: Record<string, OpeningHoursDay>): string {
+  if (!openingHours || Object.keys(openingHours).length === 0) {
+    return 'Horários não informados.';
+  }
+
+  const dayNamesPt: Record<string, string> = {
+    monday: 'Segunda',
+    tuesday: 'Terça',
+    wednesday: 'Quarta',
+    thursday: 'Quinta',
+    friday: 'Sexta',
+    saturday: 'Sábado',
+    sunday: 'Domingo'
+  };
+  const dayOrder: Array<keyof typeof dayNamesPt> = [
+    'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
+  ];
+
+  let text = '📅 *Nossos horários:*\n';
+  for (const day of dayOrder) {
+    const dayConfig = openingHours[day];
+    if (dayConfig && dayConfig.enabled) {
+      text += `• ${dayNamesPt[day]}: ${dayConfig.open} às ${dayConfig.close}\n`;
+    }
+  }
+
+  return text.trim();
+}
+
+function interpolateDeliveryMessage(
+  template: string,
+  variables: Record<string, string>
+): string {
+  let result = template || '';
+  const replacements: Record<string, string> = {
+    cliente_nome: variables.cliente_nome || variables.nome || variables.name || 'Cliente',
+    nome: variables.nome || variables.cliente_nome || variables.name || 'Cliente',
+    name: variables.name || variables.cliente_nome || variables.nome || 'Cliente',
+    horarios: variables.horarios || '',
+    status: variables.status || '',
+    pedido_numero: variables.pedido_numero || '',
+    total: variables.total || '',
+    tempo_estimado: variables.tempo_estimado || '',
+  };
+
+  Object.entries(replacements).forEach(([key, value]) => {
+    const safeValue = value || '';
+    result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), safeValue);
+  });
+
+  result = result.replace(/\{\{name\}\}/g, replacements.name || 'Cliente');
+
+  return result;
+}
+
+function getCustomerNameFromHistory(
+  conversationHistory?: Array<{ fromMe: boolean; text: string }>
+): string | null {
+  if (!conversationHistory || conversationHistory.length === 0) return null;
+
+  const namePatterns = [
+    /\bmeu nome (?:e|é)\s+([a-záàâãéèêíïóôõöúçñ\s]{2,50})/i,
+    /\bme chamo\s+([a-záàâãéèêíïóôõöúçñ\s]{2,50})/i,
+    /\beu sou\s+([a-záàâãéèêíïóôõöúçñ\s]{2,50})/i,
+    /\bsou\s+(?:o|a)?\s*([a-záàâãéèêíïóôõöúçñ\s]{2,50})/i,
+  ];
+
+  for (let i = conversationHistory.length - 1; i >= 0; i--) {
+    const entry = conversationHistory[i];
+    if (entry.fromMe) continue;
+    const text = entry.text?.trim();
+    if (!text) continue;
+
+    for (const pattern of namePatterns) {
+      const match = text.match(pattern);
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+    }
+
+    const looksLikeName = /^[a-záàâãéèêíïóôõöúçñ\s]{2,50}$/i.test(text);
+    if (looksLikeName && !/\d/.test(text)) {
+      return text.trim();
+    }
+  }
+
+  return null;
+}
+
+function applyHumanization(
+  text: string,
+  config: DeliveryConfig,
+  allowVariation = true
+): string {
+  if (!config?.humanize_responses) return text;
+
+  const trimmed = text.trim();
+  if (!trimmed) return text;
+
+  if (config.response_variation && allowVariation && trimmed.length < 900) {
+    const suffixes = [
+      'Se precisar de algo, estou por aqui! 😊',
+      'Qualquer coisa, é só me chamar! 😉',
+      'Fico à disposição! 😊'
+    ];
+    const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+    if (!trimmed.endsWith('😊') && !trimmed.endsWith('😉')) {
+      return `${trimmed}\n\n${suffix}`;
+    }
+  }
+
+  return trimmed;
+}
+
 // Encontra o próximo dia aberto
 function findNextOpenDay(openingHours: Record<string, OpeningHoursDay>, currentDay: string): string | null {
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -202,6 +318,7 @@ function findNextOpenDay(openingHours: Record<string, OpeningHoursDay>, currentD
 
 export interface MenuCategory {
   name: string;
+  image_url?: string | null;
   items: MenuItem[];
 }
 
@@ -209,6 +326,13 @@ export interface DeliveryData {
   config: DeliveryConfig;
   categories: MenuCategory[];
   totalItems: number;
+}
+
+export interface DeliveryAIResponse {
+  intent: CustomerIntent;
+  bubbles: string[];
+  metadata?: Record<string, any>;
+  mediaActions?: MistralResponse['actions'];
 }
 
 // Tipos de intenção do cliente
@@ -236,21 +360,45 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
   'esfirra': ['esfirra', 'esfiha', 'esfirras', 'esfihas', 'sfiha'],
   'bebida': ['bebida', 'bebidas', 'refrigerante', 'refri', 'suco', 'água', 'agua'],
   'açaí': ['açaí', 'acai', 'açai'],
+  'borda': ['borda', 'bordas', 'borda recheada', 'bordas recheadas'],
   'hamburguer': ['hamburguer', 'hamburger', 'burger', 'lanche', 'lanches'],
   'doce': ['doce', 'doces', 'sobremesa', 'sobremesas'],
   'salgado': ['salgado', 'salgados'],
 };
 
+function normalizeCategoryText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[🍕🍔🥪🍽️🍨🍣🍴🥟🍫]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeMenuSendMode(value?: string | null): string {
+  return String(value || 'text').trim().toLowerCase();
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // 🛒 SISTEMA DE CARRINHO (EM MEMÓRIA)
 // ═══════════════════════════════════════════════════════════════════════
 
+interface CartItemOption {
+  group: string;
+  option: string;
+  price: number;
+}
+
 interface CartItem {
-  itemId: string;
+  itemId: string; // chave interna do carrinho
+  menuItemId?: string | null; // id real do menu (quando existir)
   name: string;
   price: number;
   quantity: number;
   notes?: string;
+  optionsSelected?: CartItemOption[];
 }
 
 interface CustomerCart {
@@ -310,26 +458,77 @@ export function addToCart(
   customerPhone: string, 
   item: MenuItem, 
   quantity: number = 1,
-  notes?: string
+  options?: {
+    displayName?: string;
+    priceOverride?: number;
+    notes?: string;
+    optionsSelected?: CartItemOption[];
+    itemKeySuffix?: string;
+  }
 ): CustomerCart {
   const cart = getCart(userId, customerPhone);
+  const itemKey = options?.itemKeySuffix ? `${item.id}:${options.itemKeySuffix}` : item.id;
+  const displayName = options?.displayName || item.name;
+  const unitPrice = options?.priceOverride ?? item.price;
+  const notes = options?.notes;
+  const optionsSelected = options?.optionsSelected;
   
-  const existing = cart.items.get(item.id);
+  const existing = cart.items.get(itemKey);
   if (existing) {
     existing.quantity += quantity;
     if (notes) existing.notes = notes;
-    console.log(`🛒 [Cart] Item atualizado: ${item.name} x${existing.quantity}`);
+    if (optionsSelected) existing.optionsSelected = optionsSelected;
+    console.log(`🛒 [Cart] Item atualizado: ${displayName} x${existing.quantity}`);
   } else {
-    cart.items.set(item.id, {
-      itemId: item.id,
-      name: item.name,
-      price: item.price,
+    cart.items.set(itemKey, {
+      itemId: itemKey,
+      menuItemId: item.id,
+      name: displayName,
+      price: unitPrice,
       quantity,
       notes,
+      optionsSelected,
     });
-    console.log(`🛒 [Cart] Item adicionado: ${item.name} x${quantity}`);
+    console.log(`🛒 [Cart] Item adicionado: ${displayName} x${quantity}`);
   }
   
+  cart.lastUpdated = new Date();
+  return cart;
+}
+
+export function addCustomItemToCart(
+  userId: string,
+  customerPhone: string,
+  customItem: {
+    itemId: string;
+    name: string;
+    price: number;
+    quantity?: number;
+    notes?: string;
+    optionsSelected?: CartItemOption[];
+    menuItemId?: string | null;
+  }
+): CustomerCart {
+  const cart = getCart(userId, customerPhone);
+  const quantity = customItem.quantity ?? 1;
+  const existing = cart.items.get(customItem.itemId);
+  if (existing) {
+    existing.quantity += quantity;
+    if (customItem.notes) existing.notes = customItem.notes;
+    if (customItem.optionsSelected) existing.optionsSelected = customItem.optionsSelected;
+    console.log(`🛒 [Cart] Item custom atualizado: ${customItem.name} x${existing.quantity}`);
+  } else {
+    cart.items.set(customItem.itemId, {
+      itemId: customItem.itemId,
+      menuItemId: customItem.menuItemId ?? null,
+      name: customItem.name,
+      price: customItem.price,
+      quantity,
+      notes: customItem.notes,
+      optionsSelected: customItem.optionsSelected,
+    });
+    console.log(`🛒 [Cart] Item custom adicionado: ${customItem.name} x${quantity}`);
+  }
   cart.lastUpdated = new Date();
   return cart;
 }
@@ -372,6 +571,10 @@ export function formatCartSummary(cart: CustomerCart, deliveryFee: number): stri
   for (const item of cart.items.values()) {
     const itemTotal = item.price * item.quantity;
     text += `${item.quantity}x ${item.name} - R$ ${itemTotal.toFixed(2).replace('.', ',')}\n`;
+    const addOns = item.optionsSelected?.filter(opt => !/tamanho|size/i.test(opt.group)) || [];
+    if (addOns.length > 0) {
+      text += `   _Adicionais: ${addOns.map(opt => opt.option).join(', ')}_\n`;
+    }
     if (item.notes) {
       text += `   _Obs: ${item.notes}_\n`;
     }
@@ -506,12 +709,90 @@ function identifyDataType(text: string): 'name' | 'address' | 'payment' | 'deliv
 function extractCustomerInfo(message: string, context: string = '', existingInfo: CustomerInfo = {}): CustomerInfo {
   const info: CustomerInfo = { ...existingInfo };
   const fullText = `${context} ${message}`.toLowerCase();
+  const messageLower = message.toLowerCase();
   
   console.log(`📝 [extractCustomerInfo] Analisando: "${message}"`);
   console.log(`📝 [extractCustomerInfo] Contexto: "${context.substring(0, 100)}..."`);
   console.log(`📝 [extractCustomerInfo] Info existente:`, existingInfo);
   
-  // PRIMEIRO: Detectar tipo de entrega no fullText (contexto + mensagem)
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // NOVO: Detectar formato "Nome, Endereço, Pagamento" (tudo junto)
+  // Exemplo: "João Silva, Rua das Flores 123, pago no PIX"
+  // ═══════════════════════════════════════════════════════════════════════════════
+  const hasComma = message.includes(',');
+  const hasAddress = /\b(rua|av|avenida|alameda|travessa|estrada|praça|praca)\b/i.test(message) || /[,\s]\d+[,\s]/i.test(message);
+  const hasPayment = /\b(pix|dinheiro|cart[aã]o|cartao)\b/i.test(message);
+  const hasNumber = /\d/.test(message);
+  
+  if (hasComma && hasAddress && (hasPayment || hasNumber)) {
+    console.log(`📝 [extractCustomerInfo] 🎯 Detectou formato multi-dados (Nome, Endereço, Pagamento)`);
+    
+    // Dividir por vírgula e analisar cada parte
+    const parts = message.split(',').map(p => p.trim()).filter(p => p.length > 0);
+    
+    for (const part of parts) {
+      const partLower = part.toLowerCase();
+      
+      // Verificar se é pagamento
+      const paymentMatch = part.match(/\b(pix|dinheiro|cart[aã]o|cartao|credito|débito|debito)\b/i);
+      if (paymentMatch && !info.paymentMethod) {
+        const paymentMap: Record<string, string> = {
+          'pix': 'Pix', 'dinheiro': 'Dinheiro', 'cartao': 'Cartao', 'cartão': 'Cartao',
+          'debito': 'Cartao', 'débito': 'Cartao', 'credito': 'Cartao', 'crédito': 'Cartao',
+        };
+        info.paymentMethod = paymentMap[paymentMatch[1].toLowerCase()] || 'Dinheiro';
+        console.log(`📝 [extractCustomerInfo] Multi-dados - Pagamento: ${info.paymentMethod}`);
+        continue;
+      }
+      
+      // Verificar se é endereço (tem palavra de logradouro OU número)
+      const isAddressPart = /\b(rua|av|avenida|alameda|travessa|estrada|praça|praca)\b/i.test(partLower) || 
+                           (/\d+/.test(part) && /[a-záàâãéèêíïóôõöúç]/i.test(part));
+      if (isAddressPart && !info.customerAddress) {
+        info.customerAddress = part;
+        console.log(`📝 [extractCustomerInfo] Multi-dados - Endereço: ${part}`);
+        // Assume delivery se tem endereço
+        if (!info.deliveryType) info.deliveryType = 'delivery';
+        continue;
+      }
+      
+      // Se não é pagamento nem endereço, provavelmente é nome (só texto, sem números significativos)
+      // Usa regex que aceita caracteres acentuados e espaços, exclui se tem números
+      const hasNoNumbers = !/\d/.test(part);
+      const hasLetters = /[a-záàâãéèêíïóôõöúçñ]/i.test(part);
+      const notShortWord = part.split(/\s+/).filter(w => w.length > 1).length >= 1;
+      const notAddress = !/\b(rua|av|avenida|alameda|travessa|estrada|praça|praca)\b/i.test(partLower);
+      const isLikelyName = hasNoNumbers && hasLetters && notShortWord && notAddress;
+      
+      if (isLikelyName && !info.customerName && !paymentMatch) {
+        // Capitalizar cada palavra
+        info.customerName = part.trim().split(/\s+/).map(w => 
+          w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+        ).join(' ');
+        console.log(`📝 [extractCustomerInfo] Multi-dados - Nome: ${info.customerName}`);
+        continue;
+      }
+    }
+    
+    // Se encontrou dados, retorna (priorizar multi-dados)
+    if (info.customerName || info.customerAddress || info.paymentMethod) {
+      console.log(`📝 [extractCustomerInfo] ✅ Multi-dados extraídos:`, info);
+      return info;
+    }
+  }
+  
+  // PRIMEIRO: Priorizar tipo de entrega explícito na mensagem atual
+  const messageHasPickup = /\b(retirar|retiro|buscar|busco|pegar|pego|retira|retirada|no local|vou ai|vou aí|vou la|vou lá|passo ai|passo aí|passo la|passo lá|balc[aã]o)\b/i.test(messageLower);
+  const messageHasDelivery = /\b(delivery|entreg|mandar|enviar|levar)\b/i.test(messageLower);
+  if (messageHasPickup) {
+    info.deliveryType = 'pickup';
+    console.log(`📝 [extractCustomerInfo] Detectou pickup (mensagem)`);
+  } else if (messageHasDelivery) {
+    info.deliveryType = 'delivery';
+    console.log(`📝 [extractCustomerInfo] Detectou delivery (mensagem)`);
+  }
+  
+  // SEGUNDO: Detectar tipo de entrega no fullText (contexto + mensagem)
   if (!info.deliveryType) {
     if (fullText.match(/\b(delivery|entreg|mandar|enviar|levar)\b/i)) {
       info.deliveryType = 'delivery';
@@ -522,7 +803,24 @@ function extractCustomerInfo(message: string, context: string = '', existingInfo
     }
   }
   
-  // SEGUNDO: Extrair forma de pagamento
+  // TERCEIRO: Extrair forma de pagamento da mensagem atual (prioridade)
+  const messagePaymentMatch = message.match(/\b(pix|dinheiro|cart[aã]o|d[eé]bito|cr[eé]dito|cartão|cartao)\b/i);
+  if (messagePaymentMatch) {
+    const paymentMap: Record<string, string> = {
+      'pix': 'Pix',
+      'dinheiro': 'Dinheiro',
+      'cartao': 'Cartao',
+      'cartão': 'Cartao',
+      'debito': 'Cartao',
+      'débito': 'Cartao',
+      'credito': 'Cartao',
+      'crédito': 'Cartao',
+    };
+    info.paymentMethod = paymentMap[messagePaymentMatch[1].toLowerCase()] || 'Dinheiro';
+    console.log(`📝 [extractCustomerInfo] Detectou pagamento (mensagem): ${info.paymentMethod}`);
+  }
+  
+  // QUARTO: Extrair forma de pagamento do contexto se ainda não tiver
   if (!info.paymentMethod) {
     const paymentMatch = message.match(/\b(pix|dinheiro|cart[aã]o|d[eé]bito|cr[eé]dito|cartão|cartao)\b/i);
     if (paymentMatch) {
@@ -741,6 +1039,7 @@ const INTENT_PATTERNS: Record<CustomerIntent, RegExp[]> = {
   ],
   WANT_TO_ORDER: [
     /quero (pedir|fazer.*pedido|encomendar)/i,
+    /quero (um|uma|o|a|uns|umas|\d+)/i,           // 🆕 "quero uma pizza", "quero 2 esfihas"
     /vou (querer|pedir)/i,
     /pode (anotar|fazer|preparar)/i,
     /faz (a[ií]|para mim)/i,
@@ -806,11 +1105,14 @@ const INTENT_PATTERNS: Record<CustomerIntent, RegExp[]> = {
 
 // Detectar qual categoria o cliente quer
 export function detectCategoryFromMessage(message: string): string | null {
-  const normalizedMsg = message.toLowerCase().trim();
+  const normalizedMsg = normalizeCategoryText(message);
+  if (!normalizedMsg) return null;
   
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     for (const keyword of keywords) {
-      if (normalizedMsg === keyword || normalizedMsg.includes(keyword)) {
+      const normalizedKeyword = normalizeCategoryText(keyword);
+      if (!normalizedKeyword) continue;
+      if (normalizedMsg === normalizedKeyword || normalizedMsg.includes(normalizedKeyword)) {
         console.log(`🎯 [DeliveryAI] Categoria detectada: ${category} (keyword: ${keyword})`);
         return category;
       }
@@ -849,6 +1151,92 @@ export function detectSizeFromMessage(message: string): string | null {
   return null;
 }
 
+function normalizeTextForMatch(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[ -]/g, '')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function resolveMenuItemOptions(menuItem: MenuItem, message: string): {
+  unitPrice: number;
+  displayName: string;
+  notes?: string;
+  optionsSelected: CartItemOption[];
+  needsSize: boolean;
+  sizeOptions?: Array<{ name: string; price: number }>;
+} {
+  const normalizedMsg = normalizeTextForMatch(message);
+  const optionsSelected: CartItemOption[] = [];
+  let unitPrice = menuItem.price;
+  let sizeLabel: string | null = null;
+
+  const sizeGroup = menuItem.options?.find(opt =>
+    opt.name.toLowerCase().includes('tamanho') || opt.name.toLowerCase().includes('size')
+  );
+  const sizeFromMessage = detectSizeFromMessage(message);
+
+  if (sizeGroup && sizeGroup.options?.length) {
+    if (!sizeFromMessage) {
+      return {
+        unitPrice: menuItem.price,
+        displayName: menuItem.name,
+        optionsSelected: [],
+        needsSize: true,
+        sizeOptions: sizeGroup.options.map(opt => ({ name: opt.name, price: opt.price })),
+      };
+    }
+
+    const selectedSize = sizeGroup.options.find(opt => {
+      const optNormalized = normalizeTextForMatch(opt.name);
+      return optNormalized.includes(normalizeTextForMatch(sizeFromMessage)) ||
+        (sizeFromMessage.toLowerCase() === 'p' && optNormalized.includes('pequen')) ||
+        (sizeFromMessage.toLowerCase() === 'm' && optNormalized.includes('med')) ||
+        (sizeFromMessage.toLowerCase() === 'g' && optNormalized.includes('grand'));
+    });
+
+    if (selectedSize) {
+      unitPrice = selectedSize.price;
+      sizeLabel = selectedSize.name;
+      optionsSelected.push({ group: sizeGroup.name, option: selectedSize.name, price: selectedSize.price });
+    }
+  }
+
+  const hasNoAddons = /\bsem\s+(borda|adicional|extra|recheio)\b/i.test(message);
+  if (menuItem.options && !hasNoAddons) {
+    for (const group of menuItem.options) {
+      const isSizeGroup = sizeGroup && group.name === sizeGroup.name;
+      if (isSizeGroup) continue;
+      for (const opt of group.options || []) {
+        const optNormalized = normalizeTextForMatch(opt.name);
+        if (optNormalized && normalizedMsg.includes(optNormalized)) {
+          optionsSelected.push({ group: group.name, option: opt.name, price: opt.price });
+          unitPrice += opt.price;
+        }
+      }
+    }
+  }
+
+  const notesParts: string[] = [];
+  if (sizeLabel) notesParts.push(`Tamanho: ${sizeLabel}`);
+  const addOns = optionsSelected.filter(opt => !/tamanho|size/i.test(opt.group));
+  if (addOns.length > 0) {
+    notesParts.push(`Adicionais: ${addOns.map(opt => opt.option).join(', ')}`);
+  }
+
+  return {
+    unitPrice,
+    displayName: sizeLabel ? `${menuItem.name} (${sizeLabel})` : menuItem.name,
+    notes: notesParts.length > 0 ? notesParts.join(' | ') : undefined,
+    optionsSelected,
+    needsSize: false,
+  };
+}
+
 export function detectCustomerIntent(message: string): CustomerIntent {
   const normalizedMsg = message.toLowerCase().trim();
   
@@ -860,7 +1248,18 @@ export function detectCustomerIntent(message: string): CustomerIntent {
     }
   }
   
-  // PRIORIDADE 2: Verificar se é seleção de categoria específica
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🆕 PRIORIDADE 2: Verificar se contém pedido ANTES de verificar saudação
+  // "Oi, quero uma pizza calabresa" = WANT_TO_ORDER (não GREETING)
+  // ═══════════════════════════════════════════════════════════════════════
+  for (const pattern of INTENT_PATTERNS.WANT_TO_ORDER) {
+    if (pattern.test(normalizedMsg)) {
+      console.log(`🎯 [DeliveryAI] Intent detected: WANT_TO_ORDER (pattern: ${pattern})`);
+      return 'WANT_TO_ORDER';
+    }
+  }
+  
+  // PRIORIDADE 3: Verificar se é seleção de categoria específica
   // Ex: "pizza", "bebidas", "açaí" - sem mais nada
   for (const pattern of INTENT_PATTERNS.WANT_CATEGORY) {
     if (pattern.test(normalizedMsg)) {
@@ -871,7 +1270,7 @@ export function detectCustomerIntent(message: string): CustomerIntent {
   
   // Verificar cada padrão em ordem de prioridade
   for (const [intent, patterns] of Object.entries(INTENT_PATTERNS)) {
-    if (intent === 'WANT_CATEGORY' || intent === 'HALF_HALF') continue; // Já verificamos
+    if (intent === 'WANT_CATEGORY' || intent === 'HALF_HALF' || intent === 'WANT_TO_ORDER') continue; // Já verificamos
     for (const pattern of patterns) {
       if (pattern.test(normalizedMsg)) {
         console.log(`🎯 [DeliveryAI] Intent detected: ${intent} (pattern: ${pattern})`);
@@ -897,6 +1296,45 @@ export async function detectIntentWithAI(
   if (!conversationHistory || conversationHistory.length < 2) {
     return detectCustomerIntent(message);
   }
+  
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🆕 VERIFICAR SE ESTÁ AGUARDANDO TAMANHO (contexto pendente)
+  // Se a última mensagem do bot perguntou "Qual tamanho?", então
+  // a resposta do cliente é uma seleção de tamanho, não nova busca
+  // ═══════════════════════════════════════════════════════════════════════
+  const lastBotMessage = conversationHistory.filter(m => m.fromMe).slice(-1)[0];
+  if (lastBotMessage) {
+    const botMsgLower = lastBotMessage.text.toLowerCase();
+    const isAwaitingSize = botMsgLower.includes('qual tamanho') || 
+                           botMsgLower.includes('qual o tamanho') ||
+                           botMsgLower.includes('me diz o tamanho') ||
+                           (botMsgLower.includes('tamanho') && 
+                            (botMsgLower.includes('pequena (p)') || 
+                             botMsgLower.includes('média (m)') || 
+                             botMsgLower.includes('grande (g)')));
+    
+    if (isAwaitingSize) {
+      // O cliente está respondendo com o tamanho
+      const sizeDetected = detectSizeFromMessage(message);
+      if (sizeDetected) {
+        console.log(`🤖 [DeliveryAI] Contexto AWAITING_SIZE detectado! Cliente escolheu: ${sizeDetected}`);
+        return 'ADD_ITEM'; // Usar ADD_ITEM para continuar o pedido com o tamanho
+      }
+    }
+
+    // 🆕 VERIFICAR SE ESTÁ AGUARDANDO SABORES MEIO A MEIO
+    const isAwaitingHalfHalfFlavors = botMsgLower.includes('meio a meio') &&
+      (botMsgLower.includes('quais dois sabores') || botMsgLower.includes('exemplo: "calabresa e mussarela"'));
+    if (isAwaitingHalfHalfFlavors) {
+      const hasTwoFlavors = /\b(.+?)\s+(e|com|\/)\s+(.+?)\b/i.test(message) ||
+        /(meia\s+.+?\s+meia\s+.+)/i.test(message);
+      if (hasTwoFlavors) {
+        console.log(`🤖 [DeliveryAI] Contexto AWAITING_HALF_HALF detectado! Cliente informou sabores.`);
+        return 'HALF_HALF';
+      }
+    }
+  }
+  // ═══════════════════════════════════════════════════════════════════════
   
   const mistral = await getLLMClient();
   if (!mistral) {
@@ -979,6 +1417,24 @@ Responda APENAS com o nome da intenção, nada mais.`;
 // 📊 BUSCAR DADOS DO DELIVERY (BANCO DE DADOS)
 // ═══════════════════════════════════════════════════════════════════════
 
+export async function isDeliveryEnabled(userId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('delivery_config')
+      .select('is_active')
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !data) {
+      return false;
+    }
+
+    return data.is_active === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function getDeliveryData(userId: string): Promise<DeliveryData | null> {
   try {
     // 1. Buscar configuração do delivery
@@ -1002,7 +1458,7 @@ export async function getDeliveryData(userId: string): Promise<DeliveryData | nu
     // 2. Buscar categorias
     const { data: categories } = await supabase
       .from('menu_categories')
-      .select('id, name, display_order')
+      .select('id, name, image_url, display_order')
       .eq('user_id', userId)
       .order('display_order', { ascending: true });
     
@@ -1020,18 +1476,19 @@ export async function getDeliveryData(userId: string): Promise<DeliveryData | nu
     }
     
     // 4. Organizar por categoria
-    const categoryMap = new Map<string, { name: string; items: MenuItem[] }>();
-    
-    // Criar map de category_id -> name
-    const categoryIdToName = new Map<string, string>();
-    categories?.forEach(cat => categoryIdToName.set(cat.id, cat.name));
+    const categoryMap = new Map<string, { name: string; image_url?: string | null; items: MenuItem[] }>();
+
+    // Criar map de category_id -> meta
+    const categoryIdToMeta = new Map<string, { name: string; image_url?: string | null }>();
+    categories?.forEach(cat => categoryIdToMeta.set(cat.id, { name: cat.name, image_url: cat.image_url }));
     
     // Agrupar itens por categoria
     items.forEach(item => {
-      const categoryName = categoryIdToName.get(item.category_id) || 'Outros';
+      const categoryMeta = categoryIdToMeta.get(item.category_id);
+      const categoryName = categoryMeta?.name || 'Outros';
       
       if (!categoryMap.has(categoryName)) {
-        categoryMap.set(categoryName, { name: categoryName, items: [] });
+        categoryMap.set(categoryName, { name: categoryName, image_url: categoryMeta?.image_url || null, items: [] });
       }
       
       // Parsear options (variações) se existir
@@ -1058,6 +1515,7 @@ export async function getDeliveryData(userId: string): Promise<DeliveryData | nu
         user_id: config.user_id,
         business_name: config.business_name,
         business_type: config.business_type || 'restaurante',
+        menu_send_mode: config.menu_send_mode || 'text',
         delivery_fee: parseFloat(config.delivery_fee) || 0,
         min_order_value: parseFloat(config.min_order_value) || 0,
         estimated_delivery_time: config.estimated_delivery_time || 45,
@@ -1067,6 +1525,16 @@ export async function getDeliveryData(userId: string): Promise<DeliveryData | nu
         payment_methods: config.payment_methods || ['Dinheiro', 'Cartão', 'Pix'],
         is_active: config.is_active,
         opening_hours: config.opening_hours || {},  // Horários de funcionamento
+        welcome_message: config.welcome_message || null,
+        order_confirmation_message: config.order_confirmation_message || null,
+        order_ready_message: config.order_ready_message || null,
+        out_for_delivery_message: config.out_for_delivery_message || null,
+        closed_message: config.closed_message || null,
+        humanize_responses: config.humanize_responses ?? true,
+        use_customer_name: config.use_customer_name ?? true,
+        response_variation: config.response_variation ?? true,
+        response_delay_min: config.response_delay_min ?? 2,
+        response_delay_max: config.response_delay_max ?? 5,
       },
       categories: Array.from(categoryMap.values()),
       totalItems: items.length,
@@ -1184,9 +1652,109 @@ export function formatMenuAsBubbles(data: DeliveryData): string[] {
   return bubbles;
 }
 
+function buildMenuMediaActions(
+  data: DeliveryData,
+  intent: CustomerIntent,
+  metadata?: Record<string, any>
+): MistralResponse['actions'] {
+  if (intent !== 'WANT_MENU' && intent !== 'WANT_CATEGORY' && intent !== 'GREETING') {
+    return [];
+  }
+
+  if (metadata?.categoryImageUrl) {
+    return [
+      {
+        type: 'send_media_url',
+        media_url: metadata.categoryImageUrl,
+        media_type: 'image',
+        caption: metadata.categoryName || metadata.categoryRequested,
+      }
+    ];
+  }
+
+  const categoriesWithImages = data.categories.filter(cat => !!cat.image_url);
+  if (categoriesWithImages.length === 0) return [];
+
+  const requested = String(metadata?.categoryRequested || '').toLowerCase().trim();
+  if (requested) {
+    const normalizedRequested = normalizeCategoryText(requested);
+    const keywordCandidates = new Set<string>([requested]);
+    if (CATEGORY_KEYWORDS[requested]) {
+      CATEGORY_KEYWORDS[requested].forEach(k => keywordCandidates.add(k));
+    }
+    const matchingKey = Object.keys(CATEGORY_KEYWORDS).find(key =>
+      CATEGORY_KEYWORDS[key].some(k => normalizeCategoryText(k) === normalizedRequested)
+    );
+    if (matchingKey) {
+      keywordCandidates.add(matchingKey);
+      CATEGORY_KEYWORDS[matchingKey].forEach(k => keywordCandidates.add(k));
+    }
+
+    const match = categoriesWithImages.find(cat => {
+      const normalizedName = normalizeCategoryText(cat.name);
+      for (const candidate of keywordCandidates) {
+        const normalizedCandidate = normalizeCategoryText(candidate);
+        if (!normalizedCandidate) continue;
+        if (normalizedName.includes(normalizedCandidate) || normalizedCandidate.includes(normalizedName)) {
+          return true;
+        }
+      }
+      return false;
+    });
+    if (!match?.image_url) return [];
+    return [
+      {
+        type: 'send_media_url',
+        media_url: match.image_url,
+        media_type: 'image',
+        caption: match.name,
+      }
+    ];
+  }
+
+  if (intent === 'WANT_CATEGORY') {
+    return [];
+  }
+
+  return [];
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // 🎨 FORMATAR CATEGORIA ESPECÍFICA (QUANDO CLIENTE ESCOLHE UMA CATEGORIA)
 // ═══════════════════════════════════════════════════════════════════════
+
+function findMatchingCategory(
+  data: DeliveryData,
+  categoryKeyword: string
+): MenuCategory | null {
+  const normalizedKeyword = normalizeCategoryText(categoryKeyword);
+  const keywordCandidates = new Set<string>([categoryKeyword]);
+  if (CATEGORY_KEYWORDS[categoryKeyword]) {
+    CATEGORY_KEYWORDS[categoryKeyword].forEach(k => keywordCandidates.add(k));
+  }
+  const matchingKey = Object.keys(CATEGORY_KEYWORDS).find(key =>
+    CATEGORY_KEYWORDS[key].some(k => normalizeCategoryText(k) === normalizedKeyword)
+  );
+  if (matchingKey) {
+    keywordCandidates.add(matchingKey);
+    CATEGORY_KEYWORDS[matchingKey].forEach(k => keywordCandidates.add(k));
+  }
+
+  const match = data.categories.find(cat => {
+    const catNameNormalized = normalizeCategoryText(cat.name);
+    if (!catNameNormalized) return false;
+    for (const candidate of keywordCandidates) {
+      const normalizedCandidate = normalizeCategoryText(candidate);
+      if (!normalizedCandidate) continue;
+      if (catNameNormalized.includes(normalizedCandidate) || normalizedCandidate.includes(catNameNormalized)) {
+        return true;
+      }
+    }
+    return false;
+  });
+
+  return match || null;
+}
 
 export function formatCategoryAsBubbles(
   data: DeliveryData, 
@@ -1194,15 +1762,38 @@ export function formatCategoryAsBubbles(
 ): string[] {
   const bubbles: string[] = [];
   const emoji = EMOJI_BY_TYPE[data.config.business_type] || '🍴';
+
+  const normalizedKeyword = normalizeCategoryText(categoryKeyword);
+  const keywordCandidates = new Set<string>([categoryKeyword]);
+  if (CATEGORY_KEYWORDS[categoryKeyword]) {
+    CATEGORY_KEYWORDS[categoryKeyword].forEach(k => keywordCandidates.add(k));
+  }
+  const matchingKey = Object.keys(CATEGORY_KEYWORDS).find(key =>
+    CATEGORY_KEYWORDS[key].some(k => normalizeCategoryText(k) === normalizedKeyword)
+  );
+  if (matchingKey) {
+    keywordCandidates.add(matchingKey);
+    CATEGORY_KEYWORDS[matchingKey].forEach(k => keywordCandidates.add(k));
+  }
   
   // Encontrar categorias que correspondem ao keyword
   const matchingCategories = data.categories.filter(cat => {
-    const catNameLower = cat.name.toLowerCase();
-    const keywordLower = categoryKeyword.toLowerCase();
-    
-    // Verificar se o nome da categoria contém o keyword ou vice-versa
-    return catNameLower.includes(keywordLower) || 
-           keywordLower.includes(catNameLower.replace(/[🍕🍔🥪🍽️🍨🍣🍴🥟🍫]/g, '').trim());
+    const catNameNormalized = normalizeCategoryText(cat.name);
+    if (!catNameNormalized) return false;
+
+    if (catNameNormalized.includes(normalizedKeyword) || normalizedKeyword.includes(catNameNormalized)) {
+      return true;
+    }
+
+    for (const candidate of keywordCandidates) {
+      const normalizedCandidate = normalizeCategoryText(candidate);
+      if (!normalizedCandidate) continue;
+      if (catNameNormalized.includes(normalizedCandidate) || normalizedCandidate.includes(catNameNormalized)) {
+        return true;
+      }
+    }
+
+    return false;
   });
   
   if (matchingCategories.length === 0) {
@@ -1390,13 +1981,22 @@ export async function generateDeliveryResponse(
   message: string,
   intent: CustomerIntent,
   deliveryData: DeliveryData,
-  conversationContext?: string
+  conversationContext?: string,
+  customerPhone?: string,
+  conversationId?: string,
+  conversationHistory?: Array<{ fromMe: boolean; text: string }>
 ): Promise<DeliveryAIResponse> {
   
   console.log(`🔥🔥🔥 [DEPLOY V2] generateDeliveryResponse iniciada - Intent: ${intent}`);
   
+  // 🆕 LIMPAR CARRINHO SE FOR PRIMEIRA MENSAGEM DO CLIENTE (SEM HISTÓRICO)
+  if (customerPhone && (!conversationHistory || conversationHistory.length === 0)) {
+    console.log(`🛒 [DeliveryAI] Primeira mensagem detectada - limpando carrinho antigo`);
+    clearCart(userId, customerPhone);
+  }
+  
   // Gerar conversationId único para o pedido (usado na criação do pedido)
-  const conversationId = `sim-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const effectiveConversationId = conversationId || `sim-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
   // ═══════════════════════════════════════════════════════════════════════
   // CASO ESPECIAL: CATEGORIA ESPECÍFICA (pizza, bebidas, etc)
@@ -1407,12 +2007,18 @@ export async function generateDeliveryResponse(
     console.log(`🍕 [DeliveryAI] Intent WANT_CATEGORY - mostrando apenas: ${category}`);
     
     if (category) {
-      const categoryBubbles = formatCategoryAsBubbles(deliveryData, category);
+      const matchedCategory = findMatchingCategory(deliveryData, category);
+      const shouldImageOnly = normalizeMenuSendMode(deliveryData.config.menu_send_mode) === 'image' && !!matchedCategory?.image_url;
+      const categoryBubbles = shouldImageOnly
+        ? []
+        : formatCategoryAsBubbles(deliveryData, category);
       return {
         intent: 'WANT_CATEGORY',
         bubbles: categoryBubbles,
         metadata: {
           categoryRequested: category,
+          categoryImageUrl: matchedCategory?.image_url || null,
+          categoryName: matchedCategory?.name || null,
         },
       };
     } else {
@@ -1517,10 +2123,26 @@ export async function generateDeliveryResponse(
       
       console.log(`💰 [DeliveryAI] Meio a meio: ${item1.name} + ${item2.name} = R$ ${finalPrice} ${sizeLabel}`);
       
+      let cartSummary = '';
+      if (customerPhone) {
+        const halfHalfName = `${categoryContext.charAt(0).toUpperCase() + categoryContext.slice(1)} meio a meio: ${item1.name} + ${item2.name}${sizeLabel}`;
+        const customItemId = `halfhalf:${normalizeTextForMatch(item1.name)}:${normalizeTextForMatch(item2.name)}:${normalizeTextForMatch(sizeLabel || 'base')}`;
+        addCustomItemToCart(userId, customerPhone, {
+          itemId: customItemId,
+          name: halfHalfName,
+          price: finalPrice,
+          quantity: 1,
+          notes: `Metade ${item1.name} + Metade ${item2.name}`,
+          menuItemId: null,
+        });
+        const cart = getCart(userId, customerPhone);
+        cartSummary = `\n\n${formatCartSummary(cart, deliveryData.config.delivery_fee)}`;
+      }
+
       return {
         intent: 'HALF_HALF',
         bubbles: [
-          `✅ Perfeito! ${categoryContext.charAt(0).toUpperCase() + categoryContext.slice(1)}${sizeLabel} meio a meio:\n\n🍕 *Metade ${item1.name}*\n🍕 *Metade ${item2.name}*\n\n💰 *Total: R$ ${finalPrice.toFixed(2).replace('.', ',')}*${hasVariations ? ' (cobrado o valor da mais cara no tamanho escolhido)' : ''}\n\nQuer mais alguma coisa ou posso confirmar o pedido?`
+          `✅ Perfeito! ${categoryContext.charAt(0).toUpperCase() + categoryContext.slice(1)}${sizeLabel} meio a meio:\n\n🍕 *Metade ${item1.name}*\n🍕 *Metade ${item2.name}*\n\n💰 *Total: R$ ${finalPrice.toFixed(2).replace('.', ',')}*${hasVariations ? ' (cobrado o valor da mais cara no tamanho escolhido)' : ''}${cartSummary}\n\nQuer mais alguma coisa ou posso confirmar o pedido?`
         ],
         metadata: {
           halfHalfItems: halfHalfResult.items,
@@ -1547,13 +2169,35 @@ export async function generateDeliveryResponse(
   // CASO ESPECIAL: CARDÁPIO COMPLETO - NÃO CHAMA IA
   // ═══════════════════════════════════════════════════════════════════════
   if (intent === 'WANT_MENU') {
-    console.log(`🍕 [DeliveryAI] Intent WANT_MENU - retornando cardápio do banco direto (${deliveryData.totalItems} itens)`);
+    console.log(`🍕 [DeliveryAI] Intent WANT_MENU - solicitando categoria antes do cardápio completo`);
     
-    const menuBubbles = formatMenuAsBubbles(deliveryData);
+    const categoryFromMessage = detectCategoryFromMessage(message);
+    if (categoryFromMessage) {
+      const matchedCategory = findMatchingCategory(deliveryData, categoryFromMessage);
+      const shouldImageOnly = normalizeMenuSendMode(deliveryData.config.menu_send_mode) === 'image' && !!matchedCategory?.image_url;
+      const categoryBubbles = shouldImageOnly
+        ? []
+        : formatCategoryAsBubbles(deliveryData, categoryFromMessage);
+      return {
+        intent: 'WANT_MENU',
+        bubbles: categoryBubbles,
+        metadata: {
+          categoryRequested: categoryFromMessage,
+          categoryImageUrl: matchedCategory?.image_url || null,
+          categoryName: matchedCategory?.name || null,
+        },
+      };
+    }
+    
+    const categoriesList = deliveryData.categories
+      .map(cat => `• ${cat.name}`)
+      .join('\n');
+    
+    const categoryPrompt = `Claro! Qual categoria você quer ver primeiro?\n\n${categoriesList}\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.`;
     
     return {
       intent: 'WANT_MENU',
-      bubbles: menuBubbles,
+      bubbles: [categoryPrompt],
       metadata: {
         itemMentioned: undefined,
       },
@@ -1561,21 +2205,33 @@ export async function generateDeliveryResponse(
   }
   
   // ═══════════════════════════════════════════════════════════════════════
-  // CASO ESPECIAL: SAUDAÇÃO - Pergunta o que o cliente quer
-  // NÃO envia cardápio completo automaticamente, PERGUNTA primeiro!
+  // CASO ESPECIAL: SAUDAÇÃO - Envia boas-vindas e cardápio completo
   // ═══════════════════════════════════════════════════════════════════════
   if (intent === 'GREETING') {
     const greeting = getTimeBasedGreeting();
-    console.log(`🍕 [DeliveryAI] GREETING detectado - perguntando o que o cliente quer`);
+    console.log(`🍕 [DeliveryAI] GREETING detectado - solicitando categoria antes do cardápio`);
     
-    // Listar categorias disponíveis
-    const categorias = deliveryData.categories.map(c => c.name).join(', ');
+    const categoriesList = deliveryData.categories
+      .map(cat => `• ${cat.name}`)
+      .join('\n');
+
+    const historyName = getCustomerNameFromHistory(conversationHistory);
+    const effectiveName = deliveryData.config.use_customer_name
+      ? (historyName || 'Cliente')
+      : 'Cliente';
+    const defaultWelcomeTemplate = `${greeting}! 😊 Bem-vindo(a) ao *${deliveryData.config.business_name}*!`;
+    const welcomeTemplate = deliveryData.config.welcome_message || defaultWelcomeTemplate;
+    const welcomeTextRaw = interpolateDeliveryMessage(welcomeTemplate, {
+      cliente_nome: effectiveName,
+      nome: effectiveName,
+      name: effectiveName,
+    });
+    const welcomeText = applyHumanization(welcomeTextRaw, deliveryData.config, true);
+    const welcomeMessage = `${welcomeText}\n\nO que você deseja ver primeiro? Escolha uma categoria:\n${categoriesList}\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.`;
     
     return {
       intent: 'GREETING',
-      bubbles: [
-        `${greeting}! 😊 Bem-vindo(a) ao *${deliveryData.config.business_name}*!\n\nO que você está com vontade hoje? Temos:\n${deliveryData.categories.map(c => `• ${c.name}`).join('\n')}\n\nMe diz o que quer ver! 🛵`
-      ],
+      bubbles: [welcomeMessage],
     };
   }
   
@@ -1613,8 +2269,269 @@ export async function generateDeliveryResponse(
   if (intent === 'WANT_TO_ORDER' || intent === 'ADD_ITEM') {
     console.log(`🍕 [DeliveryAI] Intent ${intent} - processando pedido com preços do banco`);
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🆕 VERIFICAR SE É RESPOSTA DE TAMANHO PENDENTE
+    // Se a última mensagem do bot perguntou qual tamanho, buscar o item
+    // mencionado nessa mensagem e completar o pedido
+    // ═══════════════════════════════════════════════════════════════════════
+    const lastBotMessage = conversationHistory?.filter(m => m.fromMe).slice(-1)[0];
+    if (lastBotMessage) {
+      const botMsgLower = lastBotMessage.text.toLowerCase();
+      const isAwaitingSize = botMsgLower.includes('qual tamanho') || 
+                             botMsgLower.includes('me diz o tamanho');
+      
+      if (isAwaitingSize) {
+        // ═════════════════════════════════════════════════════════════════
+        // 🍕 CASO ESPECIAL: PIZZA MEIO A MEIO PENDENTE
+        // Pattern: "*Pizza Calabresa* e *Pizza Mussarela* meio a meio"
+        // ═════════════════════════════════════════════════════════════════
+        const isHalfHalfPending = botMsgLower.includes('meio a meio');
+        if (isHalfHalfPending) {
+          // Extrair os dois sabores: "*Pizza Calabresa* e *Pizza Mussarela*"
+          const halfHalfMatch = lastBotMessage.text.match(/\*([^*]+)\*\s+e\s+\*([^*]+)\*/);
+          if (halfHalfMatch) {
+            const flavor1Name = halfHalfMatch[1].trim();
+            const flavor2Name = halfHalfMatch[2].trim();
+            
+            console.log(`🍕 [DeliveryAI] Continuando MEIO A MEIO pendente: ${flavor1Name} + ${flavor2Name}`);
+            
+            // Buscar ambos os itens
+            const item1 = findItemByNameFuzzy(deliveryData, flavor1Name);
+            const item2 = findItemByNameFuzzy(deliveryData, flavor2Name);
+            
+            if (item1 && item2) {
+              // Detectar tamanho da mensagem atual
+              const sizeFromMsg = detectSizeFromMessage(message);
+              
+              if (sizeFromMsg) {
+                const resolved1 = resolveMenuItemOptions(item1, message);
+                const resolved2 = resolveMenuItemOptions(item2, message);
+                const fallbackSizePrice = (menuItem: MenuItem): number | null => {
+                  const sizeGroup = menuItem.options?.find(opt =>
+                    opt.name.toLowerCase().includes('tamanho') || opt.name.toLowerCase().includes('size')
+                  );
+                  if (!sizeGroup || !sizeGroup.options?.length) return null;
+                  const prices = sizeGroup.options.map(opt => opt.price).filter(p => typeof p === 'number');
+                  if (prices.length === 0) return null;
+                  const sorted = [...prices].sort((a, b) => a - b);
+                  if (sizeFromMsg === 'P') return sorted[0];
+                  if (sizeFromMsg === 'G') return sorted[sorted.length - 1];
+                  if (sizeFromMsg === 'M') return sorted[Math.floor(sorted.length / 2)];
+                  return null;
+                };
+
+                let price1 = resolved1.unitPrice;
+                let price2 = resolved2.unitPrice;
+                if (sizeFromMsg && price1 === item1.price) {
+                  price1 = fallbackSizePrice(item1) ?? price1;
+                }
+                if (sizeFromMsg && price2 === item2.price) {
+                  price2 = fallbackSizePrice(item2) ?? price2;
+                }
+                const sizeOpt1 = resolved1.optionsSelected.find(opt => /tamanho|size/i.test(opt.group));
+                const sizeOpt2 = resolved2.optionsSelected.find(opt => /tamanho|size/i.test(opt.group));
+                const sizeName = sizeOpt1?.option || sizeOpt2?.option || '';
+                
+                // Preço final: o maior dos dois
+                const extractPrice = (text: string): number | null => {
+                  const normalized = text.replace(/\./g, '').replace(',', '.');
+                  const value = parseFloat(normalized);
+                  return Number.isFinite(value) ? value : null;
+                };
+                const sizePriceFromPrompt = (() => {
+                  const prompt = lastBotMessage.text;
+                  const matchP = prompt.match(/Pequena\s*\(P\).*?R\$\s*([\d.,]+)/i);
+                  const matchM = prompt.match(/M[eé]dia\s*\(M\).*?R\$\s*([\d.,]+)/i);
+                  const matchG = prompt.match(/Grande\s*\(G\).*?R\$\s*([\d.,]+)/i);
+                  if (sizeFromMsg === 'P' && matchP) return extractPrice(matchP[1]);
+                  if (sizeFromMsg === 'M' && matchM) return extractPrice(matchM[1]);
+                  if (sizeFromMsg === 'G' && matchG) return extractPrice(matchG[1]);
+                  return null;
+                })();
+                const sizePriceFromMenu = (() => {
+                  for (const category of deliveryData.categories) {
+                    for (const menuItem of category.items) {
+                      const sizeGroup = menuItem.options?.find(opt =>
+                        opt.name.toLowerCase().includes('tamanho') || opt.name.toLowerCase().includes('size')
+                      );
+                      if (!sizeGroup || !sizeGroup.options?.length) continue;
+                      for (const opt of sizeGroup.options) {
+                        const optNameLower = opt.name.toLowerCase();
+                        if ((sizeFromMsg === 'P' && (optNameLower.includes('pequen') || optNameLower === 'p')) ||
+                            (sizeFromMsg === 'M' && (optNameLower.includes('médi') || optNameLower.includes('medi') || optNameLower === 'm')) ||
+                            (sizeFromMsg === 'G' && (optNameLower.includes('grand') || optNameLower === 'g'))) {
+                          const rawPrice = opt.price as unknown as string | number;
+                          const parsedPrice = typeof rawPrice === 'number'
+                            ? rawPrice
+                            : parseFloat(String(rawPrice).replace(/\./g, '').replace(',', '.'));
+                          return Number.isFinite(parsedPrice) ? parsedPrice : null;
+                        }
+                      }
+                    }
+                  }
+                  return null;
+                })();
+                const fallbackSizePriceByLetter = sizeFromMsg === 'G'
+                  ? 55
+                  : sizeFromMsg === 'M'
+                    ? 40
+                    : sizeFromMsg === 'P'
+                      ? 30
+                      : null;
+                const finalPrice = sizePriceFromPrompt ?? sizePriceFromMenu ?? fallbackSizePriceByLetter ?? Math.max(price1, price2);
+                const displayName = `${item1.name} + ${item2.name} (${sizeName || sizeFromMsg})`;
+                
+                // Adicionar ao carrinho como item único (meio a meio)
+                if (customerPhone) {
+                  const halfHalfItem = {
+                    ...item1,
+                    name: displayName,
+                    price: finalPrice,
+                    id: `half-half-${item1.id}-${item2.id}`,
+                  };
+                  addToCart(userId, customerPhone, halfHalfItem, 1, {
+                    displayName,
+                    priceOverride: finalPrice,
+                    notes: `Meio a meio: ${item1.name} + ${item2.name}`,
+                    optionsSelected: [{ group: 'Tamanho', option: sizeName || sizeFromMsg }],
+                    itemKeySuffix: `halfhalf-${sizeFromMsg}`,
+                  });
+                }
+                
+                const cart = customerPhone ? getCart(userId, customerPhone) : null;
+                const subtotal = cart ? getCartSubtotal(cart) : finalPrice;
+                const deliveryFee = deliveryData.config.delivery_fee;
+                
+                let response = `✅ Perfeito! Adicionado ao pedido:\n\n`;
+                response += `• 1x ${displayName} - R$ ${finalPrice.toFixed(2).replace('.', ',')}\n`;
+                
+                if (cart) {
+                  response += `\n${formatCartSummary(cart, deliveryData.config.delivery_fee)}`;
+                } else {
+                  response += `\n💰 Subtotal: R$ ${subtotal.toFixed(2).replace('.', ',')}`;
+                  response += `\n🛵 Taxa de entrega: R$ ${deliveryFee.toFixed(2).replace('.', ',')}`;
+                  response += `\n\n💵 *Total: R$ ${(subtotal + deliveryFee).toFixed(2).replace('.', ',')}*`;
+                }
+                
+                response += `\n\nDeseja mais alguma coisa? Para finalizar, me diga:\n📝 Nome\n📍 Endereço\n💳 Forma de pagamento`;
+                
+                return {
+                  intent: 'ADD_ITEM',
+                  bubbles: [response],
+                  metadata: {
+                    orderItems: [{ name: displayName, quantity: 1, price: finalPrice }],
+                    subtotal,
+                    deliveryFee,
+                    total: subtotal + deliveryFee,
+                    isHalfHalf: true,
+                  },
+                };
+              }
+            }
+          }
+        }
+        // ═════════════════════════════════════════════════════════════════
+        
+        // Extrair o nome do item da mensagem anterior do bot
+        // Pattern: "Boa escolha! *1x Pizza Frango Catupiry*!"
+        const itemMatch = lastBotMessage.text.match(/\*(\d+)x\s+([^*]+)\*/);
+        if (itemMatch) {
+          const pendingQuantity = parseInt(itemMatch[1]) || 1;
+          const pendingItemName = itemMatch[2].trim();
+          
+          console.log(`🍕 [DeliveryAI] Continuando pedido pendente: ${pendingQuantity}x ${pendingItemName}`);
+          
+          // Buscar o item no menu
+          const menuItem = findItemByNameFuzzy(deliveryData, pendingItemName);
+          if (menuItem) {
+            // Resolver opções COM o tamanho da mensagem atual
+            const resolved = resolveMenuItemOptions(menuItem, message);
+            
+            if (!resolved.needsSize) {
+              // Tamanho foi detectado! Adicionar ao carrinho
+              if (customerPhone) {
+                const optionsKey = resolved.optionsSelected
+                  .map(opt => `${normalizeTextForMatch(opt.group)}:${normalizeTextForMatch(opt.option)}`)
+                  .join('|');
+                addToCart(userId, customerPhone, menuItem, pendingQuantity, {
+                  displayName: resolved.displayName,
+                  priceOverride: resolved.unitPrice,
+                  notes: resolved.notes,
+                  optionsSelected: resolved.optionsSelected,
+                  itemKeySuffix: optionsKey || undefined,
+                });
+              }
+              
+              const itemTotal = resolved.unitPrice * pendingQuantity;
+              const cart = customerPhone ? getCart(userId, customerPhone) : null;
+              const subtotal = cart ? getCartSubtotal(cart) : itemTotal;
+              const deliveryFee = deliveryData.config.delivery_fee;
+              
+              let response = `✅ Perfeito! Adicionado ao pedido:\n\n`;
+              response += `• ${pendingQuantity}x ${resolved.displayName} - R$ ${itemTotal.toFixed(2).replace('.', ',')}\n`;
+              
+              if (cart) {
+                response += `\n${formatCartSummary(cart, deliveryData.config.delivery_fee)}`;
+              } else {
+                response += `\n💰 Subtotal: R$ ${subtotal.toFixed(2).replace('.', ',')}`;
+                response += `\n🛵 Taxa de entrega: R$ ${deliveryFee.toFixed(2).replace('.', ',')}`;
+                response += `\n\n💵 *Total: R$ ${(subtotal + deliveryFee).toFixed(2).replace('.', ',')}*`;
+              }
+              
+              const deliveryOptions = [];
+              if (deliveryData.config.accepts_delivery) deliveryOptions.push('🛵 Delivery');
+              if (deliveryData.config.accepts_pickup) deliveryOptions.push('🏪 Retirada');
+              const deliveryTypeLine = deliveryOptions.length > 0
+                ? `🚚 Tipo de entrega: ${deliveryOptions.join(' ou ')}`
+                : '🚚 Tipo de entrega';
+              
+              response += `\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n${deliveryTypeLine}\n📍 Endereço (se for entrega)\n💳 Forma de pagamento`;
+              
+              return {
+                intent: 'ADD_ITEM',
+                bubbles: [response],
+                metadata: {
+                  orderItems: [{ name: resolved.displayName, quantity: pendingQuantity, price: resolved.unitPrice }],
+                  subtotal,
+                  deliveryFee,
+                  total: subtotal + deliveryFee,
+                },
+              };
+            }
+          }
+        }
+      }
+    }
+    // ═══════════════════════════════════════════════════════════════════════
+    
     // 🧠 DETECTAR CONTEXTO: Qual categoria o cliente estava vendo?
-    const categoryContext = detectCategoryContext(conversationHistory, deliveryData);
+    let categoryContext = detectCategoryContext(conversationHistory, deliveryData);
+    
+    const categoryMap: Record<string, string> = {
+      pizza: 'Pizza',
+      esfirra: 'Esfiha',
+      bebida: 'Bebida',
+      'açaí': 'Açaí',
+      borda: 'Borda',
+    };
+
+    const messageCategoryKey = detectCategoryFromMessage(message);
+    if (messageCategoryKey) {
+      categoryContext = categoryMap[messageCategoryKey] || categoryContext;
+    }
+    
+    if (!categoryContext) {
+      const msgLower = message.toLowerCase();
+      if (msgLower.includes('pizza')) {
+        categoryContext = 'Pizza';
+      } else if (msgLower.includes('esfiha') || msgLower.includes('esfirra')) {
+        categoryContext = 'Esfiha';
+      } else if (msgLower.includes('bebida') || msgLower.includes('refrigerante') || msgLower.includes('refri')) {
+        categoryContext = 'Bebida';
+      } else if (msgLower.includes('borda')) {
+        categoryContext = 'Borda';
+      }
+    }
     
     // Parse os itens da mensagem e processa com preços reais
     const parsedItems = parseOrderItems(message);
@@ -1626,63 +2543,50 @@ export async function generateDeliveryResponse(
       };
     }
     
-    const addedItems: Array<{ name: string; quantity: number; price: number; total: number; size?: string }> = [];
+    const addedItems: Array<{ name: string; quantity: number; price: number; total: number }> = [];
     const notFoundItems: string[] = [];
-    const itemsNeedingSize: Array<{ name: string; quantity: number; options: any[] }> = [];
-    
-    // Detectar tamanho na mensagem
-    const sizeFromMessage = detectSizeFromMessage(message);
+    const itemsNeedingSize: Array<{ name: string; quantity: number; options: Array<{ name: string; price: number }> }> = [];
     
     for (const parsed of parsedItems) {
-      // 🎯 USAR CONTEXTO: Se cliente estava vendo Pizzas, buscar só em Pizzas
-      const menuItem = findItemByNameFuzzy(deliveryData, parsed.name, categoryContext);
+      const itemCategoryKey = detectCategoryFromMessage(parsed.name);
+      const itemCategoryContext = itemCategoryKey
+        ? (categoryMap[itemCategoryKey] || categoryContext)
+        : categoryContext;
+      const menuItem = findItemByNameFuzzy(deliveryData, parsed.name, itemCategoryContext);
       
       if (menuItem) {
-        // 🔍 VERIFICAR SE TEM VARIAÇÕES
-        const hasVariations = menuItem.options && menuItem.options.length > 0;
-        const sizeOption = menuItem.options?.find(opt => 
-          opt.name.toLowerCase().includes('tamanho') || opt.name.toLowerCase().includes('size')
-        );
-        
-        if (hasVariations && sizeOption && !sizeFromMessage) {
-          // Tem variação mas tamanho não foi especificado - PERGUNTAR
+        const resolved = resolveMenuItemOptions(menuItem, message);
+        if (resolved.needsSize) {
           itemsNeedingSize.push({
             name: menuItem.name,
             quantity: parsed.quantity,
-            options: sizeOption.options || []
+            options: resolved.sizeOptions || [],
           });
-        } else {
-          // Calcular preço (usa variação se especificada, senão preço base)
-          let finalPrice = menuItem.price;
-          let sizeLabel = '';
-          
-          if (sizeFromMessage && sizeOption && sizeOption.options) {
-            const selectedSize = sizeOption.options.find((opt: any) => 
-              opt.name.toLowerCase().includes(sizeFromMessage.toLowerCase()) ||
-              (sizeFromMessage.toLowerCase() === 'p' && opt.name.toLowerCase().includes('pequen')) ||
-              (sizeFromMessage.toLowerCase() === 'm' && (opt.name.toLowerCase().includes('méd') || opt.name.toLowerCase().includes('med'))) ||
-              (sizeFromMessage.toLowerCase() === 'g' && opt.name.toLowerCase().includes('grand'))
-            );
-            if (selectedSize) {
-              finalPrice = selectedSize.price;
-              sizeLabel = selectedSize.name;
-            }
-          }
-          
-          addedItems.push({
-            name: menuItem.name,
-            quantity: parsed.quantity,
-            price: finalPrice,
-            total: finalPrice * parsed.quantity,
-            size: sizeLabel || undefined
+          continue;
+        }
+        if (customerPhone) {
+          const optionsKey = resolved.optionsSelected
+            .map(opt => `${normalizeTextForMatch(opt.group)}:${normalizeTextForMatch(opt.option)}`)
+            .join('|');
+          addToCart(userId, customerPhone, menuItem, parsed.quantity, {
+            displayName: resolved.displayName,
+            priceOverride: resolved.unitPrice,
+            notes: resolved.notes,
+            optionsSelected: resolved.optionsSelected,
+            itemKeySuffix: optionsKey || undefined,
           });
         }
+        addedItems.push({
+          name: resolved.displayName,
+          quantity: parsed.quantity,
+          price: resolved.unitPrice,
+          total: resolved.unitPrice * parsed.quantity,
+        });
       } else {
         notFoundItems.push(parsed.name);
       }
     }
     
-    // 🔍 SE TEM ITENS QUE PRECISAM DE TAMANHO, PERGUNTAR PRIMEIRO
     if (itemsNeedingSize.length > 0) {
       const item = itemsNeedingSize[0];
       const sizesText = item.options.map((opt: any) => 
@@ -1711,26 +2615,36 @@ export async function generateDeliveryResponse(
       };
     }
     
-    // Calcular totais
-    const subtotal = addedItems.reduce((sum, item) => sum + item.total, 0);
+    const cart = customerPhone ? getCart(userId, customerPhone) : null;
+    const subtotal = cart ? getCartSubtotal(cart) : addedItems.reduce((sum, item) => sum + item.total, 0);
     const deliveryFee = deliveryData.config.delivery_fee;
     const total = subtotal + deliveryFee;
     
-    // Formatar resposta com preços CORRETOS
-    let response = `✅ Ótimo! Seu pedido:\n\n`;
+    let response = `✅ Adicionado ao pedido:\n\n`;
     for (const item of addedItems) {
-      const sizeText = item.size ? ` (${item.size})` : '';
-      response += `• ${item.quantity}x ${item.name}${sizeText} - R$ ${item.total.toFixed(2).replace('.', ',')}\n`;
+      response += `• ${item.quantity}x ${item.name} - R$ ${item.total.toFixed(2).replace('.', ',')}\n`;
     }
     
     if (notFoundItems.length > 0) {
       response += `\n⚠️ Não encontrei: ${notFoundItems.join(', ')}\n`;
     }
     
-    response += `\n💰 Subtotal: R$ ${subtotal.toFixed(2).replace('.', ',')}`;
-    response += `\n🛵 Taxa de entrega: R$ ${deliveryFee.toFixed(2).replace('.', ',')}`;
-    response += `\n\n💵 *Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
-    response += `\n\nPara finalizar, me diz:\n📝 Nome\n📍 Endereço\n💳 Forma de pagamento`;
+    if (cart) {
+      response += `\n${formatCartSummary(cart, deliveryData.config.delivery_fee)}`;
+    } else {
+      response += `\n💰 Subtotal: R$ ${subtotal.toFixed(2).replace('.', ',')}`;
+      response += `\n🛵 Taxa de entrega: R$ ${deliveryFee.toFixed(2).replace('.', ',')}`;
+      response += `\n\n💵 *Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
+    }
+    
+    const deliveryOptions = [];
+    if (deliveryData.config.accepts_delivery) deliveryOptions.push('🛵 Delivery');
+    if (deliveryData.config.accepts_pickup) deliveryOptions.push('🏪 Retirada');
+    const deliveryTypeLine = deliveryOptions.length > 0
+      ? `🚚 Tipo de entrega: ${deliveryOptions.join(' ou ')}`
+      : '🚚 Tipo de entrega';
+    
+    response += `\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n${deliveryTypeLine}\n📍 Endereço (se for entrega)\n💳 Forma de pagamento`;
     
     return {
       intent,
@@ -1792,16 +2706,70 @@ export async function generateDeliveryResponse(
     console.log(`📝 [DeliveryAI] Info extraída do resumo:`, info);
     
     try {
-      const orderId = await createDeliveryOrder(userId, conversationId, info, deliveryData);
-      
+      if (!customerPhone) {
+        return {
+          intent: 'PROVIDE_CUSTOMER_INFO',
+          bubbles: [
+            `❌ Não consegui identificar seu telefone para finalizar o pedido. Pode me informar novamente?`
+          ],
+          metadata: { error: true, errorMessage: 'missing_customer_phone' },
+        };
+      }
+      const deliveryType = info.deliveryType || (deliveryData.config.accepts_delivery ? 'delivery' : 'pickup');
+      const orderResult = await confirmAndCreateOrder(
+        userId,
+        customerPhone,
+        info.customerName || 'Cliente',
+        deliveryType,
+        info.paymentMethod || 'Dinheiro',
+        info.customerAddress || null,
+        deliveryData,
+        effectiveConversationId
+      );
+
+      if (!orderResult.success || !orderResult.orderId) {
+        return {
+          intent: 'PROVIDE_CUSTOMER_INFO',
+          bubbles: [
+            `❌ Ops! Não consegui confirmar seu pedido. ${orderResult.error || 'Tente novamente.'}`
+          ],
+          metadata: {
+            error: true,
+            errorMessage: orderResult.error,
+          },
+        };
+      }
+      const historyName = getCustomerNameFromHistory(conversationHistory);
+      const effectiveName = deliveryData.config.use_customer_name
+        ? (info.customerName || historyName || 'Cliente')
+        : 'Cliente';
+      const confirmationTemplate = deliveryData.config.order_confirmation_message || '';
+      const confirmationIntroRaw = confirmationTemplate
+        ? interpolateDeliveryMessage(confirmationTemplate, {
+            cliente_nome: effectiveName,
+            nome: effectiveName,
+            name: effectiveName,
+            pedido_numero: String(orderResult.orderId),
+            total: orderResult.total ? `R$ ${orderResult.total.toFixed(2).replace('.', ',')}` : '',
+            tempo_estimado: `${deliveryData.config.estimated_delivery_time} minutos`,
+          })
+        : '';
+      const confirmationIntro = confirmationIntroRaw
+        ? applyHumanization(confirmationIntroRaw, deliveryData.config, true)
+        : '';
+      const summaryMessage = `✅ *Pedido confirmado com sucesso!*\n\n🎫 *Número do pedido:* #${orderResult.orderId}\n\n📝 *Nome:* ${info.customerName || effectiveName}\n${deliveryType === 'delivery' ? `📍 *Endereço:* ${info.customerAddress}\n` : '🏃 *Retirada no local*\n'}💳 *Pagamento:* ${info.paymentMethod}\n\n⏱️ *Previsão:* ${deliveryData.config.estimated_delivery_time} minutos\n\n🍕 Seu pedido já foi enviado para a cozinha! Obrigado pela preferência! 😊`;
+      const finalMessage = confirmationIntro
+        ? `${confirmationIntro}\n\n${summaryMessage}`
+        : summaryMessage;
+
       return {
         intent: 'FINALIZE_ORDER',
         bubbles: [
-          `✅ *Pedido confirmado com sucesso!*\n\n🎫 *Número do pedido:* #${orderId}\n\n📝 *Nome:* ${info.customerName}\n${info.deliveryType === 'delivery' ? `📍 *Endereço:* ${info.customerAddress}\n` : '🏃 *Retirada no local*\n'}💳 *Pagamento:* ${info.paymentMethod}\n\n⏱️ *Previsão:* ${deliveryData.config.estimated_delivery_time} minutos\n\n🍕 Seu pedido já foi enviado para a cozinha! Obrigado pela preferência! 😊`
+          finalMessage
         ],
         metadata: {
           orderCreated: true,
-          orderId,
+          orderId: orderResult.orderId,
           customerInfo: info,
         },
       };
@@ -1878,24 +2846,45 @@ export async function generateDeliveryResponse(
     // Tentar extrair info existente do contexto da conversa anterior
     // Procurar por padrões no contexto que indicam dados já coletados
     if (conversationContext) {
-      const ctx = conversationContext.toLowerCase();
+      const lines = conversationContext.split('\n');
       
-      // Se contexto indica que já tem delivery type
-      if (ctx.includes('delivery') || ctx.includes('entrega')) {
-        existingInfo.deliveryType = 'delivery';
-      } else if (ctx.includes('retirada') || ctx.includes('pickup') || ctx.includes('retirar') || ctx.includes('balcão') || ctx.includes('balcao')) {
-        existingInfo.deliveryType = 'pickup';
+      // Capturar delivery type e pagamento APENAS a partir de mensagens do cliente
+      for (const line of lines) {
+        const lower = line.toLowerCase().trim();
+        if (lower.startsWith('cliente:') || lower.startsWith('client:') || lower.startsWith('customer:')) {
+          const content = line.substring(line.indexOf(':') + 1).trim();
+          const contentLower = content.toLowerCase();
+          
+          if (!existingInfo.deliveryType) {
+            if (/\b(retirada|retirar|retiro|buscar|busco|pegar|pego|no local|balc[aã]o)\b/i.test(contentLower)) {
+              existingInfo.deliveryType = 'pickup';
+            } else if (/\b(delivery|entrega|mandar|enviar|levar)\b/i.test(contentLower)) {
+              existingInfo.deliveryType = 'delivery';
+            }
+          }
+          
+          if (!existingInfo.paymentMethod) {
+            const paymentMatch = content.match(/\b(pix|dinheiro|cart[aã]o|d[eé]bito|cr[eé]dito|cartão|cartao)\b/i);
+            if (paymentMatch) {
+              const paymentMap: Record<string, string> = {
+                'pix': 'Pix',
+                'dinheiro': 'Dinheiro',
+                'cartao': 'Cartao',
+                'cartão': 'Cartao',
+                'debito': 'Cartao',
+                'débito': 'Cartao',
+                'credito': 'Cartao',
+                'crédito': 'Cartao',
+              };
+              existingInfo.paymentMethod = paymentMap[paymentMatch[1].toLowerCase()] || 'Dinheiro';
+            }
+          }
+        }
       }
-      
-      // Se contexto indica tipo de pagamento mencionado
-      if (ctx.includes('pix')) existingInfo.paymentMethod = 'Pix';
-      else if (ctx.includes('dinheiro')) existingInfo.paymentMethod = 'Dinheiro';
-      else if (ctx.includes('cartao') || ctx.includes('cartão')) existingInfo.paymentMethod = 'Cartao';
       
       // IMPORTANTE: Buscar endereço no contexto (mensagens anteriores do cliente)
       // Dividir contexto em linhas e procurar mensagens do cliente que parecem endereço
       console.log(`📝 [DeliveryAI] Buscando endereço no contexto...`);
-      const lines = conversationContext.split('\n');
       for (const line of lines) {
         const lower = line.toLowerCase().trim();
         // Só considerar mensagens do cliente
@@ -2063,8 +3052,17 @@ export async function generateDeliveryResponse(
     // ═══════════════════════════════════════════════════════════════════════
     console.log(`✅ [DeliveryAI] Todas informações coletadas - mostrando resumo para confirmação`);
     
-    // Calcular valores (por enquanto usando valores padrão)
-    const subtotal = 30; // TODO: Pegar do carrinho real
+    const cart = customerPhone ? getCart(userId, customerPhone) : null;
+    if (!cart || cart.items.size === 0) {
+      return {
+        intent: 'WANT_TO_ORDER',
+        bubbles: [
+          `🛒 Seu pedido está vazio. Me diga o que você gostaria de pedir!`
+        ],
+      };
+    }
+
+    const subtotal = getCartSubtotal(cart);
     const deliveryFee = info.deliveryType === 'delivery' ? deliveryData.config.delivery_fee : 0;
     const total = subtotal + deliveryFee;
     
@@ -2313,6 +3311,7 @@ export function parseHalfHalfOrder(message: string, deliveryData: DeliveryData, 
   // "pizza calabresa/mussarela"
   
   const patterns = [
+    /meia\s+(.+?)\s+meia\s+(.+?)(?:\s|$)/i,
     /(?:meio\s*(?:a\s*)?meio|meia)\s+(.+?)\s+(?:e|com|\/)\s+(?:meia|meio\s*(?:a\s*)?meio)?\s*(.+?)(?:\s|$)/i,
     /(?:metade)\s+(.+?)\s+(?:e|com|\/)\s+(?:metade)?\s*(.+?)(?:\s|$)/i,
     /(.+?)\s+(?:e|com|\/)\s+(.+?)\s+(?:meio\s*(?:a\s*)?meio|metade|meia)/i,
@@ -2322,8 +3321,28 @@ export function parseHalfHalfOrder(message: string, deliveryData: DeliveryData, 
   
   let flavor1 = '';
   let flavor2 = '';
+
+  // Fallback rápido: "meia X meia Y" sem conjunção
+  if (!flavor1 && !flavor2 && lowerMsg.includes('meia')) {
+    const meiaParts = lowerMsg.split('meia').map(p => p.trim()).filter(Boolean);
+    if (meiaParts.length >= 3) {
+      const possibleFlavors = meiaParts.slice(-2);
+      flavor1 = possibleFlavors[0]
+        .replace(/^(?:pizza\s*(?:de\s*)?|esfirra\s*(?:de\s*)?|esfiha\s*(?:de\s*)?|de\s*)/i, '')
+        .replace(/sabor\s*/i, '')
+        .replace(/^a\s+/i, '')
+        .trim();
+      flavor2 = possibleFlavors[1]
+        .replace(/^(?:pizza\s*(?:de\s*)?|esfirra\s*(?:de\s*)?|esfiha\s*(?:de\s*)?|de\s*)/i, '')
+        .replace(/sabor\s*/i, '')
+        .replace(/^a\s+/i, '')
+        .trim();
+      console.log(`🔍 [DeliveryAI] Sabores extraídos (fallback meia): "${flavor1}" e "${flavor2}"`);
+    }
+  }
   
   for (const pattern of patterns) {
+    if (flavor1 && flavor2) break;
     const match = lowerMsg.match(pattern);
     if (match) {
       flavor1 = match[1].trim()
@@ -2464,42 +3483,54 @@ export function findItemByNameFuzzy(
   
   console.log(`🔍 [DeliveryAI] Buscando "${searchName}" em ${categoriesToSearch.length} categorias ${categoryFilter ? `(filtro: ${categoryFilter})` : ''}`);
   
-  // 1. Busca exata
+  // 1. Normalização de sabor (remover prefixos como "pizza de", "esfiha de")
+  const cleanedName = normalized
+    .replace(/^(?:pizza\s*(?:de\s*)?|esfirra?\s*(?:de\s*)?|esfiha\s*(?:de\s*)?)/i, '')
+    .replace(/^(?:uma?\s*|um\s*)/i, '')
+    .trim();
+
+  const searchWords = normalized
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !['de', 'da', 'do', 'uma', 'um'].includes(w));
+
+  const flavorWords = normalized
+    .split(/\s+/)
+    .filter(w => w.length > 4 && !['pizza', 'esfiha', 'esfirra', 'quero', 'grande', 'media', 'pequena'].includes(w));
+
+  type Candidate = { item: MenuItem; categoryName: string; score: number; reason: string };
+  const candidates: Candidate[] = [];
+
   for (const category of categoriesToSearch) {
     for (const item of category.items) {
-      if (item.name.toLowerCase() === normalized) {
-        console.log(`✅ [DeliveryAI] Match exato: ${item.name} (categoria: ${category.name})`);
-        return item;
+      const itemNameLower = item.name.toLowerCase();
+      let score = 0;
+      let reason = '';
+
+      if (itemNameLower === normalized) {
+        score = 100;
+        reason = 'exato';
+      } else if (cleanedName.length > 2 && itemNameLower.includes(cleanedName)) {
+        score = 90;
+        reason = `sabor:${cleanedName}`;
+      } else if (searchWords.length > 0 && searchWords.every(word => itemNameLower.includes(word))) {
+        score = 80;
+        reason = 'todas-palavras';
+      } else if (flavorWords.length > 0 && flavorWords.some(word => itemNameLower.includes(word))) {
+        score = 60;
+        reason = 'fuzzy-sabor';
+      }
+
+      if (score > 0) {
+        candidates.push({ item, categoryName: category.name, score, reason });
       }
     }
   }
-  
-  // 2. Busca por todas as palavras presentes
-  const searchWords = normalized.split(/\s+/).filter(w => w.length > 1);
-  if (searchWords.length > 0) {
-    for (const category of categoriesToSearch) {
-      for (const item of category.items) {
-        const itemNameLower = item.name.toLowerCase();
-        if (searchWords.every(word => itemNameLower.includes(word))) {
-          console.log(`✅ [DeliveryAI] Match palavras: ${item.name} (categoria: ${category.name})`);
-          return item;
-        }
-      }
-    }
-  }
-  
-  // 3. Busca fuzzy - pelo menos uma palavra importante
-  const importantWords = normalized.split(/\s+/).filter(w => w.length > 3);
-  if (importantWords.length > 0) {
-    for (const category of categoriesToSearch) {
-      for (const item of category.items) {
-        const itemNameLower = item.name.toLowerCase();
-        if (importantWords.some(word => itemNameLower.includes(word))) {
-          console.log(`✅ [DeliveryAI] Match fuzzy: ${item.name} (categoria: ${category.name})`);
-          return item;
-        }
-      }
-    }
+
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => b.score - a.score || a.item.name.length - b.item.name.length);
+    const best = candidates[0];
+    console.log(`✅ [DeliveryAI] Match ${best.reason}: ${best.item.name} (categoria: ${best.categoryName})`);
+    return best.item;
   }
   
   console.log(`❌ [DeliveryAI] Nenhum item encontrado para "${searchName}"`);
@@ -2555,27 +3586,72 @@ export function processOrderFromMessage(
   userId: string,
   customerPhone: string,
   message: string,
-  deliveryData: DeliveryData
+  deliveryData: DeliveryData,
+  categoryContext?: string
 ): ProcessOrderResult {
+  const categoryMap: Record<string, string> = {
+    pizza: 'Pizza',
+    esfirra: 'Esfiha',
+    bebida: 'Bebida',
+    'açaí': 'Açaí',
+    borda: 'Borda',
+  };
   const parsedItems = parseOrderItems(message);
   const addedItems: Array<{ name: string; quantity: number; price: number }> = [];
   const notFoundItems: string[] = [];
+  const itemsNeedingSize: Array<{ name: string; quantity: number; options: Array<{ name: string; price: number }> }> = [];
   
   for (const parsed of parsedItems) {
-    const menuItem = findItemByNameFuzzy(deliveryData, parsed.name);
+    const itemCategoryKey = detectCategoryFromMessage(parsed.name);
+    const itemCategoryContext = itemCategoryKey
+      ? (categoryMap[itemCategoryKey] || categoryContext)
+      : categoryContext;
+    const menuItem = findItemByNameFuzzy(deliveryData, parsed.name, itemCategoryContext);
     
     if (menuItem) {
-      addToCart(userId, customerPhone, menuItem, parsed.quantity);
+      const resolved = resolveMenuItemOptions(menuItem, message);
+      if (resolved.needsSize) {
+        itemsNeedingSize.push({
+          name: menuItem.name,
+          quantity: parsed.quantity,
+          options: resolved.sizeOptions || [],
+        });
+        continue;
+      }
+      const optionsKey = resolved.optionsSelected
+        .map(opt => `${normalizeTextForMatch(opt.group)}:${normalizeTextForMatch(opt.option)}`)
+        .join('|');
+      addToCart(userId, customerPhone, menuItem, parsed.quantity, {
+        displayName: resolved.displayName,
+        priceOverride: resolved.unitPrice,
+        notes: resolved.notes,
+        optionsSelected: resolved.optionsSelected,
+        itemKeySuffix: optionsKey || undefined,
+      });
       addedItems.push({
-        name: menuItem.name,
+        name: resolved.displayName,
         quantity: parsed.quantity,
-        price: menuItem.price,
+        price: resolved.unitPrice,
       });
     } else {
       notFoundItems.push(parsed.name);
     }
   }
   
+  if (itemsNeedingSize.length > 0) {
+    const item = itemsNeedingSize[0];
+    const sizesText = item.options.map(opt =>
+      `• *${opt.name}* - R$ ${opt.price.toFixed(2).replace('.', ',')}`
+    ).join('\n');
+    return {
+      success: false,
+      addedItems: [],
+      notFoundItems,
+      cart: getCart(userId, customerPhone),
+      message: `🍕 Boa escolha! *${item.quantity}x ${item.name}*\n\n📐 *Qual tamanho você quer?*\n\n${sizesText}\n\nMe diz o tamanho! 😊`,
+    };
+  }
+
   const cart = getCart(userId, customerPhone);
   
   let message_response = '';
@@ -2659,11 +3735,15 @@ export async function confirmAndCreateOrder(
     }));
     
     // Criar pedido no banco usando a função existente do deliveryService
+    const validConversationId = conversationId && !conversationId.startsWith('sim-')
+      ? conversationId
+      : null;
+
     const { data: order, error: orderError } = await supabase
       .from('delivery_orders')
       .insert({
         user_id: userId,
-        conversation_id: conversationId,
+        conversation_id: validConversationId,
         customer_name: customerName,
         customer_phone: customerPhone,
         customer_address: address,
@@ -2689,11 +3769,12 @@ export async function confirmAndCreateOrder(
     // Inserir itens do pedido
     const orderItems = Array.from(cart.items.values()).map(item => ({
       order_id: order.id,
-      menu_item_id: item.itemId,
+      menu_item_id: item.menuItemId ?? null,
       item_name: item.name,
       quantity: item.quantity,
       unit_price: item.price,
       total_price: item.price * item.quantity,
+      options_selected: item.optionsSelected || [],
       notes: item.notes,
     }));
     
@@ -2726,7 +3807,9 @@ export async function confirmAndCreateOrder(
 export async function processDeliveryMessage(
   userId: string,
   message: string,
-  conversationHistory?: Array<{ fromMe: boolean; text: string }>
+  conversationHistory?: Array<{ fromMe: boolean; text: string }>,
+  customerPhone?: string,
+  conversationId?: string
 ): Promise<DeliveryAIResponse | null> {
   
   console.log(`\n${'═'.repeat(60)}`);
@@ -2745,30 +3828,23 @@ export async function processDeliveryMessage(
   
   if (!businessStatus.isOpen) {
     console.log(`🚫 [DeliveryAI] Estabelecimento fechado - informando cliente`);
-    
-    // Montar mensagem informativa sobre horários
-    let closedMessage = `😔 *Ops! Estamos fechados no momento.*\n\n`;
-    closedMessage += `🕐 ${businessStatus.message}\n\n`;
-    
-    // Listar todos os horários de funcionamento
-    if (deliveryData.config.opening_hours && Object.keys(deliveryData.config.opening_hours).length > 0) {
-      const dayNamesPt: Record<string, string> = {
-        monday: 'Segunda', tuesday: 'Terça', wednesday: 'Quarta',
-        thursday: 'Quinta', friday: 'Sexta', saturday: 'Sábado', sunday: 'Domingo'
-      };
-      const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      
-      closedMessage += `📅 *Nossos horários:*\n`;
-      for (const day of dayOrder) {
-        const dayConfig = deliveryData.config.opening_hours[day];
-        if (dayConfig && dayConfig.enabled) {
-          closedMessage += `• ${dayNamesPt[day]}: ${dayConfig.open} às ${dayConfig.close}\n`;
-        }
-      }
-    }
-    
-    closedMessage += `\n✨ Volte no horário de funcionamento! Teremos prazer em atendê-lo.`;
-    
+    const hoursText = formatBusinessHours(deliveryData.config.opening_hours);
+    const historyName = getCustomerNameFromHistory(conversationHistory);
+    const effectiveName = deliveryData.config.use_customer_name
+      ? (historyName || 'Cliente')
+      : 'Cliente';
+
+    const defaultClosedTemplate = `😔 *Ops! Estamos fechados no momento.*\n\n🕐 {status}\n\n{horarios}\n\n✨ Volte no horário de funcionamento! Teremos prazer em atendê-lo.`;
+    const closedTemplate = deliveryData.config.closed_message || defaultClosedTemplate;
+    const closedMessageRaw = interpolateDeliveryMessage(closedTemplate, {
+      cliente_nome: effectiveName,
+      nome: effectiveName,
+      name: effectiveName,
+      horarios: hoursText,
+      status: businessStatus.message,
+    });
+    const closedMessage = applyHumanization(closedMessageRaw, deliveryData.config, true);
+
     return {
       intent: 'OTHER',
       bubbles: [closedMessage],
@@ -2776,8 +3852,18 @@ export async function processDeliveryMessage(
     };
   }
   
-  // 3. Detectar intenção COM IA (considera contexto da conversa)
-  const intent = await detectIntentWithAI(message, conversationHistory, deliveryData);
+  // 3. Detectar intenção (atalhos rápidos antes da IA)
+  const normalizedMsg = normalizeTextForMatch(message);
+  let intent: CustomerIntent | null = null;
+  if (/^(oi|ola|olá|bom dia|boa tarde|boa noite|e ai|eae|opa|oii+|hi|hey)\b/.test(normalizedMsg)) {
+    intent = 'GREETING';
+  } else if (/(cardapio|cardápio|menu|o que tem|oque tem|quais produtos|quais os produtos|me manda o menu|mostra o menu|ver o cardapio|ver cardápio)/i.test(normalizedMsg)) {
+    intent = 'WANT_MENU';
+  }
+  if (!intent) {
+    // Detectar intenção COM IA (considera contexto da conversa)
+    intent = await detectIntentWithAI(message, conversationHistory, deliveryData);
+  }
   console.log(`🍕 [DeliveryAI] Intenção detectada (com contexto): ${intent}`);
   
   // 4. Gerar resposta baseada na intenção
@@ -2786,8 +3872,47 @@ export async function processDeliveryMessage(
     message,
     intent,
     deliveryData,
-    conversationHistory?.map(m => `${m.fromMe ? 'Você' : 'Cliente'}: ${m.text}`).join('\n')
+    conversationHistory?.map(m => `${m.fromMe ? 'Você' : 'Cliente'}: ${m.text}`).join('\n'),
+    customerPhone,
+    conversationId,
+    conversationHistory
   );
+
+  const menuSendMode = normalizeMenuSendMode(deliveryData.config.menu_send_mode);
+  if (menuSendMode !== 'text') {
+    if (menuSendMode === 'image' && !response.metadata?.categoryImageUrl) {
+      const requestedCategory = response.metadata?.categoryRequested || detectCategoryFromMessage(message);
+      if (requestedCategory) {
+        const matchedCategory = findMatchingCategory(deliveryData, requestedCategory);
+        if (matchedCategory?.image_url) {
+          response.metadata = {
+            ...response.metadata,
+            categoryRequested: requestedCategory,
+            categoryImageUrl: matchedCategory.image_url,
+            categoryName: matchedCategory.name,
+          };
+        }
+      }
+    }
+
+    const mediaActions = buildMenuMediaActions(deliveryData, response.intent, response.metadata);
+
+    if (menuSendMode === 'image' && response.metadata?.categoryImageUrl && mediaActions.length === 0) {
+      mediaActions.push({
+        type: 'send_media_url',
+        media_url: response.metadata.categoryImageUrl,
+        media_type: 'image',
+        caption: response.metadata.categoryName || response.metadata.categoryRequested,
+      });
+    }
+
+    if (mediaActions.length > 0) {
+      response.mediaActions = mediaActions;
+      if (menuSendMode === 'image') {
+        response.bubbles = [];
+      }
+    }
+  }
   
   console.log(`🍕 [DeliveryAI] Resposta gerada: ${response.bubbles.length} bolha(s)`);
   response.bubbles.forEach((b, i) => {
@@ -2806,6 +3931,7 @@ export default {
   processDeliveryMessage,
   detectCustomerIntent,
   detectIntentWithAI,
+  isDeliveryEnabled,
   getDeliveryData,
   formatMenuAsBubbles,
   findItemInMenu,
@@ -2816,6 +3942,7 @@ export default {
   // Carrinho
   getCart,
   addToCart,
+  addCustomItemToCart,
   removeFromCart,
   clearCart,
   getCartSubtotal,

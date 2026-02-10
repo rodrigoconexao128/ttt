@@ -144,6 +144,20 @@ export async function salvarVersaoPrompt(params: SaveVersionParams): Promise<Pro
     ) as QueryResult<PromptVersion>;
     
     const newVersion = insertResult.rows[0];
+
+
+    // Keep ai_agent_config in sync with current prompt versions
+    if (configType === 'ai_agent_config') {
+      try {
+        await pool.query(
+          `UPDATE ai_agent_config SET prompt = $1, updated_at = now() WHERE user_id = $2`,
+          [promptContent, userId]
+        );
+        console.log(`[HistoryService] Sync ai_agent_config.prompt for user ${userId}`);
+      } catch (syncErr) {
+        console.error('[HistoryService] Failed to sync ai_agent_config:', syncErr);
+      }
+    }
     console.log(`[HistoryService] ✅ Nova versão v${nextVersion} salva (id: ${newVersion.id}, is_current: true, prompt length: ${promptContent.length})`);
     return newVersion;
     
@@ -204,7 +218,9 @@ export async function obterVersaoAtual(
   try {
     const result = await pool.query(
       `SELECT * FROM prompt_versions 
-       WHERE user_id = $1 AND config_type = $2 AND is_current = true`,
+       WHERE user_id = $1 AND config_type = $2 AND is_current = true
+       ORDER BY version_number DESC, created_at DESC
+       LIMIT 1`,
       [userId, configType]
     ) as QueryResult<PromptVersion>;
     

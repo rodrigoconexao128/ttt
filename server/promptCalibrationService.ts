@@ -66,11 +66,11 @@ export interface ConfiguracaoCalibracao {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG_PADRAO: ConfiguracaoCalibracao = {
-  maxTentativasReparo: 10, // Loop até atingir score >= 70
-  numeroCenarios: 2, // 2 cenários para balancear velocidade
-  turnosConversaMax: 2,
-  scoreMinimoAprovacao: 70, // Score mínimo obrigatório
-  timeoutMs: 120000 // 2 minutos - tempo suficiente para várias rodadas
+  maxTentativasReparo: 3, // Reduzido: 3 tentativas rápidas
+  numeroCenarios: 1, // Reduzido: 1 cenário para velocidade máxima
+  turnosConversaMax: 1, // 1 turno apenas
+  scoreMinimoAprovacao: 60, // Flexibilizado para agilizar
+  timeoutMs: 30000 // 30 segundos - muito mais rápido
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -90,35 +90,15 @@ export interface CalibrationLog {
 // PROMPTS DO SISTEMA
 // ═══════════════════════════════════════════════════════════════════════════
 
-const PROMPT_GERADOR_CENARIOS = `Você é um gerador de cenários de teste para validar edições em prompts de agentes de IA.
+const PROMPT_GERADOR_CENARIOS = `Gere 1 pergunta de teste RÁPIDA para validar esta edição no prompt.
 
-TAREFA:
-Dado uma instrução de edição, gere cenários de teste que validem se a edição foi aplicada corretamente.
+FORMATO JSON (sem markdown):
+{"cenarios":[{"id":"c1","perguntaCliente":"pergunta curta","expectativaResposta":"o que esperar","tipoValidacao":"semantico","palavrasChave":["palavra1"]}]}
 
 REGRAS:
-1. Cada cenário deve ter uma pergunta que um cliente real faria
-2. A pergunta deve estar diretamente relacionada à edição solicitada
-3. Defina claramente o que esperar na resposta do agente
-4. Inclua palavras-chave que devem aparecer (ou não aparecer) na resposta
-
-FORMATO DE SAÍDA (JSON):
-{
-  "cenarios": [
-    {
-      "id": "cenario_1",
-      "perguntaCliente": "Pergunta que o cliente faria",
-      "expectativaResposta": "O que esperamos que o agente responda",
-      "tipoValidacao": "contem",
-      "palavrasChave": ["palavra1", "palavra2"]
-    }
-  ]
-}
-
-TIPOS DE VALIDAÇÃO:
-- "contem": resposta DEVE conter as palavras-chave
-- "nao_contem": resposta NÃO DEVE conter as palavras-chave  
-- "tom": verificar tom da resposta (formal/informal)
-- "semantico": análise semântica da resposta`;
+- Pergunta curta e direta (máximo 15 palavras)
+- Palavras-chave: 2-3 palavras importantes
+- Foco em verificar se a edição funcionou`;
 
 const PROMPT_CLIENTE_SIMULADO = `Você é um cliente real conversando via WhatsApp com uma empresa.
 
@@ -133,87 +113,27 @@ REGRAS:
 PERGUNTA A FAZER:
 {{PERGUNTA}}`;
 
-const PROMPT_ANALISADOR = `Você é um avaliador rigoroso de respostas de agentes de IA.
+const PROMPT_ANALISADOR = `Avalie rapidamente se a resposta demonstra a edição aplicada.
 
-TAREFA:
-Analise se a resposta do agente demonstra que uma edição específica foi aplicada corretamente.
+EDIÇÃO: {{INSTRUCAO}}
+RESPOSTA: {{RESPOSTA}}
+PALAVRAS ESPERADAS: {{PALAVRAS_CHAVE}}
 
-INSTRUÇÃO DE EDIÇÃO QUE FOI FEITA:
-{{INSTRUCAO}}
+Retorne JSON: {"passou":true/false,"score":0-100,"motivo":"razão curta"}`;
 
-EXPECTATIVA:
-{{EXPECTATIVA}}
+const PROMPT_REPARADOR = `Corrija o prompt para que a edição funcione corretamente.
 
-RESPOSTA DO AGENTE:
-{{RESPOSTA}}
-
-PALAVRAS-CHAVE ESPERADAS:
-{{PALAVRAS_CHAVE}}
-
-TIPO DE VALIDAÇÃO:
-{{TIPO_VALIDACAO}}
-
-ANALISE E RETORNE JSON:
-{
-  "passou": true/false,
-  "score": 0-100,
-  "motivo": "Explicação detalhada do porquê passou ou reprovou"
-}
-
-CRITÉRIOS:
-- Score 90-100: Resposta perfeita, demonstra claramente a edição
-- Score 70-89: Resposta aceitável, edição parcialmente visível
-- Score 50-69: Resposta ambígua, não fica claro se edição funcionou
-- Score 0-49: Resposta incorreta, edição claramente não funcionou`;
-
-const PROMPT_REPARADOR = `Você é um especialista em otimizar prompts de agentes de IA para WhatsApp.
-
-CONTEXTO:
-Uma edição foi solicitada no prompt, mas ao testar com clientes simulados, a resposta não está adequada.
-
-PROMPT ATUAL:
-\`\`\`
+PROMPT ATUAL (resumo):
 {{PROMPT}}
-\`\`\`
 
-INSTRUÇÃO DO USUÁRIO:
-"{{INSTRUCAO}}"
+EDIÇÃO PEDIDA: "{{INSTRUCAO}}"
+PROBLEMA: {{PROBLEMA}}
 
-PROBLEMA:
-{{PROBLEMA}}
+Retorne JSON: {"resposta_chat":"ajuste feito","operacao":"editar","edicoes":[{"buscar":"texto existente","substituir":"texto corrigido"}]}
 
-TESTE QUE FALHOU:
-- Cliente perguntou: "{{PERGUNTA}}"
-- Agente respondeu: "{{RESPOSTA}}"
-- Esperávamos: "{{EXPECTATIVA}}"
-
-TAREFA:
-Analise o prompt e ADICIONE ou MODIFIQUE instruções para garantir que o agente responda corretamente.
-
-IMPORTANTE:
-- Se a instrução não está clara no prompt, ADICIONE uma seção específica
-- Seja DIRETO e ESPECÍFICO nas modificações
-- Use texto que EXISTE no prompt atual para o campo "buscar"
-- Se não encontrar texto para substituir, ADICIONE no início ou fim do prompt
-
-RETORNE JSON:
-{
-  "resposta_chat": "Explicação do ajuste",
-  "operacao": "editar",
-  "edicoes": [
-    {
-      "buscar": "TEXTO EXATO que existe no prompt",
-      "substituir": "TEXTO MODIFICADO com a correção"
-    }
-  ]
-}
-
-Se precisar ADICIONAR algo novo, use um trecho existente e adicione o conteúdo junto:
-{
-  "buscar": "REGRAS:",
-  "substituir": "REGRAS:\\n- NOVA REGRA ADICIONADA\\n-"
-  ]
-}`;
+DICAS:
+- Use texto que EXISTE no prompt para "buscar"
+- Se não encontrar, adicione nova instrução no final`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CLASSE PRINCIPAL
@@ -255,12 +175,12 @@ export class PromptCalibrationService {
     userMessage: string, 
     options?: { temperature?: number; maxTokens?: number; jsonMode?: boolean }
   ): Promise<string> {
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 2; // Reduzido para velocidade
     let lastError: Error | null = null;
     
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        console.log(`🔄 [Calibração LLM] Chamando chatComplete() (tentativa ${attempt}/${MAX_RETRIES})...`);
+        console.log(`🔄 [Calibração LLM] Tentativa ${attempt}/${MAX_RETRIES}...`);
         const startTime = Date.now();
         
         const messages: ChatMessage[] = [
@@ -268,15 +188,15 @@ export class PromptCalibrationService {
           { role: "user", content: userMessage }
         ];
 
-        // 🚀 Timeout de 20s por chamada LLM
+        // 🚀 Timeout de 10s por chamada LLM (reduzido para velocidade)
         const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error("LLM timeout (20s)")), 20000)
+          setTimeout(() => reject(new Error("LLM timeout (10s)")), 10000)
         );
 
         const llmPromise = chatComplete({
           messages,
-          temperature: options?.temperature ?? 0.5,
-          maxTokens: options?.maxTokens ?? 300
+          temperature: options?.temperature ?? 0.3, // Mais determinístico
+          maxTokens: options?.maxTokens ?? 200 // Reduzido para velocidade
         });
 
         const response = await Promise.race([llmPromise, timeoutPromise]);
@@ -310,9 +230,9 @@ export class PromptCalibrationService {
         console.warn(`⚠️ [Calibração LLM] Tentativa ${attempt} falhou: ${error.message}`);
         
         if (attempt < MAX_RETRIES) {
-          // Backoff exponencial: 1s, 2s, 4s
-          const delay = Math.pow(2, attempt - 1) * 1000;
-          console.log(`⏳ [Calibração LLM] Aguardando ${delay}ms antes de tentar novamente...`);
+          // Backoff reduzido: 500ms, 1s
+          const delay = attempt * 500;
+          console.log(`⏳ [Calibração LLM] Aguardando ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }

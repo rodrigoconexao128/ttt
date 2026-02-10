@@ -227,6 +227,32 @@ export function registerChatbotFlowRoutes(app: Express) {
         `);
       });
 
+      // 🔄 EXCLUSIVIDADE: Se o Robô Fluxo está sendo ativado, desativar o Meu Agente IA
+      if (is_active === true) {
+        console.log(`🔄 [CHATBOT_CONFIG] Robô Fluxo ativado - desativando Meu Agente IA para user ${userId}`);
+        
+        try {
+          // Desativar ai_agent_config
+          await db.execute(sql`
+            UPDATE ai_agent_config 
+            SET is_active = false, updated_at = now()
+            WHERE user_id = ${userId}
+          `);
+          console.log(`✅ [CHATBOT_CONFIG] ai_agent_config desativado`);
+          
+          // Desativar business_agent_configs
+          await db.execute(sql`
+            UPDATE business_agent_configs 
+            SET is_active = false, updated_at = now()
+            WHERE user_id = ${userId}
+          `);
+          console.log(`✅ [CHATBOT_CONFIG] business_agent_configs desativado`);
+        } catch (exclusivityError) {
+          console.error(`⚠️ [CHATBOT_CONFIG] Erro ao desativar Meu Agente IA:`, exclusivityError);
+          // Continuar mesmo se houver erro - a config principal foi salva
+        }
+      }
+
       res.json(result.rows[0]);
     } catch (error) {
       console.error('[CHATBOT_FLOW] Erro ao salvar config:', error);
@@ -1480,8 +1506,12 @@ export function registerChatbotFlowRoutes(app: Express) {
         return res.status(404).json({ error: "Chatbot não configurado" });
       }
 
-      // Se ativar chatbot, desativar IA (e vice-versa)
+      // 🔄 TOGGLE EXCLUSIVO: Ativar chatbot = desativar Meu Agente IA (e vice-versa)
+      // Precisa atualizar AMBAS as tabelas: ai_agent_config E business_agent_configs
       if (is_active) {
+        console.log(`🔄 [CHATBOT_FLOW] Desativando Meu Agente IA para usuário ${userId} (ativou Fluxo)`);
+        
+        // Desativar ai_agent_config (tabela antiga, ainda usada em algumas partes)
         await withRetry(async () => {
           return db.execute(sql`
             UPDATE ai_agent_config SET
@@ -1490,6 +1520,18 @@ export function registerChatbotFlowRoutes(app: Express) {
             WHERE user_id = ${userId}
           `);
         });
+        
+        // Desativar business_agent_configs (tabela principal usada pelo backend)
+        await withRetry(async () => {
+          return db.execute(sql`
+            UPDATE business_agent_configs SET
+              is_active = false,
+              updated_at = now()
+            WHERE user_id = ${userId}
+          `);
+        });
+        
+        console.log(`✅ [CHATBOT_FLOW] Meu Agente IA desativado em AMBAS as tabelas`);
       }
 
       // 🔄 Limpar cache do fluxo para que a alteração tenha efeito imediato

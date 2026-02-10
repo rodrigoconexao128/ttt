@@ -11,24 +11,42 @@ node_modules
 dist
 .cache
 *.log
-server.log
-tmp*
-tmp/
-temp_audio/
 logs/
 undefined/
+
+# Additional log files
+*.out
+*.err
+server-output.log
+huge_logs.txt
+all_logs.txt
+test-result.txt
+test-results.txt
 
 # Large folders not needed for deploy
 mcp-playwright-server/
 sequentialthinking-mcp-server/
 pix-por-piggly/
 supabase-mcp-server/
-findeas theme/
 attached_assets/
 tutorial/
 tests/
 test-results/
 scripts/
+findeas theme/
+
+# Large folders not needed for deploy
+mcp-playwright-server/
+sequentialthinking-mcp-server/
+pix-por-piggly/
+supabase-mcp-server/
+attached_assets/
+tutorial/
+tests/
+test-results/
+scripts/
+findeas theme/
+sessions/
 
 # WhatsApp local session folders (Baileys). Use a Railway Volume and
 # set SESSIONS_DIR to persist these in production instead of baking into image.
@@ -79,12 +97,16 @@ lid-mapping-*.json
 *.webp
 *.wav
 *.mp3
+*.mp4
 *.zip
 *.json.backup
 *.py
 *.ps1
 *.cjs
 *.mjs
+*.out
+*.err
+dev-server.*
 
 # Admin cookies and temp
 admin_cookies.txt

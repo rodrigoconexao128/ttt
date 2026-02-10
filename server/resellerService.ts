@@ -12,6 +12,7 @@
 import { storage } from "./storage";
 import { mercadoPagoService } from "./mercadoPagoService";
 import { supabase } from "./supabaseAuth";
+import { generatePixQRCode } from "./pixService";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 
@@ -293,11 +294,9 @@ class ResellerService {
       const payerEmail = resellerUser?.email || clientData.email;
 
       if (paymentMethod === 'pix') {
-        // Gerar PIX via API MercadoPago (dinâmico com verificação automática)
-        const creds = await mercadoPagoService.loadCredentials();
-        if (!creds) {
-          return { success: false, error: "MercadoPago não configurado" };
-        }
+        // Verificar se PIX manual está ativado (usa chave PIX do revendedor quando disponível)
+        const pixManualConfig = await storage.getSystemConfig('pix_manual_enabled');
+        const pixManualEnabled = pixManualConfig?.valor === 'true';
 
         // Criar registro de pagamento pendente primeiro
         const payment = await storage.createResellerPayment({
@@ -310,70 +309,118 @@ class ResellerService {
           description: `Criação de cliente: ${clientData.name} (${clientData.email})`,
         });
 
-        // Criar pagamento PIX via API MercadoPago
-        const pixPaymentData = {
-          transaction_amount: costPerClient,
-          payment_method_id: "pix",
-          description: `AgentZap - Criação de cliente: ${clientData.name}`,
-          payer: {
-            email: payerEmail,
-          },
-          external_reference: `reseller_client_${payment.id}`,
-          notification_url: `${process.env.BASE_URL || 'https://agentezap.online'}/api/webhooks/mercadopago`,
-          date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-        };
-
-        const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${creds.accessToken}`,
-            "X-Idempotency-Key": `pix_reseller_${payment.id}_${Date.now()}`,
-          },
-          body: JSON.stringify(pixPaymentData),
-        });
-
-        const pixResult = await pixResponse.json();
-
-        console.log("[ResellerService] PIX Payment result:", {
-          status: pixResult.status,
-          statusDetail: pixResult.status_detail,
-          id: pixResult.id,
-          hasQrCode: !!pixResult.point_of_interaction?.transaction_data?.qr_code,
-        });
-
-        if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
-          const transactionData = pixResult.point_of_interaction.transaction_data;
+        if (pixManualEnabled) {
+          // 🔥 PIX MANUAL: Usar chave PIX do revendedor (ou admin se não houver)
+          console.log("[ResellerService] Usando PIX Manual (chave do revendedor se disponível)");
           
-          // Atualizar pagamento com dados do MercadoPago
-          await storage.updateResellerPayment(payment.id, {
-            mpPaymentId: pixResult.id?.toString(),
-            statusDetail: JSON.stringify({
-              clientData,
-              externalReference,
-              mpPaymentId: pixResult.id,
-            }),
-          });
+          try {
+            const { pixCode, pixQrCode } = await generatePixQRCode({
+              planNome: `Cliente: ${clientData.name}`,
+              valor: costPerClient,
+              subscriptionId: payment.id,
+              pixKeyOverride: reseller.pixKey || undefined,
+            });
 
-          return {
-            success: true,
-            paymentId: payment.id,
-            pixCode: transactionData.qr_code, // Código Pix Copia e Cola
-            pixQrCode: transactionData.qr_code_base64, // Imagem QR Code já em base64
-            requiresPayment: true,
-          };
+            // Atualizar pagamento com dados do PIX manual
+            await storage.updateResellerPayment(payment.id, {
+              statusDetail: JSON.stringify({
+                clientData,
+                externalReference,
+                pixManual: true,
+              }),
+            });
+
+            return {
+              success: true,
+              paymentId: payment.id,
+              pixCode: pixCode,
+              pixQrCode: pixQrCode,
+              requiresPayment: true,
+            };
+          } catch (error: any) {
+            console.error("[ResellerService] Erro ao gerar PIX manual:", error);
+            await storage.updateResellerPayment(payment.id, {
+              status: "cancelled",
+              statusDetail: JSON.stringify({ error: error.message }),
+            });
+            return { success: false, error: "Erro ao gerar PIX. Tente novamente." };
+          }
         } else {
-          // Erro ao criar PIX
-          const errorMessage = pixResult.message || "Erro ao gerar PIX. Tente novamente.";
-          console.error("[ResellerService] PIX Error:", pixResult);
-          
-          // Remover pagamento com erro
-          await storage.updateResellerPayment(payment.id, {
-            status: "cancelled",
-            statusDetail: JSON.stringify({ error: errorMessage }),
+          // PIX via MercadoPago (dinâmico com verificação automática)
+          const creds = await mercadoPagoService.loadCredentials();
+          if (!creds) {
+            await storage.updateResellerPayment(payment.id, {
+              status: "cancelled",
+              statusDetail: JSON.stringify({ error: "MercadoPago não configurado" }),
+            });
+            return { success: false, error: "MercadoPago não configurado" };
+          }
+
+          // Criar pagamento PIX via API MercadoPago
+          const pixPaymentData = {
+            transaction_amount: costPerClient,
+            payment_method_id: "pix",
+            description: `AgentZap - Criação de cliente: ${clientData.name}`,
+            payer: {
+              email: payerEmail,
+            },
+            external_reference: `reseller_client_${payment.id}`,
+            notification_url: `${process.env.BASE_URL || 'https://agentezap.online'}/api/webhooks/mercadopago`,
+            date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          };
+
+          const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${creds.accessToken}`,
+              "X-Idempotency-Key": `pix_reseller_${payment.id}_${Date.now()}`,
+            },
+            body: JSON.stringify(pixPaymentData),
           });
-          
-          return { success: false, error: errorMessage };
+
+          const pixResult = await pixResponse.json();
+
+          console.log("[ResellerService] PIX Payment result:", {
+            status: pixResult.status,
+            statusDetail: pixResult.status_detail,
+            id: pixResult.id,
+            hasQrCode: !!pixResult.point_of_interaction?.transaction_data?.qr_code,
+          });
+
+          if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
+            const transactionData = pixResult.point_of_interaction.transaction_data;
+            
+            // Atualizar pagamento com dados do MercadoPago
+            await storage.updateResellerPayment(payment.id, {
+              mpPaymentId: pixResult.id?.toString(),
+              statusDetail: JSON.stringify({
+                clientData,
+                externalReference,
+                mpPaymentId: pixResult.id,
+              }),
+            });
+
+            return {
+              success: true,
+              paymentId: payment.id,
+              pixCode: transactionData.qr_code, // Código Pix Copia e Cola
+              pixQrCode: transactionData.qr_code_base64, // Imagem QR Code já em base64
+              requiresPayment: true,
+            };
+          } else {
+            // Erro ao criar PIX
+            const errorMessage = pixResult.message || "Erro ao gerar PIX. Tente novamente.";
+            console.error("[ResellerService] PIX Error:", pixResult);
+            
+            // Remover pagamento com erro
+            await storage.updateResellerPayment(payment.id, {
+              status: "cancelled",
+              statusDetail: JSON.stringify({ error: errorMessage }),
+            });
+            
+            return { success: false, error: errorMessage };
+          }
         }
       } else if (paymentMethod === 'credit_card' && cardData) {
         // Processar pagamento com cartão via MercadoPago

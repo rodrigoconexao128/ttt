@@ -3136,7 +3136,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const connection = await storage.getConnectionByUserId(userId);
 
-      
+
 
       if (!connection) {
 
@@ -3146,7 +3146,91 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      res.json(connection);
+      // -----------------------------------------------------------------------
+
+      // ?? LEADER ELECTION: Fonte de verdade = Banco (não memória local)
+
+      // -----------------------------------------------------------------------
+
+      // Com múltiplas instâncias/replicas, só o líder tem socket ativo.
+
+      // Se usarmos memória local (getSession) para decidir o estado:
+
+      // - Follower sempre vê isConnected=false (não tem socket)
+
+      // - Follower atualiza banco para false, quebrando o estado global
+
+      //
+
+      // Solução: O banco é a fonte de verdade distribuída.
+
+      // - Se DB=true e socket local existe → podemos elevar para true (harmless)
+
+      // - Se DB=true e socket local não existe → provável follower, manter DB
+
+      // - Se DB=false e socket local existe → líder irá curar via health check
+
+      // - Se DB=false e socket local não existe → realmente desconectado
+
+      // -----------------------------------------------------------------------
+
+      const { getSession } = await import("./whatsapp");
+
+      const activeSession = getSession(userId);
+
+      const hasLocalSocket = !!(activeSession?.socket?.user);
+
+
+
+      // Só podemos CURAR (elevar de false para true) com certeza local.
+
+      // Nunca devemos DERRUBAR (true para false) baseado em memória local.
+
+      if (!connection.isConnected && hasLocalSocket) {
+
+        // DB=false mas temos socket local: provável líder que ainda não sincronizou
+
+        console.log(`?? [WHATSAPP WS] Curando estado user ${userId.substring(0, 8)}...: DB=false mas socket local ativo`);
+
+        await storage.updateConnection(connection.id, {
+
+          isConnected: true,
+
+          phoneNumber: activeSession?.socket?.user?.id.split(':')[0],
+
+        });
+
+        connection.isConnected = true;
+
+        connection.phoneNumber = activeSession?.socket?.user?.id.split(':')[0];
+
+      }
+
+      // Caso contrário: respeitar o que está no banco (fonte de verdade distribuída)
+
+      // Não fazer NADA se connection.isConnected=true e !hasLocalSocket
+
+      // (pode ser follower, e não devemos derrubar o estado global)
+
+
+
+      // Retornar estado do banco como fonte de verdade
+
+      // Opcional: incluir debug sobre socket local (sem afetar DB)
+
+      const response = {
+
+        ...connection,
+
+        // Opcional para debug: mostra se TEM socket local (não significa estado global)
+
+        _debugLocalSocket: hasLocalSocket,
+
+      };
+
+
+
+      res.json(response);
 
     } catch (error) {
 
@@ -3263,6 +3347,116 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       console.error("Error disconnecting WhatsApp:", error);
 
       res.status(500).json({ message: "Failed to disconnect WhatsApp" });
+
+    }
+
+  });
+
+
+
+  // POST - Resetar conexão WhatsApp (self-service para usuário)
+
+  // -----------------------------------------------------------------------
+
+  // ?? RESET SELF-SERVICE: Permite que o próprio usuário resete sua conexão
+
+  // -----------------------------------------------------------------------
+
+  // Quando o QR Code "buga" ou o pairing deixa credenciais parciais,
+
+  // o usuário pode clicar em "Resetar" para limpar tudo e tentar de novo.
+
+  // Antes só existia reset via admin (/api/admin/connections/reset/:userId).
+
+  // -----------------------------------------------------------------------
+
+  app.post("/api/whatsapp/reset", isAuthenticated, async (req: any, res) => {
+
+    try {
+
+      // ??? MODO DESENVOLVIMENTO: Bloquear reset para proteger produção
+
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+
+        console.log(`?? [DEV MODE] Bloqueando reset WhatsApp de usuário (proteção de produção)`);
+
+        return res.status(403).json({
+
+          success: false,
+
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+
+          devMode: true
+
+        });
+
+      }
+
+
+
+      const userId = getUserId(req);
+
+
+
+      // Verificar se o usuário tem uma conexão
+
+      const connection = await storage.getConnectionByUserId(userId);
+
+      if (!connection) {
+
+        return res.status(404).json({ message: "Conexão não encontrada" });
+
+      }
+
+
+
+      // Chamar forceResetWhatsApp (função que limpa auth e atualiza DB)
+
+      const { forceResetWhatsApp } = await import("./whatsapp");
+
+      await forceResetWhatsApp(userId);
+
+
+
+      console.log(`[RESET] Usuário ${userId.substring(0, 8)}... resetou sua própria conexão`);
+
+
+
+      res.json({
+
+        success: true,
+
+        message: "Conexão resetada com sucesso. Escaneie o QR Code novamente."
+
+      });
+
+
+
+    } catch (error: any) {
+
+      console.error("Error resetting WhatsApp connection:", error);
+
+
+
+      // Se for erro de modo desenvolvimento, propagar mensagem específica
+
+      if (error.message?.includes('SKIP_WHATSAPP_RESTORE')) {
+
+        return res.status(403).json({
+
+          success: false,
+
+          message: error.message,
+
+          devMode: true
+
+        });
+
+      }
+
+
+
+      res.status(500).json({ message: "Failed to reset connection" });
 
     }
 
@@ -33656,6 +33850,35 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       }
 
       // -----------------------------------------------------------------------
+      // ?? VALIDAÇÃO DE NÚMERO: Formato E.164 (apenas dígitos, com DDI)
+      // -----------------------------------------------------------------------
+      // O WhatsApp exige formato internacional para pairing code.
+      // Brasil: 55 + DDD (2 dígitos) + número (8-9 dígitos) = 12-13 dígitos
+      // Aceitamos 10-15 dígitos para compatibilidade internacional.
+      // -----------------------------------------------------------------------
+      const cleanPhone = String(phoneNumber).replace(/\D/g, ""); // Remover não-dígitos
+
+      if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+        return res.status(400).json({
+          success: false,
+          message: "Número de telefone inválido. Use o formato: código do país (DDI) + DDD + número. Exemplo para Brasil: 5511999999999",
+          hint: "Formato esperado: 55 + DDD + número (total de 12-13 dígitos para Brasil)"
+        });
+      }
+
+      // Validação adicional para Brasil (se começar com 55)
+      if (cleanPhone.startsWith("55") && cleanPhone.length < 12) {
+        return res.status(400).json({
+          success: false,
+          message: "Número brasileiro incompleto. Use: 55 + DDD (2 dígitos) + número (8-9 dígitos). Exemplo: 5511999999999",
+          hint: "Para Brasil: 55 (DDI) + 11 (DDD de São Paulo) + 999999999 (número)"
+        });
+      }
+
+      // Log para debug (sem o número completo por privacidade)
+      console.log(`[PAIRING VALIDATION] Número validado: ${cleanPhone.substring(0, 4)}****${cleanPhone.slice(-2)} (${cleanPhone.length} dígitos)`);
+
+      // -----------------------------------------------------------------------
       // ?? FIX: Verificar se já está conectado antes de gerar novo código
       // -----------------------------------------------------------------------
       const existingConnection = await storage.getConnectionByUserId(userId);
@@ -33670,7 +33893,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { requestClientPairingCode } = await import("./whatsapp");
 
-      const code = await requestClientPairingCode(userId, phoneNumber);
+      const code = await requestClientPairingCode(userId, cleanPhone); // Usar número limpo
 
 
 

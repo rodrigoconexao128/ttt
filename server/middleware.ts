@@ -3,6 +3,7 @@ import { db, withRetry } from "./db";
 import { admins, teamMemberSessions, teamMembers, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { supabase } from "./supabaseAuth";
 
 export async function isAuthenticated(req: Request, res: Response, next: NextFunction) {
   try {
@@ -84,15 +85,27 @@ export async function isAdmin(req: Request, res: Response, next: NextFunction) {
       }
     }
 
-    // Fallback: Check for Replit Auth with admin role
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const userEmail = (req.user as any).claims?.email || (req.user as any).email;
+    // Check for Supabase Bearer token if req.user not populated
+    let userEmail = (req.user as any)?.claims?.email || (req.user as any)?.email;
     
     if (!userEmail) {
-      return res.status(401).json({ message: "Unauthorized - No email found" });
+      // Try to get email from Supabase token
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        try {
+          const { data: { user }, error } = await supabase.auth.getUser(token);
+          if (!error && user?.email) {
+            userEmail = user.email;
+          }
+        } catch (e) {
+          // Token inválido, continuar sem email
+        }
+      }
+    }
+
+    if (!userEmail) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
     const [admin] = await withRetry(() =>

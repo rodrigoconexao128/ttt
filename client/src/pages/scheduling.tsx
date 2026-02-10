@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import { getAuthToken } from "@/lib/supabase";
@@ -247,6 +248,7 @@ export default function SchedulingPage() {
   const [editingService, setEditingService] = useState<SchedulingService | null>(null);
   const [editingProfessional, setEditingProfessional] = useState<SchedulingProfessional | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
   // Helper para converter snake_case do servidor para camelCase
   const transformConfig = (data: any): SchedulingConfig => ({
@@ -341,6 +343,11 @@ export default function SchedulingPage() {
       return res.json();
     },
   });
+
+  const selectedDateKey = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
+  const selectedDayAppointments = selectedDateKey
+    ? appointments.filter(apt => format(parseISO(apt.appointment_date), "yyyy-MM-dd") === selectedDateKey)
+    : [];
 
   // Fetch exceptions
   const { data: exceptions = [] } = useQuery<SchedulingException[]>({
@@ -694,6 +701,7 @@ export default function SchedulingPage() {
     color: '#3B82F6',
     is_active: true,
   });
+  const [isApplyingSalonTemplate, setIsApplyingSalonTemplate] = useState(false);
 
   // Professional form state
   const [professionalForm, setProfessionalForm] = useState({
@@ -793,6 +801,38 @@ export default function SchedulingPage() {
       updateServiceMutation.mutate({ id: editingService.id, data: serviceData });
     } else {
       createServiceMutation.mutate(serviceData);
+    }
+  };
+
+  const applySalonTemplate = async () => {
+    if (isApplyingSalonTemplate) return;
+    setIsApplyingSalonTemplate(true);
+    try {
+      const templateServices = [
+        { name: 'Corte Feminino', description: 'Corte e finalização', durationMinutes: 60, price: 90, color: '#EC4899', isActive: true },
+        { name: 'Corte Masculino', description: 'Corte clássico ou degradê', durationMinutes: 45, price: 60, color: '#3B82F6', isActive: true },
+        { name: 'Escova', description: 'Escova modeladora', durationMinutes: 60, price: 80, color: '#F59E0B', isActive: true },
+        { name: 'Coloração', description: 'Coloração completa', durationMinutes: 120, price: 180, color: '#10B981', isActive: true },
+        { name: 'Hidratação', description: 'Tratamento capilar', durationMinutes: 60, price: 100, color: '#8B5CF6', isActive: true },
+        { name: 'Barba', description: 'Acabamento e alinhamento', durationMinutes: 30, price: 40, color: '#6B7280', isActive: true },
+      ];
+
+      for (const service of templateServices) {
+        await authFetch('/api/scheduling/services', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(service),
+        });
+      }
+
+      toggleAdvancedConfigMutation.mutate({ use_services: true });
+      setConfigForm((prev) => ({ ...prev, useServices: true }));
+      refetchServices();
+      toast({ title: '✅ Modelo de cabeleireiro aplicado!', description: 'Serviços padrão adicionados.' });
+    } catch (error) {
+      toast({ title: '❌ Erro ao aplicar modelo', description: 'Não foi possível criar os serviços.', variant: 'destructive' });
+    } finally {
+      setIsApplyingSalonTemplate(false);
     }
   };
 
@@ -1093,6 +1133,53 @@ export default function SchedulingPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Agenda do dia */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarIcon className="w-5 h-5" />
+                  Agenda do Dia
+                </CardTitle>
+                <CardDescription>Selecione uma data e veja os agendamentos abaixo</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-[320px_1fr]">
+                  <div className="rounded-md border p-3">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      locale={ptBR}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium">
+                      {selectedDate
+                        ? `Agendamentos de ${format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}`
+                        : "Selecione uma data"}
+                    </div>
+                    {selectedDayAppointments.length === 0 ? (
+                      <div className="text-sm text-muted-foreground">
+                        Nenhum agendamento para este dia.
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {selectedDayAppointments.map((apt) => (
+                          <AppointmentCard
+                            key={apt.id}
+                            appointment={apt}
+                            onConfirm={() => confirmAppointmentMutation.mutate(apt.id)}
+                            onCancel={() => cancelAppointmentMutation.mutate({ id: apt.id })}
+                            onComplete={(status) => completeAppointmentMutation.mutate({ id: apt.id, status })}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Today's Appointments */}
             {todayAppointments.length > 0 && (
@@ -1625,6 +1712,18 @@ export default function SchedulingPage() {
                         {configForm.useServices ? "Ativo" : "Desativado"}
                       </Label>
                     </div>
+                    <Button
+                      variant="outline"
+                      onClick={applySalonTemplate}
+                      disabled={isApplyingSalonTemplate}
+                    >
+                      {isApplyingSalonTemplate ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Palette className="w-4 h-4 mr-2" />
+                      )}
+                      Modelo Cabeleireiro
+                    </Button>
                     <Dialog open={newServiceOpen} onOpenChange={setNewServiceOpen}>
                       <DialogTrigger asChild>
                         <Button>

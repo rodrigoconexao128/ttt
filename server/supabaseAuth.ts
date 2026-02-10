@@ -1,4 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
+import { db, pool } from "./db";
+import { teamMemberSessions, teamMembers, users } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import type { Express, RequestHandler } from "express";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
@@ -22,8 +25,9 @@ export const supabase = createClient(supabaseUrl, supabaseServiceKey);
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
+  const useMemoryStore = process.env.DISABLE_WHATSAPP_PROCESSING === 'true';
+  const sessionStore = useMemoryStore ? undefined : new pgStore({
+    pool: pool,  // Reutiliza o pool compartilhado do db.ts (evita criar pool separado)
     createTableIfMissing: false,
     ttl: sessionTtl,
     tableName: "sessions",
@@ -31,6 +35,10 @@ export function getSession() {
   const cookieSecure = (process.env.COOKIE_SECURE === '1' || process.env.COOKIE_SECURE === 'true')
     ? true
     : false; // default false for local/dev to ensure cookie on http
+
+  if (useMemoryStore) {
+    console.log('⏸️ [DEV MODE] Usando MemoryStore para sessões (DISABLE_WHATSAPP_PROCESSING=true)');
+  }
 
   return session({
     secret: process.env.SESSION_SECRET!,
@@ -128,7 +136,7 @@ export async function setupAuth(app: Express) {
       res.json(dbUser);
     } catch (error) {
       console.error("Erro ao obter usuário:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res.status(401).json({ message: "Unauthorized" });
     }
   });
 
@@ -335,19 +343,55 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
     // Verificar token com Supabase
     const { data: { user }, error } = await supabase.auth.getUser(token);
     
-    if (error || !user) {
-      return res.status(401).json({ message: "Unauthorized" });
+    if (!error && user) {
+      // Adicionar usuário ao request (compatível com código existente)
+      req.user = {
+        id: user.id, // Adicionar id diretamente para compatibilidade
+        claims: {
+          sub: user.id,
+          email: user.email,
+        }
+      };
+
+      return next();
     }
 
-    // Adicionar usuário ao request (compatível com código existente)
-    req.user = {
-      id: user.id, // Adicionar id diretamente para compatibilidade
-      claims: {
-        sub: user.id,
-        email: user.email,
-      }
-    };
+    // Fallback: autenticação de membro de equipe via token
+    const [session] = await db
+      .select()
+      .from(teamMemberSessions)
+      .where(eq(teamMemberSessions.token, token))
+      .limit(1);
 
+    if (session && new Date(session.expiresAt) > new Date()) {
+      const [member] = await db
+        .select()
+        .from(teamMembers)
+        .where(eq(teamMembers.id, session.memberId))
+        .limit(1);
+
+      if (member && member.isActive) {
+        const [owner] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, member.ownerId))
+          .limit(1);
+
+        if (owner) {
+          req.user = {
+            id: owner.id,
+            claims: {
+              sub: owner.id,
+              email: owner.email,
+            },
+            isMember: true,
+            memberData: member,
+          };
+
+          return next();
+        }
+      }
+    }
     // ============================================================
     // KILL SWITCH: NÃO bloqueia LOGIN!
     // O bloqueio é feito via /api/access-status que mostra a tela de 
@@ -357,7 +401,7 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
     // O cliente de revenda pode fazer login, mas verá a tela de bloqueio
     // via AccessBlocker no frontend se o revendedor estiver inadimplente
 
-    next();
+    return res.status(401).json({ message: "Unauthorized" });
   } catch (error) {
     console.error("Erro na autenticação:", error);
     return res.status(401).json({ message: "Unauthorized" });

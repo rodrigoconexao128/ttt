@@ -122,7 +122,9 @@ export default function SyncedContactsPage() {
     };
   } | Contact[]>({
     queryKey: ['/api/contacts/synced'],
-    enabled: false, // DESABILITADO - não busca mais do banco automaticamente
+    enabled: true,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
     refetchInterval: (data) => {
       // Se está sincronizando, atualizar a cada 5 segundos
       if (data && 'syncStatus' in data && data.syncStatus?.status === 'running') {
@@ -135,9 +137,14 @@ export default function SyncedContactsPage() {
   // ===== PRIORIDADE: Agenda-Live (memória) > DB (fallback) =====
   // Se tiver contatos na agenda-live, usar eles (economiza banco)
   // Senão, usar do banco como fallback (histórico)
-  const contacts = agendaData?.status === 'ready' && agendaData.contacts.length > 0
-    ? agendaData.contacts
-    : (Array.isArray(syncedData) ? syncedData : (syncedData?.contacts || []));
+  const agendaContacts = agendaData?.status === 'ready' ? agendaData.contacts : [];
+  const dbContacts = Array.isArray(syncedData) ? syncedData : (syncedData?.contacts || []);
+
+  // Preferir agenda-live quando ela é maior ou igual ao banco
+  // Caso contrário, usar banco (histórico completo)
+  const contacts = agendaContacts.length >= dbContacts.length
+    ? agendaContacts
+    : dbContacts;
   
   // Status da sincronização - combinar ambos
   const syncStatus = agendaData?.status === 'syncing' 
@@ -145,7 +152,8 @@ export default function SyncedContactsPage() {
     : (!Array.isArray(syncedData) ? syncedData?.syncStatus : undefined);
 
   // Mostrar se está usando dados da agenda-live ou do banco
-  const isUsingAgendaLive = agendaData?.status === 'ready' && agendaData.contacts.length > 0;
+  const isUsingAgendaLive = contacts === agendaContacts && agendaContacts.length > 0;
+  const isUsingDatabase = contacts === dbContacts && dbContacts.length > 0;
   const agendaMessage = agendaData?.message;
 
   // Buscar estatísticas de WhatsApp
@@ -527,6 +535,28 @@ export default function SyncedContactsPage() {
                 </h3>
                 <p className="text-sm text-green-700 mt-1">
                   Cache expira em: {agendaData?.expiresIn} • Clique no botão para atualizar
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Banner de Sucesso - Contatos do Banco (Histórico) */}
+      {isUsingDatabase && !isUsingAgendaLive && (
+        <Card className="mb-6 bg-gradient-to-br from-slate-50 to-blue-50 border-blue-300">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <Database className="h-6 w-6 text-blue-600" />
+              <div className="flex-1">
+                <h3 className="font-medium text-blue-900 flex items-center gap-2">
+                  ✅ {contacts.length} contatos carregados
+                  <Badge variant="outline" className="bg-blue-100 text-blue-700 text-xs">
+                    Histórico
+                  </Badge>
+                </h3>
+                <p className="text-sm text-blue-700 mt-1">
+                  Mostrando contatos salvos no banco (sincronização completa)
                 </p>
               </div>
             </div>

@@ -149,6 +149,15 @@ interface CachedResponse {
 const questionResponseCache = new Map<string, CachedResponse>();
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos
 
+// PROMPT SYNC (ai_agent_config <-> prompt_versions)
+interface PromptSyncCacheEntry {
+  promptHash: string;
+  checkedAt: number;
+}
+
+const promptSyncCache = new Map<string, PromptSyncCacheEntry>();
+const PROMPT_SYNC_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
 function getCachedResponse(userId: string, messageText: string, promptHash: string): string | null {
   // Gerar chave de cache: userId + hash da mensagem normalizada
   const normalizedMessage = messageText.toLowerCase().trim().replace(/\s+/g, ' ');
@@ -222,6 +231,7 @@ import {
   executeMediaActions,
   forceMediaDetection,
 } from "./mediaService";
+
 import { processResponsePlaceholders } from "./textUtils";
 import {
   generateSchedulingPromptBlock,
@@ -229,6 +239,7 @@ import {
   detectSchedulingIntent,
   getNextAvailableSlots,
   formatAvailableSlotsForAI,
+  isSchedulingEnabled,
 } from "./schedulingService";
 import {
   processDeliveryOrderTags,
@@ -238,7 +249,67 @@ import {
   detectCustomerIntent,
   validatePriceInResponse,
   getDeliveryData,
+  isDeliveryEnabled,
 } from "./deliveryAIService";
+import {
+  generateSalonResponse,
+  isSalonActive,
+} from "./salonAIService";
+
+// PRICE FLOW ENFORCEMENT - R$49 leads devem citar o plano corretamente
+function normalizePriceLeadText(value: string): string {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function shouldEnforcePriceFlow(messageText: string, prompt: string): boolean {
+  if (!messageText || !prompt) return false;
+  const normalized = normalizePriceLeadText(messageText);
+  const mentionsPrice = normalized.includes("r$ 49") || normalized.includes("r$49") || normalized.includes("49/mes") || normalized.includes("49 mes");
+  if (!mentionsPrice) return false;
+  // So aplicar quando o prompt claramente e o de vendas da AgenteZAP
+  const hasAgenteZap = /AgenteZAP/i.test(prompt);
+  const hasPrice = /R\$\s*49/i.test(prompt);
+  return hasAgenteZap && hasPrice;
+}
+
+function extractIdentityFromPrompt(prompt: string): { agentName?: string; companyName?: string } {
+  if (!prompt) return {};
+  const normalized = normalizePriceLeadText(prompt);
+  const nameMatch =
+    normalized.match(/voce e \*\*([^*]+)\*\*/i) ||
+    normalized.match(/voce e ([a-z][a-z\s'-]{1,40})/i);
+  const companyMatch =
+    normalized.match(/da \*\*([^*]+)\*\*/i) ||
+    normalized.match(/da ([a-z][a-z\s'-]{1,60})/i);
+  return {
+    agentName: nameMatch?.[1]?.trim(),
+    companyName: companyMatch?.[1]?.trim(),
+  };
+}
+
+function buildPriceFlowFallback(
+  contactName: string | undefined,
+  prompt: string
+): string {
+  const { agentName, companyName } = extractIdentityFromPrompt(prompt);
+  const safeName =
+    contactName && !/visitante/i.test(contactName) ? contactName.trim() : "";
+  const namePart = safeName ? `, ${safeName}` : "";
+  const agentPart = agentName
+    ? `${agentName} da ${companyName || "AgenteZAP"}`
+    : `Aqui da ${companyName || "AgenteZAP"}`;
+  return `Ola${namePart}! Tudo bem? ${agentPart} aqui. Que otimo que voce tem interesse no plano ilimitado por R$49/mes! Me conta: qual a maior dor que voce enfrenta hoje no atendimento? Assim eu te mostro como o ${companyName || "AgenteZAP"} resolve isso pra voce.`;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// 💇 SISTEMA DE SALÃO DE BELEZA - INTEGRAÇÃO COM IA
+// ═══════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════
 // � SISTEMA DE CATÁLOGO DE PRODUTOS - INTEGRAÇÃO COM IA
@@ -301,19 +372,23 @@ async function getProductsForAI(userId: string): Promise<ProductsForAIResponse |
     
     console.log(`📦 [Products] Found ${products.length} active products for user ${userId}`);
     
+    const items: ProductForAI[] = (products || []).map((p: any) => ({
+      name: p.name,
+      price: p.price ?? null,
+      stock: typeof p.stock === 'number' ? p.stock : (parseInt(String(p.stock || '0'), 10) || 0),
+      description: p.description ?? null,
+      category: p.category ?? null,
+      link: p.link ?? null,
+      sku: p.sku ?? null,
+      unit: p.unit || 'un',
+    }));
+
     return {
-      active: menuAllowed && items.length > 0,
-      business_name: config?.business_name ?? null,
-      business_type: config?.business_type ?? 'outros',
-      delivery_fee: deliveryActive ? (parseFloat(config?.delivery_fee) || 0) : 0,
-      min_order_value: deliveryActive ? (parseFloat(config?.min_order_value) || 0) : 0,
-      estimated_delivery_time: deliveryActive ? (config?.estimated_delivery_time || 45) : 45,
-      accepts_delivery: deliveryActive ? (config?.accepts_delivery ?? true) : false,
-      accepts_pickup: deliveryActive ? (config?.accepts_pickup ?? true) : false,
-      payment_methods: config?.payment_methods || ['Dinheiro', 'Cart?o', 'Pix'],
-      categories: categoryList,
-      total_items: items.length,
-      displayInstructions: config?.display_instructions ?? null
+      active: true,
+      instructions: (config as any)?.instructions ?? null,
+      displayInstructions: (config as any)?.display_instructions ?? null,
+      products: items,
+      count: items.length,
     };
   } catch (error) {
     console.error(`📦 [Products] Unexpected error:`, error);
@@ -831,6 +906,7 @@ Aqui está nosso cardápio completo! Me avise se quiser fazer um pedido 😊
    - Nome completo (SE AINDA NÃO PEDIU NO INÍCIO!)
    - Endereço de entrega OU "vou retirar"
    - Forma de pagamento
+6.1 Quando estiver pedindo esses dados finais, inclua um mini-resumo do pedido com as palavras "pedido" e "subtotal" e o valor em R$ (ou total parcial).
 7. Use emojis de comida de forma moderada para deixar a conversa agradável
 8. Se o cliente perguntar sobre item que não existe, sugira algo similar do cardápio
 9. Seja PROATIVO: "Gostaria de adicionar uma bebida?" ou "Temos promoção de X!"
@@ -2239,6 +2315,43 @@ export async function generateAIResponse(
       agentConfig = await storage.getAgentConfig(userId);
     }
 
+    // PROMPT SYNC: keep ai_agent_config aligned with prompt_versions current
+    // Avoids simulator/editor prompt diverging from WhatsApp runtime
+    // Skips when customPrompt is used
+    if (!testDependencies?.getAgentConfig && agentConfig?.prompt) {
+      const now = Date.now();
+      const agentPromptHash = crypto.createHash('md5').update(agentConfig.prompt).digest('hex').substring(0, 8);
+      const cached = promptSyncCache.get(userId);
+      const cacheValid = cached && cached.promptHash === agentPromptHash && (now - cached.checkedAt) < PROMPT_SYNC_TTL_MS;
+
+      if (!cacheValid) {
+        try {
+          const { obterVersaoAtual } = await import('./promptHistoryService');
+          const currentVersion = await obterVersaoAtual(userId, 'ai_agent_config');
+
+          if (currentVersion?.prompt_content && currentVersion.prompt_content !== agentConfig.prompt) {
+            console.log(`[PROMPT SYNC] Prompt desatualizado no ai_agent_config. Usando versao current do historico.`);
+            console.log(`   - ai_agent_config hash: ${agentPromptHash}`);
+            console.log(`   - prompt_versions hash: ${crypto.createHash('md5').update(currentVersion.prompt_content).digest('hex').substring(0, 8)}`);
+            agentConfig = { ...agentConfig, prompt: currentVersion.prompt_content };
+
+            try {
+              await storage.updateAgentConfig(userId, { prompt: currentVersion.prompt_content });
+              console.log(`[PROMPT SYNC] ai_agent_config atualizado para manter consistencia`);
+            } catch (syncErr) {
+              console.error(`[PROMPT SYNC] Falha ao atualizar ai_agent_config:`, syncErr);
+            }
+          }
+
+          const finalHash = crypto.createHash('md5').update(agentConfig.prompt).digest('hex').substring(0, 8);
+          promptSyncCache.set(userId, { promptHash: finalHash, checkedAt: now });
+        } catch (syncError) {
+          console.error(`[PROMPT SYNC] Erro ao checar prompt_versions:`, syncError);
+          promptSyncCache.set(userId, { promptHash: agentPromptHash, checkedAt: now });
+        }
+      }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // 🎯 DEBUG: Mostrar status das configurações
     // ═══════════════════════════════════════════════════════════════════════
@@ -2276,6 +2389,16 @@ export async function generateAIResponse(
     }
     
     console.log(`   ✅ [AI Agent] Agent ENABLED (legacy isActive=true), processing response...`);
+
+    // Price-flow enforcement (R$49)
+    const priceFlowEnabled = shouldEnforcePriceFlow(newMessageText, agentConfig.prompt || "");
+    const priceFlowFallback = priceFlowEnabled
+      ? buildPriceFlowFallback(contactName, agentConfig.prompt || "")
+      : null;
+    if (priceFlowEnabled) {
+      console.log(`[PRICE FLOW] Enforcement active for this lead`);
+    }
+
     
     // ═══════════════════════════════════════════════════════════════════════
     // 🔗 INTEGRAÇÃO COM FLOW ENGINE
@@ -2290,60 +2413,102 @@ export async function generateAIResponse(
     //
     // Isso previne variação de respostas pois o "core" é determinístico
     // ═══════════════════════════════════════════════════════════════════════
+    let bypassFlowEngine = false;
     try {
-      const useFlowEngine = await shouldUseFlowEngine(userId);
-      if (useFlowEngine) {
-        console.log(`\n🔗 [AI Agent] Detectado FlowEngine ativo - usando arquitetura IA+Fluxo`);
-        console.log(`   → IA INTERPRETA a intenção`);
-        console.log(`   → FLUXO EXECUTA ações determinísticas`);
-        console.log(`   → IA HUMANIZA a resposta\n`);
-        
-        // 🔧 CORREÇÃO: Obter API key do provider configurado (OpenRouter/Groq/Mistral)
-        const llmConfig = await getLLMConfig();
-        const apiKey = llmConfig.provider === 'openrouter' 
-          ? llmConfig.openrouterApiKey 
-          : llmConfig.provider === 'groq' 
-            ? llmConfig.groqApiKey 
-            : process.env.MISTRAL_API_KEY || '';
-            
-        if (!apiKey) {
-          console.log(`⚠️ [Flow Engine] Sem API key para provider ${llmConfig.provider}, usando sistema legado`);
-        } else {
-          // Gerar ID de conversa persistente
-          const conversationId = options?.conversationId || 
-            `real-${userId}-${Math.floor(Date.now() / 60000)}`; // Muda a cada minuto
-          
-          const flowResult = await processWithFlowEngine(
-            userId,
-            conversationId,
-            newMessageText,
-            apiKey,
-            {
-              contactName,
-              history: conversationHistory.map(m => ({ 
-                fromMe: m.fromMe, 
-                text: m.text || '' 
-              }))
+      const [deliveryEnabled, schedulingEnabled, salonEnabled] = await Promise.all([
+        isDeliveryEnabled(userId),
+        isSchedulingEnabled(userId),
+        isSalonActive(userId),
+      ]);
+      bypassFlowEngine = deliveryEnabled || schedulingEnabled || salonEnabled;
+      if (bypassFlowEngine) {
+        console.log(`🚫 [AI Agent] FlowEngine ignorado (delivery/agendamento/salon ativo)`);
+      }
+    } catch (bypassError) {
+      console.log(`⚠️ [AI Agent] Não foi possível verificar delivery/agendamento/salon:`, bypassError);
+    }
+
+    if (!bypassFlowEngine) {
+      try {
+        const useFlowEngine = await shouldUseFlowEngine(userId);
+        if (useFlowEngine) {
+          let flowInSync = true;
+          try {
+            const flow = await FlowStorage.loadFlow(userId);
+            const currentPrompt = agentConfig?.prompt || "";
+            const sourcePrompt = flow?.sourcePrompt || "";
+            if (!flow || !sourcePrompt || !currentPrompt) {
+              flowInSync = false;
+            } else {
+              const promptHash = crypto.createHash('md5').update(currentPrompt).digest('hex').substring(0, 8);
+              const sourceHash = crypto.createHash('md5').update(sourcePrompt).digest('hex').substring(0, 8);
+              flowInSync = promptHash == sourceHash;
+              if (!flowInSync) {
+                console.log(`?? [Flow Engine] Flow desatualizado (promptHash=${promptHash} sourceHash=${sourceHash}) - usando sistema legado`);
+                console.log(`?? [Flow Engine] sourcePrompt len=${sourcePrompt.length}, prompt len=${currentPrompt.length}`);
+              }
             }
-          );
-          
-          if (flowResult) {
-            console.log(`✅ [Flow Engine] Resposta gerada com sucesso`);
-            return {
-              text: flowResult.text,
-              mediaActions: flowResult.mediaActions || [],
-              notification: undefined,
-              appointmentCreated: undefined,
-              deliveryOrderCreated: undefined
-            };
+          } catch (flowSyncError) {
+            flowInSync = false;
+            console.log(`?? [Flow Engine] Falha ao validar sync do flow - usando sistema legado`, flowSyncError);
+          }
+
+          if (!flowInSync) {
+            // Flow fora de sync com o prompt atual - seguir com IA livre
           } else {
-            console.log(`⚠️ [Flow Engine] Sem resposta, usando sistema legado`);
+            console.log(`\n🔗 [AI Agent] Detectado FlowEngine ativo - usando arquitetura IA+Fluxo`);
+            console.log(`   → IA INTERPRETA a intenção`);
+            console.log(`   → FLUXO EXECUTA ações determinísticas`);
+            console.log(`   → IA HUMANIZA a resposta\n`);
+            
+            // 🔧 CORREÇÃO: Obter API key do provider configurado (OpenRouter/Groq/Mistral)
+            const llmConfig = await getLLMConfig();
+            const apiKey = llmConfig.provider === 'openrouter' 
+              ? llmConfig.openrouterApiKey 
+              : llmConfig.provider === 'groq' 
+                ? llmConfig.groqApiKey 
+                : (llmConfig.mistralApiKey || process.env.MISTRAL_API_KEY || '');
+                
+            if (!apiKey) {
+              console.log(`⚠️ [Flow Engine] Sem API key para provider ${llmConfig.provider}, usando sistema legado`);
+            } else {
+              // Gerar ID de conversa persistente
+              const conversationId = options?.conversationId || 
+                `real-${userId}-${Math.floor(Date.now() / 60000)}`; // Muda a cada minuto
+              
+              const flowResult = await processWithFlowEngine(
+                userId,
+                conversationId,
+                newMessageText,
+                apiKey,
+                {
+                  contactName,
+                  history: conversationHistory.map(m => ({ 
+                    fromMe: m.fromMe, 
+                    text: m.text || '' 
+                  }))
+                }
+              );
+              
+              if (flowResult) {
+                console.log(`✅ [Flow Engine] Resposta gerada com sucesso`);
+                return {
+                  text: flowResult.text,
+                  mediaActions: flowResult.mediaActions || [],
+                  notification: undefined,
+                  appointmentCreated: undefined,
+                  deliveryOrderCreated: undefined
+                };
+              } else {
+                console.log(`⚠️ [Flow Engine] Sem resposta, usando sistema legado`);
+              }
+            }
           }
         }
+      } catch (flowError) {
+        console.error(`⚠️ [Flow Engine] Erro:`, flowError);
+        // Continua com sistema legado
       }
-    } catch (flowError) {
-      console.error(`⚠️ [Flow Engine] Erro:`, flowError);
-      // Continua com sistema legado
     }
     
     // ═══════════════════════════════════════════════════════════════════════
@@ -2364,10 +2529,12 @@ export async function generateAIResponse(
       const deliveryResponse = await processDeliveryMessage(
         userId,
         newMessageText,
-        conversationHistory?.filter(m => m.text !== null).map(m => ({ fromMe: m.fromMe, text: m.text as string }))
+        conversationHistory?.filter(m => m.text !== null).map(m => ({ fromMe: m.fromMe, text: m.text as string })),
+        options?.contactPhone,
+        options?.conversationId
       );
       
-      if (deliveryResponse && deliveryResponse.bubbles.length > 0) {
+      if (deliveryResponse && (deliveryResponse.bubbles.length > 0 || (deliveryResponse.mediaActions?.length ?? 0) > 0)) {
         console.log(`🍕 [AI Agent] ✅ Sistema de delivery retornou ${deliveryResponse.bubbles.length} bolha(s)`);
         console.log(`🍕 [AI Agent] Intent: ${deliveryResponse.intent}`);
         
@@ -2378,9 +2545,37 @@ export async function generateAIResponse(
         console.log(`🍕 [AI Agent] Preview: ${combinedResponse.substring(0, 200)}...`);
         console.log(`🍕 [AI Agent] Total chars: ${combinedResponse.length}`);
         
+        let mediaActions: MistralResponse['actions'] = deliveryResponse.mediaActions || [];
+        if (mediaActions.length === 0) {
+          try {
+            const deliveryMediaLibrary = testDependencies?.getAgentMediaLibrary
+              ? await testDependencies.getAgentMediaLibrary(userId)
+              : await getAgentMediaLibrary(userId);
+            if (deliveryMediaLibrary.length > 0) {
+              const forceResult = await forceMediaDetection(
+                newMessageText,
+                conversationHistory,
+                deliveryMediaLibrary,
+                sentMedias
+              );
+              if (forceResult.shouldSendMedia && forceResult.mediaToSend) {
+                mediaActions = [
+                  ...mediaActions,
+                  {
+                  type: 'send_media',
+                  media_name: forceResult.mediaToSend.name,
+                  }
+                ];
+              }
+            }
+          } catch (mediaError) {
+            console.log(`⚠️ [AI Agent] Falha ao escolher mídia para delivery:`, mediaError);
+          }
+        }
+
         return {
           text: combinedResponse,
-          mediaActions: [],
+          mediaActions,
           notification: undefined,
           appointmentCreated: undefined,
           deliveryOrderCreated: deliveryResponse.deliveryOrderCreated,
@@ -2391,6 +2586,41 @@ export async function generateAIResponse(
     } catch (deliveryError) {
       console.error(`🍕 [AI Agent] Erro no sistema de delivery:`, deliveryError);
       console.log(`🍕 [AI Agent] Continuando com fluxo normal...`);
+    }
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // 💇 SISTEMA DE SALÃO DE BELEZA - AGENDAMENTOS
+    // Similar ao delivery, mas para salões de beleza
+    // ═══════════════════════════════════════════════════════════════════════
+    try {
+      console.log(`💇 [AI Agent] Tentando processar com sistema de salão...`);
+      
+      const salonResponse = await generateSalonResponse(
+        userId,
+        options?.conversationId || '',
+        options?.contactPhone || '',
+        newMessageText,
+        conversationHistory?.filter(m => m.text !== null).map(m => ({ fromMe: m.fromMe, text: m.text as string }))
+      );
+      
+      if (salonResponse && salonResponse.text) {
+        console.log(`💇 [AI Agent] ✅ Sistema de salão retornou resposta`);
+        console.log(`💇 [AI Agent] Preview: ${salonResponse.text.substring(0, 150)}...`);
+        
+        return {
+          text: salonResponse.text,
+          mediaActions: [],
+          notification: undefined,
+          appointmentCreated: salonResponse.shouldSave ? true : undefined,
+          deliveryOrderCreated: undefined,
+        };
+      } else {
+        console.log(`💇 [AI Agent] Salão não ativo ou sem resposta - continuando fluxo normal`);
+      }
+    } catch (salonError) {
+      console.error(`💇 [AI Agent] Erro no sistema de salão:`, salonError);
+      console.log(`💇 [AI Agent] Continuando com fluxo normal...`);
     }
     // ═══════════════════════════════════════════════════════════════════════
     
@@ -2636,39 +2866,46 @@ export async function generateAIResponse(
     // 📜 INSTRUÇÃO ESPECIAL QUANDO MODO HISTÓRICO ESTÁ ATIVO
     // Ajuda a IA a entender que deve analisar o contexto completo da conversa
     if (isHistoryModeActive && conversationHistory.length > 0) {
-      // Verificar se a IA já respondeu antes
+      // Verificar se a IA j? respondeu antes
       const hasAgentResponded = conversationHistory.some(m => m.isFromAgent);
-      
-      const historyContext = hasAgentResponded 
-        ? `
-[📜 CONTEXTO DE HISTÓRICO ATIVO]
+      const hasOwnerMessages = conversationHistory.some(m => m.fromMe && !m.isFromAgent);
+      const clientMessagesCount = conversationHistory.filter(m => !m.fromMe).length;
+      const hasPriorContext = hasAgentResponded || hasOwnerMessages || clientMessagesCount > 1;
 
-Esta conversa tem histórico ativo. Você já interagiu com este cliente antes.
-ANALISE o histórico completo para manter consistência e continuidade.
-NÃO repita informações já fornecidas. Continue de onde parou.
+      if (hasPriorContext) {
+        const historyContext = hasAgentResponded 
+          ? `
+[?? CONTEXTO DE HIST?RICO ATIVO]
+
+Esta conversa tem hist?rico ativo. Voc? j? interagiu com este cliente antes.
+ANALISE o hist?rico completo para manter consist?ncia e continuidade.
+N?O repita informa??es j? fornecidas. Continue de onde parou.
 `
-        : `
-[📜 CONTEXTO IMPORTANTE - ASSUMINDO ATENDIMENTO]
+          : `
+[?? CONTEXTO IMPORTANTE - ASSUMINDO ATENDIMENTO]
 
-Você está ASSUMINDO o atendimento de um cliente que JÁ CONVERSOU anteriormente.
-O histórico abaixo mostra todas as interações anteriores (possivelmente com humano).
+Voc? est? ASSUMINDO o atendimento de um cliente que J? CONVERSOU anteriormente.
+O hist?rico abaixo mostra todas as intera??es anteriores (possivelmente com humano).
 
-INSTRUÇÕES CRÍTICAS:
-1. ANALISE todo o histórico para entender o contexto
-2. IDENTIFIQUE o que o cliente já perguntou/comprou/quer
-3. CONTINUE a conversa de forma natural, sem repetir informações já dadas
-4. NÃO se apresente como se fosse a primeira vez - o cliente já conhece a empresa
-5. Se houve algum pedido/solicitação anterior, REFERENCIE isso naturalmente
-6. Seja CONSISTENTE com qualquer promessa ou informação dada anteriormente
+INSTRU??ES CR?TICAS:
+1. ANALISE todo o hist?rico para entender o contexto
+2. IDENTIFIQUE o que o cliente j? perguntou/comprou/quer
+3. CONTINUE a conversa de forma natural, sem repetir informa??es j? dadas
+4. N?O se apresente como se fosse a primeira vez - o cliente j? conhece a empresa
+5. Se houve algum pedido/solicita??o anterior, REFERENCIE isso naturalmente
+6. Seja CONSISTENTE com qualquer promessa ou informa??o dada anteriormente
 
-O cliente NÃO SABE que você é uma IA assumindo. Mantenha a continuidade!
+O cliente N?O SABE que voc? ? uma IA assumindo. Mantenha a continuidade!
 `;
-      
-      messages.push({
-        role: "system",
-        content: historyContext
-      });
-      console.log(`📜 [AI Agent] Instrução de histórico adicionada (já respondeu: ${hasAgentResponded})`);
+
+        messages.push({
+          role: "system",
+          content: historyContext
+        });
+        console.log(`?? [AI Agent] Instru??o de hist?rico adicionada (j? respondeu: ${hasAgentResponded}, priorContext: ${hasPriorContext}, clientMsgs: ${clientMessagesCount})`);
+      } else {
+        console.log(`?? [AI Agent] Instru??o de hist?rico ignorada (sem contexto pr?vio real).`);
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -3536,6 +3773,17 @@ Cliente: ${newMessageText.trim()}`;
       console.log(`🔄 [AI Agent] Placeholders processados na resposta`);
     }
     
+
+    // Price-flow enforcement: garantir mencao ao R$49 quando lead pediu preco
+    if (priceFlowFallback) {
+      const responseNormalized = normalizePriceLeadText(responseText || "");
+      const hasPriceMention = responseNormalized.includes("r$ 49") || responseNormalized.includes("r$49") || responseNormalized.includes("49/mes") || responseNormalized.includes("49 mes");
+      if (!hasPriceMention) {
+        console.log(`[PRICE FLOW] Fallback aplicado`);
+        responseText = priceFlowFallback;
+      }
+    }
+
     // 📅 PROCESSAR TAGS DE AGENDAMENTO [AGENDAR: DATA=..., HORA=..., NOME=...]
     let appointmentCreated: any = undefined;
     if (responseText && options?.contactPhone) {
@@ -3668,7 +3916,7 @@ export async function testAgentResponse(
     const llmConfig = await getLLMConfig();
     const hasOpenRouterKey = llmConfig.openrouterApiKey && llmConfig.openrouterApiKey.length > 20;
     const hasGroqKey = llmConfig.groqApiKey && llmConfig.groqApiKey.length > 20;
-    const hasMistralKey = !!process.env.MISTRAL_API_KEY && process.env.MISTRAL_API_KEY.length > 10;
+    const hasMistralKey = (llmConfig.mistralApiKey && llmConfig.mistralApiKey.length > 10) || (!!process.env.MISTRAL_API_KEY && process.env.MISTRAL_API_KEY.length > 10);
     
     if (!hasOpenRouterKey && !hasGroqKey && !hasMistralKey) {
       console.error('🧪 [SIMULADOR] ❌ ERRO: Nenhuma API key configurada!');
@@ -3795,7 +4043,23 @@ export async function testAgentResponse(
     
     // 🚀 VERIFICAR SE DEVE USAR FLOW ENGINE (Sistema Híbrido)
     // Se customPrompt foi fornecido, NÃO usar FlowEngine (teste de prompt não salvo)
-    const useFlowEngine = !customPrompt && await shouldUseFlowEngine(userId);
+    // 🍕 BYPASS FlowEngine quando delivery/scheduling está ativo (usar sistema determinístico)
+    let bypassFlowEngineForDelivery = false;
+    try {
+      const [deliveryEnabled, schedulingEnabled, salonEnabled] = await Promise.all([
+        isDeliveryEnabled(userId),
+        isSchedulingEnabled(userId),
+        isSalonActive(userId),
+      ]);
+      bypassFlowEngineForDelivery = deliveryEnabled || schedulingEnabled || salonEnabled;
+      if (bypassFlowEngineForDelivery) {
+        console.log(`🧪 [SIMULADOR] 🍕 BYPASS FlowEngine - delivery/agendamento/salão ativo`);
+      }
+    } catch (bypassErr) {
+      console.log(`⚠️ [SIMULADOR] Erro ao verificar delivery/scheduling:`, bypassErr);
+    }
+    
+    const useFlowEngine = !customPrompt && !bypassFlowEngineForDelivery && await shouldUseFlowEngine(userId);
     
     if (useFlowEngine) {
       console.log(`🧪 [SIMULADOR] 🚀 Usando FLOW ENGINE (Sistema Híbrido)`);
@@ -3815,7 +4079,7 @@ export async function testAgentResponse(
         ? llmConfig.openrouterApiKey 
         : llmConfig.provider === 'groq' 
           ? llmConfig.groqApiKey 
-          : process.env.MISTRAL_API_KEY || '';
+          : (llmConfig.mistralApiKey || process.env.MISTRAL_API_KEY || '');
       
       if (!apiKey) {
         console.log(`⚠️ [SIMULADOR] Sem API key para provider ${llmConfig.provider}, usando sistema legado`);

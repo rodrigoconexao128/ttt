@@ -126,11 +126,22 @@ export default function TestAgent() {
               status: 'read',
             });
           }
+          if (action.type === 'send_media_url' && action.media_url) {
+            newMessages.push({
+              id: `msg_media_${Date.now()}_${Math.random()}`,
+              text: '',
+              mediaUrl: action.media_url,
+              mediaType: action.media_type || 'image',
+              fromMe: false,
+              timestamp: new Date(),
+              status: 'read',
+            });
+          }
         }
       }
       
       // Adicionar resposta de texto do agente
-      if (data.response && data.response.trim()) {
+      if (typeof data.response === 'string' && data.response.trim()) {
         newMessages.push({
           id: `msg_${Date.now()}`,
           text: data.response,

@@ -143,6 +143,47 @@ export default function Subscribe() {
     },
   });
 
+  // Verificar se PIX manual está ativado no admin
+  const { data: checkoutConfig } = useQuery({
+    queryKey: ["checkout-config"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/checkout/config");
+      return res.json();
+    },
+  });
+
+  const pixManualEnabled = checkoutConfig?.pix_manual_enabled === true;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // BUSCAR DOCUMENTO SALVO DO USUÁRIO PARA PRÉ-PREENCHER
+  // ═══════════════════════════════════════════════════════════════════
+  const { data: savedDocument } = useQuery({
+    queryKey: ["user-document"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/user/document");
+      return res.json();
+    },
+  });
+  
+  // Pré-preencher documento salvo quando carregar
+  useEffect(() => {
+    if (savedDocument) {
+      if (savedDocument.document_type) {
+        setDocType(savedDocument.document_type);
+      }
+      if (savedDocument.document_number) {
+        setDocNumber(savedDocument.document_number);
+      }
+    }
+  }, [savedDocument]);
+
+  // Forçar PIX quando pix_manual_enabled está ativo
+  useEffect(() => {
+    if (pixManualEnabled && paymentMethod !== "pix") {
+      setPaymentMethod("pix");
+    }
+  }, [pixManualEnabled, paymentMethod]);
+
   // Inicializar MP
   useEffect(() => {
     if (!mpConfig?.publicKey) return;
@@ -569,7 +610,7 @@ export default function Subscribe() {
         <div className="relative z-10 mt-8 lg:mt-0 pt-8 border-t border-white/10">
           <div className="flex items-center gap-2 text-sm text-gray-400">
             <Shield className="w-4 h-4" />
-            <span>Pagamento 100% seguro via Mercado Pago</span>
+            <span>{pixManualEnabled ? "Pagamento 100% seguro via PIX" : "Pagamento 100% seguro via Mercado Pago"}</span>
           </div>
         </div>
       </div>
@@ -581,29 +622,31 @@ export default function Subscribe() {
           {/* Seleção de método de pagamento */}
           <div className="mb-6 space-y-3">
             {/* Opção Cartão */}
-            <div 
-              className={cn(
-                "border rounded-lg p-4 flex items-center justify-between cursor-pointer transition-all",
-                paymentMethod === "card" 
-                  ? "border-primary ring-1 ring-primary/20 bg-gray-50" 
-                  : "border-gray-200 hover:border-gray-300"
-              )}
-              onClick={() => { setPaymentMethod("card"); setPixData(null); setError(null); }}
-            >
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "w-5 h-5 rounded-full border-2",
-                  paymentMethod === "card" ? "border-[5px] border-primary" : "border-gray-300"
-                )} />
-                <CreditCard className="w-5 h-5 text-gray-600" />
-                <span className="font-medium text-gray-900">Cartão de crédito</span>
+            {!pixManualEnabled && (
+              <div 
+                className={cn(
+                  "border rounded-lg p-4 flex items-center justify-between cursor-pointer transition-all",
+                  paymentMethod === "card" 
+                    ? "border-primary ring-1 ring-primary/20 bg-gray-50" 
+                    : "border-gray-200 hover:border-gray-300"
+                )}
+                onClick={() => { setPaymentMethod("card"); setPixData(null); setError(null); }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-5 h-5 rounded-full border-2",
+                    paymentMethod === "card" ? "border-[5px] border-primary" : "border-gray-300"
+                  )} />
+                  <CreditCard className="w-5 h-5 text-gray-600" />
+                  <span className="font-medium text-gray-900">Cartão de crédito</span>
+                </div>
+                <div className="flex gap-1">
+                  <img src="https://img.icons8.com/color/48/visa.png" alt="Visa" className="h-5" />
+                  <img src="https://img.icons8.com/color/48/mastercard.png" alt="Master" className="h-5" />
+                  <img src="https://img.icons8.com/color/48/amex.png" alt="Amex" className="h-5" />
+                </div>
               </div>
-              <div className="flex gap-1">
-                <img src="https://img.icons8.com/color/48/visa.png" alt="Visa" className="h-5" />
-                <img src="https://img.icons8.com/color/48/mastercard.png" alt="Master" className="h-5" />
-                <img src="https://img.icons8.com/color/48/amex.png" alt="Amex" className="h-5" />
-              </div>
-            </div>
+            )}
 
             {/* Opção PIX */}
             <div 
@@ -623,7 +666,7 @@ export default function Subscribe() {
                 <QrCode className="w-5 h-5 text-green-600" />
                 <span className="font-medium text-gray-900">PIX</span>
                 <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                  Aprovação imediata
+                  {pixManualEnabled ? "Manual" : "Aprovação imediata"}
                 </span>
               </div>
               <img 

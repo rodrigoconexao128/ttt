@@ -53,17 +53,13 @@ import { ptBR } from 'date-fns/locale';
 
 interface OrderItem {
   id: string;
-  menu_item_id: string;
+  menu_item_id: string | null;
+  item_name: string; // Nome do item salvo diretamente
   quantity: number;
   unit_price: string;
   total_price: string;
   notes: string | null;
   options_selected: any[];
-  menu_items?: {
-    id: string;
-    name: string;
-    image_url: string | null;
-  };
 }
 
 interface DeliveryOrder {
@@ -357,6 +353,59 @@ export default function DeliveryOrdersPage() {
     const config = statusConfig[order.status];
     const StatusIcon = config.icon;
     
+    // Função para imprimir pedido
+    const handlePrint = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const printContent = `
+        <html>
+        <head>
+          <title>Pedido #${order.order_number}</title>
+          <style>
+            body { font-family: monospace; font-size: 12px; padding: 10px; max-width: 80mm; margin: 0 auto; }
+            h1 { text-align: center; font-size: 16px; margin-bottom: 10px; }
+            .divider { border-top: 1px dashed #000; margin: 8px 0; }
+            .item { display: flex; justify-content: space-between; margin: 4px 0; }
+            .total { font-weight: bold; font-size: 14px; }
+            .info { margin: 4px 0; }
+          </style>
+        </head>
+        <body>
+          <h1>PEDIDO #${order.order_number}</h1>
+          <div class="divider"></div>
+          <div class="info"><strong>Cliente:</strong> ${order.customer_name}</div>
+          <div class="info"><strong>Tel:</strong> ${order.customer_phone}</div>
+          ${order.delivery_type === 'delivery' ? `<div class="info"><strong>End:</strong> ${order.customer_address || ''}</div>` : '<div class="info"><strong>RETIRADA NO LOCAL</strong></div>'}
+          <div class="divider"></div>
+          <strong>ITENS:</strong>
+          ${order.order_items?.map(item => `
+            <div class="item">
+              <span>${item.quantity}x ${item.item_name || 'Item'}</span>
+              <span>R$ ${(Number(item.total_price) || 0).toFixed(2)}</span>
+            </div>
+            ${item.notes ? `<div style="font-size:10px;color:#666;">  → ${item.notes}</div>` : ''}
+          `).join('') || ''}
+          <div class="divider"></div>
+          <div class="item"><span>Subtotal:</span><span>R$ ${(Number(order.subtotal) || 0).toFixed(2)}</span></div>
+          ${Number(order.delivery_fee) > 0 ? `<div class="item"><span>Taxa Entrega:</span><span>R$ ${Number(order.delivery_fee).toFixed(2)}</span></div>` : ''}
+          <div class="item total"><span>TOTAL:</span><span>R$ ${(Number(order.total) || 0).toFixed(2)}</span></div>
+          <div class="divider"></div>
+          <div class="info"><strong>Pagamento:</strong> ${order.payment_method || 'Não informado'}</div>
+          <div class="info" style="text-align:center;margin-top:10px;">Obrigado pela preferência!</div>
+        </body>
+        </html>
+      `;
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 250);
+      }
+    };
+    
     return (
       <Card 
         className={`mb-3 cursor-pointer hover:shadow-md transition-shadow border-l-4 ${config.bgColor}`}
@@ -377,9 +426,20 @@ export default function DeliveryOrdersPage() {
                 </Badge>
               )}
             </div>
-            <span className="text-xs text-muted-foreground">
-              {formatTime(order.created_at)}
-            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={handlePrint}
+                title="Imprimir pedido"
+              >
+                <Printer className="h-3.5 w-3.5" />
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {formatTime(order.created_at)}
+              </span>
+            </div>
           </div>
           
           <div className="space-y-1.5">
@@ -394,6 +454,27 @@ export default function DeliveryOrdersPage() {
                 <span className="truncate">{order.customer_address}</span>
               </div>
             )}
+
+            {/* Mostrar itens diretamente no card */}
+            {order.order_items && order.order_items.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-dashed space-y-1">
+                {order.order_items.slice(0, 4).map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-xs">
+                    <span className="truncate flex-1 text-muted-foreground">
+                      {item.quantity}x {item.item_name || 'Item'}
+                    </span>
+                    <span className="font-medium ml-2">
+                      {formatPrice(item.total_price)}
+                    </span>
+                  </div>
+                ))}
+                {order.order_items.length > 4 && (
+                  <div className="text-xs text-muted-foreground italic">
+                    +{order.order_items.length - 4} mais itens...
+                  </div>
+                )}
+              </div>
+            )}
             
             <div className="flex items-center justify-between mt-2 pt-2 border-t">
               <div className="flex items-center gap-1">
@@ -406,21 +487,23 @@ export default function DeliveryOrdersPage() {
             </div>
           </div>
 
-          {/* Botão de próximo status */}
-          {config.nextStatus && (
-            <Button
-              size="sm"
-              className="w-full mt-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                updateStatusMutation.mutate({ id: order.id, status: config.nextStatus! });
-              }}
-              disabled={updateStatusMutation.isPending}
-            >
-              <ArrowRight className="h-3.5 w-3.5 mr-1" />
-              {config.nextLabel}
-            </Button>
-          )}
+          {/* Botões de ação */}
+          <div className="flex gap-1 mt-2">
+            {config.nextStatus && (
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateStatusMutation.mutate({ id: order.id, status: config.nextStatus! });
+                }}
+                disabled={updateStatusMutation.isPending}
+              >
+                <ArrowRight className="h-3.5 w-3.5 mr-1" />
+                {config.nextLabel}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     );
@@ -714,7 +797,7 @@ export default function DeliveryOrdersPage() {
                       <div key={item.id} className="flex justify-between items-start text-sm py-1 border-b last:border-0">
                         <div className="flex-1">
                           <div className="font-medium">
-                            {item.quantity}x {item.menu_items?.name || 'Item'}
+                            {item.quantity}x {item.item_name || 'Item'}
                           </div>
                           {item.notes && (
                             <div className="text-xs text-muted-foreground italic">
@@ -778,6 +861,66 @@ export default function DeliveryOrdersPage() {
               </div>
 
               <DialogFooter className="gap-2 flex-wrap">
+                {/* Botão Imprimir */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const order = selectedOrder;
+                    const printContent = `
+                      <html>
+                      <head>
+                        <title>Pedido #${order.order_number}</title>
+                        <style>
+                          body { font-family: monospace; font-size: 12px; padding: 10px; max-width: 80mm; margin: 0 auto; }
+                          h1 { text-align: center; font-size: 16px; margin-bottom: 10px; }
+                          .divider { border-top: 1px dashed #000; margin: 8px 0; }
+                          .item { display: flex; justify-content: space-between; margin: 4px 0; }
+                          .total { font-weight: bold; font-size: 14px; }
+                          .info { margin: 4px 0; }
+                        </style>
+                      </head>
+                      <body>
+                        <h1>PEDIDO #${order.order_number}</h1>
+                        <div class="divider"></div>
+                        <div class="info"><strong>Cliente:</strong> ${order.customer_name}</div>
+                        <div class="info"><strong>Tel:</strong> ${order.customer_phone}</div>
+                        ${order.delivery_type === 'delivery' ? `<div class="info"><strong>End:</strong> ${order.customer_address || ''}</div>` : '<div class="info"><strong>RETIRADA NO LOCAL</strong></div>'}
+                        <div class="divider"></div>
+                        <strong>ITENS:</strong>
+                        ${order.order_items?.map(item => `
+                          <div class="item">
+                            <span>${item.quantity}x ${item.item_name || 'Item'}</span>
+                            <span>R$ ${(Number(item.total_price) || 0).toFixed(2)}</span>
+                          </div>
+                          ${item.notes ? `<div style="font-size:10px;color:#666;">  → ${item.notes}</div>` : ''}
+                        `).join('') || ''}
+                        <div class="divider"></div>
+                        <div class="item"><span>Subtotal:</span><span>R$ ${(Number(order.subtotal) || 0).toFixed(2)}</span></div>
+                        ${Number(order.delivery_fee) > 0 ? `<div class="item"><span>Taxa Entrega:</span><span>R$ ${Number(order.delivery_fee).toFixed(2)}</span></div>` : ''}
+                        <div class="item total"><span>TOTAL:</span><span>R$ ${(Number(order.total) || 0).toFixed(2)}</span></div>
+                        <div class="divider"></div>
+                        <div class="info"><strong>Pagamento:</strong> ${order.payment_method || 'Não informado'}</div>
+                        <div class="info" style="text-align:center;margin-top:10px;">Obrigado pela preferência!</div>
+                      </body>
+                      </html>
+                    `;
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow) {
+                      printWindow.document.write(printContent);
+                      printWindow.document.close();
+                      printWindow.focus();
+                      setTimeout(() => {
+                        printWindow.print();
+                        printWindow.close();
+                      }, 250);
+                    }
+                  }}
+                >
+                  <Printer className="h-4 w-4 mr-1" />
+                  Imprimir
+                </Button>
+
                 {selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'delivered' && (
                   <Button
                     variant="destructive"

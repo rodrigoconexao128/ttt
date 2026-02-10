@@ -55,41 +55,33 @@ export interface ResultadoEdicao {
 // SYSTEM PROMPT PARA A IA
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SYSTEM_PROMPT = `Você é um EDITOR DE PROMPTS. Sua função é MODIFICAR o prompt do agente conforme a instrução do usuário.
+const SYSTEM_PROMPT = `Você é um EDITOR DE PROMPTS. Sua tarefa é modificar o prompt do agente conforme a instrução do usuário.
 
-VOCÊ DEVE SEMPRE:
-1. Analisar o PROMPT ATUAL fornecido
-2. Identificar partes que precisam ser MODIFICADAS conforme a instrução
-3. Gerar EDIÇÕES no formato buscar/substituir
-4. Responder APENAS com JSON válido
+IMPORTANTE: SEMPRE faça edições quando o usuário pedir uma mudança. Nunca diga "OK, feito!" sem fazer edições reais.
 
-⚠️ IMPORTANTE: Quando o usuário pede uma mudança (ex: "não use emojis", "seja mais formal", "adicione X"), você DEVE:
-- Encontrar os trechos relevantes no prompt atual
-- Criar edições para modificá-los
-- Usar operacao="editar" com edicoes preenchidas
+FORMATO DE RESPOSTA (JSON):
+{"resposta_chat":"Descrição do que foi alterado","operacao":"editar","edicoes":[{"buscar":"TEXTO EXATO do prompt original","substituir":"TEXTO MODIFICADO"}]}
 
-FORMATO OBRIGATÓRIO (JSON puro, sem markdown):
-{"resposta_chat":"mensagem","operacao":"editar","edicoes":[{"buscar":"texto exato do prompt","substituir":"texto modificado"}]}
+REGRAS OBRIGATÓRIAS:
+1. "buscar" DEVE conter texto que EXISTE no prompt original (copie exatamente)
+2. "substituir" contém o texto modificado
+3. SEMPRE use operacao="editar" quando houver mudanças
+4. Faça pelo menos 1 edição para cada solicitação
+5. Seja específico - encontre trechos exatos para modificar
+
+TIPOS DE EDIÇÃO:
+• MUDAR: {"buscar":"texto antigo existente","substituir":"texto novo"}
+• ADICIONAR: {"buscar":"última linha de uma seção","substituir":"última linha\\n+ NOVO CONTEÚDO"}
+• REMOVER: {"buscar":"texto a remover","substituir":""}
 
 EXEMPLOS:
+Usuário: "seja mais formal"
+→ {"resposta_chat":"Tornei o tom mais formal","operacao":"editar","edicoes":[{"buscar":"Oi! Tudo bem?","substituir":"Olá, como posso ajudá-lo?"}]}
 
-Instrução: "não use emojis"
-Se o prompt tiver "Olá! 😊 Bem-vindo!", responda:
-{"resposta_chat":"Pronto! Removi os emojis.","operacao":"editar","edicoes":[{"buscar":"Olá! 😊 Bem-vindo!","substituir":"Olá! Bem-vindo!"}]}
+Usuário: "adicione saudação"
+→ {"resposta_chat":"Adicionei saudação inicial","operacao":"editar","edicoes":[{"buscar":"REGRAS:","substituir":"SAUDAÇÃO: Sempre cumprimente o cliente\\n\\nREGRAS:"}]}
 
-Instrução: "seja mais formal"
-Se o prompt tiver "E aí, blz? Posso ajudar?", responda:
-{"resposta_chat":"Deixei mais formal.","operacao":"editar","edicoes":[{"buscar":"E aí, blz? Posso ajudar?","substituir":"Olá, como posso ajudá-lo?"}]}
-
-Instrução: "adicione saudação personalizada"
-Se o prompt tiver "Atenda os clientes", responda:
-{"resposta_chat":"Adicionei saudação personalizada.","operacao":"editar","edicoes":[{"buscar":"Atenda os clientes","substituir":"Comece sempre com 'Olá! É um prazer atendê-lo!' e depois atenda os clientes"}]}
-
-REGRAS:
-- O campo "buscar" DEVE conter texto que EXISTE no prompt atual
-- SEMPRE gere edições quando o usuário pedir mudanças
-- Use operacao="nenhuma" APENAS para perguntas informativas
-- Responda SOMENTE o JSON, sem explicações antes ou depois`;
+RESPONDA APENAS O JSON, nada antes ou depois.`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FUNÇÃO PRINCIPAL: Editar Prompt via IA
@@ -122,8 +114,8 @@ INSTRUÇÃO DO USUÁRIO: "${instrucaoUsuario}"
 TAREFA: Encontre os trechos do prompt acima que precisam ser modificados e gere as edições.
 RESPONDA com JSON: {"resposta_chat":"...", "operacao":"editar", "edicoes":[{"buscar":"trecho exato", "substituir":"novo trecho"}]}`;
 
-  // 🚀 RETRY: Tenta até 3 vezes para garantir sucesso
-  const MAX_RETRIES = 3;
+  // 🚀 RETRY ROBUSTO: Tenta até 10 vezes para garantir sucesso (rate limit handling)
+  const MAX_RETRIES = 10;
   let lastError: string = "";
   
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -283,20 +275,20 @@ RESPONDA com JSON: {"resposta_chat":"...", "operacao":"editar", "edicoes":[{"bus
       console.warn(`[EditService] ⚠️ Tentativa ${attempt} falhou: ${error.message}`);
       
       if (attempt < MAX_RETRIES) {
-        // Backoff exponencial: 1s, 2s
-        const delay = Math.pow(2, attempt - 1) * 1000;
-        console.log(`[EditService] ⏳ Aguardando ${delay}ms antes de tentar novamente...`);
+        // Backoff exponencial mais longo: 2s, 4s, 8s, 16s... (max 60s)
+        const delay = Math.min(Math.pow(2, attempt) * 1000, 60000);
+        console.log(`[EditService] ⏳ Aguardando ${delay/1000}s antes de tentar novamente...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
   
-  // Todas as tentativas falharam
+  // Todas as tentativas falharam - retornar erro amigável com instrução para tentar novamente
   console.error(`[EditService] ❌ Todas as ${MAX_RETRIES} tentativas falharam`);
   return {
     success: false,
     novoPrompt: promptAtual,
-    mensagemChat: `Desculpe, não consegui processar após ${MAX_RETRIES} tentativas. Erro: ${lastError}. Tente novamente.`,
+    mensagemChat: `⚠️ O sistema está temporariamente ocupado. Por favor, tente novamente em alguns segundos. Sua edição será processada na próxima tentativa.`,
     edicoesAplicadas: 0,
     edicoesFalharam: 0,
     detalhes: []

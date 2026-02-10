@@ -1083,8 +1083,8 @@ export default function MySubscription() {
                 </Button>
               )}
 
-              {/* Para clientes sem cartão cadastrado - opção de cadastrar - NÃO mostrar para clientes revendedor */}
-              {subscription.status === "active" && !subscription.mpSubscriptionId && !resellerInfo?.isResellerClient && (
+              {/* Para clientes sem cartão cadastrado - opção de cadastrar - NÃO mostrar para plano revenda */}
+              {subscription.status === "active" && !subscription.mpSubscriptionId && !resellerInfo?.isResellerClient && plan?.tipo !== 'revenda' && (
                 <Button
                   variant="outline"
                   size="sm"

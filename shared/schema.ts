@@ -38,6 +38,9 @@ export const users = pgTable("users", {
   suspensionType: varchar("suspension_type", { length: 100 }),
   refundedAt: timestamp("refunded_at"),
   refundAmount: numeric("refund_amount", { precision: 10, scale: 2 }),
+  // Documento (CPF/CNPJ) salvo para pagamentos
+  documentType: varchar("document_type", { length: 10 }).default("CPF"),
+  documentNumber: varchar("document_number", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1416,11 +1419,21 @@ export const mistralResponseSchema = z.object({
     type: z.literal("text"),
     content: z.string(),
   })),
-  actions: z.array(z.object({
-    type: z.literal("send_media"),
-    media_name: z.string(), // Nome da mídia na biblioteca (ex: AUDIO_PRECO)
-    delay_seconds: z.number().optional(), // Delay antes de enviar (opcional)
-  })).optional().default([]),
+  actions: z.array(z.union([
+    z.object({
+      type: z.literal("send_media"),
+      media_name: z.string(), // Nome da mídia na biblioteca (ex: AUDIO_PRECO)
+      delay_seconds: z.number().optional(), // Delay antes de enviar (opcional)
+    }),
+    z.object({
+      type: z.literal("send_media_url"),
+      media_url: z.string().url(),
+      media_type: z.enum(["audio", "image", "video", "document"]),
+      caption: z.string().optional(),
+      file_name: z.string().optional(),
+      delay_seconds: z.number().optional(),
+    })
+  ])).optional().default([]),
 });
 
 export type MistralResponse = z.infer<typeof mistralResponseSchema>;
@@ -2503,6 +2516,7 @@ export const deliveryConfig = pgTable("delivery_config", {
   sendToAi: boolean("send_to_ai").default(true),
   businessName: varchar("business_name", { length: 200 }),
   businessType: varchar("business_type", { length: 50 }).default("restaurante"),
+  menuSendMode: varchar("menu_send_mode", { length: 20 }).default("text"),
   deliveryFee: numeric("delivery_fee", { precision: 10, scale: 2 }).default("0"),
   minOrderValue: numeric("min_order_value", { precision: 10, scale: 2 }).default("0"),
   estimatedDeliveryTime: integer("estimated_delivery_time").default(45),
@@ -2645,6 +2659,7 @@ export const deliveryConfigSchema = z.object({
   sendToAi: z.boolean().default(true),
   businessName: z.string().max(200).optional().nullable(),
   businessType: z.enum(['pizzaria', 'lanchonete', 'restaurante', 'hamburgueria', 'acai', 'japonesa', 'outros']).default('restaurante'),
+  menuSendMode: z.enum(['text', 'image', 'image_text']).default('text'),
   deliveryFee: z.string().or(z.number()).optional().default("0"),
   minOrderValue: z.string().or(z.number()).optional().default("0"),
   estimatedDeliveryTime: z.number().min(5).max(180).default(45),

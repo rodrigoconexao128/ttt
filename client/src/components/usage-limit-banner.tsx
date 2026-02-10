@@ -164,7 +164,7 @@ export function LimitReachedTopBanner() {
   }
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] bg-gradient-to-r from-slate-800 to-slate-900 text-white py-2.5 px-4 shadow-lg border-b border-slate-700/50">
+    <div className="sticky top-0 z-[90] bg-gradient-to-r from-slate-800 to-slate-900 text-white py-2.5 px-4 shadow-lg border-b border-slate-700/50">
       <div className="container max-w-6xl mx-auto flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-amber-500/20 text-amber-200 px-2.5 py-1 rounded-full text-xs font-medium">

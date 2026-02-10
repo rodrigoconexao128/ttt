@@ -8,7 +8,7 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Detectar se está usando Supabase Pooler (porta 6543)
+// Detectar se está usando Supabase Pooler
 // NOTA: NÃO derivamos automaticamente a URL direta porque:
 // 1) O Supabase direct (db.<ref>.supabase.co) resolve para IPv6, que o Railway não alcança (ENETUNREACH)
 // 2) O Pooler (pooler.supabase.com:6543) funciona bem e resolve IPv4
@@ -16,27 +16,32 @@ if (!process.env.DATABASE_URL) {
 const rawDbUrl = process.env.DATABASE_URL;
 const directDbUrl = process.env.DATABASE_URL_DIRECT;
 
-// Só usa direct se explicitamente fornecido via DATABASE_URL_DIRECT
-const dbUrl = directDbUrl || rawDbUrl;
-const isPoolerConnection = dbUrl.includes(':6543') || dbUrl.includes('pooler.supabase.com');
+// Força porta 6543 (Transaction mode) se estiver usando porta 5432 (Session mode)
+// Session mode tem limite severo de clientes = pool_size do servidor
+let dbUrl = directDbUrl || rawDbUrl;
+const isPoolerConnection = dbUrl.includes('pooler.supabase.com');
+if (isPoolerConnection && dbUrl.includes(':5432')) {
+  dbUrl = dbUrl.replace(':5432', ':6543');
+  console.log('[DB] ⚠️ Porta alterada de 5432 (Session) para 6543 (Transaction) para evitar MaxClientsInSessionMode');
+}
 
 console.log(
   `[DB] Modo de conexão: ${isPoolerConnection ? 'Supabase Pooler (PgBouncer)' : 'Direct Connection'}`,
 );
 
-// 🔥 CONFIGURAÇÃO COM LOGS DETALHADOS E RETRY (Debug circuit breaker)
+// 🔥 CONFIGURAÇÃO OTIMIZADA PARA PGBOUNCER TRANSACTION MODE
 const poolConfig: any = {
   connectionString: dbUrl,
   ssl: {
     rejectUnauthorized: false
   },
-  // Pool CONSERVADOR para diagnóstico
-  max: isPoolerConnection ? 5 : 7,  // Reduzido de 10/15 para diagnóstico
-  min: 1,  // Mantém 1 conexão pronta
-  idleTimeoutMillis: isPoolerConnection ? 30000 : 60000,
-  connectionTimeoutMillis: 45000,  // 45s para dar tempo
+  // Pool CONSERVADOR - PgBouncer Transaction mode libera conexão após cada query
+  max: isPoolerConnection ? 3 : 7,  // 3 para pooler (transaction mode libera rápido)
+  min: 0,  // Não manter conexões ociosas em transaction mode
+  idleTimeoutMillis: isPoolerConnection ? 10000 : 60000,  // Libera rápido em pooler
+  connectionTimeoutMillis: 30000,
   statement_timeout: 30000,
-  allowExitOnIdle: false,
+  allowExitOnIdle: true,  // Permite liberar conexões quando ocioso
   
   // Retry com backoff exponencial
   retryStrategy: (times: number) => {
@@ -52,58 +57,43 @@ const poolConfig: any = {
 
 export const pool = new Pool(poolConfig);
 
-// 🔍 LOGS DETALHADOS PARA DIAGNÓSTICO
+// Logs de diagnóstico (reduzidos para produção)
 pool.on('connect', () => {
   console.log('✅ [DB Pool] Nova conexão ESTABELECIDA');
 });
 
-pool.on('acquire', () => {
-  console.log('🔗 [DB Pool] Conexão ADQUIRIDA do pool');
-});
-
 pool.on('error', (err: any) => {
-  console.error('❌ [DB Pool] ERRO:', err.message);
-  console.error('   Code:', err.code);
-  console.error('   Severity:', err.severity);
+  console.error('❌ [DB Pool] ERRO:', err.message, '| Code:', err.code);
 });
 
 pool.on('remove', () => {
   console.log('🔌 [DB Pool] Conexão REMOVIDA');
 });
 
-// 🧪 Teste de autenticação inicial COM LOGS DETALHADOS
+// 🔄 Graceful shutdown - libera conexões no PgBouncer
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\n🛑 [DB] Recebido ${signal}, encerrando pool de conexões...`);
+  try {
+    await pool.end();
+    console.log('✅ [DB] Pool encerrado com sucesso');
+  } catch (err: any) {
+    console.error('❌ [DB] Erro ao encerrar pool:', err.message);
+  }
+  process.exit(0);
+};
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// 🧪 Teste de autenticação inicial único
 setTimeout(async () => {
-  console.log('🔍 [DB] === TESTE DE AUTENTICAÇÃO INICIAL ===');
   try {
     const start = Date.now();
-    console.log('[DB] 1. Tentando conectar...');
-    
-    const client = await pool.connect();
-    const connectTime = Date.now() - start;
-    console.log(`✅ [DB] 2. Conectado em ${connectTime}ms`);
-    
-    console.log('[DB] 3. Executando query de teste...');
-    const result = await client.query('SELECT current_user, current_database(), version()');
-    const queryTime = Date.now() - start;
-    
-    console.log(`✅ [DB] 4. Query executada em ${queryTime - connectTime}ms`);
-    console.log('[DB] === AUTENTICAÇÃO OK ===');
-    console.log('   User:', result.rows[0].current_user);
-    console.log('   Database:', result.rows[0].current_database);
-    console.log('   Version:', result.rows[0].version.substring(0, 50) + '...');
-    
-    client.release();
-    console.log('[DB] 5. Conexão liberada de volta ao pool');
+    const result = await pool.query('SELECT current_user, current_database()');
+    console.log(`✅ [DB] Autenticação OK em ${Date.now() - start}ms | User: ${result.rows[0].current_user} | DB: ${result.rows[0].current_database}`);
   } catch (error: any) {
-    console.error('❌ [DB] === FALHA NA AUTENTICAÇÃO ===');
-    console.error('   Message:', error.message);
-    console.error('   Code:', error.code);
-    console.error('   Severity:', error.severity);
-    console.error('   Detail:', error.detail);
-    console.error('   Hint:', error.hint);
-    console.error('===================================');
+    console.error('❌ [DB] Falha na autenticação:', error.message, '| Code:', error.code);
   }
-}, 3000);
+}, 2000);
 
 // Função helper para executar query com retry automático
 export async function withRetry<T>(
@@ -144,17 +134,7 @@ export async function withRetry<T>(
   throw lastError;
 }
 
-// Teste de conexão inicial (não-bloqueante)
-setTimeout(async () => {
-  try {
-    const client = await pool.connect();
-    await client.query('SELECT 1');
-    client.release();
-    console.log('✅ [DB] Conexão inicial com o banco de dados OK');
-  } catch (error: any) {
-    console.error('❌ [DB] Falha na conexão inicial:', error.message);
-  }
-}, 1000);
+// Teste de conexão removido - já temos o teste de autenticação acima
 
 // ============================================================================
 // AUTO-MIGRATION: Criar tabelas que podem não existir ainda
@@ -203,10 +183,11 @@ setTimeout(async () => {
   }
 }, 5000);
 
-// Configurar drizzle SEM prepared statements para compatibilidade com PgBouncer
+// Configurar drizzle SEM prepared statements para compatibilidade com PgBouncer Transaction mode
 // PgBouncer em modo "transaction" não suporta prepared statements
 export const db = drizzle({ 
   client: pool, 
   schema,
   logger: process.env.NODE_ENV !== 'production',
+  ...(isPoolerConnection ? { casing: undefined } : {}),
 });

@@ -58,6 +58,9 @@ import CustomFieldsPage from "@/pages/custom-fields";
 import ProductsPage from "@/pages/products";
 import DeliveryMenuPage from "@/pages/delivery-menu";
 import DeliveryOrdersPage from "@/pages/delivery-orders";
+import DeliveryReportsPage from "@/pages/delivery-reports";
+import SalonMenuPage from "@/pages/salon-menu";
+import SalonAppointmentsPage from "@/pages/salon-appointments";
 import AudioConfigPage from "@/pages/audio-config";
 import FlowBuilderPage from "@/pages/flow-builder";
 import { UpgradeBanner } from "@/components/upgrade-cta";
@@ -76,6 +79,16 @@ interface SuspensionStatus {
   refundedAt?: string;
   refundAmount?: number;
 }
+
+// Interface for /api/usage response (canonical entitlement source)
+interface UsageData {
+  agentMessagesCount: number;
+  limit: number;
+  remaining: number;
+  isLimitReached: boolean;
+  hasActiveSubscription: boolean;
+  planName: string | null;
+}
 export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -87,6 +100,14 @@ export default function Dashboard() {
     queryKey: ["/api/subscriptions/current"],
     enabled: !!isAuthenticated,
   });
+  // Canonical entitlement check from /api/usage (considers reseller + SaaS + expiration)
+  const { data: usageData } = useQuery<UsageData>({
+    queryKey: ["/api/usage"],
+    enabled: !!isAuthenticated,
+    refetchInterval: 30000,
+  });
+  // True subscription active status (from canonical helper, not just subscription.status)
+  const isEffectivelyPaid = usageData?.hasActiveSubscription ?? false;
   // Verificar status de suspensão do usuário
   const { data: suspensionStatus } = useQuery<SuspensionStatus>({
     queryKey: ["/api/user/suspension-status"],
@@ -154,6 +175,9 @@ export default function Dashboard() {
   const isProductsRoute = location.startsWith("/produtos");
   const isDeliveryMenuRoute = location.startsWith("/delivery-cardapio");
   const isDeliveryOrdersRoute = location.startsWith("/delivery-pedidos");
+  const isDeliveryReportsRoute = location.startsWith("/delivery-relatorios");
+  const isSalonMenuRoute = location.startsWith("/salon-menu");
+  const isSalonAppointmentsRoute = location.startsWith("/salon-agendamentos");
   const isAudioConfigRoute = location.startsWith("/falar-por-audio");
   const isFlowBuilderRoute = location.startsWith("/construtor-fluxo");
   const isDashboardMode =
@@ -185,6 +209,9 @@ export default function Dashboard() {
     !isProductsRoute &&
     !isDeliveryMenuRoute &&
     !isDeliveryOrdersRoute &&
+    !isDeliveryReportsRoute &&
+    !isSalonMenuRoute &&
+    !isSalonAppointmentsRoute &&
     !isAudioConfigRoute &&
     !isFlowBuilderRoute;
   const isToolsRoute =
@@ -207,6 +234,9 @@ export default function Dashboard() {
     isProductsRoute ||
     isDeliveryMenuRoute ||
     isDeliveryOrdersRoute ||
+    isDeliveryReportsRoute ||
+    isSalonMenuRoute ||
+    isSalonAppointmentsRoute ||
     isAudioConfigRoute ||
     isFlowBuilderRoute;
   
@@ -384,14 +414,36 @@ const toolsNavigation: ToolNavItem[] = [
     label: "🤖 Robô / Fluxo", 
     icon: Workflow, 
     tooltip: "Chatbot com fluxo predefinido", 
-    isActive: isFlowBuilderRoute || isDeliveryOrdersRoute || isSchedulingRoute, 
+    isActive: isFlowBuilderRoute, 
     testId: "button-nav-flow-builder",
     subItems: [
       { label: "Construtor", href: "/construtor-fluxo", icon: Workflow, tooltip: "Construtor de fluxo visual", isActive: isFlowBuilderRoute, testId: "button-nav-flow-constructor" },
-      { label: "Pedidos Delivery", href: "/delivery-pedidos", icon: ClipboardList, tooltip: "Painel de pedidos gerados pelo fluxo", isActive: isDeliveryOrdersRoute, testId: "button-nav-flow-orders" },
-      { label: "📅 Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Painel de agendamentos gerados pelo fluxo", isActive: isSchedulingRoute, testId: "button-nav-flow-scheduling" },
     ]
   },
+  { 
+    label: "🍕 Delivery", 
+    icon: UtensilsCrossed, 
+    tooltip: "Cardápio e pedidos do delivery", 
+    isActive: isDeliveryMenuRoute || isDeliveryOrdersRoute || isDeliveryReportsRoute, 
+    testId: "button-nav-delivery",
+    subItems: [
+      { label: "📦 Cardápio", href: "/delivery-cardapio", icon: UtensilsCrossed, tooltip: "Cardápio para pedidos delivery", isActive: isDeliveryMenuRoute, testId: "button-nav-delivery-menu" },
+      { label: "Pedidos", href: "/delivery-pedidos", icon: ClipboardList, tooltip: "Painel de pedidos delivery", isActive: isDeliveryOrdersRoute, testId: "button-nav-delivery-orders" },
+      { label: "📊 Relatórios", href: "/delivery-relatorios", icon: ClipboardList, tooltip: "Relatórios de vendas e faturamento", isActive: isDeliveryReportsRoute, testId: "button-nav-delivery-reports" },
+    ]
+  },
+  { 
+    label: "💇 Salão de Beleza", 
+    icon: CalendarClock, 
+    tooltip: "Agendamentos para salão de beleza", 
+    isActive: isSalonMenuRoute || isSalonAppointmentsRoute, 
+    testId: "button-nav-salon",
+    subItems: [
+      { label: "⚙️ Configuração", href: "/salon-menu", icon: CalendarClock, tooltip: "Configurar salão, serviços e profissionais", isActive: isSalonMenuRoute, testId: "button-nav-salon-menu" },
+      { label: "📅 Agendamentos", href: "/salon-agendamentos", icon: CalendarClock, tooltip: "Ver agendamentos do salão", isActive: isSalonAppointmentsRoute, testId: "button-nav-salon-appointments" },
+    ]
+  },
+  { label: "📅 Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Painel de agendamentos", isActive: isSchedulingRoute, testId: "button-nav-scheduling" },
   { label: "Follow-up Inteligente", href: "/followup", icon: Sparkles, tooltip: "Mensagens automáticas para recuperar conversas", isActive: isFollowupRoute, testId: "button-nav-followup" },
   { label: "Lista de Exclusão", href: "/lista-exclusao", icon: Ban, tooltip: "Números que a IA não deve responder", isActive: isExclusionListRoute, testId: "button-nav-exclusion-list" },
   { label: "Falar por Áudio", href: "/falar-por-audio", icon: Mic, tooltip: "Respostas em áudio com TTS", isActive: isAudioConfigRoute, testId: "button-nav-audio-config" },
@@ -407,7 +459,6 @@ const toolsNavigation: ToolNavItem[] = [
     { label: "Etiquetas", href: "/etiquetas", icon: Tags, tooltip: "Etiquetas", isActive: isTagsRoute, testId: "button-nav-tags" },
     { label: "Campos Personalizados", href: "/campos-personalizados", icon: FormInput, tooltip: "Campos personalizados de contatos", isActive: isCustomFieldsRoute, testId: "button-nav-custom-fields" },
     { label: "Catálogo de Produtos", href: "/produtos", icon: Package, tooltip: "Lista de produtos e preços", isActive: isProductsRoute, testId: "button-nav-products" },
-    { label: "📦 Cardápio Delivery", href: "/delivery-cardapio", icon: UtensilsCrossed, tooltip: "Cardápio para pedidos delivery", isActive: isDeliveryMenuRoute, testId: "button-nav-delivery-menu" },
     { label: "Funil", href: "/funil", icon: Filter, tooltip: "Funil de vendas", isActive: isFunnelRoute, testId: "button-nav-funnel" },
     { label: "Integrações", href: "/integracoes", icon: Plug, tooltip: "Integrações", isActive: isIntegrationsRoute, testId: "button-nav-integrations" },
     { label: "Reservas", href: "/reservas", icon: BedDouble, tooltip: "Reservas", isActive: isReservationsRoute, testId: "button-nav-reservations" },
@@ -734,13 +785,14 @@ const toolsNavigation: ToolNavItem[] = [
             </SidebarMenuItem>
             {/* Lógica dinâmica de botões baseada no plano ativo */}
             {(() => {
-              const hasActiveSub = subscription?.status === 'active';
+              // Use canonical entitlement (considers reseller + SaaS + expiration)
+              const hasActiveSub = isEffectivelyPaid;
               const planTipo = subscription?.plan?.tipo;
               const planPeriodicidade = subscription?.plan?.periodicidade;
               const isMensal = hasActiveSub && (planTipo === 'padrao' || planTipo === 'mensal' || (!planTipo && planPeriodicidade === 'mensal'));
               const isAnual = hasActiveSub && planTipo === 'anual';
               const isImplementacao = hasActiveSub && planTipo === 'implementacao';
-              
+
               // Se não tem plano ativo, mostra o botão principal
               if (!hasActiveSub) {
                 // Usar 'valor' que é o campo correto da API (fallback para 'preco')
@@ -867,7 +919,8 @@ const toolsNavigation: ToolNavItem[] = [
               </div>
             </div>
             {/* Sticky CTA de upgrade - Ocultar na tela de criação de agente para priorizar o input */}
-            {!subscription?.plan && !isMeuAgenteRoute && selectedView !== "agent" && (
+            {/* Use canonical entitlement: hide if user is effectively paid (SaaS or reseller) */}
+            {!isEffectivelyPaid && !isMeuAgenteRoute && selectedView !== "agent" && (
               <UpgradeBanner />
             )}
           </div>
@@ -1004,6 +1057,21 @@ const toolsNavigation: ToolNavItem[] = [
           {isDeliveryOrdersRoute && (
             <div className="flex-1 overflow-auto">
               <DeliveryOrdersPage />
+            </div>
+          )}
+          {isDeliveryReportsRoute && (
+            <div className="flex-1 overflow-auto">
+              <DeliveryReportsPage />
+            </div>
+          )}
+          {isSalonMenuRoute && (
+            <div className="flex-1 overflow-auto">
+              <SalonMenuPage />
+            </div>
+          )}
+          {isSalonAppointmentsRoute && (
+            <div className="flex-1 overflow-auto">
+              <SalonAppointmentsPage />
             </div>
           )}
           {isAudioConfigRoute && (
@@ -1173,33 +1241,97 @@ const toolsNavigation: ToolNavItem[] = [
             </div>
             
             <div className="px-4 pb-4 overflow-y-auto max-h-[55vh]">
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="space-y-2">
                 {filteredToolsNavigation.map((item) => (
-                  <button
-                    key={item.testId}
-                    className={cn(
-                      "border rounded-xl p-3 flex flex-col items-center gap-1.5 text-[10px] leading-tight transition-all active:scale-95",
-                      item.isActive 
-                        ? "border-primary bg-primary/5 text-primary font-medium" 
-                        : "border-border bg-card text-foreground hover:bg-accent"
+                  <div key={item.testId} className="rounded-xl border border-border/60 bg-card">
+                    {item.subItems ? (
+                      <Collapsible defaultOpen={item.isActive} className="w-full">
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            data-testid={item.testId}
+                            className={cn(
+                              "w-full px-3 py-3 flex items-center gap-3 text-left text-sm font-medium transition-colors",
+                              item.isActive
+                                ? "text-primary"
+                                : "text-foreground hover:bg-accent"
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "w-9 h-9 rounded-lg flex items-center justify-center",
+                                item.isActive ? "bg-primary/10" : "bg-muted"
+                              )}
+                            >
+                              <item.icon className="w-4 h-4" />
+                            </span>
+                            <span className="flex-1">
+                              <span className="block">{item.label}</span>
+                              <span className="block text-xs text-muted-foreground">Toque para ver opções</span>
+                            </span>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform data-[state=open]:rotate-180" />
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="px-3 pb-3">
+                          <div className="space-y-1 pt-1">
+                            {item.subItems.map((subItem) => (
+                              <button
+                                key={subItem.testId}
+                                type="button"
+                                data-testid={subItem.testId}
+                                className={cn(
+                                  "w-full rounded-lg px-3 py-2 flex items-center gap-2 text-sm transition-colors",
+                                  subItem.isActive
+                                    ? "bg-primary/10 text-primary font-medium"
+                                    : "text-foreground hover:bg-accent"
+                                )}
+                                onClick={() => {
+                                  if (subItem.href) {
+                                    setLocation(subItem.href);
+                                  } else if (subItem.action) {
+                                    subItem.action();
+                                  }
+                                  setToolsPickerOpen(false);
+                                }}
+                              >
+                                <subItem.icon className="w-4 h-4" />
+                                <span>{subItem.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    ) : (
+                      <button
+                        type="button"
+                        data-testid={item.testId}
+                        className={cn(
+                          "w-full px-3 py-3 flex items-center gap-3 text-left text-sm font-medium transition-colors",
+                          item.isActive
+                            ? "text-primary"
+                            : "text-foreground hover:bg-accent"
+                        )}
+                        onClick={() => {
+                          if (item.href) {
+                            setLocation(item.href);
+                          } else if (item.action) {
+                            item.action();
+                          }
+                          setToolsPickerOpen(false);
+                        }}
+                      >
+                        <span
+                          className={cn(
+                            "w-9 h-9 rounded-lg flex items-center justify-center",
+                            item.isActive ? "bg-primary/10" : "bg-muted"
+                          )}
+                        >
+                          <item.icon className="w-4 h-4" />
+                        </span>
+                        <span>{item.label}</span>
+                      </button>
                     )}
-                    onClick={() => {
-                      if (item.href) {
-                        setLocation(item.href);
-                      } else if (item.action) {
-                        item.action();
-                      }
-                      setToolsPickerOpen(false);
-                    }}
-                  >
-                    <div className={cn(
-                      "w-9 h-9 rounded-lg flex items-center justify-center",
-                      item.isActive ? "bg-primary/10" : "bg-muted"
-                    )}>
-                      <item.icon className="w-4 h-4" />
-                    </div>
-                    <span className="text-center">{item.label}</span>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1215,7 +1347,8 @@ const toolsNavigation: ToolNavItem[] = [
               </Button>
             </div>
             
-            {(!subscription || subscription.status !== 'active') && (
+            {/* Use canonical entitlement: hide if user is effectively paid (SaaS or reseller) */}
+            {!isEffectivelyPaid && (
               <div className="p-4 pt-0">
                 <UpgradeBanner />
               </div>

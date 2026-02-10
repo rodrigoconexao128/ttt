@@ -9,6 +9,7 @@ import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@shared/schema";
 import { useState, useEffect } from "react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 import { getAuthToken } from "@/lib/supabase";
 import {
   Dialog,
@@ -59,6 +60,7 @@ export function ConversationsList({
   onSelectConversation,
 }: ConversationsListProps) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
@@ -413,12 +415,7 @@ export function ConversationsList({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                const el = document.querySelector(
-                  '[data-testid="button-nav-connection"]',
-                ) as HTMLButtonElement;
-                el?.click();
-              }}
+              onClick={() => setLocation("/conexao")}
               data-testid="button-minimal-connect-whatsapp-list"
             >
               Conectar WhatsApp

@@ -89,7 +89,7 @@
     "openid-client": "^6.8.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
-    "pg": "^8.16.3",
+    "pg": "^8.18.0",
     "pino": "^10.1.0",
     "postcss": "^8.4.47",
     "puppeteer": "^24.29.1",

@@ -1399,6 +1399,7 @@ class FlowActions {
         const orderItems = instance.context.cart.map(item => ({
           order_id: order.id,
           menu_item_id: item.id,
+          item_name: item.name || item.id || 'Item',
           quantity: item.quantity,
           unit_price: item.price,
           total_price: item.price * item.quantity,

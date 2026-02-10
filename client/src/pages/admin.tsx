@@ -29,7 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, UserMinus, Receipt, XCircle, FileImage } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminNotificationsPanel from "@/components/admin-notifications-panel";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
@@ -179,8 +179,12 @@ export default function AdminPanel() {
         return <PlansManager plans={plans} />;
       case "payments":
         return <PaymentsManager pendingPayments={pendingPayments} />;
+      case "receipts":
+        return <PaymentReceiptsManager />;
       case "subscriptions-history":
         return <SubscriptionsHistoryManager />;
+      case "former-subscribers":
+        return <FormerSubscribersManager subscriptions={subscriptions} />;
       case "whatsapp":
         return (
           <div className="space-y-6">
@@ -272,12 +276,42 @@ export default function AdminPanel() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
+                    onClick={() => handleTabChange("receipts")}
+                    isActive={activeTab === "receipts"}
+                    tooltip="Comprovantes PIX"
+                  >
+                    <Receipt className="w-4 h-4" />
+                    <span>Comprovantes PIX</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
                     onClick={() => handleTabChange("subscriptions-history")}
                     isActive={activeTab === "subscriptions-history"}
                     tooltip="Assinaturas e Histórico de Cobranças"
                   >
                     <Crown className="w-4 h-4" />
                     <span>Assinaturas</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("former-subscribers")}
+                    isActive={activeTab === "former-subscribers"}
+                    tooltip="Ex-assinantes"
+                  >
+                    <UserMinus className="w-4 h-4" />
+                    <span>Ex-assinantes</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("former-subscribers")}
+                    isActive={activeTab === "former-subscribers"}
+                    tooltip="Ex-assinantes"
+                  >
+                    <UserMinus className="w-4 h-4" />
+                    <span>Ex-assinantes</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -441,6 +475,26 @@ export default function AdminPanel() {
                 >
                   <DollarSign className="w-4 h-4" />
                   <span>Pagamentos</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("subscriptions-history")}
+                  isActive={activeTab === "subscriptions-history"}
+                  tooltip="Assinaturas e Histórico de Cobranças"
+                >
+                  <Crown className="w-4 h-4" />
+                  <span>Assinaturas</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("former-subscribers")}
+                  isActive={activeTab === "former-subscribers"}
+                  tooltip="Ex-assinantes"
+                >
+                  <UserMinus className="w-4 h-4" />
+                  <span>Ex-assinantes</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -2314,6 +2368,279 @@ function PaymentsManager({
   );
 }
 
+// PaymentReceiptsManager Component - Gerenciador de Comprovantes PIX
+function PaymentReceiptsManager() {
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState("pending");
+  const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
+  const [rejectNotes, setRejectNotes] = useState("");
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showImageDialog, setShowImageDialog] = useState(false);
+
+  const { data: receiptsData, isLoading, refetch } = useQuery({
+    queryKey: ["/api/admin/payment-receipts", statusFilter],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/admin/payment-receipts?status=${statusFilter}`);
+      return res.json();
+    },
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("POST", `/api/admin/payment-receipts/${id}/approve`);
+    },
+    onSuccess: () => {
+      refetch();
+      toast({ title: "Comprovante aprovado com sucesso!" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao aprovar comprovante", variant: "destructive" });
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ id, notes }: { id: string; notes: string }) => {
+      return await apiRequest("POST", `/api/admin/payment-receipts/${id}/reject`, { notes });
+    },
+    onSuccess: () => {
+      refetch();
+      setShowRejectDialog(false);
+      setRejectNotes("");
+      setSelectedReceipt(null);
+      toast({ title: "Comprovante rejeitado e plano cancelado" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao rejeitar comprovante", variant: "destructive" });
+    },
+  });
+
+  const handleReject = () => {
+    if (selectedReceipt) {
+      rejectMutation.mutate({ id: selectedReceipt.id, notes: rejectNotes });
+    }
+  };
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">Pendente</Badge>;
+      case "approved":
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">Aprovado</Badge>;
+      case "rejected":
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">Rejeitado</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="w-5 h-5" />
+                Comprovantes de Pagamento PIX
+              </CardTitle>
+              <CardDescription>
+                Gerencie comprovantes de pagamento enviados pelos clientes
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendentes</SelectItem>
+                  <SelectItem value="approved">Aprovados</SelectItem>
+                  <SelectItem value="rejected">Rejeitados</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="icon" onClick={() => refetch()}>
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuário</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Comprovante</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(!receiptsData?.receipts || receiptsData.receipts.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      Nenhum comprovante encontrado
+                    </TableCell>
+                  </TableRow>
+                )}
+                {receiptsData?.receipts?.map((receipt: any) => (
+                  <TableRow key={receipt.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{receipt.users?.name || "—"}</p>
+                        <p className="text-sm text-muted-foreground">{receipt.users?.email || "—"}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{receipt.plans?.name || "—"}</TableCell>
+                    <TableCell className="font-medium">R$ {parseFloat(receipt.amount || 0).toFixed(2)}</TableCell>
+                    <TableCell>{formatDate(receipt.created_at)}</TableCell>
+                    <TableCell>{getStatusBadge(receipt.status)}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedReceipt(receipt);
+                          setShowImageDialog(true);
+                        }}
+                      >
+                        <FileImage className="w-4 h-4 mr-1" />
+                        Ver
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      {receipt.status === "pending" && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => approveMutation.mutate(receipt.id)}
+                            disabled={approveMutation.isPending}
+                          >
+                            {approveMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                            )}
+                            Aprovar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                              setSelectedReceipt(receipt);
+                              setShowRejectDialog(true);
+                            }}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" />
+                            Rejeitar
+                          </Button>
+                        </div>
+                      )}
+                      {receipt.status !== "pending" && (
+                        <span className="text-sm text-muted-foreground">
+                          {receipt.reviewed_at && `Revisado em ${formatDate(receipt.reviewed_at)}`}
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog para ver comprovante */}
+      <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Comprovante de Pagamento</DialogTitle>
+            <DialogDescription>
+              {selectedReceipt?.users?.email} - R$ {parseFloat(selectedReceipt?.amount || 0).toFixed(2)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center py-4">
+            {selectedReceipt?.receipt_url && (
+              selectedReceipt.receipt_mime_type?.includes("pdf") ? (
+                <a 
+                  href={selectedReceipt.receipt_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary underline"
+                >
+                  Abrir PDF em nova aba
+                </a>
+              ) : (
+                <img 
+                  src={selectedReceipt.receipt_url} 
+                  alt="Comprovante" 
+                  className="max-w-full max-h-[500px] rounded-lg border"
+                />
+              )
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para rejeitar */}
+      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rejeitar Comprovante</DialogTitle>
+            <DialogDescription>
+              O plano do cliente será cancelado. Adicione uma nota explicando o motivo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="reject-notes">Motivo da rejeição</Label>
+            <Input
+              id="reject-notes"
+              value={rejectNotes}
+              onChange={(e) => setRejectNotes(e.target.value)}
+              placeholder="Ex: Comprovante ilegível, valor incorreto..."
+              className="mt-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRejectDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleReject}
+              disabled={rejectMutation.isPending}
+            >
+              {rejectMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Confirmar Rejeição
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // Coupon interface
 interface Coupon {
   id: string;
@@ -3122,11 +3449,12 @@ function ResellersManager() {
   );
 }
 
-function ConfigManager({ config }: { config: { mistral_api_key: string; mistral_model?: string; pix_key?: string; zai_api_key?: string; llm_provider?: string; groq_api_key?: string; groq_model?: string; openrouter_api_key?: string; openrouter_model?: string; openrouter_provider?: string } | undefined }) {
+function ConfigManager({ config }: { config: { mistral_api_key: string; mistral_model?: string; pix_key?: string; pix_manual_enabled?: boolean; zai_api_key?: string; llm_provider?: string; groq_api_key?: string; groq_model?: string; openrouter_api_key?: string; openrouter_model?: string; openrouter_provider?: string } | undefined }) {
   const { toast } = useToast();
   const [mistralKey, setMistralKey] = useState(config?.mistral_api_key || "");
   const [mistralModel, setMistralModel] = useState(config?.mistral_model || "mistral-medium-latest");
   const [pixKey, setPixKey] = useState(config?.pix_key || "");
+  const [pixManualEnabled, setPixManualEnabled] = useState(config?.pix_manual_enabled ?? true);
   const [zaiKey, setZaiKey] = useState(config?.zai_api_key || "");
   const [llmProvider, setLlmProvider] = useState(config?.llm_provider || "mistral");
   const [groqKey, setGroqKey] = useState(config?.groq_api_key || "");
@@ -3156,6 +3484,7 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; mistral_
       setMistralKey(config.mistral_api_key || "");
       setMistralModel(config.mistral_model || "mistral-medium-latest");
       setPixKey(config.pix_key || "");
+      setPixManualEnabled(config.pix_manual_enabled ?? true);
       setZaiKey(config.zai_api_key || "");
       setLlmProvider(config.llm_provider || "mistral");
       setGroqKey(config.groq_api_key || "");
@@ -3241,7 +3570,7 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; mistral_
   };
 
   const updateConfigMutation = useMutation({
-    mutationFn: async (data: { mistral_api_key: string; mistral_model: string; pix_key: string; zai_api_key: string; llm_provider: string; groq_api_key: string; groq_model: string; openrouter_api_key: string; openrouter_model: string; openrouter_provider: string }) => {
+    mutationFn: async (data: { mistral_api_key: string; mistral_model: string; pix_key: string; pix_manual_enabled: boolean; zai_api_key: string; llm_provider: string; groq_api_key: string; groq_model: string; openrouter_api_key: string; openrouter_model: string; openrouter_provider: string }) => {
       return await apiRequest("PUT", "/api/admin/config", data);
     },
     onSuccess: () => {
@@ -3281,6 +3610,7 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; mistral_
       mistral_api_key: mistralKey, 
       mistral_model: mistralModel,
       pix_key: pixKey, 
+      pix_manual_enabled: pixManualEnabled,
       zai_api_key: zaiKey,
       llm_provider: llmProvider,
       groq_api_key: groqKey,
@@ -3763,6 +4093,38 @@ function ConfigManager({ config }: { config: { mistral_api_key: string; mistral_
             <p className="text-sm text-muted-foreground">
               Chave PIX usada para receber pagamentos de assinaturas
             </p>
+          </div>
+
+          {/* Toggle PIX Manual vs Mercado Pago Checkout */}
+          <div className="p-4 border rounded-lg border-green-200 bg-green-50/50 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-base font-semibold text-green-800">💳 Modo de Pagamento</Label>
+                <p className="text-sm text-green-600">
+                  {pixManualEnabled 
+                    ? "PIX Manual: Cliente paga direto e você aprova manualmente" 
+                    : "Checkout Mercado Pago: Cobrança automática recorrente"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm ${!pixManualEnabled ? 'font-semibold text-blue-600' : 'text-muted-foreground'}`}>
+                  Mercado Pago
+                </span>
+                <Switch
+                  checked={pixManualEnabled}
+                  onCheckedChange={setPixManualEnabled}
+                  data-testid="switch-pix-manual"
+                />
+                <span className={`text-sm ${pixManualEnabled ? 'font-semibold text-green-600' : 'text-muted-foreground'}`}>
+                  PIX Manual
+                </span>
+              </div>
+            </div>
+            {pixManualEnabled && (
+              <div className="p-2 bg-green-100 rounded text-xs text-green-800">
+                ⚠️ <strong>PIX Manual ativado:</strong> Clientes receberão sua chave PIX e você precisará aprovar pagamentos manualmente na seção "Pagamentos".
+              </div>
+            )}
           </div>
 
           <div className="grid gap-2">
@@ -4252,6 +4614,14 @@ function ClientManager({
     u.role !== "owner" && u.role !== "admin" && usersWithActiveSubscriptions.has(u.id)
   ).length || 0;
 
+  const connectedActiveCount = users?.filter(u =>
+    u.role !== "owner" && u.role !== "admin" && usersWithActiveSubscriptions.has(u.id) && u.isConnected
+  ).length || 0;
+
+  const disconnectedActiveCount = users?.filter(u =>
+    u.role !== "owner" && u.role !== "admin" && usersWithActiveSubscriptions.has(u.id) && !u.isConnected
+  ).length || 0;
+
   const assignPlanMutation = useMutation({
     mutationFn: async (data: { userId: string; planId: string }) => {
       const response = await apiRequest("POST", "/api/admin/subscriptions/assign", data);
@@ -4299,7 +4669,7 @@ function ClientManager({
   return (
     <div className="space-y-6">
       {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
@@ -4319,6 +4689,28 @@ function ClientManager({
             <div>
               <p className="text-2xl font-bold">{usersWithPlanCount}</p>
               <p className="text-xs text-muted-foreground">Com plano ativo</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{connectedActiveCount}</p>
+              <p className="text-xs text-muted-foreground">Conectados (plano ativo)</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{disconnectedActiveCount}</p>
+              <p className="text-xs text-muted-foreground">Desconectados (plano ativo)</p>
             </div>
           </div>
         </Card>
@@ -4570,6 +4962,193 @@ function ClientManager({
                 </TableRow>
               );
               })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function FormerSubscribersManager({
+  subscriptions,
+}: {
+  subscriptions: (Subscription & { plan: Plan; user: User })[] | undefined;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "cancelled" | "expired">("all");
+
+  const inactiveStatuses = new Set(["cancelled", "canceled", "expired"]);
+  const activeUserIds = new Set(
+    subscriptions
+      ?.filter((sub) => sub.status === "active")
+      .map((sub) => sub.userId) || []
+  );
+
+  const latestInactiveByUser = new Map<string, Subscription & { plan: Plan; user: User }>();
+
+  subscriptions
+    ?.filter((sub) => inactiveStatuses.has(sub.status))
+    .forEach((sub) => {
+      if (activeUserIds.has(sub.userId)) return;
+      const previous = latestInactiveByUser.get(sub.userId);
+      const currentDate = new Date(sub.dataFim || sub.dataInicio || (sub as any).createdAt || 0).getTime();
+      const previousDate = previous
+        ? new Date(previous.dataFim || previous.dataInicio || (previous as any).createdAt || 0).getTime()
+        : 0;
+      if (!previous || currentDate >= previousDate) {
+        latestInactiveByUser.set(sub.userId, sub);
+      }
+    });
+
+  const formerSubscribers = Array.from(latestInactiveByUser.values()).sort((a, b) => {
+    const dateA = new Date(a.dataFim || a.dataInicio || (a as any).createdAt || 0).getTime();
+    const dateB = new Date(b.dataFim || b.dataInicio || (b as any).createdAt || 0).getTime();
+    return dateB - dateA;
+  });
+
+  const normalizedStatus = (status: string) => (status === "canceled" ? "cancelled" : status);
+
+  const filtered = formerSubscribers.filter((sub) => {
+    const matchesSearch =
+      !searchTerm ||
+      sub.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sub.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sub.user?.phone?.includes(searchTerm) ||
+      sub.plan?.nome?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const status = normalizedStatus(sub.status);
+    const matchesStatus = statusFilter === "all" || status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const cancelledCount = formerSubscribers.filter((sub) => normalizedStatus(sub.status) === "cancelled").length;
+  const expiredCount = formerSubscribers.filter((sub) => normalizedStatus(sub.status) === "expired").length;
+
+  const getStatusBadge = (status: string) => {
+    const normalized = normalizedStatus(status);
+    if (normalized === "cancelled") {
+      return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Cancelado</Badge>;
+    }
+    if (normalized === "expired") {
+      return <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30">Expirado</Badge>;
+    }
+    return <Badge variant="secondary">{status}</Badge>;
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-900/30 flex items-center justify-center">
+              <UserMinus className="w-5 h-5 text-slate-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{formerSubscribers.length}</p>
+              <p className="text-xs text-muted-foreground">Ex-assinantes</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <ShieldOff className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{cancelledCount}</p>
+              <p className="text-xs text-muted-foreground">Cancelados</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-900/30 flex items-center justify-center">
+              <ShieldAlert className="w-5 h-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{expiredCount}</p>
+              <p className="text-xs text-muted-foreground">Expirados</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserMinus className="w-5 h-5" />
+            Ex-assinantes
+          </CardTitle>
+          <CardDescription>
+            Pessoas que já tiveram plano e não estão ativas agora
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-4 mb-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nome, email, telefone ou plano..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="cancelled">Cancelados</SelectItem>
+                <SelectItem value="expired">Expirados</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Plano</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Fim</TableHead>
+                <TableHead>Contato</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    Nenhum ex-assinante encontrado
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map((sub) => (
+                  <TableRow key={sub.id}>
+                    <TableCell>
+                      <div className="space-y-0.5">
+                        <p className="font-medium">{sub.user?.name || "Sem nome"}</p>
+                        <p className="text-xs text-muted-foreground">{sub.user?.email || "Sem email"}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{sub.plan?.nome || "N/A"}</Badge>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(sub.status)}</TableCell>
+                    <TableCell className="text-sm">
+                      {sub.dataFim ? new Date(sub.dataFim).toLocaleDateString("pt-BR") : "-"}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {sub.user?.phone || sub.user?.email || "-"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

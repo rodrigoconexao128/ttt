@@ -460,13 +460,16 @@ export function AgentStudio({ initialPrompt, onSave, onNavigateToConnect, isNew 
       
       // Adiciona resposta do agente
       const agentTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      const agentMsg: SimulatorMessage = {
-        id: `sim-agent-${Date.now()}`,
-        role: "agent",
-        message: data?.response || "Sem resposta",
-        time: agentTime
-      };
-      setSimulatorMessages(prev => [...prev, agentMsg]);
+      const responseText = typeof data?.response === "string" ? data.response : "";
+      if (responseText.trim()) {
+        const agentMsg: SimulatorMessage = {
+          id: `sim-agent-${Date.now()}`,
+          role: "agent",
+          message: responseText,
+          time: agentTime
+        };
+        setSimulatorMessages(prev => [...prev, agentMsg]);
+      }
       
       // 🆕 RASTREAR MÍDIAS ENVIADAS NESTA SESSÃO
       if (data?.mediaActions && data.mediaActions.length > 0) {
