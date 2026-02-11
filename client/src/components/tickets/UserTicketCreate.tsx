@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'wouter';
 import type { TicketPriority } from '../../types/tickets';
 
 const priorities: { value: TicketPriority; label: string }[] = [
@@ -11,7 +11,7 @@ const priorities: { value: TicketPriority; label: string }[] = [
 ];
 
 export const UserTicketCreate: React.FC = () => {
-  const navigate = useNavigate();
+  const [, setLocation] = useLocation();
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TicketPriority>('medium');
@@ -34,7 +34,7 @@ export const UserTicketCreate: React.FC = () => {
         description,
         priority
       });
-      navigate(`/tickets/${data.ticket.id}`);
+      setLocation(`/tickets/${data.ticket.id}`);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Erro ao criar ticket.');
     } finally {

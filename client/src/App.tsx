@@ -1,4 +1,5 @@
 import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -13,6 +14,8 @@ import AdminLogin from "@/pages/admin-login";
 import AgentConfig from "@/pages/agent-config";
 import MediaLibrary from "@/pages/media-library";
 import TestAgent from "@/pages/test-agent";
+import AdminTicketDetailPage from "@/pages/admin/AdminTicketDetailPage";
+import AdminTicketsPage from "@/pages/admin/AdminTicketsPage";
 import AdminChatSimulator from "@/pages/admin-chat-simulator";
 import AdminSimulator from "@/pages/AdminSimulator";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -26,6 +29,43 @@ import { AccessBlocker, SubscriptionExpiringBanner } from "@/components/access-b
 import { PromoBar } from "@/components/promo-bar";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
+
+function RequireAuth({ component: Component }: { component: any }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      setLocation("/login");
+    }
+  }, [isLoading, isAuthenticated, setLocation]);
+
+  if (isLoading) return <LoadingScreen />;
+  if (!isAuthenticated) return null;
+
+  return <Component />;
+}
+
+function RequireAdmin({ component: Component }: { component: any }) {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      setLocation("/admin-login");
+      return;
+    }
+
+    if (!isLoading && isAuthenticated && user?.role !== "admin") {
+      setLocation("/dashboard");
+    }
+  }, [isLoading, isAuthenticated, user?.role, setLocation]);
+
+  if (isLoading) return <LoadingScreen />;
+  if (!isAuthenticated || user?.role !== "admin") return null;
+
+  return <Component />;
+}
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -50,7 +90,9 @@ function Router() {
       <Route path="/test-tts" component={TestTTS} />
       
       <Route path="/admin-login" component={AdminLogin} />
-      <Route path="/admin" component={AdminPanel} />
+      <Route path="/admin/tickets" component={() => <RequireAdmin component={AdminTicketsPage} />} />
+      <Route path="/admin/tickets/:id" component={() => <RequireAdmin component={AdminTicketDetailPage} />} />
+      <Route path="/admin" component={() => <RequireAdmin component={AdminPanel} />} />
       <Route path="/login" component={Login} />
       <Route path="/membro-login" component={MemberLogin} />
       <Route path="/cadastro" component={Register} />
@@ -99,6 +141,10 @@ function Router() {
       <Route path="/salon-agendamentos" component={Dashboard} />
       <Route path="/falar-por-audio" component={Dashboard} />
       <Route path="/construtor-fluxo" component={Dashboard} />
+      {/* Rotas de Tickets */}
+      <Route path="/tickets/new" component={() => <RequireAuth component={Dashboard} />} />
+      <Route path="/tickets/:id" component={() => <RequireAuth component={Dashboard} />} />
+      <Route path="/tickets" component={() => <RequireAuth component={Dashboard} />} />
       {/* Rotas de Revenda com sub-navegação - URLs claras */}
       <Route path="/revenda" component={ResellerDashboard} />
       <Route path="/revenda/clientes" component={ResellerDashboard} />

@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { useParams } from 'react-router-dom';
 import type { Ticket, TicketMessage } from '../../types/tickets';
 
-export const UserTicketChat: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const ticketId = Number(id);
+interface Props {
+  ticketId: number;
+}
+
+export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [messages, setMessages] = useState<TicketMessage[]>([]);
   const [body, setBody] = useState('');

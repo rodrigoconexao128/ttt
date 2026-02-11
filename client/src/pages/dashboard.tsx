@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useBranding } from "@/hooks/useBranding";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput, Package, UtensilsCrossed, ClipboardList, Mic, Workflow } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput, Package, UtensilsCrossed, ClipboardList, Mic, Workflow, Ticket } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,9 @@ import SalonMenuPage from "@/pages/salon-menu";
 import SalonAppointmentsPage from "@/pages/salon-appointments";
 import AudioConfigPage from "@/pages/audio-config";
 import FlowBuilderPage from "@/pages/flow-builder";
+import TicketsPage from "@/pages/TicketsPage";
+import TicketDetailPage from "@/pages/TicketDetailPage";
+import TicketCreatePage from "@/pages/TicketCreatePage";
 import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation, useRoute } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan, Conversation } from "@shared/schema";
@@ -180,6 +183,10 @@ export default function Dashboard() {
   const isSalonAppointmentsRoute = location.startsWith("/salon-agendamentos");
   const isAudioConfigRoute = location.startsWith("/falar-por-audio");
   const isFlowBuilderRoute = location.startsWith("/construtor-fluxo");
+  const isTicketsRoute = location.startsWith("/tickets");
+  const isTicketsNewRoute = location === "/tickets/new";
+  const [matchTicketsDetail] = useRoute("/tickets/:id");
+  const isTicketsDetailRoute = matchTicketsDetail && location !== "/tickets/new" && location !== "/tickets";
   const isDashboardMode =
     !isConversasRoute &&
     !isConexaoRoute &&
@@ -213,7 +220,8 @@ export default function Dashboard() {
     !isSalonMenuRoute &&
     !isSalonAppointmentsRoute &&
     !isAudioConfigRoute &&
-    !isFlowBuilderRoute;
+    !isFlowBuilderRoute &&
+    !isTicketsRoute;
   const isToolsRoute =
     isMassSendRoute ||
     isCampaignsRoute ||
@@ -238,7 +246,8 @@ export default function Dashboard() {
     isSalonMenuRoute ||
     isSalonAppointmentsRoute ||
     isAudioConfigRoute ||
-    isFlowBuilderRoute;
+    isFlowBuilderRoute ||
+    isTicketsRoute;
   
   // Rotas do menu Configurações
   const isConfigRoute =
@@ -446,6 +455,7 @@ const toolsNavigation: ToolNavItem[] = [
   { label: "📅 Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Painel de agendamentos", isActive: isSchedulingRoute, testId: "button-nav-scheduling" },
   { label: "Follow-up Inteligente", href: "/followup", icon: Sparkles, tooltip: "Mensagens automáticas para recuperar conversas", isActive: isFollowupRoute, testId: "button-nav-followup" },
   { label: "Lista de Exclusão", href: "/lista-exclusao", icon: Ban, tooltip: "Números que a IA não deve responder", isActive: isExclusionListRoute, testId: "button-nav-exclusion-list" },
+  { label: "Tickets", href: "/tickets", icon: Ticket, tooltip: "Meus Chamados", isActive: isTicketsRoute, testId: "button-nav-tickets" },
   { label: "Falar por Áudio", href: "/falar-por-audio", icon: Mic, tooltip: "Respostas em áudio com TTS", isActive: isAudioConfigRoute, testId: "button-nav-audio-config" },
   { label: "Notificador Inteligente", href: "/notificador", icon: Bell, tooltip: "Notificações automáticas", isActive: isNotifierRoute, testId: "button-nav-notifier" },
   { label: "Biblioteca de Mídias", href: "/biblioteca-midias", icon: Upload, tooltip: "Áudios, imagens e vídeos do agente", isActive: isMediaLibraryRoute, testId: "button-nav-media-library" },
@@ -1085,6 +1095,24 @@ const toolsNavigation: ToolNavItem[] = [
             </div>
           )}
           
+          {isTicketsNewRoute && (
+            <div className="flex-1 overflow-auto">
+              <TicketCreatePage />
+            </div>
+          )}
+          
+          {isTicketsDetailRoute && (
+            <div className="flex-1 overflow-auto">
+              <TicketDetailPage />
+            </div>
+          )}
+          
+          {isTicketsRoute && !isTicketsNewRoute && !isTicketsDetailRoute && (
+            <div className="flex-1 overflow-auto">
+              <TicketsPage />
+            </div>
+          )}
+
           {/* Dashboard Stats */}
           {isDashboardMode && selectedView === "stats" && (
             <div className="flex-1 overflow-auto">
