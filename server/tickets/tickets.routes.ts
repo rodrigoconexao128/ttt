@@ -1,8 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import multer from "multer";
-import { isAuthenticated, supabase } from "./supabaseAuth";
-import { db } from "./db";
-import * as controller from "./tickets/tickets.controller";
+import { isAuthenticated, supabase } from "../supabaseAuth";
+import { db } from "../db";
+import * as controller from "./tickets.controller";
 
 const upload = multer({
   storage: multer.memoryStorage(),
