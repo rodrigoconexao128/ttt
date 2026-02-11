@@ -1,0 +1,1005 @@
+{
+  "timestamp": "2026-02-03T18:31:26.120Z",
+  "config": {
+    "apiUrl": "http://localhost:5000",
+    "user": "bigacaicuiaba@gmail.com"
+  },
+  "summary": {
+    "totalDuration": "43.5s",
+    "completed": 0,
+    "total": 10,
+    "issuesCount": 80
+  },
+  "results": [
+    {
+      "clientNumber": 1,
+      "clientName": "João da Lanchonete",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.5s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143442746
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143442750
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143443331
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143443335
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143443890
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143443893
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143444442
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143444445
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143444982
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143444985
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143445517
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143445520
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143446057
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143446059
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143446587
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143446589
+        }
+      ]
+    },
+    {
+      "clientNumber": 2,
+      "clientName": "Maria Estudante",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.3s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143447131
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143447133
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143447675
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143447677
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143448208
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143448210
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143448741
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143448743
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143449279
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143449281
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143449819
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143449821
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143450366
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143450368
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143450914
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143450916
+        }
+      ]
+    },
+    {
+      "clientNumber": 3,
+      "clientName": "Carlos Fitness",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.3s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143451478
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143451481
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143452016
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143452018
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143452547
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143452549
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143453084
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143453086
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143453614
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143453616
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143454152
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143454154
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143454682
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143454684
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143455229
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143455231
+        }
+      ]
+    },
+    {
+      "clientNumber": 4,
+      "clientName": "Ana Mãe de Família",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.3s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143455784
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143455786
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143456310
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143456312
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143456854
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143456856
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143457398
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143457401
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143457943
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143457945
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143458488
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143458491
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143459025
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143459028
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143459582
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143459584
+        }
+      ]
+    },
+    {
+      "clientNumber": 5,
+      "clientName": "Pedro Trabalhador",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.3s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143460113
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143460115
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143460646
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143460648
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143461178
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143461180
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143461734
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143461736
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143462293
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143462295
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143462828
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143462830
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143463368
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143463371
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143463913
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143463915
+        }
+      ]
+    },
+    {
+      "clientNumber": 6,
+      "clientName": "Luiza Vegana",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.4s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143464454
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143464456
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143464990
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143464992
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143465612
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143465614
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143466136
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143466138
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143466670
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143466673
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143467233
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143467235
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143467770
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143467772
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143468302
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143468304
+        }
+      ]
+    },
+    {
+      "clientNumber": 7,
+      "clientName": "Ricardo Empresário",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.3s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143468835
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143468838
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143469368
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143469370
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143469904
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143469906
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143470449
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143470452
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143470986
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143470988
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143471559
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143471562
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143472099
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143472101
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143472652
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143472654
+        }
+      ]
+    },
+    {
+      "clientNumber": 8,
+      "clientName": "Camila Adolescente",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.3s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143473193
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143473197
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143473735
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143473737
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143474268
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143474269
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143474797
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143474799
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143475372
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143475379
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143475913
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143475916
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143476443
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143476446
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143476981
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143476983
+        }
+      ]
+    },
+    {
+      "clientNumber": 9,
+      "clientName": "Roberto Idoso",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.3s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143477511
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143477513
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143478062
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143478064
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143478595
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143478597
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143479132
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143479135
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143479658
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143479661
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143480196
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143480198
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143480733
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143480736
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143481273
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143481276
+        }
+      ]
+    },
+    {
+      "clientNumber": 10,
+      "clientName": "Juliana Influencer",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.3s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143481815
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143481818
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143482345
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143482347
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143482876
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143482878
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143483425
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143483427
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143483992
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143483995
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143484535
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143484538
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143485078
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143485080
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143485607
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770143485609
+        }
+      ]
+    }
+  ]
+}

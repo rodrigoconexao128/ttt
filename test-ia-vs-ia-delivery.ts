@@ -11,7 +11,7 @@
 import fetch from 'node-fetch';
 
 // Configurações
-const API_URL = process.env.API_URL || 'https://handsome-mindfulness-production.up.railway.app';
+const API_URL = process.env.API_URL || 'http://localhost:5000';
 const USER_ID = '811c0403-ee01-4d60-8101-9b9e80684384'; // bigacaicuiaba@gmail.com
 const ADMIN_EMAIL = 'admin@agentezap.com';
 const ADMIN_PASS = 'agentezap123';

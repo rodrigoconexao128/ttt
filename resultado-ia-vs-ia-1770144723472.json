@@ -1,0 +1,426 @@
+{
+  "timestamp": "2026-02-03T18:52:03.475Z",
+  "config": {
+    "apiUrl": "http://localhost:5000",
+    "userId": "811c0403-ee01-4d60-8101-9b9e80684384"
+  },
+  "summary": {
+    "totalDuration": "257.4s",
+    "completed": 0,
+    "ordersCreated": 0,
+    "total": 10,
+    "issuesCount": 0
+  },
+  "results": [
+    {
+      "clientNumber": 1,
+      "clientName": "João - Pedido Simples de Pizza",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 8,
+      "duration": "29.7s",
+      "issues": [],
+      "expectedOutcome": "Pedido de pizza calabresa finalizado",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero fazer um pedido",
+          "timestamp": 1770144466166
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144469150
+        },
+        {
+          "role": "cliente",
+          "content": "Quero uma pizza de calabresa grande",
+          "timestamp": 1770144474153
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Pizza Calabresa (Grande (G)) - R$ 55,00\n\n🛒 *SEU PEDIDO*\n───────────────\n1x Pizza Calabresa (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n───────────────\n📦 Subtotal: R$ 55,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144476316
+        },
+        {
+          "role": "cliente",
+          "content": "Pode finalizar",
+          "timestamp": 1770144481331
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144483493
+        },
+        {
+          "role": "cliente",
+          "content": "João Silva, Rua das Flores 123, pago no PIX",
+          "timestamp": 1770144488507
+        },
+        {
+          "role": "agente",
+          "content": "📝 Qual seu *nome completo*?",
+          "timestamp": 1770144490818
+        }
+      ]
+    },
+    {
+      "clientNumber": 2,
+      "clientName": "Maria - Pergunta Preços",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 8,
+      "duration": "50.2s",
+      "issues": [],
+      "expectedOutcome": "Consulta de preços e pedido finalizado",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Boa noite! Quero ver o cardápio de pizzas",
+          "timestamp": 1770144495820
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144497660
+        },
+        {
+          "role": "cliente",
+          "content": "Quanto custa a pizza de calabresa grande?",
+          "timestamp": 1770144502665
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Pizza Calabresa (Grande (G)) - R$ 55,00\n\n🛒 *SEU PEDIDO*\n───────────────\n2x Pizza Calabresa (Grande (G)) - R$ 110,00\n _Obs: Tamanho: Grande (G)_\n───────────────\n📦 Subtotal: R$ 110,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144518745
+        },
+        {
+          "role": "cliente",
+          "content": "Vou querer uma calabresa grande",
+          "timestamp": 1770144523746
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Pizza Calabresa (Grande (G)) - R$ 55,00\n\n🛒 *SEU PEDIDO*\n───────────────\n3x Pizza Calabresa (Grande (G)) - R$ 165,00\n _Obs: Tamanho: Grande (G)_\n───────────────\n📦 Subtotal: R$ 165,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144531591
+        },
+        {
+          "role": "cliente",
+          "content": "Maria Santos, Av. Brasil 456, pago em dinheiro",
+          "timestamp": 1770144536598
+        },
+        {
+          "role": "agente",
+          "content": "📝 Qual seu *nome completo*?",
+          "timestamp": 1770144540970
+        }
+      ]
+    },
+    {
+      "clientNumber": 3,
+      "clientName": "Carlos - Pedido com Borda",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 4,
+      "duration": "15.3s",
+      "issues": [],
+      "expectedOutcome": "Pedido com borda recheada",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero uma pizza portuguesa grande com borda de cheddar",
+          "timestamp": 1770144545973
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144548283
+        },
+        {
+          "role": "cliente",
+          "content": "Carlos Oliveira, Rua Amazonas 789, PIX",
+          "timestamp": 1770144553284
+        },
+        {
+          "role": "agente",
+          "content": "📝 Qual seu *nome completo*?",
+          "timestamp": 1770144556237
+        }
+      ]
+    },
+    {
+      "clientNumber": 4,
+      "clientName": "Ana - Pedido Grande Família",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 6,
+      "duration": "23.0s",
+      "issues": [],
+      "expectedOutcome": "Pedido múltiplo para família",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Olá! Quero 2 pizzas grandes de calabresa",
+          "timestamp": 1770144561244
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144563166
+        },
+        {
+          "role": "cliente",
+          "content": "E 2 refrigerantes de 1 litro",
+          "timestamp": 1770144568170
+        },
+        {
+          "role": "agente",
+          "content": "Hmm, não encontrei \"refrigerantes d\" no cardápio 🤔 Quer ver as opções?",
+          "timestamp": 1770144571915
+        },
+        {
+          "role": "cliente",
+          "content": "Ana Costa, Rua São Paulo 321 ap 102, cartão na entrega",
+          "timestamp": 1770144576930
+        },
+        {
+          "role": "agente",
+          "content": "📝 Qual seu *nome completo*?",
+          "timestamp": 1770144579234
+        }
+      ]
+    },
+    {
+      "clientNumber": 5,
+      "clientName": "Pedro - Combo com Bebida",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 6,
+      "duration": "22.5s",
+      "issues": [],
+      "expectedOutcome": "Pedido de pizza e bebida",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero uma pizza de frango catupiry grande",
+          "timestamp": 1770144584242
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144585892
+        },
+        {
+          "role": "cliente",
+          "content": "E uma Coca-Cola 1 litro",
+          "timestamp": 1770144590903
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Refrigerante 1 Litro - R$ 10,00\n• 1x Refrigerante 2 Litros - R$ 15,00\n\n🛒 *SEU PEDIDO*\n───────────────\n3x Pizza Calabresa (Grande (G)) - R$ 165,00\n _Obs: Tamanho: Grande (G)_\n1x Refrigerante 1 Litro - R$ 10,00\n1x Refrigerante 2 Litros - R$ 15,00\n───────────────\n📦 Subtotal: R$ 190,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144594192
+        },
+        {
+          "role": "cliente",
+          "content": "Pedro Mendes, Av. Central 555, PIX",
+          "timestamp": 1770144599195
+        },
+        {
+          "role": "agente",
+          "content": "📝 Qual seu *nome completo*?",
+          "timestamp": 1770144601732
+        }
+      ]
+    },
+    {
+      "clientNumber": 6,
+      "clientName": "Luiza - Esfihas",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 6,
+      "duration": "22.4s",
+      "issues": [],
+      "expectedOutcome": "Pedido de esfihas variadas",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero 6 esfihas de carne",
+          "timestamp": 1770144606740
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144608879
+        },
+        {
+          "role": "cliente",
+          "content": "E 6 esfihas de queijo também",
+          "timestamp": 1770144613884
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 6x Esfiha de Queijo - R$ 24,00\n\n🛒 *SEU PEDIDO*\n───────────────\n3x Pizza Calabresa (Grande (G)) - R$ 165,00\n _Obs: Tamanho: Grande (G)_\n1x Refrigerante 1 Litro - R$ 10,00\n1x Refrigerante 2 Litros - R$ 15,00\n6x Esfiha de Queijo - R$ 24,00\n───────────────\n📦 Subtotal: R$ 214,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144616679
+        },
+        {
+          "role": "cliente",
+          "content": "Luiza Almeida, Rua das Palmeiras 88, dinheiro",
+          "timestamp": 1770144621693
+        },
+        {
+          "role": "agente",
+          "content": "📝 Qual seu *nome completo*?",
+          "timestamp": 1770144624136
+        }
+      ]
+    },
+    {
+      "clientNumber": 7,
+      "clientName": "Ricardo - Pizza Doce",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 4,
+      "duration": "14.7s",
+      "issues": [],
+      "expectedOutcome": "Pedido de pizza doce",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Boa tarde, quero uma pizza de brigadeiro grande",
+          "timestamp": 1770144629138
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144630557
+        },
+        {
+          "role": "cliente",
+          "content": "Ricardo Souza, Av. Atlântica 1000, PIX",
+          "timestamp": 1770144635565
+        },
+        {
+          "role": "agente",
+          "content": "📝 Qual seu *nome completo*?",
+          "timestamp": 1770144638837
+        }
+      ]
+    },
+    {
+      "clientNumber": 8,
+      "clientName": "Camila - Pizza e Esfiha",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 6,
+      "duration": "40.5s",
+      "issues": [],
+      "expectedOutcome": "Pedido misto pizza e esfiha",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oie, quero uma pizza de mussarela grande",
+          "timestamp": 1770144643842
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Pizza Mussarela (Grande (G)) - R$ 55,00\n\n🛒 *SEU PEDIDO*\n───────────────\n3x Pizza Calabresa (Grande (G)) - R$ 165,00\n _Obs: Tamanho: Grande (G)_\n1x Refrigerante 1 Litro - R$ 10,00\n1x Refrigerante 2 Litros - R$ 15,00\n6x Esfiha de Queijo - R$ 24,00\n1x Pizza Mussarela (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n───────────────\n📦 Subtotal: R$ 269,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144652500
+        },
+        {
+          "role": "cliente",
+          "content": "E também 4 esfihas de carne",
+          "timestamp": 1770144657515
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 4x Esfiha de Carne - R$ 16,00\n\n🛒 *SEU PEDIDO*\n───────────────\n3x Pizza Calabresa (Grande (G)) - R$ 165,00\n _Obs: Tamanho: Grande (G)_\n1x Refrigerante 1 Litro - R$ 10,00\n1x Refrigerante 2 Litros - R$ 15,00\n6x Esfiha de Queijo - R$ 24,00\n1x Pizza Mussarela (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n4x Esfiha de Carne - R$ 16,00\n───────────────\n📦 Subtotal: R$ 285,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144665374
+        },
+        {
+          "role": "cliente",
+          "content": "Camila Lima, Rua Alegre 42, cartão",
+          "timestamp": 1770144670387
+        },
+        {
+          "role": "agente",
+          "content": "📝 Qual seu *nome completo*?",
+          "timestamp": 1770144679314
+        }
+      ]
+    },
+    {
+      "clientNumber": 9,
+      "clientName": "Roberto - Claro e Objetivo",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 2,
+      "duration": "7.3s",
+      "issues": [],
+      "expectedOutcome": "Pedido direto sem rodeios",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Pizza marguerita grande com borda de catupiry. Roberto Dias, Rua dos Ipês 200, PIX",
+          "timestamp": 1770144684326
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada\n\nPode me enviar! 😊",
+          "timestamp": 1770144686651
+        }
+      ]
+    },
+    {
+      "clientNumber": 10,
+      "clientName": "Juliana - Pedido Completo",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 8,
+      "duration": "31.8s",
+      "issues": [],
+      "expectedOutcome": "Combo de esfihas",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero 6 esfihas de calabresa",
+          "timestamp": 1770144691652
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144695375
+        },
+        {
+          "role": "cliente",
+          "content": "E um guaraná 1 litro",
+          "timestamp": 1770144700378
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Refrigerante 1 Litro - R$ 10,00\n• 1x Refrigerante 2 Litros - R$ 15,00\n\n🛒 *SEU PEDIDO*\n───────────────\n3x Pizza Calabresa (Grande (G)) - R$ 165,00\n _Obs: Tamanho: Grande (G)_\n2x Refrigerante 1 Litro - R$ 20,00\n2x Refrigerante 2 Litros - R$ 30,00\n6x Esfiha de Queijo - R$ 24,00\n1x Pizza Mussarela (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n4x Esfiha de Carne - R$ 16,00\n───────────────\n📦 Subtotal: R$ 310,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144703206
+        },
+        {
+          "role": "cliente",
+          "content": "Juliana Rocha, Rua do Lago 77, dinheiro",
+          "timestamp": 1770144708222
+        },
+        {
+          "role": "agente",
+          "content": "📝 Qual seu *nome completo*?",
+          "timestamp": 1770144710224
+        },
+        {
+          "role": "cliente",
+          "content": "Perfeito, pode fechar",
+          "timestamp": 1770144715233
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144718466
+        }
+      ]
+    }
+  ]
+}
