@@ -45,3 +45,4 @@ export function registerTicketRoutes(app: Express): void {
 
   console.log("✅ [Tickets] Rotas registradas com sucesso!");
 }
+// v2 - Railway build compatible
