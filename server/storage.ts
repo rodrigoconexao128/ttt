@@ -1097,7 +1097,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
           client_has_pending_message = true
           AND owner_last_reply_at IS NOT NULL
           AND auto_reactivate_after_minutes IS NOT NULL
-          AND owner_last_reply_at + (auto_reactivate_after_minutes || ' minutes')::interval <= NOW()
+          AND owner_last_reply_at + (auto_reactivate_after_minutes * INTERVAL '1 minute') <= NOW()
         LIMIT 10
       `);
       
@@ -1127,7 +1127,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
             client_has_pending_message = true
             AND owner_last_reply_at IS NOT NULL
             AND auto_reactivate_after_minutes IS NOT NULL
-            AND owner_last_reply_at + (auto_reactivate_after_minutes || ' minutes')::interval <= NOW()
+            AND owner_last_reply_at + (auto_reactivate_after_minutes * INTERVAL '1 minute') <= NOW()
           LIMIT 1
         ) as has_pending
       `);
