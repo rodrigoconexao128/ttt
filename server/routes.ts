@@ -928,7 +928,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerSalonRoutes(app);
 
   // ==================== TICKETS/SUPPORT ROUTES ====================
-  registerTicketRoutes(app);
+  console.log("🎫 [DEBUG] About to call registerTicketRoutes...");
+  try {
+    registerTicketRoutes(app);
+    console.log("✅ [DEBUG] registerTicketRoutes called successfully");
+  } catch (e) {
+    console.error("❌ [DEBUG] Error calling registerTicketRoutes:", e);
+  }
 
 
 
