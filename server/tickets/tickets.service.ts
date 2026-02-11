@@ -2,7 +2,7 @@ import { db, pgp } from '../db';
 import path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
-import type { Ticket, TicketMessage, TicketAttachment, TicketStatus, TicketPriority } from '../../client/src/types/tickets';
+import type { Ticket, TicketMessage, TicketAttachment, TicketStatus, TicketPriority } from './types';
 
 // Upload helper
 async function uploadImageBuffer(buffer: Buffer, originalName: string, mimeType: string): Promise<{

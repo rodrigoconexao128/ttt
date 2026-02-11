@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import * as service from './tickets.service';
-import type { TicketStatus, TicketPriority } from '../../client/src/types/tickets';
+import type { TicketStatus, TicketPriority } from './types';
 
 const asyncHandler = (fn: Function) => (req: Request, res: Response, next: Function) => {
   Promise.resolve(fn(req, res, next)).catch(next);
