@@ -90,10 +90,10 @@ const MISTRAL_VALIDATED_MODELS: MistralModelConfig[] = [
 const MISTRAL_FALLBACK_MODELS = MISTRAL_VALIDATED_MODELS.map(m => m.model);
 
 // ============================================================================
-// 🕐 SISTEMA DE TRACKING PARA DELAY DE 5 MINUTOS
+// 🕐 SISTEMA DE TRACKING PARA DELAY DE 30 SEGUNDOS
 // ============================================================================
 // Quando TODOS os modelos Mistral falham, não fazemos fallback imediatamente
-// Em vez disso, esperamos até 5 minutos tentando repetidamente antes de fallback
+// Em vez disso, esperamos até 30seg tentando repetidamente antes de fallback
 
 interface MistralQueueStatus {
   firstFailureTime: number | null;  // Timestamp da primeira falha
@@ -102,13 +102,68 @@ interface MistralQueueStatus {
   roundRobinIndex: number;          // Índice atual no round-robin
 }
 
-const MISTRAL_EXTERNAL_FALLBACK_DELAY_MS = 5 * 60 * 1000; // 5 minutos antes de fallback externo
+const MISTRAL_EXTERNAL_FALLBACK_DELAY_MS = 30 * 1000; // 30 segundos antes de fallback externo (era 5min - causava retry storm)
 const mistralQueueStatus: MistralQueueStatus = {
   firstFailureTime: null,
   totalAttempts: 0,
   lastAttemptTime: 0,
   roundRobinIndex: 0,
 };
+
+// ============================================================================
+// 🛡️ CIRCUIT BREAKER GLOBAL - Evita tempestade de retries
+// ============================================================================
+// Quando muitas chamadas Mistral falham em sequência, pula direto para OpenRouter
+// sem sequer tentar Mistral. Reseta após período de cooldown.
+interface CircuitBreakerState {
+  consecutiveFailures: number;
+  lastFailureTime: number;
+  isOpen: boolean; // true = circuit aberto = pular Mistral
+}
+
+const CIRCUIT_BREAKER_THRESHOLD = 5; // Após 5 falhas consecutivas, abrir circuito
+const CIRCUIT_BREAKER_RESET_MS = 60 * 1000; // Tentar Mistral novamente após 60seg
+
+const circuitBreaker: CircuitBreakerState = {
+  consecutiveFailures: 0,
+  lastFailureTime: 0,
+  isOpen: false,
+};
+
+function isCircuitBreakerOpen(): boolean {
+  if (!circuitBreaker.isOpen) return false;
+  
+  // Verificar se já passou tempo de reset
+  const elapsed = Date.now() - circuitBreaker.lastFailureTime;
+  if (elapsed >= CIRCUIT_BREAKER_RESET_MS) {
+    console.log(`🔄 [CIRCUIT BREAKER] Resetando após ${Math.round(elapsed/1000)}s - tentando Mistral novamente`);
+    circuitBreaker.isOpen = false;
+    circuitBreaker.consecutiveFailures = 0;
+    return false;
+  }
+  
+  const remaining = Math.ceil((CIRCUIT_BREAKER_RESET_MS - elapsed) / 1000);
+  console.log(`🛡️ [CIRCUIT BREAKER] ABERTO - pulando Mistral, direto para fallback (reset em ${remaining}s)`);
+  return true;
+}
+
+function recordCircuitBreakerFailure(): void {
+  circuitBreaker.consecutiveFailures++;
+  circuitBreaker.lastFailureTime = Date.now();
+  
+  if (circuitBreaker.consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD && !circuitBreaker.isOpen) {
+    circuitBreaker.isOpen = true;
+    console.log(`🛡️ [CIRCUIT BREAKER] ABERTO! ${circuitBreaker.consecutiveFailures} falhas consecutivas - pulando Mistral por ${CIRCUIT_BREAKER_RESET_MS/1000}s`);
+  }
+}
+
+function recordCircuitBreakerSuccess(): void {
+  if (circuitBreaker.consecutiveFailures > 0) {
+    console.log(`✅ [CIRCUIT BREAKER] Sucesso! Resetando contador de falhas (era ${circuitBreaker.consecutiveFailures})`);
+  }
+  circuitBreaker.consecutiveFailures = 0;
+  circuitBreaker.isOpen = false;
+}
 
 /**
  * Verifica se já passou tempo suficiente para fazer fallback para OpenRouter/Groq
@@ -827,7 +882,8 @@ export async function chatComplete(params: {
   }
   
   // 🎯 Se provider é Mistral e tem API key válida - USAR COM ROTAÇÃO DE MODELOS
-  if (config.provider === 'mistral' && hasMistralKey) {
+  // 🛡️ CIRCUIT BREAKER: Se Mistral está falhando muito, pular direto para fallback
+  if (config.provider === 'mistral' && hasMistralKey && !isCircuitBreakerOpen()) {
     const adminModel = config.mistralModel || 'mistral-small-latest';
     const triedModels: string[] = []; // Modelos já tentados nesta mensagem
     
@@ -836,8 +892,8 @@ export async function chatComplete(params: {
     
     console.log(`[LLM] 🎯 chatComplete via Mistral - Modelo do admin: ${adminModel}`);
     
-    // 🔄 Tentar até 15 modelos diferentes (temos 24 modelos de fallback agora)
-    const maxModelAttempts = 15;
+    // 🔄 Tentar até 5 modelos diferentes (reduzido de 15 para evitar retry storm)
+    const maxModelAttempts = 5;
     let lastMistralError: Error | null = null;
     
     for (let modelAttempt = 1; modelAttempt <= maxModelAttempts; modelAttempt++) {
@@ -857,7 +913,7 @@ export async function chatComplete(params: {
       try {
         const mistral = await getMistralClient();
         
-        // 🔄 Usar retry para erros temporários (2 retries por modelo)
+        // 🔄 Usar retry para erros temporários (1 retry por modelo - reduzido de 2 para evitar storm)
         const mistralResponse = await withRetryLLM(async () => {
           return await mistral.chat.complete({
             model: currentModel,
@@ -866,12 +922,13 @@ export async function chatComplete(params: {
             temperature: params.temperature ?? 0.7,
             randomSeed: params.randomSeed,
           });
-        }, `Mistral chatComplete (${currentModel})`, 2, 1500);
+        }, `Mistral chatComplete (${currentModel})`, 1, 1500);
         
         console.log(`[LLM] ✅ Mistral chatComplete (${currentModel}) respondeu`);
         
         // ✅ SUCESSO! Limpar status da fila de falhas
         clearMistralQueueStatus();
+        recordCircuitBreakerSuccess();
         
         return {
           choices: mistralResponse.choices?.map((c: any) => ({
@@ -905,7 +962,8 @@ export async function chatComplete(params: {
     console.error('═══════════════════════════════════════════════════════════════');
     console.error(`🔄 [LLM FALLBACK] Mistral FALHOU após tentar ${triedModels.length} modelos: ${triedModels.join(', ')}`);
     
-    // � NOVO: Registrar falha e verificar se pode fazer fallback externo
+    // 🛡️ CIRCUIT BREAKER + Registrar falha
+    recordCircuitBreakerFailure();
     registerMistralFailure();
     
     // 🕐 VERIFICAR SE PASSARAM 5 MINUTOS - Se não, AGUARDA e RETENTA Mistral
@@ -929,6 +987,7 @@ export async function chatComplete(params: {
         
         console.log(`[LLM] ✅ Mistral (${nextModel}) respondeu após aguardar delay!`);
         clearMistralQueueStatus(); // Sucesso! Limpar fila
+        recordCircuitBreakerSuccess();
         
         return {
           choices: retryResponse.choices?.map((c: any) => ({

@@ -1885,8 +1885,19 @@ async function withRetry<T>(
       lastError = error;
       
       // Verificar se é um erro que vale a pena tentar novamente
+      // ⚠️ 429 (rate limit) NÃO é retentável aqui - o llm.ts já faz rotação de modelos internamente
+      // Retentar 429 no nível externo causa tempestade de retries exponencial
+      const isRateLimitError = 
+        error?.statusCode === 429 || 
+        error?.message?.includes('rate limit') ||
+        error?.message?.includes('aguardando fila');
+      
+      if (isRateLimitError) {
+        console.log(`⚡ [AI RETRY] Rate limit detectado - NÃO retentando (llm.ts já fez rotação de modelos)`);
+        throw error;
+      }
+      
       const isRetryable = 
-        error?.statusCode === 429 || // Rate limit
         error?.statusCode === 500 || // Server error
         error?.statusCode === 502 || // Bad gateway
         error?.statusCode === 503 || // Service unavailable
@@ -1894,7 +1905,6 @@ async function withRetry<T>(
         error?.code === 'ECONNRESET' ||
         error?.code === 'ETIMEDOUT' ||
         error?.code === 'ENOTFOUND' ||
-        error?.message?.includes('rate limit') ||
         error?.message?.includes('timeout') ||
         error?.message?.includes('connection');
       
@@ -3410,6 +3420,9 @@ Cliente: ${newMessageText.trim()}`;
     // randomSeed: Garante que mesma pergunta = mesma resposta SEMPRE
     // NOTA: O modelo real é definido em llm.ts usando config.openrouterModel do system_config
     console.log(`🔧 [AI-CONFIG] DETERMINISM: provider=${currentProvider}, temperature=0.0, randomSeed=42, model=from-system-config (llm.ts usa openrouterModel)`);
+    // ⚠️ RETRY REDUZIDO: llm.ts já tem rotação de 5 modelos + fallback OpenRouter/Groq
+    // Outer retry=1: só retenta 1x para erros de servidor (500/502/503/504)
+    // Rate limits (429) são tratados internamente pelo llm.ts com rotação de modelos
     const chatResponse = await withRetry(
       async () => {
         return await llmClient.chat.complete({
@@ -3420,7 +3433,7 @@ Cliente: ${newMessageText.trim()}`;
           randomSeed: 42, // SEED FIXO: Garante determinismo absoluto
         });
       },
-      3, // 3 tentativas
+      1, // 1 tentativa (era 3 - causava retry storm multiplicando chamadas)
       1500, // Delay inicial de 1.5s
       `LLM API (${currentProvider})`
     );
