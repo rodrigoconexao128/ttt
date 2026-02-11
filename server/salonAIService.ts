@@ -399,7 +399,7 @@ export async function createSalonAppointment(
 // ═══════════════════════════════════════════════════════════════════════
 
 interface ExtractedFields {
-  intent: 'greeting' | 'booking' | 'info_services' | 'info_hours' | 'info_prices' | 'confirm' | 'cancel' | 'check_booking' | 'general';
+  intent: 'greeting' | 'booking' | 'check_availability' | 'info_services' | 'info_hours' | 'info_prices' | 'confirm' | 'cancel' | 'check_booking' | 'general';
   service?: string;
   professional?: string;
   date?: string;
@@ -449,7 +449,7 @@ Mensagem atual do cliente: "${message}"
 
 Responda APENAS em JSON (sem markdown):
 {
-  "intent": "greeting|booking|info_services|info_hours|info_prices|confirm|cancel|check_booking|general",
+  "intent": "greeting|booking|check_availability|info_services|info_hours|info_prices|confirm|cancel|check_booking|general",
   "service": "nome exato do serviço ou null",
   "professional": "nome exato do profissional ou null",
   "date": "YYYY-MM-DD ou null (hoje=${todayDate}, amanhã=calcule, próxima segunda=calcule, etc)",
@@ -464,7 +464,8 @@ Regras:
 - Datas relativas: "amanhã" → calcule a data, "segunda" → próxima segunda, "sábado" → próximo sábado
 - Horários vagos: "fim da tarde" → 16:00, "depois do almoço" → 14:00, "manhã" → 09:00, "meio dia" → 12:00
 - "não", "cancelar", "desistir" → intent="cancel"
-- Se o cliente quer agendar algo (cortar, pintar, fazer unha, etc) → intent="booking"`;
+- Se o cliente quer agendar algo (cortar, pintar, fazer unha, etc) → intent="booking"
+- Se o cliente pergunta sobre DISPONIBILIDADE de horários sem mencionar serviço específico ("quais horários tem", "tem horário", "horário disponível", "tem vaga", "o que tem disponível") → intent="check_availability" (com a data se mencionada)`;
 
   try {
     const result = await chatComplete({
@@ -900,6 +901,93 @@ export async function generateSalonResponse(
         return { text: slotResult.messageText };
       } else {
         return { text: await generateAIResponse(message, history, salonData, state, 'Erro ao criar agendamento. Peça desculpas e peça para tentar novamente.') };
+      }
+    }
+
+    // 4.5. HANDLE CHECK_AVAILABILITY - Mostrar horários ANTES de pedir serviço
+    // Detecta também via regex como fallback (caso LLM não classifique corretamente)
+    const availabilityRegex = /quais\s+hor[áa]rios|tem\s+hor[áa]rio|hor[áa]rio\s+dispon[íi]vel|tem\s+vaga|disponibilidade|que\s+horas?\s+tem|horarios\s+livres|agenda\s+livre/i;
+    const isAvailabilityQuery = extracted.intent === 'check_availability' || 
+      (availabilityRegex.test(message) && !state.service && (extracted.date || state.date));
+    
+    if (isAvailabilityQuery) {
+      // Determinar a data alvo
+      const targetDate = extracted.date || state.date || (() => {
+        // Fallback: detectar "amanhã" via regex
+        if (/amanh[ãa]/i.test(message)) {
+          const tomorrow = new Date(getBrazilNow());
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const y = tomorrow.getFullYear();
+          const m = (tomorrow.getMonth() + 1).toString().padStart(2, '0');
+          const d = tomorrow.getDate().toString().padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        }
+        if (/hoje/i.test(message)) return getBrazilToday();
+        return null;
+      })();
+
+      if (targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+        // Salvar data no estado
+        state.date = targetDate;
+        state.lastUpdated = new Date();
+
+        // Buscar slots usando duração padrão do salão
+        const defaultDuration = config.slot_duration || 30;
+        const slots = await getAvailableSlots(userId, targetDate, state.professional?.id, defaultDuration);
+        const dateFormatted = formatDatePtBr(targetDate);
+
+        console.log(`💇 [Salon v2] AVAILABILITY CHECK: date=${targetDate} slots=${slots.length}`);
+
+        if (slots.length === 0) {
+          // Dia lotado - tentar próximo dia útil
+          let nextDate = new Date(targetDate + 'T12:00:00');
+          let nextSlots: string[] = [];
+          let nextDateStr = '';
+          for (let i = 1; i <= 7; i++) {
+            nextDate.setDate(nextDate.getDate() + 1);
+            const y = nextDate.getFullYear();
+            const m = (nextDate.getMonth() + 1).toString().padStart(2, '0');
+            const d = nextDate.getDate().toString().padStart(2, '0');
+            nextDateStr = `${y}-${m}-${d}`;
+            nextSlots = await getAvailableSlots(userId, nextDateStr, undefined, defaultDuration);
+            if (nextSlots.length > 0) break;
+          }
+
+          if (nextSlots.length > 0) {
+            const nextFormatted = formatDatePtBr(nextDateStr);
+            const sampleSlots = nextSlots.slice(0, 6).join(', ');
+            return { text: `Infelizmente não temos horários disponíveis para ${dateFormatted} 😔\n\nO próximo dia com vagas é ${nextFormatted}. Alguns horários: ${sampleSlots}\n\nGostaria de agendar nesse dia? Qual serviço deseja?` };
+          } else {
+            return { text: `Infelizmente não temos horários disponíveis para ${dateFormatted} e nem nos próximos dias. Por favor, entre em contato novamente em breve! 😔` };
+          }
+        }
+
+        // Mostrar horários disponíveis (5-8 slots espaçados)
+        let displaySlots: string[];
+        if (slots.length <= 8) {
+          displaySlots = slots;
+        } else {
+          // Selecionar slots espaçados para cobrir o dia todo
+          const step = Math.floor(slots.length / 7);
+          displaySlots = [];
+          for (let i = 0; i < slots.length && displaySlots.length < 8; i += step) {
+            displaySlots.push(slots[i]);
+          }
+          // Garantir o último slot
+          if (!displaySlots.includes(slots[slots.length - 1])) {
+            displaySlots[displaySlots.length - 1] = slots[slots.length - 1];
+          }
+        }
+
+        const slotsFormatted = displaySlots.join(', ');
+        const totalMsg = slots.length > 8 ? ` (${slots.length} horários no total)` : '';
+        
+        // Perguntar serviço DEPOIS de mostrar disponibilidade
+        const servicesHint = services.length > 0
+          ? `\n\nQual serviço você gostaria? Temos: ${services.slice(0, 5).map(s => s.name).join(', ')}`
+          : '';
+
+        return { text: `Para ${dateFormatted}, temos os seguintes horários disponíveis${totalMsg}:\n\n🕐 ${slotsFormatted}\n${servicesHint}` };
       }
     }
 
