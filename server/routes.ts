@@ -21,6 +21,7 @@ import { registerAudioConfigRoutes } from "./routes_audio_config";
 import { registerChatbotFlowRoutes } from "./routes_chatbot_flow";
 
 import { registerSalonRoutes } from "./routes_salon";
+import { ticketsRouter } from "./tickets/tickets.routes";
 
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 
@@ -925,6 +926,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== SALON ROUTES ====================
 
   registerSalonRoutes(app);
+
+  // ==================== TICKETS/SUPPORT ROUTES ====================
+  app.use('/api', ticketsRouter);
 
 
 
