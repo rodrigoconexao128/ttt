@@ -1,33 +1,47 @@
-import { Router } from 'express';
-import multer from 'multer';
-import * as controller from './tickets.controller';
+import type { Express, Request, Response, NextFunction } from "express";
+import multer from "multer";
+import { isAuthenticated, supabase } from "./supabaseAuth";
+import { db } from "./db";
+import * as controller from "./tickets/tickets.controller";
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 4 },
   fileFilter: (_req, file, cb) => {
-    const ok = ['image/png', 'image/jpeg', 'image/webp'].includes(file.mimetype);
-    cb(ok ? null : new Error('Formato inválido. Apenas PNG/JPEG/WEBP.'), ok);
+    const ok = ["image/png", "image/jpeg", "image/webp"].includes(file.mimetype);
+    cb(ok ? null : new Error("Formato inválido. Apenas PNG/JPEG/WEBP."), ok);
   }
 });
 
-export const ticketsRouter = Router();
+function requireAdmin(req: any, res: any, next: any) {
+  const role = req.user?.role || req.session?.user?.role;
+  if (role !== "admin") {
+    return res.status(403).json({ error: "Acesso restrito a administradores." });
+  }
+  next();
+}
 
-// User routes
-ticketsRouter.post('/tickets', controller.createTicket);
-ticketsRouter.get('/tickets', controller.listUserTickets);
-ticketsRouter.get('/tickets/:id', controller.getUserTicketById);
-ticketsRouter.patch('/tickets/:id', controller.updateUserTicket);
-ticketsRouter.delete('/tickets/:id', controller.deleteUserTicket);
-ticketsRouter.get('/tickets/:id/messages', controller.listUserTicketMessages);
-ticketsRouter.post('/tickets/:id/messages', upload.array('attachments', 4), controller.sendUserMessage);
-ticketsRouter.post('/tickets/:id/read', controller.markUserRead);
+export function registerTicketRoutes(app: Express): void {
+  console.log("🎫 [Tickets] Registrando rotas de chamados...");
 
-// Admin routes
-ticketsRouter.get('/admin/tickets', controller.listAdminTickets);
-ticketsRouter.get('/admin/tickets/:id', controller.getAdminTicketById);
-ticketsRouter.patch('/admin/tickets/:id', controller.updateAdminTicket);
-ticketsRouter.patch('/admin/tickets/:id/status', controller.updateAdminTicketStatus);
-ticketsRouter.get('/admin/tickets/:id/messages', controller.listAdminTicketMessages);
-ticketsRouter.post('/admin/tickets/:id/messages', upload.array('attachments', 4), controller.sendAdminMessage);
-ticketsRouter.post('/admin/tickets/:id/read', controller.markAdminRead);
+  // User routes
+  app.get("/api/tickets", isAuthenticated, controller.listUserTickets);
+  app.post("/api/tickets", isAuthenticated, controller.createTicket);
+  app.get("/api/tickets/:id", isAuthenticated, controller.getUserTicketById);
+  app.patch("/api/tickets/:id", isAuthenticated, controller.updateUserTicket);
+  app.delete("/api/tickets/:id", isAuthenticated, controller.deleteUserTicket);
+  app.get("/api/tickets/:id/messages", isAuthenticated, controller.listUserTicketMessages);
+  app.post("/api/tickets/:id/messages", isAuthenticated, upload.array("attachments", 4), controller.sendUserMessage);
+  app.post("/api/tickets/:id/read", isAuthenticated, controller.markUserRead);
+
+  // Admin routes
+  app.get("/api/admin/tickets", isAuthenticated, requireAdmin, controller.listAdminTickets);
+  app.get("/api/admin/tickets/:id", isAuthenticated, requireAdmin, controller.getAdminTicketById);
+  app.patch("/api/admin/tickets/:id", isAuthenticated, requireAdmin, controller.updateAdminTicket);
+  app.patch("/api/admin/tickets/:id/status", isAuthenticated, requireAdmin, controller.updateAdminTicketStatus);
+  app.get("/api/admin/tickets/:id/messages", isAuthenticated, requireAdmin, controller.listAdminTicketMessages);
+  app.post("/api/admin/tickets/:id/messages", isAuthenticated, requireAdmin, upload.array("attachments", 4), controller.sendAdminMessage);
+  app.post("/api/admin/tickets/:id/read", isAuthenticated, requireAdmin, controller.markAdminRead);
+
+  console.log("✅ [Tickets] Rotas registradas com sucesso!");
+}
