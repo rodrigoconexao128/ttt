@@ -1086,11 +1086,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     
 
-    if (adminId) {
+    if (adminId && adminRole) {
 
       res.json({ 
 
         authenticated: true,
+
+        isAdmin: true,
 
         adminId,
 
@@ -1100,7 +1102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } else {
 
-      res.json({ authenticated: false });
+      res.json({ authenticated: false, isAdmin: false });
 
     }
 

@@ -94,7 +94,7 @@ export default function AdminPanel() {
     fetch("/api/admin/session", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled && !data?.authenticated) {
+        if (!cancelled && (!data?.authenticated || !data?.isAdmin)) {
           setLocation("/admin-login");
         }
       })
