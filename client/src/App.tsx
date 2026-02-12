@@ -72,7 +72,7 @@ function Router() {
   const [location] = useLocation();
 
   // Lista de rotas que não precisam esperar o carregamento da autenticação
-  const publicRoutes = ["/", "/login", "/cadastro", "/admin-simulator", "/model-tester", "/test", "/testar", "/termos-de-uso", "/p", "/membro-login"];
+  const publicRoutes = ["/", "/login", "/cadastro", "/admin-simulator", "/model-tester", "/test", "/testar", "/termos-de-uso", "/p", "/membro-login", "/admin-login"];
   const isPublicRoute = publicRoutes.some(route => location === route || location.startsWith(route + "/"));
 
   // Se está carregando e não é rota pública, mostrar loading
