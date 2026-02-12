@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { restoreExistingSessions, restoreAdminSessions, restorePendingAITimers, startConnectionHealthCheck, startPendingTimersCron, startAutoRecoveryCron } from "./whatsapp";
@@ -38,6 +39,25 @@ if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 }
 
 const app = express();
+
+// CORS: permite credenciais (cookies de sessão) para o frontend
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : [process.env.FRONTEND_URL || 'http://localhost:5173', 'http://localhost:5000'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permitir requests sem origin (ex: mobile, Postman) ou origins permitidas
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Em same-origin (Railway), origin é o próprio servidor
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);

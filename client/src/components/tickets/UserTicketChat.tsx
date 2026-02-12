@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import axios from 'axios';
 import type { Ticket, TicketMessage } from '../../types/tickets';
+import { apiClient } from '../../lib/api';
 
 interface Props {
   ticketId: number;
@@ -19,12 +19,12 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
 
   const fetchData = async () => {
     const [ticketRes, msgRes] = await Promise.all([
-      axios.get(`/api/tickets/${ticketId}`),
-      axios.get(`/api/tickets/${ticketId}/messages`)
+      apiClient.get(`/tickets/${ticketId}`),
+      apiClient.get(`/tickets/${ticketId}/messages`)
     ]);
     setTicket(ticketRes.data.ticket);
     setMessages(msgRes.data.items);
-    await axios.post(`/api/tickets/${ticketId}/read`);
+    await apiClient.post(`/tickets/${ticketId}/read`);
   };
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
       const form = new FormData();
       form.append('body', body);
       files.forEach(f => form.append('attachments', f));
-      await axios.post(`/api/tickets/${ticketId}/messages`, form, {
+      await apiClient.post(`/tickets/${ticketId}/messages`, form, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setBody('');

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { Link } from 'wouter';
 import type { Ticket } from '../../types/tickets';
+import { apiClient } from '../../lib/api';
 
 export const UserTicketList: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -10,7 +10,7 @@ export const UserTicketList: React.FC = () => {
 
   const fetchTickets = async () => {
     try {
-      const { data } = await axios.get('/api/tickets');
+      const { data } = await apiClient.get('/tickets');
       setTickets(data.items);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Erro ao carregar chamados.');

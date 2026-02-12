@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { Link } from 'wouter';
+import { apiClient } from '../../lib/api';
 import type { Ticket, TicketStatus, TicketPriority } from '../../types/tickets';
 
 export const AdminTicketList: React.FC = () => {
@@ -16,7 +16,7 @@ export const AdminTicketList: React.FC = () => {
       const params: any = {};
       if (status) params.status = status;
       if (priority) params.priority = priority;
-      const { data } = await axios.get('/api/admin/tickets', { params });
+      const { data } = await apiClient.get('/admin/tickets', { params });
       setTickets(data.items);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Erro ao carregar chamados.');
@@ -52,7 +52,7 @@ export const AdminTicketList: React.FC = () => {
 
   const assignToMe = async (ticketId: number) => {
     try {
-      await axios.patch(`/api/admin/tickets/${ticketId}`, { assignedAdminId: 'me' });
+      await apiClient.patch(`/admin/tickets/${ticketId}`, { assignedAdminId: 'me' });
       fetchTickets();
     } catch (err) {
       alert('Erro ao assumir chamado.');

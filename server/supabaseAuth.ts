@@ -34,7 +34,7 @@ export function getSession() {
   });
   const cookieSecure = (process.env.COOKIE_SECURE === '1' || process.env.COOKIE_SECURE === 'true')
     ? true
-    : false; // default false for local/dev to ensure cookie on http
+    : process.env.NODE_ENV === 'production'; // true em produção (HTTPS), false em dev (HTTP)
 
   if (useMemoryStore) {
     console.log('⏸️ [DEV MODE] Usando MemoryStore para sessões (DISABLE_WHATSAPP_PROCESSING=true)');
@@ -48,7 +48,8 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: cookieSecure,
-      sameSite: 'lax',
+      // 'none' para cross-origin (requer secure=true), 'lax' para same-origin
+      sameSite: cookieSecure ? 'none' : 'lax',
       maxAge: sessionTtl,
     },
   });

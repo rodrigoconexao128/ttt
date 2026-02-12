@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
 import { Ticket, TicketMessage, TicketStatus } from '../../types/tickets';
+import { apiClient } from '../../lib/api';
 
 interface Props {
   ticketId: number;
@@ -30,7 +30,7 @@ const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) => {
 
   const fetchTicket = useCallback(async () => {
     try {
-      const { data } = await axios.get<Ticket>(`/api/admin/tickets/${ticketId}`);
+      const { data } = await apiClient.get<Ticket>(`/admin/tickets/${ticketId}`);
       setTicket(data);
       setStatus(data.status);
     } catch (err) {
@@ -40,7 +40,7 @@ const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) => {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const { data } = await axios.get<TicketMessage[]>(`/api/admin/tickets/${ticketId}/messages`);
+      const { data } = await apiClient.get<TicketMessage[]>(`/admin/tickets/${ticketId}/messages`);
       setMessages(data);
     } catch (err) {
       console.error('Erro ao buscar mensagens:', err);
@@ -71,7 +71,7 @@ const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) => {
   const handleSaveStatus = async () => {
     setSavingStatus(true);
     try {
-      await axios.patch(`/api/admin/tickets/${ticketId}`, { status });
+      await apiClient.patch(`/admin/tickets/${ticketId}`, { status });
       setTicket((prev) => (prev ? { ...prev, status } : prev));
       onStatusChange?.(status);
     } catch (err) {
@@ -84,7 +84,7 @@ const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) => {
   const handleResolve = async () => {
     setSavingStatus(true);
     try {
-      await axios.patch(`/api/admin/tickets/${ticketId}`, { status: 'resolved' });
+      await apiClient.patch(`/admin/tickets/${ticketId}`, { status: 'resolved' });
       setStatus('resolved');
       setTicket((prev) => (prev ? { ...prev, status: 'resolved' } : prev));
       onStatusChange?.('resolved');
@@ -119,7 +119,7 @@ const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) => {
       formData.append('body', newMessage.trim());
       images.forEach((img) => formData.append('attachments', img));
 
-      await axios.post(`/api/admin/tickets/${ticketId}/messages`, formData, {
+      await apiClient.post(`/admin/tickets/${ticketId}/messages`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
