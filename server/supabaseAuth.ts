@@ -335,6 +335,11 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      // Sem Bearer token — verificar sessão (cookie) antes de rejeitar
+      if (req.session && req.session.user) {
+        req.user = req.session.user;
+        return next();
+      }
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -400,6 +405,12 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
     // ============================================================
     // O cliente de revenda pode fazer login, mas verá a tela de bloqueio
     // via AccessBlocker no frontend se o revendedor estiver inadimplente
+
+    // Fallback final: verificar sessão (cookie) mesmo com Bearer inválido
+    if (req.session && req.session.user) {
+      req.user = req.session.user;
+      return next();
+    }
 
     return res.status(401).json({ message: "Unauthorized" });
   } catch (error) {
