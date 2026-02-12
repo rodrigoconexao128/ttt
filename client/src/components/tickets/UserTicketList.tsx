@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import type { Ticket } from '../../types/tickets';
 import { apiClient } from '../../lib/api';
+import { formatDate } from '../../lib/formatDate';
 
 export const UserTicketList: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);

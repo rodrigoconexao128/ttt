@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Ticket, TicketMessage } from '../../types/tickets';
 import { apiClient } from '../../lib/api';
+import { formatDate } from '../../lib/formatDate';
 
 interface Props {
   ticketId: number;
@@ -111,7 +112,7 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
                 opacity: 0.7,
                 textAlign: 'right'
               }}>
-                {new Date(m.createdAt).toLocaleString('pt-BR')}
+                {formatDate(m.createdAt)}
               </div>
             </div>
           </div>
