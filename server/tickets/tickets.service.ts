@@ -60,7 +60,7 @@ async function withTransaction<T>(fn: (client: any) => Promise<T>): Promise<T> {
 
 // Create ticket
 export async function createTicket(input: {
-  userId: number;
+  userId: string;
   subject: string;
   description?: string;
   priority: TicketPriority;
@@ -87,7 +87,7 @@ export async function createTicket(input: {
 }
 
 // List user tickets
-export async function listUserTickets(userId: number, page: number, limit: number): Promise<{
+export async function listUserTickets(userId: string, page: number, limit: number): Promise<{
   items: Ticket[];
   total: number;
   page: number;
@@ -115,7 +115,7 @@ export async function listUserTickets(userId: number, page: number, limit: numbe
 }
 
 // Get user ticket
-export async function getUserTicketById(ticketId: number, userId: number): Promise<Ticket | null> {
+export async function getUserTicketById(ticketId: number, userId: string): Promise<Ticket | null> {
   return queryOne(
     `SELECT t.*, u.name as user_name
      FROM tickets t
@@ -126,7 +126,7 @@ export async function getUserTicketById(ticketId: number, userId: number): Promi
 }
 
 // Update user ticket
-export async function updateUserTicket(ticketId: number, userId: number, payload: any): Promise<Ticket> {
+export async function updateUserTicket(ticketId: number, userId: string, payload: any): Promise<Ticket> {
   const allowed = ['subject', 'description', 'priority'];
   const updates: string[] = [];
   const values: any[] = [ticketId];
@@ -152,7 +152,7 @@ export async function updateUserTicket(ticketId: number, userId: number, payload
 }
 
 // Delete user ticket
-export async function deleteUserTicket(ticketId: number, userId: number): Promise<void> {
+export async function deleteUserTicket(ticketId: number, userId: string): Promise<void> {
   await query(
     `UPDATE tickets SET deleted_at = NOW() WHERE id = $1 AND user_id = $2`,
     [ticketId, userId]
@@ -160,7 +160,7 @@ export async function deleteUserTicket(ticketId: number, userId: number): Promis
 }
 
 // List messages for user
-export async function listMessagesForUser(ticketId: number, userId: number): Promise<TicketMessage[]> {
+export async function listMessagesForUser(ticketId: number, userId: string): Promise<TicketMessage[]> {
   const messages = await query<TicketMessage>(
     `SELECT tm.* FROM ticket_messages tm
      JOIN tickets t ON t.id = tm.ticket_id
@@ -181,7 +181,7 @@ export async function listMessagesForUser(ticketId: number, userId: number): Pro
 
 // Send user message
 export async function sendUserMessage(params: {
-  userId: number;
+  userId: string;
   ticketId: number;
   body: string;
   files: Express.Multer.File[];
@@ -224,7 +224,7 @@ export async function sendUserMessage(params: {
 }
 
 // Mark read by user
-export async function markReadByUser(ticketId: number, userId: number): Promise<void> {
+export async function markReadByUser(ticketId: number, userId: string): Promise<void> {
   await query(
     `UPDATE tickets SET unread_count_user = 0 WHERE id = $1 AND user_id = $2`,
     [ticketId, userId]
@@ -235,7 +235,7 @@ export async function markReadByUser(ticketId: number, userId: number): Promise<
 export async function listAdminTickets(filters: {
   status?: TicketStatus;
   priority?: TicketPriority;
-  assignedAdminId?: number;
+  assignedAdminId?: string;
   page: number;
   limit: number;
 }): Promise<{ items: any[]; total: number; page: number; limit: number }> {
@@ -290,7 +290,7 @@ export async function getAdminTicketById(ticketId: number): Promise<Ticket | nul
   );
 }
 
-export async function updateAdminTicket(ticketId: number, adminId: number, payload: any): Promise<Ticket> {
+export async function updateAdminTicket(ticketId: number, adminId: string, payload: any): Promise<Ticket> {
   const allowed = ['assignedAdminId', 'priority', 'subject', 'description'];
   const updates: string[] = [];
   const values: any[] = [ticketId];
@@ -350,7 +350,7 @@ export async function listMessagesForAdmin(ticketId: number): Promise<TicketMess
 }
 
 export async function sendAdminMessage(params: {
-  adminId: number;
+  adminId: string;
   ticketId: number;
   body: string;
   files: Express.Multer.File[];

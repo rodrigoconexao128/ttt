@@ -11,9 +11,34 @@ export const apiClient = axios.create({
 
 // Interceptor que adiciona Bearer token em TODA requisição
 apiClient.interceptors.request.use(async (config) => {
-  // Pegar token do Supabase
+  config.headers = config.headers ?? {};
+
+  // Tentar getSession primeiro
   const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
+  let token = data.session?.access_token;
+
+  // Fallback: ler do localStorage se getSession falhar
+  if (!token) {
+    try {
+      // Busca qualquer chave do Supabase que contenha o access_token
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.includes('supabase') && key.includes('auth')) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const candidate = parsed?.access_token || parsed?.session?.access_token;
+            if (candidate) {
+              token = candidate;
+              break;
+            }
+          }
+        }
+      }
+    } catch {
+      // Fallback silencioso — sem token
+    }
+  }
 
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;

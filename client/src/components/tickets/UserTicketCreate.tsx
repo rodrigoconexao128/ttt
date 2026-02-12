@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useLocation } from 'wouter';
+import { apiClient } from '../../lib/api';
 import type { TicketPriority } from '../../types/tickets';
 
 const priorities: { value: TicketPriority; label: string }[] = [
@@ -29,7 +29,7 @@ export const UserTicketCreate: React.FC = () => {
 
     try {
       setLoading(true);
-      const { data } = await axios.post('/api/tickets', {
+      const { data } = await apiClient.post('/tickets', {
         subject,
         description,
         priority

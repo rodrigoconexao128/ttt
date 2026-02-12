@@ -6,8 +6,8 @@ export type SenderType = 'user' | 'admin' | 'system';
 
 export interface Ticket {
   id: number;
-  userId: number;
-  assignedAdminId: number | null;
+  userId: string;
+  assignedAdminId: string | null;
   subject: string;
   description?: string | null;
   status: TicketStatus;
@@ -38,8 +38,8 @@ export interface TicketMessage {
   id: number;
   ticketId: number;
   senderType: SenderType;
-  senderUserId?: number | null;
-  senderAdminId?: number | null;
+  senderUserId?: string | null;
+  senderAdminId?: string | null;
   body: string;
   hasAttachments: boolean;
   attachments: TicketAttachment[];
@@ -71,5 +71,5 @@ export interface TicketMessageListResponse {
 export interface TicketFilters {
   status?: TicketStatus;
   priority?: TicketPriority;
-  assignedAdminId?: number;
+  assignedAdminId?: string;
 }

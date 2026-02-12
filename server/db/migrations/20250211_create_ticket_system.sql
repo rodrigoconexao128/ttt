@@ -163,3 +163,61 @@ DROP TRIGGER IF EXISTS trg_ticket_messages_after_insert_sync_ticket ON ticket_me
 CREATE TRIGGER trg_ticket_messages_after_insert_sync_ticket
     AFTER INSERT ON ticket_messages
     FOR EACH ROW EXECUTE FUNCTION sync_ticket_after_message_insert();
+
+-- ============================================================
+-- MIGRATION 20250212: Corrigir tipos de user_id/admin_id para UUID
+-- Supabase retorna UUIDs (strings), não BIGINTs
+-- ============================================================
+
+-- Alterar user_id em tickets para UUID
+DO $$
+BEGIN
+    -- Verificar se a coluna ainda é BIGINT antes de alterar
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'tickets'
+          AND column_name = 'user_id'
+          AND data_type IN ('bigint', 'integer')
+    ) THEN
+        ALTER TABLE tickets ALTER COLUMN user_id TYPE UUID USING user_id::text::uuid;
+    END IF;
+END$$;
+
+-- Alterar assigned_admin_id em tickets para UUID
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'tickets'
+          AND column_name = 'assigned_admin_id'
+          AND data_type IN ('bigint', 'integer')
+    ) THEN
+        ALTER TABLE tickets ALTER COLUMN assigned_admin_id TYPE UUID USING assigned_admin_id::text::uuid;
+    END IF;
+END$$;
+
+-- Alterar sender_user_id em ticket_messages para UUID
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'ticket_messages'
+          AND column_name = 'sender_user_id'
+          AND data_type IN ('bigint', 'integer')
+    ) THEN
+        ALTER TABLE ticket_messages ALTER COLUMN sender_user_id TYPE UUID USING sender_user_id::text::uuid;
+    END IF;
+END$$;
+
+-- Alterar sender_admin_id em ticket_messages para UUID
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'ticket_messages'
+          AND column_name = 'sender_admin_id'
+          AND data_type IN ('bigint', 'integer')
+    ) THEN
+        ALTER TABLE ticket_messages ALTER COLUMN sender_admin_id TYPE UUID USING sender_admin_id::text::uuid;
+    END IF;
+END$$;

@@ -74,7 +74,7 @@ export const listAdminTickets = asyncHandler(async (req: Request, res: Response)
   const filters = {
     status: req.query.status as TicketStatus | undefined,
     priority: req.query.priority as TicketPriority | undefined,
-    assignedAdminId: req.query.assignedAdminId ? parseInt(req.query.assignedAdminId as string) : undefined,
+    assignedAdminId: req.query.assignedAdminId ? (req.query.assignedAdminId as string) : undefined,
     page: parseInt(req.query.page as string) || 1,
     limit: parseInt(req.query.limit as string) || 20
   };
