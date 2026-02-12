@@ -99,7 +99,7 @@ export async function listUserTickets(userId: string, page: number, limit: numbe
     query(
       `SELECT t.*, u.name as user_name
        FROM tickets t
-       JOIN users u ON u.id = t.user_id
+       JOIN users u ON u.id = t.user_id::text
        WHERE t.user_id = $1 AND t.deleted_at IS NULL
        ORDER BY t.last_message_at DESC NULLS LAST, t.created_at DESC
        LIMIT $2 OFFSET $3`,
@@ -119,7 +119,7 @@ export async function getUserTicketById(ticketId: number, userId: string): Promi
   return queryOne(
     `SELECT t.*, u.name as user_name
      FROM tickets t
-     JOIN users u ON u.id = t.user_id
+     JOIN users u ON u.id = t.user_id::text
      WHERE t.id = $1 AND t.user_id = $2 AND t.deleted_at IS NULL`,
     [ticketId, userId]
   );
@@ -261,7 +261,7 @@ export async function listAdminTickets(filters: {
     query(
       `SELECT t.*, u.name as user_name, a.name as admin_name
        FROM tickets t
-       JOIN users u ON u.id = t.user_id
+       JOIN users u ON u.id = t.user_id::text
        LEFT JOIN admins a ON a.id = t.assigned_admin_id
        ${where}
        ORDER BY
@@ -283,7 +283,7 @@ export async function getAdminTicketById(ticketId: number): Promise<Ticket | nul
   return queryOne(
     `SELECT t.*, u.name as user_name, a.name as admin_name
      FROM tickets t
-     JOIN users u ON u.id = t.user_id
+     JOIN users u ON u.id = t.user_id::text
      LEFT JOIN admins a ON a.id = t.assigned_admin_id
      WHERE t.id = $1 AND t.deleted_at IS NULL`,
     [ticketId]
