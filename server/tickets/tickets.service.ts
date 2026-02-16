@@ -1,12 +1,14 @@
 import { db } from '../db';
 import { sql } from 'drizzle-orm';
 import path from 'path';
-import fs from 'fs/promises';
 import crypto from 'crypto';
 import type { Ticket, TicketMessage, TicketAttachment, TicketStatus, TicketPriority } from './types';
 import { pool } from '../db';
+import { supabase } from '../supabaseAuth';
 
-// Upload helper
+const BUCKET = process.env.SUPABASE_TICKET_ATTACHMENTS_BUCKET || 'ticket-attachments';
+
+// Upload helper — Supabase Storage
 async function uploadImageBuffer(buffer: Buffer, originalName: string, mimeType: string): Promise<{
   provider: string;
   key: string;
@@ -18,15 +20,20 @@ async function uploadImageBuffer(buffer: Buffer, originalName: string, mimeType:
   const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
   const ext = path.extname(originalName) || '.png';
   const key = `tickets/${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
-  const uploadPath = path.join(process.cwd(), 'uploads', key);
 
-  await fs.mkdir(path.dirname(uploadPath), { recursive: true });
-  await fs.writeFile(uploadPath, buffer);
+  const { error } = await supabase.storage.from(BUCKET).upload(key, buffer, {
+    contentType: mimeType,
+    upsert: false,
+    cacheControl: '3600',
+  });
+  if (error) throw new Error(`Supabase Storage upload failed: ${error.message}`);
+
+  const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(key);
 
   return {
-    provider: 'local',
+    provider: 'supabase',
     key,
-    url: `/uploads/${key}`,
+    url: urlData.publicUrl,
     sha256
   };
 }

@@ -10,6 +10,7 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "migrate": "tsx server/run-migrations.ts",
+    "migrate:tickets-storage": "tsx server/migrate-ticket-attachments-to-supabase.ts",
     "deploy:v2": "railway up --service vvvv2"
   },
   "dependencies": {
