@@ -9,14 +9,14 @@ import { storage } from "./storage";
 
 // Criar cliente Supabase
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Senha mestra do admin - permite acessar qualquer conta
 // Configure via variável de ambiente ou use o padrão
 export const ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || 'AgentZap@Master2025!';
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn('SUPABASE_URL ou SUPABASE_SERVICE_KEY não configurados. Usando valores padrão.');
+  console.warn('SUPABASE_URL ou chave de serviço do Supabase (SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SERVICE_KEY) não configurada. Usando fallback anon.');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseServiceKey);
