@@ -14,8 +14,8 @@ const upload = multer({
 });
 
 function requireAdmin(req: any, res: any, next: any) {
-  const role = req.user?.role || req.session?.user?.role;
-  if (role !== "admin") {
+  const role = req.user?.role || req.session?.user?.role || req.session?.adminRole;
+  if (role !== "admin" && role !== "owner") {
     return res.status(403).json({ error: "Acesso restrito a administradores." });
   }
   next();

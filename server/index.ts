@@ -125,6 +125,13 @@ app.use((req, res, next) => {
     throw err;
   });
 
+  // Serve uploaded ticket attachments
+  const uploadsPath = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsPath)) {
+    fs.mkdirSync(uploadsPath, { recursive: true });
+  }
+  app.use('/uploads', express.static(uploadsPath));
+
   // Serve static assets from findeas theme and client public (fallback)
   const findeasThemePath = path.join(process.cwd(), 'findeas theme');
   const clientPublicAssetsPath = path.join(process.cwd(), 'client', 'public', 'assets');

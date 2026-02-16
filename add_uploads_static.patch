@@ -1,0 +1,11 @@
+Patch para adicionar serving estático da pasta uploads
+
+No arquivo server/index.ts, adicionar após:
+const clientPublicAssetsPath = path.join(process.cwd(), 'client', 'public', 'assets');
+
+Adicionar:
+const uploadsPath = path.join(process.cwd(), 'uploads');
+if (fs.existsSync(uploadsPath)) {
+  app.use('/uploads', express.static(uploadsPath));
+  console.log('[Static] Serving uploads folder:', uploadsPath);
+}

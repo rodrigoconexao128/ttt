@@ -1,5 +1,5 @@
 import { Switch, Route, useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -49,20 +49,42 @@ function RequireAuth({ component: Component }: { component: any }) {
 function RequireAdmin({ component: Component }: { component: any }) {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [, setLocation] = useLocation();
+  const [adminSessionChecked, setAdminSessionChecked] = useState(false);
+  const [isAdminSession, setIsAdminSession] = useState(false);
 
+  // Verificação imediata: usuário com role admin já tem acesso
+  const isAdminViaUser = isAuthenticated && user?.role === "admin";
+
+  // Sempre verificar sessão admin no servidor (independente de isAuthenticated)
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    const checkAdminSession = async () => {
+      try {
+        const response = await fetch("/api/admin/session", { credentials: "include" });
+        const data = await response.json();
+        if (data.authenticated || data.isAdmin === true) {
+          setIsAdminSession(true);
+        }
+      } catch (error) {
+        // Session check failed
+      }
+      setAdminSessionChecked(true);
+    };
+    checkAdminSession();
+  }, []);
+
+  // Redirecionar apenas quando todas as verificações terminaram
+  useEffect(() => {
+    if (isLoading || !adminSessionChecked) return;
+    if (!isAdminViaUser && !isAdminSession) {
       setLocation("/admin-login");
-      return;
     }
+  }, [isLoading, adminSessionChecked, isAdminViaUser, isAdminSession, setLocation]);
 
-    if (!isLoading && isAuthenticated && user?.role !== "admin") {
-      setLocation("/dashboard");
-    }
-  }, [isLoading, isAuthenticated, user?.role, setLocation]);
+  // Mostrar loading enquanto verifica
+  if (isLoading || !adminSessionChecked) return <LoadingScreen />;
 
-  if (isLoading) return <LoadingScreen />;
-  if (!isAuthenticated || user?.role !== "admin") return null;
+  // Verificação final de acesso
+  if (!isAdminViaUser && !isAdminSession) return null;
 
   return <Component />;
 }

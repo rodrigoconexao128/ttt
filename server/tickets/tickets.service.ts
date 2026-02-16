@@ -259,10 +259,10 @@ export async function listAdminTickets(filters: {
 
   const [items, totalRow] = await Promise.all([
     query(
-      `SELECT t.*, u.name as user_name, a.name as admin_name
+      `SELECT t.*, u.name as user_name, a.email as admin_name
        FROM tickets t
        JOIN users u ON u.id = t.user_id::text
-       LEFT JOIN admins a ON a.id = t.assigned_admin_id
+       LEFT JOIN admins a ON a.id::text = t.assigned_admin_id::text
        ${where}
        ORDER BY
          CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
@@ -281,10 +281,10 @@ export async function listAdminTickets(filters: {
 
 export async function getAdminTicketById(ticketId: number): Promise<Ticket | null> {
   return queryOne(
-    `SELECT t.*, u.name as user_name, a.name as admin_name
+    `SELECT t.*, u.name as user_name, a.email as admin_name
      FROM tickets t
      JOIN users u ON u.id = t.user_id::text
-     LEFT JOIN admins a ON a.id = t.assigned_admin_id
+     LEFT JOIN admins a ON a.id::text = t.assigned_admin_id::text
      WHERE t.id = $1 AND t.deleted_at IS NULL`,
     [ticketId]
   );

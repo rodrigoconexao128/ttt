@@ -141,8 +141,8 @@ export const AdminTicketList: React.FC = () => {
                 </span>
               </div>
               <div style={{ fontSize: 14, color: '#6c757d' }}>
-                <strong>Cliente:</strong> {t.userName || 'N/A'} |
-                <strong> Admin:</strong> {t.assignedAdminName || 'Não atribuído'} |
+                <strong>Cliente:</strong> {(t as any).userName || 'N/A'} |
+                <strong> Admin:</strong> {(t as any).adminName || 'Não atribuído'} |
                 <strong> Última msg:</strong> {t.lastMessageAt ? new Date(t.lastMessageAt).toLocaleString('pt-BR') : '—'}
               </div>
             </div>

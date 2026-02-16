@@ -2,6 +2,24 @@ import { Request, Response } from 'express';
 import * as service from './tickets.service';
 import type { TicketStatus, TicketPriority } from './types';
 
+// Convert snake_case DB rows to camelCase for frontend
+function toCamel(str: string): string {
+  return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+function camelizeObj(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map(camelizeObj);
+  if (typeof obj !== 'object') return obj;
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[toCamel(key)] = (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date))
+      ? camelizeObj(value)
+      : Array.isArray(value) ? value.map(camelizeObj) : value;
+  }
+  return result;
+}
+
 const asyncHandler = (fn: Function) => (req: Request, res: Response, next: Function) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
@@ -18,25 +36,25 @@ export const createTicket = asyncHandler(async (req: Request, res: Response) => 
     description,
     priority: priority || 'medium'
   });
-  res.status(201).json({ ticket });
+  res.status(201).json({ ticket: camelizeObj(ticket) });
 });
 
 export const listUserTickets = asyncHandler(async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 20;
   const data = await service.listUserTickets(req.user!.id, page, limit);
-  res.json(data);
+  res.json({ ...data, items: camelizeObj(data.items) });
 });
 
 export const getUserTicketById = asyncHandler(async (req: Request, res: Response) => {
   const ticket = await service.getUserTicketById(parseInt(req.params.id), req.user!.id);
   if (!ticket) return res.status(404).json({ message: 'Ticket não encontrado.' });
-  res.json({ ticket });
+  res.json({ ticket: camelizeObj(ticket) });
 });
 
 export const updateUserTicket = asyncHandler(async (req: Request, res: Response) => {
   const ticket = await service.updateUserTicket(parseInt(req.params.id), req.user!.id, req.body);
-  res.json({ ticket });
+  res.json({ ticket: camelizeObj(ticket) });
 });
 
 export const deleteUserTicket = asyncHandler(async (req: Request, res: Response) => {
@@ -46,7 +64,7 @@ export const deleteUserTicket = asyncHandler(async (req: Request, res: Response)
 
 export const listUserTicketMessages = asyncHandler(async (req: Request, res: Response) => {
   const messages = await service.listMessagesForUser(parseInt(req.params.id), req.user!.id);
-  res.json({ items: messages });
+  res.json({ items: camelizeObj(messages) });
 });
 
 export const sendUserMessage = asyncHandler(async (req: Request, res: Response) => {
@@ -61,7 +79,7 @@ export const sendUserMessage = asyncHandler(async (req: Request, res: Response) 
     body,
     files
   });
-  res.status(201).json({ message });
+  res.status(201).json({ message: camelizeObj(message) });
 });
 
 export const markUserRead = asyncHandler(async (req: Request, res: Response) => {
@@ -79,18 +97,18 @@ export const listAdminTickets = asyncHandler(async (req: Request, res: Response)
     limit: parseInt(req.query.limit as string) || 20
   };
   const data = await service.listAdminTickets(filters);
-  res.json(data);
+  res.json({ ...data, items: camelizeObj(data.items) });
 });
 
 export const getAdminTicketById = asyncHandler(async (req: Request, res: Response) => {
   const ticket = await service.getAdminTicketById(parseInt(req.params.id));
   if (!ticket) return res.status(404).json({ message: 'Ticket não encontrado.' });
-  res.json({ ticket });
+  res.json({ ticket: camelizeObj(ticket) });
 });
 
 export const updateAdminTicket = asyncHandler(async (req: Request, res: Response) => {
   const ticket = await service.updateAdminTicket(parseInt(req.params.id), req.user!.id, req.body);
-  res.json({ ticket });
+  res.json({ ticket: camelizeObj(ticket) });
 });
 
 export const updateAdminTicketStatus = asyncHandler(async (req: Request, res: Response) => {
@@ -99,12 +117,12 @@ export const updateAdminTicketStatus = asyncHandler(async (req: Request, res: Re
     return res.status(400).json({ message: 'Status inválido.' });
   }
   const ticket = await service.updateTicketStatus(parseInt(req.params.id), status);
-  res.json({ ticket });
+  res.json({ ticket: camelizeObj(ticket) });
 });
 
 export const listAdminTicketMessages = asyncHandler(async (req: Request, res: Response) => {
   const messages = await service.listMessagesForAdmin(parseInt(req.params.id));
-  res.json({ items: messages });
+  res.json({ items: camelizeObj(messages) });
 });
 
 export const sendAdminMessage = asyncHandler(async (req: Request, res: Response) => {
@@ -119,7 +137,7 @@ export const sendAdminMessage = asyncHandler(async (req: Request, res: Response)
     body,
     files
   });
-  res.status(201).json({ message });
+  res.status(201).json({ message: camelizeObj(message) });
 });
 
 export const markAdminRead = asyncHandler(async (req: Request, res: Response) => {

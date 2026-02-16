@@ -94,25 +94,40 @@ async function fetchUser(): Promise<User | null> {
     }
 
     const token = await getAuthToken();
-    
+
     if (!token) {
       return null;
     }
 
-    const response = await fetchWithAuth("/api/auth/user");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5s
 
-    if (!response.ok) {
-      if (response.status === 401) {
-        // Token inválido - limpa de forma segura
-        await cleanInvalidSession();
+    try {
+      const response = await fetchWithAuth("/api/auth/user", {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Token inválido - limpa de forma segura
+          await cleanInvalidSession();
+          return null;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Login válido - reset flag
+      hasCleanedInvalidSession = false;
+      return await response.json();
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.warn("[AUTH] Timeout ao buscar usuário");
         return null;
       }
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw fetchError;
     }
-
-    // Login válido - reset flag
-    hasCleanedInvalidSession = false;
-    return await response.json();
   } catch (error) {
     console.error("Erro ao buscar usuário:", error);
     return null;
@@ -123,9 +138,10 @@ export function useAuth() {
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     queryFn: fetchUser,
-    retry: 2, // Tentar 3 vezes no total (1 original + 2 retries)
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 3000),
+    retry: false, // Não retentar - fetchUser já trata erros e retorna null
+
     staleTime: 5 * 60 * 1000, // 5 minutos
+    gcTime: 5 * 60 * 1000, // Substitui cacheTime
   });
 
   return {

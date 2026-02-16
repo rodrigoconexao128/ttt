@@ -341,6 +341,17 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
         req.user = req.session.user;
         return next();
       }
+      // Admin session fallback (admin login stores adminId/adminRole)
+      if (req.session && (req.session as any).adminId) {
+        req.user = {
+          id: (req.session as any).adminId,
+          role: (req.session as any).adminRole || 'admin',
+          claims: {
+            sub: (req.session as any).adminId,
+          }
+        };
+        return next();
+      }
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -410,6 +421,18 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
     // Fallback final: verificar sessão (cookie) mesmo com Bearer inválido
     if (req.session && req.session.user) {
       req.user = req.session.user;
+      return next();
+    }
+
+    // Admin session fallback (admin login stores adminId/adminRole)
+    if (req.session && (req.session as any).adminId) {
+      req.user = {
+        id: (req.session as any).adminId,
+        role: (req.session as any).adminRole || 'admin',
+        claims: {
+          sub: (req.session as any).adminId,
+        }
+      };
       return next();
     }
 

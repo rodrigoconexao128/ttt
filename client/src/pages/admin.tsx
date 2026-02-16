@@ -29,7 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, UserMinus, Receipt, XCircle, FileImage } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, UserMinus, Receipt, XCircle, FileImage, TicketCheck } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminNotificationsPanel from "@/components/admin-notifications-panel";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
@@ -37,6 +37,7 @@ import AdminConversations from "@/components/admin-conversations";
 import FollowUpCalendar from "@/components/follow-up-calendar";
 import { UserAgentConfigDialog } from "@/components/user-agent-config-dialog";
 import SuspendedUsersManager from "@/components/suspended-users-manager";
+import AdminTicketsPanel from "@/components/admin-tickets-panel";
 import {
   SidebarProvider,
   Sidebar,
@@ -202,6 +203,8 @@ export default function AdminPanel() {
         return <ResellersManager />;
       case "suspended":
         return <SuspendedUsersManager />;
+      case "tickets":
+        return <AdminTicketsPanel />;
       case "config":
         return <ConfigManager config={config} />;
       default:
@@ -372,6 +375,16 @@ export default function AdminPanel() {
                   >
                     <Building2 className="w-4 h-4" />
                     <span>Revendedores</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("tickets")}
+                    isActive={activeTab === "tickets"}
+                    tooltip="Tickets de Suporte"
+                  >
+                    <TicketCheck className="w-4 h-4" />
+                    <span>Tickets</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -555,6 +568,16 @@ export default function AdminPanel() {
                 >
                   <Building2 className="w-4 h-4" />
                   <span>Revendedores</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("tickets")}
+                  isActive={activeTab === "tickets"}
+                  tooltip="Tickets de Suporte"
+                >
+                  <TicketCheck className="w-4 h-4" />
+                  <span>Tickets</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
