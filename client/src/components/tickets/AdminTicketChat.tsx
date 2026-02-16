@@ -130,37 +130,30 @@ export const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) =
           
           if (payload.eventType === 'INSERT') {
             const raw = payload.new as any;
-            const newMessage: TicketMessage = {
-              id: raw.id,
-              ticketId: raw.ticket_id ?? raw.ticketId,
-              senderType: raw.sender_type ?? raw.senderType,
-              senderUserId: raw.sender_user_id ?? raw.senderUserId,
-              senderAdminId: raw.sender_admin_id ?? raw.senderAdminId,
-              body: raw.body ?? '',
-              hasAttachments: raw.has_attachments ?? raw.hasAttachments ?? false,
-              attachments: raw.attachments ?? [],
-              createdAt: raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
-            };
-            setMessages(prev => {
-              if (prev.some(m => m.id === newMessage.id)) return prev;
-              return [...prev, newMessage];
-            });
+            const hasAttach = raw.has_attachments ?? raw.hasAttachments ?? false;
+            if (hasAttach) {
+              // Realtime payload doesn't include attachments (no JOIN) — full refetch
+              fetchMessages();
+            } else {
+              const newMessage: TicketMessage = {
+                id: raw.id,
+                ticketId: raw.ticket_id ?? raw.ticketId,
+                senderType: raw.sender_type ?? raw.senderType,
+                senderUserId: raw.sender_user_id ?? raw.senderUserId,
+                senderAdminId: raw.sender_admin_id ?? raw.senderAdminId,
+                body: raw.body ?? '',
+                hasAttachments: false,
+                attachments: [],
+                createdAt: raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
+              };
+              setMessages(prev => {
+                if (prev.some(m => m.id === newMessage.id)) return prev;
+                return [...prev, newMessage];
+              });
+            }
           } else if (payload.eventType === 'UPDATE') {
-            const raw = payload.new as any;
-            const updatedMessage: TicketMessage = {
-              id: raw.id,
-              ticketId: raw.ticket_id ?? raw.ticketId,
-              senderType: raw.sender_type ?? raw.senderType,
-              senderUserId: raw.sender_user_id ?? raw.senderUserId,
-              senderAdminId: raw.sender_admin_id ?? raw.senderAdminId,
-              body: raw.body ?? '',
-              hasAttachments: raw.has_attachments ?? raw.hasAttachments ?? false,
-              attachments: raw.attachments ?? [],
-              createdAt: raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
-            };
-            setMessages(prev => prev.map(m => 
-              m.id === updatedMessage.id ? updatedMessage : m
-            ));
+            // Refetch to get full data with attachments
+            fetchMessages();
           }
         }
       )

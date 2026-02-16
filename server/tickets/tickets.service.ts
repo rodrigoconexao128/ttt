@@ -233,9 +233,12 @@ export async function sendUserMessage(params: {
       );
     }
 
-    if (['resolved', 'closed'].includes(ticket.status)) {
-      await client.query(`UPDATE tickets SET status = 'open' WHERE id = $1`, [params.ticketId]);
-    }
+    // Update last_message_at and unread counter for admin
+    const statusUpdate = ['resolved', 'closed'].includes(ticket.status) ? `, status = 'open'` : '';
+    await client.query(
+      `UPDATE tickets SET last_message_at = NOW(), unread_count_admin = COALESCE(unread_count_admin, 0) + 1, updated_at = NOW()${statusUpdate} WHERE id = $1`,
+      [params.ticketId]
+    );
 
     return msg;
   });
@@ -411,6 +414,12 @@ export async function sendAdminMessage(params: {
         [params.ticketId, msg.id, f.originalname, f.mimetype, f.size, uploaded.provider, uploaded.key, uploaded.url, uploaded.sha256]
       );
     }
+
+    // Update last_message_at and unread counter for user
+    await client.query(
+      `UPDATE tickets SET last_message_at = NOW(), unread_count_user = COALESCE(unread_count_user, 0) + 1, updated_at = NOW() WHERE id = $1`,
+      [params.ticketId]
+    );
 
     return msg;
   });
