@@ -4,9 +4,7 @@ import { supabase } from './supabase';
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
   withCredentials: true, // ESSENCIAL para cookies de sessão
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // NAO colocar Content-Type aqui — Axios auto-detecta multipart/form-data para FormData
 });
 
 // Interceptor que adiciona Bearer token em TODA requisição

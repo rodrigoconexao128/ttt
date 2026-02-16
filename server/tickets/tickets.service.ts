@@ -169,11 +169,22 @@ export async function listMessagesForUser(ticketId: number, userId: string): Pro
     [ticketId, userId]
   );
 
-  for (const msg of messages) {
-    msg.attachments = await query<TicketAttachment>(
-      `SELECT * FROM ticket_attachments WHERE message_id = $1 AND deleted_at IS NULL`,
-      [msg.id]
+  const msgIds = messages.map(m => m.id);
+  if (msgIds.length > 0) {
+    const allAttachments = await query<TicketAttachment>(
+      `SELECT * FROM ticket_attachments WHERE message_id = ANY($1::bigint[]) AND deleted_at IS NULL ORDER BY created_at ASC`,
+      [msgIds]
     );
+    const attachMap = new Map<number, TicketAttachment[]>();
+    for (const att of allAttachments) {
+      if (!attachMap.has(att.message_id)) attachMap.set(att.message_id, []);
+      attachMap.get(att.message_id)!.push(att);
+    }
+    for (const msg of messages) {
+      msg.attachments = attachMap.get(msg.id) || [];
+    }
+  } else {
+    for (const msg of messages) msg.attachments = [];
   }
 
   return messages;
@@ -339,11 +350,22 @@ export async function listMessagesForAdmin(ticketId: number): Promise<TicketMess
     [ticketId]
   );
 
-  for (const msg of messages) {
-    msg.attachments = await query<TicketAttachment>(
-      `SELECT * FROM ticket_attachments WHERE message_id = $1 AND deleted_at IS NULL`,
-      [msg.id]
+  const msgIds = messages.map(m => m.id);
+  if (msgIds.length > 0) {
+    const allAttachments = await query<TicketAttachment>(
+      `SELECT * FROM ticket_attachments WHERE message_id = ANY($1::bigint[]) AND deleted_at IS NULL ORDER BY created_at ASC`,
+      [msgIds]
     );
+    const attachMap = new Map<number, TicketAttachment[]>();
+    for (const att of allAttachments) {
+      if (!attachMap.has(att.message_id)) attachMap.set(att.message_id, []);
+      attachMap.get(att.message_id)!.push(att);
+    }
+    for (const msg of messages) {
+      msg.attachments = attachMap.get(msg.id) || [];
+    }
+  } else {
+    for (const msg of messages) msg.attachments = [];
   }
 
   return messages;
