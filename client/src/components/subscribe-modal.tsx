@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { getAuthToken } from "@/lib/supabase";
+import { getAuthToken, refreshSession } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -580,27 +580,47 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
 
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("receipt", receiptFile);
-      formData.append("subscriptionId", subscriptionId);
-      formData.append("paymentId", pixData.paymentId);
-      formData.append("amount", pixData.amount.toString());
+      const buildFormData = () => {
+        const formData = new FormData();
+        formData.append("receipt", receiptFile);
+        formData.append("subscriptionId", subscriptionId);
+        formData.append("paymentId", pixData.paymentId);
+        formData.append("amount", pixData.amount.toString());
+        return formData;
+      };
 
-      // Obter token de autenticação
       const memberToken = localStorage.getItem("memberToken");
-      const token = memberToken || await getAuthToken();
-      
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+      let token = memberToken || await getAuthToken();
+
+      const doUpload = async (authToken: string | null) => {
+        const headers: Record<string, string> = {};
+        if (authToken) {
+          headers["Authorization"] = `Bearer ${authToken}`;
+        }
+        return fetch("/api/payment-receipts/upload", {
+          method: "POST",
+          body: buildFormData(),
+          credentials: "include",
+          headers
+        });
+      };
+
+      let response = await doUpload(token);
+
+      if (response.status === 401 && memberToken) {
+        token = await getAuthToken();
+        if (token) {
+          response = await doUpload(token);
+        }
       }
 
-      const response = await fetch("/api/payment-receipts/upload", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-        headers
-      });
+      if (response.status === 401 && !memberToken) {
+        const refreshed = await refreshSession();
+        if (refreshed) {
+          token = await getAuthToken();
+          response = await doUpload(token);
+        }
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
