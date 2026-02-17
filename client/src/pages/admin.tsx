@@ -90,6 +90,13 @@ export default function AdminPanel() {
     window.history.replaceState(null, '', `/admin#${tab}`);
   };
 
+  // Listener para evento custom de mudança de tab (usado por subcomponentes como Conversas)
+  useEffect(() => {
+    const onTabChange = (e: any) => handleTabChange(e.detail);
+    window.addEventListener('admin-tab-change', onTabChange);
+    return () => window.removeEventListener('admin-tab-change', onTabChange);
+  }, []);
+
   // Guard: exige sessão de admin
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +134,18 @@ export default function AdminPanel() {
     queryKey: ["/api/admin/payments/pending"],
   });
 
+  // Query para comprovantes PIX pendentes (exibir badge e cards em vários menus)
+  const { data: pendingReceiptsData } = useQuery<{ receipts: any[]; total: number }>({
+    queryKey: ["/api/admin/payment-receipts", "pending"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/admin/payment-receipts?status=pending&limit=100");
+      return await res.json();
+    },
+    refetchInterval: 30000, // Atualizar a cada 30 segundos
+  });
+  const pendingReceiptsCount = pendingReceiptsData?.total || 0;
+  const pendingReceipts = pendingReceiptsData?.receipts || [];
+
   const { data: config } = useQuery<{ mistral_api_key: string }>({
     queryKey: ["/api/admin/config"],
   });
@@ -135,7 +154,8 @@ export default function AdminPanel() {
     switch (activeTab) {
       case "dashboard":
         return (
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-4">
             <Card data-testid="card-stat-users">
               <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Usuários</CardTitle>
@@ -171,16 +191,90 @@ export default function AdminPanel() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Card de Comprovantes PIX Pendentes */}
+            <Card 
+              className={cn("cursor-pointer transition-colors hover:bg-muted/50", pendingReceiptsCount > 0 && "border-orange-400 bg-orange-50/50 dark:bg-orange-900/10")}
+              onClick={() => handleTabChange("receipts")}
+            >
+              <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Comprovantes PIX Pendentes</CardTitle>
+                <Receipt className="h-4 w-4 text-orange-500" />
+              </CardHeader>
+              <CardContent>
+                <div className={cn("text-2xl font-bold", pendingReceiptsCount > 0 && "text-orange-600")}>
+                  {pendingReceiptsCount}
+                </div>
+                {pendingReceiptsCount > 0 && (
+                  <p className="text-xs text-orange-600 mt-1">Clique para revisar</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Lista de Comprovantes PIX Pendentes no Dashboard */}
+          {pendingReceiptsCount > 0 && (
+            <Card className="border-orange-300">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Receipt className="w-5 h-5 text-orange-500" />
+                  Comprovantes PIX Aguardando Aprovação ({pendingReceiptsCount})
+                </CardTitle>
+                <CardDescription>Comprovantes enviados por clientes que precisam de revisão</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {pendingReceipts.slice(0, 5).map((receipt: any) => (
+                    <div key={receipt.id} className="flex items-center justify-between p-3 rounded-lg border bg-background">
+                      <div className="flex items-center gap-3">
+                        {receipt.receipt_url && (
+                          <img
+                            src={receipt.receipt_url}
+                            alt="Comprovante"
+                            className="w-10 h-10 rounded object-cover border cursor-pointer"
+                            onClick={() => window.open(receipt.receipt_url, '_blank')}
+                          />
+                        )}
+                        <div>
+                          <p className="font-medium text-sm">{receipt.users?.name || receipt.users?.email || "Cliente"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            R$ {parseFloat(receipt.amount || 0).toFixed(2)} • {receipt.plans?.name || receipt.plans?.nome || "Plano"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(receipt.created_at).toLocaleDateString('pt-BR')}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTabChange("receipts")}
+                        >
+                          Revisar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {pendingReceiptsCount > 5 && (
+                    <Button variant="link" className="w-full" onClick={() => handleTabChange("receipts")}>
+                      Ver todos os {pendingReceiptsCount} comprovantes pendentes →
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
           </div>
         );
       case "users":
         return <UsersManager users={users} subscriptions={subscriptions} />;
       case "manage":
-        return <ClientManager users={users} plans={plans} subscriptions={subscriptions} />;
+        return <ClientManager users={users} plans={plans} subscriptions={subscriptions} pendingReceipts={pendingReceipts} onGoToReceipts={() => handleTabChange("receipts")} />;
       case "plans":
         return <PlansManager plans={plans} />;
       case "payments":
-        return <PaymentsManager pendingPayments={pendingPayments} />;
+        return <PaymentsManager pendingPayments={pendingPayments} pendingReceipts={pendingReceipts} onGoToReceipts={() => handleTabChange("receipts")} />;
       case "receipts":
         return <PaymentReceiptsManager />;
       case "subscriptions-history":
@@ -288,6 +382,11 @@ export default function AdminPanel() {
                   >
                     <Receipt className="w-4 h-4" />
                     <span>Comprovantes PIX</span>
+                    {pendingReceiptsCount > 0 && (
+                      <Badge variant="destructive" className="ml-auto text-[10px] h-5 min-w-[20px] px-1 animate-pulse">
+                        {pendingReceiptsCount}
+                      </Badge>
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -511,6 +610,22 @@ export default function AdminPanel() {
                 >
                   <DollarSign className="w-4 h-4" />
                   <span>Pagamentos</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("receipts")}
+                  isActive={activeTab === "receipts"}
+                  tooltip="Comprovantes PIX"
+                >
+                  <Receipt className="w-4 h-4" />
+                  <span>Comprovantes PIX</span>
+                  {pendingReceiptsCount > 0 && (
+                    <Badge variant="destructive" className="ml-auto text-[10px] h-5 min-w-[20px] px-1 animate-pulse">
+                      {pendingReceiptsCount}
+                    </Badge>
+                  )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -2356,9 +2471,13 @@ function PlanForm({
 }
 
 function PaymentsManager({ 
-  pendingPayments 
+  pendingPayments,
+  pendingReceipts = [],
+  onGoToReceipts,
 }: { 
-  pendingPayments: (Payment & { subscription: Subscription & { user: User; plan: Plan } })[] | undefined 
+  pendingPayments: (Payment & { subscription: Subscription & { user: User; plan: Plan } })[] | undefined;
+  pendingReceipts?: any[];
+  onGoToReceipts?: () => void;
 }) {
   const { toast } = useToast();
 
@@ -2378,6 +2497,44 @@ function PaymentsManager({
   });
 
   return (
+    <div className="space-y-6">
+      {/* Banner de Comprovantes PIX Pendentes */}
+      {pendingReceipts.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-orange-500" />
+                <CardTitle className="text-base">Comprovantes PIX Pendentes ({pendingReceipts.length})</CardTitle>
+              </div>
+              {onGoToReceipts && (
+                <Button variant="outline" size="sm" onClick={onGoToReceipts} className="text-orange-600 border-orange-300">
+                  Ver todos →
+                </Button>
+              )}
+            </div>
+            <CardDescription>Comprovantes enviados por clientes aguardando aprovação</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {pendingReceipts.slice(0, 3).map((receipt: any) => (
+                <div key={receipt.id} className="flex items-center justify-between p-2 bg-white rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    {receipt.receipt_url && (
+                      <img src={receipt.receipt_url} alt="" className="w-8 h-8 rounded object-cover cursor-pointer" onClick={() => window.open(receipt.receipt_url, '_blank')} />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">{receipt.users?.name || receipt.users?.email || "Cliente"}</p>
+                      <p className="text-xs text-muted-foreground">R$ {parseFloat(receipt.amount || 0).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
     <Card data-testid="card-pending-payments">
       <CardHeader>
         <CardTitle>Pagamentos Pendentes</CardTitle>
@@ -2431,6 +2588,7 @@ function PaymentsManager({
         </Table>
       </CardContent>
     </Card>
+    </div>
   );
 }
 
@@ -4629,11 +4787,15 @@ interface UserWithConnectionStatus extends User {
 function ClientManager({ 
   users, 
   plans,
-  subscriptions 
+  subscriptions,
+  pendingReceipts = [],
+  onGoToReceipts,
 }: { 
   users: UserWithConnectionStatus[] | undefined;
   plans: Plan[] | undefined;
   subscriptions: (Subscription & { plan: Plan; user: User })[] | undefined;
+  pendingReceipts?: any[];
+  onGoToReceipts?: () => void;
 }) {
   const { toast } = useToast();
   const [selectedUser, setSelectedUser] = useState<string>("");
@@ -4793,6 +4955,43 @@ function ClientManager({
         </Card>
       </div>
 
+      {/* Comprovantes PIX Pendentes no Gerenciar Clientes */}
+      {pendingReceipts.length > 0 && (
+        <Card className="border-orange-300 bg-orange-50/30 dark:bg-orange-900/10">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Receipt className="w-5 h-5 text-orange-500" />
+              Comprovantes PIX Pendentes ({pendingReceipts.length})
+            </CardTitle>
+            <CardDescription>Clientes que enviaram comprovante aguardando aprovação</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {pendingReceipts.slice(0, 8).map((receipt: any) => (
+                <div
+                  key={receipt.id}
+                  className="flex items-center gap-2 p-2 rounded-md border bg-background cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={onGoToReceipts}
+                >
+                  {receipt.receipt_url && (
+                    <img src={receipt.receipt_url} alt="" className="w-8 h-8 rounded object-cover" />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium">{receipt.users?.name || receipt.users?.email || "Cliente"}</p>
+                    <p className="text-xs text-muted-foreground">R$ {parseFloat(receipt.amount || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+              ))}
+              {pendingReceipts.length > 8 && (
+                <Button variant="ghost" size="sm" onClick={onGoToReceipts} className="text-orange-600">
+                  +{pendingReceipts.length - 8} mais
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Assign Plan Section */}
       <Card data-testid="card-assign-plan">
         <CardHeader>
@@ -4864,6 +5063,7 @@ function ClientManager({
                   )}
                   {filteredUsers?.map((user) => {
                     const userSub = getUserSubscription(user.id);
+                    const userHasPendingReceipt = pendingReceipts.some((r: any) => r.user_id === user.id);
                     return (
                       <SelectItem key={user.id} value={user.id}>
                         <div className="flex items-center gap-2">
@@ -4871,6 +5071,11 @@ function ClientManager({
                           <span className="font-medium">{user.name || "Sem nome"}</span>
                           <span className="text-muted-foreground">•</span>
                           <span className="text-sm text-muted-foreground">{user.email || user.phone}</span>
+                          {userHasPendingReceipt && (
+                            <Badge variant="destructive" className="text-[10px] h-4 px-1">
+                              PIX
+                            </Badge>
+                          )}
                           {userSub && (
                             <Badge variant="secondary" className="ml-auto text-xs">
                               {userSub.plan.nome}

@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
-import { Send, MessageCircle, Search, Smartphone, Bot, X, Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import { Send, MessageCircle, Search, Smartphone, Bot, X, Trash2, AlertTriangle, Loader2, Receipt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
@@ -55,6 +55,17 @@ export default function AdminConversations() {
     queryKey: ["/api/admin/conversations"],
     refetchInterval: 5000,
   });
+
+  // Query para comprovantes PIX pendentes
+  const { data: pendingReceiptsData } = useQuery<{ receipts: any[]; total: number }>({
+    queryKey: ["/api/admin/payment-receipts", "pending-conversations"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/admin/payment-receipts?status=pending&limit=5");
+      return res.json();
+    },
+    refetchInterval: 30000,
+  });
+  const pendingReceiptsCount = pendingReceiptsData?.total || 0;
 
   const { data: selectedConversation } = useQuery<AdminConversation>({
     queryKey: ["/api/admin/conversation", selectedConversationId],
@@ -366,6 +377,24 @@ export default function AdminConversations() {
       <div className="w-80 border-r bg-card flex flex-col h-full overflow-hidden">
         <div className="p-4 border-b space-y-4 flex-shrink-0">
           <h2 className="font-semibold text-lg">Conversas</h2>
+
+          {/* Banner de Comprovantes PIX Pendentes */}
+          {pendingReceiptsCount > 0 && (
+            <div 
+              className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-lg cursor-pointer hover:bg-orange-100 transition-colors"
+              onClick={() => {
+                // Navegar para a tab de receipts no admin
+                window.location.hash = '#receipts';
+                window.dispatchEvent(new CustomEvent('admin-tab-change', { detail: 'receipts' }));
+              }}
+            >
+              <Receipt className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <span className="text-xs text-orange-700 font-medium">
+                {pendingReceiptsCount} comprovante{pendingReceiptsCount > 1 ? 's' : ''} PIX pendente{pendingReceiptsCount > 1 ? 's' : ''}
+              </span>
+            </div>
+          )}
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
