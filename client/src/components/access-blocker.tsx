@@ -79,6 +79,8 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
     '/minha-assinatura',
     '/settings',
     '/admin',
+    '/admin/connections',
+    '/admin/media-flows',
     '/admin-login',
     '/test',
     '/testar',
