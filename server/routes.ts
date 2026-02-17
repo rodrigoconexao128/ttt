@@ -22,6 +22,7 @@ import { registerChatbotFlowRoutes } from "./routes_chatbot_flow";
 
 import { registerSalonRoutes } from "./routes_salon";
 import { registerTicketRoutes } from "./tickets/tickets.routes";
+import { registerSectorRoutes } from "./sectors/sectors.routes";
 
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 
@@ -934,6 +935,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log("✅ [DEBUG] registerTicketRoutes called successfully");
   } catch (e) {
     console.error("❌ [DEBUG] Error calling registerTicketRoutes:", e);
+  }
+
+  // ==================== SECTORS ROUTES ====================
+  try {
+    registerSectorRoutes(app);
+  } catch (e) {
+    console.error("❌ [DEBUG] Error calling registerSectorRoutes:", e);
   }
 
 

@@ -8,6 +8,13 @@ import { supabase } from '../supabaseAuth';
 
 const BUCKET = process.env.SUPABASE_TICKET_ATTACHMENTS_BUCKET || 'ticket-attachments';
 
+type SectorRoutingCandidate = {
+  id: string;
+  name: string;
+  keywords: string[];
+  auto_assign_agent_id: string | null;
+};
+
 // Upload helper — Supabase Storage
 async function uploadImageBuffer(buffer: Buffer, originalName: string, mimeType: string): Promise<{
   provider: string;
@@ -49,6 +56,61 @@ async function queryOne<T = any>(text: string, params: any[] = []): Promise<T | 
   return (result.rows[0] as T) || null;
 }
 
+function normalizeText(input: string): string {
+  return input
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function normalizeKeywords(keywords: string[]): string[] {
+  const seen = new Set<string>();
+  for (const keyword of keywords) {
+    const normalized = normalizeText(keyword);
+    if (normalized) {
+      seen.add(normalized);
+    }
+  }
+  return Array.from(seen);
+}
+
+async function fetchSectorsForRouting(client?: any): Promise<SectorRoutingCandidate[]> {
+  const sqlText = `SELECT id, name, keywords, auto_assign_agent_id FROM sectors`;
+  const result = client ? await client.query(sqlText) : await pool.query(sqlText);
+  return (result.rows || []) as SectorRoutingCandidate[];
+}
+
+function findBestSector(text: string, sectors: SectorRoutingCandidate[]) {
+  const normalizedText = normalizeText(text);
+  if (!normalizedText || sectors.length === 0) return null;
+
+  let best: { sector: SectorRoutingCandidate; matches: string[] } | null = null;
+
+  for (const sector of sectors) {
+    const keywords = normalizeKeywords(sector.keywords || []);
+    if (keywords.length === 0) continue;
+
+    const matches = keywords.filter((keyword) => normalizedText.includes(keyword));
+    if (matches.length === 0) continue;
+
+    if (!best || matches.length > best.matches.length) {
+      best = { sector, matches };
+      continue;
+    }
+
+    if (best && matches.length === best.matches.length) {
+      const currentScore = keywords.join(' ').length;
+      const bestScore = normalizeKeywords(best.sector.keywords || []).join(' ').length;
+      if (currentScore > bestScore) {
+        best = { sector, matches };
+      }
+    }
+  }
+
+  return best;
+}
+
 // Transaction helper using pool directly
 async function withTransaction<T>(fn: (client: any) => Promise<T>): Promise<T> {
   const client = await pool.connect();
@@ -79,7 +141,7 @@ export async function createTicket(input: {
        RETURNING *`,
       [input.userId, input.subject.trim(), input.description?.trim() || null, input.priority]
     );
-    const ticket = ticketResult.rows[0];
+    let ticket = ticketResult.rows[0];
 
     if (input.description?.trim()) {
       await client.query(
@@ -87,6 +149,24 @@ export async function createTicket(input: {
          VALUES ($1, 'user', $2, $3)`,
         [ticket.id, input.userId, input.description.trim()]
       );
+    }
+
+    const routingText = `${input.subject || ''} ${input.description || ''}`.trim();
+    if (routingText) {
+      const sectors = await fetchSectorsForRouting(client);
+      const best = findBestSector(routingText, sectors);
+      if (best) {
+        const updateResult = await client.query(
+          `UPDATE tickets
+           SET sector_id = $2,
+               assigned_admin_id = CASE WHEN $3 IS NOT NULL THEN $3 ELSE assigned_admin_id END,
+               updated_at = NOW()
+           WHERE id = $1
+           RETURNING *`,
+          [ticket.id, best.sector.id, best.sector.auto_assign_agent_id]
+        );
+        ticket = updateResult.rows[0] || ticket;
+      }
     }
 
     return ticket;
@@ -312,14 +392,14 @@ export async function getAdminTicketById(ticketId: number): Promise<Ticket | nul
 }
 
 export async function updateAdminTicket(ticketId: number, adminId: string, payload: any): Promise<Ticket> {
-  const allowed = ['assignedAdminId', 'priority', 'subject', 'description'];
+  const allowed = ['assignedAdminId', 'priority', 'subject', 'description', 'sectorId'];
   const updates: string[] = [];
   const values: any[] = [ticketId];
   let idx = 2;
 
   for (const key of allowed) {
     if (payload[key] !== undefined) {
-      const col = key === 'assignedAdminId' ? 'assigned_admin_id' : key;
+      const col = key === 'assignedAdminId' ? 'assigned_admin_id' : key === 'sectorId' ? 'sector_id' : key;
       updates.push(`${col} = $${idx}`);
       values.push(payload[key]);
       idx++;
@@ -427,4 +507,154 @@ export async function sendAdminMessage(params: {
 
 export async function markReadByAdmin(ticketId: number): Promise<void> {
   await query(`UPDATE tickets SET unread_count_admin = 0 WHERE id = $1`, [ticketId]);
+}
+
+export async function routeTicket(params: {
+  ticketId?: number;
+  subject?: string;
+  description?: string;
+  text?: string;
+  apply?: boolean;
+}): Promise<{
+  matched: boolean;
+  sector: SectorRoutingCandidate | null;
+  matchedKeywords: string[];
+  applied: boolean;
+}> {
+  let routingText = `${params.subject || ''} ${params.description || ''} ${params.text || ''}`.trim();
+
+  if (!routingText && params.ticketId) {
+    const ticket = await queryOne<{ subject: string; description: string | null }>(
+      `SELECT subject, description FROM tickets WHERE id = $1 AND deleted_at IS NULL`,
+      [params.ticketId]
+    );
+    if (ticket) {
+      routingText = `${ticket.subject || ''} ${ticket.description || ''}`.trim();
+    }
+  }
+
+  if (!routingText) {
+    return { matched: false, sector: null, matchedKeywords: [], applied: false };
+  }
+
+  const sectors = await fetchSectorsForRouting();
+  const best = findBestSector(routingText, sectors);
+  if (!best) {
+    return { matched: false, sector: null, matchedKeywords: [], applied: false };
+  }
+
+  let applied = false;
+  if (params.ticketId && params.apply) {
+    await query(
+      `UPDATE tickets
+       SET sector_id = $2,
+           assigned_admin_id = CASE WHEN $3 IS NOT NULL AND assigned_admin_id IS NULL THEN $3 ELSE assigned_admin_id END,
+           updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [params.ticketId, best.sector.id, best.sector.auto_assign_agent_id]
+    );
+    applied = true;
+  }
+
+  return {
+    matched: true,
+    sector: best.sector,
+    matchedKeywords: best.matches,
+    applied
+  };
+}
+
+export async function getTicketReports(): Promise<{
+  ticketsBySector: Array<{ sectorId: string | null; sectorName: string; tickets: number }>;
+  averageFirstResponseMinutes: number;
+  responseTimeTrend: Array<{ date: string; minutes: number }>;
+  activeAgents: Array<{ agentId: string; agentEmail: string; tickets: number }>;
+  activeAgentsCount: number;
+}> {
+  const [sectorRows, unassignedRow, avgRow, trendRows, agentRows] = await Promise.all([
+    query<{ sector_id: string; sector_name: string; tickets: string }>(
+      `SELECT s.id as sector_id, s.name as sector_name, COUNT(t.id) as tickets
+       FROM sectors s
+       LEFT JOIN tickets t ON t.sector_id = s.id AND t.deleted_at IS NULL
+       GROUP BY s.id, s.name
+       ORDER BY tickets DESC, s.name ASC`
+    ),
+    queryOne<{ tickets: string }>(
+      `SELECT COUNT(*) as tickets
+       FROM tickets
+       WHERE sector_id IS NULL AND deleted_at IS NULL`
+    ),
+    queryOne<{ minutes: string }>(
+      `SELECT AVG(EXTRACT(EPOCH FROM (first_response_at - created_at)) / 60) as minutes
+       FROM tickets
+       WHERE first_response_at IS NOT NULL AND deleted_at IS NULL`
+    ),
+    query<{ day: Date; minutes: string }>(
+      `SELECT date_trunc('day', created_at) as day,
+              AVG(EXTRACT(EPOCH FROM (first_response_at - created_at)) / 60) as minutes
+       FROM tickets
+       WHERE first_response_at IS NOT NULL
+         AND created_at >= NOW() - INTERVAL '14 days'
+         AND deleted_at IS NULL
+       GROUP BY day
+       ORDER BY day ASC`
+    ),
+    query<{ agent_id: string; agent_email: string; tickets: string }>(
+      `SELECT a.id as agent_id, a.email as agent_email, COUNT(t.id) as tickets
+       FROM admins a
+       JOIN tickets t ON t.assigned_admin_id::text = a.id::text
+       WHERE t.deleted_at IS NULL AND t.status IN ('open', 'in_progress')
+       GROUP BY a.id, a.email
+       ORDER BY tickets DESC, a.email ASC`
+    ),
+  ]);
+
+  const ticketsBySector = sectorRows.map((row) => ({
+    sectorId: row.sector_id,
+    sectorName: row.sector_name,
+    tickets: parseInt(row.tickets || '0', 10),
+  }));
+
+  if (unassignedRow) {
+    ticketsBySector.push({
+      sectorId: null,
+      sectorName: 'Sem setor',
+      tickets: parseInt(unassignedRow.tickets || '0', 10),
+    });
+  }
+
+  const averageFirstResponseMinutes = avgRow?.minutes ? parseFloat(avgRow.minutes) : 0;
+
+  const trendMap = new Map<string, number>();
+  for (const row of trendRows) {
+    const key = row.day.toISOString().slice(0, 10);
+    trendMap.set(key, row.minutes ? parseFloat(row.minutes) : 0);
+  }
+
+  const responseTimeTrend: Array<{ date: string; minutes: number }> = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 13; i >= 0; i -= 1) {
+    const day = new Date(today);
+    day.setDate(today.getDate() - i);
+    const key = day.toISOString().slice(0, 10);
+    responseTimeTrend.push({
+      date: key,
+      minutes: trendMap.get(key) ?? 0,
+    });
+  }
+
+  const activeAgents = agentRows.map((row) => ({
+    agentId: row.agent_id,
+    agentEmail: row.agent_email,
+    tickets: parseInt(row.tickets || '0', 10),
+  }));
+
+  return {
+    ticketsBySector,
+    averageFirstResponseMinutes,
+    responseTimeTrend,
+    activeAgents,
+    activeAgentsCount: activeAgents.length,
+  };
 }

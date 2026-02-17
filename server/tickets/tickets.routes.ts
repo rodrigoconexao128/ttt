@@ -33,9 +33,11 @@ export function registerTicketRoutes(app: Express): void {
   app.get("/api/tickets/:id/messages", isAuthenticated, controller.listUserTicketMessages);
   app.post("/api/tickets/:id/messages", isAuthenticated, upload.array("attachments", 4), controller.sendUserMessage);
   app.post("/api/tickets/:id/read", isAuthenticated, controller.markUserRead);
+  app.post("/api/tickets/route", isAuthenticated, controller.routeTicket);
 
   // Admin routes
   app.get("/api/admin/tickets", isAuthenticated, requireAdmin, controller.listAdminTickets);
+  app.get("/api/admin/tickets/reports", isAuthenticated, requireAdmin, controller.getTicketReports);
   app.get("/api/admin/tickets/:id", isAuthenticated, requireAdmin, controller.getAdminTicketById);
   app.patch("/api/admin/tickets/:id", isAuthenticated, requireAdmin, controller.updateAdminTicket);
   app.patch("/api/admin/tickets/:id/status", isAuthenticated, requireAdmin, controller.updateAdminTicketStatus);

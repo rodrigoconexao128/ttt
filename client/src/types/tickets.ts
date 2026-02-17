@@ -8,6 +8,8 @@ export interface Ticket {
   id: number;
   userId: number;
   assignedAdminId: number | null;
+  sectorId?: string | null;
+  sectorName?: string | null;
   subject: string;
   description?: string | null;
   status: TicketStatus;

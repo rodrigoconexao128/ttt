@@ -29,7 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, UserMinus, Receipt, XCircle, FileImage, TicketCheck } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, UserMinus, Receipt, XCircle, FileImage, TicketCheck, BarChart3, Layers } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminNotificationsPanel from "@/components/admin-notifications-panel";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
@@ -38,6 +38,7 @@ import FollowUpCalendar from "@/components/follow-up-calendar";
 import { UserAgentConfigDialog } from "@/components/user-agent-config-dialog";
 import SuspendedUsersManager from "@/components/suspended-users-manager";
 import AdminTicketsPanel from "@/components/admin-tickets-panel";
+import AdminTicketReports from "@/components/admin-ticket-reports";
 import {
   SidebarProvider,
   Sidebar,
@@ -205,6 +206,8 @@ export default function AdminPanel() {
         return <SuspendedUsersManager />;
       case "tickets":
         return <AdminTicketsPanel />;
+      case "reports":
+        return <AdminTicketReports />;
       case "config":
         return <ConfigManager config={config} />;
       default:
@@ -385,6 +388,26 @@ export default function AdminPanel() {
                   >
                     <TicketCheck className="w-4 h-4" />
                     <span>Tickets</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("reports")}
+                    isActive={activeTab === "reports"}
+                    tooltip="Relatorios de Tickets"
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    <span>Relatorios</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setLocation("/admin/sectors")}
+                    isActive={location === "/admin/sectors"}
+                    tooltip="Setores"
+                  >
+                    <Layers className="w-4 h-4" />
+                    <span>Setores</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -578,6 +601,26 @@ export default function AdminPanel() {
                 >
                   <TicketCheck className="w-4 h-4" />
                   <span>Tickets</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("reports")}
+                  isActive={activeTab === "reports"}
+                  tooltip="Relatorios de Tickets"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span>Relatorios</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => setLocation("/admin/sectors")}
+                  isActive={location === "/admin/sectors"}
+                  tooltip="Setores"
+                >
+                  <Layers className="w-4 h-4" />
+                  <span>Setores</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

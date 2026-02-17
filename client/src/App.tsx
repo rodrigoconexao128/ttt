@@ -16,6 +16,7 @@ import MediaLibrary from "@/pages/media-library";
 import TestAgent from "@/pages/test-agent";
 import AdminTicketDetailPage from "@/pages/admin/AdminTicketDetailPage";
 import AdminTicketsPage from "@/pages/admin/AdminTicketsPage";
+import AdminSectorsPage from "@/pages/admin/AdminSectorsPage";
 import AdminChatSimulator from "@/pages/admin-chat-simulator";
 import AdminSimulator from "@/pages/AdminSimulator";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -114,6 +115,7 @@ function Router() {
       <Route path="/admin-login" component={AdminLogin} />
       <Route path="/admin/tickets" component={() => <RequireAdmin component={AdminTicketsPage} />} />
       <Route path="/admin/tickets/:id" component={() => <RequireAdmin component={AdminTicketDetailPage} />} />
+      <Route path="/admin/sectors" component={() => <RequireAdmin component={AdminSectorsPage} />} />
       <Route path="/admin" component={() => <RequireAdmin component={AdminPanel} />} />
       <Route path="/login" component={Login} />
       <Route path="/membro-login" component={MemberLogin} />

@@ -24,6 +24,11 @@ const asyncHandler = (fn: Function) => (req: Request, res: Response, next: Funct
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
+function isAdminRequest(req: any): boolean {
+  const role = req.user?.role || req.session?.user?.role || req.session?.adminRole;
+  return role === "admin" || role === "owner";
+}
+
 // User Controllers
 export const createTicket = asyncHandler(async (req: Request, res: Response) => {
   const { subject, description, priority } = req.body;
@@ -143,4 +148,24 @@ export const sendAdminMessage = asyncHandler(async (req: Request, res: Response)
 export const markAdminRead = asyncHandler(async (req: Request, res: Response) => {
   await service.markReadByAdmin(parseInt(req.params.id));
   res.status(204).send();
+});
+
+export const routeTicket = asyncHandler(async (req: Request, res: Response) => {
+  const { ticketId, subject, description, text } = req.body || {};
+  const apply = Boolean(ticketId) && isAdminRequest(req);
+
+  const result = await service.routeTicket({
+    ticketId: ticketId ? Number(ticketId) : undefined,
+    subject,
+    description,
+    text,
+    apply,
+  });
+
+  res.json(camelizeObj(result));
+});
+
+export const getTicketReports = asyncHandler(async (_req: Request, res: Response) => {
+  const data = await service.getTicketReports();
+  res.json(camelizeObj(data));
 });
