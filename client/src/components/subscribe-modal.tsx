@@ -573,19 +573,33 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
   // UPLOAD DE COMPROVANTE PIX - Libera acesso temporário
   // ═══════════════════════════════════════════════════════════════════════════════
   const handleReceiptUpload = async () => {
-    if (!receiptFile || !subscriptionId || !pixData) {
+    if (!receiptFile) {
       toast({ title: "Erro", description: "Selecione um arquivo para enviar.", variant: "destructive" });
+      return;
+    }
+    if (!subscriptionId) {
+      toast({ title: "Erro", description: "Assinatura não encontrada. Recarregue a página.", variant: "destructive" });
       return;
     }
 
     setIsUploading(true);
     try {
+      // Calcular amount: usar pixData se disponível, senão calcular do plano
+      const planPrice = plan?.valor || plan?.price || "0";
+      const setupFee = plan?.valorPrimeiraCobranca ? parseFloat(plan.valorPrimeiraCobranca) : 0;
+      const monthlyPrice = subscription?.couponPrice ? parseFloat(subscription.couponPrice) : parseFloat(planPrice);
+      const hasSetupFee = setupFee > 0 && setupFee !== monthlyPrice;
+      const fallbackAmount = hasSetupFee ? setupFee : monthlyPrice;
+
+      const uploadAmount = pixData?.amount ?? fallbackAmount;
+      const uploadPaymentId = pixData?.paymentId || `manual_${subscriptionId}`;
+
       const buildFormData = () => {
         const formData = new FormData();
         formData.append("receipt", receiptFile);
         formData.append("subscriptionId", subscriptionId);
-        formData.append("paymentId", pixData.paymentId);
-        formData.append("amount", pixData.amount.toString());
+        formData.append("paymentId", uploadPaymentId);
+        formData.append("amount", uploadAmount.toString());
         return formData;
       };
 
@@ -1093,12 +1107,35 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                   {error && (
                     <div className="p-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs mb-4">
                       {error}
+                      <button
+                        onClick={() => { setError(null); handlePixSubmit(); }}
+                        className="block mx-auto mt-2 text-xs text-primary underline"
+                      >
+                        Tentar novamente
+                      </button>
                     </div>
                   )}
 
-                  <Loader2 className="w-10 h-10 mx-auto mb-4 animate-spin text-green-600" />
-                  <p className="text-base font-medium text-gray-700">Gerando QR Code PIX...</p>
-                  <p className="text-sm text-gray-500">Aguarde alguns instantes</p>
+                  {!error && (
+                    <>
+                      <Loader2 className="w-10 h-10 mx-auto mb-4 animate-spin text-green-600" />
+                      <p className="text-base font-medium text-gray-700">Gerando QR Code PIX...</p>
+                      <p className="text-sm text-gray-500">Aguarde alguns instantes</p>
+                    </>
+                  )}
+
+                  {/* Fallback: permitir enviar comprovante mesmo sem QR Code */}
+                  {error && (
+                    <div className="mt-4 pt-4 border-t">
+                      <p className="text-sm text-gray-600 mb-2">Já fez o pagamento PIX por outra via?</p>
+                      <button
+                        onClick={() => setShowUploadModal(true)}
+                        className="text-sm text-primary hover:text-primary/80 underline underline-offset-2 font-medium"
+                      >
+                        Enviar comprovante de pagamento
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1167,97 +1204,98 @@ export function SubscribeModal({ open, onOpenChange, subscriptionId, onSuccess }
                     Já paguei? Enviar comprovante
                   </button>
 
-                  {/* Modal de Upload do Comprovante */}
-                  {showUploadModal && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-                      <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-md mx-4 shadow-xl">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-semibold">Enviar Comprovante</h3>
-                          <button 
-                            onClick={() => {
-                              setShowUploadModal(false);
-                              setReceiptFile(null);
-                            }}
-                            className="text-gray-500 hover:text-gray-700"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        </div>
-                        
-                        <p className="text-sm text-gray-600 mb-4">
-                          Envie o comprovante de pagamento PIX para liberarmos seu acesso.
-                        </p>
-
-                        {/* Área de upload */}
-                        <div 
-                          onClick={() => receiptInputRef.current?.click()}
-                          className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
-                        >
-                          <input
-                            ref={receiptInputRef}
-                            type="file"
-                            accept="image/*,application/pdf"
-                            onChange={handleFileChange}
-                            className="hidden"
-                          />
-                          {receiptFile ? (
-                            <div className="flex flex-col items-center gap-2">
-                              <FileImage className="w-10 h-10 text-green-500" />
-                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                {receiptFile.name}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {(receiptFile.size / 1024).toFixed(1)} KB
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-center gap-2">
-                              <Upload className="w-10 h-10 text-gray-400" />
-                              <span className="text-sm text-gray-500">
-                                Clique para selecionar o comprovante
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                Imagem ou PDF (máx. 5MB)
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Botões */}
-                        <div className="flex gap-3 mt-6">
-                          <Button
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => {
-                              setShowUploadModal(false);
-                              setReceiptFile(null);
-                            }}
-                          >
-                            Cancelar
-                          </Button>
-                          <Button
-                            className="flex-1"
-                            onClick={handleReceiptUpload}
-                            disabled={!receiptFile || isUploading}
-                          >
-                            {isUploading ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Enviando...
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="w-4 h-4 mr-2" />
-                                Enviar
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Upload do Comprovante - fora do bloco pixData para funcionar sempre */}
+        {showUploadModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-md mx-4 shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Enviar Comprovante</h3>
+                <button 
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setReceiptFile(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <p className="text-sm text-gray-600 mb-4">
+                Envie o comprovante de pagamento PIX para liberarmos seu acesso.
+              </p>
+
+              {/* Área de upload */}
+              <div 
+                onClick={() => receiptInputRef.current?.click()}
+                className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
+              >
+                <input
+                  ref={receiptInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                {receiptFile ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <FileImage className="w-10 h-10 text-green-500" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {receiptFile.name}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {(receiptFile.size / 1024).toFixed(1)} KB
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="w-10 h-10 text-gray-400" />
+                    <span className="text-sm text-gray-500">
+                      Clique para selecionar o comprovante
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      Imagem ou PDF (máx. 5MB)
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Botões */}
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setReceiptFile(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={handleReceiptUpload}
+                  disabled={!receiptFile || isUploading}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Enviar
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         )}
