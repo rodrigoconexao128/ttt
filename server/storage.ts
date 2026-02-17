@@ -1,6 +1,7 @@
 import {
   users,
   admins,
+  agents,
   whatsappConnections,
   adminWhatsappConnection,
   conversations,
@@ -18,6 +19,8 @@ import {
   adminConversations,
   adminMessages,
   adminAgentMedia,
+  mediaFlows,
+  mediaFlowItems,
   coupons,
   tags,
   conversationTags,
@@ -31,6 +34,8 @@ import {
   audioMessageCounter,
   type User,
   type UpsertUser,
+  type Agent,
+  type InsertAgent,
   type WhatsappConnection,
   type InsertWhatsappConnection,
   type AdminWhatsappConnection,
@@ -57,6 +62,10 @@ import {
   type InsertWhatsappContact,
   type AdminAgentMedia,
   type InsertAdminAgentMedia,
+  type MediaFlow,
+  type InsertMediaFlow,
+  type MediaFlowItem,
+  type InsertMediaFlowItem,
   type Coupon,
   type InsertCoupon,
   type Tag,
@@ -81,7 +90,7 @@ import {
   type AudioMessageCounter,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
-import { eq, desc, and, gte, sql, inArray, lte, isNotNull } from "drizzle-orm";
+import { eq, desc, and, gte, sql, inArray, lte, isNotNull, asc } from "drizzle-orm";
 import { transcribeAudioWithMistral, analyzeImageWithMistral } from "./mistralClient";
 
 // ============================================
@@ -213,6 +222,13 @@ export interface IStorage {
   updateUser(id: string, data: Partial<UpsertUser>): Promise<User>;
   deleteUser(id: string): Promise<void>;
 
+  // Agent operations
+  getAgents(): Promise<Agent[]>;
+  getAgent(id: string): Promise<Agent | undefined>;
+  createAgent(data: InsertAgent): Promise<Agent>;
+  updateAgent(id: string, data: Partial<InsertAgent>): Promise<Agent>;
+  deleteAgent(id: string): Promise<void>;
+
   // WhatsApp connection operations
   getConnectionByUserId(userId: string): Promise<WhatsappConnection | undefined>;
   getConnectionById(connectionId: string): Promise<WhatsappConnection | undefined>;
@@ -220,6 +236,7 @@ export interface IStorage {
   getAllConnections(): Promise<WhatsappConnection[]>;
   createConnection(connection: InsertWhatsappConnection): Promise<WhatsappConnection>;
   updateConnection(id: string, data: Partial<InsertWhatsappConnection>): Promise<WhatsappConnection>;
+  deleteConnection(id: string): Promise<void>;
 
   // Conversation operations
   getConversationsByConnectionId(connectionId: string): Promise<Conversation[]>;
@@ -349,6 +366,18 @@ export interface IStorage {
   saveSyncedContacts?(userId: string, contacts: any[]): Promise<void>;
   getUserActiveConnection?(userId: string): Promise<any | undefined>;
   
+  // Media flow operations
+  getMediaFlows(): Promise<MediaFlow[]>;
+  getMediaFlow(id: string): Promise<MediaFlow | undefined>;
+  createMediaFlow(data: InsertMediaFlow): Promise<MediaFlow>;
+  updateMediaFlow(id: string, data: Partial<InsertMediaFlow>): Promise<MediaFlow>;
+  deleteMediaFlow(id: string): Promise<void>;
+  getMediaFlowItems(flowId: string): Promise<MediaFlowItem[]>;
+  createMediaFlowItem(data: InsertMediaFlowItem): Promise<MediaFlowItem>;
+  updateMediaFlowItem(id: string, data: Partial<InsertMediaFlowItem>): Promise<MediaFlowItem>;
+  deleteMediaFlowItem(id: string): Promise<void>;
+  reorderMediaFlowItems(flowId: string, orderedIds: string[]): Promise<void>;
+
   // Share token and message update operations
   getConversationByShareToken(shareToken: string): Promise<Conversation | undefined>;
   updateMessage(id: string, data: Partial<InsertMessage>): Promise<Message>;
@@ -459,27 +488,24 @@ export class DatabaseStorage implements IStorage {
   async deleteUser(id: string): Promise<void> {
     console.log(`[STORAGE] Deleting user ${id} and all related data...`);
     
-    // Get user's connection first
-    const connection = await this.getConnectionByUserId(id);
-    
-    if (connection) {
-      // Delete all messages from conversations
+    // Get all user's connections first
+    const userConnections = await db
+      .select()
+      .from(whatsappConnections)
+      .where(eq(whatsappConnections.userId, id));
+
+    for (const connection of userConnections) {
       const userConversations = await db
         .select()
         .from(conversations)
         .where(eq(conversations.connectionId, connection.id));
-      
+
       for (const conv of userConversations) {
         await db.delete(messages).where(eq(messages.conversationId, conv.id));
       }
-      
-      // Delete conversations
+
       await db.delete(conversations).where(eq(conversations.connectionId, connection.id));
-      
-      // Delete whatsapp contacts cache
       await db.delete(whatsappContacts).where(eq(whatsappContacts.connectionId, connection.id));
-      
-      // Delete the connection itself
       await db.delete(whatsappConnections).where(eq(whatsappConnections.id, connection.id));
     }
     
@@ -500,6 +526,45 @@ export class DatabaseStorage implements IStorage {
     await db.delete(users).where(eq(users.id, id));
     
     console.log(`[STORAGE] User ${id} and all related data deleted successfully`);
+  }
+
+  // Agent operations
+  async getAgents(): Promise<Agent[]> {
+    const agentsList = await db
+      .select()
+      .from(agents)
+      .orderBy(desc(agents.createdAt));
+    return agentsList;
+  }
+
+  async getAgent(id: string): Promise<Agent | undefined> {
+    const [agent] = await db
+      .select()
+      .from(agents)
+      .where(eq(agents.id, id))
+      .limit(1);
+    return agent;
+  }
+
+  async createAgent(data: InsertAgent): Promise<Agent> {
+    const [agent] = await db
+      .insert(agents)
+      .values(data)
+      .returning();
+    return agent;
+  }
+
+  async updateAgent(id: string, data: Partial<InsertAgent>): Promise<Agent> {
+    const [agent] = await db
+      .update(agents)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(agents.id, id))
+      .returning();
+    return agent;
+  }
+
+  async deleteAgent(id: string): Promise<void> {
+    await db.delete(agents).where(eq(agents.id, id));
   }
 
   // WhatsApp connection operations
@@ -555,6 +620,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(whatsappConnections.id, id))
       .returning();
     return connection;
+  }
+
+  async deleteConnection(id: string): Promise<void> {
+    await db.delete(whatsappConnections).where(eq(whatsappConnections.id, id));
   }
 
   // Conversation operations
@@ -2458,6 +2527,84 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     return result;
   }
 
+  // =============================================================================
+  // MEDIA FLOWS - Sequencia de midias por agente
+  // =============================================================================
+
+  async getMediaFlows(): Promise<MediaFlow[]> {
+    return await db
+      .select()
+      .from(mediaFlows)
+      .orderBy(desc(mediaFlows.createdAt));
+  }
+
+  async getMediaFlow(id: string): Promise<MediaFlow | undefined> {
+    const [result] = await db
+      .select()
+      .from(mediaFlows)
+      .where(eq(mediaFlows.id, id));
+    return result;
+  }
+
+  async createMediaFlow(data: InsertMediaFlow): Promise<MediaFlow> {
+    const [result] = await db
+      .insert(mediaFlows)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async updateMediaFlow(id: string, data: Partial<InsertMediaFlow>): Promise<MediaFlow> {
+    const [result] = await db
+      .update(mediaFlows)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(mediaFlows.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteMediaFlow(id: string): Promise<void> {
+    await db.delete(mediaFlows).where(eq(mediaFlows.id, id));
+  }
+
+  async getMediaFlowItems(flowId: string): Promise<MediaFlowItem[]> {
+    return await db
+      .select()
+      .from(mediaFlowItems)
+      .where(eq(mediaFlowItems.flowId, flowId))
+      .orderBy(asc(mediaFlowItems.displayOrder), asc(mediaFlowItems.createdAt));
+  }
+
+  async createMediaFlowItem(data: InsertMediaFlowItem): Promise<MediaFlowItem> {
+    const [result] = await db
+      .insert(mediaFlowItems)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async updateMediaFlowItem(id: string, data: Partial<InsertMediaFlowItem>): Promise<MediaFlowItem> {
+    const [result] = await db
+      .update(mediaFlowItems)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(mediaFlowItems.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteMediaFlowItem(id: string): Promise<void> {
+    await db.delete(mediaFlowItems).where(eq(mediaFlowItems.id, id));
+  }
+
+  async reorderMediaFlowItems(flowId: string, orderedIds: string[]): Promise<void> {
+    for (let index = 0; index < orderedIds.length; index++) {
+      await db
+        .update(mediaFlowItems)
+        .set({ displayOrder: index, updatedAt: new Date() })
+        .where(and(eq(mediaFlowItems.flowId, flowId), eq(mediaFlowItems.id, orderedIds[index])));
+    }
+  }
+
 
 
   /**
@@ -3465,6 +3612,22 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
         .values(tagIds.map(tagId => ({ conversationId, tagId })))
         .onConflictDoNothing();
     }
+  }
+
+  /**
+   * Adiciona tags a várias conversas (mantém tags existentes).
+   */
+  async addTagsToConversations(conversationIds: string[], tagIds: string[]): Promise<void> {
+    if (conversationIds.length === 0 || tagIds.length === 0) return;
+
+    const values = conversationIds.flatMap(conversationId =>
+      tagIds.map(tagId => ({ conversationId, tagId }))
+    );
+
+    await db
+      .insert(conversationTags)
+      .values(values)
+      .onConflictDoNothing();
   }
 
   /**

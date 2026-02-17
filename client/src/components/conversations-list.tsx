@@ -1,9 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, MessageCircle, Smartphone, X, Tags, Filter, Check, CheckCheck, Circle, Mail, MailOpen, MessageSquarePlus } from "lucide-react";
+import { Search, MessageCircle, Smartphone, X, Tags, Filter, CheckCheck, Circle, Mail, MailOpen, MessageSquarePlus, Archive, ArchiveRestore, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@shared/schema";
@@ -32,6 +33,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { TagBadges, ConversationTagsModal } from "./conversation-tags";
 import { useToast } from "@/hooks/use-toast";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Tag interface
 interface Tag {
@@ -68,7 +70,10 @@ export function ConversationsList({
   const [avatarModalName, setAvatarModalName] = useState<string>("");
   
   // Status filter: "all" | "unread" | "replied" | "unreplied"
-  const [statusFilter, setStatusFilter] = useState<"all" | "unread" | "replied" | "unreplied">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "unread" | "replied" | "unreplied" | "archived">("all");
+  const [selectedConversationIds, setSelectedConversationIds] = useState<Set<string>>(new Set());
+  const [bulkTagDialogOpen, setBulkTagDialogOpen] = useState(false);
+  const [bulkSelectedTagIds, setBulkSelectedTagIds] = useState<Set<string>>(new Set());
   
   // New contact dialog
   const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
@@ -217,6 +222,9 @@ export function ConversationsList({
 
   // Apply status filter
   const statusFilteredConversations = filteredConversations.filter((conv) => {
+    if (statusFilter !== "archived" && conv.isArchived === true) {
+      return false;
+    }
     switch (statusFilter) {
       case "unread":
         // Não lidas: unreadCount > 0
@@ -227,9 +235,111 @@ export function ConversationsList({
       case "unreplied":
         // Pendentes: conversa NUNCA foi respondida (hasReplied = false)
         return !conv.hasReplied;
+      case "archived":
+        return conv.isArchived === true;
       default:
         return true;
     }
+  });
+
+  const visibleConversationIds = statusFilteredConversations.map(conv => conv.id);
+  const isAllVisibleSelected = visibleConversationIds.length > 0
+    && visibleConversationIds.every(id => selectedConversationIds.has(id));
+  const isSomeVisibleSelected = visibleConversationIds.some(id => selectedConversationIds.has(id));
+  const selectedIds = Array.from(selectedConversationIds);
+
+  const toggleConversationSelection = (conversationId: string, checked: boolean) => {
+    setSelectedConversationIds(prev => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(conversationId);
+      } else {
+        next.delete(conversationId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    setSelectedConversationIds(prev => {
+      const next = new Set(prev);
+      if (checked) {
+        visibleConversationIds.forEach(id => next.add(id));
+      } else {
+        visibleConversationIds.forEach(id => next.delete(id));
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedConversationIds(new Set());
+  };
+
+  const bulkReadMutation = useMutation({
+    mutationFn: async (conversationIds: string[]) => {
+      const response = await apiRequest("POST", "/api/conversations/bulk/read", { conversationIds });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({ title: "Conversas marcadas como lidas" });
+      clearSelection();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao marcar como lidas",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkArchiveMutation = useMutation({
+    mutationFn: async ({ conversationIds, archived }: { conversationIds: string[]; archived: boolean }) => {
+      const response = await apiRequest("POST", "/api/conversations/bulk/archive", {
+        conversationIds,
+        archived,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
+      toast({ title: statusFilter === "archived" ? "Conversas desarquivadas" : "Conversas arquivadas" });
+      clearSelection();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao arquivar",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkTagMutation = useMutation({
+    mutationFn: async ({ conversationIds, tagIds }: { conversationIds: string[]; tagIds: string[] }) => {
+      const response = await apiRequest("POST", "/api/conversations/bulk/tags", {
+        conversationIds,
+        tagIds,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
+      toast({ title: "Etiquetas aplicadas" });
+      setBulkTagDialogOpen(false);
+      setBulkSelectedTagIds(new Set());
+      clearSelection();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao etiquetar",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   // Handle creating new contact
@@ -282,13 +392,63 @@ export function ConversationsList({
     queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
   };
 
+  useEffect(() => {
+    if (bulkTagDialogOpen) {
+      setBulkSelectedTagIds(new Set());
+    }
+  }, [bulkTagDialogOpen]);
+
+  const toggleBulkTag = (tagId: string) => {
+    setBulkSelectedTagIds(prev => {
+      const next = new Set(prev);
+      if (next.has(tagId)) {
+        next.delete(tagId);
+      } else {
+        next.add(tagId);
+      }
+      return next;
+    });
+  };
+
+  const handleBulkTagSave = () => {
+    const tagIds = Array.from(bulkSelectedTagIds);
+    if (selectedIds.length === 0) {
+      toast({
+        title: "Nenhuma conversa selecionada",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (tagIds.length === 0) {
+      toast({
+        title: "Selecione pelo menos uma etiqueta",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    bulkTagMutation.mutate({ conversationIds: selectedIds, tagIds });
+  };
+
   const activeFilterTag = availableTags.find(t => t.id === selectedTagFilter);
+  const archiveActionLabel = statusFilter === "archived" ? "Desarquivar" : "Arquivar";
+  const ArchiveActionIcon = statusFilter === "archived" ? ArchiveRestore : Archive;
 
   return (
     <div className="flex flex-col h-full">
       <div className="p-3 md:p-4 border-b space-y-3 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Conversas</h2>
+          <div className="flex items-center gap-2">
+            {statusFilteredConversations.length > 0 && (
+              <Checkbox
+                checked={isAllVisibleSelected ? true : isSomeVisibleSelected ? "indeterminate" : false}
+                onCheckedChange={(checked) => toggleSelectAllVisible(checked === true)}
+                aria-label="Selecionar todas as conversas visíveis"
+                className="data-[state=checked]:bg-primary"
+              />
+            )}
+            <h2 className="font-semibold text-lg">Conversas</h2>
+          </div>
           <div className="flex items-center gap-2">
             {/* Botão novo contato */}
             <Button
@@ -349,7 +509,7 @@ export function ConversationsList({
         
         {/* Filtros de status estilo WhatsApp */}
         <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="w-full">
-          <TabsList className="w-full grid grid-cols-4 h-8">
+          <TabsList className="w-full grid grid-cols-5 h-8">
             <TabsTrigger value="all" className="text-xs px-2 py-1">
               Todas
             </TabsTrigger>
@@ -364,6 +524,10 @@ export function ConversationsList({
             <TabsTrigger value="unreplied" className="text-xs px-2 py-1">
               <Mail className="w-3 h-3 mr-1" />
               Pendentes
+            </TabsTrigger>
+            <TabsTrigger value="archived" className="text-xs px-2 py-1">
+              <Archive className="w-3 h-3 mr-1" />
+              Arquivadas
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -402,6 +566,65 @@ export function ConversationsList({
             </span>
           </div>
         )}
+
+        {selectedConversationIds.size > 0 && (
+          <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-2 py-2">
+            <span className="text-xs text-muted-foreground">
+              {selectedConversationIds.size} selecionada(s)
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => bulkArchiveMutation.mutate({
+                  conversationIds: selectedIds,
+                  archived: statusFilter !== "archived",
+                })}
+                disabled={bulkArchiveMutation.isPending}
+              >
+                {bulkArchiveMutation.isPending ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <ArchiveActionIcon className="w-3 h-3 mr-1" />
+                )}
+                <span className="text-xs">{archiveActionLabel}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => bulkReadMutation.mutate(selectedIds)}
+                disabled={bulkReadMutation.isPending}
+              >
+                {bulkReadMutation.isPending ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <MailOpen className="w-3 h-3 mr-1" />
+                )}
+                <span className="text-xs">Marcar lidas</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => setBulkTagDialogOpen(true)}
+              >
+                <Tags className="w-3 h-3 mr-1" />
+                <span className="text-xs">Etiquetar</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={clearSelection}
+                title="Limpar seleção"
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
@@ -437,7 +660,7 @@ export function ConversationsList({
                 : selectedTagFilter 
                   ? "Nenhuma conversa com esta etiqueta"
                   : statusFilter !== "all"
-                    ? `Nenhuma conversa ${statusFilter === "unread" ? "não lida" : statusFilter === "replied" ? "respondida" : "pendente"}`
+                    ? `Nenhuma conversa ${statusFilter === "unread" ? "não lida" : statusFilter === "replied" ? "respondida" : statusFilter === "unreplied" ? "pendente" : "arquivada"}`
                     : "As conversas aparecerão aqui quando você receber mensagens"}
             </p>
             {(selectedTagFilter || statusFilter !== "all") && (
@@ -474,6 +697,17 @@ export function ConversationsList({
                   data-testid={`conversation-item-${conversation.id}`}
                 >
                   <div className="flex items-start gap-3">
+                    <div
+                      className="pt-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Checkbox
+                        checked={selectedConversationIds.has(conversation.id)}
+                        onCheckedChange={(checked) => toggleConversationSelection(conversation.id, checked === true)}
+                        aria-label={`Selecionar ${conversation.contactName || displayNumber}`}
+                        className="data-[state=checked]:bg-primary"
+                      />
+                    </div>
                     <Avatar className="w-11 h-11 md:w-12 md:h-12 flex-shrink-0">
                       {conversation.contactAvatar ? (
                         <img 
@@ -556,6 +790,77 @@ export function ConversationsList({
         )}
       </div>
       
+      {/* Modal de etiquetas em massa */}
+      <Dialog open={bulkTagDialogOpen} onOpenChange={setBulkTagDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tags className="w-5 h-5" />
+              Etiquetar Conversas
+            </DialogTitle>
+            <DialogDescription>
+              Aplique etiquetas às conversas selecionadas
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="max-h-[300px] pr-3">
+            {availableTags.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                <Tags className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>Nenhuma etiqueta criada</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {availableTags.map(tag => (
+                  <label
+                    key={tag.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                      bulkSelectedTagIds.has(tag.id)
+                        ? "bg-accent border-primary"
+                        : "hover:bg-accent/50"
+                    }`}
+                  >
+                    <Checkbox
+                      checked={bulkSelectedTagIds.has(tag.id)}
+                      onCheckedChange={() => toggleBulkTag(tag.id)}
+                      className="data-[state=checked]:bg-primary"
+                    />
+                    <div
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: tag.color }}
+                    />
+                    <span className="font-medium flex-1">{tag.name}</span>
+                    <Badge
+                      style={{
+                        backgroundColor: `${tag.color}20`,
+                        color: tag.color,
+                        borderColor: tag.color,
+                      }}
+                      variant="outline"
+                      className="text-xs"
+                    >
+                      {tag.name}
+                    </Badge>
+                  </label>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkTagDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleBulkTagSave} disabled={bulkTagMutation.isPending}>
+              {bulkTagMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal de foto ampliada */}
       <Dialog open={avatarModalOpen} onOpenChange={setAvatarModalOpen}>
         <DialogContent className="max-w-2xl p-0 overflow-hidden bg-black/90">

@@ -445,20 +445,18 @@ export function ContactDetailsPanel({ conversation, connectionId, onClose }: Con
                 )}
                 Extrair com IA
               </Button>
-              {hasChanges && (
-                <Button
-                  size="sm"
-                  onClick={() => saveFieldsMutation.mutate()}
-                  disabled={saveFieldsMutation.isPending}
-                >
-                  {saveFieldsMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  Salvar
-                </Button>
-              )}
+              <Button
+                size="sm"
+                onClick={() => saveFieldsMutation.mutate()}
+                disabled={!hasChanges || saveFieldsMutation.isPending}
+              >
+                {saveFieldsMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Salvar
+              </Button>
             </div>
 
             {/* Lista de Campos */}

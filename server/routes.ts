@@ -415,6 +415,9 @@ import {
   insertPaymentSchema,
 
   agentMediaSchema,
+  agentSchema,
+  mediaFlowSchema,
+  mediaFlowItemSchema,
 
 } from "@shared/schema";
 
@@ -1255,6 +1258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check current connection status
 
       const connection = await storage.getConnectionByUserId(userId);
+      const devMode = process.env.SKIP_WHATSAPP_RESTORE === 'true' || process.env.DISABLE_WHATSAPP_PROCESSING === 'true';
 
       console.log(`[ADMIN] User ${userId} connection status:`, {
 
@@ -1779,6 +1783,316 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+
+  // ==================== ADMIN AGENTS E CONEXOES ====================
+  app.get("/api/admin/agents", isAdmin, async (req, res) => {
+    try {
+      const agents = await storage.getAgents();
+      res.json(agents);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao listar agentes:", error);
+      res.status(500).json({ message: "Erro ao listar agentes" });
+    }
+  });
+
+  app.post("/api/admin/agents", isAdmin, async (req, res) => {
+    try {
+      const parsed = agentSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+      const agent = await storage.createAgent(parsed.data);
+      res.json(agent);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao criar agente:", error);
+      res.status(500).json({ message: "Erro ao criar agente" });
+    }
+  });
+
+  app.put("/api/admin/agents/:id", isAdmin, async (req, res) => {
+    try {
+      const parsed = agentSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+      const agent = await storage.updateAgent(req.params.id, parsed.data);
+      res.json(agent);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao atualizar agente:", error);
+      res.status(500).json({ message: "Erro ao atualizar agente" });
+    }
+  });
+
+  app.delete("/api/admin/agents/:id", isAdmin, async (req, res) => {
+    try {
+      await storage.deleteAgent(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[ADMIN] Erro ao excluir agente:", error);
+      res.status(500).json({ message: "Erro ao excluir agente" });
+    }
+  });
+
+  app.get("/api/admin/connections", isAdmin, async (req, res) => {
+    try {
+      const [connections, users, agents] = await Promise.all([
+        storage.getAllConnections(),
+        storage.getAllUsers(),
+        storage.getAgents(),
+      ]);
+
+      const userMap = new Map(users.map((user) => [user.id, user]));
+      const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
+
+      const payload = connections.map((connection) => ({
+        ...connection,
+        user: userMap.get(connection.userId) || null,
+        agent: connection.agentId ? agentMap.get(connection.agentId) || null : null,
+      }));
+
+      res.json(payload);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao listar conexoes:", error);
+      res.status(500).json({ message: "Erro ao listar conexoes" });
+    }
+  });
+
+  app.post("/api/admin/connections", isAdmin, async (req, res) => {
+    try {
+      const schema = z.object({
+        userId: z.string().min(1),
+        agentId: z.string().min(1),
+        phoneNumber: z.string().optional().nullable(),
+        isConnected: z.boolean().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+
+      const user = await storage.getUser(parsed.data.userId);
+      if (!user) {
+        return res.status(404).json({ message: "Usuario nao encontrado" });
+      }
+
+      const agent = await storage.getAgent(parsed.data.agentId);
+      if (!agent) {
+        return res.status(404).json({ message: "Agente nao encontrado" });
+      }
+
+      const connection = await storage.createConnection({
+        userId: parsed.data.userId,
+        agentId: parsed.data.agentId,
+        phoneNumber: parsed.data.phoneNumber || null,
+        isConnected: parsed.data.isConnected ?? false,
+      });
+
+      res.json(connection);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao criar conexao:", error);
+      res.status(500).json({ message: "Erro ao criar conexao" });
+    }
+  });
+
+  app.put("/api/admin/connections/:id", isAdmin, async (req, res) => {
+    try {
+      const schema = z.object({
+        userId: z.string().optional(),
+        agentId: z.string().optional(),
+        phoneNumber: z.string().optional().nullable(),
+        isConnected: z.boolean().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+
+      if (parsed.data.userId) {
+        const user = await storage.getUser(parsed.data.userId);
+        if (!user) {
+          return res.status(404).json({ message: "Usuario nao encontrado" });
+        }
+      }
+
+      if (parsed.data.agentId) {
+        const agent = await storage.getAgent(parsed.data.agentId);
+        if (!agent) {
+          return res.status(404).json({ message: "Agente nao encontrado" });
+        }
+      }
+
+      const connection = await storage.updateConnection(req.params.id, parsed.data);
+      res.json(connection);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao atualizar conexao:", error);
+      res.status(500).json({ message: "Erro ao atualizar conexao" });
+    }
+  });
+
+  app.delete("/api/admin/connections/:id", isAdmin, async (req, res) => {
+    try {
+      await storage.deleteConnection(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[ADMIN] Erro ao excluir conexao:", error);
+      res.status(500).json({ message: "Erro ao excluir conexao" });
+    }
+  });
+
+  // ==================== ADMIN MEDIA FLOWS ====================
+  app.get("/api/admin/media-flows", isAdmin, async (req, res) => {
+    try {
+      const [flows, agents] = await Promise.all([
+        storage.getMediaFlows(),
+        storage.getAgents(),
+      ]);
+      const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
+      const itemsByFlow = await Promise.all(
+        flows.map((flow) => storage.getMediaFlowItems(flow.id))
+      );
+      const payload = flows.map((flow, index) => ({
+        ...flow,
+        agent: agentMap.get(flow.agentId) || null,
+        items: itemsByFlow[index] || [],
+      }));
+      res.json(payload);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao listar media flows:", error);
+      res.status(500).json({ message: "Erro ao listar media flows" });
+    }
+  });
+
+  app.post("/api/admin/media-flows", isAdmin, async (req, res) => {
+    try {
+      const parsed = mediaFlowSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+
+      const agent = await storage.getAgent(parsed.data.agentId);
+      if (!agent) {
+        return res.status(404).json({ message: "Agente nao encontrado" });
+      }
+
+      const flow = await storage.createMediaFlow(parsed.data);
+      res.json(flow);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao criar media flow:", error);
+      res.status(500).json({ message: "Erro ao criar media flow" });
+    }
+  });
+
+  app.put("/api/admin/media-flows/:id", isAdmin, async (req, res) => {
+    try {
+      const parsed = mediaFlowSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+
+      if (parsed.data.agentId) {
+        const agent = await storage.getAgent(parsed.data.agentId);
+        if (!agent) {
+          return res.status(404).json({ message: "Agente nao encontrado" });
+        }
+      }
+
+      const flow = await storage.updateMediaFlow(req.params.id, parsed.data);
+      res.json(flow);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao atualizar media flow:", error);
+      res.status(500).json({ message: "Erro ao atualizar media flow" });
+    }
+  });
+
+  app.delete("/api/admin/media-flows/:id", isAdmin, async (req, res) => {
+    try {
+      await storage.deleteMediaFlow(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[ADMIN] Erro ao excluir media flow:", error);
+      res.status(500).json({ message: "Erro ao excluir media flow" });
+    }
+  });
+
+  app.post("/api/admin/media-flows/:id/items", isAdmin, async (req, res) => {
+    try {
+      const schema = mediaFlowItemSchema.extend({
+        flowId: z.string().optional(),
+        displayOrder: z.number().int().min(0).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+
+      const flowId = req.params.id;
+      const existingItems = await storage.getMediaFlowItems(flowId);
+      const displayOrder = parsed.data.displayOrder ?? existingItems.length;
+
+      const item = await storage.createMediaFlowItem({
+        flowId,
+        mediaId: parsed.data.mediaId || null,
+        mediaName: parsed.data.mediaName,
+        mediaType: parsed.data.mediaType,
+        storageUrl: parsed.data.storageUrl,
+        caption: parsed.data.caption || null,
+        delaySeconds: parsed.data.delaySeconds ?? 0,
+        displayOrder,
+      });
+      res.json(item);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao criar item do media flow:", error);
+      res.status(500).json({ message: "Erro ao criar item do media flow" });
+    }
+  });
+
+  app.put("/api/admin/media-flows/items/:itemId", isAdmin, async (req, res) => {
+    try {
+      const schema = z.object({
+        delaySeconds: z.number().int().min(0).optional(),
+        caption: z.string().optional().nullable(),
+        displayOrder: z.number().int().min(0).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+
+      const item = await storage.updateMediaFlowItem(req.params.itemId, parsed.data);
+      res.json(item);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao atualizar item do media flow:", error);
+      res.status(500).json({ message: "Erro ao atualizar item do media flow" });
+    }
+  });
+
+  app.delete("/api/admin/media-flows/items/:itemId", isAdmin, async (req, res) => {
+    try {
+      await storage.deleteMediaFlowItem(req.params.itemId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[ADMIN] Erro ao excluir item do media flow:", error);
+      res.status(500).json({ message: "Erro ao excluir item do media flow" });
+    }
+  });
+
+  app.post("/api/admin/media-flows/:id/reorder", isAdmin, async (req, res) => {
+    try {
+      const schema = z.object({
+        order: z.array(z.string().min(1)),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+
+      await storage.reorderMediaFlowItems(req.params.id, parsed.data.order);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[ADMIN] Erro ao reordenar media flow:", error);
+      res.status(500).json({ message: "Erro ao reordenar media flow" });
+    }
+  });
 
   // Bulk delete users
 
@@ -3164,6 +3478,16 @@ Responda apenas com o n√∫mero do √≠ndice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
+      if (devMode) {
+        return res.json({
+          ...connection,
+          isConnected: false,
+          phoneNumber: connection.phoneNumber,
+          _devMode: true,
+          _message: 'Modo desenvolvimento - WhatsApp desabilitado',
+        });
+      }
+
 
 
       // -----------------------------------------------------------------------
@@ -4368,6 +4692,113 @@ Responda apenas com o n√∫mero do √≠ndice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
+  // POST - AÁıes em massa nas conversas (marcar como lida)
+  app.post("/api/conversations/bulk/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+
+      if (conversationIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa obrigatÛrios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp n„o conectado" });
+      }
+
+      const updated = await db
+        .update(conversationsTable)
+        .set({ unreadCount: 0, updatedAt: new Date() })
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ))
+        .returning({ id: conversationsTable.id });
+
+      res.json({ updated: updated.length });
+    } catch (error) {
+      console.error("Error marking conversations as read:", error);
+      res.status(500).json({ message: "Failed to mark conversations as read" });
+    }
+  });
+
+  // POST - AÁıes em massa nas conversas (arquivar/desarquivar)
+  app.post("/api/conversations/bulk/archive", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+      const archived = req.body?.archived === false ? false : true;
+
+      if (conversationIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa obrigatÛrios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp n„o conectado" });
+      }
+
+      const updated = await db
+        .update(conversationsTable)
+        .set({ isArchived: archived, updatedAt: new Date() })
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ))
+        .returning({ id: conversationsTable.id });
+
+      res.json({ updated: updated.length });
+    } catch (error) {
+      console.error("Error archiving conversations:", error);
+      res.status(500).json({ message: "Failed to archive conversations" });
+    }
+  });
+
+  // POST - AÁıes em massa nas conversas (etiquetar)
+  app.post("/api/conversations/bulk/tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+      const tagIds = Array.isArray(req.body?.tagIds)
+        ? req.body.tagIds.filter(Boolean)
+        : [];
+
+      if (conversationIds.length === 0 || tagIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa e etiquetas s„o obrigatÛrios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp n„o conectado" });
+      }
+
+      const validConversations = await db
+        .select({ id: conversationsTable.id })
+        .from(conversationsTable)
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ));
+
+      const validIds = validConversations.map(conv => conv.id);
+      if (validIds.length === 0) {
+        return res.json({ updated: 0 });
+      }
+
+      await storage.addTagsToConversations(validIds, tagIds);
+      res.json({ updated: validIds.length });
+    } catch (error) {
+      console.error("Error tagging conversations:", error);
+      res.status(500).json({ message: "Failed to tag conversations" });
+    }
+  });
   // ==================== CUSTOM FIELDS - CAMPOS PERSONALIZADOS ====================
 
   // Similar ao Digisac: Nome, Empresa, Email, CPF/CNPJ, Endere√ßo, etc.
@@ -11133,8 +11564,57 @@ ${config.ai_instructions || ''}
         return res.status(403).json({ message: "Assinatura n√£o encontrada ou n√£o pertence ao usu√°rio" });
       }
 
+      // Remover comprovantes duplicados pendentes da mesma assinatura/pagamento
+      const duplicatesQuery = supabase
+        .from("payment_receipts")
+        .select("id, receipt_url")
+        .eq("subscription_id", subscriptionId)
+        .eq("status", "pending");
+
+      if (paymentId) {
+        duplicatesQuery.eq("mp_payment_id", paymentId);
+      }
+
+      const { data: duplicateReceipts, error: duplicateError } = await duplicatesQuery;
+
+      if (duplicateError) {
+        console.error("Error checking duplicate receipts:", duplicateError);
+      } else if (duplicateReceipts && duplicateReceipts.length > 0) {
+        const extractStoragePath = (url: string) => {
+          if (!url) return null;
+          if (url.startsWith("receipts/")) return url;
+          const marker = "/payment-receipts/";
+          const markerIndex = url.indexOf(marker);
+          if (markerIndex === -1) return null;
+          return url.slice(markerIndex + marker.length);
+        };
+
+        const pathsToRemove = duplicateReceipts
+          .map((receipt: any) => extractStoragePath(receipt.receipt_url))
+          .filter((path: string | null) => Boolean(path)) as string[];
+
+        if (pathsToRemove.length > 0) {
+          const { error: removeError } = await supabase.storage
+            .from("payment-receipts")
+            .remove(pathsToRemove);
+          if (removeError) {
+            console.error("Error removing duplicate receipt files:", removeError);
+          }
+        }
+
+        const { error: deleteError } = await supabase
+          .from("payment_receipts")
+          .delete()
+          .in("id", duplicateReceipts.map((receipt: any) => receipt.id));
+
+        if (deleteError) {
+          console.error("Error removing duplicate receipt records:", deleteError);
+        }
+      }
+
       // Upload do arquivo para Supabase Storage
-      const fileName = `receipts/${userId}/${Date.now()}_${file.originalname}`;
+      const safeOriginalName = file.originalname.replace(/[^\w.\-]+/g, "_");
+      const fileName = `receipts/${userId}/${Date.now()}_${safeOriginalName}`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("payment-receipts")
         .upload(fileName, file.buffer, {
@@ -24488,7 +24968,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // ??? MODO DESENVOLVIMENTO: N√£o sincronizar estado para n√£o afetar produ√ß√£o
 
-      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true' || process.env.DISABLE_WHATSAPP_PROCESSING === 'true') {
 
         console.log(`?? [DEV MODE] Retornando estado do banco sem sincronizar (prote√ß√£o de produ√ß√£o)`);
 
@@ -24496,7 +24976,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           ...(connection || {}),
 
-          isConnected: connection?.isConnected || false,
+          isConnected: false,
 
           phoneNumber: connection?.phoneNumber,
 
@@ -46858,6 +47338,7 @@ function generateRandomPassword(): string {
   return password;
 
 }
+
 
 
 

@@ -21,7 +21,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft, Mic, User, Forward, Share2 } from "lucide-react";
+import { Send, MessageCircle, Bot, BotOff, Smartphone, X, Trash2, Sparkles, Clock, CalendarPlus, Loader2, ArrowLeft, Mic, User, Forward, Share2, PhoneOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -72,6 +72,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
   const [forwardTargetNumber, setForwardTargetNumber] = useState("");
   const [forwarding, setForwarding] = useState(false);
   const [forwardContactSearch, setForwardContactSearch] = useState("");
+  const closeCallMessage = "Atendimento encerrado. Se precisar de algo mais, estamos à disposição.";
   
   // Detectar se é mobile
   const isMobile = typeof window !== 'undefined' && (
@@ -148,6 +149,15 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
   }>({
     queryKey: ["/api/auth/user"],
   });
+
+  const { data: accessStatus } = useQuery<{ planName: string | null }>({
+    queryKey: ["/api/access-status"],
+    enabled: !!conversationId,
+  });
+
+  const planLabel = accessStatus
+    ? (accessStatus.planName ? `Plano: ${accessStatus.planName}` : "Plano: Sem plano")
+    : "Plano: ...";
 
   // 🔧 FIX: Quando conversa é carregada (marcada como lida no backend), atualizar lista de conversas
   useEffect(() => {
@@ -275,6 +285,40 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
     onError: (error: Error) => {
       toast({
         title: "Erro ao alterar follow-up",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const closeConversationMutation = useMutation({
+    mutationFn: async () => {
+      if (!conversationId) {
+        throw new Error("Conversa inválida");
+      }
+
+      await apiRequest("POST", "/api/messages/send", {
+        conversationId,
+        text: closeCallMessage,
+      });
+
+      await apiRequest("POST", `/api/followup/conversation/${conversationId}/toggle`, { active: false });
+      await apiRequest("POST", `/api/agent/toggle/${conversationId}`, { disable: true });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/status", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/followup/conversation", conversationId, "status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
+      toast({
+        title: "Atendimento encerrado",
+        description: "Mensagem de encerramento enviada e atendimento fechado.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao encerrar atendimento",
         description: error.message,
         variant: "destructive",
       });
@@ -930,6 +974,9 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
           <h3 className="font-semibold truncate" data-testid="text-contact-name">
             {conversation?.contactName || displayNumber}
           </h3>
+          <p className="text-xs text-muted-foreground">
+            {planLabel}
+          </p>
           <p className="text-xs text-muted-foreground font-mono">
             {displayNumber}
           </p>
@@ -1045,6 +1092,45 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 h-7 px-2"
+                disabled={closeConversationMutation.isPending}
+                data-testid="button-close-call"
+              >
+                {closeConversationMutation.isPending ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <PhoneOff className="w-3 h-3" />
+                )}
+                <span className="hidden md:inline text-xs">Encerrar Chamado</span>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Encerrar atendimento?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Isso envia uma mensagem de encerramento e pausa o follow-up e a IA.
+                  <div className="mt-2 rounded border bg-muted/50 p-2 text-xs text-foreground">
+                    {closeCallMessage}
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => closeConversationMutation.mutate()}
+                  disabled={closeConversationMutation.isPending}
+                >
+                  {closeConversationMutation.isPending ? "Encerrando..." : "Encerrar"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           
           {/* Botão para abrir painel de detalhes do contato */}
           {onOpenContactPanel && (

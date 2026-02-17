@@ -128,10 +128,24 @@ export const teamMemberSessions = pgTable("team_member_sessions", {
   index("idx_team_member_sessions_token").on(table.token),
 ]);
 
+// Agents table - agentes com prompt personalizavel para conexoes multiplas
+export const agents = pgTable("agents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  prompt: text("prompt").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_agents_name").on(table.name),
+  index("idx_agents_active").on(table.isActive),
+]);
+
 // WhatsApp connections table
 export const whatsappConnections = pgTable("whatsapp_connections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  agentId: varchar("agent_id").references(() => agents.id, { onDelete: 'set null' }),
   phoneNumber: varchar("phone_number"),
   isConnected: boolean("is_connected").default(false).notNull(),
   qrCode: text("qr_code"),
@@ -235,6 +249,7 @@ export const conversations = pgTable("conversations", {
   lastMessageTime: timestamp("last_message_time"),
   lastMessageFromMe: boolean("last_message_from_me"),
   unreadCount: integer("unread_count").default(0).notNull(),
+  isArchived: boolean("is_archived").default(false).notNull(),
   // Flag para rastrear se a conversa já foi respondida alguma vez pelo atendente
   hasReplied: boolean("has_replied").default(false).notNull(),
   // Follow-up Inteligente
@@ -590,6 +605,38 @@ export const adminAgentMedia = pgTable("admin_agent_media", {
   index("idx_admin_agent_media_active").on(table.isActive),
 ]);
 
+// Media Flows table - sequencias de midias por agente
+export const mediaFlows = pgTable("media_flows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_media_flows_agent").on(table.agentId),
+  index("idx_media_flows_active").on(table.isActive),
+]);
+
+// Media Flow Items table - itens de midia em ordem com delays
+export const mediaFlowItems = pgTable("media_flow_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  flowId: varchar("flow_id").notNull().references(() => mediaFlows.id, { onDelete: "cascade" }),
+  mediaId: varchar("media_id", { length: 255 }),
+  mediaName: varchar("media_name", { length: 255 }).notNull(),
+  mediaType: varchar("media_type", { length: 50 }).notNull(),
+  storageUrl: text("storage_url").notNull(),
+  caption: text("caption"),
+  delaySeconds: integer("delay_seconds").default(0).notNull(),
+  displayOrder: integer("display_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_media_flow_items_flow").on(table.flowId),
+  index("idx_media_flow_items_order").on(table.flowId, table.displayOrder),
+]);
+
 // Plans table
 export const plans = pgTable("plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -892,6 +939,26 @@ export const conversationTagsRelations = relations(conversationTags, ({ one }) =
   }),
 }));
 
+export const agentsRelations = relations(agents, ({ many }) => ({
+  connections: many(whatsappConnections),
+  mediaFlows: many(mediaFlows),
+}));
+
+export const mediaFlowsRelations = relations(mediaFlows, ({ one, many }) => ({
+  agent: one(agents, {
+    fields: [mediaFlows.agentId],
+    references: [agents.id],
+  }),
+  items: many(mediaFlowItems),
+}));
+
+export const mediaFlowItemsRelations = relations(mediaFlowItems, ({ one }) => ({
+  flow: one(mediaFlows, {
+    fields: [mediaFlowItems.flowId],
+    references: [mediaFlows.id],
+  }),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   whatsappConnections: many(whatsappConnections),
@@ -910,6 +977,10 @@ export const whatsappConnectionsRelations = relations(whatsappConnections, ({ on
   user: one(users, {
     fields: [whatsappConnections.userId],
     references: [users.id],
+  }),
+  agent: one(agents, {
+    fields: [whatsappConnections.agentId],
+    references: [agents.id],
   }),
   conversations: many(conversations),
   contacts: many(whatsappContacts),
@@ -976,6 +1047,20 @@ export const adminWhatsappConnectionRelations = relations(adminWhatsappConnectio
 export type User = typeof users.$inferSelect;
 export type UpsertUser = typeof users.$inferInsert;
 
+export const insertAgentSchema = createInsertSchema(agents).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const agentSchema = z.object({
+  name: z.string().min(1, "Nome do agente Ã© obrigatÃ³rio").max(255),
+  prompt: z.string().min(1, "Prompt do agente Ã© obrigatÃ³rio"),
+  isActive: z.boolean().default(true),
+});
+export type Agent = typeof agents.$inferSelect;
+export type InsertAgent = z.infer<typeof insertAgentSchema>;
+export type AgentInput = z.infer<typeof agentSchema>;
+
 export const insertWhatsappConnectionSchema = createInsertSchema(whatsappConnections).omit({
   id: true,
   createdAt: true,
@@ -983,6 +1068,40 @@ export const insertWhatsappConnectionSchema = createInsertSchema(whatsappConnect
 });
 export type InsertWhatsappConnection = z.infer<typeof insertWhatsappConnectionSchema>;
 export type WhatsappConnection = typeof whatsappConnections.$inferSelect;
+
+export const insertMediaFlowSchema = createInsertSchema(mediaFlows).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const mediaFlowSchema = z.object({
+  agentId: z.string().min(1, "Agente Ã© obrigatÃ³rio"),
+  name: z.string().min(1, "Nome do fluxo Ã© obrigatÃ³rio").max(255),
+  description: z.string().max(2000).optional().nullable(),
+  isActive: z.boolean().default(true),
+});
+export type MediaFlow = typeof mediaFlows.$inferSelect;
+export type InsertMediaFlow = z.infer<typeof insertMediaFlowSchema>;
+export type MediaFlowInput = z.infer<typeof mediaFlowSchema>;
+
+export const insertMediaFlowItemSchema = createInsertSchema(mediaFlowItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const mediaFlowItemSchema = z.object({
+  flowId: z.string().min(1, "Fluxo Ã© obrigatÃ³rio"),
+  mediaId: z.string().optional().nullable(),
+  mediaName: z.string().min(1, "Nome da mÃ­dia Ã© obrigatÃ³rio").max(255),
+  mediaType: z.enum(["audio", "image", "video", "document"]),
+  storageUrl: z.string().min(1, "URL da mÃ­dia Ã© obrigatÃ³ria"),
+  caption: z.string().max(2000).optional().nullable(),
+  delaySeconds: z.number().int().min(0).default(0),
+  displayOrder: z.number().int().min(0).default(0),
+});
+export type MediaFlowItem = typeof mediaFlowItems.$inferSelect;
+export type InsertMediaFlowItem = z.infer<typeof insertMediaFlowItemSchema>;
+export type MediaFlowItemInput = z.infer<typeof mediaFlowItemSchema>;
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,
@@ -1798,6 +1917,11 @@ export const appointments = pgTable("appointments", {
   // Notas
   clientNotes: text("client_notes"),
   internalNotes: text("internal_notes"),
+
+  // Mensagem personalizada (agendamento manual)
+  customMessage: text("custom_message"),
+  useCustomMessage: boolean("use_custom_message").default(false),
+  customMessageSentAt: timestamp("custom_message_sent_at"),
   
   // IA
   createdByAi: boolean("created_by_ai").default(false),
@@ -1845,6 +1969,59 @@ export const schedulingExceptions = pgTable("scheduling_exceptions", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("idx_scheduling_exceptions_user_date").on(table.userId, table.exceptionDate),
+]);
+
+// ==================== WHATSAPP STATUS (AGENDADO/ROTATIVO) ====================
+
+export const scheduledStatus = pgTable("scheduled_status", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  statusText: text("status_text").notNull(),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  recurrenceType: varchar("recurrence_type", { length: 20 }).default("none").notNull(),
+  recurrenceInterval: integer("recurrence_interval").default(1).notNull(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  lastSentAt: timestamp("last_sent_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_scheduled_status_user").on(table.userId),
+  index("idx_scheduled_status_scheduled_for").on(table.scheduledFor),
+  index("idx_scheduled_status_status").on(table.status),
+]);
+
+export const statusRotation = pgTable("status_rotation", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar("name", { length: 120 }).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  mode: varchar("mode", { length: 20 }).default("sequential").notNull(),
+  intervalMinutes: integer("interval_minutes").default(240).notNull(),
+  lastSentAt: timestamp("last_sent_at"),
+  nextRunAt: timestamp("next_run_at"),
+  lastItemId: varchar("last_item_id", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_status_rotation_user").on(table.userId),
+  index("idx_status_rotation_active").on(table.isActive),
+  index("idx_status_rotation_next_run").on(table.nextRunAt),
+]);
+
+export const statusRotationItems = pgTable("status_rotation_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rotationId: varchar("rotation_id").notNull().references(() => statusRotation.id, { onDelete: 'cascade' }),
+  statusText: text("status_text").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  displayOrder: integer("display_order").default(0),
+  weight: integer("weight").default(1),
+  lastSentAt: timestamp("last_sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_status_rotation_items_rotation").on(table.rotationId),
+  index("idx_status_rotation_items_active").on(table.isActive),
 ]);
 
 // ==================== SERVIÇOS DE AGENDAMENTO ====================
@@ -2007,6 +2184,27 @@ export const insertProfessionalServiceSchema = createInsertSchema(professionalSe
   createdAt: true,
 });
 
+export const insertScheduledStatusSchema = createInsertSchema(scheduledStatus).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastSentAt: true,
+});
+
+export const insertStatusRotationSchema = createInsertSchema(statusRotation).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastSentAt: true,
+});
+
+export const insertStatusRotationItemSchema = createInsertSchema(statusRotationItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastSentAt: true,
+});
+
 // Types de Agendamentos
 export type SchedulingConfig = typeof schedulingConfig.$inferSelect;
 export type InsertSchedulingConfig = z.infer<typeof insertSchedulingConfigSchema>;
@@ -2024,6 +2222,13 @@ export type ProfessionalService = typeof professionalServices.$inferSelect;
 export type InsertProfessionalService = z.infer<typeof insertProfessionalServiceSchema>;
 export type InsertSchedulingException = z.infer<typeof insertSchedulingExceptionSchema>;
 export type GoogleCalendarToken = typeof googleCalendarTokens.$inferSelect;
+
+export type ScheduledStatus = typeof scheduledStatus.$inferSelect;
+export type InsertScheduledStatus = z.infer<typeof insertScheduledStatusSchema>;
+export type StatusRotation = typeof statusRotation.$inferSelect;
+export type InsertStatusRotation = z.infer<typeof insertStatusRotationSchema>;
+export type StatusRotationItem = typeof statusRotationItems.$inferSelect;
+export type InsertStatusRotationItem = z.infer<typeof insertStatusRotationItemSchema>;
 
 // =============================================================================
 // SISTEMA DE REVENDA WHITE-LABEL
@@ -2166,6 +2371,35 @@ export const resellerPayments = pgTable("reseller_payments", {
   index("idx_reseller_payments_reference").on(table.referenceMonth),
 ]);
 
+// Lembretes de pagamento (reseller -> cliente)
+export const paymentReminders = pgTable("payment_reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  resellerId: varchar("reseller_id").references(() => resellers.id, { onDelete: 'cascade' }),
+  resellerClientId: varchar("reseller_client_id").references(() => resellerClients.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  dueDate: timestamp("due_date"),
+  amount: numeric("amount", { precision: 10, scale: 2 }),
+  status: varchar("status", { length: 30 }).default("pending").notNull(),
+  reminderType: varchar("reminder_type", { length: 30 }).default("before_due"),
+  daysOffset: integer("days_offset"),
+  messageTemplate: text("message_template"),
+  messageFinal: text("message_final"),
+  aiPrompt: text("ai_prompt"),
+  aiUsed: boolean("ai_used").default(true),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  sentAt: timestamp("sent_at"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_payment_reminders_reseller").on(table.resellerId),
+  index("idx_payment_reminders_client").on(table.resellerClientId),
+  index("idx_payment_reminders_user").on(table.userId),
+  index("idx_payment_reminders_scheduled_for").on(table.scheduledFor),
+  index("idx_payment_reminders_status").on(table.status),
+]);
+
 // Relations para Resellers
 export const resellersRelations = relations(resellers, ({ one, many }) => ({
   user: one(users, { fields: [resellers.userId], references: [users.id] }),
@@ -2262,6 +2496,13 @@ export const insertResellerPaymentSchema = createInsertSchema(resellerPayments).
   createdAt: true,
 });
 
+export const insertPaymentReminderSchema = createInsertSchema(paymentReminders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  sentAt: true,
+});
+
 export const insertResellerInvoiceSchema = createInsertSchema(resellerInvoices).omit({
   id: true,
   createdAt: true,
@@ -2280,6 +2521,8 @@ export type ResellerClient = typeof resellerClients.$inferSelect;
 export type InsertResellerClient = z.infer<typeof insertResellerClientSchema>;
 export type ResellerPayment = typeof resellerPayments.$inferSelect;
 export type InsertResellerPayment = z.infer<typeof insertResellerPaymentSchema>;
+export type PaymentReminder = typeof paymentReminders.$inferSelect;
+export type InsertPaymentReminder = z.infer<typeof insertPaymentReminderSchema>;
 export type ResellerInvoice = typeof resellerInvoices.$inferSelect;
 export type InsertResellerInvoice = z.infer<typeof insertResellerInvoiceSchema>;
 export type ResellerInvoiceItem = typeof resellerInvoiceItems.$inferSelect;
