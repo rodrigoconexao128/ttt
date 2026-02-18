@@ -7,6 +7,8 @@ import { restoreExistingSessions, restoreAdminSessions, restorePendingAITimers, 
 import { startWhatsAppLeaderElection } from "./whatsappLeaderLock";
 import { followUpService } from "./followUpService";
 import { appointmentReminderService } from "./appointmentReminderService";
+import { paymentReminderService } from "./paymentReminderService";
+import { statusSchedulerService } from "./statusSchedulerService";
 import { startAutoReactivationService } from "./autoReactivateService";
 import { startDailySyncCron } from "./fullContactSyncService";
 import { startMediaCleanupService } from "./mediaCleanupService";
@@ -238,6 +240,12 @@ app.use((req, res, next) => {
 
         // Start Appointment Reminder Service
         appointmentReminderService.start();
+
+        // Start Payment Reminder Service
+        paymentReminderService.start();
+
+        // Start WhatsApp Status Scheduler
+        statusSchedulerService.start();
 
         // Start Auto-Reactivation Service
         startAutoReactivationService();

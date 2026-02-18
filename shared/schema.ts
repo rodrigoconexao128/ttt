@@ -751,6 +751,43 @@ export const paymentHistory = pgTable("payment_history", {
   index("idx_payment_history_date").on(table.paymentDate),
 ]);
 
+// ============================================================================
+// PAYMENT RECEIPTS - Comprovantes de pagamento PIX enviados por usuários
+// Usado para armazenar comprovantes de pagamento manual via PIX
+// ============================================================================
+export const paymentReceipts = pgTable("payment_receipts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id, { onDelete: 'cascade' }),
+  planId: varchar("plan_id").references(() => plans.id),
+  
+  // Valor do pagamento
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  
+  // URL e informações do arquivo do comprovante
+  receiptUrl: varchar("receipt_url").notNull(),
+  receiptFilename: varchar("receipt_filename"),
+  receiptMimeType: varchar("receipt_mime_type"),
+  
+  // Status do comprovante: pending, approved, rejected
+  status: varchar("status", { length: 50 }).default("pending").notNull(),
+  
+  // ID do pagamento no MercadoPago (se houver)
+  mpPaymentId: varchar("mp_payment_id", { length: 255 }),
+  
+  // IDs do admin que aprovou/rejeitou
+  reviewedBy: varchar("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_payment_receipts_user").on(table.userId),
+  index("idx_payment_receipts_subscription").on(table.subscriptionId),
+  index("idx_payment_receipts_status").on(table.status),
+]);
+
 // Coupons table - Sistema de cupons de desconto
 export const coupons = pgTable("coupons", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1036,6 +1073,21 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
   }),
 }));
 
+export const paymentReceiptsRelations = relations(paymentReceipts, ({ one }) => ({
+  user: one(users, {
+    fields: [paymentReceipts.userId],
+    references: [users.id],
+  }),
+  subscription: one(subscriptions, {
+    fields: [paymentReceipts.subscriptionId],
+    references: [subscriptions.id],
+  }),
+  plan: one(plans, {
+    fields: [paymentReceipts.planId],
+    references: [plans.id],
+  }),
+}));
+
 export const adminWhatsappConnectionRelations = relations(adminWhatsappConnection, ({ one }) => ({
   admin: one(admins, {
     fields: [adminWhatsappConnection.adminId],
@@ -1208,6 +1260,15 @@ export const insertPaymentHistorySchema = createInsertSchema(paymentHistory).omi
 });
 export type InsertPaymentHistory = z.infer<typeof insertPaymentHistorySchema>;
 export type PaymentHistory = typeof paymentHistory.$inferSelect;
+
+// Payment Receipt schemas and types
+export const insertPaymentReceiptSchema = createInsertSchema(paymentReceipts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertPaymentReceipt = z.infer<typeof insertPaymentReceiptSchema>;
+export type PaymentReceipt = typeof paymentReceipts.$inferSelect;
 
 // System config schemas and types
 export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({

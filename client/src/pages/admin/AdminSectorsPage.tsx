@@ -132,7 +132,7 @@ export default function AdminSectorsPage() {
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-4">
           <Link href="/admin" className="text-slate-500 hover:text-slate-800">
-            <- Voltar ao Painel
+            &larr; Voltar ao Painel
           </Link>
           <div>
             <h1 className="text-xl font-bold">Setores de Atendimento</h1>

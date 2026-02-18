@@ -411,16 +411,6 @@ export default function AdminPanel() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    onClick={() => handleTabChange("former-subscribers")}
-                    isActive={activeTab === "former-subscribers"}
-                    tooltip="Ex-assinantes"
-                  >
-                    <UserMinus className="w-4 h-4" />
-                    <span>Ex-assinantes</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
                     onClick={() => handleTabChange("whatsapp")}
                     isActive={activeTab === "whatsapp"}
                     tooltip="WhatsApp"

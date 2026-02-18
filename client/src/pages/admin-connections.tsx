@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,22 @@ export default function AdminConnectionsPage() {
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
   });
+
+  const activeAgents = useMemo(
+    () => agents.filter((agent) => agent.isActive),
+    [agents]
+  );
+
+  const connectionAgents = useMemo(() => {
+    if (!editingConnection?.agentId) {
+      return activeAgents;
+    }
+    const currentAgent = agents.find((agent) => agent.id === editingConnection.agentId);
+    if (!currentAgent || currentAgent.isActive) {
+      return activeAgents;
+    }
+    return [currentAgent, ...activeAgents];
+  }, [agents, activeAgents, editingConnection?.agentId]);
 
   const saveAgentMutation = useMutation({
     mutationFn: async (payload: AgentFormState) => {
@@ -451,7 +467,7 @@ export default function AdminConnectionsPage() {
                   <SelectValue placeholder="Selecione um agente" />
                 </SelectTrigger>
                 <SelectContent>
-                  {agents.map((agent) => (
+                  {connectionAgents.map((agent) => (
                     <SelectItem key={agent.id} value={agent.id}>
                       {agent.name}
                     </SelectItem>

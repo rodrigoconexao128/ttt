@@ -414,6 +414,72 @@ Gere apenas a mensagem de lembrete, sem explicações adicionais.`;
 export const appointmentReminderService = new AppointmentReminderService();
 
 /**
+ * Envia mensagem personalizada quando o negocio confirma agendamento manual
+ */
+export async function sendCustomMessageToClient(
+  appointment: any,
+  userId: string,
+  customMessage: string
+): Promise<void> {
+  const clientPhone = appointment.client_phone;
+  const finalMessage = (customMessage || "").trim();
+  if (!finalMessage) return;
+
+  try {
+    const sessions = getSessions();
+    const session = sessions.get(userId);
+    if (!session?.socket) {
+      console.log(`[CUSTOM CONFIRMATION] WhatsApp nao conectado para user ${userId}`);
+      return;
+    }
+
+    const connection = await storage.getConnectionByUserId(userId);
+    if (!connection) {
+      console.log(`[CUSTOM CONFIRMATION] Conexao nao encontrada para user ${userId}`);
+      return;
+    }
+
+    let conversation = await storage.getConversationByContactNumber(connection.id, clientPhone);
+    if (!conversation) {
+      conversation = await storage.createConversation({
+        connectionId: connection.id,
+        contactNumber: clientPhone,
+        contactName: appointment.client_name,
+        lastMessageText: null,
+        lastMessageTime: null,
+        lastMessageFromMe: true,
+      });
+    }
+
+    const jid = conversation.remoteJid || `${clientPhone}@s.whatsapp.net`;
+
+    const sentMessage = await messageQueueService.executeWithDelay(userId, "custom confirmation", async () => {
+      return await session.socket.sendMessage(jid, { text: finalMessage });
+    });
+
+    if (sentMessage?.key.id) {
+      await storage.createMessage({
+        conversationId: conversation.id,
+        messageId: sentMessage.key.id,
+        fromMe: true,
+        text: finalMessage,
+        timestamp: new Date(),
+        status: "sent",
+      });
+    }
+
+    await storage.updateConversation(conversation.id, {
+      lastMessageText: finalMessage,
+      lastMessageTime: new Date(),
+      lastMessageFromMe: true,
+      hasReplied: true,
+    });
+  } catch (error) {
+    console.error("[CUSTOM CONFIRMATION] Erro ao enviar mensagem personalizada:", error);
+  }
+}
+
+/**
  * Envia confirmação ao cliente quando o negócio ACEITA o agendamento
  * Usa a IA para gerar mensagem natural adaptada ao estilo do negócio
  */

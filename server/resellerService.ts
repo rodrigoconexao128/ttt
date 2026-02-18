@@ -237,12 +237,24 @@ class ResellerService {
 
       // Criar assinatura ativa para o cliente (usando plano padrão)
       const planId = await this.getResellerClientPlanId();
+      const plan = await storage.getPlan(planId);
+      
+      const now = new Date();
+      const dataFim = new Date(now);
+      
+      // Calcular data fim baseado na periodicidade do plano
+      if (plan && plan.periodicidade === "anual") {
+        dataFim.setFullYear(dataFim.getFullYear() + 1); // 1 ano
+      } else {
+        dataFim.setMonth(dataFim.getMonth() + 1); // 30 dias (1 mês)
+      }
+      
       await storage.createSubscription({
         userId: user.id,
         planId,
         status: "active",
-        dataInicio: new Date(),
-        dataFim: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 ano
+        dataInicio: now,
+        dataFim,
         paymentMethod: "reseller_free",
       });
 
@@ -567,15 +579,26 @@ class ResellerService {
         paidAt: new Date(),
         description: `Cliente ${name} criado`,
       });
-
       // Criar assinatura ativa para o cliente (usando plano padrão)
       const planId = await this.getResellerClientPlanId();
+      const plan = await storage.getPlan(planId);
+      
+      const now = new Date();
+      const dataFim = new Date(now);
+      
+      // Calcular data fim baseado na periodicidade do plano
+      if (plan && plan.periodicidade === "anual") {
+        dataFim.setFullYear(dataFim.getFullYear() + 1); // 1 ano
+      } else {
+        dataFim.setMonth(dataFim.getMonth() + 1); // 30 dias (1 mês)
+      }
+      
       await storage.createSubscription({
         userId: user.id,
         planId,
         status: "active",
-        dataInicio: new Date(),
-        dataFim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+        dataInicio: now,
+        dataFim,
         paymentMethod: "reseller",
       });
 

@@ -81,32 +81,40 @@ export default function DeliveryReports() {
   // Calculate date range based on preset
   const dateRange = useMemo(() => {
     const now = new Date();
+    const normalizeRange = (start: Date, end: Date) =>
+      start > end ? { start: end, end: start } : { start, end };
     
     switch (datePreset) {
       case "today":
-        return { start: startOfDay(now), end: endOfDay(now) };
-      case "yesterday":
+        return normalizeRange(startOfDay(now), endOfDay(now));
+      case "yesterday": {
         const yesterday = subDays(now, 1);
-        return { start: startOfDay(yesterday), end: endOfDay(yesterday) };
+        return normalizeRange(startOfDay(yesterday), endOfDay(yesterday));
+      }
       case "week":
-        return { start: startOfWeek(now, { weekStartsOn: 0 }), end: endOfWeek(now, { weekStartsOn: 0 }) };
+        return normalizeRange(startOfWeek(now, { weekStartsOn: 0 }), endOfWeek(now, { weekStartsOn: 0 }));
       case "month":
-        return { start: startOfMonth(now), end: endOfMonth(now) };
-      case "custom":
-        return { 
-          start: customStartDate ? startOfDay(customStartDate) : startOfDay(now), 
-          end: customEndDate ? endOfDay(customEndDate) : endOfDay(now) 
-        };
+        return normalizeRange(startOfMonth(now), endOfMonth(now));
+      case "custom": {
+        const start = customStartDate ? startOfDay(customStartDate) : startOfDay(now);
+        const end = customEndDate ? endOfDay(customEndDate) : endOfDay(now);
+        return normalizeRange(start, end);
+      }
       default:
-        return { start: startOfDay(now), end: endOfDay(now) };
+        return normalizeRange(startOfDay(now), endOfDay(now));
     }
   }, [datePreset, customStartDate, customEndDate]);
 
   // Fetch all orders
   const { data: ordersData, isLoading, refetch } = useQuery({
-    queryKey: ["/api/delivery/orders"],
+    queryKey: ["/api/delivery/orders", dateRange.start.toISOString(), dateRange.end.toISOString()],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/delivery/orders?limit=1000");
+      const params = new URLSearchParams({
+        limit: "5000",
+        startDate: dateRange.start.toISOString(),
+        endDate: dateRange.end.toISOString(),
+      });
+      const response = await apiRequest("GET", `/api/delivery/orders?${params.toString()}`);
       return response.json();
     },
   });
@@ -142,7 +150,8 @@ export default function DeliveryReports() {
 
     // Filter orders by date range
     const filteredOrders = ordersData.orders.filter((order: DeliveryOrder) => {
-      const orderDate = parseISO(order.created_at);
+      const orderDate = new Date(order.created_at);
+      if (Number.isNaN(orderDate.getTime())) return false;
       return isWithinInterval(orderDate, { start: dateRange.start, end: dateRange.end });
     });
 
