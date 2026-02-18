@@ -98,6 +98,8 @@ import {
   Receipt,
   AlertTriangle,
   QrCode,
+  Upload,
+  FileImage,
   Gift
 } from "lucide-react";
 
@@ -401,6 +403,13 @@ export default function ResellerDashboard() {
   const [granularPixQrCode, setGranularPixQrCode] = useState("");
   const [granularTotalAmount, setGranularTotalAmount] = useState(0);
   const [isCreatingGranularInvoice, setIsCreatingGranularInvoice] = useState(false);
+
+  // Estados para upload de comprovante PIX ("Já paguei")
+  const [showReceiptUploadModal, setShowReceiptUploadModal] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const [receiptUploadSuccess, setReceiptUploadSuccess] = useState(false);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
 
   // Gerar QR Code quando o código PIX mudar
   useEffect(() => {
@@ -778,6 +787,88 @@ export default function ResellerDashboard() {
       toast({ title: "Erro ao confirmar pagamento", description: error.message, variant: "destructive" });
     },
   });
+
+  // Upload de comprovante PIX ("Já paguei")
+  const uploadReceiptMutation = useMutation({
+    mutationFn: async ({ file, paymentId, amount }: { file: File; paymentId: string; amount: number }) => {
+      const formData = new FormData();
+      formData.append("receipt", file);
+      formData.append("paymentId", paymentId);
+      formData.append("amount", amount.toString());
+
+      const response = await fetch("/api/reseller/payment-receipts/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Erro ao enviar comprovante");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      setReceiptUploadSuccess(true);
+      toast({ 
+        title: "✅ Comprovante enviado!", 
+        description: "Seu pagamento será confirmado em breve." 
+      });
+      setTimeout(() => {
+        setShowReceiptUploadModal(false);
+        setReceiptFile(null);
+        setReceiptUploadSuccess(false);
+      }, 2000);
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Erro ao enviar comprovante", 
+        description: error.message || "Tente novamente mais tarde.", 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const handleReceiptFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validar tipo de arquivo (imagens e PDF)
+      const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"];
+      if (!validTypes.includes(file.type)) {
+        toast({ 
+          title: "Formato inválido", 
+          description: "Envie uma imagem (JPG, PNG, GIF, WebP) ou PDF.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      // Validar tamanho (máximo 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ 
+          title: "Arquivo muito grande", 
+          description: "O arquivo deve ter no máximo 5MB.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      setReceiptFile(file);
+    }
+  };
+
+  const handleReceiptUpload = async () => {
+    if (!receiptFile || !pendingPaymentId) return;
+    
+    setIsUploadingReceipt(true);
+    try {
+      await uploadReceiptMutation.mutateAsync({
+        file: receiptFile,
+        paymentId: pendingPaymentId,
+        amount: 49.99, // Valor fixo da revenda
+      });
+    } finally {
+      setIsUploadingReceipt(false);
+    }
+  };
 
   const resetCreateClientForm = () => {
     setNewClientName("");
@@ -1565,6 +1656,21 @@ export default function ResellerDashboard() {
                             <div className="text-center text-sm text-muted-foreground">
                               <p>Após o pagamento, clique em "Verificar Pagamento"</p>
                               <p className="text-xs">O pagamento é confirmado automaticamente em até 1 minuto</p>
+                            </div>
+                            
+                            {/* Botão "Já paguei" - Enviar comprovante */}
+                            <div className="border-t pt-4 mt-4">
+                              <p className="text-xs text-center text-muted-foreground mb-2">
+                                Já fez o pagamento por outra via?
+                              </p>
+                              <Button
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => setShowReceiptUploadModal(true)}
+                              >
+                                <Upload className="h-4 w-4 mr-2" />
+                                Já paguei - Enviar comprovante
+                              </Button>
                             </div>
                           </>
                         )}
@@ -4271,6 +4377,99 @@ function MySubscriptionTab({
             <p className="text-xs text-center text-muted-foreground">
               O pagamento é processado automaticamente via webhook do Mercado Pago
             </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Upload de Comprovante PIX - "Já paguei" */}
+      <Dialog open={showReceiptUploadModal} onOpenChange={setShowReceiptUploadModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Enviar Comprovante de Pagamento
+            </DialogTitle>
+            <DialogDescription>
+              Envie o comprovante do PIX para liberarmos seu acesso
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {receiptUploadSuccess ? (
+              <div className="text-center py-6">
+                <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-3" />
+                <p className="font-medium text-green-600">Comprovante enviado com sucesso!</p>
+                <p className="text-sm text-muted-foreground mt-1">Seu pagamento será confirmado em breve.</p>
+              </div>
+            ) : (
+              <>
+                {/* Área de upload */}
+                <div
+                  onClick={() => receiptInputRef.current?.click()}
+                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
+                >
+                  <input
+                    ref={receiptInputRef}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={handleReceiptFileChange}
+                    className="hidden"
+                  />
+                  {receiptFile ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <FileImage className="h-10 w-10 text-green-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {receiptFile.name}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {(receiptFile.size / 1024).toFixed(1)} KB
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="h-10 w-10 text-gray-400" />
+                      <span className="text-sm text-gray-500">
+                        Clique para selecionar o comprovante
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        Imagem ou PDF (máx. 5MB)
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Botões */}
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setShowReceiptUploadModal(false);
+                      setReceiptFile(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={handleReceiptUpload}
+                    disabled={!receiptFile || isUploadingReceipt}
+                  >
+                    {isUploadingReceipt ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Enviar
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
