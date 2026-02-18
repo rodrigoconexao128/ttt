@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Message, Conversation, AiAgentConfig } from "@shared/schema";
 import { MessageImage } from "@/components/message-image";
+import MessageScheduler from "@/components/message-scheduler";
 import { MessageAudio } from "@/components/message-audio";
 import { MessageVideo } from "@/components/message-video";
 import { MessageDocument } from "@/components/message-document";
@@ -58,6 +59,9 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
+
+  // Estados para agendamento de mensagens com IA
+  const [messageScheduleDialogOpen, setMessageScheduleDialogOpen] = useState(false);
   const [scheduleNote, setScheduleNote] = useState("");
 
   // Estados para novas funcionalidades
@@ -923,6 +927,15 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
+      {/* Message Scheduler Dialog */}
+      {conversation && (
+        <MessageScheduler
+          conversation={conversation}
+          open={messageScheduleDialogOpen}
+          onOpenChange={setMessageScheduleDialogOpen}
+        />
+      )}
+
       {/* Chat Header - Fixed no mobile */}
       <div className={cn(
         "p-3 md:p-4 border-b flex items-center gap-2 md:gap-3 bg-background z-10",
@@ -1032,6 +1045,27 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
               </TooltipTrigger>
               <TooltipContent>
                 Agendar follow-up manual (ex: cliente pediu para ligar em outro dia)
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* Agendar Mensagem com IA */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 h-7 px-2"
+                  onClick={() => setMessageScheduleDialogOpen(true)}
+                  data-testid="button-schedule-message"
+                >
+                  <Clock className="w-3 h-3" />
+                  <span className="hidden md:inline text-xs">Agendar Mensagem</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Agendar mensagem específica com texto manual ou gerada com IA
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

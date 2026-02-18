@@ -263,6 +263,12 @@ export const conversations = pgTable("conversations", {
   kanbanStageId: varchar("kanban_stage_id"),
   kanbanNotes: text("kanban_notes"),
   priority: varchar("priority").default("normal"),
+  // Ticket/Chamado - Encerramento (Fase 4.2)
+  isClosed: boolean("is_closed").default(false).notNull(),
+  closedAt: timestamp("closed_at"),
+  closedBy: varchar("closed_by", { length: 255 }), -- userId or 'system'
+  closureReason: text("closure_reason"),
+  ticketNumber: varchar("ticket_number", { length: 50 }), -- Optional ticket reference
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -289,6 +295,20 @@ export const messages = pgTable("messages", {
   mediaUrlOriginal: text("media_url_original"), // URL original do WhatsApp
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Ticket Closure Logs table - Audit trail for conversation closures (Fase 4.2)
+export const ticketClosureLogs = pgTable("ticket_closure_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+  action: varchar("action", { length: 50 }).notNull(), // 'closed', 'reopened'
+  performedBy: varchar("performed_by", { length: 255 }).notNull(), // userId or 'system'
+  performedByName: varchar("performed_by_name", { length: 255 }), // Display name
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_ticket_closure_logs_conversation").on(table.conversationId),
+  index("idx_ticket_closure_logs_created_at").on(table.createdAt),
+]);
 
 // AI Agent Configuration table (LEGACY - mantido para backward compatibility)
 export const aiAgentConfig = pgTable("ai_agent_config", {

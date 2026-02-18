@@ -1,30 +1,28 @@
 import React from "react";
 import AdminTicketChat from "@/components/tickets/AdminTicketChat";
-import { useRoute, Link } from "wouter";
+import { useRoute, useLocation } from "wouter";
 
 export default function AdminTicketDetailPage() {
   const [match, params] = useRoute("/admin/tickets/:id");
+  const [, setLocation] = useLocation();
   const ticketId = params?.id ? parseInt(params.id) : 0;
 
   if (!match || !ticketId) {
-    return <div className="p-4 text-center">Ticket não encontrado</div>;
+    return (
+      <div className="h-full flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-muted-foreground">Ticket não encontrado</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col h-screen">
-      <header className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <Link href="/admin/tickets" className="text-slate-500 hover:text-slate-800">
-            ← Voltar para Lista
-          </Link>
-          <h1 className="text-xl font-bold">Ticket #{ticketId}</h1>
-        </div>
-      </header>
-      <main className="flex-1 p-6 overflow-hidden flex flex-col">
-        <div className="flex-1 overflow-auto border rounded-lg bg-white shadow-sm">
-          <AdminTicketChat ticketId={ticketId} />
-        </div>
-      </main>
+    <div className="h-[calc(100vh-4rem)] p-4 md:p-6">
+      <AdminTicketChat 
+        ticketId={ticketId} 
+        onBack={() => setLocation('/admin/tickets')}
+      />
     </div>
   );
 }

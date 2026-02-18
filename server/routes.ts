@@ -16,6 +16,7 @@ import { userFollowUpService } from "./userFollowUpService";
 
 import { registerFollowUpRoutes } from "./routes_user_followup";
 import { registerAdminFollowUpRoutes } from "./routes_admin_followup";
+import { registerAIRoutes } from "./routes_ai";
 
 import { registerAudioConfigRoutes } from "./routes_audio_config";
 
@@ -24,6 +25,7 @@ import { registerChatbotFlowRoutes } from "./routes_chatbot_flow";
 import { registerSalonRoutes } from "./routes_salon";
 import { registerTicketRoutes } from "./tickets/tickets.routes";
 import { registerSectorRoutes } from "./sectors/sectors.routes";
+import { registerTicketClosureRoutes } from "./ticketClosure.routes";
 import adminStatusRoutes from "./routes/admin-status.routes";
 
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
@@ -114,7 +116,7 @@ function maintenanceMiddleware(req: Request, res: Response, next: NextFunction):
 
         error: 'maintenance',
 
-        message: dbCircuitBreaker.isOpen() 
+        message: dbCircuitBreaker.isOpen()
 
           ? 'Sistema temporariamente indisponível. Tentando reconectar automaticamente...'
 
@@ -128,7 +130,7 @@ function maintenanceMiddleware(req: Request, res: Response, next: NextFunction):
 
     }
 
-    
+
 
     // Para páginas, retornar HTML de manutenção
 
@@ -342,7 +344,7 @@ const upload = multer({
 
       'video/mp4', 'video/webm', 'video/quicktime',
 
-      'application/pdf', 'application/msword', 
+      'application/pdf', 'application/msword',
 
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 
@@ -404,9 +406,9 @@ import {
 
 import { messageQueueService } from "./messageQueueService";
 
-import { 
+import {
 
-  sendMessageSchema, 
+  sendMessageSchema,
 
   insertAiAgentConfigSchema,
 
@@ -537,7 +539,7 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
   };
 
-  
+
 
   const patterns: Record<string, RegExp[]> = {
 
@@ -561,19 +563,19 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
   };
 
-  
+
 
   headers.forEach((header, index) => {
 
     const normalizedHeader = String(header).toLowerCase().trim();
 
-    
+
 
     for (const [field, regexps] of Object.entries(patterns)) {
 
       if (mapping[field] !== null) continue; // Já mapeado
 
-      
+
 
       for (const regex of regexps) {
 
@@ -591,7 +593,7 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
   });
 
-  
+
 
   // Se não encontrou nome, assume que é a primeira coluna com texto
 
@@ -601,7 +603,7 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
   }
 
-  
+
 
   // Se tem coluna de nome mas não tem preço, tenta a segunda coluna numérica
 
@@ -625,7 +627,7 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
   }
 
-  
+
 
   return mapping;
 
@@ -637,11 +639,11 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
 function generateLocalPrompt(
 
-  businessType: string, 
+  businessType: string,
 
-  businessName: string, 
+  businessName: string,
 
-  description: string, 
+  description: string,
 
   additionalInfo: string,
 
@@ -823,7 +825,7 @@ NÃO FAZER:
 
   let basePrompt = templates[businessType] || templates.other;
 
-  
+
 
   // Adiciona descrição se fornecida (máximo 200 chars)
 
@@ -835,7 +837,7 @@ NÃO FAZER:
 
   }
 
-  
+
 
   return basePrompt;
 
@@ -863,7 +865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const antiBlockStats = messageQueueService.getStats();
 
-    
+
 
     res.json({
 
@@ -917,14 +919,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerFollowUpRoutes(app);
   registerAdminFollowUpRoutes(app);
+  registerAIRoutes(app);
 
-  
 
   // ==================== AUDIO CONFIG (TTS) ROUTES ====================
 
   registerAudioConfigRoutes(app);
 
-  
+
 
   // ==================== CHATBOT FLOW BUILDER ROUTES ====================
 
@@ -950,6 +952,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error("❌ [DEBUG] Error calling registerSectorRoutes:", e);
   }
 
+  // ==================== TICKET CLOSURE ROUTES (FASE 4.2) ====================
+  try {
+    registerTicketClosureRoutes(app);
+  } catch (e) {
+    console.error("❌ [Fase 4.2] Error calling registerTicketClosureRoutes:", e);
+  }
+
   // ==================== ADMIN STATUS/WHATSAPP STATUS ROUTES ====================
   try {
     app.use("/api", adminStatusRoutes);
@@ -964,7 +973,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   userFollowUpService.start();
 
-  
+
 
   // Registrar callback para enviar mensagens de follow-up via WhatsApp
 
@@ -1106,11 +1115,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const adminRole = (req.session as any)?.adminRole;
 
-    
+
 
     if (adminId && adminRole) {
 
-      res.json({ 
+      res.json({
 
         authenticated: true,
 
@@ -1134,7 +1143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== ADMIN USER MANAGEMENT ROUTES ====================
 
-  
+
 
   // List users
 
@@ -1148,13 +1157,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const subscriptions = await storage.getAllSubscriptions();
 
-      
+
 
       // FREE_TRIAL_LIMIT
 
       const FREE_TRIAL_LIMIT = 25;
 
-      
+
 
       // Map connection status to users with message usage
 
@@ -1166,7 +1175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const hasActiveSubscription = !!subscription;
 
-        
+
 
         let agentMessagesCount = 0;
 
@@ -1176,7 +1185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         }
 
-        
+
 
         const limit = hasActiveSubscription ? -1 : FREE_TRIAL_LIMIT;
 
@@ -1184,7 +1193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const isLimitReached = !hasActiveSubscription && agentMessagesCount >= FREE_TRIAL_LIMIT;
 
-        
+
 
         return {
 
@@ -1208,7 +1217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }));
 
-      
+
 
       res.json(usersWithStatus);
 
@@ -1234,25 +1243,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`?? [DEV MODE] Bloqueando reconexão forçada de usuário (proteção de produção)`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
 
-          devMode: true 
+          devMode: true
 
         });
 
       }
 
-      
+
 
       const { userId } = req.params;
 
       console.log(`[ADMIN] Force reconnecting user ${userId}...`);
 
-      
+
 
       // Check if user exists
 
@@ -1291,23 +1300,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`[ADMIN] Successfully initiated force reconnection for user ${userId}`);
 
-        
+
 
         // Wait a bit for connection to establish
 
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        
+
 
         // Check status after attempt
 
         const updatedConnection = await storage.getConnectionByUserId(userId);
 
-        
 
-        res.json({ 
 
-          success: true, 
+        res.json({
+
+          success: true,
 
           message: `Reconexão iniciada para ${user.name || user.email || userId}`,
 
@@ -1325,13 +1334,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.error(`[ADMIN] Failed to reconnect user ${userId}:`, connectError);
 
-        res.json({ 
+        res.json({
 
-          success: false, 
+          success: false,
 
           message: `Falha na reconexão: ${connectError.message}`,
 
-          error: connectError.message 
+          error: connectError.message
 
         });
 
@@ -1361,25 +1370,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`?? [DEV MODE] Bloqueando reset de sessão WhatsApp (proteção de produção)`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
 
-          devMode: true 
+          devMode: true
 
         });
 
       }
 
-      
+
 
       const { userId } = req.params;
 
       console.log(`[ADMIN] Resetting session for user ${userId}...`);
 
-      
+
 
       const user = await storage.getUser(userId);
 
@@ -1393,11 +1402,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await forceResetWhatsApp(userId);
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         message: `Sessão resetada para ${user.name || user.email}. Usuário precisará escanear novo QR Code.`
 
@@ -1441,11 +1450,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const adminSession = req.session as { admin?: { id: string; email: string } };
 
-      
+
 
       console.log(`??? [SAFE MODE] Admin ${adminSession.admin?.email} alterando safe mode para user ${userId}: ${enabled}`);
 
-      
+
 
       // Verificar se usuário existe
 
@@ -1457,7 +1466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
+
 
       // Buscar conexão do usuário
 
@@ -1469,7 +1478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
+
 
       // Atualizar safe mode
 
@@ -1483,17 +1492,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       });
 
-      
+
 
       console.log(`??? [SAFE MODE] Safe mode ${enabled ? 'ATIVADO' : 'DESATIVADO'} para ${user.name || user.email}`);
 
-      
+
 
       res.json({
 
         success: true,
 
-        message: enabled 
+        message: enabled
 
           ? `Modo seguro ATIVADO para ${user.name || user.email}. Na próxima reconexão via QR Code, todas as filas e follow-ups serão zerados.`
 
@@ -1527,7 +1536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { userId } = req.params;
 
-      
+
 
       const user = await storage.getUser(userId);
 
@@ -1537,15 +1546,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
       if (!connection) {
 
-        return res.status(404).json({ 
+        return res.status(404).json({
 
-          success: false, 
+          success: false,
 
           message: "Conexão WhatsApp não encontrada",
 
@@ -1555,7 +1564,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
+
 
       res.json({
 
@@ -1603,19 +1612,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`?? [DEV MODE] Bloqueando reconexão em massa (proteção de produção)`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
 
-          devMode: true 
+          devMode: true
 
         });
 
       }
 
-      
+
 
       console.log("[ADMIN] Starting bulk force reconnection...");
 
@@ -1631,7 +1640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Add a small delay to avoid overwhelming the server
 
-            await new Promise(resolve => setTimeout(resolve, 1000)); 
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
             console.log(`[ADMIN] Force reconnecting user ${connection.userId}...`);
 
@@ -1649,9 +1658,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-      res.json({ 
+      res.json({
 
-        success: true, 
+        success: true,
 
         message: `Reconexão forçada iniciada para ${reconnectedCount} usuários`,
 
@@ -1683,29 +1692,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`?? [DEV MODE] Health check bloqueado (proteção de produção)`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'Health check desabilitado em modo desenvolvimento para proteger sessões em produção',
 
-          devMode: true 
+          devMode: true
 
         });
 
       }
 
-      
+
 
       console.log("[ADMIN] Executando health check manual...");
 
       await connectionHealthCheck();
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         message: 'Health check executado com sucesso. Veja os logs do servidor para detalhes.'
 
@@ -1733,7 +1742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { getSession } = await import("./whatsapp");
 
-      
+
 
       const statusList = await Promise.all(connections.map(async (conn) => {
 
@@ -1741,7 +1750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const hasActiveSocket = session?.socket?.user !== undefined;
 
-        
+
 
         return {
 
@@ -1765,7 +1774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }));
 
-      
+
 
       const summary = {
 
@@ -1779,7 +1788,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       };
 
-      
+
 
       res.json({ summary, connections: statusList });
 
@@ -2111,7 +2120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const { userIds } = req.body;
 
-    
+
 
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
 
@@ -2119,7 +2128,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     }
 
-    
+
 
     try {
 
@@ -2129,7 +2138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const errors: string[] = [];
 
-      
+
 
       for (const userId of userIds) {
 
@@ -2145,7 +2154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           }
 
-          
+
 
           // Skip admins and owners
 
@@ -2159,7 +2168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           }
 
-          
+
 
           // Skip users with active subscription
 
@@ -2175,7 +2184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           }
 
-          
+
 
           await storage.deleteUser(userId);
 
@@ -2193,11 +2202,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         deletedCount,
 
@@ -2225,7 +2234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const { id } = req.params;
 
-    
+
 
     try {
 
@@ -2237,7 +2246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
+
 
       // Log the impersonation attempt
 
@@ -2245,7 +2254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[ADMIN IMPERSONATE] Admin ${adminId} is impersonating user ${id} (${user.email})`);
 
-      
+
 
       // Create a session for the user
 
@@ -2253,7 +2262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       (req.session as any).impersonatedBy = adminId;
 
-      
+
 
       // Save session
 
@@ -2269,11 +2278,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       });
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         message: `Logado como ${user.name || user.email}`,
 
@@ -2309,7 +2318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const { email } = req.body;
 
-    
+
 
     try {
 
@@ -2317,7 +2326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!user) return res.status(404).json({ message: "User not found" });
 
-      
+
 
       const updated = await storage.updateUser(id, { email });
 
@@ -2339,7 +2348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const { id } = req.params;
 
-    
+
 
     try {
 
@@ -2353,7 +2362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const password = Math.random().toString(36).slice(-8);
 
-      
+
 
       // Update password in Supabase Auth
 
@@ -2375,7 +2384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
+
 
       // Send WhatsApp message
 
@@ -2383,7 +2392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const message = `?? *Suas Credenciais de Acesso*\n\nOlá ${user.name}! Aqui estão seus dados para acessar o painel:\n\n?? *Email:* ${user.email}\n?? *Senha:* ${password}\n\n?? Acesse em: https://agentezap.com.br/login\n\n_Recomendamos trocar sua senha após o primeiro acesso._`;
 
-        
+
 
         try {
 
@@ -2391,7 +2400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const adminConnection = await storage.getAdminConnection();
 
-          
+
 
           if (adminConnection && adminConnection.isConnected) {
 
@@ -2431,7 +2440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== USER AGENT CONFIG ROUTES ====================
 
-  
+
 
   // Get user agent config
 
@@ -2445,7 +2454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let config = await storage.getBusinessAgentConfig(id);
 
-      
+
 
       // If not found, try legacy config
 
@@ -2479,7 +2488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
+
 
         res.json(config);
 
@@ -2595,7 +2604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { phone, message, mediaType, mediaUrl } = req.body;
 
-      
+
 
       if (!phone) {
 
@@ -2619,15 +2628,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const response = await processAdminMessage(phone, message || "", mediaType, mediaUrl);
 
-      
+
 
       // Se response é null, significa que não houve trigger - retornar vazio
 
       if (!response) {
 
-        return res.json({ 
+        return res.json({
 
-          text: "", 
+          text: "",
 
           noTrigger: true,
 
@@ -2637,13 +2646,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
+
 
       // O retorno pode ser um objeto ou string, dependendo da implementação.
 
       const responseText = typeof response === 'string' ? response : response?.text || "";
 
-      
+
 
       // actions pode ser um objeto (não array) - verificar corretamente
 
@@ -2651,7 +2660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const mediaActions = typeof response === 'object' ? response?.mediaActions : undefined;
 
-      
+
 
       // Extrair link de teste se existir nas actions (actions é objeto, não array)
 
@@ -2673,13 +2682,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
 
-      res.json({ 
 
-        text: responseText, 
+      res.json({
 
-        actions, 
+        text: responseText,
+
+        actions,
 
         mediaActions,
 
@@ -2707,7 +2716,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const phone = req.query.phone as string;
 
-      
+
 
       if (!phone) {
 
@@ -2719,13 +2728,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const cleanPhone = phone.replace(/\D/g, "");
 
-      
+
 
       const { getClientSession } = await import("./adminAgentService");
 
       const session = getClientSession(cleanPhone);
 
-      
+
 
       if (!session) {
 
@@ -2733,7 +2742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
+
 
       res.json({ history: session.conversationHistory });
 
@@ -2757,7 +2766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { phone } = req.body;
 
-      
+
 
       if (!phone) {
 
@@ -2769,7 +2778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const cleanPhone = phone.replace(/\D/g, "");
 
-      
+
 
       // Limpar sessão em memória
 
@@ -2777,7 +2786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const cleared = clearClientSession(cleanPhone);
 
-      
+
 
       // Cancelar follow-ups
 
@@ -2799,7 +2808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           await storage.deleteUser(user.id);
 
-          
+
 
           // Tentar limpar do Supabase Auth também se for email temporário
 
@@ -2827,15 +2836,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       }
 
-      
+
 
       console.log(`?? [SIMULATOR] Histórico limpo para telefone ${cleanPhone}`);
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         message: "Histórico limpo com sucesso",
 
@@ -2867,11 +2876,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { userMessage, options, optionsList, businessContext } = req.body;
 
-      
+
 
       if (!userMessage || !optionsList || !Array.isArray(optionsList) || optionsList.length === 0) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           error: "userMessage and optionsList are required",
 
@@ -2959,7 +2968,7 @@ ${optionsList.map((opt: string, i: number) => `${i}. ${opt}`).join('\n')}
 
 
 
-A mensagem do cliente corresponde a alguma dessas opções? 
+A mensagem do cliente corresponde a alguma dessas opções?
 
 Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL:`;
 
@@ -3007,9 +3016,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
             console.log(`?? [AI-MATCH] ? Match encontrado: "${userMessage}" ? "${optionsList[index]}" (índice: ${index})`);
 
-            return res.json({ 
+            return res.json({
 
-              matchedIndex: index, 
+              matchedIndex: index,
 
               confidence: 85, // Confiança alta quando IA encontra match
 
@@ -3035,9 +3044,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         console.error(`? [AI-MATCH] Erro na LLM:`, llmError?.message || llmError);
 
-        return res.json({ 
+        return res.json({
 
-          matchedIndex: null, 
+          matchedIndex: null,
 
           confidence: 0,
 
@@ -3053,7 +3062,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       console.error("? [AI-MATCH] Erro geral:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         error: "Internal server error",
 
@@ -3177,13 +3186,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { currentPassword, newPassword } = req.body;
 
-      
+
 
       if (!newPassword || newPassword.length < 6) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "A nova senha deve ter pelo menos 6 caracteres" 
+          message: "A nova senha deve ter pelo menos 6 caracteres"
 
         });
 
@@ -3197,13 +3206,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const user = await storage.getUser(userId);
 
-      
+
 
       if (!user || !user.email) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Usuário não encontrado" 
+          message: "Usuário não encontrado"
 
         });
 
@@ -3219,23 +3228,23 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
-      
+
 
       if (!supabaseUrl || !supabaseServiceKey) {
 
-        return res.status(500).json({ 
+        return res.status(500).json({
 
-          message: "Configuração do servidor incompleta" 
+          message: "Configuração do servidor incompleta"
 
         });
 
       }
 
-      
+
 
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      
+
 
       // Get auth token from header to validate current session
 
@@ -3243,7 +3252,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const token = authHeader?.replace("Bearer ", "");
 
-      
+
 
       if (token) {
 
@@ -3265,13 +3274,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
           });
 
-          
+
 
           if (signInError) {
 
-            return res.status(400).json({ 
+            return res.status(400).json({
 
-              message: "Senha atual incorreta" 
+              message: "Senha atual incorreta"
 
             });
 
@@ -3281,7 +3290,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Update password using admin API
 
@@ -3291,7 +3300,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       );
 
-      
+
 
       if (getUserError) {
 
@@ -3313,21 +3322,21 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
             );
 
-            
+
 
             if (updateError) {
 
               console.error("Error updating password:", updateError);
 
-              return res.status(500).json({ 
+              return res.status(500).json({
 
-                message: "Erro ao alterar senha. Tente novamente." 
+                message: "Erro ao alterar senha. Tente novamente."
 
               });
 
             }
 
-            
+
 
             return res.json({ success: true, message: "Senha alterada com sucesso" });
 
@@ -3335,17 +3344,17 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         }
 
-        
 
-        return res.status(400).json({ 
 
-          message: "Não foi possível encontrar o usuário para alterar a senha" 
+        return res.status(400).json({
+
+          message: "Não foi possível encontrar o usuário para alterar a senha"
 
         });
 
       }
 
-      
+
 
       const { error: updateError } = await supabase.auth.admin.updateUserById(
 
@@ -3355,21 +3364,21 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       );
 
-      
+
 
       if (updateError) {
 
         console.error("Error updating password:", updateError);
 
-        return res.status(500).json({ 
+        return res.status(500).json({
 
-          message: "Erro ao alterar senha. Tente novamente." 
+          message: "Erro ao alterar senha. Tente novamente."
 
         });
 
       }
 
-      
+
 
       res.json({ success: true, message: "Senha alterada com sucesso" });
 
@@ -3395,7 +3404,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const user = await storage.getUser(userId);
 
-      
+
 
       if (!user) {
 
@@ -3609,23 +3618,23 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         console.log(`?? [DEV MODE] Bloqueando conexão WhatsApp de usuário (proteção de produção)`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
 
-          devMode: true 
+          devMode: true
 
         });
 
       }
 
-      
+
 
       const userId = getUserId(req);
 
-      
+
 
       // ?? Verificar se usuário está suspenso - bloquear conexão
 
@@ -3635,9 +3644,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         console.log(`?? [SUSPENSION] Bloqueando conexão WhatsApp para usuário suspenso: ${userId}`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'Sua conta está suspensa. Não é possível conectar o WhatsApp.',
 
@@ -3649,7 +3658,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       await connectWhatsApp(userId);
 
@@ -3677,19 +3686,19 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         console.log(`?? [DEV MODE] Bloqueando desconexão WhatsApp de usuário (proteção de produção)`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
 
-          devMode: true 
+          devMode: true
 
         });
 
       }
 
-      
+
 
       const userId = getUserId(req);
 
@@ -3865,11 +3874,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const userId = getUserId(req);
 
-      
+
 
       const conversation = await storage.getConversation(id);
 
-      
+
 
       if (!conversation) {
 
@@ -3927,11 +3936,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const userId = getUserId(req);
 
-      
+
 
       const conversation = await storage.getConversation(id);
 
-      
+
 
       if (!conversation) {
 
@@ -3975,7 +3984,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
   // ==================== CONVERSATION SHARE TOKEN ====================
 
-  
+
 
   // POST - Generate or get share token for a conversation
 
@@ -4015,7 +4024,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (conversation.shareToken) {
 
-        return res.json({ 
+        return res.json({
 
           token: conversation.shareToken,
 
@@ -4033,13 +4042,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const token = crypto.randomBytes(32).toString("hex");
 
-      
+
 
       await storage.updateConversation(conversationId, { shareToken: token });
 
-      
 
-      res.json({ 
+
+      res.json({
 
         token,
 
@@ -4089,7 +4098,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const messages = await storage.getMessagesByConversationId(conversation.id);
 
-      
+
 
       res.json({
 
@@ -4209,7 +4218,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       let userTags = await storage.getTagsByUserId(userId);
 
-      
+
 
       // Se o usuário não tem tags, cria as tags padrão
 
@@ -4219,7 +4228,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       res.json(userTags);
 
@@ -4245,7 +4254,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { name, color, icon, description, position } = req.body;
 
-      
+
 
       if (!name || name.trim().length === 0) {
 
@@ -4253,7 +4262,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const tag = await storage.createTag({
 
@@ -4273,7 +4282,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       });
 
-      
+
 
       res.status(201).json(tag);
 
@@ -4307,7 +4316,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { name, color, icon, description, position } = req.body;
 
-      
+
 
       // Verifica se a tag pertence ao usuário
 
@@ -4319,7 +4328,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const updatedData: any = {};
 
@@ -4333,7 +4342,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (position !== undefined) updatedData.position = position;
 
-      
+
 
       const tag = await storage.updateTag(id, updatedData);
 
@@ -4367,7 +4376,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { id } = req.params;
 
-      
+
 
       // Verifica se a tag pertence ao usuário
 
@@ -4379,7 +4388,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       await storage.deleteTag(id);
 
@@ -4411,7 +4420,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { conversationId } = req.params;
 
-      
+
 
       // Verifica se a conversa pertence ao usuário
 
@@ -4423,7 +4432,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -4433,7 +4442,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const conversationTagsList = await storage.getConversationTags(conversationId);
 
@@ -4463,7 +4472,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { tagIds } = req.body;
 
-      
+
 
       // Verifica se a conversa pertence ao usuário
 
@@ -4475,7 +4484,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -4485,7 +4494,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Verifica se todas as tags pertencem ao usuário
 
@@ -4495,11 +4504,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const validTagIds = (tagIds || []).filter((id: string) => userTagIds.has(id));
 
-      
+
 
       await storage.setConversationTags(conversationId, validTagIds);
 
-      
+
 
       const updatedTags = await storage.getConversationTags(conversationId);
 
@@ -4527,7 +4536,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { conversationId, tagId } = req.params;
 
-      
+
 
       // Verifica se a conversa pertence ao usuário
 
@@ -4539,7 +4548,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -4549,7 +4558,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Verifica se a tag pertence ao usuário
 
@@ -4561,11 +4570,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       await storage.addTagToConversation(conversationId, tagId);
 
-      
+
 
       const updatedTags = await storage.getConversationTags(conversationId);
 
@@ -4593,7 +4602,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { conversationId, tagId } = req.params;
 
-      
+
 
       // Verifica se a conversa pertence ao usuário
 
@@ -4605,7 +4614,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -4615,11 +4624,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       await storage.removeTagFromConversation(conversationId, tagId);
 
-      
+
 
       const updatedTags = await storage.getConversationTags(conversationId);
 
@@ -4647,7 +4656,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { tagId } = req.query;
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -4657,7 +4666,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Se tem filtro por tag, busca apenas conversas com essa tag
 
@@ -4683,7 +4692,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Sem filtro, retorna todas as conversas com suas tags
 
@@ -4810,6 +4819,92 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       res.status(500).json({ message: "Failed to tag conversations" });
     }
   });
+
+  // POST - Ações em massa nas conversas (ativar IA)
+  app.post("/api/conversations/bulk/ai-enable", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+
+      if (conversationIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa obrigatórios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp não conectado" });
+      }
+
+      // Verificar quais conversas pertencem à conexão do usuário
+      const validConversations = await db
+        .select({ id: conversationsTable.id })
+        .from(conversationsTable)
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ));
+
+      const validIds = validConversations.map(conv => conv.id);
+      if (validIds.length === 0) {
+        return res.json({ updated: 0 });
+      }
+
+      // Ativar IA para cada conversa
+      for (const conversationId of validIds) {
+        await storage.enableAgentForConversation(conversationId);
+      }
+
+      res.json({ updated: validIds.length });
+    } catch (error) {
+      console.error("Error enabling AI for conversations:", error);
+      res.status(500).json({ message: "Failed to enable AI for conversations" });
+    }
+  });
+
+  // POST - Ações em massa nas conversas (desativar IA)
+  app.post("/api/conversations/bulk/ai-disable", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+
+      if (conversationIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa obrigatórios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp não conectado" });
+      }
+
+      // Verificar quais conversas pertencem à conexão do usuário
+      const validConversations = await db
+        .select({ id: conversationsTable.id })
+        .from(conversationsTable)
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ));
+
+      const validIds = validConversations.map(conv => conv.id);
+      if (validIds.length === 0) {
+        return res.json({ updated: 0 });
+      }
+
+      // Desativar IA para cada conversa
+      for (const conversationId of validIds) {
+        await storage.disableAgentForConversation(conversationId, null); // null = sem auto-reativação
+      }
+
+      res.json({ updated: validIds.length });
+    } catch (error) {
+      console.error("Error disabling AI for conversations:", error);
+      res.status(500).json({ message: "Failed to disable AI for conversations" });
+    }
+  });
   // ==================== CUSTOM FIELDS - CAMPOS PERSONALIZADOS ====================
 
   // Similar ao Digisac: Nome, Empresa, Email, CPF/CNPJ, Endereço, etc.
@@ -4824,7 +4919,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const userId = getUserId(req);
 
-      
+
 
       const { data: definitions, error } = await supabase
 
@@ -4836,11 +4931,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         .order('position', { ascending: true });
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       // Se não tem campos, cria os campos padrão
 
@@ -4862,7 +4957,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         ];
 
-        
+
 
         const { data: created, error: createError } = await supabase
 
@@ -4872,7 +4967,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
           .select();
 
-        
+
 
         if (createError) throw createError;
 
@@ -4880,7 +4975,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       res.json(definitions);
 
@@ -4906,7 +5001,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { name, label, fieldType, options, required, placeholder, helpText, aiExtractionPrompt, aiExtractionEnabled, position } = req.body;
 
-      
+
 
       if (!name || !label) {
 
@@ -4914,7 +5009,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Get max position
 
@@ -4930,11 +5025,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         .limit(1);
 
-      
+
 
       const maxPosition = existingFields?.[0]?.position || 0;
 
-      
+
 
       const { data: definition, error } = await supabase
 
@@ -4970,7 +5065,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         .single();
 
-      
+
 
       if (error) {
 
@@ -4984,7 +5079,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       res.status(201).json(definition);
 
@@ -5012,7 +5107,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { label, fieldType, options, required, placeholder, helpText, aiExtractionPrompt, aiExtractionEnabled, position, isActive } = req.body;
 
-      
+
 
       // Verifica se pertence ao usuário
 
@@ -5028,7 +5123,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         .single();
 
-      
+
 
       if (!existing) {
 
@@ -5036,7 +5131,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const updateData: any = { updated_at: new Date().toISOString() };
 
@@ -5060,7 +5155,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (isActive !== undefined) updateData.is_active = isActive;
 
-      
+
 
       const { data: definition, error } = await supabase
 
@@ -5074,11 +5169,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json(definition);
 
@@ -5104,7 +5199,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { id } = req.params;
 
-      
+
 
       const { error } = await supabase
 
@@ -5116,11 +5211,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         .eq('user_id', userId);
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json({ success: true });
 
@@ -5146,7 +5241,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { fieldIds } = req.body; // Array de IDs na nova ordem
 
-      
+
 
       if (!Array.isArray(fieldIds)) {
 
@@ -5154,7 +5249,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Atualiza as posições
 
@@ -5172,7 +5267,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       res.json({ success: true });
 
@@ -5198,7 +5293,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { conversationId } = req.params;
 
-      
+
 
       // Verifica ownership
 
@@ -5210,7 +5305,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -5220,7 +5315,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Busca definições do usuário
 
@@ -5236,11 +5331,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         .order('position', { ascending: true });
 
-      
+
 
       if (defError) throw defError;
 
-      
+
 
       // Busca valores existentes para esta conversa
 
@@ -5252,17 +5347,17 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         .eq('conversation_id', conversationId);
 
-      
+
 
       if (valError) throw valError;
 
-      
+
 
       // Mescla definições com valores
 
       const valuesMap = new Map((values || []).map(v => [v.field_definition_id, v]));
 
-      
+
 
       const fieldsWithValues = (definitions || []).map(def => ({
 
@@ -5272,7 +5367,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }));
 
-      
+
 
       res.json(fieldsWithValues);
 
@@ -5300,7 +5395,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { fields } = req.body; // Array de { fieldDefinitionId, value }
 
-      
+
 
       // Verifica ownership
 
@@ -5312,7 +5407,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -5322,7 +5417,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       if (!Array.isArray(fields)) {
 
@@ -5330,7 +5425,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Upsert cada valor
 
@@ -5338,11 +5433,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         const { fieldDefinitionId, value } = field;
 
-        
+
 
         if (!fieldDefinitionId) continue;
 
-        
+
 
         // Verifica se já existe
 
@@ -5358,7 +5453,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
           .single();
 
-        
+
 
         if (existing) {
 
@@ -5404,7 +5499,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       res.json({ success: true });
 
@@ -5430,7 +5525,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const { conversationId } = req.params;
 
-      
+
 
       // Verifica ownership
 
@@ -5442,7 +5537,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -5452,7 +5547,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Busca mensagens da conversa
 
@@ -5464,7 +5559,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Busca definições com extração IA ativada
 
@@ -5482,11 +5577,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         .not('ai_extraction_prompt', 'is', null);
 
-      
+
 
       if (defError) throw defError;
 
-      
+
 
       if (!definitions || definitions.length === 0) {
 
@@ -5494,7 +5589,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      
+
 
       // Monta contexto da conversa (últimas 50 mensagens)
 
@@ -5506,7 +5601,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         .join('\n');
 
-      
+
 
       // Monta prompt para extração
 
@@ -5524,7 +5619,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }));
 
-      
+
 
       const extractionPrompt = `Analise a seguinte conversa e extraia as informações solicitadas. Retorne APENAS um JSON válido com os campos preenchidos.
 
@@ -5572,17 +5667,17 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         extractionPrompt,
 
-        { 
+        {
 
           temperature: 0.1, // Baixa temperatura para respostas mais precisas
 
-          maxTokens: 1000 
+          maxTokens: 1000
 
         }
 
       );
 
-      
+
 
       console.log("=== AI EXTRACTION RESPONSE ===");
 
@@ -5590,7 +5685,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       console.log("==============================");
 
-      
+
 
       // Parse da resposta
 
@@ -5626,7 +5721,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // Salva os valores extraídos
 
@@ -5636,7 +5731,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         console.log(`Processing extraction for field ${extraction.fieldId}:`, extraction);
 
-        
+
 
         if (!extraction.value || extraction.value === 'null') {
 
@@ -5646,7 +5741,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         }
 
-        
+
 
         // Verifica se já existe valor
 
@@ -5662,11 +5757,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         console.log(`Existing value for field ${extraction.fieldId}:`, existing);
 
-        
+
 
         if (existing && existing.value) {
 
@@ -5678,7 +5773,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         }
 
-        
+
 
         if (existing) {
 
@@ -5708,7 +5803,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
             .eq('id', existing.id);
 
-          
+
 
           if (updateError) {
 
@@ -5744,7 +5839,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
             });
 
-          
+
 
           if (insertError) {
 
@@ -5758,15 +5853,15 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       console.log(`=== EXTRACTION COMPLETE: ${extractedCount} fields extracted ===`);
 
-      
 
-      res.json({ 
 
-        extracted: extractedCount, 
+      res.json({
+
+        extracted: extractedCount,
 
         total: definitions.length,
 
@@ -5804,7 +5899,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { category, isActive, search, page = 1, limit = 50 } = req.query;
 
-      
+
 
       let query = supabase
 
@@ -5816,7 +5911,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .order('name', { ascending: true });
 
-      
+
 
       if (category) {
 
@@ -5824,7 +5919,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       if (isActive !== undefined) {
 
@@ -5832,7 +5927,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       if (search) {
 
@@ -5840,7 +5935,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // Paginação
 
@@ -5850,15 +5945,15 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       query = query.range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
 
-      
+
 
       const { data, error, count } = await query;
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json({
 
@@ -5894,7 +5989,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { id } = req.params;
 
-      
+
 
       const { data, error } = await supabase
 
@@ -5908,7 +6003,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error) {
 
@@ -5922,7 +6017,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       res.json(data);
 
@@ -5948,7 +6043,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { name, price, stock, description, category, link, sku, unit, isActive } = req.body;
 
-      
+
 
       if (!name) {
 
@@ -5956,7 +6051,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       const { data, error } = await supabase
 
@@ -5990,11 +6085,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.status(201).json(data);
 
@@ -6022,7 +6117,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { name, price, stock, description, category, link, sku, unit, isActive } = req.body;
 
-      
+
 
       const updateData: any = {
 
@@ -6030,7 +6125,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       };
 
-      
+
 
       if (name !== undefined) updateData.name = name;
 
@@ -6050,7 +6145,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (isActive !== undefined) updateData.is_active = isActive;
 
-      
+
 
       const { data, error } = await supabase
 
@@ -6066,7 +6161,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error) {
 
@@ -6080,7 +6175,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       res.json(data);
 
@@ -6106,7 +6201,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { id } = req.params;
 
-      
+
 
       const { error } = await supabase
 
@@ -6118,11 +6213,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .eq('user_id', userId);
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json({ success: true });
 
@@ -6148,7 +6243,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { ids } = req.body;
 
-      
+
 
       if (!Array.isArray(ids) || ids.length === 0) {
 
@@ -6156,7 +6251,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       const { error } = await supabase
 
@@ -6168,11 +6263,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .eq('user_id', userId);
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json({ success: true, deleted: ids.length });
 
@@ -6200,7 +6295,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const columnMapping = JSON.parse(req.body.columnMapping || '{}');
 
-      
+
 
       if (!file) {
 
@@ -6208,13 +6303,13 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // Importa xlsx dinamicamente
 
       const XLSX = await import('xlsx');
 
-      
+
 
       // Lê o arquivo
 
@@ -6224,13 +6319,13 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const worksheet = workbook.Sheets[sheetName];
 
-      
+
 
       // Converte para JSON
 
       const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
-      
+
 
       if (rawData.length < 2) {
 
@@ -6238,7 +6333,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // Primeira linha são os headers
 
@@ -6246,7 +6341,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const dataRows = rawData.slice(1);
 
-      
+
 
       // Se não tiver mapeamento, tenta mapear automaticamente
 
@@ -6258,7 +6353,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // Processa as linhas
 
@@ -6266,7 +6361,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const errors: string[] = [];
 
-      
+
 
       for (let i = 0; i < dataRows.length; i++) {
 
@@ -6274,7 +6369,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         const rowNum = i + 2; // +2 porque excel é 1-indexed e pulamos o header
 
-        
+
 
         try {
 
@@ -6288,7 +6383,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           };
 
-          
+
 
           // Aplica o mapeamento
 
@@ -6298,7 +6393,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
               let value = row[sourceIndex as number];
 
-              
+
 
               if (value !== undefined && value !== null && value !== '') {
 
@@ -6344,7 +6439,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           }
 
-          
+
 
           // Valida que tem pelo menos nome
 
@@ -6368,7 +6463,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           }
 
-          
+
 
           products.push(product);
 
@@ -6380,11 +6475,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       if (products.length === 0) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           message: "Nenhum produto válido encontrado",
 
@@ -6394,7 +6489,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // =============================================
 
@@ -6414,7 +6509,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       let updated = 0;
 
-      
+
 
       // ?? OTIMIZAÇÃO: Busca TODOS os produtos do usuário de uma vez só
 
@@ -6426,7 +6521,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .eq('user_id', userId);
 
-      
+
 
       // Cria maps para lookup rápido O(1) em vez de O(n) por produto
 
@@ -6434,7 +6529,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const productsByName = new Map<string, { id: number }>();
 
-      
+
 
       if (existingProducts) {
 
@@ -6456,7 +6551,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // Separa produtos em inserções e atualizações
 
@@ -6464,13 +6559,13 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const toUpdate: { id: number; data: any }[] = [];
 
-      
+
 
       for (const product of products) {
 
         let existingProduct = null;
 
-        
+
 
         // Lookup in-memory - muito mais rápido que query
 
@@ -6480,7 +6575,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         }
 
-        
+
 
         if (!existingProduct && product.name) {
 
@@ -6488,7 +6583,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         }
 
-        
+
 
         if (existingProduct) {
 
@@ -6512,7 +6607,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // ?? Executa inserções em batch (se tiver)
 
@@ -6524,7 +6619,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .insert(toInsert);
 
-        
+
 
         if (!insertError) {
 
@@ -6538,7 +6633,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // ?? Executa atualizações (infelizmente Supabase não tem batch update, faz um por um)
 
@@ -6552,7 +6647,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .eq('id', id);
 
-        
+
 
         if (!updateError) {
 
@@ -6566,11 +6661,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         inserted,
 
@@ -6604,7 +6699,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const file = req.file;
 
-      
+
 
       if (!file) {
 
@@ -6612,13 +6707,13 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // Importa xlsx dinamicamente
 
       const XLSX = await import('xlsx');
 
-      
+
 
       // Lê o arquivo
 
@@ -6628,13 +6723,13 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const worksheet = workbook.Sheets[sheetName];
 
-      
+
 
       // Converte para JSON
 
       const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
-      
+
 
       if (rawData.length < 1) {
 
@@ -6642,19 +6737,19 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       const headers = rawData[0] as string[];
 
       const sampleRows = rawData.slice(1, 6); // Primeiras 5 linhas de dados
 
-      
+
 
       // Tenta detectar mapeamento automático
 
       const suggestedMapping = autoMapColumns(headers);
 
-      
+
 
       res.json({
 
@@ -6688,7 +6783,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { url } = req.body;
 
-      
+
 
       if (!url) {
 
@@ -6696,7 +6791,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       const validation = validateUrl(url);
 
@@ -6706,29 +6801,29 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       console.log(`[ProductsImport] Scraping de URL: ${validation.normalizedUrl}`);
 
-      
+
 
       // Usa o serviço existente de scrape
 
       const result = await scrapeWebsite(validation.normalizedUrl!);
 
-      
+
 
       if (!result.success) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: result.error || "Falha ao analisar o website. Verifique se a URL está acessível." 
+          message: result.error || "Falha ao analisar o website. Verifique se a URL está acessível."
 
         });
 
       }
 
-      
+
 
       // Mapeia o resultado para o formato esperado pelo frontend de produtos
 
@@ -6752,7 +6847,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }));
 
-      
+
 
       res.json({
 
@@ -6772,7 +6867,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       });
 
-      
+
 
     } catch (error: any) {
 
@@ -6794,7 +6889,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const userId = getUserId(req);
 
-      
+
 
       const { data, error } = await supabase
 
@@ -6806,17 +6901,17 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .not('category', 'is', null);
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       // Extrai categorias únicas
 
       const categories = [...new Set((data || []).map(p => p.category).filter(Boolean))];
 
-      
+
 
       res.json(categories);
 
@@ -6848,7 +6943,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const userId = getUserId(req);
 
-      
+
 
       let { data, error } = await supabase
 
@@ -6860,7 +6955,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error && error.code === 'PGRST116') {
 
@@ -6870,7 +6965,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .from('products_config')
 
-          .insert({ 
+          .insert({
 
             user_id: userId,
 
@@ -6884,7 +6979,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (insertError) throw insertError;
 
@@ -6896,7 +6991,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       res.json(data);
 
@@ -6922,7 +7017,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { isActive, sendToAi, aiInstructions, is_active, send_to_ai, ai_instructions } = req.body;
 
-      
+
 
       const updateData: any = {
 
@@ -6930,7 +7025,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       };
 
-      
+
 
       // Aceita tanto camelCase quanto snake_case
 
@@ -6946,7 +7041,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (ai_instructions !== undefined) updateData.ai_instructions = ai_instructions;
 
-      
+
 
       // Tenta update primeiro
 
@@ -6960,7 +7055,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       let data;
 
@@ -6978,7 +7073,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -6996,7 +7091,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -7004,7 +7099,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       res.json(data);
 
@@ -7028,7 +7123,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const userId = getUserId(req);
 
-      
+
 
       // Verifica se o módulo está ativo
 
@@ -7042,23 +7137,23 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (!config || !config.is_active || !config.send_to_ai) {
 
-        return res.json({ 
+        return res.json({
 
           active: false,
 
           products: [],
 
-          instructions: null 
+          instructions: null
 
         });
 
       }
 
-      
+
 
       // Busca produtos ativos
 
@@ -7074,11 +7169,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .order('name', { ascending: true });
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json({
 
@@ -7110,7 +7205,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
   // =============================================
 
-  
+
 
   // --- COURSE CONFIG ---
 
@@ -7124,7 +7219,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const userId = getUserId(req);
 
-      
+
 
       const { data, error } = await supabase
 
@@ -7136,11 +7231,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error && error.code !== 'PGRST116') throw error;
 
-      
+
 
       // Retorna config padrão se não existir
 
@@ -7232,7 +7327,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       res.json(data);
 
@@ -7258,7 +7353,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const body = req.body;
 
-      
+
 
       const updateData: any = {
 
@@ -7266,7 +7361,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       };
 
-      
+
 
       // Lista de campos permitidos
 
@@ -7294,13 +7389,13 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       ];
 
-      
+
 
       // Mapear camelCase para snake_case
 
       const camelToSnake = (str: string) => str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 
-      
+
 
       for (const [key, value] of Object.entries(body)) {
 
@@ -7348,7 +7443,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // Tenta update primeiro, depois insert
 
@@ -7362,7 +7457,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (existing) {
 
@@ -7378,7 +7473,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -7402,7 +7497,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -7432,7 +7527,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const newModule = req.body;
 
-      
+
 
       if (!newModule.name) {
 
@@ -7440,7 +7535,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // Buscar configuração atual
 
@@ -7454,11 +7549,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
 
-      
+
 
       const currentModules = config?.modules || [];
 
@@ -7478,11 +7573,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       };
 
-      
+
 
       const updatedModules = [...currentModules, moduleWithId];
 
-      
+
 
       // Recalcular totais
 
@@ -7490,7 +7585,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const totalLessons = updatedModules.reduce((sum: number, m: any) => sum + (m.lessons?.length || 0), 0);
 
-      
+
 
       // Atualizar ou criar
 
@@ -7518,7 +7613,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -7546,7 +7641,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -7578,7 +7673,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const updates = req.body;
 
-      
+
 
       const { data: config, error: fetchError } = await supabase
 
@@ -7590,17 +7685,17 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (fetchError) throw fetchError;
 
-      
+
 
       const modules = config?.modules || [];
 
       const moduleIndex = modules.findIndex((m: any) => m.id === moduleId);
 
-      
+
 
       if (moduleIndex === -1) {
 
@@ -7608,11 +7703,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       modules[moduleIndex] = { ...modules[moduleIndex], ...updates };
 
-      
+
 
       // Recalcular totais
 
@@ -7620,7 +7715,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const totalLessons = modules.reduce((sum: number, m: any) => sum + (m.lessons?.length || 0), 0);
 
-      
+
 
       const { data, error } = await supabase
 
@@ -7644,7 +7739,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error) throw error;
 
@@ -7672,7 +7767,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { moduleId } = req.params;
 
-      
+
 
       const { data: config, error: fetchError } = await supabase
 
@@ -7684,15 +7779,15 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (fetchError) throw fetchError;
 
-      
+
 
       const modules = (config?.modules || []).filter((m: any) => m.id !== moduleId);
 
-      
+
 
       // Recalcular totais
 
@@ -7700,7 +7795,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const totalLessons = modules.reduce((sum: number, m: any) => sum + (m.lessons?.length || 0), 0);
 
-      
+
 
       const { data, error } = await supabase
 
@@ -7724,7 +7819,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error) throw error;
 
@@ -7752,7 +7847,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const newBonus = req.body;
 
-      
+
 
       if (!newBonus.name) {
 
@@ -7760,7 +7855,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       const { data: config, error: fetchError } = await supabase
 
@@ -7772,11 +7867,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
 
-      
+
 
       const currentBonus = config?.bonus_items || [];
 
@@ -7792,11 +7887,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       };
 
-      
+
 
       const updatedBonus = [...currentBonus, bonusWithId];
 
-      
+
 
       if (config) {
 
@@ -7818,7 +7913,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -7842,7 +7937,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -7872,7 +7967,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { bonusId } = req.params;
 
-      
+
 
       const { data: config, error: fetchError } = await supabase
 
@@ -7884,15 +7979,15 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (fetchError) throw fetchError;
 
-      
+
 
       const bonusItems = (config?.bonus_items || []).filter((b: any) => b.id !== bonusId);
 
-      
+
 
       const { data, error } = await supabase
 
@@ -7912,7 +8007,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error) throw error;
 
@@ -7940,7 +8035,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const newTestimonial = req.body;
 
-      
+
 
       if (!newTestimonial.name || !newTestimonial.text) {
 
@@ -7948,7 +8043,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       const { data: config, error: fetchError } = await supabase
 
@@ -7960,11 +8055,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
 
-      
+
 
       const currentTestimonials = config?.testimonials || [];
 
@@ -7982,11 +8077,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       };
 
-      
+
 
       const updatedTestimonials = [...currentTestimonials, testimonialWithId];
 
-      
+
 
       if (config) {
 
@@ -8008,7 +8103,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -8032,7 +8127,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -8062,7 +8157,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { testimonialId } = req.params;
 
-      
+
 
       const { data: config, error: fetchError } = await supabase
 
@@ -8074,15 +8169,15 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (fetchError) throw fetchError;
 
-      
+
 
       const testimonials = (config?.testimonials || []).filter((t: any) => t.id !== testimonialId);
 
-      
+
 
       const { data, error } = await supabase
 
@@ -8102,7 +8197,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error) throw error;
 
@@ -8130,7 +8225,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const newCoupon = req.body;
 
-      
+
 
       if (!newCoupon.code) {
 
@@ -8138,7 +8233,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       const { data: config, error: fetchError } = await supabase
 
@@ -8150,11 +8245,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
 
-      
+
 
       const currentCoupons = config?.active_coupons || [];
 
@@ -8174,11 +8269,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       };
 
-      
+
 
       const updatedCoupons = [...currentCoupons, couponWithId];
 
-      
+
 
       if (config) {
 
@@ -8200,7 +8295,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -8224,7 +8319,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -8254,7 +8349,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const { couponId } = req.params;
 
-      
+
 
       const { data: config, error: fetchError } = await supabase
 
@@ -8266,15 +8361,15 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (fetchError) throw fetchError;
 
-      
+
 
       const activeCoupons = (config?.active_coupons || []).filter((c: any) => c.id !== couponId);
 
-      
+
 
       const { data, error } = await supabase
 
@@ -8294,7 +8389,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error) throw error;
 
@@ -8320,7 +8415,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       const userId = getUserId(req);
 
-      
+
 
       const { data: config, error } = await supabase
 
@@ -8332,11 +8427,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         .single();
 
-      
+
 
       if (error && error.code !== 'PGRST116') throw error;
 
-      
+
 
       if (!config || !config.is_active) {
 
@@ -8350,7 +8445,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       }
 
-      
+
 
       // Formatar contexto para IA
 
@@ -8460,7 +8555,7 @@ ${config.ai_instructions || ''}
 
 `.trim();
 
-      
+
 
       res.json({
 
@@ -8504,7 +8599,7 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      
+
 
       const { data, error } = await supabase
 
@@ -8516,11 +8611,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (error && error.code !== 'PGRST116') throw error;
 
-      
+
 
       // Retorna config padrão se não existir
 
@@ -8564,7 +8659,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       res.json(data);
 
@@ -8590,7 +8685,7 @@ ${config.ai_instructions || ''}
 
       const body = req.body;
 
-      
+
 
       const updateData: any = {
 
@@ -8598,7 +8693,7 @@ ${config.ai_instructions || ''}
 
       };
 
-      
+
 
       // Mapear campos (aceita camelCase e snake_case)
 
@@ -8634,7 +8729,7 @@ ${config.ai_instructions || ''}
 
       };
 
-      
+
 
       for (const [key, value] of Object.entries(body)) {
 
@@ -8662,7 +8757,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // Tenta update primeiro, depois insert
 
@@ -8676,7 +8771,7 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       let data;
 
@@ -8694,7 +8789,7 @@ ${config.ai_instructions || ''}
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -8712,7 +8807,7 @@ ${config.ai_instructions || ''}
 
           .single();
 
-        
+
 
         if (error) throw error;
 
@@ -8720,7 +8815,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       res.json(data);
 
@@ -8748,7 +8843,7 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      
+
 
       const { data, error } = await supabase
 
@@ -8762,11 +8857,11 @@ ${config.ai_instructions || ''}
 
         .order('name', { ascending: true });
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json(data || []);
 
@@ -8792,7 +8887,7 @@ ${config.ai_instructions || ''}
 
       const { name, description, imageUrl, displayOrder, isActive } = req.body;
 
-      
+
 
       if (!name) {
 
@@ -8800,7 +8895,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const { data, error } = await supabase
 
@@ -8826,11 +8921,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.status(201).json(data);
 
@@ -8858,7 +8953,7 @@ ${config.ai_instructions || ''}
 
       const { name, description, imageUrl, displayOrder, isActive } = req.body;
 
-      
+
 
       const updateData: any = { updated_at: new Date().toISOString() };
 
@@ -8872,7 +8967,7 @@ ${config.ai_instructions || ''}
 
       if (isActive !== undefined) updateData.is_active = isActive;
 
-      
+
 
       const { data, error } = await supabase
 
@@ -8888,11 +8983,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json(data);
 
@@ -8918,7 +9013,7 @@ ${config.ai_instructions || ''}
 
       const { id } = req.params;
 
-      
+
 
       const { error } = await supabase
 
@@ -8930,11 +9025,11 @@ ${config.ai_instructions || ''}
 
         .eq('user_id', userId);
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json({ success: true });
 
@@ -8964,7 +9059,7 @@ ${config.ai_instructions || ''}
 
       const { categoryId, isAvailable, search, page = 1, limit = 50 } = req.query;
 
-      
+
 
       let query = supabase
 
@@ -8978,7 +9073,7 @@ ${config.ai_instructions || ''}
 
         .order('name', { ascending: true });
 
-      
+
 
       if (categoryId) {
 
@@ -8986,7 +9081,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       if (isAvailable !== undefined) {
 
@@ -8994,7 +9089,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       if (search) {
 
@@ -9002,7 +9097,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const pageNum = parseInt(page as string);
 
@@ -9010,15 +9105,15 @@ ${config.ai_instructions || ''}
 
       query = query.range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
 
-      
+
 
       const { data, error, count } = await query;
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json({
 
@@ -9054,7 +9149,7 @@ ${config.ai_instructions || ''}
 
       const { id } = req.params;
 
-      
+
 
       const { data, error } = await supabase
 
@@ -9068,7 +9163,7 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (error) {
 
@@ -9082,7 +9177,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       res.json(data);
 
@@ -9106,7 +9201,7 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      const { 
+      const {
 
         categoryId, name, description, price, promotionalPrice,
 
@@ -9116,7 +9211,7 @@ ${config.ai_instructions || ''}
 
       } = req.body;
 
-      
+
 
       if (!name) {
 
@@ -9130,7 +9225,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const { data, error } = await supabase
 
@@ -9174,11 +9269,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.status(201).json(data);
 
@@ -9206,11 +9301,11 @@ ${config.ai_instructions || ''}
 
       const body = req.body;
 
-      
+
 
       const updateData: any = { updated_at: new Date().toISOString() };
 
-      
+
 
       const fieldMappings: Record<string, string> = {
 
@@ -9228,7 +9323,7 @@ ${config.ai_instructions || ''}
 
       };
 
-      
+
 
       for (const [key, dbField] of Object.entries(fieldMappings)) {
 
@@ -9252,7 +9347,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const { data, error } = await supabase
 
@@ -9268,11 +9363,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json(data);
 
@@ -9298,7 +9393,7 @@ ${config.ai_instructions || ''}
 
       const { id } = req.params;
 
-      
+
 
       const { error } = await supabase
 
@@ -9310,11 +9405,11 @@ ${config.ai_instructions || ''}
 
         .eq('user_id', userId);
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json({ success: true });
 
@@ -9340,7 +9435,7 @@ ${config.ai_instructions || ''}
 
       const { ids } = req.body;
 
-      
+
 
       if (!ids || !Array.isArray(ids) || ids.length === 0) {
 
@@ -9348,7 +9443,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const { error } = await supabase
 
@@ -9360,11 +9455,11 @@ ${config.ai_instructions || ''}
 
         .in('id', ids);
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json({ success: true, deleted: ids.length });
 
@@ -9394,7 +9489,7 @@ ${config.ai_instructions || ''}
 
       const { status, startDate, endDate, page = 1, limit = 50 } = req.query;
 
-      
+
 
       let query = supabase
 
@@ -9406,7 +9501,7 @@ ${config.ai_instructions || ''}
 
         .order('created_at', { ascending: false });
 
-      
+
 
       if (status) {
 
@@ -9422,7 +9517,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       if (startDate) {
 
@@ -9436,7 +9531,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const pageNum = parseInt(page as string);
 
@@ -9444,15 +9539,15 @@ ${config.ai_instructions || ''}
 
       query = query.range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
 
-      
+
 
       const { data, error, count } = await query;
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json({
 
@@ -9488,7 +9583,7 @@ ${config.ai_instructions || ''}
 
       const { id } = req.params;
 
-      
+
 
       const { data, error } = await supabase
 
@@ -9502,7 +9597,7 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (error) {
 
@@ -9516,7 +9611,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       res.json(data);
 
@@ -9550,7 +9645,7 @@ ${config.ai_instructions || ''}
 
       } = req.body;
 
-      
+
 
       if (!items || !Array.isArray(items) || items.length === 0) {
 
@@ -9558,7 +9653,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // Calcular totais
 
@@ -9572,7 +9667,7 @@ ${config.ai_instructions || ''}
 
       const total = subtotal + parseFloat(String(deliveryFee || 0)) - parseFloat(String(discount || 0));
 
-      
+
 
       // Buscar configuração para tempo estimado
 
@@ -9586,7 +9681,7 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       // Criar pedido
 
@@ -9638,11 +9733,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (orderError) throw orderError;
 
-      
+
 
       // Criar itens do pedido
 
@@ -9666,7 +9761,7 @@ ${config.ai_instructions || ''}
 
       }));
 
-      
+
 
       const { error: itemsError } = await supabase
 
@@ -9674,11 +9769,11 @@ ${config.ai_instructions || ''}
 
         .insert(orderItems);
 
-      
+
 
       if (itemsError) throw itemsError;
 
-      
+
 
       // Buscar pedido completo
 
@@ -9692,11 +9787,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (fullError) throw fullError;
 
-      
+
 
       // ?? ENVIAR NOTIFICAÇÃO WHATSAPP PARA O DONO DO ESTABELECIMENTO
 
@@ -9712,29 +9807,29 @@ ${config.ai_instructions || ''}
 
           .single();
 
-        
+
 
         if (deliveryConfig?.whatsapp_order_number) {
 
           const notifyNumber = deliveryConfig.whatsapp_order_number.replace(/\D/g, '');
 
-          
+
 
           // Formatar preço
 
           const formatPrice = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-          
+
 
           // Montar mensagem de notificação
 
-          const itemsList = items.map((i: any) => 
+          const itemsList = items.map((i: any) =>
 
             ` ${i.quantity || 1}x ${i.name || i.itemName} - ${formatPrice((i.quantity || 1) * parseFloat(String(i.unitPrice)))}`
 
           ).join('\n');
 
-          
+
 
           const orderNotification = `?? *NOVO PEDIDO #${fullOrder.order_number}*\n\n` +
 
@@ -9762,7 +9857,7 @@ ${config.ai_instructions || ''}
 
             `? Acesse o painel para confirmar o pedido!`;
 
-          
+
 
           // Verificar se tem sessão WhatsApp ativa e enviar
 
@@ -9782,7 +9877,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       res.status(201).json(fullOrder);
 
@@ -9810,7 +9905,7 @@ ${config.ai_instructions || ''}
 
       const { status, cancellationReason } = req.body;
 
-      
+
 
       const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled'];
 
@@ -9820,7 +9915,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const updateData: any = {
 
@@ -9830,7 +9925,7 @@ ${config.ai_instructions || ''}
 
       };
 
-      
+
 
       // Timestamps por status
 
@@ -9850,7 +9945,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const { data, error } = await supabase
 
@@ -9866,11 +9961,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json(data);
 
@@ -9898,11 +9993,11 @@ ${config.ai_instructions || ''}
 
       const body = req.body;
 
-      
+
 
       const updateData: any = { updated_at: new Date().toISOString() };
 
-      
+
 
       const fieldMappings: Record<string, string> = {
 
@@ -9918,7 +10013,7 @@ ${config.ai_instructions || ''}
 
       };
 
-      
+
 
       for (const [key, dbField] of Object.entries(fieldMappings)) {
 
@@ -9930,7 +10025,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const { data, error } = await supabase
 
@@ -9946,11 +10041,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       res.json(data);
 
@@ -9974,7 +10069,7 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      
+
 
       // Verifica se o módulo está ativo
 
@@ -9988,11 +10083,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (!config || !config.is_active || !config.send_to_ai) {
 
-        return res.json({ 
+        return res.json({
 
           active: false,
 
@@ -10000,13 +10095,13 @@ ${config.ai_instructions || ''}
 
           config: null,
 
-          instructions: null 
+          instructions: null
 
         });
 
       }
 
-      
+
 
       // Busca categorias e itens
 
@@ -10022,7 +10117,7 @@ ${config.ai_instructions || ''}
 
         .order('display_order', { ascending: true });
 
-      
+
 
       const { data: items } = await supabase
 
@@ -10036,7 +10131,7 @@ ${config.ai_instructions || ''}
 
         .order('display_order', { ascending: true });
 
-      
+
 
       // Organiza por categoria
 
@@ -10070,7 +10165,7 @@ ${config.ai_instructions || ''}
 
       }));
 
-      
+
 
       // Itens sem categoria
 
@@ -10096,7 +10191,7 @@ ${config.ai_instructions || ''}
 
         }));
 
-      
+
 
       if (uncategorizedItems.length > 0) {
 
@@ -10112,7 +10207,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       res.json({
 
@@ -10170,7 +10265,7 @@ ${config.ai_instructions || ''}
 
       const { userId } = req.params;
 
-      
+
 
       if (!userId) {
 
@@ -10178,7 +10273,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // Verifica se o módulo delivery está ativo
 
@@ -10192,7 +10287,7 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       // Busca categorias
 
@@ -10208,7 +10303,7 @@ ${config.ai_instructions || ''}
 
         .order('display_order', { ascending: true });
 
-      
+
 
       // Busca itens disponíveis
 
@@ -10224,7 +10319,7 @@ ${config.ai_instructions || ''}
 
         .order('display_order', { ascending: true });
 
-      
+
 
       // Formato para usar como Lista no WhatsApp (sections com rows)
 
@@ -10252,7 +10347,7 @@ ${config.ai_instructions || ''}
 
       })).filter(s => s.rows.length > 0);
 
-      
+
 
       // Itens sem categoria
 
@@ -10282,7 +10377,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       res.json({
 
@@ -10340,7 +10435,7 @@ ${config.ai_instructions || ''}
 
       } = req.body;
 
-      
+
 
       if (!userId) {
 
@@ -10354,7 +10449,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // Calcular totais
 
@@ -10368,7 +10463,7 @@ ${config.ai_instructions || ''}
 
       const total = subtotal + parseFloat(String(deliveryFee || 0)) - parseFloat(String(discount || 0));
 
-      
+
 
       // Buscar configuração para tempo estimado
 
@@ -10382,7 +10477,7 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       // Criar pedido
 
@@ -10428,11 +10523,11 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (orderError) throw orderError;
 
-      
+
 
       // Criar itens do pedido
 
@@ -10454,7 +10549,7 @@ ${config.ai_instructions || ''}
 
       }));
 
-      
+
 
       const { error: itemsError } = await supabase
 
@@ -10462,11 +10557,11 @@ ${config.ai_instructions || ''}
 
         .insert(orderItems);
 
-      
+
 
       if (itemsError) throw itemsError;
 
-      
+
 
       // Buscar pedido completo
 
@@ -10480,15 +10575,15 @@ ${config.ai_instructions || ''}
 
         .single();
 
-      
+
 
       if (fullError) throw fullError;
 
-      
+
 
       console.log(`? [Simulador] Pedido #${fullOrder.order_number} criado para usuário ${userId}`);
 
-      
+
 
       res.status(201).json({
 
@@ -10520,7 +10615,7 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      
+
 
       // Calcular início de hoje e da semana
 
@@ -10530,7 +10625,7 @@ ${config.ai_instructions || ''}
 
       const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
-      
+
 
       // Início da semana (domingo)
 
@@ -10538,7 +10633,7 @@ ${config.ai_instructions || ''}
 
       const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek).toISOString();
 
-      
+
 
       // Buscar pedidos de hoje
 
@@ -10554,11 +10649,11 @@ ${config.ai_instructions || ''}
 
         .lte('created_at', todayEnd);
 
-      
+
 
       if (todayError) throw todayError;
 
-      
+
 
       // Buscar pedidos da semana
 
@@ -10572,11 +10667,11 @@ ${config.ai_instructions || ''}
 
         .gte('created_at', weekStart);
 
-      
+
 
       if (weekError) throw weekError;
 
-      
+
 
       // Calcular estatísticas de hoje
 
@@ -10602,7 +10697,7 @@ ${config.ai_instructions || ''}
 
       };
 
-      
+
 
       // Calcular estatísticas da semana
 
@@ -10614,7 +10709,7 @@ ${config.ai_instructions || ''}
 
       };
 
-      
+
 
       res.json({
 
@@ -10638,7 +10733,7 @@ ${config.ai_instructions || ''}
 
   // --- IMAGENS GENÉRICAS ---
 
-  
+
 
   // GET - Buscar imagem genérica de comida (usando Loremflickr como alternativa gratuita)
 
@@ -10648,7 +10743,7 @@ ${config.ai_instructions || ''}
 
       const { query } = req.query;
 
-      
+
 
       if (!query) {
 
@@ -10656,7 +10751,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // Usar Loremflickr (gratuito, sem API key) - alternativa ao Unsplash Source descontinuado
 
@@ -10664,15 +10759,15 @@ ${config.ai_instructions || ''}
 
       const imageUrl = `https://loremflickr.com/800/600/${encodeURIComponent(query)},food`;
 
-      
 
-      res.json({ 
+
+      res.json({
 
         imageUrl: imageUrl,
 
         source: 'loremflickr',
 
-        query 
+        query
 
       });
 
@@ -10682,13 +10777,13 @@ ${config.ai_instructions || ''}
 
       // Fallback para placeholder
 
-      res.json({ 
+      res.json({
 
         imageUrl: `https://placehold.co/800x600/f97316/white?text=${encodeURIComponent(req.query.query || 'Comida')}`,
 
         source: 'placeholder',
 
-        query: req.query.query 
+        query: req.query.query
 
       });
 
@@ -10706,7 +10801,7 @@ ${config.ai_instructions || ''}
 
       const { type } = req.query; // image, video, audio, document ou all
 
-      
+
 
       // Verifica ownership
 
@@ -10718,7 +10813,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -10728,17 +10823,17 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // Busca todas as mensagens com mídia
 
       const messages = await storage.getMessagesByConversationId(conversationId);
 
-      
+
 
       let mediaMessages = messages.filter(m => m.mediaType && m.mediaUrl);
 
-      
+
 
       // Filtra por tipo se especificado
 
@@ -10748,7 +10843,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // Mapeia para formato de galeria
 
@@ -10772,7 +10867,7 @@ ${config.ai_instructions || ''}
 
       }));
 
-      
+
 
       // Conta por tipo
 
@@ -10790,7 +10885,7 @@ ${config.ai_instructions || ''}
 
       };
 
-      
+
 
       res.json({ gallery, counts });
 
@@ -10808,7 +10903,7 @@ ${config.ai_instructions || ''}
 
   // ==================== AUTO-TRANSCRIPTION ====================
 
-  
+
 
   // POST - Auto-transcribe all untranscribed audios in a conversation
 
@@ -10848,15 +10943,15 @@ ${config.ai_instructions || ''}
 
       const messages = await storage.getMessagesByConversationId(conversationId);
 
-      
+
 
       // Filter audio messages without transcription
 
-      const untranscribedAudios = messages.filter(msg => 
+      const untranscribedAudios = messages.filter(msg =>
 
-        msg.mediaType === "audio" && 
+        msg.mediaType === "audio" &&
 
-        msg.mediaUrl && 
+        msg.mediaUrl &&
 
         (!msg.text || msg.text === "?? Áudio" || msg.text === "?? Áudio" || msg.text.startsWith("[Áudio"))
 
@@ -10884,7 +10979,7 @@ ${config.ai_instructions || ''}
 
       const toProcess = untranscribedAudios.slice(0, 10);
 
-      
+
 
       for (const msg of toProcess) {
 
@@ -10892,19 +10987,19 @@ ${config.ai_instructions || ''}
 
           if (!msg.mediaUrl) continue;
 
-          
+
 
           const base64Part = msg.mediaUrl.split(",")[1];
 
           if (!base64Part) continue;
 
-          
+
 
           const audioBuffer = Buffer.from(base64Part, "base64");
 
           console.log(`[Auto-Transcribe] Processing audio ${msg.id} (${audioBuffer.length} bytes)...`);
 
-          
+
 
           const transcription = await transcribeAudioWithMistral(audioBuffer, {
 
@@ -10936,9 +11031,9 @@ ${config.ai_instructions || ''}
 
 
 
-      res.json({ 
+      res.json({
 
-        transcribed: transcribedCount, 
+        transcribed: transcribedCount,
 
         total: untranscribedAudios.length,
 
@@ -11076,7 +11171,7 @@ ${config.ai_instructions || ''}
 
       await storage.deleteMessagesByConversationId(conversationId);
 
-      
+
 
       // Reset conversation state
 
@@ -11162,7 +11257,7 @@ ${config.ai_instructions || ''}
 
       const mediaData = await storage.getMessageMedia(messageId);
 
-      
+
 
       if (!mediaData || mediaData.mediaUrl === null) {
 
@@ -11176,13 +11271,13 @@ ${config.ai_instructions || ''}
 
       res.set('Cache-Control', 'private, max-age=3600'); // Cache 1 hora
 
-      res.json({ 
+      res.json({
 
-        mediaUrl: mediaData.mediaUrl, 
+        mediaUrl: mediaData.mediaUrl,
 
         mediaType: mediaData.mediaType ?? 'unknown',
 
-        hasMedia: true 
+        hasMedia: true
 
       });
 
@@ -11252,13 +11347,13 @@ ${config.ai_instructions || ''}
 
         console.log(`? [REDOWNLOAD] Mensagem ${messageId} já tem mediaUrl, retornando direto`);
 
-        return res.json({ 
+        return res.json({
 
-          success: true, 
+          success: true,
 
           message: "Mídia já disponível!",
 
-          mediaUrl: message.mediaUrl 
+          mediaUrl: message.mediaUrl
 
         });
 
@@ -11270,11 +11365,11 @@ ${config.ai_instructions || ''}
 
       if (!message.mediaKey || !message.directPath) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          success: false, 
+          success: false,
 
-          message: "Esta mídia não tem metadados para re-download. Mídias antigas não podem ser recuperadas." 
+          message: "Esta mídia não tem metadados para re-download. Mídias antigas não podem ser recuperadas."
 
         });
 
@@ -11310,25 +11405,25 @@ ${config.ai_instructions || ''}
 
         await storage.updateMessageMedia(messageId, result.mediaUrl);
 
-        
 
-        return res.json({ 
 
-          success: true, 
+        return res.json({
+
+          success: true,
 
           message: "Mídia re-baixada com sucesso!",
 
-          mediaUrl: result.mediaUrl 
+          mediaUrl: result.mediaUrl
 
         });
 
       } else {
 
-        return res.status(404).json({ 
+        return res.status(404).json({
 
-          success: false, 
+          success: false,
 
-          message: result.error || "Mídia expirada ou não disponível no WhatsApp" 
+          message: result.error || "Mídia expirada ou não disponível no WhatsApp"
 
         });
 
@@ -11352,7 +11447,7 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      
+
 
       // ?? Verificar se usuário está suspenso - bloquear envio de mensagens
 
@@ -11362,9 +11457,9 @@ ${config.ai_instructions || ''}
 
         console.log(`?? [SUSPENSION] Bloqueando envio de mensagem para usuário suspenso: ${userId}`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'Sua conta está suspensa. Não é possível enviar mensagens.',
 
@@ -11376,7 +11471,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const result = sendMessageSchema.safeParse(req.body);
 
@@ -11450,7 +11545,7 @@ ${config.ai_instructions || ''}
 
       await whatsappSendMessage(userId, conversationId, finalText);
 
-      
+
 
       // ?? AUTO-PAUSE IA: Quando o dono envia mensagem pelo sistema, PAUSA a IA
 
@@ -11472,7 +11567,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       res.json({ success: true, agentPaused: true });
 
@@ -11553,7 +11648,7 @@ ${config.ai_instructions || ''}
 
 
   // ==================== PAYMENT RECEIPTS ROUTES ====================
-  
+
   // Upload de comprovante de pagamento PIX
   app.post("/api/payment-receipts/upload", isAuthenticated, upload.single("receipt"), async (req: any, res) => {
     try {
@@ -11685,17 +11780,17 @@ ${config.ai_instructions || ''}
       // Atualizar status da assinatura para ativo (libera acesso temporariamente)
       await supabase
         .from("subscriptions")
-        .update({ 
+        .update({
           status: "active",
           pending_receipt: true,
           updated_at: new Date().toISOString()
         })
         .eq("id", subscriptionId);
 
-      res.json({ 
-        success: true, 
-        message: "Comprovante enviado com sucesso! Seu acesso foi liberado.", 
-        receipt 
+      res.json({
+        success: true,
+        message: "Comprovante enviado com sucesso! Seu acesso foi liberado.",
+        receipt
       });
     } catch (error) {
       console.error("Error uploading receipt:", error);
@@ -11750,7 +11845,7 @@ ${config.ai_instructions || ''}
           .from("users")
           .select("id, email, name")
           .in("id", userIds);
-        
+
         if (usersError) {
           console.error("[ADMIN] Erro ao buscar usuários:", usersError);
         } else if (users) {
@@ -11765,7 +11860,7 @@ ${config.ai_instructions || ''}
           .from("plans")
           .select("id, nome, valor")
           .in("id", planIds);
-        
+
         if (plansError) {
           console.error("[ADMIN] Erro ao buscar planos:", plansError);
         } else if (plans) {
@@ -11973,7 +12068,7 @@ ${config.ai_instructions || ''}
 
   // ==================== ACCESS CONTROL ROUTES ====================
 
-  
+
 
   // Check user access status (subscription + trial messages)
 
@@ -11991,7 +12086,7 @@ ${config.ai_instructions || ''}
 
       const subscription = await storage.getUserSubscription(userId);
 
-      
+
 
       // Verificar se é cliente de revendedor
 
@@ -12001,7 +12096,7 @@ ${config.ai_instructions || ''}
 
       let resellerBlocked = false; // Flag para bloqueio em cascata
 
-      
+
 
       if (resellerClient) {
 
@@ -12017,7 +12112,7 @@ ${config.ai_instructions || ''}
 
           }
 
-          
+
 
           resellerInfo = {
 
@@ -12059,11 +12154,11 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       const FREE_TRIAL_LIMIT = 25;
 
-      
+
 
       // Count agent messages
 
@@ -12075,24 +12170,24 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // Use canonical entitlement helper for subscription status (single source of truth)
       const entitlement = await getAccessEntitlement(userId);
       let hasActiveSubscription = entitlement.hasActiveSubscription;
       let isSubscriptionExpired = entitlement.isExpired;
 
-      
+
 
       // Calculate days remaining
 
-      let daysRemaining = subscription?.dataFim 
+      let daysRemaining = subscription?.dataFim
 
         ? Math.ceil((new Date(subscription.dataFim).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 
         : 0;
 
-        
+
 
       // Para cliente de revenda, usar nextPaymentDate
 
@@ -12102,7 +12197,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // Trial messages
 
@@ -12112,7 +12207,7 @@ ${config.ai_instructions || ''}
 
       const trialLimitReached = agentMessagesCount >= FREE_TRIAL_LIMIT;
 
-      
+
 
       // Determine access status
 
@@ -12120,7 +12215,7 @@ ${config.ai_instructions || ''}
 
       let blockReason: string | null = null;
 
-      
+
 
       if (hasActiveSubscription && !isSubscriptionExpired) {
 
@@ -12158,13 +12253,13 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // Should block the system?
 
       const shouldBlock = accessStatus === 'blocked' || accessStatus === 'expired';
 
-      
+
 
       // Mensagem customizada para cliente de revenda
 
@@ -12206,7 +12301,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       res.json({
 
@@ -12216,7 +12311,7 @@ ${config.ai_instructions || ''}
 
         blockReason,
 
-        
+
 
         // Subscription info
 
@@ -12232,7 +12327,7 @@ ${config.ai_instructions || ''}
 
         planName: subscription?.plan?.nome || (resellerClient ? 'Plano Revenda' : null),
 
-        
+
 
         // Trial info
 
@@ -12244,13 +12339,13 @@ ${config.ai_instructions || ''}
 
         trialLimitReached,
 
-        
+
 
         // Reseller info (para UI mostrar info do revendedor)
 
         resellerInfo,
 
-        
+
 
         // For UI
 
@@ -12492,7 +12587,7 @@ ${config.ai_instructions || ''}
 
       const existingConfig = await storage.getAgentConfig(userId);
 
-      
+
 
       // ?? LOG: Verificar se prompt está mudando
 
@@ -12508,7 +12603,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       let config;
 
@@ -12534,7 +12629,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // ?? FIX CRÍTICO: Sincronizar isActive com business_agent_configs
 
@@ -12584,7 +12679,7 @@ ${config.ai_instructions || ''}
 
           }
 
-          
+
 
           // ?? TOGGLE EXCLUSIVO: Ativar Meu Agente = desativar Robô Fluxo (chatbot)
 
@@ -12608,7 +12703,7 @@ ${config.ai_instructions || ''}
 
             `);
 
-            
+
 
             // Limpar cache do fluxo
 
@@ -12630,7 +12725,7 @@ ${config.ai_instructions || ''}
 
       }
 
-      
+
 
       // ?? CRÍTICO: Se prompt mudou, criar nova versão no histórico
 
@@ -12638,7 +12733,7 @@ ${config.ai_instructions || ''}
 
         const { salvarVersaoPrompt } = await import("./promptHistoryService");
 
-        
+
 
         console.log(`\n[AGENT CONFIG] ---------------------------------------------------`);
 
@@ -12652,7 +12747,7 @@ ${config.ai_instructions || ''}
 
         console.log(`[AGENT CONFIG] Criando nova versão no histórico...`);
 
-        
+
 
         const novaVersao = await salvarVersaoPrompt({
 
@@ -12678,7 +12773,7 @@ ${config.ai_instructions || ''}
 
         });
 
-        
+
 
         if (novaVersao) {
 
@@ -12696,11 +12791,11 @@ ${config.ai_instructions || ''}
 
         console.log(`[AGENT CONFIG] ---------------------------------------------------\n`);
 
-        
+
 
         // ?? REMOVIDO: Não criar FlowDefinition automaticamente quando salva prompt
 
-        // A criação do FlowDefinition deve ser feita APENAS quando o usuário ativa 
+        // A criação do FlowDefinition deve ser feita APENAS quando o usuário ativa
 
         // o Construtor de Fluxo (chatbot_configs.is_active = true)
 
@@ -12752,7 +12847,7 @@ ${config.ai_instructions || ''}
 
       const mistralApiKey = process.env.MISTRAL_API_KEY;
 
-      
+
 
       const businessTypeLabels: Record<string, string> = {
 
@@ -12784,7 +12879,7 @@ ${config.ai_instructions || ''}
 
       const businessTypeLabel = businessTypeLabels[businessType] || businessType;
 
-      
+
 
       // Prompt de sistema para geração - OTIMIZADO PARA PROMPTS CONCISOS
 
@@ -12894,7 +12989,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
           const mistral = new Mistral({ apiKey: mistralApiKey });
 
-          
+
 
           // Usa modelo configurado no banco de dados (sem hardcode)
 
@@ -12954,19 +13049,19 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       console.log(`?? [Generate Prompt] Prompt length: ${generatedPrompt.length} chars`);
 
-      
+
 
       let calibrationResult: any = null;
 
       let finalPrompt = generatedPrompt;
 
-      
+
 
       try {
 
         const { calibrarPromptEditado } = await import("./promptCalibrationService");
 
-        
+
 
         // Usar MESMA configuração que a EDIÇÃO de prompts
 
@@ -12976,13 +13071,13 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         const instrucaoCalibracao = `Criar agente de atendimento para: ${contextoNegocio}`;
 
-        
+
 
         console.log(`?? [Generate Prompt] Executando calibração IA Cliente vs IA Agente...`);
 
         console.log(`?? [Generate Prompt] Instrução: ${instrucaoCalibracao.substring(0, 100)}...`);
 
-        
+
 
         // CHAMADA CORRETA - Mesmos parâmetros que a EDIÇÃO
 
@@ -13008,7 +13103,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         );
 
-        
+
 
         console.log(`?? [Generate Prompt] ----------------------------------------`);
 
@@ -13026,7 +13121,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         console.log(`?? [Generate Prompt] ----------------------------------------`);
 
-        
+
 
         if (calibrationResult.sucesso && calibrationResult.promptFinal) {
 
@@ -13048,7 +13143,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       }
 
-      
+
 
       console.log(`?? [Generate Prompt] ----------------------------------------\n`);
 
@@ -13066,11 +13161,11 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         const userId = getUserId(req);
 
-        
+
 
         console.log(`\n?? [Generate Prompt] Criando FlowDefinition para sistema híbrido...`);
 
-        
+
 
         const flowResult = await handleGeneratePrompt(
 
@@ -13086,7 +13181,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         );
 
-        
+
 
         flowCreated = flowResult.flowCreated;
 
@@ -13104,7 +13199,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-      res.json({ 
+      res.json({
 
         prompt: finalPrompt,
 
@@ -13240,7 +13335,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
             used: dailyUsage.promptEditsCount,
 
-            limit: FREE_DAILY_CALIBRATION_LIMIT 
+            limit: FREE_DAILY_CALIBRATION_LIMIT
 
           });
 
@@ -13330,9 +13425,9 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
           // O log.type original é preservado em 'logType' para contexto
 
-          sendEvent({ 
+          sendEvent({
 
-            type: 'calibration_log', 
+            type: 'calibration_log',
 
             logType: log.type,  // tipo original do log (scenario_running, etc)
 
@@ -13400,7 +13495,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       await storage.updateAgentConfig(userId, { prompt: promptFinal });
 
-      
+
 
       if (!hasActiveSubscription) {
 
@@ -13426,9 +13521,9 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-      const calibrationMessage = calibrationResult 
+      const calibrationMessage = calibrationResult
 
-        ? (calibrationResult.sucesso 
+        ? (calibrationResult.sucesso
 
           ? `\n\n? *Validação:* Score ${calibrationResult.scoreGeral}/100 (${calibrationResult.edicoesAplicadas || 0} edições)`
 
@@ -13452,11 +13547,11 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-      sendEvent({ 
+      sendEvent({
 
-        type: 'complete', 
+        type: 'complete',
 
-        success: true, 
+        success: true,
 
         newPrompt: promptFinal,
 
@@ -13520,19 +13615,19 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       const mistralApiKey = mistralConfig?.valor || process.env.MISTRAL_API_KEY || '';
 
-      
+
 
       console.log(`?? [Edit Prompt] Key from DB: ${mistralConfig?.valor ? `EXISTS (${mistralConfig.valor.substring(0, 10)}...)` : 'NOT FOUND'}`);
 
       console.log(`?? [Edit Prompt] Key from ENV: ${process.env.MISTRAL_API_KEY ? `EXISTS` : 'NOT FOUND'}`);
 
-      
+
 
       if (!mistralApiKey) {
 
-        return res.status(500).json({ 
+        return res.status(500).json({
 
-          message: "Chave API Mistral não configurada. Configure em Configurações > Sistema." 
+          message: "Chave API Mistral não configurada. Configure em Configurações > Sistema."
 
         });
 
@@ -13550,7 +13645,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       // ==================================================================================
 
-      
+
 
       // Verificar módulos ativos primeiro
 
@@ -13562,7 +13657,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       let productNames: string[] = [];
 
-      
+
 
       try {
 
@@ -13578,7 +13673,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         deliveryActive = deliveryConfig?.is_active && deliveryConfig?.send_to_ai;
 
-        
+
 
         // Se delivery ativo, buscar nomes dos itens para detecção
 
@@ -13600,7 +13695,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         }
 
-        
+
 
         const { data: productsConfig } = await supabase
 
@@ -13614,7 +13709,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         catalogActive = productsConfig?.is_active && productsConfig?.send_to_ai;
 
-        
+
 
         // Se catálogo ativo, buscar nomes dos produtos para detecção
 
@@ -13642,7 +13737,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       }
 
-      
+
 
       // Se nenhum módulo ativo, prosseguir normalmente
 
@@ -13656,7 +13751,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         console.log(`?? [Intent Detection] Analisando intenção da instrução com IA...`);
 
-        
+
 
         const intentAnalysisPrompt = `Você é um analisador de intenções. Analise a seguinte instrução de edição de prompt e determine se o usuário quer editar a FORMATAÇÃO/LISTAGEM de itens OU apenas o COMPORTAMENTO/ATENDIMENTO.
 
@@ -13716,7 +13811,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const { chatComplete } = await import("./llm");
 
-          
+
 
           const intentResponse = await chatComplete({
 
@@ -13732,7 +13827,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const intentText = intentResponse.choices?.[0]?.message?.content?.trim() || '{}';
 
-          
+
 
           // Parse JSON da resposta
 
@@ -13788,7 +13883,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             }
 
-            
+
 
             if (intentAnalysis.modulo_afetado === 'catalog' && catalogActive) {
 
@@ -13874,17 +13969,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { calibrarPromptEditado } = await import("./promptCalibrationService");
 
-      
+
 
       const result = await editarPromptViaIA(currentPrompt, instruction, mistralApiKey, "mistral");
 
-      
+
 
       console.log(`?? [Edit Prompt] Sucesso: ${result.success}, Edições: ${result.edicoesAplicadas}`);
 
       console.log(`?? [Edit Prompt] Resposta IA: ${result.mensagemChat}`);
 
-      
+
 
       // ==================================================================================
 
@@ -13898,7 +13993,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       let calibrationMessage = "";
 
-      
+
 
       // Só calibrar se houve mudança no prompt E calibração não foi pulada
 
@@ -13906,7 +14001,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log(`?? [Calibração] Iniciando validação automática...`);
 
-        
+
 
         try {
 
@@ -13932,7 +14027,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           );
 
-          
+
 
           console.log(`?? [Calibração] Score: ${calibrationResult.scoreGeral}/100`);
 
@@ -13940,13 +14035,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log(`?? [Calibração] Edições aplicadas: ${calibrationResult.edicoesAplicadas || 0}`);
 
-          
+
 
           // SEMPRE usar o prompt calibrado (melhor resultado após todas tentativas)
 
           promptFinal = calibrationResult.promptFinal;
 
-          
+
 
           const numEdicoes = calibrationResult.edicoesAplicadas || 0;
 
@@ -13982,7 +14077,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // ==================================================================================
 
@@ -13990,7 +14085,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // ==================================================================================
 
-      
+
 
       // 1. Salvar mensagem do usuário (SEMPRE)
 
@@ -14006,7 +14101,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // 2. Salvar resposta da IA com feedback de calibração
 
@@ -14048,7 +14143,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // 3. Lógica específica de EDIÇÃO (apenas se houve mudança no prompt)
 
@@ -14068,7 +14163,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // ?? CRÍTICO: Atualizar prompt na configuração principal (usar prompt calibrado)
 
-        await storage.updateAgentConfig(userId, { 
+        await storage.updateAgentConfig(userId, {
 
           prompt: promptFinal // Usar prompt calibrado/reparado
 
@@ -14076,7 +14171,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log(`[Edit Prompt] ? Config principal atualizada com prompt calibrado`);
 
-        
+
 
         // ?? AUTO-UPDATE FLOW: Reorganizar e calibrar fluxo após edição
 
@@ -14090,7 +14185,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log(`\n?? [Edit Prompt] Regenerando FlowDefinition conforme nova instrução...`);
 
-          
+
 
           const flowResult = await handleEditPrompt(
 
@@ -14106,7 +14201,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           );
 
-          
+
 
           flowUpdated = flowResult.flowUpdated;
 
@@ -14126,7 +14221,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // Salvar nova versão do prompt (com info de calibração)
 
@@ -14162,7 +14257,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({
 
@@ -14254,15 +14349,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const mistralApiKey = mistralConfig?.valor || process.env.MISTRAL_API_KEY || '';
 
-      
+
 
       if (!mistralApiKey) {
 
-        return res.status(500).json({ 
+        return res.status(500).json({
 
-          success: false, 
+          success: false,
 
-          message: "Chave de API Mistral não configurada" 
+          message: "Chave de API Mistral não configurada"
 
         });
 
@@ -14272,11 +14367,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { calibrarPromptEditado } = await import("./promptCalibrationService");
 
-      
+
 
       console.log(`?? [Calibrate] Iniciando calibração manual...`);
 
-      
+
 
       const calibrationResult = await calibrarPromptEditado(
 
@@ -14300,7 +14395,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       );
 
-      
+
 
       res.json({
 
@@ -14346,7 +14441,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ============ ROTAS DE HISTÓRICO DO PROMPT ============
 
-  
+
 
   // Listar versões do prompt
 
@@ -14358,13 +14453,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { listarVersoes } = await import("./promptHistoryService");
 
-      
+
 
       console.log(`[PROMPT VERSIONS] ?? Listando versões para user ${userId}`);
 
       const versoes = await listarVersoes(userId, 'ai_agent_config', 50);
 
-      
+
 
       console.log(`[PROMPT VERSIONS] Encontradas ${versoes.length} versões`);
 
@@ -14376,9 +14471,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      res.json({ 
+
+      res.json({
 
         success: true,
 
@@ -14412,7 +14507,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
-  
+
 
   // Restaurar uma versão específica
 
@@ -14426,11 +14521,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { restaurarVersao, obterVersao } = await import("./promptHistoryService");
 
-      
+
 
       console.log(`[RESTORE VERSION] ?? User ${userId} restaurando versão ${id}`);
 
-      
+
 
       // Buscar versão original
 
@@ -14444,17 +14539,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log(`[RESTORE VERSION] ?? Versão original: v${versaoOriginal.version_number} (${versaoOriginal.edit_type})`);
 
-      
+
 
       // Criar nova versão restaurada
 
       const versaoRestaurada = await restaurarVersao(id, userId);
 
-      
+
 
       if (!versaoRestaurada) {
 
@@ -14464,11 +14559,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log(`[RESTORE VERSION] ? Nova versão criada: v${versaoRestaurada.version_number} (tipo: restore)`);
 
-      
+
 
       // ?? CRÍTICO: Atualizar o prompt no config para o agente usar
 
@@ -14482,7 +14577,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log(`[RESTORE VERSION] ?? Prompt novo: ${versaoRestaurada.prompt_content.length} chars`);
 
-        
+
 
         await storage.updateAgentConfig(userId, {
 
@@ -14490,7 +14585,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         console.log(`[RESTORE VERSION] ? Config atualizado com sucesso!`);
 
@@ -14500,9 +14595,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      res.json({ 
+
+      res.json({
 
         success: true,
 
@@ -14526,7 +14621,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
-  
+
 
   // Listar chat do histórico
 
@@ -14538,13 +14633,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { listarChatHistory } = await import("./promptHistoryService");
 
-      
+
 
       const mensagens = await listarChatHistory(userId, 'ai_agent_config', 100);
 
-      
 
-      res.json({ 
+
+      res.json({
 
         success: true,
 
@@ -14584,35 +14679,35 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { listarVersoes, obterVersaoAtual } = await import("./promptHistoryService");
 
-      
+
 
       console.log(`[VALIDATE] ?? Validando consistência para user ${userId}`);
 
-      
+
 
       // 1. Buscar config atual
 
       const agentConfig = await storage.getAgentConfig(userId);
 
-      
+
 
       // 2. Buscar versão marcada como current
 
       const versaoAtual = await obterVersaoAtual(userId, 'ai_agent_config');
 
-      
+
 
       // 3. Listar todas versões
 
       const todasVersoes = await listarVersoes(userId, 'ai_agent_config', 100);
 
-      
+
 
       // 4. Verificar se há múltiplas versões com is_current = true
 
       const versoesMarkadasCurrent = todasVersoes.filter(v => v.is_current);
 
-      
+
 
       // 5. Verificar sincronização
 
@@ -14622,7 +14717,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const isSynced = promptNoConfig === promptNaVersao;
 
-      
+
 
       const report = {
 
@@ -14676,7 +14771,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       // Identificar problemas
 
@@ -14698,7 +14793,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       if (report.issues.length === 0) {
 
@@ -14706,11 +14801,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log(`[VALIDATE] Resultado:`, JSON.stringify(report, null, 2));
 
-      
+
 
       res.json(report);
 
@@ -14734,7 +14829,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`?? [/api/agent/test] ENTRADA - userId: ${userId}, message: ${req.body.message?.substring(0, 30)}`);
 
-      
+
 
       // ?? CHECK DAILY SIMULATOR LIMIT FOR FREE USERS (canonical entitlement)
 
@@ -14772,11 +14867,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      const schema = z.object({ 
 
-        message: z.string(), 
+      const schema = z.object({
+
+        message: z.string(),
 
         customPrompt: z.string().optional(),
 
@@ -14838,9 +14933,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const testResult = await testAgentResponse(
 
-        userId, 
+        userId,
 
-        result.data.message, 
+        result.data.message,
 
         result.data.customPrompt,
 
@@ -14852,7 +14947,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       );
 
-      
+
 
       // ?? RESOLVER URLs DAS MÍDIAS PARA O FRONTEND
 
@@ -14862,7 +14957,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         const mediaLibrary = await getAgentMediaLibrary(userId);
 
-        
+
 
         for (const action of testResult.mediaActions) {
 
@@ -14874,7 +14969,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             );
 
-            
+
 
             if (mediaItem) {
 
@@ -14902,7 +14997,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // ?? DIVIDIR RESPOSTA IGUAL AO WHATSAPP PARA CONSISTÊNCIA DO SIMULADOR
 
@@ -14912,7 +15007,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const messageSplitChars = agentConfig?.messageSplitChars ?? 400;
 
-      
+
 
       // ?? PRESERVAR QUEBRAS DE LINHA NA RESPOSTA DO SIMULADOR
 
@@ -14922,7 +15017,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const responseText = testResult.text || "";
 
-      
+
 
       // Se a mensagem é pequena (cabe no limite), retorna como está
 
@@ -14940,13 +15035,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log(`?? [SIMULADOR] Resposta dividida em ${splitMessages.length} partes (limit: ${messageSplitChars} chars)`);
 
-      
 
-      res.json({ 
+
+      res.json({
 
         response: testResult.text, // Mantém resposta completa para backward compatibility
 
@@ -15102,7 +15197,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const media = await getMediaByName(userId, name);
 
-      
+
 
       if (!media) {
 
@@ -15110,7 +15205,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json(media);
 
@@ -15140,11 +15235,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!result.success) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Invalid request", 
+          message: "Invalid request",
 
-          errors: result.error.errors 
+          errors: result.error.errors
 
         });
 
@@ -15154,7 +15249,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const media = await insertAgentMedia(result.data);
 
-      
+
 
       if (!media) {
 
@@ -15200,11 +15295,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.error("[Routes] PUT /api/agent/media/:id - validation errors:", result.error.errors);
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Invalid request", 
+          message: "Invalid request",
 
-          errors: result.error.errors 
+          errors: result.error.errors
 
         });
 
@@ -15214,7 +15309,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const media = await updateAgentMedia(id, userId, result.data);
 
-      
+
 
       if (!media) {
 
@@ -15256,11 +15351,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { id } = req.params;
 
-      
+
 
       const success = await deleteAgentMedia(userId, id);
 
-      
+
 
       if (!success) {
 
@@ -15298,7 +15393,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const file = req.file;
 
-      
+
 
       if (!file) {
 
@@ -15350,7 +15445,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.error("Supabase upload error:", uploadError);
 
-        
+
 
         // Se o bucket não existir, tentar criar (apenas se ainda não verificamos)
 
@@ -15366,11 +15461,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          
+
 
           agentMediaBucketChecked = true;
 
-          
+
 
           if (createError && !createError.message?.includes('already exists')) {
 
@@ -15496,7 +15591,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { audioUrl, mimeType } = req.body;
 
-      
+
 
       if (!audioUrl) {
 
@@ -15508,7 +15603,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const transcription = await transcribeAudio(audioUrl, mimeType);
 
-      
+
 
       if (!transcription) {
 
@@ -15560,7 +15655,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      
+
 
       const imports = await db
 
@@ -15572,7 +15667,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         .orderBy(desc(websiteImports.createdAt));
 
-      
+
 
       res.json(imports);
 
@@ -15882,7 +15977,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const agentConfig = await storage.getAgentConfig(userId);
 
-      
+
 
       if (!agentConfig) {
 
@@ -15900,7 +15995,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const importMarkerEnd = "*Dados atualizados automaticamente via importação de website.*";
 
-      
+
 
       const startIdx = currentPrompt.indexOf(importMarkerStart);
 
@@ -16078,11 +16173,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!result.success) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           success: false,
 
-          message: result.error || "Falha ao analisar o website" 
+          message: result.error || "Falha ao analisar o website"
 
         });
 
@@ -16222,7 +16317,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       await storage.enableAgentForConversation(conversationId);
 
-      
+
 
       // ?? Quando IA é reativada, NÃO dispara resposta automática
 
@@ -16232,7 +16327,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`?? [ENABLE] IA reativada para ${conversationId} - aguardando nova mensagem do cliente`);
 
-      
+
 
       res.json({ success: true });
 
@@ -16286,13 +16381,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const isDisabled = await storage.isAgentDisabledForConversation(conversationId);
 
-      
 
-      res.json({ 
+
+      res.json({
 
         isDisabled,
 
-        conversationId 
+        conversationId
 
       });
 
@@ -16350,7 +16445,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         const autoReactivateMinutes = agentConfig?.autoReactivateMinutes ?? null;
 
-        
+
 
         await storage.disableAgentForConversation(conversationId, autoReactivateMinutes);
 
@@ -16360,7 +16455,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         await storage.enableAgentForConversation(conversationId);
 
-        
+
 
         // ?? Quando IA é reativada, NÃO dispara resposta automática
 
@@ -16418,7 +16513,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     console.log(`${'='.repeat(60)}`);
 
-    
+
 
     try {
 
@@ -16426,7 +16521,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      
+
 
       console.log(`[RESPONDER COM IA] userId: ${userId}`);
 
@@ -16472,17 +16567,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`[RESPONDER COM IA] businessAgentConfig.isActive: ${businessAgentConfig?.isActive}`);
 
-      
+
 
       if (!businessAgentConfig?.isActive) {
 
         console.log(`[RESPONDER COM IA] ERRO: Agente não está ativo globalmente`);
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          success: false, 
+          success: false,
 
-          message: "O agente precisa estar ativo globalmente. Ative-o em 'Meu Agente IA'." 
+          message: "O agente precisa estar ativo globalmente. Ative-o em 'Meu Agente IA'."
 
         });
 
@@ -16494,7 +16589,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`[RESPONDER COM IA] Chamando triggerAgentResponseForConversation...`);
 
-      
+
 
       // Disparar sem esperar resultado (não bloqueia a resposta)
 
@@ -16512,17 +16607,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-      
+
 
       // Retorna sucesso imediatamente - processamento continua em background
 
       console.log(`[RESPONDER COM IA] Retornando sucesso ao cliente`);
 
-      res.json({ 
+      res.json({
 
-        success: true, 
+        success: true,
 
-        message: "Solicitação enviada. A IA irá responder em breve." 
+        message: "Solicitação enviada. A IA irá responder em breve."
 
       });
 
@@ -16648,7 +16743,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== BUSINESS AGENT CONFIG ROUTES (?? ADVANCED SYSTEM) ====================
 
-  
+
 
   // Get business agent configuration
 
@@ -16660,7 +16755,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const config = await storage.getBusinessAgentConfig?.(userId);
 
-      
+
 
       if (!config) {
 
@@ -16668,7 +16763,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({ config, hasAdvancedConfig: true });
 
@@ -16694,21 +16789,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const configData = req.body;
 
-      
+
 
       // Validar dados básicos
 
       if (!configData.agentName || !configData.agentRole || !configData.companyName) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Missing required fields: agentName, agentRole, companyName" 
+          message: "Missing required fields: agentName, agentRole, companyName"
 
         });
 
       }
 
-      
+
 
       const config = await storage.upsertBusinessAgentConfig?.(userId, {
 
@@ -16718,7 +16813,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // ?? TOGGLE EXCLUSIVO: Se Meu Agente IA está sendo ativado, desativar Robô Fluxo
 
@@ -16740,7 +16835,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         `);
 
-        
+
 
         // Limpar cache do fluxo
 
@@ -16748,7 +16843,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         clearFlowCache(userId);
 
-        
+
 
         // Sincronizar ai_agent_config também
 
@@ -16768,7 +16863,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({ config, message: "Business agent configuration saved successfully" });
 
@@ -16794,9 +16889,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const config = await storage.getBusinessAgentConfig?.(userId);
 
-      
 
-      res.json({ 
+
+      res.json({
 
         notificationPhoneNumber: config?.notificationPhoneNumber || "",
 
@@ -16832,13 +16927,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { notificationPhoneNumber, notificationTrigger, notificationEnabled, notificationMode, notificationManualKeywords } = req.body;
 
-      
+
 
       // Check if user has a business config, if not create a minimal one
 
       let existingConfig = await storage.getBusinessAgentConfig?.(userId);
 
-      
+
 
       if (!existingConfig) {
 
@@ -16888,9 +16983,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      res.json({ 
+
+      res.json({
 
         message: "Notification configuration saved successfully",
 
@@ -16950,7 +17045,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { config, testMessage } = req.body;
 
-      
+
 
       if (!config || !testMessage) {
 
@@ -16958,7 +17053,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Gerar prompt de teste
 
@@ -16970,7 +17065,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // Chamar LLM para teste (Groq ou Mistral conforme config admin)
 
@@ -16978,7 +17073,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const mistral = await getLLMClient();
 
-      
+
 
       // Usa modelo configurado no banco de dados (sem hardcode)
 
@@ -16998,17 +17093,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const aiResponse = response.choices?.[0]?.message?.content || "Erro ao gerar resposta";
 
-      
 
-      res.json({ 
+
+      res.json({
 
         response: aiResponse,
 
-        promptPreview: systemPrompt.substring(0, 500) + "..." 
+        promptPreview: systemPrompt.substring(0, 500) + "..."
 
       });
 
@@ -17032,7 +17127,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { config } = req.body;
 
-      
+
 
       if (!config) {
 
@@ -17040,7 +17135,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const { generateSystemPrompt } = await import("./promptTemplates");
 
@@ -17050,9 +17145,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
 
-      res.json({ 
+
+      res.json({
 
         prompt: systemPrompt,
 
@@ -17084,11 +17179,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { code, planTipo } = req.body;
 
-      
+
 
       console.log("Validating coupon:", { code, planTipo });
 
-      
+
 
       if (!code) {
 
@@ -17100,11 +17195,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const coupon = await storage.getCouponByCode(code.toUpperCase());
 
-      
+
 
       console.log("Coupon found:", coupon);
 
-      
+
 
       if (!coupon) {
 
@@ -17154,9 +17249,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      res.json({ 
+      res.json({
 
-        valid: true, 
+        valid: true,
 
         finalPrice: coupon.finalPrice,
 
@@ -17174,9 +17269,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error stack:", error.stack);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        message: "Erro ao validar cupom", 
+        message: "Erro ao validar cupom",
 
         error: error.message,
 
@@ -17220,11 +17315,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { code, finalPrice, maxUses, validUntil, isActive, applicablePlans } = req.body;
 
-      
+
 
       console.log("Creating coupon with data:", { code, finalPrice, maxUses, validUntil, isActive, applicablePlans });
 
-      
+
 
       if (!code || finalPrice === undefined || finalPrice === null || finalPrice === "") {
 
@@ -17282,11 +17377,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { code, finalPrice, maxUses, validUntil, isActive, applicablePlans } = req.body;
 
-      
+
 
       console.log("Updating coupon:", id, req.body);
 
-      
+
 
       const updateData: any = {};
 
@@ -17302,7 +17397,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (applicablePlans !== undefined) updateData.applicablePlans = applicablePlans && applicablePlans.length > 0 ? applicablePlans : null;
 
-      
+
 
       const coupon = await storage.updateCoupon(id, updateData);
 
@@ -17382,7 +17477,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const plan = plans.find((p: any) => p.id === id);
 
-      
+
 
       if (!plan) {
 
@@ -17390,7 +17485,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json(plan);
 
@@ -17528,23 +17623,23 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Search for plan with the custom code
 
       const allPlans = await storage.getAllPlans();
 
-      const plan = allPlans.find(p => 
+      const plan = allPlans.find(p =>
 
-        (p as any).codigoPersonalizado?.toUpperCase() === code.toUpperCase() && 
+        (p as any).codigoPersonalizado?.toUpperCase() === code.toUpperCase() &&
 
-        p.ativo && 
+        p.ativo &&
 
         (p as any).isPersonalizado
 
       );
 
-      
+
 
       if (!plan) {
 
@@ -17552,11 +17647,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      res.json({ 
 
-        valid: true, 
+      res.json({
+
+        valid: true,
 
         plan: {
 
@@ -17604,7 +17699,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const plan = allPlans.find(p => (p as any).linkSlug === slug && p.ativo);
 
-      
+
 
       if (!plan) {
 
@@ -17612,7 +17707,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({
 
@@ -17662,11 +17757,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { slug, planId } = req.body;
 
-      
+
 
       let targetPlanId = planId;
 
-      
+
 
       // If slug is provided, find the plan by slug
 
@@ -17684,7 +17779,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       if (!targetPlanId) {
 
@@ -17692,7 +17787,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Validate plan exists
 
@@ -17704,7 +17799,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Store in session
 
@@ -17738,7 +17833,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const plan = await storage.getPlan(assignedPlanId);
 
@@ -17748,7 +17843,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({
 
@@ -17800,7 +17895,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const user = await storage.getUser(userId);
 
-      
+
 
       if (!user || !(user as any).assignedPlanId) {
 
@@ -17808,7 +17903,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const plan = await storage.getPlan((user as any).assignedPlanId);
 
@@ -17818,7 +17913,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({
 
@@ -17896,11 +17991,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { id } = req.params;
 
-      
+
 
       const subscription = await storage.getSubscription(id) as any;
 
-      
+
 
       if (!subscription) {
 
@@ -17908,7 +18003,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Check if user owns this subscription or is admin
 
@@ -17920,7 +18015,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Include plan data
 
@@ -17974,7 +18069,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // ------------------------------------------------------------------
 
-      // PROTEÇÃO CONTRA DUPLICADOS: Verificar se já existe assinatura 
+      // PROTEÇÃO CONTRA DUPLICADOS: Verificar se já existe assinatura
 
       // pendente criada nos últimos 5 minutos para este mesmo plano
 
@@ -18018,13 +18113,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       let appliedCouponCode = null;
 
-      
+
 
       if (couponCode) {
 
         const coupon = await storage.getCouponByCode(couponCode.toUpperCase());
 
-        
+
 
         if (coupon && coupon.isActive) {
 
@@ -18034,7 +18129,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const isExhausted = coupon.maxUses && coupon.maxUses > 0 && coupon.currentUses >= coupon.maxUses;
 
-          
+
 
           // Check if coupon applies to this plan
 
@@ -18044,7 +18139,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const isApplicable = !applicablePlans || applicablePlans.length === 0 || applicablePlans.includes(planTipo);
 
-          
+
 
           if (!isExpired && !isExhausted && isApplicable) {
 
@@ -18193,7 +18288,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      await storage.updateSubscription(id, { 
+      await storage.updateSubscription(id, {
 
         status: "cancelled",
 
@@ -18237,11 +18332,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!newPlanId || !subscriptionId) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           status: "error",
 
-          message: "ID do novo plano e da assinatura são obrigatórios" 
+          message: "ID do novo plano e da assinatura são obrigatórios"
 
         });
 
@@ -18255,11 +18350,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!currentSubscription || currentSubscription.userId !== userId) {
 
-        return res.status(404).json({ 
+        return res.status(404).json({
 
           status: "error",
 
-          message: "Assinatura não encontrada" 
+          message: "Assinatura não encontrada"
 
         });
 
@@ -18269,11 +18364,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (currentSubscription.status !== "active") {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           status: "error",
 
-          message: "Só é possível migrar assinaturas ativas" 
+          message: "Só é possível migrar assinaturas ativas"
 
         });
 
@@ -18287,11 +18382,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!newPlan || !newPlan.ativo) {
 
-        return res.status(404).json({ 
+        return res.status(404).json({
 
           status: "error",
 
-          message: "Novo plano não encontrado ou inativo" 
+          message: "Novo plano não encontrado ou inativo"
 
         });
 
@@ -18329,7 +18424,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log("[Plan Migration] Updating MP subscription:", currentSubscription.mpSubscriptionId);
 
-          
+
 
           const mpResponse = await fetch(
 
@@ -18385,7 +18480,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const dataFimAtual = new Date(currentSubscription.dataFim);
 
-      
+
 
       // For upgrades, keep current end date
 
@@ -18435,11 +18530,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("[Plan Migration] Error:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         status: "error",
 
-        message: error.message || "Erro ao migrar plano" 
+        message: error.message || "Erro ao migrar plano"
 
       });
 
@@ -18503,7 +18598,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      res.json({ 
+      res.json({
 
         success: true,
 
@@ -18559,15 +18654,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // Determine the price - use coupon price if available, otherwise plan price
 
-      const finalPrice = subscription.couponPrice 
+      const finalPrice = subscription.couponPrice
 
-        ? Number(subscription.couponPrice) 
+        ? Number(subscription.couponPrice)
 
         : Number(subscription.plan.valor);
 
-      
 
-      const planName = subscription.couponCode 
+
+      const planName = subscription.couponCode
 
         ? `${subscription.plan.nome} (${subscription.couponCode})`
 
@@ -18779,7 +18874,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         const dataFim = new Date(now);
 
-        
+
 
         // Add subscription period based on plan
 
@@ -18839,7 +18934,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { id } = req.params;
 
-      
+
 
       // Verify user exists
 
@@ -18851,7 +18946,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Prevent deleting admins or owners
 
@@ -18861,7 +18956,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Check if user has active subscription
 
@@ -18869,27 +18964,27 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (activeSubscription && activeSubscription.status === "active") {
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
           message: "Cannot delete user with active subscription",
 
-          plan: activeSubscription.plan?.nome 
+          plan: activeSubscription.plan?.nome
 
         });
 
       }
 
-      
+
 
       // Delete user and all related data
 
       await storage.deleteUser(id);
 
-      
+
 
       console.log(`[ADMIN] User ${id} (${user.email}) deleted by admin`);
 
-      
+
 
       res.json({ success: true, message: "User deleted successfully" });
 
@@ -18915,13 +19010,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { phone } = req.params;
 
-      
+
 
       // Limpar número (remover caracteres não numéricos)
 
       const cleanPhone = phone.replace(/\D/g, "");
 
-      
+
 
       if (!cleanPhone || cleanPhone.length < 10) {
 
@@ -18941,7 +19036,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       clearClientSession(cleanPhone);
 
-      
+
 
       // Resetar todos os dados no banco
 
@@ -18953,9 +19048,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      res.json({ 
+      res.json({
 
-        success: true, 
+        success: true,
 
         message: `Cliente ${cleanPhone} resetado com sucesso`,
 
@@ -18983,7 +19078,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // Usar withRetry para evitar falhas de conexão
 
-      const [users, totalRevenue, activeSubscriptions] = await withRetry(() => 
+      const [users, totalRevenue, activeSubscriptions] = await withRetry(() =>
 
         Promise.all([
 
@@ -19027,7 +19122,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      const [mistralKey, mistralModel, pixKey, zaiKey, llmProvider, groqKey, groqModel, openrouterKey, openrouterModel, openrouterProvider] = await withRetry(() => 
+      const [mistralKey, mistralModel, pixKey, zaiKey, llmProvider, groqKey, groqModel, openrouterKey, openrouterModel, openrouterProvider] = await withRetry(() =>
 
         Promise.all([
 
@@ -19089,7 +19184,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
-  
+
   // ═══════════════════════════════════════════════════════════════════
   // CHECKOUT CONFIG - Configurações públicas para o checkout
   // Retorna se PIX manual está ativado para esconder cartão no frontend
@@ -19100,9 +19195,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
         storage.getSystemConfig('pix_manual_enabled'),
         storage.getSystemConfig('pix_key'),
       ]);
-      
+
       const pixManualEnabled = pixManualConfig?.valor === 'true' || pixManualConfig?.valor === true;
-      
+
       res.json({
         pix_manual_enabled: pixManualEnabled,
         has_pix_key: !!pixKeyConfig?.valor,
@@ -19281,7 +19376,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== MISTRAL QUEUE STATUS API ====================
 
-  
+
 
   // Get Mistral queue status - shows fallback timer and model rotation info
 
@@ -19293,7 +19388,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const modelStatus = getMistralModelStatus();
 
-      
+
 
       res.json({
 
@@ -19325,7 +19420,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== OPENROUTER MODELS & PROVIDERS API ====================
 
-  
+
 
   // Fetch available models from OpenRouter API
 
@@ -19335,7 +19430,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`[Admin] Fetching OpenRouter models list...`);
 
-      
+
 
       const response = await fetch('https://openrouter.ai/api/v1/models', {
 
@@ -19349,7 +19444,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       if (!response.ok) {
 
@@ -19357,11 +19452,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const data = await response.json();
 
-      
+
 
       // Filtrar modelos de chat (excluir embedding, moderation, etc)
 
@@ -19375,9 +19470,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const id = model.id?.toLowerCase() || '';
 
-          return !id.includes('embed') && 
+          return !id.includes('embed') &&
 
-                 !id.includes('guard') && 
+                 !id.includes('guard') &&
 
                  !id.includes('moderation') &&
 
@@ -19419,7 +19514,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-      
+
 
       console.log(`[Admin] Found ${models.length} chat models from OpenRouter`);
 
@@ -19447,9 +19542,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`[Admin] Fetching providers for model: ${modelId}`);
 
-      
 
-      // OpenRouter não tem endpoint específico para providers, 
+
+      // OpenRouter não tem endpoint específico para providers,
 
       // mas podemos extrair do endpoint de modelos
 
@@ -19465,7 +19560,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       if (!response.ok) {
 
@@ -19473,13 +19568,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const data = await response.json();
 
       const model = (data.data || []).find((m: any) => m.id === modelId);
 
-      
+
 
       if (!model) {
 
@@ -19487,7 +19582,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Lista comum de providers do OpenRouter
 
@@ -19513,7 +19608,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       ];
 
-      
+
 
       // Retornar info do modelo com providers sugeridos
 
@@ -19551,7 +19646,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== STORAGE CLEANUP ROUTES ====================
 
-  
+
 
   // Get storage statistics (admin only)
 
@@ -19573,7 +19668,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
-  
+
 
   // Force cleanup of old media (admin only)
 
@@ -19625,13 +19720,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       ]);
 
-      
+
 
       const publicKey = configMap.get("mercadopago_public_key") || "";
 
       const testMode = configMap.get("mercadopago_test_mode") === "true";
 
-      
+
 
       if (!publicKey) {
 
@@ -19639,7 +19734,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({ publicKey, testMode });
 
@@ -19653,7 +19748,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
-  
+
 
   // Get Mercado Pago credentials info (admin only)
 
@@ -19665,7 +19760,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const info = await mercadoPagoService.getCredentialsInfo();
 
-      
+
 
       // Also get full credentials for admin to view
 
@@ -19673,7 +19768,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         "mercadopago_public_key",
 
-        "mercadopago_access_token", 
+        "mercadopago_access_token",
 
         "mercadopago_client_id",
 
@@ -19685,7 +19780,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const configMap = await storage.getSystemConfigs(keys);
 
-      
+
 
       res.json({
 
@@ -19725,7 +19820,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { mercadoPagoService } = await import("./mercadoPagoService");
 
-      
+
 
       await mercadoPagoService.saveCredentials({
 
@@ -19741,7 +19836,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       res.json({ success: true, message: "Credenciais salvas com sucesso" });
 
@@ -19815,7 +19910,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { mercadoPagoService } = await import("./mercadoPagoService");
 
-      
+
 
       const plan = await mercadoPagoService.createPlan({
 
@@ -19845,7 +19940,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       res.json(plan);
 
@@ -19871,7 +19966,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { planId, couponCode } = req.body;
 
-      
+
 
       const user = await storage.getUser(userId);
 
@@ -19881,7 +19976,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const plan = await storage.getPlan(planId);
 
@@ -19891,7 +19986,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Calculate final price (with coupon if applicable)
 
@@ -19899,7 +19994,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       let appliedCoupon = null;
 
-      
+
 
       if (couponCode) {
 
@@ -19919,7 +20014,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Create local subscription first
 
@@ -19937,13 +20032,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // Create Mercado Pago subscription
 
       const { mercadoPagoService } = await import("./mercadoPagoService");
 
-      
+
 
       const mpSubscription = await mercadoPagoService.createSubscription({
 
@@ -19971,7 +20066,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // Update local subscription with MP data
 
@@ -19983,7 +20078,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       res.json({
 
@@ -20017,7 +20112,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { subscriptionId, token, payerEmail, paymentMethodId, issuerId } = req.body;
 
-      
+
 
       if (!subscriptionId || !token || !payerEmail) {
 
@@ -20025,7 +20120,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get subscription
 
@@ -20037,7 +20132,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get plan
 
@@ -20049,7 +20144,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Calculate amount
 
@@ -20059,7 +20154,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const amount = valorPrimeiraCobranca > 0 ? valorPrimeiraCobranca : valorMensal;
 
-      
+
 
       // Get MP credentials
 
@@ -20073,7 +20168,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const accessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       if (!accessToken) {
 
@@ -20081,7 +20176,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Create payment with MP API
 
@@ -20119,7 +20214,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       if (issuerId) {
 
@@ -20127,7 +20222,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log("[MP Payment] Creating payment:", {
 
@@ -20141,7 +20236,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const response = await fetch("https://api.mercadopago.com/v1/payments", {
 
@@ -20161,11 +20256,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const result = await response.json();
 
-      
+
 
       console.log("[MP Payment] Full Result:", JSON.stringify(result, null, 2));
 
@@ -20183,7 +20278,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       if (result.status === "approved") {
 
@@ -20193,7 +20288,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         dataFim.setMonth(dataFim.getMonth() + 1);
 
-        
+
 
         await storage.updateSubscription(subscriptionId, {
 
@@ -20213,11 +20308,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         console.log("[MP Payment] Subscription activated:", subscriptionId);
 
-        
+
 
         return res.json({
 
@@ -20243,7 +20338,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         return res.json({
 
@@ -20275,7 +20370,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           "CC_VAL_433": "?? Validação do cartão falhou. Use um cartão real em modo produção.",
 
-          
+
 
           // Erros de cartão bloqueado/desativado
 
@@ -20285,7 +20380,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           "cc_rejected_card_error": "Erro no cartão. Use outro cartão.",
 
-          
+
 
           // Erros que requerem ação do usuário
 
@@ -20295,7 +20390,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           "cc_rejected_max_attempts": "Limite de tentativas excedido. Aguarde e tente novamente.",
 
-          
+
 
           // Erros de segurança/fraude
 
@@ -20303,7 +20398,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           "cc_rejected_duplicated_payment": "Pagamento duplicado. Verifique sua fatura.",
 
-          
+
 
           // Erros de configuração
 
@@ -20311,7 +20406,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           "cc_rejected_other_reason": "Pagamento não aprovado. Tente outro cartão.",
 
-          
+
 
           // Erros genéricos
 
@@ -20323,11 +20418,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         };
 
-        
+
 
         const message = errorMessages[result.status_detail] || errorMessages[result.status] || result.message || "Pagamento não aprovado. Verifique os dados do cartão.";
 
-        
+
 
         return res.json({
 
@@ -20345,11 +20440,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("[MP Payment] Error:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         status: "error",
 
-        message: error.message || "Erro ao processar pagamento" 
+        message: error.message || "Erro ao processar pagamento"
 
       });
 
@@ -20383,9 +20478,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // Suportar tanto formato antigo (token) quanto novo (paymentToken + subscriptionToken)
 
-      const { 
+      const {
 
-        subscriptionId, 
+        subscriptionId,
 
         token,                    // Formato antigo (compatibilidade)
 
@@ -20393,13 +20488,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         subscriptionToken,        // Token para assinatura recorrente
 
-        payerEmail, 
+        payerEmail,
 
-        paymentMethodId, 
+        paymentMethodId,
 
-        issuerId, 
+        issuerId,
 
-        cardholderName, 
+        cardholderName,
 
         identificationNumber,
 
@@ -20407,21 +20502,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } = req.body;
 
-      
+
 
       if (!subscriptionId || !payerEmail) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           status: "error",
 
-          message: "Dados de pagamento incompletos" 
+          message: "Dados de pagamento incompletos"
 
         });
 
       }
 
-      
+
 
       // Get subscription
 
@@ -20429,17 +20524,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscription || subscription.userId !== userId) {
 
-        return res.status(404).json({ 
+        return res.status(404).json({
 
           status: "error",
 
-          message: "Assinatura não encontrada" 
+          message: "Assinatura não encontrada"
 
         });
 
       }
 
-      
+
 
       // ------------------------------------------------------------------
 
@@ -20523,7 +20618,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get plan
 
@@ -20531,17 +20626,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan) {
 
-        return res.status(404).json({ 
+        return res.status(404).json({
 
           status: "error",
 
-          message: "Plano não encontrado" 
+          message: "Plano não encontrado"
 
         });
 
       }
 
-      
+
 
       // Calculate amounts
 
@@ -20553,13 +20648,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const hasSetupFee = valorPrimeiraCobranca > 0 && valorPrimeiraCobranca !== valorMensal;
 
-      
+
 
       // Determinar valor da primeira cobrança
 
       const primeiraCobrancaValor = hasSetupFee ? valorPrimeiraCobranca : valorMensal;
 
-      
+
 
       // Get MP credentials
 
@@ -20575,21 +20670,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const isTestMode = configMap.get("mercadopago_test_mode") === "true";
 
-      
+
 
       if (!accessToken) {
 
-        return res.status(500).json({ 
+        return res.status(500).json({
 
           status: "error",
 
-          message: "Mercado Pago não configurado" 
+          message: "Mercado Pago não configurado"
 
         });
 
       }
 
-      
+
 
       // Calculate frequency_type based on frequenciaDias
 
@@ -20617,15 +20712,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get base URL for callbacks
 
-      const baseUrl = process.env.BASE_URL || 
+      const baseUrl = process.env.BASE_URL ||
 
                      (isTestMode ? "http://localhost:5000" : "https://agentezap.com");
 
-      
+
 
       // Determinar qual token usar (compatibilidade com formato antigo)
 
@@ -20633,17 +20728,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const tokenParaAssinatura = subscriptionToken || null;
 
-      
+
 
       // Determinar número de parcelas (apenas para planos de implementação)
 
       // Validar: máximo 12 parcelas, mínimo 1
 
-      const installments = hasSetupFee && requestedInstallments ? 
+      const installments = hasSetupFee && requestedInstallments ?
 
         Math.min(Math.max(1, parseInt(requestedInstallments) || 1), 12) : 1;
 
-      
+
 
       console.log("[MP Subscription] Creating subscription:", {
 
@@ -20671,7 +20766,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // -------------------------------------------------------------------------------
 
@@ -20699,7 +20794,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // -------------------------------------------------------------------------------
 
-      
+
 
       // -------------------------------------------------------------------------------
 
@@ -20713,7 +20808,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log("[MP Subscription] Etapa 1: Cobrança imediata via /v1/payments");
 
-        
+
 
         // -------------------------------------------------------------------
 
@@ -20759,11 +20854,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         };
 
-        
+
 
         console.log("[MP Subscription] Payment data:", JSON.stringify(paymentData, null, 2));
 
-        
+
 
         const paymentResponse = await fetch("https://api.mercadopago.com/v1/payments", {
 
@@ -20783,13 +20878,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         const paymentResult = await paymentResponse.json();
 
         console.log("[MP Subscription] Payment result:", JSON.stringify(paymentResult, null, 2));
 
-        
+
 
         // -------------------------------------------------------------------
 
@@ -20799,7 +20894,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // -------------------------------------------------------------------
 
-        
+
 
         // CASO 1: PAGAMENTO EM ANÁLISE (in_process) - NÃO criar assinatura ainda!
 
@@ -20807,7 +20902,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log("[MP Subscription] ? Pagamento em análise (in_process):", paymentResult.status_detail);
 
-          
+
 
           // Registrar no histórico como pendente
 
@@ -20847,7 +20942,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           }
 
-          
+
 
           // Atualizar assinatura local como "pending_payment"
 
@@ -20863,7 +20958,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          
+
 
           // Retornar status pendente - NÃO ativar a assinatura!
 
@@ -20881,7 +20976,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // CASO 2: PAGAMENTO REJEITADO - Retornar erro
 
@@ -20911,17 +21006,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           };
 
-          
+
 
           const statusDetail = paymentResult.status_detail || "";
 
           let errorMessage = errorMessages[statusDetail] || paymentResult.message || "Pagamento não aprovado. Tente outro cartão.";
 
-          
+
 
           console.log("[MP Subscription] ? Pagamento rejeitado:", paymentResult.status, statusDetail);
 
-          
+
 
           return res.json({
 
@@ -20935,13 +21030,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // CASO 3: PAGAMENTO APROVADO - Continuar com criação da assinatura
 
         console.log("[MP Subscription] ? Pagamento APROVADO! ID:", paymentResult.id);
 
-        
+
 
         try {
 
@@ -20979,7 +21074,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // -------------------------------------------------------------------
 
@@ -20991,7 +21086,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log("[MP Subscription] Etapa 2: Criando assinatura recorrente via /preapproval");
 
-        
+
 
         // Calcular data de início (próximo mês, mesmo dia)
 
@@ -20999,7 +21094,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         nextMonthStartDate.setMonth(nextMonthStartDate.getMonth() + 1);
 
-        
+
 
         // Ajustar para último dia do mês se necessário
 
@@ -21013,13 +21108,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         const endDate = new Date();
 
         endDate.setFullYear(endDate.getFullYear() + 5); // 5 anos máximo
 
-        
+
 
         const subscriptionData = {
 
@@ -21057,11 +21152,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         };
 
-        
+
 
         console.log("[MP Subscription] Subscription data:", JSON.stringify(subscriptionData, null, 2));
 
-        
+
 
         const subscriptionResponse = await fetch("https://api.mercadopago.com/preapproval", {
 
@@ -21081,13 +21176,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         const subscriptionResult = await subscriptionResponse.json();
 
         console.log("[MP Subscription] Subscription result:", JSON.stringify(subscriptionResult, null, 2));
 
-        
+
 
         // Verificar se assinatura foi criada
 
@@ -21111,7 +21206,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           }
 
-          
+
 
           // Atualizar assinatura local
 
@@ -21135,7 +21230,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          
+
 
           console.log("[MP Subscription] ?? SUCESSO COMPLETO!");
 
@@ -21145,7 +21240,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log("[MP Subscription] - Próxima cobrança:", nextMonthStartDate.toISOString());
 
-          
+
 
           return res.json({
 
@@ -21173,13 +21268,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log("[MP Subscription] Erro:", subscriptionResult.message || subscriptionResult.error);
 
-          
+
 
           const dataFim = new Date();
 
           dataFim.setMonth(dataFim.getMonth() + frequency);
 
-          
+
 
           await storage.updateSubscription(subscriptionId, {
 
@@ -21199,7 +21294,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          
+
 
           return res.json({
 
@@ -21217,7 +21312,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // -------------------------------------------------------------------------------
 
@@ -21235,7 +21330,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log("[MP Subscription] Etapa 2: Criar assinatura pendente para renovação futura");
 
-        
+
 
         // -------------------------------------------------------------------
 
@@ -21281,11 +21376,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         };
 
-        
+
 
         console.log("[MP Subscription] Payment data:", JSON.stringify(paymentData, null, 2));
 
-        
+
 
         const paymentResponse = await fetch("https://api.mercadopago.com/v1/payments", {
 
@@ -21305,13 +21400,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         const paymentResult = await paymentResponse.json();
 
         console.log("[MP Subscription] Payment result:", JSON.stringify(paymentResult, null, 2));
 
-        
+
 
         // -------------------------------------------------------------------
 
@@ -21321,7 +21416,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // -------------------------------------------------------------------
 
-        
+
 
         // CASO 1: PAGAMENTO EM ANÁLISE (in_process) - NÃO criar assinatura ainda!
 
@@ -21329,7 +21424,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log("[MP Subscription] ? Pagamento em análise (in_process):", paymentResult.status_detail);
 
-          
+
 
           // Registrar no histórico como pendente
 
@@ -21369,7 +21464,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           }
 
-          
+
 
           // Atualizar assinatura local como "pending_payment"
 
@@ -21385,7 +21480,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          
+
 
           // Retornar status pendente - NÃO ativar a assinatura!
 
@@ -21403,7 +21498,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // CASO 2: PAGAMENTO REJEITADO - Retornar erro
 
@@ -21433,17 +21528,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           };
 
-          
+
 
           const statusDetail = paymentResult.status_detail || "";
 
           let errorMessage = errorMessages[statusDetail] || paymentResult.message || "Pagamento não aprovado. Tente outro cartão.";
 
-          
+
 
           console.log("[MP Subscription] ? Pagamento rejeitado:", paymentResult.status, statusDetail);
 
-          
+
 
           return res.json({
 
@@ -21457,13 +21552,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // CASO 3: PAGAMENTO APROVADO - Continuar com criação da assinatura
 
         console.log("[MP Subscription] ? Pagamento imediato APROVADO! ID:", paymentResult.id);
 
-        
+
 
         try {
 
@@ -21501,7 +21596,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // -------------------------------------------------------------------
 
@@ -21513,7 +21608,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log("[MP Subscription] Etapa 2: Criando assinatura pendente para renovação futura");
 
-        
+
 
         const nextMonthStartDate = new Date();
 
@@ -21529,13 +21624,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         const endDate = new Date();
 
         endDate.setFullYear(endDate.getFullYear() + 5);
 
-        
+
 
         // Criar assinatura PENDENTE (sem token, usuário completará depois)
 
@@ -21567,7 +21662,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         };
 
-        
+
 
         const subscriptionResponse = await fetch("https://api.mercadopago.com/preapproval", {
 
@@ -21587,13 +21682,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         const subscriptionResult = await subscriptionResponse.json();
 
         console.log("[MP Subscription] Subscription result:", JSON.stringify(subscriptionResult, null, 2));
 
-        
+
 
         // Calcular data de fim do período atual
 
@@ -21613,7 +21708,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // Atualizar assinatura local como ATIVA (pagamento foi feito!)
 
@@ -21639,7 +21734,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         console.log("[MP Subscription] ? SUCESSO - Token Único!");
 
@@ -21649,17 +21744,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log("[MP Subscription] - Próxima cobrança:", nextMonthStartDate.toISOString());
 
-        
+
 
         // Mensagem de sucesso adaptada
 
-        const renewalNote = subscriptionResult.init_point 
+        const renewalNote = subscriptionResult.init_point
 
           ? " Você receberá um lembrete antes da renovação."
 
           : "";
 
-        
+
 
         return res.json({
 
@@ -21679,7 +21774,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // -------------------------------------------------------------------------------
 
@@ -21691,7 +21786,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log("[MP Subscription] Criando assinatura pendente com init_point");
 
-      
+
 
       const startDate = new Date();
 
@@ -21699,7 +21794,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       endDate.setFullYear(endDate.getFullYear() + 5);
 
-      
+
 
       const subscriptionData = {
 
@@ -21731,7 +21826,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       const mpResponse = await fetch("https://api.mercadopago.com/preapproval", {
 
@@ -21751,13 +21846,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const mpResult = await mpResponse.json();
 
       console.log("[MP Subscription] Preapproval result:", JSON.stringify(mpResult, null, 2));
 
-      
+
 
       if (mpResult.id && mpResult.init_point) {
 
@@ -21765,7 +21860,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         dataFim.setMonth(dataFim.getMonth() + frequency);
 
-        
+
 
         await storage.updateSubscription(subscriptionId, {
 
@@ -21783,7 +21878,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         return res.json({
 
@@ -21801,7 +21896,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       return res.json({
 
@@ -21815,11 +21910,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("[MP Subscription] Error:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         status: "error",
 
-        message: error.message || "Erro ao criar assinatura" 
+        message: error.message || "Erro ao criar assinatura"
 
       });
 
@@ -21833,7 +21928,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ASSINATURA COM PIX - Endpoint para criar pagamento PIX + assinatura
 
-  // Lógica PRÉ-PAGO: Cobra o primeiro PIX imediatamente, 
+  // Lógica PRÉ-PAGO: Cobra o primeiro PIX imediatamente,
 
   // depois cria assinatura com boleto/cartão para cobranças futuras
 
@@ -21847,21 +21942,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { subscriptionId, payerEmail } = req.body;
 
-      
+
 
       if (!subscriptionId || !payerEmail) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           status: "error",
 
-          message: "Dados de pagamento incompletos" 
+          message: "Dados de pagamento incompletos"
 
         });
 
       }
 
-      
+
 
       // Get subscription
 
@@ -21869,17 +21964,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscription || subscription.userId !== userId) {
 
-        return res.status(404).json({ 
+        return res.status(404).json({
 
           status: "error",
 
-          message: "Assinatura não encontrada" 
+          message: "Assinatura não encontrada"
 
         });
 
       }
 
-      
+
 
       // Get plan
 
@@ -21887,17 +21982,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan) {
 
-        return res.status(404).json({ 
+        return res.status(404).json({
 
           status: "error",
 
-          message: "Plano não encontrado" 
+          message: "Plano não encontrado"
 
         });
 
       }
 
-      
+
 
       // Calculate amounts
 
@@ -21909,31 +22004,31 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const pixAmount = hasSetupFee ? valorPrimeiraCobranca : valorMensal;
 
-      
+
 
       // ===== VERIFICAR SE PIX MANUAL ESTÁ ATIVADO =====
       const pixManualConfig = await storage.getSystemConfig('pix_manual_enabled');
       const pixManualEnabled = pixManualConfig?.valor === 'true' || pixManualConfig?.valor === true;
-      
+
       if (pixManualEnabled) {
         console.log("[PIX MANUAL] Gerando QR Code PIX manual...");
-        
+
         // Usar serviço de PIX manual (chave PIX configurada no admin)
         const { pixCode, pixQrCode } = await generatePixQRCode({
           planNome: plan.nome,
           valor: pixAmount,
           subscriptionId: subscriptionId,
         });
-        
+
         // Atualizar assinatura com status de aguardando PIX manual
         await storage.updateSubscription(subscriptionId, {
           status: "pending_pix",
           payerEmail,
           paymentMethod: "pix_manual",
         });
-        
+
         console.log("[PIX MANUAL] QR Code gerado com sucesso!");
-        
+
         return res.json({
           status: "pending",
           message: "PIX gerado! Escaneie o QR Code ou copie o código para pagar.",
@@ -21945,7 +22040,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
           isManualPix: true,
         });
       }
-      
+
       // ===== PIX VIA MERCADOPAGO (modo padrão) =====
       // Get MP credentials
 
@@ -21957,21 +22052,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const accessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       if (!accessToken) {
 
-        return res.status(500).json({ 
+        return res.status(500).json({
 
           status: "error",
 
-          message: "Mercado Pago não configurado" 
+          message: "Mercado Pago não configurado"
 
         });
 
       }
 
-      
+
 
       console.log("[MP PIX] Creating PIX payment:", {
 
@@ -21985,7 +22080,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // -------------------------------------------------------------------
 
@@ -21995,7 +22090,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // -------------------------------------------------------------------
 
-      
+
 
       const pixPaymentData = {
 
@@ -22003,7 +22098,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         payment_method_id: "pix",
 
-        description: hasSetupFee 
+        description: hasSetupFee
 
           ? `Taxa de implementação - ${plan.nome} - AgenteZap`
 
@@ -22025,7 +22120,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
 
@@ -22045,11 +22140,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const pixResult = await pixResponse.json();
 
-      
+
 
       console.log("[MP PIX] Payment result:", {
 
@@ -22063,13 +22158,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
 
         const transactionData = pixResult.point_of_interaction.transaction_data;
 
-        
+
 
         // Atualizar assinatura com o pagamento PIX pendente
 
@@ -22083,7 +22178,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         return res.json({
 
@@ -22113,7 +22208,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.error("[MP PIX] Error:", pixResult);
 
-        
+
 
         return res.json({
 
@@ -22125,17 +22220,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
     } catch (error: any) {
 
       console.error("[MP PIX] Error:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         status: "error",
 
-        message: error.message || "Erro ao criar pagamento PIX" 
+        message: error.message || "Erro ao criar pagamento PIX"
 
       });
 
@@ -22161,7 +22256,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { paymentId } = req.params;
 
-      
+
 
       // Get MP credentials
 
@@ -22173,21 +22268,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const accessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       if (!accessToken) {
 
-        return res.status(500).json({ 
+        return res.status(500).json({
 
           status: "error",
 
-          message: "Mercado Pago não configurado" 
+          message: "Mercado Pago não configurado"
 
         });
 
       }
 
-      
+
 
       // Consultar status do pagamento
 
@@ -22201,11 +22296,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const payment = await response.json();
 
-      
+
 
       console.log("[MP PIX Check] Payment status:", {
 
@@ -22217,7 +22312,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       if (payment.status === "approved") {
 
@@ -22229,13 +22324,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         const subscriptionId = subscriptionIdMatch ? subscriptionIdMatch[1] : null;
 
-        
+
 
         if (subscriptionId) {
 
           const subscription = await storage.getSubscription(subscriptionId) as any;
 
-          
+
 
           if (subscription && subscription.userId === userId) {
 
@@ -22245,7 +22340,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             const frequenciaDias = plan?.frequenciaDias || 30;
 
-            
+
 
             // Calcular data fim do período
 
@@ -22253,7 +22348,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             dataFim.setDate(dataFim.getDate() + frequenciaDias);
 
-            
+
 
             // Próximo pagamento
 
@@ -22261,7 +22356,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             nextPaymentDate.setDate(nextPaymentDate.getDate() + frequenciaDias);
 
-            
+
 
             // Atualizar assinatura para ativa
 
@@ -22279,7 +22374,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             });
 
-            
+
 
             // Registrar pagamento no histórico
 
@@ -22325,7 +22420,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         return res.json({
 
@@ -22359,17 +22454,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
     } catch (error: any) {
 
       console.error("[MP PIX Check] Error:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         status: "error",
 
-        message: error.message || "Erro ao verificar pagamento" 
+        message: error.message || "Erro ao verificar pagamento"
 
       });
 
@@ -22389,11 +22484,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log("[MP Webhook] Received:", { type, action, data });
 
-      
+
 
       const { mercadoPagoService } = await import("./mercadoPagoService");
 
-      
+
 
       // Process based on type
 
@@ -22415,7 +22510,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log("[MP Webhook] Payment notification:", data);
 
-        
+
 
         if (data?.id) {
 
@@ -22427,7 +22522,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             const accessToken = configMap.get("mercadopago_access_token");
 
-            
+
 
             if (accessToken) {
 
@@ -22439,7 +22534,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               });
 
-              
+
 
               const payment = await paymentResponse.json();
 
@@ -22457,7 +22552,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               });
 
-              
+
 
               // -------------------------------------------------------------------
 
@@ -22503,13 +22598,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                    });
 
-                   
+
 
                    try {
 
                      const { resellerService } = await import("./resellerService");
 
-                     
+
 
                      // Verificar se já foi processado (evitar duplicação)
 
@@ -22523,13 +22618,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                      }
 
-                     
+
 
                      // Processar criação do cliente
 
                      const result = await resellerService.confirmPixPayment(paymentIdFromRef);
 
-                     
+
 
                      if (result.success) {
 
@@ -22549,9 +22644,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                      }
 
-                     
 
-                     return res.json({ 
+
+                     return res.json({
 
                        message: result.success ? "Reseller client created" : "Error creating client",
 
@@ -22577,7 +22672,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 let subscriptionId: string | null = null;
 
-                
+
 
                 // Extrair ID da assinatura do external_reference
 
@@ -22591,13 +22686,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 subscriptionId = pixMatch ? pixMatch[1] : (cardMatch ? cardMatch[1] : null);
 
-                
+
 
                 if (subscriptionId) {
 
                   const subscription = await storage.getSubscription(subscriptionId) as any;
 
-                  
+
 
                   if (subscription) {
 
@@ -22605,13 +22700,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                     const wasInProcess = subscription.status === "pending_payment" || subscription.mpStatus === "in_process";
 
-                    
+
 
                     if (wasInProcess || subscription.status === "pending_pix") {
 
                       console.log("[MP Webhook] ? Ativando assinatura após pagamento aprovado:", subscriptionId);
 
-                      
+
 
                       // Get plan para calcular próxima cobrança
 
@@ -22619,7 +22714,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                       const frequenciaDias = plan?.frequenciaDias || 30;
 
-                      
+
 
                       // Calcular data fim do período
 
@@ -22627,7 +22722,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                       dataFim.setDate(dataFim.getDate() + frequenciaDias);
 
-                      
+
 
                       // Próximo pagamento
 
@@ -22635,7 +22730,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                       nextPaymentDate.setDate(nextPaymentDate.getDate() + frequenciaDias);
 
-                      
+
 
                       // Atualizar assinatura para ativa
 
@@ -22653,13 +22748,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                       });
 
-                      
+
 
                       // Atualizar histórico de pagamento existente ou criar novo
 
                       const existingHistory = await storage.getPaymentHistoryByMpPaymentId(payment.id?.toString());
 
-                      
+
 
                       if (existingHistory) {
 
@@ -22717,7 +22812,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                       }
 
-                      
+
 
                       console.log("[MP Webhook] ? Assinatura ATIVADA via webhook:", subscriptionId);
 
@@ -22729,7 +22824,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               }
 
-              
+
 
               // -------------------------------------------------------------------
 
@@ -22745,19 +22840,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 const subscriptionId = cardMatch ? cardMatch[1] : null;
 
-                
+
 
                 if (subscriptionId) {
 
                   const subscription = await storage.getSubscription(subscriptionId) as any;
 
-                  
+
 
                   if (subscription && (subscription.status === "pending_payment" || subscription.mpStatus === "in_process")) {
 
                     console.log("[MP Webhook] ? Pagamento rejeitado, cancelando assinatura:", subscriptionId);
 
-                    
+
 
                     await storage.updateSubscription(subscriptionId, {
 
@@ -22767,7 +22862,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                     });
 
-                    
+
 
                     // Atualizar histórico de pagamento
 
@@ -22787,7 +22882,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                     }
 
-                    
+
 
                     console.log("[MP Webhook] ? Assinatura CANCELADA via webhook:", subscriptionId);
 
@@ -22809,7 +22904,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.status(200).send("OK");
 
@@ -22827,7 +22922,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== PAYMENT HISTORY ROUTES ====================
 
-  
+
 
   // Get payment history for current user
 
@@ -22863,7 +22958,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { subscriptionId } = req.params;
 
-      
+
 
       // Verify user owns this subscription
 
@@ -22875,7 +22970,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const history = await storage.getPaymentHistoryBySubscription(subscriptionId);
 
@@ -22923,7 +23018,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const subscriptions = await storage.getAllSubscriptions();
 
-      
+
 
       // Enrich with payment history
 
@@ -22941,7 +23036,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             .reduce((sum: number, p: any) => sum + parseFloat(p.amount || "0"), 0);
 
-          
+
 
           return {
 
@@ -22965,7 +23060,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       );
 
-      
+
 
       res.json(enrichedSubscriptions);
 
@@ -22991,7 +23086,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const allHistory = await storage.getAllPaymentHistory();
 
-      
+
 
       const stats = {
 
@@ -23021,7 +23116,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       res.json(stats);
 
@@ -23043,7 +23138,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== ANNUAL DISCOUNT CONFIG ====================
 
-  
+
 
   // GET - Obter configuração de desconto anual (público para assinantes)
 
@@ -23059,17 +23154,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       ]);
 
-      
 
-      const percent = configs.has("annual_discount_percent") 
 
-        ? parseFloat(configs.get("annual_discount_percent")!) 
+      const percent = configs.has("annual_discount_percent")
+
+        ? parseFloat(configs.get("annual_discount_percent")!)
 
         : 5;
 
       const enabled = configs.get("annual_discount_enabled") !== "false";
 
-      
+
 
       res.json({ percent, enabled });
 
@@ -23093,7 +23188,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { percent, enabled } = req.body;
 
-      
+
 
       if (typeof percent === "number" && percent >= 0 && percent <= 100) {
 
@@ -23101,7 +23196,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       if (typeof enabled === "boolean") {
 
@@ -23109,7 +23204,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({ success: true, message: "Desconto anual atualizado" });
 
@@ -23127,7 +23222,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== POLICY VIOLATIONS & SUSPENSION ROUTES ====================
 
-  
+
 
   // GET - Verificar status de suspensão do usuário logado
 
@@ -23139,7 +23234,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const suspensionStatus = await storage.isUserSuspended(userId);
 
-      
+
 
       if (suspensionStatus.suspended) {
 
@@ -23187,7 +23282,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const user = await storage.getUserById(userId);
 
-      
+
 
       if (!user?.assignedPlanId) {
 
@@ -23195,7 +23290,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const plan = await storage.getPlan(user.assignedPlanId);
 
@@ -23245,7 +23340,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { violationType, reason, evidence, refundAmount } = req.body;
 
-      
+
 
       if (!violationType || !reason) {
 
@@ -23323,9 +23418,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      res.json({ 
+      res.json({
 
-        success: true, 
+        success: true,
 
         message: `Usuário ${user.email} suspenso com sucesso. WhatsApp desconectado.`,
 
@@ -23391,11 +23486,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      res.json({ 
+      res.json({
 
-        success: true, 
+        success: true,
 
-        message: `Suspensão removida do usuário ${user.email}` 
+        message: `Suspensão removida do usuário ${user.email}`
 
       });
 
@@ -23417,7 +23512,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== MY SUBSCRIPTION ROUTES (CLIENTE) ====================
 
-  
+
 
   // Get current user's active subscription with full details
 
@@ -23429,7 +23524,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      
+
 
       // Verificar se é cliente de revendedor
 
@@ -23437,7 +23532,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       let resellerInfo = null;
 
-      
+
 
       if (resellerClient) {
 
@@ -23495,25 +23590,25 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get user's subscription (uses getUserSubscription which prefers active)
 
       const subscriptionWithPlan = await storage.getUserSubscription(userId) as any;
 
-      
+
 
       if (!subscriptionWithPlan) {
 
         // Retornar resellerInfo mesmo sem subscription (cliente de revenda sem subscription tradicional)
 
-        return res.json({ 
+        return res.json({
 
-          subscription: null, 
+          subscription: null,
 
-          plan: null, 
+          plan: null,
 
-          payments: [], 
+          payments: [],
 
           stats: { totalPaid: 0, totalPayments: 0, approvedPayments: 0, failedPayments: 0 },
 
@@ -23523,19 +23618,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const subscription = subscriptionWithPlan;
 
       const plan = subscriptionWithPlan.plan;
 
-      
+
 
       // Get payment history - try both by subscription AND by user
 
       let payments = await storage.getPaymentHistoryBySubscription(subscription.id) || [];
 
-      
+
 
       // Se não tem histórico na tabela payment_history, verificar tabela payments antiga
 
@@ -23543,7 +23638,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         const oldPayment = await storage.getPaymentBySubscriptionId(subscription.id);
 
-        
+
 
         // Se encontrou pagamentos na tabela antiga, considera como histórico
 
@@ -23571,9 +23666,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
 
-        // Se assinatura está ativa mas não tem nenhum registro de pagamento, 
+
+        // Se assinatura está ativa mas não tem nenhum registro de pagamento,
 
         // criar um registro inicial para assinaturas ativadas manualmente
 
@@ -23583,7 +23678,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const paymentAmount = resellerInfo?.clientPrice || subscription.couponPrice || plan?.valor || "0";
 
-          
+
 
           const initialPayment = {
 
@@ -23615,7 +23710,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Calculate stats
 
@@ -23625,23 +23720,23 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         .reduce((sum: number, p: any) => sum + parseFloat(p.amount || "0"), 0);
 
-        
 
-      const daysRemaining = subscription?.dataFim 
+
+      const daysRemaining = subscription?.dataFim
 
         ? Math.ceil((new Date(subscription.dataFim).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 
         : 0;
 
-      
+
 
       // Check if needs to pay (PIX pending or renewal due)
 
-      const needsPayment = subscription?.status === "pending_pix" || 
+      const needsPayment = subscription?.status === "pending_pix" ||
 
         (subscription?.status === "active" && daysRemaining <= 5);
 
-      
+
 
       // Buscar info do cartão se tiver assinatura MP
 
@@ -23689,7 +23784,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Detectar se é plano de revenda (pelo tipo do plano OU pela tabela reseller_clients)
       const isResellerPlan = plan?.tipo === 'revenda' || !!resellerInfo?.isResellerClient;
@@ -23756,7 +23851,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
-  
+
 
   // Generate new PIX for renewal or pending payment
 
@@ -23768,7 +23863,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { subscriptionId } = req.body;
 
-      
+
 
       if (!subscriptionId) {
 
@@ -23776,7 +23871,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Verify ownership
 
@@ -23788,7 +23883,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get plan
 
@@ -23800,7 +23895,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Calculate amount - properly handle Decimal/string from database
 
@@ -23810,7 +23905,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const valorMensal = valorCoupon || valorPlano;
 
-      
+
 
       if (!valorMensal || isNaN(valorMensal)) {
 
@@ -23820,7 +23915,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get MP credentials
 
@@ -23828,7 +23923,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const accessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       if (!accessToken) {
 
@@ -23836,7 +23931,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get user email from database as fallback
 
@@ -23844,7 +23939,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const payerEmail = subscription.payerEmail || user?.email || req.user?.claims?.email;
 
-      
+
 
       if (!payerEmail) {
 
@@ -23852,11 +23947,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log("[PIX Generate] Email do pagador:", payerEmail, "Valor:", valorMensal);
 
-      
+
 
       // Create PIX payment
 
@@ -23882,7 +23977,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
 
@@ -23902,17 +23997,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const pixResult = await pixResponse.json();
 
-      
+
 
       if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
 
         const transactionData = pixResult.point_of_interaction.transaction_data;
 
-        
+
 
         // Update subscription with pending PIX
 
@@ -23922,7 +24017,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         // Record pending payment in history
 
@@ -23952,7 +24047,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         return res.json({
 
@@ -23996,7 +24091,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
-  
+
 
   // Generate PIX for annual payment (12 months with discount)
 
@@ -24008,7 +24103,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { subscriptionId, discountPercent = 5 } = req.body;
 
-      
+
 
       if (!subscriptionId) {
 
@@ -24016,7 +24111,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Verify ownership
 
@@ -24028,7 +24123,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get plan
 
@@ -24040,9 +24135,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      // Calculate annual amount with discount  
+
+      // Calculate annual amount with discount
 
       const valorCoupon = subscription.couponPrice ? parseFloat(String(subscription.couponPrice)) : null;
 
@@ -24050,11 +24145,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const valorMensal = valorCoupon || valorPlano;
 
-      
+
 
       console.log("[ANNUAL PIX] Valores calc:", { valorCoupon, valorPlano, valorMensal, planValor: plan.valor, couponPrice: subscription.couponPrice });
 
-      
+
 
       if (!valorMensal || isNaN(valorMensal) || valorMensal <= 0) {
 
@@ -24062,7 +24157,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const valorAnual = valorMensal * 12;
 
@@ -24070,11 +24165,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const valorFinal = Math.round((valorAnual - desconto) * 100) / 100; // Arredondar para 2 casas decimais
 
-      
+
 
       console.log("[ANNUAL PIX] Valores finais:", { valorAnual, desconto, valorFinal });
 
-      
+
 
       // Get MP credentials
 
@@ -24082,7 +24177,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const accessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       if (!accessToken) {
 
@@ -24090,7 +24185,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get user email from database
 
@@ -24098,7 +24193,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const payerEmail = subscription.payerEmail || user?.email || req.user?.claims?.email;
 
-      
+
 
       if (!payerEmail) {
 
@@ -24106,7 +24201,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Create PIX payment for annual amount
 
@@ -24132,7 +24227,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
 
@@ -24152,17 +24247,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const pixResult = await pixResponse.json();
 
-      
+
 
       if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
 
         const transactionData = pixResult.point_of_interaction.transaction_data;
 
-        
+
 
         // Record pending payment in history
 
@@ -24192,7 +24287,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         return res.json({
 
@@ -24242,7 +24337,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
-  
+
 
   // Charge annual payment on existing card
 
@@ -24254,7 +24349,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { subscriptionId, discountPercent = 5 } = req.body;
 
-      
+
 
       if (!subscriptionId) {
 
@@ -24262,7 +24357,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Verify ownership
 
@@ -24274,7 +24369,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Verify has MP subscription (card registered)
 
@@ -24284,7 +24379,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get plan
 
@@ -24296,13 +24391,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Calculate annual amount with discount
 
-      const valorMensal = subscription.couponPrice 
+      const valorMensal = subscription.couponPrice
 
-        ? parseFloat(subscription.couponPrice) 
+        ? parseFloat(subscription.couponPrice)
 
         : parseFloat(plan.valor);
 
@@ -24312,7 +24407,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const valorFinal = valorAnual - desconto;
 
-      
+
 
       // Get MP credentials
 
@@ -24320,7 +24415,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const accessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       if (!accessToken) {
 
@@ -24328,7 +24423,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Get the preapproval (subscription) details to find the card
 
@@ -24348,7 +24443,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       );
 
-      
+
 
       if (!preapprovalResponse.ok) {
 
@@ -24356,11 +24451,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const preapprovalData = await preapprovalResponse.json();
 
-      
+
 
       // Create a payment using the preapproval's card info
 
@@ -24386,7 +24481,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       // For MercadoPago, we need to use the card_id from the preapproval
 
@@ -24410,11 +24505,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const paymentResult = await paymentResponse.json();
 
-      
+
 
       if (paymentResult.status === "approved") {
 
@@ -24424,7 +24519,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         newEndDate.setFullYear(newEndDate.getFullYear() + 1);
 
-        
+
 
         await storage.updateSubscription(subscriptionId, {
 
@@ -24434,7 +24529,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         // Record payment in history
 
@@ -24468,7 +24563,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         return res.json({
 
@@ -24516,7 +24611,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         });
 
-        
+
 
         return res.json({
 
@@ -24538,7 +24633,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
-  
+
 
   // ==================== END MY SUBSCRIPTION ROUTES ====================
 
@@ -24558,15 +24653,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { resolveApiKey } = await import("./mistralClient");
 
-      
+
 
       console.log("[Test Mistral] Starting test...");
 
-      
+
 
       const apiKey = await resolveApiKey();
 
-      
+
 
       // Log informações sobre a chave (sem expor a chave completa)
 
@@ -24574,15 +24669,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`[Test Mistral] Key resolved: ${keyPreview} (${apiKey?.length ?? 0} chars)`);
 
-      
+
 
       if (!apiKey || apiKey === "mock-key") {
 
         console.log("[Test Mistral] No valid key found");
 
-        return res.json({ 
+        return res.json({
 
-          success: false, 
+          success: false,
 
           error: "Chave Mistral não configurada",
 
@@ -24592,13 +24687,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log("[Test Mistral] Creating Mistral client and testing...");
 
       const mistral = new Mistral({ apiKey });
 
-      
+
 
       // Fazer uma chamada simples para testar a chave
 
@@ -24612,17 +24707,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       console.log("[Test Mistral] Response received:", response.choices?.[0]?.message?.content);
 
-      
+
 
       if (response.choices && response.choices.length > 0) {
 
-        res.json({ 
+        res.json({
 
-          success: true, 
+          success: true,
 
           model: "mistral-small-latest",
 
@@ -24636,9 +24731,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } else {
 
-        res.json({ 
+        res.json({
 
-          success: false, 
+          success: false,
 
           error: "Resposta inválida da API",
 
@@ -24652,7 +24747,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("[Test Mistral] Error:", error.message);
 
-      
+
 
       // Extrair mensagem de erro útil
 
@@ -24660,7 +24755,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       let suggestion = "";
 
-      
+
 
       if (error.message?.includes("401")) {
 
@@ -24686,11 +24781,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      res.json({ 
 
-        success: false, 
+      res.json({
+
+        success: false,
 
         error: errorMessage,
 
@@ -24712,7 +24807,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log("[Test Groq] Starting test...");
 
-      
+
 
       // Buscar chave e modelo do banco
 
@@ -24720,13 +24815,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const groqModelConfig = await storage.getSystemConfig("groq_model");
 
-      
+
 
       const apiKey = groqKeyConfig?.valor;
 
       const model = groqModelConfig?.valor || "openai/gpt-oss-20b";
 
-      
+
 
       // Log informações sobre a chave (sem expor a chave completa)
 
@@ -24736,15 +24831,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`[Test Groq] Model: ${model}`);
 
-      
+
 
       if (!apiKey) {
 
         console.log("[Test Groq] No valid key found");
 
-        return res.json({ 
+        return res.json({
 
-          success: false, 
+          success: false,
 
           error: "Chave Groq não configurada",
 
@@ -24754,11 +24849,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log("[Test Groq] Making test request...");
 
-      
+
 
       // Fazer chamada direta à API Groq
 
@@ -24786,11 +24881,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const data = await response.json();
 
-      
+
 
       if (!response.ok) {
 
@@ -24798,17 +24893,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log("[Test Groq] Response received:", data.choices?.[0]?.message?.content);
 
-      
+
 
       if (data.choices && data.choices.length > 0) {
 
-        res.json({ 
+        res.json({
 
-          success: true, 
+          success: true,
 
           model: model,
 
@@ -24822,9 +24917,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } else {
 
-        res.json({ 
+        res.json({
 
-          success: false, 
+          success: false,
 
           error: "Resposta inválida da API",
 
@@ -24838,7 +24933,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("[Test Groq] Error:", error.message);
 
-      
+
 
       // Extrair mensagem de erro útil
 
@@ -24846,7 +24941,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       let suggestion = "";
 
-      
+
 
       if (error.message?.includes("401")) {
 
@@ -24878,11 +24973,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      res.json({ 
 
-        success: false, 
+      res.json({
+
+        success: false,
 
         error: errorMessage,
 
@@ -24904,7 +24999,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log("[Test OpenRouter] Starting test...");
 
-      
+
 
       // Buscar chave e modelo do banco
 
@@ -24912,13 +25007,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const openrouterModelConfig = await storage.getSystemConfig("openrouter_model");
 
-      
+
 
       const apiKey = openrouterKeyConfig?.valor;
 
       const model = openrouterModelConfig?.valor || "meta-llama/llama-3.3-70b-instruct:free";
 
-      
+
 
       // Log informações sobre a chave (sem expor a chave completa)
 
@@ -24928,15 +25023,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`[Test OpenRouter] Model: ${model}`);
 
-      
+
 
       if (!apiKey) {
 
         console.log("[Test OpenRouter] No valid key found");
 
-        return res.json({ 
+        return res.json({
 
-          success: false, 
+          success: false,
 
           error: "Chave OpenRouter não configurada",
 
@@ -24946,11 +25041,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log("[Test OpenRouter] Making test request...");
 
-      
+
 
       // Fazer chamada direta à API OpenRouter
 
@@ -24990,11 +25085,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       const data = await response.json();
 
-      
+
 
       if (!response.ok) {
 
@@ -25002,17 +25097,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log("[Test OpenRouter] Response received:", data.choices?.[0]?.message?.content);
 
-      
+
 
       if (data.choices && data.choices.length > 0) {
 
-        res.json({ 
+        res.json({
 
-          success: true, 
+          success: true,
 
           model: model,
 
@@ -25026,9 +25121,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } else {
 
-        res.json({ 
+        res.json({
 
-          success: false, 
+          success: false,
 
           error: "Resposta inválida da API",
 
@@ -25042,7 +25137,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("[Test OpenRouter] Error:", error.message);
 
-      
+
 
       // Extrair mensagem de erro útil
 
@@ -25050,7 +25145,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       let suggestion = "";
 
-      
+
 
       if (error.message?.includes("401")) {
 
@@ -25082,11 +25177,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      res.json({ 
 
-        success: false, 
+      res.json({
+
+        success: false,
 
         error: errorMessage,
 
@@ -25112,7 +25207,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const connection = await storage.getAdminWhatsappConnection(adminId);
 
-      
+
 
       // ??? MODO DESENVOLVIMENTO: Não sincronizar estado para não afetar produção
 
@@ -25136,7 +25231,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Verificar estado REAL da sessão na memória
 
@@ -25146,7 +25241,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const isReallyConnected = !!(activeSession?.socket?.user);
 
-      
+
 
       // Se há discrepância entre banco e sessão real, sincronizar
 
@@ -25164,17 +25259,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Retornar estado real
 
-      const phoneNumber = isReallyConnected 
+      const phoneNumber = isReallyConnected
 
-        ? activeSession?.socket?.user?.id.split(':')[0] 
+        ? activeSession?.socket?.user?.id.split(':')[0]
 
         : connection?.phoneNumber;
 
-      
+
 
       res.json({
 
@@ -25210,19 +25305,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log(`?? [DEV MODE] Bloqueando conexão admin WhatsApp (proteção de produção)`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
 
-          devMode: true 
+          devMode: true
 
         });
 
       }
 
-      
+
 
       const adminId = (req.session as any)?.adminId;
 
@@ -25256,19 +25351,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log(`?? [DEV MODE] Bloqueando desconexão admin WhatsApp (proteção de produção)`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
 
-          devMode: true 
+          devMode: true
 
         });
 
       }
 
-      
+
 
       const adminId = (req.session as any)?.adminId;
 
@@ -25386,7 +25481,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { isAgentEnabled, contactName } = req.body;
 
-      
+
 
       const updates: any = {};
 
@@ -25402,7 +25497,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const conversation = await storage.updateAdminConversation(id, updates);
 
@@ -25454,7 +25549,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const conversation = await storage.toggleAdminConversationAgent(id, true);
 
-      
+
 
       // ?? Quando IA admin é reativada, verificar se há mensagens pendentes e responder
 
@@ -25470,7 +25565,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({ success: true, conversation });
 
@@ -25496,7 +25591,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const conversation = await storage.getAdminConversation(id);
 
-      
+
 
       if (!conversation) {
 
@@ -25504,13 +25599,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Limpar mensagens do banco
 
       await storage.clearAdminConversationMessages(id);
 
-      
+
 
       // Limpar sessão em memória do cliente (baseado no telefone)
 
@@ -25602,7 +25697,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({ success: true, message: "Histórico limpo com sucesso" });
 
@@ -25628,7 +25723,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const conversation = await storage.getAdminConversation(id);
 
-      
+
 
       if (!conversation) {
 
@@ -25636,7 +25731,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Extrair telefone da conversa
 
@@ -25654,11 +25749,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const user = await storage.getUserByPhone(phone);
 
-      
+
 
       console.log(`?? [ADMIN] Solicitação de RESET COMPLETO para ${phone}`);
 
-      
+
 
       // Limpar sessão em memória primeiro
 
@@ -25666,7 +25761,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       clearClientSession(phone);
 
-      
+
 
       // Cancelar follow-ups
 
@@ -25674,21 +25769,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       cancelFollowUp(phone);
 
-      
+
 
       // Executar reset seguro com validações
 
       const result = await storage.resetTestAccountSafely(phone);
 
-      
+
 
       if (!result.success) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           message: result.error || "Não foi possível resetar a conta",
 
-          error: result.error 
+          error: result.error
 
         });
 
@@ -25730,11 +25825,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         message: "Reset completo realizado com sucesso",
 
@@ -25746,11 +25841,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error resetting account completely:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         message: "Falha ao resetar conta",
 
-        error: error.message 
+        error: error.message
 
       });
 
@@ -25772,7 +25867,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { text } = req.body;
 
-      
+
 
       if (!text) {
 
@@ -25780,13 +25875,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       const { sendAdminConversationMessage } = await import("./whatsapp");
 
       await sendAdminConversationMessage(adminId, id, text);
 
-      
+
 
       res.json({ success: true });
 
@@ -25920,7 +26015,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const config = await storage.getAdminNotificationConfig?.(adminId);
 
-      
+
 
       const defaultConfig = {
 
@@ -26006,7 +26101,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       if (!config) {
 
@@ -26152,7 +26247,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const subscriptions = await storage.getAllSubscriptions?.();
 
-      
+
 
       const total = users.length;
 
@@ -26174,7 +26269,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }).length;
 
-      
+
 
       // Calcular pagamentos em atraso (simplificado)
 
@@ -26218,7 +26313,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const adminId = (req.session as any)?.adminId;
 
-      
+
 
       // Simular variação com IA
 
@@ -26226,11 +26321,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const config = await storage.getAdminNotificationConfig?.(adminId);
 
-      
+
 
       const systemPrompt = config?.aiVariationPrompt || 'Reescreva esta mensagem de forma natural e personalizada. Retorne APENAS a mensagem reescrita, sem explicações.';
 
-      
+
 
       // ? CORRIGIDO: Usar array de ChatMessage
 
@@ -26248,7 +26343,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       );
 
-      
+
 
       // ? PROTEÇÃO: Verificar se retornou mensagem válida
 
@@ -26262,9 +26357,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      res.json({ 
+      res.json({
 
-        success: true, 
+        success: true,
 
         original: message,
 
@@ -26294,7 +26389,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const broadcasts = await storage.getAdminBroadcasts?.(adminId);
 
-      
+
 
       res.json(broadcasts || []);
 
@@ -26336,7 +26431,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const subscriptions = await storage.getAllSubscriptions?.();
 
-      
+
 
       let totalRecipients = 0;
 
@@ -26428,7 +26523,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           await storage.updateAdminBroadcast?.(adminId, id, { status: 'sending', startedAt: new Date() });
 
-          
+
 
           const broadcast = await storage.getAdminBroadcast?.(adminId, id);
 
@@ -26454,7 +26549,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             console.log(`?? [BROADCAST ${id}] WhatsApp do admin desconectado - cancelando broadcast`);
 
-            await storage.updateAdminBroadcast?.(adminId, id, { 
+            await storage.updateAdminBroadcast?.(adminId, id, {
 
               status: 'cancelled',
 
@@ -26514,13 +26609,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const BATCH_SIZE_MAX = 25;
 
-          
+
 
           for (let i = 0; i < recipients.length; i++) {
 
             const user = recipients[i];
 
-            
+
 
             try {
 
@@ -26528,7 +26623,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               let message = broadcast.messageTemplate.replace(/{cliente_nome}/g, user.name || 'Cliente');
 
-              
+
 
               // ? VARIAR COM IA SE HABILITADO (cada mensagem única)
 
@@ -26536,7 +26631,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 const { callGroq } = await import("./llm");
 
-                const prompt = config.aiVariationPrompt || 
+                const prompt = config.aiVariationPrompt ||
 
                   `Reescreva esta mensagem mantendo o mesmo significado mas com palavras diferentes.
 
@@ -26548,7 +26643,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                   Retorne APENAS a mensagem reescrita, sem explicações.`;
 
-                
+
 
                 message = await callGroq([
 
@@ -26588,7 +26683,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 }
 
-                
+
 
                 if (attempt < 3) {
 
@@ -26650,7 +26745,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               const batchDelay = Math.random() * (BATCH_DELAY_MAX_MS - BATCH_DELAY_MIN_MS) + BATCH_DELAY_MIN_MS;
 
-              
+
 
               console.log(`?? [BROADCAST ${id}] Pausa entre lotes (${batchCount}) - aguardando ${Math.floor(batchDelay/1000)}s...`);
 
@@ -26668,9 +26763,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          await storage.updateAdminBroadcast?.(adminId, id, { 
+          await storage.updateAdminBroadcast?.(adminId, id, {
 
-            status: 'completed', 
+            status: 'completed',
 
             completedAt: new Date(),
 
@@ -26724,11 +26819,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { startDate, endDate, status, type } = req.query;
 
-      
+
 
       const result = await db.execute(sql`
 
-        SELECT 
+        SELECT
 
           sn.*,
 
@@ -26754,7 +26849,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       res.json(result.rows || []);
 
@@ -26780,17 +26875,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { month, year } = req.query;
 
-      
+
 
       const startOfMonth = new Date(Number(year), Number(month) - 1, 1);
 
       const endOfMonth = new Date(Number(year), Number(month), 0, 23, 59, 59);
 
-      
+
 
       const result = await db.execute(sql`
 
-        SELECT 
+        SELECT
 
           DATE(scheduled_for) as date,
 
@@ -26814,17 +26909,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       // Agrupar por data para facilitar visualização no calendário
 
-      const calendarData: Record<string, { 
+      const calendarData: Record<string, {
 
-        total: number; 
+        total: number;
 
-        pending: number; 
+        pending: number;
 
-        sent: number; 
+        sent: number;
 
         failed: number;
 
@@ -26832,7 +26927,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }> = {};
 
-      
+
 
       for (const row of result.rows as any[]) {
 
@@ -26850,7 +26945,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         calendarData[dateKey].byType[row.notification_type] = (calendarData[dateKey].byType[row.notification_type] || 0) + count;
 
-        
+
 
         if (row.status === 'pending') calendarData[dateKey].pending += count;
 
@@ -26860,7 +26955,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json(calendarData);
 
@@ -26884,13 +26979,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const adminId = (req.session as any)?.adminId;
 
-      
+
 
       // Obter configuração
 
       const rawConfig = await storage.getAdminNotificationConfig?.(adminId);
 
-      
+
 
       // Configuração padrão
 
@@ -26952,7 +27047,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       // Converter snake_case para camelCase se tiver config no banco
 
@@ -27014,7 +27109,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } : defaultConfig;
 
-      
+
 
       console.log(`[Reorganize] Config carregada:`, JSON.stringify({
 
@@ -27032,7 +27127,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }));
 
-      
+
 
       // Obter todos os usuários com plano ativo
 
@@ -27042,15 +27137,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const connections = await storage.getAllConnections?.() || [];
 
-      
+
 
       // Limpar agendamentos pendentes antigos (passados)
 
       await db.execute(sql`
 
-        DELETE FROM scheduled_notifications 
+        DELETE FROM scheduled_notifications
 
-        WHERE admin_id = ${adminId} 
+        WHERE admin_id = ${adminId}
 
         AND status = 'pending'
 
@@ -27058,13 +27153,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       // Buscar logs de envio para não duplicar
 
       const sentLogsResult = await db.execute(sql`
 
-        SELECT user_id, notification_type, 
+        SELECT user_id, notification_type,
 
                DATE(created_at) as sent_date,
 
@@ -27072,7 +27167,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                (metadata->>'daysAfter')::int as days_after
 
-        FROM admin_notification_logs 
+        FROM admin_notification_logs
 
         WHERE admin_id = ${adminId}
 
@@ -27082,7 +27177,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const sentLogs = sentLogsResult.rows || [];
 
-      
+
 
       // Buscar agendamentos pendentes existentes para não duplicar
 
@@ -27104,7 +27199,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const existingScheduled = existingResult.rows || [];
 
-      
+
 
       // Função para verificar se já foi enviado ou agendado
 
@@ -27112,9 +27207,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // Verifica se já foi enviado
 
-        const wasSent = sentLogs.some((log: any) => 
+        const wasSent = sentLogs.some((log: any) =>
 
-          log.user_id === userId && 
+          log.user_id === userId &&
 
           log.notification_type === type &&
 
@@ -27126,9 +27221,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // Verifica se já está agendado
 
-        const isScheduled = existingScheduled.some((s: any) => 
+        const isScheduled = existingScheduled.some((s: any) =>
 
-          s.user_id === userId && 
+          s.user_id === userId &&
 
           s.notification_type === type &&
 
@@ -27142,13 +27237,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       };
 
-      
+
 
       const scheduledItems: any[] = [];
 
       const now = new Date();
 
-      
+
 
       // Contar status de subscriptions para debug
 
@@ -27160,13 +27255,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`[Reorganize] Exemplo de subscription:`, JSON.stringify(subscriptions[0], null, 2));
 
-      
+
 
       for (const user of users) {
 
         if (!user.phone) continue;
 
-        
+
 
         // Buscar subscription ativa OU pendente (pendente = aguardando pagamento = vence em breve)
 
@@ -27174,7 +27269,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         const connection = connections.find(c => c.userId === user.id);
 
-        
+
 
         // Calcular data de vencimento
 
@@ -27182,7 +27277,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         let dueDate = subscription?.nextPaymentDate || subscription?.dataFim;
 
-        
+
 
         // Se não tem data de vencimento mas tem data de início e plano, calcular
 
@@ -27198,17 +27293,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           dueDate = calculatedDueDate.toISOString();
 
-          
+
 
           console.log(`[Reorganize] ${user.name}: calculado vencimento = dataInicio(${startDate.toISOString()}) + ${frequenciaDias} dias = ${dueDate}`);
 
         }
 
-        
+
 
         const planValor = subscription?.plan?.valor || '0';
 
-        
+
 
         // Debug: mostrar se vai entrar na condição de lembrete
 
@@ -27226,7 +27321,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // 1. LEMBRETE DE PAGAMENTO (para quem tem plano com vencimento)
 
@@ -27236,7 +27331,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const daysUntilDue = Math.ceil((dueDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-          
+
 
           // Apenas logar quem vence nos próximos 14 dias
 
@@ -27246,7 +27341,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           }
 
-          
+
 
           for (const daysBefore of (config.paymentReminderDaysBefore || [7, 3, 1])) {
 
@@ -27266,13 +27361,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               }
 
-              
+
 
               const scheduleDate = new Date(dueDateObj);
 
               scheduleDate.setDate(scheduleDate.getDate() - daysBefore);
 
-              
+
 
               // Se a data de agendamento já passou, agendar para amanhã no horário comercial
 
@@ -27284,7 +27379,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               }
 
-              
+
 
               // Aplicar horário comercial
 
@@ -27296,7 +27391,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               }
 
-              
+
 
               scheduledItems.push({
 
@@ -27318,9 +27413,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 ai_enabled: config.paymentReminderAiEnabled !== false,
 
-                metadata: JSON.stringify({ 
+                metadata: JSON.stringify({
 
-                  daysBefore, 
+                  daysBefore,
 
                   dueDate: dueDateObj.toISOString(),
 
@@ -27340,7 +27435,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // 2. COBRANÇA EM ATRASO (para quem tem plano vencido)
 
@@ -27350,13 +27445,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const daysOverdue = Math.ceil((now.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24));
 
-          
+
 
           if (daysOverdue > 0) {
 
             console.log(`[Reorganize] ${user.name}: em atraso há ${daysOverdue} dias`);
 
-            
+
 
             for (const daysAfter of (config.overdueReminderDaysAfter || [1, 3, 7, 14])) {
 
@@ -27374,7 +27469,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 }
 
-                
+
 
                 const scheduleDate = new Date();
 
@@ -27396,7 +27491,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 }
 
-                
+
 
                 scheduledItems.push({
 
@@ -27418,11 +27513,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                   ai_enabled: config.overdueReminderAiEnabled !== false,
 
-                  metadata: JSON.stringify({ 
+                  metadata: JSON.stringify({
 
                     daysAfter,
 
-                    daysOverdue, 
+                    daysOverdue,
 
                     dueDate: dueDateObj.toISOString(),
 
@@ -27444,7 +27539,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // 3. CHECK-IN PERIÓDICO (só para quem tem plano ativo)
 
@@ -27458,7 +27553,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           }
 
-          
+
 
           const minDays = config.periodicCheckinMinDays || 7;
 
@@ -27466,13 +27561,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const randomDays = Math.floor(Math.random() * (maxDays - minDays + 1)) + minDays;
 
-          
+
 
           const scheduleDate = new Date();
 
           scheduleDate.setDate(scheduleDate.getDate() + randomDays);
 
-          
+
 
           if (config.respectBusinessHours) {
 
@@ -27482,7 +27577,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           }
 
-          
+
 
           scheduledItems.push({
 
@@ -27510,7 +27605,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         // 4. ALERTA DESCONECTADO (para quem está desconectado com plano ativo)
 
@@ -27524,13 +27619,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           }
 
-          
+
 
           const scheduleDate = new Date();
 
           scheduleDate.setHours(scheduleDate.getHours() + (config.disconnectedAlertHours || 2));
 
-          
+
 
           scheduledItems.push({
 
@@ -27560,11 +27655,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log(`[Reorganize] Total de ${scheduledItems.length} notificações a agendar`);
 
-      
+
 
       // Inserir todos os agendamentos
 
@@ -27582,11 +27677,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             ) VALUES (
 
-              ${item.admin_id}, ${item.user_id}, ${item.notification_type}, 
+              ${item.admin_id}, ${item.user_id}, ${item.notification_type},
 
               ${item.recipient_phone}, ${item.recipient_name}, ${item.message_template},
 
-              ${item.ai_prompt}, ${item.scheduled_for}::timestamp, ${item.ai_enabled}, 
+              ${item.ai_prompt}, ${item.scheduled_for}::timestamp, ${item.ai_enabled},
 
               ${item.metadata}::jsonb, 'pending'
 
@@ -27600,11 +27695,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         message: `${scheduledItems.length} notificações agendadas`,
 
@@ -27646,11 +27741,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { id } = req.params;
 
-      
+
 
       await db.execute(sql`
 
-        UPDATE scheduled_notifications 
+        UPDATE scheduled_notifications
 
         SET status = 'cancelled'
 
@@ -27658,7 +27753,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       res.json({ success: true });
 
@@ -27686,7 +27781,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { limit = 10 } = req.query;
 
-      
+
 
       // Buscar telefone do usuário
 
@@ -27698,7 +27793,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userPhone = (userResult.rows?.[0] as any)?.phone;
 
-      
+
 
       if (!userPhone) {
 
@@ -27706,13 +27801,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Buscar mensagens do admin com este usuário pelo número de telefone
 
       const result = await db.execute(sql`
 
-        SELECT 
+        SELECT
 
           am.text,
 
@@ -27736,7 +27831,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       // Formatar histórico para contexto IA
 
@@ -27752,7 +27847,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }));
 
-      
+
 
       res.json(history);
 
@@ -27778,7 +27873,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { id } = req.params;
 
-      
+
 
       // Buscar notificação agendada
 
@@ -27788,7 +27883,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       const notification = result.rows?.[0] as any;
 
@@ -27798,7 +27893,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       if (notification.status !== 'pending') {
 
@@ -27806,13 +27901,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Buscar histórico de conversa pelo telefone do destinatário
 
       const historyResult = await db.execute(sql`
 
-        SELECT 
+        SELECT
 
           am.text,
 
@@ -27834,15 +27929,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
 
-      const conversationHistory = (historyResult.rows as any[]).reverse().map(msg => 
+
+      const conversationHistory = (historyResult.rows as any[]).reverse().map(msg =>
 
         `${msg.from_me ? 'Você' : 'Cliente'}: ${msg.text}`
 
       ).join('\n');
 
-      
+
 
       // Preparar mensagem - substituir variáveis
 
@@ -27856,13 +27951,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         .replace(/{dias_atraso}/g, metadata.daysOverdue || metadata.daysAfter || '')
 
-        .replace(/{data_vencimento}/g, metadata.dueDate ? 
+        .replace(/{data_vencimento}/g, metadata.dueDate ?
 
           new Date(metadata.dueDate).toLocaleDateString('pt-BR') : '')
 
         .replace(/{valor}/g, metadata.valor || '');
 
-      
+
 
       // Variação com IA usando contexto da conversa
 
@@ -27874,19 +27969,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const config = await storage.getAdminNotificationConfig?.(adminId);
 
-          
 
-          let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt || 
+
+          let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt ||
 
             'Reescreva esta mensagem de forma natural e personalizada.';
 
-          
+
 
           // Adicionar contexto do cliente
 
           systemPrompt += `\n\nO nome do cliente é: ${notification.recipient_name || 'Cliente'}`;
 
-          
+
 
           // Adicionar contexto da conversa ao prompt
 
@@ -27896,11 +27991,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           }
 
-          
+
 
           systemPrompt += '\n\nIMPORTANTE: Retorne APENAS a mensagem reescrita, sem explicações ou aspas.';
 
-          
+
 
           // ? CORRIGIDO: Usar array de ChatMessage
 
@@ -27918,7 +28013,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           );
 
-          
+
 
           // ? PROTEÇÃO: Verificar se retornou mensagem válida
 
@@ -27940,7 +28035,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Enviar mensagem
 
@@ -27950,15 +28045,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const sent = sendResult.success;
 
-      
+
 
       // Atualizar status
 
       await db.execute(sql`
 
-        UPDATE scheduled_notifications 
+        UPDATE scheduled_notifications
 
-        SET 
+        SET
 
           status = ${sent ? 'sent' : 'failed'},
 
@@ -27974,7 +28069,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       // Registrar no log com metadata para evitar duplicatas
 
@@ -28000,15 +28095,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
 
-      res.json({ 
 
-        success: sent, 
+      res.json({
+
+        success: sent,
 
         message: sent ? 'Notificação enviada com sucesso' : 'Falha ao enviar',
 
-        finalMessage 
+        finalMessage
 
       });
 
@@ -28034,7 +28129,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { id } = req.params;
 
-      
+
 
       // Buscar notificação agendada - permitir apenas status 'sent' ou 'failed'
 
@@ -28044,7 +28139,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       const notification = result.rows?.[0] as any;
 
@@ -28054,7 +28149,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       if (notification.status !== 'sent' && notification.status !== 'failed') {
 
@@ -28062,17 +28157,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Usar a mesma mensagem final se existir, ou gerar nova
 
       let finalMessage = notification.final_message || notification.message_template;
 
-      
+
 
       console.log(`[RESEND] Notification ${id}: ai_enabled=${notification.ai_enabled}, regenerate=${req.body?.regenerate}`);
 
-      
+
 
       // Se AI estava ativada, podemos regenerar a mensagem
 
@@ -28086,7 +28181,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const historyResult = await db.execute(sql`
 
-            SELECT 
+            SELECT
 
               am.text,
 
@@ -28108,15 +28203,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           `);
 
-          
 
-          const conversationHistory = (historyResult.rows as any[]).reverse().map(msg => 
+
+          const conversationHistory = (historyResult.rows as any[]).reverse().map(msg =>
 
             `${msg.from_me ? 'Você' : 'Cliente'}: ${msg.text}`
 
           ).join('\n');
 
-          
+
 
           const metadata = typeof notification.metadata === 'string' ? JSON.parse(notification.metadata || '{}') : (notification.metadata || {});
 
@@ -28128,21 +28223,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             .replace(/{dias_atraso}/g, metadata.daysOverdue || metadata.daysAfter || '')
 
-            .replace(/{data_vencimento}/g, metadata.dueDate ? 
+            .replace(/{data_vencimento}/g, metadata.dueDate ?
 
               new Date(metadata.dueDate).toLocaleDateString('pt-BR') : '')
 
             .replace(/{valor}/g, metadata.valor || '');
 
-          
+
 
           const { callGroq } = await import("./llm");
 
           const config = await storage.getAdminNotificationConfig?.(adminId);
 
-          
 
-          let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt || 
+
+          let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt ||
 
             'Reescreva esta mensagem de forma natural e personalizada.';
 
@@ -28156,7 +28251,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           systemPrompt += '\n\nIMPORTANTE: Retorne APENAS a mensagem reescrita, sem explicações ou aspas.';
 
-          
+
 
           const variedMessage = await callGroq(
 
@@ -28172,7 +28267,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           );
 
-          
+
 
           const trimmedVaried = variedMessage.trim();
 
@@ -28202,7 +28297,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Enviar mensagem
 
@@ -28212,7 +28307,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const sent = sendResult.success;
 
-      
+
 
       console.log(`[RESEND] ?? Resultado do envio:`, {
 
@@ -28226,23 +28321,23 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // Atualizar registro original marcando como reenviado
 
       await db.execute(sql`
 
-        UPDATE scheduled_notifications 
+        UPDATE scheduled_notifications
 
-        SET 
+        SET
 
           metadata = jsonb_set(
 
             jsonb_set(
 
-              COALESCE(metadata, '{}')::jsonb, 
+              COALESCE(metadata, '{}')::jsonb,
 
-              '{resent_at}', 
+              '{resent_at}',
 
               to_jsonb(NOW()::text)
 
@@ -28260,7 +28355,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       // Registrar novo log de reenvio
 
@@ -28280,17 +28375,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           ${notification.message_template}, ${finalMessage}, ${sent ? 'sent' : 'failed'},
 
-          ${JSON.stringify({ 
+          ${JSON.stringify({
 
-            original_notification_id: notification.id, 
+            original_notification_id: notification.id,
 
-            resent: true, 
+            resent: true,
 
             resent_at: new Date().toISOString(),
 
             validated_phone: sendResult.validatedPhone,
 
-            original_phone: sendResult.originalPhone 
+            original_phone: sendResult.originalPhone
 
           })}::jsonb, NOW(), NOW()
 
@@ -28298,11 +28393,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
 
-      res.json({ 
 
-        success: sent, 
+      res.json({
+
+        success: sent,
 
         message: sent ? 'Notificação reenviada com sucesso' : 'Falha ao reenviar',
 
@@ -28340,7 +28435,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const adminId = (req.session as any)?.adminId;
 
-      
+
 
       // Verificar conexão WhatsApp
 
@@ -28356,7 +28451,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Buscar notificações pendentes para enviar agora
 
@@ -28376,7 +28471,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       const pendingNotifications = pendingResult.rows as any[];
 
@@ -28386,7 +28481,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Obter configuração para delays
 
@@ -28400,17 +28495,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const batchPauseSeconds = 60; // Pausa de 60 segundos a cada lote
 
-      
+
 
       console.log(`[QUEUE] Iniciando processamento de ${pendingNotifications.length} notificações`);
 
-      
+
 
       // Retornar imediatamente - processar em background
 
-      res.json({ 
+      res.json({
 
-        success: true, 
+        success: true,
 
         message: `Processando ${pendingNotifications.length} notificações em fila`,
 
@@ -28424,7 +28519,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // Processar em background
 
@@ -28434,13 +28529,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         let failed = 0;
 
-        
+
 
         for (let i = 0; i < pendingNotifications.length; i++) {
 
           const notification = pendingNotifications[i];
 
-          
+
 
           try {
 
@@ -28464,15 +28559,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             `);
 
-            
 
-            const conversationHistory = (historyResult.rows as any[]).reverse().map(msg => 
+
+            const conversationHistory = (historyResult.rows as any[]).reverse().map(msg =>
 
               `${msg.from_me ? 'Você' : 'Cliente'}: ${msg.text}`
 
             ).join('\n');
 
-            
+
 
             // Preparar mensagem com variáveis
 
@@ -28486,13 +28581,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               .replace(/{dias_atraso}/g, metadata.daysOverdue || metadata.daysAfter || '')
 
-              .replace(/{data_vencimento}/g, metadata.dueDate ? 
+              .replace(/{data_vencimento}/g, metadata.dueDate ?
 
                 new Date(metadata.dueDate).toLocaleDateString('pt-BR') : '')
 
               .replace(/{valor}/g, metadata.valor || '');
 
-            
+
 
             // VARIAÇÃO IA OBRIGATÓRIA se ativada
 
@@ -28502,19 +28597,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 const { callGroq } = await import("./llm");
 
-                
 
-                let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt || 
+
+                let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt ||
 
                   'Reescreva esta mensagem de forma natural e personalizada.';
 
-                
+
 
                 // Adicionar contexto do cliente
 
                 systemPrompt += `\n\nO nome do cliente é: ${notification.recipient_name || 'Cliente'}`;
 
-                
+
 
                 if (conversationHistory) {
 
@@ -28522,11 +28617,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 }
 
-                
+
 
                 systemPrompt += '\n\nIMPORTANTE: Retorne APENAS a mensagem reescrita, sem explicações ou aspas.';
 
-                
+
 
                 // ? CORRIGIDO: Usar array de ChatMessage
 
@@ -28544,7 +28639,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 );
 
-                
+
 
                 // ? PROTEÇÃO: Verificar se retornou mensagem válida
 
@@ -28576,7 +28671,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                   await db.execute(sql`
 
-                    UPDATE scheduled_notifications 
+                    UPDATE scheduled_notifications
 
                     SET status = 'failed', error_message = 'Falha na variação IA obrigatória'
 
@@ -28592,7 +28687,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             }
 
-            
+
 
             // Enviar mensagem
 
@@ -28602,7 +28697,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             const sent = sendResult.success;
 
-            
+
 
             if (sent) {
 
@@ -28618,15 +28713,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             }
 
-            
+
 
             // Atualizar status
 
             await db.execute(sql`
 
-              UPDATE scheduled_notifications 
+              UPDATE scheduled_notifications
 
-              SET 
+              SET
 
                 status = ${sent ? 'sent' : 'failed'},
 
@@ -28642,7 +28737,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             `);
 
-            
+
 
             // Registrar log
 
@@ -28668,13 +28763,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             `);
 
-            
+
 
             // DELAY ENTRE MENSAGENS (anti-ban)
 
             const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
 
-            
+
 
             // Pausa maior a cada lote de 10
 
@@ -28692,7 +28787,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             }
 
-            
+
 
           } catch (error) {
 
@@ -28702,7 +28797,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             await db.execute(sql`
 
-              UPDATE scheduled_notifications 
+              UPDATE scheduled_notifications
 
               SET status = 'failed', error_message = ${String(error)}
 
@@ -28714,13 +28809,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        
+
 
         console.log(`[QUEUE] Processamento concluído: ${processed} enviados, ${failed} falhas`);
 
       })();
 
-      
+
 
     } catch (error) {
 
@@ -28742,11 +28837,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const adminId = (req.session as any)?.adminId;
 
-      
+
 
       const result = await db.execute(sql`
 
-        SELECT 
+        SELECT
 
           status,
 
@@ -28762,11 +28857,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       const pendingTodayResult = await db.execute(sql`
 
-        SELECT COUNT(*) as count 
+        SELECT COUNT(*) as count
 
         FROM scheduled_notifications
 
@@ -28778,7 +28873,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       const nextInQueueResult = await db.execute(sql`
 
@@ -28794,7 +28889,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       `);
 
-      
+
 
       res.json({
 
@@ -28820,7 +28915,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== BULK SEND / ENVIO EM MASSA ROUTES ====================
 
-  
+
 
   // Envio em massa para múltiplos números - COM SUPORTE A [nome] e variação IA
 
@@ -28866,7 +28961,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { sendBulkMessagesAdvanced } = await import("./whatsapp");
 
-      
+
 
       // Preparar contatos com nomes
 
@@ -28878,7 +28973,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         if (cleanPhone.length >= 10 && cleanPhone.length <= 15) {
 
-          const contactData = contacts?.find((c: any) => 
+          const contactData = contacts?.find((c: any) =>
 
             String(c.phone).replace(/\D/g, '') === cleanPhone
 
@@ -28908,7 +29003,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.log(`[BULK SEND] Iniciando envio para ${contactsWithNames.length} números`);
 
-      
+
 
       // Configurações de delay
 
@@ -28918,7 +29013,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const useAI = settings?.useAI || false;
 
-      
+
 
       // Criar campanha com status "running" para rastreamento
 
@@ -28926,7 +29021,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const campaignId = `campaign_${Date.now()}`;
 
-      
+
 
       await storage.createCampaign?.({
 
@@ -28958,7 +29053,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // RESPONDER IMEDIATAMENTE - envio continua em background
 
@@ -28990,7 +29085,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // EXECUTAR ENVIO EM BACKGROUND (não bloqueia a resposta)
 
@@ -29000,7 +29095,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log(`[BULK SEND BACKGROUND] Executando campanha ${campaignId} em background`);
 
-          
+
 
           // ?? Callback de progresso para atualizar campanha em tempo real
 
@@ -29028,7 +29123,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           };
 
-          
+
 
           const result = await sendBulkMessagesAdvanced(userId, contactsWithNames, message, {
 
@@ -29042,7 +29137,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          
+
 
           // Atualizar campanha com resultado final
 
@@ -29060,7 +29155,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          
+
 
           console.log(`[BULK SEND BACKGROUND] Campanha ${campaignId} concluída: ${result.sent} enviados, ${result.failed} falharam`);
 
@@ -29160,7 +29255,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         if (cleanPhone.length >= 10 && cleanPhone.length <= 15) {
 
-          const contactData = contacts?.find((c: any) => 
+          const contactData = contacts?.find((c: any) =>
 
             String(c.phone).replace(/\D/g, '') === cleanPhone
 
@@ -29380,7 +29475,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== GROUPS / ENVIO PARA GRUPOS ROUTES ====================
 
-  
+
 
   // Buscar grupos que o usuário participa
 
@@ -29390,7 +29485,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      
+
 
       // Verificar conexão WhatsApp
 
@@ -29408,11 +29503,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { fetchUserGroups } = await import("./whatsapp");
 
-      
+
 
       const groups = await fetchUserGroups(userId);
 
-      
+
 
       res.json(groups);
 
@@ -29472,7 +29567,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { sendMessageToGroups, fetchUserGroups } = await import("./whatsapp");
 
-      
+
 
       // Configurações de delay
 
@@ -29482,7 +29577,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const useAI = settings?.useAI || false;
 
-      
+
 
       // Buscar metadados dos grupos para nomes
 
@@ -29500,7 +29595,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Criar campanha com status "running" para rastreamento
 
@@ -29508,7 +29603,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const campaignId = `group_campaign_${Date.now()}`;
 
-      
+
 
       await storage.createCampaign?.({
 
@@ -29570,7 +29665,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // RESPONDER IMEDIATAMENTE - envio continua em background
 
@@ -29602,7 +29697,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       });
 
-      
+
 
       // EXECUTAR ENVIO EM BACKGROUND (não bloqueia a resposta)
 
@@ -29612,7 +29707,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log(`[GROUP BULK BACKGROUND] Executando campanha ${campaignId} em background`);
 
-          
+
 
           const result = await sendMessageToGroups(userId, groupIds, message, {
 
@@ -29624,7 +29719,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          
+
 
           // Atualizar campanha com resultado final
 
@@ -29642,7 +29737,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          
+
 
           console.log(`[GROUP BULK BACKGROUND] Campanha ${campaignId} concluída: ${result.sent} enviados, ${result.failed} falharam`);
 
@@ -29676,7 +29771,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== CONTACTS / LISTAS DE CONTATOS ROUTES ====================
 
-  
+
 
   // Buscar listas de contatos
 
@@ -29772,7 +29867,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      
+
 
       // Verificar conexão WhatsApp
 
@@ -29780,9 +29875,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!connection) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro." 
+          message: "Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro."
 
         });
 
@@ -29794,9 +29889,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const result = await startBackgroundSync(userId, connection.id);
 
-      
 
-      res.json({ 
+
+      res.json({
 
         success: result.status !== 'error',
 
@@ -29828,7 +29923,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const status = getSyncStatus(userId);
 
-      
+
 
       res.json(status);
 
@@ -29858,7 +29953,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const returnAsArray = req.query.array === 'true' || req.query.format === 'array';
 
-      
+
 
       // Buscar conexão do usuário
 
@@ -29876,7 +29971,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const hasSynced = await hasSyncedBefore(connection.id);
 
-      
+
 
       // Se não tem contatos sincronizados, iniciar sincronização em background automaticamente
 
@@ -29894,7 +29989,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { contacts, total } = await getSyncedContactsFromDB(connection.id);
 
-      
+
 
       // Se pediu array (para Envio em Massa), retorna só o array
 
@@ -29906,17 +30001,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Pegar status da sincronização para informar o frontend
 
       const syncStatus = getSyncStatus(userId);
 
-      
+
 
       console.log(`[SYNCED CONTACTS] Retornando ${total} contatos do banco (sync status: ${syncStatus.status})`);
 
-      
+
 
       // Retornar com metadados de sincronização
 
@@ -29932,9 +30027,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           progress: syncStatus.progress,
 
-          message: syncStatus.status === 'running' 
+          message: syncStatus.status === 'running'
 
-            ? `Sincronizando... ${syncStatus.progress}%` 
+            ? `Sincronizando... ${syncStatus.progress}%`
 
             : syncStatus.status === 'completed'
 
@@ -29978,13 +30073,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { getAgendaContacts, syncAgendaFromSessionCache, getSession } = await import("./whatsapp");
 
-      
+
 
       // Buscar do cache em memória
 
       let cached = getAgendaContacts(userId);
 
-      
+
 
       // Se não tem cache, tentar popular do cache da sessão
 
@@ -30008,7 +30103,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       if (!cached) {
 
@@ -30028,7 +30123,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       if (cached.status === 'syncing') {
 
@@ -30046,7 +30141,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       if (cached.status === 'error') {
 
@@ -30064,7 +30159,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Status ready - retornar contatos
 
@@ -30072,11 +30167,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const expiresIn = Math.max(0, Math.floor((cached.expiresAt.getTime() - Date.now()) / 1000 / 60));
 
-      
+
 
       console.log(`?? [AGENDA LIVE] Retornando ${contacts.length} contatos do cache para user ${userId} (expira em ${expiresIn}min)`);
 
-      
+
 
       res.json({
 
@@ -30098,7 +30193,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error fetching agenda contacts:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         status: 'error',
 
@@ -30106,7 +30201,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         total: 0,
 
-        message: "? Erro ao buscar contatos da agenda" 
+        message: "? Erro ao buscar contatos da agenda"
 
       });
 
@@ -30126,7 +30221,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { syncAgendaFromSessionCache, getSession } = await import("./whatsapp");
 
-      
+
 
       // Verificar se tem sessão ativa
 
@@ -30144,17 +30239,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       // Tentar popular do cache da sessão
 
       const result = syncAgendaFromSessionCache(userId);
 
-      
+
 
       console.log(`?? [AGENDA REFRESH] Usuário ${userId}: ${result.message}`);
 
-      
+
 
       res.json({
 
@@ -30170,11 +30265,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error refreshing agenda:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         success: false,
 
-        message: "? Erro ao solicitar atualização da agenda" 
+        message: "? Erro ao solicitar atualização da agenda"
 
       });
 
@@ -30488,7 +30583,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { force } = req.body;  // force=true ignora rate limiting
 
-      
+
 
       // Verificar conexão WhatsApp
 
@@ -30496,25 +30591,25 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!connection) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           success: false,
 
-          message: "? Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro." 
+          message: "? Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro."
 
         });
 
       }
 
-      
+
 
       if (!connection.isConnected) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           success: false,
 
-          message: "? WhatsApp desconectado. Reconecte para sincronizar contatos." 
+          message: "? WhatsApp desconectado. Reconecte para sincronizar contatos."
 
         });
 
@@ -30526,9 +30621,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const result = await startFullContactSync(userId, connection.id, force === true);
 
-      
 
-      res.json({ 
+
+      res.json({
 
         success: result.status !== 'error' && result.status !== 'rate_limited',
 
@@ -30544,11 +30639,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error starting full sync:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         success: false,
 
-        message: "? Erro ao iniciar sincronização completa" 
+        message: "? Erro ao iniciar sincronização completa"
 
       });
 
@@ -30566,7 +30661,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      
+
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -30588,7 +30683,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const status = getFullSyncStatus(connection.id);
 
-      
+
 
       // Formatar mensagem amigável
 
@@ -30628,7 +30723,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json({
 
@@ -30636,7 +30731,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         message,
 
-        lastSyncFormatted: status.lastSyncAt 
+        lastSyncFormatted: status.lastSyncAt
 
           ? new Date(status.lastSyncAt).toLocaleString('pt-BR')
 
@@ -30692,7 +30787,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      
+
 
       // Verificar se é admin
 
@@ -30704,15 +30799,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       console.log(`[ADMIN] ?? Admin ${userId} iniciou sincronização de todos os clientes`);
 
-      
+
 
       const result = await scheduleFullSyncForAllClients();
 
-      
+
 
       res.json({
 
@@ -30738,7 +30833,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== CAMPAIGNS ROUTES ====================
 
-  
+
 
   // Get all campaigns for user
 
@@ -30832,7 +30927,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const campaign = await storage.getCampaign?.(userId, id);
 
-      
+
 
       if (!campaign) {
 
@@ -30840,7 +30935,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       res.json(campaign);
 
@@ -30950,7 +31045,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      
+
 
       if (!connection) {
 
@@ -30970,7 +31065,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       let recipients = campaign.recipients || [];
 
-      
+
 
       if (campaign.listId) {
 
@@ -31052,7 +31147,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // WebSocket server
 
-  const wss = new WebSocketServer({ 
+  const wss = new WebSocketServer({
 
     noServer: true
 
@@ -31212,7 +31307,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
             clearInterval(pingInterval);
             return;
           }
-          
+
           try {
             ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
           } catch (err) {
@@ -31448,9 +31543,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log(`? Audio sent! MessageId: ${result.key.id}`);
 
-        return res.json({ 
+        return res.json({
 
-          success: true, 
+          success: true,
 
           messageId: result.key.id,
 
@@ -31472,13 +31567,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log(`? Baileys não retornou MessageId:`, result);
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
           error: "No message ID returned from Baileys",
 
           validation,
 
-          result 
+          result
 
         });
 
@@ -31596,7 +31691,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       ];
 
-      
+
 
       const configs = await storage.getSystemConfigs(configKeys);
 
@@ -31642,39 +31737,39 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         triggerPhrases,
 
-        messageSplitChars: configs.has("admin_agent_message_split_chars") 
+        messageSplitChars: configs.has("admin_agent_message_split_chars")
 
-          ? parseInt(configs.get("admin_agent_message_split_chars")!) 
+          ? parseInt(configs.get("admin_agent_message_split_chars")!)
 
           : adminAgentConfig.messageSplitChars,
 
-        responseDelaySeconds: configs.has("admin_agent_response_delay_seconds") 
+        responseDelaySeconds: configs.has("admin_agent_response_delay_seconds")
 
-          ? parseInt(configs.get("admin_agent_response_delay_seconds")!) 
+          ? parseInt(configs.get("admin_agent_response_delay_seconds")!)
 
           : adminAgentConfig.responseDelaySeconds,
 
-        typingDelayMin: configs.has("admin_agent_typing_delay_min") 
+        typingDelayMin: configs.has("admin_agent_typing_delay_min")
 
-          ? parseInt(configs.get("admin_agent_typing_delay_min")!) 
+          ? parseInt(configs.get("admin_agent_typing_delay_min")!)
 
           : adminAgentConfig.typingDelayMin,
 
-        typingDelayMax: configs.has("admin_agent_typing_delay_max") 
+        typingDelayMax: configs.has("admin_agent_typing_delay_max")
 
-          ? parseInt(configs.get("admin_agent_typing_delay_max")!) 
+          ? parseInt(configs.get("admin_agent_typing_delay_max")!)
 
           : adminAgentConfig.typingDelayMax,
 
-        messageIntervalMin: configs.has("admin_agent_message_interval_min") 
+        messageIntervalMin: configs.has("admin_agent_message_interval_min")
 
-          ? parseInt(configs.get("admin_agent_message_interval_min")!) 
+          ? parseInt(configs.get("admin_agent_message_interval_min")!)
 
           : adminAgentConfig.messageIntervalMin,
 
-        messageIntervalMax: configs.has("admin_agent_message_interval_max") 
+        messageIntervalMax: configs.has("admin_agent_message_interval_max")
 
-          ? parseInt(configs.get("admin_agent_message_interval_max")!) 
+          ? parseInt(configs.get("admin_agent_message_interval_max")!)
 
           : adminAgentConfig.messageIntervalMax,
 
@@ -31872,31 +31967,31 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { processAdminMessage } = await import("./adminAgentService");
 
-      
+
 
       // Usar phoneNumber de teste se não fornecido
 
       const testPhone = phoneNumber || "5500000000000";
 
-      
+
 
       // Se testTrigger=true, verifica frases gatilho; se false, skipTriggerCheck=true para testes
 
       const skipTriggerCheck = testTrigger !== true;
 
-      
+
 
       const response = await processAdminMessage(testPhone, message, undefined, undefined, skipTriggerCheck);
 
-      
+
 
       if (response === null) {
 
         // Não passou na validação de frase gatilho
 
-        res.json({ 
+        res.json({
 
-          response: null, 
+          response: null,
 
           skipped: true,
 
@@ -31906,13 +32001,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } else {
 
-        res.json({ 
+        res.json({
 
-          response: response.text, 
+          response: response.text,
 
           skipped: false,
 
-          actions: response.actions || {} 
+          actions: response.actions || {}
 
         });
 
@@ -32082,7 +32177,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       console.error("[MODEL-TEST] Error:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         message: "Failed to test model",
 
@@ -32104,7 +32199,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const { userId, message, history } = req.body;
 
-      
+
 
       if (!userId || !message) {
 
@@ -32116,7 +32211,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       console.log(`?? [DEV] Testando delivery para user ${userId}: ${message.substring(0, 50)}`);
 
-      
+
 
       // Converter histórico
 
@@ -32136,15 +32231,15 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       })) || [];
 
-      
+
 
       // Usar testAgentResponse diretamente
 
       const testResult = await testAgentResponse(
 
-        userId, 
+        userId,
 
-        message, 
+        message,
 
         undefined,
 
@@ -32156,9 +32251,9 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       );
 
-      
 
-      res.json({ 
+
+      res.json({
 
         response: testResult.response,
 
@@ -32202,29 +32297,29 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const { processAdminMessage } = await import("./adminAgentService");
 
-      
+
 
       // Usar phoneNumber de teste se não fornecido
 
       const testPhone = phoneNumber || "5500000000000";
 
-      
+
 
       // Se testTrigger=true, verifica frases gatilho; se false, skipTriggerCheck=true para testes
 
       const skipTriggerCheck = testTrigger !== true;
 
-      
+
 
       const response = await processAdminMessage(testPhone, message, undefined, undefined, skipTriggerCheck);
 
-      
+
 
       if (response === null) {
 
-        res.json({ 
+        res.json({
 
-          response: null, 
+          response: null,
 
           skipped: true,
 
@@ -32234,9 +32329,9 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       } else {
 
-        res.json({ 
+        res.json({
 
-          response: response.text, 
+          response: response.text,
 
           skipped: false,
 
@@ -32270,11 +32365,11 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const cleanPhone = phone.replace(/\D/g, "");
 
-      
+
 
       console.log(`?? [DEBUG] Buscando usuário por telefone: ${cleanPhone}`);
 
-      
+
 
       // Buscar em users
 
@@ -32282,13 +32377,13 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       console.log(`?? [DEBUG] Total de usuários: ${users.length}`);
 
-      
+
 
       const userByPhone = users.find(u => u.phone?.replace(/\D/g, "") === cleanPhone);
 
       console.log(`?? [DEBUG] Usuário por phone: ${userByPhone ? userByPhone.email : 'não encontrado'}`);
 
-      
+
 
       // Buscar em whatsapp_connections
 
@@ -32296,7 +32391,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       console.log(`?? [DEBUG] Total de conexões: ${connections.length}`);
 
-      
+
 
       // Debug: mostrar as primeiras conexões para ver o formato
 
@@ -32316,7 +32411,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       console.log(`?? [DEBUG] Sample connections:`, JSON.stringify(sampleConnections));
 
-      
+
 
       const connection = connections.find(c => {
 
@@ -32330,7 +32425,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       console.log(`?? [DEBUG] Conexão por phoneNumber: ${connection ? connection.userId : 'não encontrada'}`);
 
-      
+
 
       let userByConnection = null;
 
@@ -32342,7 +32437,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       }
 
-      
+
 
       res.json({
 
@@ -32406,7 +32501,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const adminId = req.admin?.id || "admin";
 
-      const { name, mediaType, storageUrl, fileName, fileSize, mimeType, 
+      const { name, mediaType, storageUrl, fileName, fileSize, mimeType,
 
               description, whenToUse, caption, transcription, isActive, sendAlone } = req.body;
 
@@ -32526,7 +32621,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const adminId = req.admin?.id || "admin";
 
-      
+
 
       if (!(await hasAdminMedia(id, adminId))) {
 
@@ -32560,7 +32655,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const file = req.file;
 
-      
+
 
       if (!file) {
 
@@ -32612,7 +32707,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
         console.error("Supabase upload error:", uploadError);
 
-        
+
 
         // Se o bucket não existir, tentar criar (apenas se ainda não verificamos)
 
@@ -32626,11 +32721,11 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
           });
 
-          
+
 
           agentMediaBucketChecked = true;
 
-          
+
 
           if (createError && !createError.message?.includes('already exists')) {
 
@@ -32744,7 +32839,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const { audioUrl, mimeType } = req.body;
 
-      
+
 
       if (!audioUrl) {
 
@@ -32756,7 +32851,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const transcription = await transcribeAudio(audioUrl, mimeType);
 
-      
+
 
       if (!transcription) {
 
@@ -32782,7 +32877,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
   // ==================== ADMIN AUTO-ATENDIMENTO ROUTES ====================
 
-  
+
 
   // GET - Configuração do atendimento automatizado
 
@@ -32840,7 +32935,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       }
 
-      
+
 
       if (typeof prompt === "string") {
 
@@ -32848,7 +32943,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       }
 
-      
+
 
       if (typeof ownerNotificationNumber === "string") {
 
@@ -32898,7 +32993,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
   // ==================== PAIRING CODE ROUTES ====================
 
-  
+
 
   // POST - Gerar código de pareamento para um cliente
 
@@ -33209,7 +33304,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const { generateWithLLM } = await import("./llm");
 
-      
+
 
       const systemPrompt = `Você é um assistente que cria mensagens prontas para atendimento ao cliente.
 
@@ -33223,7 +33318,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
       const result = await generateWithLLM(systemPrompt, prompt);
 
-      
+
 
       // Extrair título do prompt
 
@@ -33231,7 +33326,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-      res.json({ 
+      res.json({
 
         content: result.trim(),
 
@@ -33469,7 +33564,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
       const { generateWithLLM } = await import("./llm");
 
-      
+
 
       const systemPrompt = `Você é um assistente que cria mensagens prontas para atendimento ao cliente.
 
@@ -33519,7 +33614,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
       const { generateWithLLM } = await import("./llm");
 
-      
+
 
       let systemPrompt = `Você é um assistente que ajuda a criar mensagens para WhatsApp.
 
@@ -33595,9 +33690,9 @@ Use emojis com moderação quando apropriado.`;
 
         console.log(`?? [SUSPENSION] Bloqueando envio de mídia para usuário suspenso: ${userId}`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          success: false, 
+          success: false,
 
           message: 'Sua conta está suspensa. Não é possível enviar mídia.',
 
@@ -33743,9 +33838,9 @@ Use emojis com moderação quando apropriado.`;
 
       if (mimeType?.startsWith('video/') && fileSizeMB > MAX_VIDEO_SIZE_MB) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: `Vídeo muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_VIDEO_SIZE_MB}MB para WhatsApp.` 
+          message: `Vídeo muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_VIDEO_SIZE_MB}MB para WhatsApp.`
 
         });
 
@@ -33755,9 +33850,9 @@ Use emojis com moderação quando apropriado.`;
 
       if (mimeType?.startsWith('image/') && fileSizeMB > MAX_IMAGE_SIZE_MB) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: `Imagem muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_IMAGE_SIZE_MB}MB.` 
+          message: `Imagem muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_IMAGE_SIZE_MB}MB.`
 
         });
 
@@ -33767,9 +33862,9 @@ Use emojis com moderação quando apropriado.`;
 
       if (fileSizeMB > MAX_DOCUMENT_SIZE_MB) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: `Arquivo muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_DOCUMENT_SIZE_MB}MB.` 
+          message: `Arquivo muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_DOCUMENT_SIZE_MB}MB.`
 
         });
 
@@ -33819,7 +33914,7 @@ Use emojis com moderação quando apropriado.`;
 
       let finalMimeType = mimeType || 'application/octet-stream';
 
-      
+
 
       if (detectedType === 'audio') {
 
@@ -34007,7 +34102,7 @@ Use emojis com moderação quando apropriado.`;
 
       const { generateWithLLM } = await import("./llm");
 
-      
+
 
       let systemPrompt = `Você é um assistente que ajuda a criar mensagens para WhatsApp.
 
@@ -34215,7 +34310,7 @@ Use emojis com moderação quando apropriado.`;
 
   // ==================== DEV ENDPOINTS ====================
 
-  
+
 
   // POST - Atualizar prompt do agente com instruções completas do sistema
 
@@ -34471,15 +34566,15 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       await storage.updateSystemConfig("admin_agent_prompt", completeSystemPrompt);
 
-      
+
 
       console.log("[DEV] Prompt do agente atualizado com instruções completas do sistema");
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         message: "Prompt do agente atualizado com sucesso!",
 
@@ -34501,7 +34596,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // ==================== CLIENT SELF-SERVICE ROUTES ====================
 
-  
+
 
   // POST - Cliente solicita pairing code (página /conexao)
 
@@ -34643,23 +34738,23 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // ==================== TESTE API ROUTES (APENAS DEV) ====================
 
-  
+
 
   if (process.env.NODE_ENV === "development") {
 
-    const { 
+    const {
 
-      processAdminMessage, 
+      processAdminMessage,
 
-      getClientSession, 
+      getClientSession,
 
       clearClientSession,
 
-      generateFollowUpResponse 
+      generateFollowUpResponse
 
     } = await import("./adminAgentService");
 
-    
+
 
     // Health check
 
@@ -34669,7 +34764,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
     });
 
-    
+
 
     // Testar mensagem do admin agent
 
@@ -34685,17 +34780,17 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         // skipTrigger=true para testes (ignora trigger phrases)
 
         const result = await processAdminMessage(phone, message, undefined, undefined, skipTrigger);
 
-        
+
 
         if (!result) {
 
-          return res.json({ 
+          return res.json({
 
             response: null,
 
@@ -34707,9 +34802,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
 
-        res.json({ 
+
+        res.json({
 
           response: result.text,
 
@@ -34729,7 +34824,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
     });
 
-    
+
 
     // Limpar sessão de cliente
 
@@ -34745,7 +34840,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         const cleared = clearClientSession(phone);
 
@@ -34759,7 +34854,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
     });
 
-    
+
 
     // Obter sessão de cliente
 
@@ -34771,7 +34866,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         const session = getClientSession(phone);
 
-        
+
 
         if (!session) {
 
@@ -34779,7 +34874,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         res.json({
 
@@ -34811,7 +34906,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
     });
 
-    
+
 
     // Testar follow-up
 
@@ -34827,7 +34922,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         const response = await generateFollowUpResponse(phone, context || {
 
@@ -34839,7 +34934,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         });
 
-        
+
 
         res.json({ response });
 
@@ -34851,7 +34946,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
     });
 
-    
+
 
     // ==================== TESTE DO KILL SWITCH ====================
 
@@ -34863,7 +34958,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         const resellerId = req.query.resellerId as string;
 
-        
+
 
         let reseller;
 
@@ -34877,7 +34972,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         if (!reseller) {
 
@@ -34885,7 +34980,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         const clients = await db.select()
 
@@ -34895,7 +34990,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .where(eq(resellerClients.resellerId, reseller.id));
 
-        
+
 
         res.json({
 
@@ -34939,7 +35034,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
     });
 
-    
+
 
     // Bloquear/Desbloquear reseller para teste do Kill Switch
 
@@ -34949,7 +35044,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         const { action, resellerId } = req.body; // 'block' or 'unblock', optional resellerId
 
-        
+
 
         let reseller;
 
@@ -34963,7 +35058,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         if (!reseller) {
 
@@ -34971,11 +35066,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         const newStatus = action === 'block' ? 'blocked' : 'active';
 
-        
+
 
         await db.update(resellers)
 
@@ -34983,11 +35078,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .where(eq(resellers.id, reseller.id));
 
-        
+
 
         console.log(`[KILL SWITCH TEST] Reseller ${reseller.id} ${newStatus === 'blocked' ? 'BLOQUEADO' : 'ATIVADO'}`);
 
-        
+
 
         res.json({
 
@@ -34999,7 +35094,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           newStatus,
 
-          message: newStatus === 'blocked' 
+          message: newStatus === 'blocked'
 
             ? '? Kill Switch ATIVADO - Clientes serão bloqueados'
 
@@ -35015,11 +35110,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
     });
 
-    
+
 
     console.log("? [DEV] Rotas de teste habilitadas: /api/test/*");
 
-    
+
 
     // Rota para simular verificação de Kill Switch para um usuário específico
 
@@ -35029,13 +35124,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         const { userId } = req.params;
 
-        
+
 
         // Buscar usuário
 
         const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
-        
+
 
         if (!user.length) {
 
@@ -35043,11 +35138,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         const dbUser = user[0];
 
-        
+
 
         if (!dbUser.resellerId) {
 
@@ -35067,13 +35162,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         // Buscar reseller
 
         const [reseller] = await db.select().from(resellers).where(eq(resellers.id, dbUser.resellerId)).limit(1);
 
-        
+
 
         if (!reseller) {
 
@@ -35095,11 +35190,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         const isBlocked = reseller.resellerStatus === 'blocked' || reseller.isActive === false;
 
-        
+
 
         res.json({
 
@@ -35123,7 +35218,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           wouldBlock: isBlocked,
 
-          message: isBlocked 
+          message: isBlocked
 
             ? "? KILL SWITCH ATIVO - Este usuário seria BLOQUEADO ao tentar acessar"
 
@@ -35155,11 +35250,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         const { email } = req.params;
 
-        
+
 
         const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
 
-        
+
 
         if (!user.length) {
 
@@ -35167,11 +35262,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         const dbUser = user[0];
 
-        
+
 
         // Definir sessão diretamente (express-session)
 
@@ -35187,7 +35282,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         };
 
-        
+
 
         req.session.save((err: any) => {
 
@@ -35197,7 +35292,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           }
 
-          
+
 
           res.json({
 
@@ -35237,7 +35332,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // ==================== PÁGINA DE TESTE DO AGENTE (PÚBLICA) ====================
 
-  
+
 
   /**
 
@@ -35303,7 +35398,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("[TEST-AGENT] Erro:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         error: error.message,
 
@@ -35315,7 +35410,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   });
 
-  
+
 
   /**
 
@@ -35333,7 +35428,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { token } = req.params;
 
-      
+
 
       // ?? FIX: Se o token parecer um userId (começa com test- ou tem formato UUID), buscar direto
 
@@ -35361,7 +35456,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .limit(1);
 
-        
+
 
         if (userConfig.length > 0 && userConfig[0].userId) {
 
@@ -35371,7 +35466,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           const agentName = promptMatch ? promptMatch[1] : "Agente";
 
-          
+
 
           return res.json({
 
@@ -35389,7 +35484,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar token de teste gerado pelo adminAgentService (agora persiste no Supabase)
 
@@ -35397,7 +35492,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const testToken = await getTestToken(token);
 
-      
+
 
       if (testToken) {
 
@@ -35417,7 +35512,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Token não encontrado ou expirado - retornar demo (Rodrigo)
 
@@ -35441,7 +35536,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   });
 
-  
+
 
   /**
 
@@ -35457,7 +35552,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { phone, agentName, company } = req.body;
 
-      
+
 
       // Gerar token único
 
@@ -35465,7 +35560,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const token = crypto.randomBytes(16).toString("hex");
 
-      
+
 
       // Salvar configuração do link (em memória por enquanto)
 
@@ -35487,7 +35582,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       };
 
-      
+
 
       res.json({
 
@@ -35515,7 +35610,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // ==================== FOLLOW-UP TOGGLE ====================
 
-  
+
 
   /**
 
@@ -35533,7 +35628,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { active } = req.body;
 
-      
+
 
       if (active === undefined) {
 
@@ -35541,7 +35636,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const conversation = await storage.getAdminConversation(id);
 
@@ -35551,11 +35646,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Atualizar no banco
 
-      await storage.updateAdminConversation(id, { 
+      await storage.updateAdminConversation(id, {
 
         followupActive: active,
 
@@ -35567,11 +35662,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       console.log(`?? [ADMIN] Follow-up ${active ? 'ATIVADO' : 'DESATIVADO'} para conversa ${id}`);
 
-      
+
 
       res.json({ success: true, active });
 
@@ -35589,7 +35684,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // ==================== CALENDÁRIO DE FOLLOW-UPS ====================
 
-  
+
 
   /**
 
@@ -35651,7 +35746,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   });
 
-  
+
 
   /**
 
@@ -35685,7 +35780,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   });
 
-  
+
 
   /**
 
@@ -35703,7 +35798,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { phone } = req.query;
 
-      
+
 
       console.log(`??? [API] Solicitação de cancelamento para ID: ${id}, Phone: ${phone}`);
 
@@ -35715,17 +35810,17 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const { followUpService } = await import("./followUpService");
 
-      
+
 
       // Tentar cancelar como follow-up
 
       await followUpService.disableFollowUp(id, "Cancelado manualmente pelo calendário");
 
-      
+
 
       console.log(`? [API] Cancelamento processado para ID: ${id}`);
 
@@ -35801,7 +35896,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const contentType = result.format === 'wav' ? 'audio/wav' : 'audio/mpeg';
 
-      
+
 
       res.set({
 
@@ -35829,11 +35924,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("? [TEST-TTS] Erro:", error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
         error: "Erro ao gerar áudio",
 
-        details: error.message 
+        details: error.message
 
       });
 
@@ -35863,7 +35958,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       let config = await storage.getExclusionConfig(userId);
 
-      
+
 
       // Se não existir, criar configuração padrão
 
@@ -35879,7 +35974,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
         res.json(config);
 
@@ -35911,7 +36006,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { isEnabled, followupExclusionEnabled } = req.body;
 
-      
+
 
       const config = await storage.upsertExclusionConfig(userId, {
 
@@ -35921,7 +36016,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       console.log(`?? [EXCLUSION] Config atualizada para usuário ${userId}: enabled=${isEnabled}, followup=${followupExclusionEnabled}`);
 
@@ -35985,7 +36080,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { phoneNumber, contactName, reason, excludeFromFollowup } = req.body;
 
-      
+
 
       if (!phoneNumber) {
 
@@ -35993,13 +36088,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Limpar número (apenas dígitos)
 
       const cleanNumber = phoneNumber.replace(/\D/g, "");
 
-      
+
 
       if (cleanNumber.length < 8) {
 
@@ -36007,7 +36102,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const item = await storage.addToExclusionList({
 
@@ -36025,7 +36120,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       console.log(`?? [EXCLUSION] Número ${cleanNumber} adicionado à lista de exclusão do usuário ${userId}`);
 
@@ -36059,7 +36154,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { numbers, excludeFromFollowup } = req.body;
 
-      
+
 
       if (!numbers || !Array.isArray(numbers) || numbers.length === 0) {
 
@@ -36067,7 +36162,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Limpar e validar números
 
@@ -36077,7 +36172,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .filter((n: string) => n.length >= 8 && n.length <= 15);
 
-      
+
 
       if (cleanNumbers.length === 0) {
 
@@ -36085,7 +36180,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar números já existentes para evitar duplicatas
 
@@ -36093,13 +36188,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const existingNumbers = new Set(existingList.map(item => item.phoneNumber));
 
-      
+
 
       // Filtrar apenas números novos
 
       const newNumbers = cleanNumbers.filter((n: string) => !existingNumbers.has(n));
 
-      
+
 
       // Adicionar em batch
 
@@ -36107,7 +36202,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       let skipped = cleanNumbers.length - newNumbers.length;
 
-      
+
 
       for (const phoneNumber of newNumbers) {
 
@@ -36141,19 +36236,19 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       console.log(`?? [EXCLUSION BULK] ${added} números adicionados, ${skipped} ignorados (usuário ${userId})`);
 
-      res.json({ 
+      res.json({
 
-        added, 
+        added,
 
-        skipped, 
+        skipped,
 
         total: cleanNumbers.length,
 
-        message: `${added} números bloqueados com sucesso` 
+        message: `${added} números bloqueados com sucesso`
 
       });
 
@@ -36187,7 +36282,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { contactName, reason, excludeFromFollowup, isActive } = req.body;
 
-      
+
 
       // Verificar se o item pertence ao usuário
 
@@ -36199,7 +36294,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const item = await storage.updateExclusionListItem(id, {
 
@@ -36213,7 +36308,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       console.log(`?? [EXCLUSION] Item ${id} atualizado na lista de exclusão`);
 
@@ -36249,7 +36344,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { permanent } = req.query;
 
-      
+
 
       // Verificar se o item pertence ao usuário
 
@@ -36261,7 +36356,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       if (permanent === 'true') {
 
@@ -36277,7 +36372,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       res.json({ success: true });
 
@@ -36309,7 +36404,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { id } = req.params;
 
-      
+
 
       // Verificar se o item pertence ao usuário
 
@@ -36321,7 +36416,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const item = await storage.reactivateExclusionListItem(id);
 
@@ -36357,13 +36452,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { phoneNumber } = req.params;
 
-      
+
 
       const isExcluded = await storage.isNumberExcluded(userId, phoneNumber);
 
       const isExcludedFromFollowup = await storage.isNumberExcludedFromFollowup(userId, phoneNumber);
 
-      
+
 
       res.json({
 
@@ -36405,7 +36500,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       const { data: funnels, error } = await supabase
 
@@ -36447,7 +36542,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         let totalValue = 0;
 
-        
+
 
         stages.forEach((stage: any) => {
 
@@ -36637,11 +36732,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      res.json({ 
+      res.json({
 
         ...funnel,
 
-        message: "Funnel created with default stages" 
+        message: "Funnel created with default stages"
 
       });
 
@@ -37517,7 +37612,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (stage) {
 
@@ -38335,7 +38430,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       // Check if user has stages, create defaults if not
 
@@ -38453,7 +38548,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .single();
 
-        
+
 
         newPosition = (maxPos?.position || 0) + 1;
 
@@ -38661,7 +38756,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       // Update positions
 
-      const updates = stageIds.map((id, index) => 
+      const updates = stageIds.map((id, index) =>
 
         supabase
 
@@ -38707,7 +38802,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       // Get user's connection
 
@@ -38787,11 +38882,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .from('conversations')
 
-        .update({ 
+        .update({
 
           kanban_stage_id: stageId,
 
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString()
 
         })
 
@@ -38929,7 +39024,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       const { data: config, error } = await supabase
 
@@ -38941,11 +39036,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (error && error.code !== 'PGRST116') throw error;
 
-      
+
 
       // Retornar config padrão se não existir
 
@@ -39005,7 +39100,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
         res.json(config);
 
@@ -39037,13 +39132,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const config = req.body;
 
-      
+
 
       // Importar função de invalidação de cache
 
       const { invalidateSchedulingCache } = await import("./schedulingService");
 
-      
+
 
       // Verificar se já existe config
 
@@ -39057,7 +39152,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       let result;
 
@@ -39113,13 +39208,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Invalidar cache após atualização
 
       invalidateSchedulingCache(userId);
 
-      
+
 
       console.log(`?? [SCHEDULING] Config atualizada para usuário ${userId}`);
 
@@ -39153,7 +39248,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { status, from, to } = req.query;
 
-      
+
 
       let query = supabase
 
@@ -39167,7 +39262,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .order('start_time', { ascending: true });
 
-      
+
 
       // Filtrar por status
 
@@ -39179,7 +39274,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Filtrar por data
 
@@ -39195,13 +39290,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const { data, error } = await query;
 
       if (error) throw error;
 
-      
+
 
       res.json(data || []);
 
@@ -39233,7 +39328,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { id } = req.params;
 
-      
+
 
       const { data, error } = await supabase
 
@@ -39247,7 +39342,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (error) throw error;
 
@@ -39257,7 +39352,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       res.json(data);
 
@@ -39289,7 +39384,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const appointmentData = req.body;
 
-      
+
 
       // Buscar configuração para verificar se Google Calendar está habilitado
 
@@ -39303,7 +39398,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       const appointmentDate = appointmentData.appointmentDate || appointmentData.appointment_date;
 
@@ -39311,7 +39406,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const endTime = appointmentData.endTime || appointmentData.end_time;
 
-      
+
 
       // Verificar disponibilidade do slot no banco local
 
@@ -39329,15 +39424,15 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .in('status', ['pending', 'confirmed']);
 
-      
+
 
       if (existingError) throw existingError;
 
-      
+
 
       if (existing && existing.length > 0) {
 
-        return res.status(409).json({ 
+        return res.status(409).json({
 
           message: "Horário já está ocupado no sistema",
 
@@ -39347,7 +39442,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar conflito no Google Calendar se estiver conectado
 
@@ -39357,11 +39452,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         const endDateTime = `${appointmentDate}T${endTime}:00`;
 
-        
+
 
         const availability = await checkCalendarAvailability(userId, startDateTime, endDateTime);
 
-        
+
 
         if (!availability.available) {
 
@@ -39379,7 +39474,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Criar agendamento
 
@@ -39437,15 +39532,15 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       console.log(`?? [SCHEDULING] Novo agendamento criado: ${data.id} para ${appointmentData.clientName || appointmentData.client_name}`);
 
-      
+
 
       // Sincronizar automaticamente com Google Calendar se habilitado
 
@@ -39469,7 +39564,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }, data.duration_minutes || config.slot_duration || 60);
 
-        
+
 
         if (syncResult.success && syncResult.eventId) {
 
@@ -39479,17 +39574,17 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
             .from('appointments')
 
-            .update({ 
+            .update({
 
               google_event_id: syncResult.eventId,
 
-              google_calendar_synced: true 
+              google_calendar_synced: true
 
             })
 
             .eq('id', data.id);
 
-          
+
 
           console.log(`?? [GOOGLE CALENDAR] Agendamento ${data.id} sincronizado: ${syncResult.eventId}`);
 
@@ -39501,7 +39596,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       res.status(201).json(data);
 
@@ -39535,7 +39630,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const updates = req.body;
 
-      
+
 
       const { data, error } = await supabase
 
@@ -39557,7 +39652,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (error) throw error;
 
@@ -39567,7 +39662,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       console.log(`?? [SCHEDULING] Agendamento ${id} atualizado`);
 
@@ -39603,7 +39698,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { confirmedBy, sendNotification = true } = req.body; // 'client' ou 'business'
 
-      
+
 
       const updateData: any = {
 
@@ -39615,7 +39710,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       };
 
-      
+
 
       if (confirmedBy === 'client') {
 
@@ -39627,7 +39722,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const { data, error } = await supabase
 
@@ -39643,15 +39738,15 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       console.log(`? [SCHEDULING] Agendamento ${id} confirmado por ${confirmedBy}`);
 
-      
+
 
       // ?? Se confirmado pelo negócio E sendNotification ativo, enviar mensagem ao cliente via IA
 
@@ -39708,7 +39803,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { id } = req.params;
 
-      
+
 
       const { error } = await supabase
 
@@ -39720,7 +39815,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .eq('user_id', userId);
 
-      
+
 
       if (error) throw error;
 
@@ -39762,7 +39857,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { activeOnly, withServices } = req.query;
 
-      
+
 
       let query = supabase
 
@@ -39774,7 +39869,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .order('display_order', { ascending: true });
 
-      
+
 
       if (activeOnly === 'true') {
 
@@ -39782,13 +39877,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const { data, error } = await query;
 
       if (error) throw error;
 
-      
+
 
       // Se pediu com serviços, buscar a relação
 
@@ -39804,7 +39899,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .in('professional_id', profIds);
 
-        
+
 
         // Mapear serviços para cada profissional
 
@@ -39820,13 +39915,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }));
 
-        
+
 
         return res.json(professionalsWithServices);
 
       }
 
-      
+
 
       res.json(data || []);
 
@@ -39858,7 +39953,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { name, email, phone, avatarUrl, bio, workSchedule, isActive, isDefault, acceptsOnline, acceptsPresencial, maxAppointmentsPerDay, displayOrder, serviceIds } = req.body;
 
-      
+
 
       if (!name) {
 
@@ -39866,7 +39961,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Se marcou como padrão, desmarcar outros
 
@@ -39882,7 +39977,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const { data, error } = await supabase
 
@@ -39922,11 +40017,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (error) throw error;
 
-      
+
 
       // Se passou serviceIds, criar as relações
 
@@ -39942,13 +40037,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }));
 
-        
+
 
         await supabase.from('professional_services').insert(relations);
 
       }
 
-      
+
 
       res.status(201).json(data);
 
@@ -39982,7 +40077,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const updates = req.body;
 
-      
+
 
       // Converter camelCase para snake_case
 
@@ -40034,7 +40129,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       dbUpdates.updated_at = new Date().toISOString();
 
-      
+
 
       const { data, error } = await supabase
 
@@ -40050,7 +40145,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (error) throw error;
 
@@ -40060,7 +40155,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Se passou serviceIds, atualizar as relações
 
@@ -40076,7 +40171,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .eq('professional_id', id);
 
-        
+
 
         // Criar novas relações
 
@@ -40092,7 +40187,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           }));
 
-          
+
 
           await supabase.from('professional_services').insert(relations);
 
@@ -40100,7 +40195,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       res.json(data);
 
@@ -40132,7 +40227,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { id } = req.params;
 
-      
+
 
       const { error } = await supabase
 
@@ -40144,7 +40239,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .eq('user_id', userId);
 
-      
+
 
       if (error) throw error;
 
@@ -40180,7 +40275,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { serviceIds } = req.body;
 
-      
+
 
       // Verificar se profissional pertence ao usuário
 
@@ -40196,7 +40291,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (!prof) {
 
@@ -40204,7 +40299,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Remover relações antigas
 
@@ -40216,7 +40311,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .eq('professional_id', id);
 
-      
+
 
       // Criar novas relações
 
@@ -40232,13 +40327,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }));
 
-        
+
 
         await supabase.from('professional_services').insert(relations);
 
       }
 
-      
+
 
       res.json({ message: "Serviços atualizados com sucesso" });
 
@@ -40270,7 +40365,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { date, serviceId, professionalId } = req.query;
 
-      
+
 
       if (!date) {
 
@@ -40278,7 +40373,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar configuração
 
@@ -40292,7 +40387,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (!config || !config.is_enabled) {
 
@@ -40300,7 +40395,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar serviço se especificado
 
@@ -40308,7 +40403,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       let bufferAfter = config.buffer_between_appointments || 15;
 
-      
+
 
       if (serviceId) {
 
@@ -40324,7 +40419,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .single();
 
-        
+
 
         if (service) {
 
@@ -40336,7 +40431,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar profissional se especificado
 
@@ -40350,7 +40445,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       let hasBreak = config.has_break;
 
-      
+
 
       if (professionalId) {
 
@@ -40366,7 +40461,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .single();
 
-        
+
 
         if (professional && professional.work_schedule) {
 
@@ -40374,7 +40469,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           const daySchedule = (professional.work_schedule as any)[dayOfWeek.toString()];
 
-          
+
 
           if (daySchedule) {
 
@@ -40398,7 +40493,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar agendamentos existentes
 
@@ -40414,7 +40509,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .in('status', ['pending', 'confirmed']);
 
-      
+
 
       if (professionalId) {
 
@@ -40422,17 +40517,17 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const { data: existingAppointments } = await appointmentsQuery;
 
-      
+
 
       // Gerar slots disponíveis
 
       const slots: { time: string; available: boolean }[] = [];
 
-      
+
 
       const parseTime = (time: string) => {
 
@@ -40442,7 +40537,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       };
 
-      
+
 
       const formatTime = (minutes: number) => {
 
@@ -40454,7 +40549,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       };
 
-      
+
 
       const startMinutes = parseTime(workStartTime);
 
@@ -40464,7 +40559,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const breakEnd = hasBreak ? parseTime(breakEndTime) : 0;
 
-      
+
 
       for (let time = startMinutes; time + serviceDuration <= endMinutes; time += serviceDuration + bufferAfter) {
 
@@ -40478,13 +40573,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         const slotTime = formatTime(time);
 
         const slotEnd = formatTime(time + serviceDuration);
 
-        
+
 
         // Verificar conflito com agendamentos existentes
 
@@ -40498,13 +40593,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         });
 
-        
+
 
         slots.push({ time: slotTime, available: !hasConflict });
 
       }
 
-      
+
 
       res.json({ slots, serviceDuration, date });
 
@@ -40534,11 +40629,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      const { 
+      const {
 
-        useServices, useProfessionals, aiSchedulingEnabled, 
+        useServices, useProfessionals, aiSchedulingEnabled,
 
-        aiCanSuggestProfessional, aiCanSuggestService, 
+        aiCanSuggestProfessional, aiCanSuggestService,
 
         bookingLinkSlug, publicBookingEnabled, googleCalendarEnabled,
 
@@ -40548,47 +40643,47 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       } = req.body;
 
-      
+
 
       const updates: any = { updated_at: new Date().toISOString() };
 
-      
+
 
       // Support both camelCase and snake_case
 
-      if (useServices !== undefined || use_services !== undefined) 
+      if (useServices !== undefined || use_services !== undefined)
 
         updates.use_services = useServices ?? use_services;
 
-      if (useProfessionals !== undefined || use_professionals !== undefined) 
+      if (useProfessionals !== undefined || use_professionals !== undefined)
 
         updates.use_professionals = useProfessionals ?? use_professionals;
 
-      if (aiSchedulingEnabled !== undefined || ai_scheduling_enabled !== undefined) 
+      if (aiSchedulingEnabled !== undefined || ai_scheduling_enabled !== undefined)
 
         updates.ai_scheduling_enabled = aiSchedulingEnabled ?? ai_scheduling_enabled;
 
-      if (aiCanSuggestProfessional !== undefined) 
+      if (aiCanSuggestProfessional !== undefined)
 
         updates.ai_can_suggest_professional = aiCanSuggestProfessional;
 
-      if (aiCanSuggestService !== undefined) 
+      if (aiCanSuggestService !== undefined)
 
         updates.ai_can_suggest_service = aiCanSuggestService;
 
-      if (bookingLinkSlug !== undefined) 
+      if (bookingLinkSlug !== undefined)
 
         updates.booking_link_slug = bookingLinkSlug;
 
-      if (publicBookingEnabled !== undefined) 
+      if (publicBookingEnabled !== undefined)
 
         updates.public_booking_enabled = publicBookingEnabled;
 
-      if (googleCalendarEnabled !== undefined || google_calendar_enabled !== undefined) 
+      if (googleCalendarEnabled !== undefined || google_calendar_enabled !== undefined)
 
         updates.google_calendar_enabled = googleCalendarEnabled ?? google_calendar_enabled;
 
-      
+
 
       const { data, error } = await supabase
 
@@ -40602,7 +40697,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (error) throw error;
 
@@ -40634,19 +40729,19 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       if (!isGoogleCalendarConfigured()) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Google Calendar não está configurado no servidor." 
+          message: "Google Calendar não está configurado no servidor."
 
         });
 
       }
 
-      
+
 
       const authUrl = getGoogleAuthUrl(userId);
 
@@ -40680,7 +40775,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const result = await disconnectGoogleCalendar(userId);
 
-      
+
 
       if (result.success) {
 
@@ -40694,7 +40789,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .eq('user_id', userId);
 
-        
+
 
         res.json({ message: "Google Calendar desconectado com sucesso" });
 
@@ -40814,19 +40909,19 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       if (!isGoogleCalendarConfigured()) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Google Calendar não está configurado. Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET." 
+          message: "Google Calendar não está configurado. Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET."
 
         });
 
       }
 
-      
+
 
       const authUrl = getGoogleAuthUrl(userId);
 
@@ -40858,7 +40953,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { code, state: userId, error: oauthError } = req.query;
 
-      
+
 
       if (oauthError) {
 
@@ -40868,7 +40963,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       if (!code || !userId) {
 
@@ -40876,11 +40971,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const result = await handleGoogleCallback(code as string, userId as string);
 
-      
+
 
       if (result.success) {
 
@@ -40924,7 +41019,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const result = await disconnectGoogleCalendar(userId);
 
-      
+
 
       if (result.success) {
 
@@ -40964,7 +41059,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { from, to } = req.query;
 
-      
+
 
       if (!from || !to) {
 
@@ -40972,17 +41067,17 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const startDate = new Date(from as string);
 
       const endDate = new Date(to as string);
 
-      
+
 
       const result = await listCalendarEvents(userId, startDate, endDate);
 
-      
+
 
       if (result.success) {
 
@@ -41022,7 +41117,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { appointmentId } = req.params;
 
-      
+
 
       // Buscar agendamento
 
@@ -41038,7 +41133,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       if (apptError || !appointment) {
 
@@ -41046,7 +41141,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar configuração para duração
 
@@ -41060,7 +41155,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         .single();
 
-      
+
 
       const result = await syncAppointmentToCalendar(userId, {
 
@@ -41082,7 +41177,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }, config?.slot_duration || 60);
 
-      
+
 
       if (result.success && result.eventId) {
 
@@ -41092,7 +41187,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .from('appointments')
 
-          .update({ 
+          .update({
 
             google_event_id: result.eventId,
 
@@ -41102,13 +41197,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           .eq('id', appointmentId);
 
-        
 
-        res.json({ 
+
+        res.json({
 
           message: "Sincronizado com Google Calendar",
 
-          eventId: result.eventId 
+          eventId: result.eventId
 
         });
 
@@ -41146,11 +41241,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { eventId } = req.params;
 
-      
+
 
       const result = await removeAppointmentFromCalendar(userId, eventId);
 
-      
+
 
       if (result.success) {
 
@@ -41190,7 +41285,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { start, end } = req.query;
 
-      
+
 
       if (!start || !end) {
 
@@ -41198,7 +41293,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const result = await checkCalendarAvailability(userId, start as string, end as string);
 
@@ -41242,9 +41337,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const reseller = await storage.getResellerByUserId(userId);
 
-      
 
-      res.json({ 
+
+      res.json({
 
         hasResellerPlan: hasReseller,
 
@@ -41278,7 +41373,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       // Verificar se tem plano de revenda
 
@@ -41290,7 +41385,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -41300,7 +41395,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       res.json(reseller);
 
@@ -41322,7 +41417,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       // Verificar se tem plano de revenda
 
@@ -41334,11 +41429,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const result = await resellerService.setupReseller(userId, req.body);
 
-      
+
 
       if (result.success) {
 
@@ -41368,7 +41463,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -41378,7 +41473,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const updated = await storage.updateReseller(reseller.id, req.body);
 
@@ -41410,7 +41505,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -41420,7 +41515,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const clients = await storage.getResellerClients(reseller.id);
 
@@ -41454,7 +41549,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { email, name, phone, password } = req.body;
 
-      
+
 
       if (!email || !name || !password) {
 
@@ -41462,7 +41557,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Obter o revendedor
 
@@ -41474,7 +41569,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const result = await resellerService.createClient({
 
@@ -41490,11 +41585,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       if (result.success) {
 
-        res.json({ 
+        res.json({
 
           message: "Cliente criado com sucesso",
 
@@ -41540,7 +41635,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const clientId = req.params.clientId;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -41550,7 +41645,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -41562,7 +41657,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       await storage.suspendResellerClient(clientId);
 
@@ -41596,7 +41691,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const clientId = req.params.clientId;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -41606,7 +41701,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -41618,7 +41713,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       await storage.reactivateResellerClient(clientId);
 
@@ -41652,7 +41747,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const clientId = req.params.clientId;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -41662,7 +41757,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -41674,7 +41769,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       await storage.cancelResellerClient(clientId);
 
@@ -41708,7 +41803,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const clientId = req.params.clientId;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -41718,7 +41813,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -41730,7 +41825,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Calcular nova data (atual saasPaidUntil + 30 dias)
 
@@ -41742,25 +41837,25 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const newDate = new Date(currentSaaSDate);
 
       newDate.setDate(newDate.getDate() + 30);
 
-      
+
 
       // Calcular referência do mês
 
       const referenceMonth = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`;
 
-      
+
 
       // Preço do cliente
 
       const clientPrice = parseFloat(client.clientPrice || client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
 
-      
+
 
       // Criar ou obter fatura do mês atual
 
@@ -41776,7 +41871,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       if (!invoice) {
 
@@ -41804,7 +41899,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Adicionar item da fatura para este cliente
 
@@ -41820,7 +41915,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       // Atualizar cliente
 
@@ -41836,9 +41931,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
 
-      res.json({ 
+
+      res.json({
 
         message: "Pagamento antecipado processado",
 
@@ -41874,7 +41969,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const clientId = req.params.clientId;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -41884,7 +41979,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -41896,7 +41991,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Calcular nova data (atual saasPaidUntil + 365 dias)
 
@@ -41908,13 +42003,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const newDate = new Date(currentSaaSDate);
 
       newDate.setDate(newDate.getDate() + 365);
 
-      
+
 
       // Preço do cliente
 
@@ -41922,13 +42017,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const annualPrice = clientPrice * 12; // 12 meses
 
-      
+
 
       // Calcular referência do mês
 
       const referenceMonth = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`;
 
-      
+
 
       // Criar fatura anual
 
@@ -41950,7 +42045,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }).returning();
 
-      
+
 
       // Adicionar item da fatura para este cliente
 
@@ -41966,7 +42061,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       // Atualizar cliente
 
@@ -41982,9 +42077,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
 
-      res.json({ 
+
+      res.json({
 
         message: "Pagamento anual processado",
 
@@ -42022,7 +42117,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const clientId = req.params.clientId;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -42032,7 +42127,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -42044,7 +42139,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar usuário do cliente para obter email
 
@@ -42056,7 +42151,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Calcular valor mensal - usa o custo que o REVENDEDOR paga ao dono do sistema
 
@@ -42064,7 +42159,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const monthlyValue = parseFloat(client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
 
-      
+
 
       if (!monthlyValue || isNaN(monthlyValue) || monthlyValue <= 0) {
 
@@ -42072,7 +42167,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Get MP credentials - usa as credenciais do SISTEMA (dono da plataforma)
 
@@ -42080,7 +42175,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const accessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       if (!accessToken) {
 
@@ -42088,7 +42183,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Usar email do revendedor como pagador (ele que está pagando)
 
@@ -42096,7 +42191,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const payerEmail = resellerUser?.email || '';
 
-      
+
 
       if (!payerEmail) {
 
@@ -42104,11 +42199,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       console.log("[RESELLER PIX] Gerando PIX - Revendedor:", reseller.companyName, "Cliente:", clientUser.name, "Valor:", monthlyValue);
 
-      
+
 
       // Create PIX payment via Mercado Pago
 
@@ -42134,7 +42229,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       };
 
-      
+
 
       const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
 
@@ -42154,17 +42249,17 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       const pixResult = await pixResponse.json();
 
-      
+
 
       if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
 
         const transactionData = pixResult.point_of_interaction.transaction_data;
 
-        
+
 
         // Registrar pagamento pendente
 
@@ -42192,7 +42287,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         });
 
-        
+
 
         return res.json({
 
@@ -42262,7 +42357,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { discountPercent = 5 } = req.body;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -42272,7 +42367,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -42284,7 +42379,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar usuário do cliente para obter nome
 
@@ -42296,13 +42391,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Calcular valor anual com desconto
 
       const monthlyValue = parseFloat(client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
 
-      
+
 
       if (!monthlyValue || isNaN(monthlyValue) || monthlyValue <= 0) {
 
@@ -42310,7 +42405,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const annualValue = monthlyValue * 12;
 
@@ -42318,11 +42413,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const finalValue = Math.round((annualValue - discount) * 100) / 100;
 
-      
+
 
       console.log("[RESELLER ANNUAL PIX] Valores:", { monthlyValue, annualValue, discount, finalValue, discountPercent });
 
-      
+
 
       // Get MP credentials
 
@@ -42330,7 +42425,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const accessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       if (!accessToken) {
 
@@ -42338,7 +42433,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Usar email do revendedor como pagador
 
@@ -42346,7 +42441,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const payerEmail = resellerUser?.email || '';
 
-      
+
 
       if (!payerEmail) {
 
@@ -42354,7 +42449,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Create PIX payment via Mercado Pago
 
@@ -42380,7 +42475,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       };
 
-      
+
 
       const pixResponse = await fetch("https://api.mercadopago.com/v1/payments", {
 
@@ -42400,17 +42495,17 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       const pixResult = await pixResponse.json();
 
-      
+
 
       if (pixResult.status === "pending" && pixResult.point_of_interaction?.transaction_data) {
 
         const transactionData = pixResult.point_of_interaction.transaction_data;
 
-        
+
 
         // Registrar pagamento pendente (anual = 12 meses)
 
@@ -42438,7 +42533,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         });
 
-        
+
 
         return res.json({
 
@@ -42510,7 +42605,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const paymentId = req.params.paymentId;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -42520,7 +42615,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Get MP credentials
 
@@ -42528,7 +42623,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const accessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       if (!accessToken) {
 
@@ -42536,7 +42631,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Check payment status
 
@@ -42550,11 +42645,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       const payment = await response.json();
 
-      
+
 
       return res.json({
 
@@ -42590,7 +42685,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -42600,7 +42695,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const metrics = await storage.getResellerDashboardMetrics(reseller.id);
 
@@ -42632,7 +42727,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -42642,7 +42737,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const payments = await storage.getResellerPayments(reseller.id);
 
@@ -42674,7 +42769,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { external_reference, status, payment_id } = req.body;
 
-      
+
 
       if (!external_reference) {
 
@@ -42682,7 +42777,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       await resellerService.processPaymentWebhook(external_reference, status, payment_id);
 
@@ -42738,7 +42833,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const result = await resellerService.createGranularInvoice(reseller.id, clientIds);
 
-      
+
 
       if (!result.success) {
 
@@ -42788,7 +42883,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -42798,15 +42893,15 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const hasFreeSlot = await resellerService.hasFreeClientSlot(reseller.id);
 
       const usedFreeClients = await storage.countFreeResellerClients(reseller.id);
 
-      
 
-      res.json({ 
+
+      res.json({
 
         available: hasFreeSlot,
 
@@ -42844,7 +42939,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { email, name, phone, password, clientPrice } = req.body;
 
-      
+
 
       if (!email || !name || !password) {
 
@@ -42852,7 +42947,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -42862,7 +42957,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const result = await resellerService.createFreeClient({
 
@@ -42882,11 +42977,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       if (result.success) {
 
-        res.json({ 
+        res.json({
 
           message: "Cliente de demonstração criado com sucesso!",
 
@@ -42930,7 +43025,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { name, email, phone, password, clientPrice, paymentMethod, cardData } = req.body;
 
-      
+
 
       if (!email || !name || !password) {
 
@@ -42938,7 +43033,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       if (!paymentMethod || !['pix', 'credit_card'].includes(paymentMethod)) {
 
@@ -42946,7 +43041,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -42956,7 +43051,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const result = await resellerService.createClientCheckout({
 
@@ -42970,7 +43065,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       if (result.success) {
 
@@ -43010,7 +43105,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const paymentId = req.params.paymentId;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -43020,7 +43115,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o pagamento pertence ao revendedor
 
@@ -43032,15 +43127,15 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const result = await resellerService.confirmPixPayment(paymentId);
 
-      
+
 
       if (result.success) {
 
-        res.json({ 
+        res.json({
 
           message: "Pagamento confirmado e cliente criado com sucesso!",
 
@@ -43084,7 +43179,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const user = await storage.getUser(userId);
 
-      
+
 
       // Verificar se é cliente de revenda de duas formas:
 
@@ -43096,7 +43191,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       let resellerClient = null;
 
-      
+
 
       // Se não tem resellerId diretamente, verificar na tabela reseller_clients
 
@@ -43112,7 +43207,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       if (!resellerId) {
 
@@ -43122,7 +43217,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // É cliente de revenda - buscar dados do revendedor e do cliente
 
@@ -43134,7 +43229,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar dados do cliente da revenda se ainda não temos
 
@@ -43144,13 +43239,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Calcular o preço que o cliente vê (definido pelo revendedor)
 
       const clientPrice = resellerClient?.clientPrice || reseller.clientMonthlyPrice || "99.99";
 
-      
+
 
       res.json({
 
@@ -43410,7 +43505,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const result = await resellerService.detectResellerByHost(host);
 
-      
+
 
       if (result && result.reseller) {
 
@@ -43508,7 +43603,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const reseller = await storage.getReseller(resellerId);
 
-      
+
 
       if (!reseller) {
 
@@ -43516,13 +43611,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const clients = await storage.getResellerClients(resellerId);
 
       const metrics = await storage.getResellerDashboardMetrics(resellerId);
 
-      
+
 
       res.json({ reseller, clients, metrics });
 
@@ -43556,11 +43651,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { active, resellerStatus } = req.body;
 
-      
+
 
       const updateData: any = {};
 
-      
+
 
       // Suporte para isActive (legado)
 
@@ -43570,7 +43665,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Suporte para resellerStatus (novo - para Kill Switch)
 
@@ -43582,11 +43677,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       await storage.updateReseller(resellerId, updateData);
 
-      
+
 
       let message = 'Revendedor atualizado';
 
@@ -43600,7 +43695,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       res.json({ message, resellerStatus: resellerStatus || (active ? 'active' : 'suspended') });
 
@@ -43630,7 +43725,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const targetUserId = req.params.userId;
 
-      
+
 
       // Buscar plano de revenda
 
@@ -43638,7 +43733,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const resellerPlan = allPlans.find((p: any) => p.tipo === 'revenda');
 
-      
+
 
       if (!resellerPlan) {
 
@@ -43646,7 +43741,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Criar assinatura de revenda para o usuário
 
@@ -43654,7 +43749,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       endDate.setMonth(endDate.getMonth() + 1);
 
-      
+
 
       await storage.createSubscription({
 
@@ -43672,7 +43767,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       // Criar perfil de revendedor
 
@@ -43686,7 +43781,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       res.json({ message: "Plano de revenda atribuído com sucesso" });
 
@@ -43728,7 +43823,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const clientId = req.params.clientId;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -43738,7 +43833,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -43750,25 +43845,25 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar dados do usuário
 
       const user = await storage.getUser(client.userId);
 
-      
+
 
       // Buscar conexão WhatsApp do cliente
 
       const connection = await storage.getConnectionByUserId(client.userId);
 
-      
+
 
       // Buscar assinatura do cliente (se existir)
 
       const subscription = await storage.getUserSubscription(client.userId);
 
-      
+
 
       // Buscar histórico de pagamentos do cliente via invoice_items (Revendedor -> Sistema)
 
@@ -43784,25 +43879,25 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       // Filtrar apenas invoices pagas e mapear histórico
 
       const paidInvoiceItems = invoiceItems.filter(item => item.invoice?.status === 'paid');
 
-      
+
 
       // CALCULAR DATAS E STATUS CORRETOS
 
       const now = new Date();
 
-      
+
 
       // Determinar data de ativação
 
       const activatedAt = client.activatedAt ? new Date(client.activatedAt) : new Date(client.createdAt);
 
-      
+
 
       // Calcular saasPaidUntil - se não existe, é activatedAt + 30 dias
 
@@ -43816,37 +43911,37 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Calcular dias restantes
 
       const daysRemaining = Math.max(0, Math.ceil((saasPaidUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
 
-      
+
 
       // Determinar status efetivo
 
       const isExpired = saasPaidUntil < now;
 
-      const effectiveStatus = client.status === 'cancelled' ? 'cancelled' : 
+      const effectiveStatus = client.status === 'cancelled' ? 'cancelled' :
 
                               client.status === 'suspended' ? 'suspended' :
 
                               isExpired ? 'overdue' : 'active';
 
-      
+
 
       // Calcular próxima fatura (saasPaidUntil é a data limite, próximo pagamento é antes disso)
 
       const nextPaymentDate = client.nextPaymentDate ? new Date(client.nextPaymentDate) : saasPaidUntil;
 
-      
+
 
       // Preço do cliente (usa clientPrice, senão monthlyCost, senão preço padrão do revendedor)
 
       const clientPrice = parseFloat(client.clientPrice || client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
 
-      
+
 
       // CONSTRUIR HISTÓRICO DE PAGAMENTOS
 
@@ -43870,7 +43965,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }));
 
-      
+
 
       // Se não tem histórico mas está ativo, criar registro virtual de ativação
 
@@ -43898,7 +43993,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Calcular estatísticas
 
@@ -43908,13 +44003,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const approvedPayments = paymentHistory.filter(p => p.status === 'approved').length;
 
-      
+
 
       // Calcular meses no sistema
 
       const monthsInSystem = Math.max(0, Math.floor((now.getTime() - activatedAt.getTime()) / (1000 * 60 * 60 * 24 * 30)));
 
-      
+
 
       // Buscar estatísticas de uso do cliente
 
@@ -43924,7 +44019,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       res.json({
 
@@ -44076,7 +44171,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { newPassword } = req.body;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -44086,7 +44181,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -44098,13 +44193,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Gerar nova senha se não foi fornecida
 
       const password = newPassword || generateRandomPassword();
 
-      
+
 
       // Atualizar senha no Supabase Auth
 
@@ -44116,7 +44211,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       );
 
-      
+
 
       if (authError) {
 
@@ -44126,9 +44221,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
 
-      res.json({ 
+
+      res.json({
 
         message: "Senha resetada com sucesso",
 
@@ -44168,7 +44263,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { amount, description, paymentMethod = 'manual', referenceMonth, dueDate } = req.body;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -44178,7 +44273,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -44190,7 +44285,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se a fatura já foi paga (evitar duplicidade)
 
@@ -44200,9 +44295,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         const alreadyPaid = existingPayments.some(
 
-          p => p.resellerClientId === clientId && 
+          p => p.resellerClientId === clientId &&
 
-               p.status === 'approved' && 
+               p.status === 'approved' &&
 
                p.referenceMonth === referenceMonth
 
@@ -44216,13 +44311,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Calcular valor se não fornecido
 
       const paymentAmount = amount || client.clientPrice || reseller.clientMonthlyPrice || "99.99";
 
-      
+
 
       // Criar registro de pagamento com referência à fatura
 
@@ -44250,7 +44345,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       // Calcular próximo vencimento baseado na fatura paga
 
@@ -44272,7 +44367,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Se o cliente estava suspenso, reativar
 
@@ -44290,7 +44385,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         });
 
-        
+
 
         // Atualizar assinatura do cliente também
 
@@ -44320,9 +44415,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
 
-      res.json({ 
+
+      res.json({
 
         message: "Pagamento registrado com sucesso",
 
@@ -44374,7 +44469,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const clientId = req.params.clientId;
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -44384,7 +44479,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -44396,7 +44491,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar pagamentos do cliente
 
@@ -44404,7 +44499,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const clientPayments = allPayments.filter(p => p.resellerClientId === clientId);
 
-      
+
 
       res.json(clientPayments);
 
@@ -44438,7 +44533,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { clientPrice } = req.body;
 
-      
+
 
       if (!clientPrice || parseFloat(clientPrice) < 0) {
 
@@ -44446,7 +44541,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -44456,7 +44551,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar se o cliente pertence ao revendedor
 
@@ -44468,7 +44563,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       await storage.updateResellerClient(clientId, {
 
@@ -44476,9 +44571,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
 
-      res.json({ 
+
+      res.json({
 
         message: "Preço atualizado com sucesso",
 
@@ -44522,7 +44617,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -44532,13 +44627,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Contar clientes ativos
 
       const activeClients = await storage.countActiveResellerClients(reseller.id);
 
-      
+
 
       // Valores
 
@@ -44546,7 +44641,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const totalMonthly = activeClients * costPerClient;
 
-      
+
 
       // Buscar fatura atual (mês corrente)
 
@@ -44556,7 +44651,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       let currentInvoice = await storage.getResellerInvoiceByMonth(reseller.id, currentMonth);
 
-      
+
 
       // Se não existe fatura do mês atual e tem clientes, criar
 
@@ -44574,7 +44669,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         }
 
-        
+
 
         currentInvoice = await storage.createResellerInvoice({
 
@@ -44596,13 +44691,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar faturas pendentes/vencidas
 
       const pendingInvoices = await storage.getResellerPendingInvoices(reseller.id);
 
-      
+
 
       // Verificar se há faturas vencidas e atualizar status
 
@@ -44610,7 +44705,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       today.setHours(0, 0, 0, 0);
 
-      
+
 
       for (const invoice of pendingInvoices) {
 
@@ -44618,7 +44713,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         dueDate.setHours(0, 0, 0, 0);
 
-        
+
 
         if (invoice.status === 'pending' && dueDate < today) {
 
@@ -44630,7 +44725,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Determinar status geral do revendedor
 
@@ -44638,7 +44733,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const daysPastDue = hasOverdue ? Math.floor((today.getTime() - new Date(pendingInvoices.find(i => i.status === 'overdue')!.dueDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
-      
+
 
       // Atualizar status do revendedor se necessário
 
@@ -44666,7 +44761,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       res.json({
 
@@ -44744,7 +44839,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -44754,11 +44849,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const invoices = await storage.getResellerInvoices(reseller.id);
 
-      
+
 
       res.json(invoices);
 
@@ -44792,7 +44887,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const invoiceId = parseInt(req.params.invoiceId);
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -44802,7 +44897,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const invoice = await storage.getResellerInvoice(invoiceId);
 
@@ -44812,7 +44907,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       if (invoice.status === 'paid') {
 
@@ -44820,13 +44915,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Buscar usuário do revendedor para pegar email
 
       const user = await storage.getUser(userId);
 
-      
+
 
       // Criar pagamento PIX no Mercado Pago (usando credenciais do sistema)
 
@@ -44834,7 +44929,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const mpAccessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       if (!mpAccessToken) {
 
@@ -44842,7 +44937,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Criar preferência de pagamento PIX
 
@@ -44854,7 +44949,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const idempotencyKey = `reseller-invoice-pix-${invoice.id}-${timestamp}`;
 
-      
+
 
       const pixResponse = await fetch('https://api.mercadopago.com/v1/payments', {
 
@@ -44892,11 +44987,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       const pixData = await pixResponse.json();
 
-      
+
 
       if (!pixResponse.ok || !pixData.point_of_interaction?.transaction_data) {
 
@@ -44906,7 +45001,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Atualizar fatura com ID do pagamento
 
@@ -44918,7 +45013,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       res.json({
 
@@ -44966,7 +45061,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const invoiceId = parseInt(req.params.invoiceId);
 
-      
+
 
       const reseller = await storage.getResellerByUserId(userId);
 
@@ -44976,7 +45071,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       const invoice = await storage.getResellerInvoice(invoiceId);
 
@@ -44986,7 +45081,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       if (invoice.status === 'paid') {
 
@@ -44994,7 +45089,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       if (!invoice.mpPaymentId) {
 
@@ -45002,7 +45097,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Verificar status no Mercado Pago
 
@@ -45010,7 +45105,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const mpAccessToken = configMap.get("mercadopago_access_token");
 
-      
+
 
       const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${invoice.mpPaymentId}`, {
 
@@ -45018,11 +45113,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       const mpData = await mpResponse.json();
 
-      
+
 
       if (mpData.status === 'approved') {
 
@@ -45036,19 +45131,19 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         });
 
-        
+
 
         // Atualizar status do revendedor
 
         await storage.updateReseller(reseller.id, { resellerStatus: 'active' });
 
-        
+
 
         return res.json({ status: 'paid', paidAt: new Date() });
 
       }
 
-      
+
 
       res.json({ status: mpData.status || invoice.status });
 
@@ -45082,7 +45177,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { paymentMethod = 'manual' } = req.body;
 
-      
+
 
       // Verificar se é admin ou o próprio revendedor
 
@@ -45090,7 +45185,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const reseller = await storage.getResellerByUserId(userId);
 
-      
+
 
       const invoice = await storage.getResellerInvoice(invoiceId);
 
@@ -45100,7 +45195,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Apenas admin ou o próprio revendedor podem marcar como pago
 
@@ -45108,7 +45203,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const isOwner = reseller && invoice.resellerId === reseller.id;
 
-      
+
 
       if (!isAdmin && !isOwner) {
 
@@ -45116,7 +45211,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       if (invoice.status === 'paid') {
 
@@ -45124,7 +45219,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      
+
 
       // Atualizar fatura
 
@@ -45138,15 +45233,15 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      
+
 
       // Atualizar status do revendedor
 
       await storage.updateReseller(invoice.resellerId, { resellerStatus: 'active' });
 
-      
 
-      res.json({ 
+
+      res.json({
 
         message: "Fatura marcada como paga com sucesso",
 
@@ -45170,7 +45265,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // ==================== TEAM MEMBERS - Sistema de Membros/Funcionários ====================
 
-  
+
 
   // GET - Listar membros da equipe do usuário
 
@@ -45286,13 +45381,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const { passwordHash: _, ...safeData } = member;
 
-      res.json({ 
+      res.json({
 
-        ...safeData, 
+        ...safeData,
 
         generatedPassword: finalPassword,
 
-        message: "Membro criado com sucesso" 
+        message: "Membro criado com sucesso"
 
       });
 
@@ -45614,7 +45709,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const session = await storage.getTeamMemberSession(token);
 
-      
+
 
       if (!session || new Date(session.expiresAt) < new Date()) {
 
@@ -45960,7 +46055,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       let conversation = await storage.getConversationByRemoteJid(connection.id, jid);
 
-      
+
 
       if (!conversation) {
 
@@ -45998,13 +46093,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      res.json({ 
+      res.json({
 
-        success: true, 
+        success: true,
 
         conversation,
 
-        message: "Conversa criada com sucesso" 
+        message: "Conversa criada com sucesso"
 
       });
 

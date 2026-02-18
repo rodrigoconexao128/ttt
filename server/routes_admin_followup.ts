@@ -296,5 +296,126 @@ export function registerAdminFollowUpRoutes(app: Express) {
     }
   });
 
+  // ==================== AGENDAMENTO DE MENSAGENS COM IA ====================
+
+  /**
+   * POST /api/admin/followup/conversation/:id/schedule-message
+   * Agendar uma mensagem para ser enviada em uma data específica
+   * Suporta texto manual ou gerado com IA
+   */
+  app.post("/api/admin/followup/conversation/:id/schedule-message", isAdmin, async (req: any, res: Response) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+      const { scheduledFor, text, useAI, note } = req.body;
+
+      // Validação
+      if (!scheduledFor) {
+        return res.status(400).json({ message: "scheduledFor (data/hora) é obrigatório" });
+      }
+
+      if (!text) {
+        return res.status(400).json({ message: "text é obrigatório" });
+      }
+
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, id)
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      // Criar registro de mensagem agendada
+      const scheduledMessage = {
+        conversationId: id,
+        scheduledFor: new Date(scheduledFor),
+        text,
+        useAI,
+        note: note || null,
+        createdBy: adminId,
+        createdAt: new Date(),
+        status: 'scheduled' // scheduled, sent, failed
+      };
+
+      // Inserir no banco
+      // Precisamos criar uma tabela para mensagens agendadas
+      // Por enquanto, vamos usar a tabela userFollowupLogs como placeholder
+      const log = await db.insert(userFollowupLogs).values({
+        conversationId: id,
+        text: text,
+        scheduledFor: new Date(scheduledFor),
+        useAI: useAI || false,
+        note: note || null,
+        createdBy: adminId,
+        executedAt: null, // Ainda não executado
+        status: 'scheduled'
+      }).returning();
+
+      console.log(`[ADMIN] Mensagem agendada para conversa ${id} em ${scheduledFor}`);
+      console.log(`  Texto: ${text.substring(0, 50)}...`);
+      console.log(`  IA: ${useAI ? 'sim' : 'não'}`);
+
+      res.json({
+        success: true,
+        messageId: log[0].id,
+        scheduledFor: log[0].scheduledFor
+      });
+    } catch (error: any) {
+      console.error("Erro ao agendar mensagem:", error);
+      res.status(500).json({ message: "Erro ao agendar mensagem" });
+    }
+  });
+
+  /**
+   * GET /api/admin/followup/conversation/:id/scheduled-messages
+   * Buscar mensagens agendadas para uma conversa
+   */
+  app.get("/api/admin/followup/conversation/:id/scheduled-messages", isAdmin, async (req: any, res: Response) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+
+      const messages = await db.query.userFollowupLogs.findMany({
+        where: and(
+          eq(userFollowupLogs.conversationId, id),
+          eq(userFollowupLogs.status, 'scheduled')
+        ),
+        orderBy: [asc(userFollowupLogs.scheduledFor)]
+      });
+
+      res.json(messages);
+    } catch (error: any) {
+      console.error("Erro ao buscar mensagens agendadas:", error);
+      res.status(500).json({ message: "Erro ao buscar mensagens agendadas" });
+    }
+  });
+
+  /**
+   * DELETE /api/admin/followup/conversation/:id/scheduled-messages/:messageId
+   * Cancelar mensagem agendada
+   */
+  app.delete("/api/admin/followup/conversation/:id/scheduled-messages/:messageId", isAdmin, async (req: any, res: Response) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id, messageId } = req.params;
+
+      // Atualizar status para cancelled
+      await db.update(userFollowupLogs)
+        .set({ status: 'cancelled' })
+        .where(and(
+          eq(userFollowupLogs.id, messageId),
+          eq(userFollowupLogs.conversationId, id)
+        ));
+
+      console.log(`[ADMIN] Mensagem agendada ${messageId} cancelada`);
+
+      res.json({ success: true, message: "Mensagem agendada cancelada" });
+    } catch (error: any) {
+      console.error("Erro ao cancelar mensagem agendada:", error);
+      res.status(500).json({ message: "Erro ao cancelar mensagem agendada" });
+    }
+  });
+
   console.log("✅ [ADMIN FOLLOW-UP] Rotas registradas");
 }

@@ -7,11 +7,17 @@ export default function TicketDetailPage() {
   const ticketId = params?.id ? parseInt(params.id) : 0;
 
   if (!match || !ticketId) {
-    return <div className="p-4 text-center">Ticket não encontrado</div>;
+    return (
+      <div className="h-full flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-muted-foreground">Ticket não encontrado</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-slate-50 p-6">
+    <div className="h-[calc(100vh-4rem)] p-4 md:p-6">
       <UserTicketChat ticketId={ticketId} />
     </div>
   );

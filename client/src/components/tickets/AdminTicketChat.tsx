@@ -1,97 +1,144 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { ArrowLeft, Paperclip, Send, Clock, Check, CheckCheck, X, User, Headphones, Loader2, MoreVertical, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { apiClient } from '../../lib/api';
-import type { Ticket, TicketMessage, TicketStatus } from '../../types/tickets';
+import type { Ticket, TicketMessage, TicketAttachment, TicketStatus } from '../../types/tickets';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-// Design System - Match UserTicketChat with admin-specific refinements
-const THEME = {
-  colors: {
-    bg: '#0d0d0d',
-    bgSecondary: '#1a1a1a',
-    bgTertiary: '#2d2d2d',
-    surface: '#212121',
-    surfaceHover: '#2a2a2a',
-    border: '#3a3a3a',
-    borderLight: '#404040',
-    userBubble: '#2f3542',
-    adminBubble: '#0ea5e9',
-    adminBubbleHover: '#0284c7',
-    text: '#e5e7eb',
-    textSecondary: '#9ca3af',
-    textMuted: '#6b7280',
-    accent: '#10b981',
-    resolved: '#8b5cf6',
-    error: '#ef4444',
-    warning: '#f59e0b',
+const getAttachmentUrl = (attachment: TicketAttachment): string => {
+  if (attachment.publicUrl) return attachment.publicUrl;
+  const { data } = supabase.storage.from('ticket-attachments').getPublicUrl(attachment.originalName);
+  return data?.publicUrl || '';
+};
+
+const AttachmentPreview: React.FC<{ 
+  attachment: TicketAttachment;
+  isPreview?: boolean;
+  onRemove?: () => void;
+}> = ({ attachment, isPreview, onRemove }) => {
+  const [error, setError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const url = isPreview ? attachment.publicUrl : getAttachmentUrl(attachment);
+  const isImage = attachment.mimeType?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(attachment.originalName || '');
+
+  if (error || !url || !isImage) {
+    return (
+      <div className="relative flex items-center gap-2 p-2.5 bg-muted/80 rounded-xl border text-sm max-w-[200px] shadow-sm">
+        <Paperclip className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        <span className="truncate text-xs font-medium">{attachment.originalName || 'Arquivo'}</span>
+        {onRemove && (
+          <button 
+            onClick={onRemove}
+            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-white rounded-full flex items-center justify-center text-xs hover:bg-destructive/90 shadow-md transition-all hover:scale-110"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative group">
+      <div className={cn(
+        "w-16 h-16 rounded-2xl overflow-hidden border-2 border-border/30 bg-muted cursor-pointer shadow-sm transition-all duration-200 group-hover:shadow-md",
+        !loaded && "animate-pulse"
+      )}>
+        <img 
+          src={url} 
+          alt={attachment.originalName} 
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+          onLoad={() => setLoaded(true)}
+          onError={() => setError(true)}
+          onClick={() => window.open(url, '_blank')}
+        />
+      </div>
+      {onRemove && (
+        <button 
+          onClick={onRemove}
+          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-md hover:bg-destructive/90 hover:scale-110"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  );
+};
+
+const STATUS_CONFIG: Record<TicketStatus, { color: string; bg: string; border: string; label: string; icon: React.ElementType }> = {
+  open: { 
+    color: 'text-emerald-600', 
+    bg: 'bg-emerald-500/10', 
+    border: 'border-emerald-500/20',
+    label: 'Aberto', 
+    icon: Clock 
   },
-  fonts: {
-    body: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    mono: '"IBM Plex Mono", "SF Mono", "Fira Code", monospace',
+  in_progress: { 
+    color: 'text-amber-600', 
+    bg: 'bg-amber-500/10', 
+    border: 'border-amber-500/20',
+    label: 'Em andamento', 
+    icon: Clock 
   },
-  spacing: {
-    xs: 4,
-    sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
+  resolved: { 
+    color: 'text-violet-600', 
+    bg: 'bg-violet-500/10', 
+    border: 'border-violet-500/20',
+    label: 'Resolvido', 
+    icon: CheckCircle2 
   },
-  borderRadius: {
-    sm: 6,
-    md: 12,
-    lg: 16,
-    xl: 24,
-  },
-  shadows: {
-    bubble: '0 2px 8px rgba(0, 0, 0, 0.3)',
-    float: '0 8px 32px rgba(0, 0, 0, 0.4)',
-  },
-  transitions: {
-    fast: '0.15s ease',
-    normal: '0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-    slow: '0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+  closed: { 
+    color: 'text-slate-600', 
+    bg: 'bg-slate-500/10', 
+    border: 'border-slate-500/20',
+    label: 'Fechado', 
+    icon: CheckCheck 
   },
 };
 
-const STATUS_OPTIONS: { value: TicketStatus; label: string; color: string; bgColor: string }[] = [
-  { value: 'open', label: 'Aberto', color: THEME.colors.accent, bgColor: 'rgba(16, 185, 129, 0.15)' },
-  { value: 'in_progress', label: 'Em Andamento', color: THEME.colors.warning, bgColor: 'rgba(245, 158, 11, 0.15)' },
-  { value: 'resolved', label: 'Resolvido', color: THEME.colors.resolved, bgColor: 'rgba(139, 92, 246, 0.15)' },
-  { value: 'closed', label: 'Fechado', color: THEME.colors.textMuted, bgColor: 'rgba(107, 114, 128, 0.15)' },
-];
-
-interface Props {
+interface Props { 
   ticketId: number;
   onStatusChange?: (status: TicketStatus) => void;
+  onBack?: () => void;
 }
 
-export const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) => {
+export const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange, onBack }) => {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [messages, setMessages] = useState<TicketMessage[]>([]);
   const [messageBody, setMessageBody] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
-  const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
-  const [status, setStatus] = useState<TicketStatus>('open');
+  const [attachmentPreviews, setAttachmentPreviews] = useState<{ url: string; name: string; file: File }[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [savingStatus, setSavingStatus] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const statusSelectRef = useRef<HTMLSelectElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Fetch ticket data
+  const scrollToBottom = useCallback(() => { 
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+  }, []);
+
   const fetchTicket = useCallback(async () => {
     try {
       const { data } = await apiClient.get(`/admin/tickets/${ticketId}`);
       const t = data.ticket || data;
       setTicket(t);
-      setStatus(t.status);
     } catch (err) {
       console.error('Erro ao buscar ticket:', err);
     }
   }, [ticketId]);
 
-  // Fetch messages
   const fetchMessages = useCallback(async () => {
     try {
       const { data } = await apiClient.get(`/admin/tickets/${ticketId}/messages`);
@@ -101,7 +148,6 @@ export const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) =
     }
   }, [ticketId]);
 
-  // Initial load
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -111,7 +157,6 @@ export const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) =
     return () => { mounted = false; };
   }, [fetchTicket, fetchMessages]);
 
-  // Supabase Realtime subscription
   useEffect(() => {
     if (!ticketId) return;
 
@@ -126,13 +171,10 @@ export const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) =
           filter: `ticket_id=eq.${ticketId}`
         },
         (payload) => {
-          console.log('[Realtime Admin] Evento recebido:', payload.eventType);
-          
           if (payload.eventType === 'INSERT') {
             const raw = payload.new as any;
             const hasAttach = raw.has_attachments ?? raw.hasAttachments ?? false;
             if (hasAttach) {
-              // Realtime payload doesn't include attachments (no JOIN) — full refetch
               fetchMessages();
             } else {
               const newMessage: TicketMessage = {
@@ -146,50 +188,28 @@ export const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) =
                 attachments: [],
                 createdAt: raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
               };
-              setMessages(prev => {
-                if (prev.some(m => m.id === newMessage.id)) return prev;
-                return [...prev, newMessage];
-              });
+              setMessages(prev => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
             }
           } else if (payload.eventType === 'UPDATE') {
-            // Refetch to get full data with attachments
             fetchMessages();
           }
         }
       )
-      .subscribe((status) => {
-        console.log('[Realtime Admin] Subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [ticketId]);
+  }, [ticketId, fetchMessages]);
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages]);
+  useEffect(() => { 
+    scrollToBottom(); 
+  }, [messages, scrollToBottom]);
 
-  // Save status
-  const handleSaveStatus = async () => {
-    setSavingStatus(true);
-    try {
-      await apiClient.patch(`/admin/tickets/${ticketId}/status`, { status });
-      setTicket(prev => prev ? { ...prev, status } : prev);
-      onStatusChange?.(status);
-    } catch (err) {
-      console.error('Erro ao salvar status:', err);
-      alert('Falha ao atualizar status');
-    } finally {
-      setSavingStatus(false);
-    }
-  };
-
-  // Quick status change
   const handleStatusChange = async (newStatus: TicketStatus) => {
-    setStatus(newStatus);
-    setSavingStatus(true);
+    if (!ticket || ticket.status === newStatus) return;
+    
+    setUpdatingStatus(true);
     try {
       await apiClient.patch(`/admin/tickets/${ticketId}/status`, { status: newStatus });
       setTicket(prev => prev ? { ...prev, status: newStatus } : prev);
@@ -197,37 +217,35 @@ export const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) =
     } catch (err) {
       console.error('Erro ao alterar status:', err);
     } finally {
-      setSavingStatus(false);
+      setUpdatingStatus(false);
     }
   };
 
-  // File selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const validImages = files.filter(f => f.type.startsWith('image/'));
+    const files = Array.from(e.target.files || [])
+      .filter(f => f.type.startsWith('image/'))
+      .slice(0, 4 - attachments.length);
+    if (!files.length) return;
     
-    if (validImages.length === 0) {
-      alert('Por favor, selecione apenas imagens.');
-      return;
-    }
-
-    const totalFiles = [...attachments, ...validImages].slice(0, 4);
-    setAttachments(totalFiles.slice(0, 4));
-    
-    const newPreviews = validImages.map(f => URL.createObjectURL(f));
-    setAttachmentPreviews(prev => [...prev, ...newPreviews].slice(0, 4));
+    setAttachments(prev => [...prev, ...files].slice(0, 4));
+    setAttachmentPreviews(prev => [
+      ...prev, 
+      ...files.map(f => ({ 
+        url: URL.createObjectURL(f), 
+        name: f.name,
+        file: f
+      }))
+    ].slice(0, 4));
     
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Remove attachment
-  const removeAttachment = (index: number) => {
-    URL.revokeObjectURL(attachmentPreviews[index]);
-    setAttachments(prev => prev.filter((_, i) => i !== index));
-    setAttachmentPreviews(prev => prev.filter((_, i) => i !== index));
+  const removeAttachment = (i: number) => { 
+    URL.revokeObjectURL(attachmentPreviews[i].url); 
+    setAttachments(prev => prev.filter((_, j) => j !== i)); 
+    setAttachmentPreviews(prev => prev.filter((_, j) => j !== i)); 
   };
 
-  // Send message
   const handleSend = async () => {
     if (!messageBody.trim() && attachments.length === 0) return;
     if (sending) return;
@@ -242,19 +260,17 @@ export const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) =
       
       setMessageBody('');
       setAttachments([]);
-      attachmentPreviews.forEach(url => URL.revokeObjectURL(url));
+      attachmentPreviews.forEach(p => URL.revokeObjectURL(p.url));
       setAttachmentPreviews([]);
       await fetchMessages();
     } catch (err: any) {
       console.error('Erro ao enviar:', err);
-      const errorMsg = err?.response?.data?.message || 'Falha ao enviar mensagem';
-      alert(errorMsg);
     } finally {
       setSending(false);
+      textareaRef.current?.focus();
     }
   };
 
-  // Keyboard shortcut
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -262,725 +278,359 @@ export const AdminTicketChat: React.FC<Props> = ({ ticketId, onStatusChange }) =
     }
   };
 
-  // Get status from value
-  const getStatusInfo = (statusValue: string) => {
-    return STATUS_OPTIONS.find(s => s.value === statusValue) || STATUS_OPTIONS[0];
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return 'Hoje';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Ontem';
+    }
+    return date.toLocaleDateString('pt-BR', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long' 
+    });
+  };
+
+  const formatTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleTimeString('pt-BR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
   };
 
   if (loading) {
     return (
-      <div style={styles.loadingContainer}>
-        <div style={styles.loadingSpinner} />
-        <span style={styles.loadingText}>Carregando ticket...</span>
+      <div className="h-full flex flex-col items-center justify-center gap-4 bg-background">
+        <div className="relative">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <div className="absolute inset-0 blur-xl bg-primary/20 rounded-full" />
+        </div>
+        <span className="text-muted-foreground text-sm font-medium">Carregando ticket...</span>
       </div>
     );
   }
 
   if (!ticket) {
     return (
-      <div style={styles.emptyState}>
-        <div style={styles.emptyIcon}>🎫</div>
-        <h2 style={styles.emptyTitle}>Ticket não encontrado</h2>
-        <p style={styles.emptyText}>Este ticket não existe ou foi removido.</p>
+      <div className="h-full flex flex-col items-center justify-center gap-5 bg-background p-6">
+        <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center shadow-lg">
+          <Headphones className="w-10 h-10 text-muted-foreground" />
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="text-xl font-semibold">Ticket não encontrado</h2>
+          <p className="text-muted-foreground text-sm">Este ticket não existe ou foi removido.</p>
+        </div>
+        {onBack && (
+          <Button variant="outline" onClick={onBack} className="mt-2 rounded-xl">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar
+          </Button>
+        )}
       </div>
     );
   }
 
-  const currentStatus = getStatusInfo(status);
+  const statusConfig = STATUS_CONFIG[ticket.status];
+  const StatusIcon = statusConfig.icon;
+  const isClosed = ticket.status === 'closed' || ticket.status === 'resolved';
 
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <header style={styles.header}>
-        <div style={styles.headerContent}>
-          <div style={styles.headerTop}>
-            <h1 style={styles.headerTitle}>
-              <span style={styles.ticketHash}>#{ticket.id}</span>
-              {ticket.subject}
-            </h1>
-            <div style={styles.ticketMeta}>
-              <span style={styles.metaLabel}>Cliente:</span>
-              <span style={styles.metaValue}>ID {ticket.userId}</span>
-              <span style={styles.metaDivider}>•</span>
-              <span style={styles.metaLabel}>Criado:</span>
-              <span style={styles.metaValue}>
-                {new Date(ticket.createdAt).toLocaleDateString('pt-BR')}
-              </span>
+    <div className="h-full flex flex-col bg-background overflow-hidden rounded-2xl shadow-xl border">
+      {/* Header Compacto e Moderno */}
+      <header className="flex-shrink-0 border-b bg-card/95 backdrop-blur-xl sticky top-0 z-20 shadow-sm">
+        <div className="px-4 py-2.5 flex items-center gap-3">
+          {onBack && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="flex-shrink-0 hover:bg-muted rounded-xl h-9 w-9"
+              onClick={onBack}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          )}
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-sm font-semibold truncate text-foreground">
+                #{ticket.id} · {ticket.subject}
+              </h1>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className={cn(
+                    "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all duration-200 hover:opacity-80",
+                    statusConfig.bg,
+                    statusConfig.color,
+                    statusConfig.border
+                  )}>
+                    <StatusIcon className="w-3 h-3" />
+                    {statusConfig.label}
+                    {updatingStatus && <Loader2 className="w-2.5 h-2.5 animate-spin ml-0.5" />}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44 rounded-xl">
+                  {(Object.keys(STATUS_CONFIG) as TicketStatus[]).map((status) => {
+                    const config = STATUS_CONFIG[status];
+                    const Icon = config.icon;
+                    return (
+                      <DropdownMenuItem 
+                        key={status}
+                        onClick={() => handleStatusChange(status)}
+                        className="flex items-center gap-2 cursor-pointer rounded-lg"
+                        disabled={updatingStatus || ticket.status === status}
+                      >
+                        <Icon className={cn("w-4 h-4", config.color)} />
+                        <span className="text-sm">{config.label}</span>
+                        {ticket.status === status && <Check className="w-3 h-3 ml-auto" />}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+              <span>Cliente #{ticket.userId}</span>
+              <span className="text-muted-foreground/30">·</span>
+              <span>{new Date(ticket.createdAt).toLocaleDateString('pt-BR', { 
+                day: '2-digit', 
+                month: 'short', 
+                year: 'numeric' 
+              })}</span>
             </div>
           </div>
 
-          {/* Status controls */}
-          <div style={styles.headerActions}>
-            <div style={styles.statusSelectWrapper}>
-              <select
-                ref={statusSelectRef}
-                value={status}
-                onChange={(e) => handleStatusChange(e.target.value as TicketStatus)}
-                style={styles.statusSelect}
+          {/* Menu de Ações */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-xl hover:bg-muted h-9 w-9">
+                <MoreVertical className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="rounded-xl">
+              <DropdownMenuItem 
+                onClick={() => handleStatusChange('resolved')}
+                disabled={ticket.status === 'resolved' || updatingStatus}
+                className="cursor-pointer rounded-lg"
               >
-                {STATUS_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <div style={{
-                ...styles.statusIndicator,
-                backgroundColor: currentStatus.color,
-              }} />
-            </div>
-            
-            <button
-              onClick={handleSaveStatus}
-              disabled={savingStatus}
-              style={{
-                ...styles.btnAction,
-                ...(savingStatus ? styles.btnDisabled : styles.btnSecondary)
-              }}
-            >
-              {savingStatus ? 'Salvando...' : 'Salvar'}
-            </button>
-            
-            <button
-              onClick={() => handleStatusChange('resolved')}
-              disabled={status === 'resolved' || savingStatus}
-              style={{
-                ...styles.btnAction,
-                ...(status === 'resolved' || savingStatus ? styles.btnDisabled : styles.btnResolve)
-              }}
-            >
-              ✓ Resolver
-            </button>
-          </div>
+                <CheckCircle2 className="w-4 h-4 mr-2 text-violet-500" />
+                Marcar como resolvido
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => handleStatusChange('closed')}
+                disabled={ticket.status === 'closed' || updatingStatus}
+                className="cursor-pointer rounded-lg"
+              >
+                <CheckCheck className="w-4 h-4 mr-2 text-slate-500" />
+                Fechar ticket
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
-      {/* Messages Area */}
-      <main style={styles.messageArea}>
-        {messages.length === 0 && (
-          <div style={styles.emptyMessages}>
-            <div style={styles.emptyMessagesIcon}>💬</div>
-            <p style={styles.emptyMessagesText}>Nenhuma mensagem neste ticket ainda.</p>
-          </div>
-        )}
+      {/* Messages Area - Altura fixa com scroll */}
+      <main 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-4 bg-gradient-to-b from-muted/30 to-background scroll-smooth"
+      >
+        <div className="max-w-3xl mx-auto space-y-5">
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4 shadow-md">
+                <Headphones className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-foreground">Nenhuma mensagem ainda</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
+                Inicie a conversa respondendo ao chamado do cliente
+              </p>
+            </div>
+          )}
 
-        {messages.map((msg, idx) => {
-          const isAdmin = msg.senderType === 'admin';
-          const isSystem = msg.senderType === 'system';
-          const showDate = idx === 0 || 
-            new Date(msg.createdAt).toDateString() !== 
-            new Date(messages[idx - 1].createdAt).toDateString();
-          
-          const senderName = isSystem 
-            ? 'Sistema' 
-            : isAdmin 
-            ? 'Admin' 
-            : 'Usuário';
+          {messages.map((msg, idx) => {
+            const isAdmin = msg.senderType === 'admin';
+            const showDate = idx === 0 || 
+              new Date(msg.createdAt).toDateString() !== new Date(messages[idx - 1].createdAt).toDateString();
 
-          return (
-            <React.Fragment key={msg.id}>
-              {showDate && (
-                <div style={styles.dateDivider}>
-                  <div style={styles.dateLine} />
-                  <span style={styles.dateText}>
-                    {new Date(msg.createdAt).toLocaleDateString('pt-BR', {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long'
-                    })}
-                  </span>
-                  <div style={styles.dateLine} />
-                </div>
-              )}
-
-              <div style={{
-                ...styles.messageRow,
-                justifyContent: isAdmin ? 'flex-end' : 'flex-start',
-              }}>
-                <div style={{
-                  ...styles.messageBubble,
-                  ...(isAdmin ? styles.bubbleAdmin : styles.bubbleUser),
-                  animation: 'bubblePop 0.3s ease-out forwards',
-                }}>
-                  {/* Sender name */}
-                  <div style={{
-                    ...styles.senderName,
-                    ...(isAdmin ? styles.senderNameAdmin : styles.senderNameUser)
-                  }}>
-                    {senderName}
+            return (
+              <React.Fragment key={msg.id}>
+                {showDate && (
+                  <div className="flex items-center gap-3 my-6">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
+                    <span className="text-[11px] text-muted-foreground font-medium px-3 py-1 bg-muted/60 rounded-full shadow-sm">
+                      {formatDate(msg.createdAt)}
+                    </span>
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
                   </div>
+                )}
 
-                  {/* Image attachments */}
-                  {msg.attachments && msg.attachments.length > 0 && (
-                    <div style={styles.attachmentsGrid}>
-                      {msg.attachments.map((att) => (
-                        <div key={att.id} style={styles.imageWrapper}>
-                          <img 
-                            src={att.publicUrl}
-                            alt={att.originalName}
-                            style={styles.messageImage}
-                            loading="lazy"
-                            onClick={() => window.open(att.publicUrl, '_blank')}
-                          />
-                        </div>
-                      ))}
+                <div className={cn(
+                  "flex gap-2.5",
+                  isAdmin ? "justify-end" : "justify-start"
+                )}>
+                  {/* Avatar Usuário */}
+                  {!isAdmin && (
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-muted to-muted/70 flex items-center justify-center flex-shrink-0 ring-2 ring-background shadow-sm">
+                      <User className="w-3.5 h-3.5 text-muted-foreground" />
                     </div>
                   )}
-
-                  {/* Message body */}
-                  {msg.body && msg.body.trim() && (
-                    <p style={{
-                      ...styles.messageText,
-                      ...(isAdmin ? styles.textAdmin : styles.textUser)
-                    }}>
-                      {msg.body}
-                    </p>
-                  )}
-
-                  {/* Timestamp */}
-                  <div style={{
-                    ...styles.timestamp,
-                    ...(isAdmin ? styles.timestampAdmin : styles.timestampUser)
-                  }}>
-                    {new Date(msg.createdAt).toLocaleString('pt-BR', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+                  
+                  <div className={cn(
+                    "max-w-[78%] space-y-1",
+                    isAdmin ? "items-end" : "items-start"
+                  )}>
+                    {/* Remetente */}
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      {isAdmin ? (
+                        <>
+                          <span className="font-semibold text-primary">Você</span>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="text-muted-foreground/70">{formatTime(msg.createdAt)}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-semibold text-foreground">Cliente #{ticket.userId}</span>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="text-muted-foreground/70">{formatTime(msg.createdAt)}</span>
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* Message Bubble - Estilo Moderno */}
+                    <div className={cn(
+                      "px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm transition-shadow hover:shadow-md",
+                      isAdmin 
+                        ? "bg-primary text-primary-foreground rounded-tr-sm" 
+                        : "bg-card border rounded-tl-sm"
+                    )}>
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="grid grid-cols-2 gap-1.5 mb-2">
+                          {msg.attachments.map(att => (
+                            <AttachmentPreview 
+                              key={att.id} 
+                              attachment={att} 
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {msg.body?.trim() && (
+                        <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+                      )}
+                    </div>
                   </div>
+                  
+                  {/* Avatar Admin */}
+                  {isAdmin && (
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center flex-shrink-0 ring-2 ring-background shadow-sm">
+                      <Headphones className="w-3.5 h-3.5 text-primary" />
+                    </div>
+                  )}
                 </div>
-              </div>
-            </React.Fragment>
-          );
-        })}
-
-        <div ref={messagesEndRef} />
+              </React.Fragment>
+            );
+          })}
+          
+          <div ref={messagesEndRef} />
+        </div>
       </main>
 
-      {/* Input Area */}
-      <footer style={styles.inputArea}>
-        {/* Attachment previews */}
-        {attachmentPreviews.length > 0 && (
-          <div style={styles.previewContainer}>
-            {attachmentPreviews.map((preview, idx) => (
-              <div key={idx} style={styles.previewWrapper}>
-                <img src={preview} alt={`Preview ${idx}`} style={styles.previewImage} />
-                <button 
-                  onClick={() => removeAttachment(idx)}
-                  style={styles.previewRemove}
-                  aria-label="Remover imagem"
-                >
-                  ×
-                </button>
+      {/* Input Area - Fixo no Rodapé */}
+      {!isClosed ? (
+        <footer className="flex-shrink-0 border-t bg-card/95 backdrop-blur-xl z-20 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+          <div className="px-4 py-3">
+            {/* Attachment Previews */}
+            {attachmentPreviews.length > 0 && (
+              <div className="flex gap-2 mb-2.5 flex-wrap">
+                {attachmentPreviews.map((preview, idx) => (
+                  <AttachmentPreview
+                    key={idx}
+                    attachment={{
+                      id: idx,
+                      publicUrl: preview.url,
+                      originalName: preview.name,
+                      mimeType: preview.file.type,
+                      sizeBytes: preview.file.size,
+                    }}
+                    isPreview
+                    onRemove={() => removeAttachment(idx)}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Input row */}
-        <div style={styles.inputRow}>
-          {/* Attach button */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              ...styles.attachButton,
-              ...(attachments.length >= 4 ? styles.attachButtonDisabled : {})
-            }}
-            disabled={attachments.length >= 4}
-            aria-label="Anexar imagens"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleFileSelect}
-            style={{ display: 'none' }}
-          />
-
-          {/* Text input */}
-          <textarea
-            value={messageBody}
-            onChange={(e) => setMessageBody(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Digite sua resposta..."
-            rows={1}
-            style={styles.textArea}
-            disabled={sending}
-          />
-
-          {/* Send button */}
-          <button
-            onClick={handleSend}
-            disabled={sending || (!messageBody.trim() && attachments.length === 0)}
-            style={{
-              ...styles.sendButton,
-              ...(sending || (!messageBody.trim() && attachments.length === 0) 
-                ? styles.sendButtonDisabled 
-                : styles.sendButtonEnabled)
-            }}
-            aria-label="Enviar resposta"
-          >
-            {sending ? (
-              <div style={styles.sendingSpinner} />
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-              </svg>
             )}
-          </button>
+            
+            {/* Input */}
+            <div className="flex items-end gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="flex-shrink-0 h-10 w-10 rounded-xl hover:bg-muted transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={attachments.length >= 4}
+              >
+                <Paperclip className={cn(
+                  "w-5 h-5 transition-colors",
+                  attachments.length >= 4 ? "text-muted-foreground/30" : "text-muted-foreground"
+                )} />
+              </Button>
+              
+              <input 
+                ref={fileInputRef} 
+                type="file" 
+                accept="image/*" 
+                multiple 
+                onChange={handleFileSelect} 
+                className="hidden" 
+              />
+              
+              <div className="flex-1 relative">
+                <Textarea
+                  ref={textareaRef}
+                  value={messageBody}
+                  onChange={e => setMessageBody(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Digite sua resposta..."
+                  disabled={sending}
+                  rows={1}
+                  className="min-h-[44px] max-h-[100px] pr-3 resize-none py-2.5 rounded-xl bg-muted/60 border-0 focus:bg-background focus:ring-2 focus:ring-primary/20 transition-all text-sm"
+                  style={{ height: 'auto' }}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = Math.min(target.scrollHeight, 100) + 'px';
+                  }}
+                />
+              </div>
+              
+              <Button
+                size="icon"
+                className="flex-shrink-0 h-10 w-10 rounded-xl shadow-sm hover:shadow-md transition-all"
+                onClick={handleSend}
+                disabled={sending || (!messageBody.trim() && attachments.length === 0)}
+              >
+                {sending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </footer>
+      ) : (
+        <div className="flex-shrink-0 border-t bg-muted/40 px-4 py-3">
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">
+              Este ticket está {ticket.status === 'resolved' ? 'resolvido' : 'fechado'}.
+            </p>
+          </div>
         </div>
-      </footer>
-
-      {/* CSS Animations */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-
-        @keyframes fadeSlideIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes bubblePop {
-          from {
-            opacity: 0;
-            transform: scale(0.95) translateY(5px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-
-        @keyframes sendingSpin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        * {
-          box-sizing: border-box;
-        }
-
-        textarea {
-          resize: none;
-          outline: none;
-          font-family: inherit;
-        }
-      `}</style>
+      )}
     </div>
   );
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100vh',
-    backgroundColor: THEME.colors.bg,
-    color: THEME.colors.text,
-    fontFamily: THEME.fonts.body,
-    overflow: 'hidden',
-  },
-  loadingContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100vh',
-    gap: THEME.spacing.md,
-    backgroundColor: THEME.colors.bg,
-  },
-  loadingSpinner: {
-    width: 40,
-    height: 40,
-    border: '3px solid',
-    borderTopColor: 'transparent',
-    borderRightColor: THEME.colors.accent,
-    borderRadius: '50%',
-    animation: 'sendingSpin 1s linear infinite',
-  },
-  loadingText: {
-    color: THEME.colors.textSecondary,
-    fontSize: 14,
-    fontWeight: 500,
-  },
-  emptyState: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100vh',
-    gap: THEME.spacing.md,
-    backgroundColor: THEME.colors.bg,
-  },
-  emptyIcon: {
-    fontSize: 64,
-    opacity: 0.6,
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: 600,
-    margin: 0,
-    color: THEME.colors.text,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: THEME.colors.textSecondary,
-    margin: 0,
-  },
-
-  // Header
-  header: {
-    flexShrink: 0,
-    backgroundColor: THEME.colors.bgSecondary,
-    borderBottom: `1px solid ${THEME.colors.border}`,
-    padding: `${THEME.spacing.md} ${THEME.spacing.lg}`,
-    position: 'sticky',
-    top: 0,
-    zIndex: 100,
-  },
-  headerContent: {
-    maxWidth: 1000,
-    margin: '0 auto',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: THEME.spacing.lg,
-    flexWrap: 'wrap',
-  },
-  headerTop: {
-    flex: 1,
-    minWidth: 200,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 600,
-    margin: `0 0 ${THEME.spacing.sm} 0`,
-    display: 'flex',
-    alignItems: 'center',
-    gap: THEME.spacing.sm,
-    flexWrap: 'wrap',
-  },
-  ticketHash: {
-    color: THEME.colors.textMuted,
-    fontWeight: 500,
-  },
-  ticketMeta: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: THEME.spacing.sm,
-    fontSize: 13,
-    color: THEME.colors.textSecondary,
-  },
-  metaLabel: {
-    color: THEME.colors.textMuted,
-  },
-  metaValue: {
-    color: THEME.colors.textSecondary,
-  },
-  metaDivider: {
-    color: THEME.colors.borderLight,
-  },
-  headerActions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: THEME.spacing.sm,
-    flexWrap: 'wrap',
-  },
-  statusSelectWrapper: {
-    position: 'relative',
-  },
-  statusSelect: {
-    appearance: 'none',
-    padding: `${THEME.spacing.sm} ${THEME.spacing.lg} ${THEME.spacing.sm} ${THEME.spacing.md}`,
-    borderRadius: THEME.borderRadius.md,
-    border: `1px solid ${THEME.colors.border}`,
-    backgroundColor: THEME.colors.bgTertiary,
-    color: THEME.colors.text,
-    fontSize: 13,
-    fontWeight: 500,
-    fontFamily: THEME.fonts.body,
-    cursor: 'pointer',
-    outline: 'none',
-    paddingRight: 32,
-  },
-  statusIndicator: {
-    position: 'absolute',
-    right: 10,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    width: 8,
-    height: 8,
-    borderRadius: '50%',
-  },
-  btnAction: {
-    padding: `${THEME.spacing.sm} ${THEME.spacing.md}`,
-    borderRadius: THEME.borderRadius.md,
-    border: 'none',
-    fontSize: 13,
-    fontWeight: 500,
-    fontFamily: THEME.fonts.body,
-    cursor: 'pointer',
-    transition: `all ${THEME.transitions.fast}`,
-  },
-  btnDisabled: {
-    opacity: 0.5,
-    cursor: 'not-allowed',
-  },
-  btnSecondary: {
-    backgroundColor: THEME.colors.bgTertiary,
-    color: THEME.colors.text,
-    border: `1px solid ${THEME.colors.border}`,
-  },
-  btnResolve: {
-    backgroundColor: THEME.colors.accent,
-    color: '#fff',
-  },
-
-  // Message Area
-  messageArea: {
-    flex: 1,
-    overflowY: 'auto',
-    overflowX: 'hidden',
-    padding: `${THEME.spacing.lg} ${THEME.spacing.xl}`,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: THEME.spacing.sm,
-  },
-  emptyMessages: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: `${THEME.spacing.xl} 0`,
-    textAlign: 'center',
-  },
-  emptyMessagesIcon: {
-    fontSize: 48,
-    marginBottom: THEME.spacing.md,
-    opacity: 0.5,
-  },
-  emptyMessagesText: {
-    fontSize: 14,
-    color: THEME.colors.textMuted,
-    margin: 0,
-  },
-  dateDivider: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: THEME.spacing.md,
-    margin: `${THEME.spacing.md} 0`,
-  },
-  dateLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: THEME.colors.border,
-  },
-  dateText: {
-    fontSize: 12,
-    fontWeight: 500,
-    color: THEME.colors.textMuted,
-    fontFamily: THEME.fonts.mono,
-    textTransform: 'capitalize',
-  },
-  messageRow: {
-    display: 'flex',
-  },
-  messageBubble: {
-    maxWidth: '70%',
-    padding: THEME.spacing.md,
-    borderRadius: THEME.borderRadius.lg,
-    boxShadow: THEME.shadows.bubble,
-  },
-  bubbleUser: {
-    backgroundColor: THEME.colors.userBubble,
-    borderBottomLeftRadius: THEME.borderRadius.sm,
-  },
-  bubbleAdmin: {
-    backgroundColor: THEME.colors.adminBubble,
-    borderBottomRightRadius: THEME.borderRadius.sm,
-  },
-  senderName: {
-    fontSize: 12,
-    fontWeight: 600,
-    marginBottom: THEME.spacing.xs,
-    opacity: 0.85,
-  },
-  senderNameUser: {
-    color: THEME.colors.textSecondary,
-  },
-  senderNameAdmin: {
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  attachmentsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-    gap: THEME.spacing.sm,
-    marginBottom: THEME.spacing.sm,
-  },
-  imageWrapper: {
-    borderRadius: THEME.borderRadius.md,
-    overflow: 'hidden',
-    cursor: 'pointer',
-  },
-  messageImage: {
-    width: '100%',
-    height: 'auto',
-    maxHeight: 180,
-    objectFit: 'cover',
-    display: 'block',
-  },
-  messageText: {
-    margin: 0,
-    fontSize: 14,
-    lineHeight: 1.6,
-    whiteSpace: 'pre-wrap',
-    wordBreak: 'break-word',
-  },
-  textUser: {
-    color: THEME.colors.text,
-  },
-  textAdmin: {
-    color: '#fff',
-  },
-  timestamp: {
-    fontSize: 11,
-    fontFamily: THEME.fonts.mono,
-    fontWeight: 500,
-    marginTop: THEME.spacing.sm,
-    opacity: 0.6,
-  },
-  timestampUser: {
-    textAlign: 'left',
-  },
-  timestampAdmin: {
-    textAlign: 'right',
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-
-  // Input Area
-  inputArea: {
-    flexShrink: 0,
-    backgroundColor: THEME.colors.bgSecondary,
-    borderTop: `1px solid ${THEME.colors.border}`,
-    padding: THEME.spacing.md,
-  },
-  previewContainer: {
-    display: 'flex',
-    gap: THEME.spacing.sm,
-    marginBottom: THEME.spacing.sm,
-    flexWrap: 'wrap',
-    maxWidth: 1000,
-    margin: `0 auto ${THEME.spacing.sm} auto`,
-  },
-  previewWrapper: {
-    position: 'relative',
-    width: 56,
-    height: 56,
-    borderRadius: THEME.borderRadius.md,
-    overflow: 'hidden',
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-  },
-  previewRemove: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 18,
-    height: 18,
-    borderRadius: '50%',
-    border: 'none',
-    backgroundColor: THEME.colors.error,
-    color: '#fff',
-    cursor: 'pointer',
-    fontSize: 12,
-    fontWeight: 600,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-  },
-  inputRow: {
-    display: 'flex',
-    alignItems: 'flex-end',
-    gap: THEME.spacing.sm,
-    maxWidth: 1000,
-    margin: '0 auto',
-  },
-  attachButton: {
-    width: 40,
-    height: 40,
-    borderRadius: THEME.borderRadius.md,
-    border: `1px solid ${THEME.colors.border}`,
-    backgroundColor: 'transparent',
-    color: THEME.colors.textSecondary,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: `all ${THEME.transitions.fast}`,
-    flexShrink: 0,
-  },
-  attachButtonDisabled: {
-    opacity: 0.4,
-    cursor: 'not-allowed',
-  },
-  textArea: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 120,
-    padding: `${THEME.spacing.sm} ${THEME.spacing.md}`,
-    borderRadius: THEME.borderRadius.lg,
-    border: `1px solid ${THEME.colors.border}`,
-    backgroundColor: THEME.colors.bgTertiary,
-    color: THEME.colors.text,
-    fontSize: 14,
-    lineHeight: 1.5,
-    resize: 'none',
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: THEME.borderRadius.lg,
-    border: 'none',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  sendButtonEnabled: {
-    backgroundColor: THEME.colors.adminBubble,
-    color: '#fff',
-  },
-  sendButtonDisabled: {
-    backgroundColor: THEME.colors.bgTertiary,
-    color: THEME.colors.textMuted,
-    cursor: 'not-allowed',
-  },
-  sendingSpinner: {
-    width: 18,
-    height: 18,
-    border: '2px solid rgba(255,255,255,0.3)',
-    borderTopColor: '#fff',
-    borderRadius: '50%',
-    animation: 'sendingSpin 0.8s linear infinite',
-  },
 };
 
 export default AdminTicketChat;

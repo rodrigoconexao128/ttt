@@ -603,12 +603,12 @@ export default function AdminConversations() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    if (confirm("Limpar todo o histórico? O cliente será tratado como novo na próxima mensagem.")) {
-                      clearHistoryMutation.mutate();
+                    if (confirm("Encerrar este chamado? O histórico será mantido para auditoria, mas um novo contato iniciará novo contexto.")) {
+                      closeTicketMutation.mutate();
                     }
                   }}
-                  disabled={clearHistoryMutation.isPending}
-                  title="Limpar histórico e resetar sessão"
+                  disabled={closeTicketMutation.isPending}
+                  title="Encerrar chamado"
                 >
                   <Trash2 className="w-4 h-4 text-destructive" />
                 </Button>

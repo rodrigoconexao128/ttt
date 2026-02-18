@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useBranding } from "@/hooks/useBranding";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput, Package, UtensilsCrossed, ClipboardList, Mic, Workflow, Ticket } from "lucide-react";
+import { MessageCircle, Settings, LogOut, Smartphone, Bot, CreditCard, LayoutDashboard, AlertCircle, Send, Kanban, Users, Tags, Filter, Plug, CalendarClock, BedDouble, Wrench, ChevronDown, Megaphone, Brain, Upload, BookUser, Bell, Rocket, Sparkles, Receipt, Ban, Building2, FormInput, Package, UtensilsCrossed, ClipboardList, Mic, Workflow, Ticket, HelpCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -632,7 +632,7 @@ const toolsNavigation: ToolNavItem[] = [
                   data-testid="button-nav-support"
                 >
                   <Link href="/support">
-                    <Ticket className="w-4 h-4" />
+                    <HelpCircle className="w-4 h-4" />
                     <span>Suporte</span>
                   </Link>
                 </SidebarMenuButton>

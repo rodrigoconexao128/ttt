@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useLocation } from 'wouter';
-import { ArrowLeft, Paperclip, Send, Clock, Check, CheckCheck, X, AlertCircle, User, Headphones, Loader2 } from 'lucide-react';
+import { ArrowLeft, Paperclip, Send, Clock, Check, CheckCheck, X, Headphones, User, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { apiClient } from '../../lib/api';
 import type { Ticket, TicketMessage, TicketAttachment } from '../../types/tickets';
@@ -26,13 +26,13 @@ const AttachmentPreview: React.FC<{
 
   if (error || !url || !isImage) {
     return (
-      <div className="relative flex items-center gap-2 p-2 bg-muted rounded-lg border text-sm max-w-[200px]">
+      <div className="relative flex items-center gap-2 p-2.5 bg-muted/80 rounded-xl border text-sm max-w-[200px] shadow-sm">
         <Paperclip className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-        <span className="truncate text-xs">{attachment.originalName || 'Arquivo'}</span>
+        <span className="truncate text-xs font-medium">{attachment.originalName || 'Arquivo'}</span>
         {onRemove && (
           <button 
             onClick={onRemove}
-            className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-white rounded-full flex items-center justify-center text-xs hover:bg-destructive/90"
+            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-white rounded-full flex items-center justify-center text-xs hover:bg-destructive/90 shadow-md transition-all hover:scale-110"
           >
             <X className="w-3 h-3" />
           </button>
@@ -44,13 +44,13 @@ const AttachmentPreview: React.FC<{
   return (
     <div className="relative group">
       <div className={cn(
-        "w-16 h-16 rounded-lg overflow-hidden border bg-muted",
+        "w-16 h-16 rounded-2xl overflow-hidden border-2 border-border/30 bg-muted cursor-pointer shadow-sm transition-all duration-200 group-hover:shadow-md",
         !loaded && "animate-pulse"
       )}>
         <img 
           src={url} 
           alt={attachment.originalName} 
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
           onLoad={() => setLoaded(true)}
           onError={() => setError(true)}
         />
@@ -58,7 +58,7 @@ const AttachmentPreview: React.FC<{
       {onRemove && (
         <button 
           onClick={onRemove}
-          className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-md hover:bg-destructive/90 hover:scale-110"
         >
           <X className="w-3 h-3" />
         </button>
@@ -67,11 +67,35 @@ const AttachmentPreview: React.FC<{
   );
 };
 
-const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string; icon: React.ElementType }> = {
-  open: { color: 'text-blue-600', bg: 'bg-blue-50', label: 'Aberto', icon: AlertCircle },
-  in_progress: { color: 'text-amber-600', bg: 'bg-amber-50', label: 'Em andamento', icon: Clock },
-  resolved: { color: 'text-emerald-600', bg: 'bg-emerald-50', label: 'Resolvido', icon: Check },
-  closed: { color: 'text-gray-600', bg: 'bg-gray-50', label: 'Fechado', icon: CheckCheck },
+const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string; icon: React.ElementType }> = {
+  open: { 
+    color: 'text-sky-600', 
+    bg: 'bg-sky-500/10', 
+    border: 'border-sky-500/20',
+    label: 'Aberto', 
+    icon: Clock 
+  },
+  in_progress: { 
+    color: 'text-amber-600', 
+    bg: 'bg-amber-500/10', 
+    border: 'border-amber-500/20',
+    label: 'Em andamento', 
+    icon: Clock 
+  },
+  resolved: { 
+    color: 'text-emerald-600', 
+    bg: 'bg-emerald-500/10', 
+    border: 'border-emerald-500/20',
+    label: 'Resolvido', 
+    icon: Check 
+  },
+  closed: { 
+    color: 'text-slate-600', 
+    bg: 'bg-slate-500/10', 
+    border: 'border-slate-500/20',
+    label: 'Fechado', 
+    icon: CheckCheck 
+  },
 };
 
 interface Props { 
@@ -210,8 +234,7 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
     } catch (err: any) { 
       console.error(err); 
     } finally { 
-      setSending(false); 
-      // Focar de volta no textarea
+      setSending(false);
       textareaRef.current?.focus();
     }
   };
@@ -250,22 +273,27 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
 
   if (loading) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center gap-4 bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="text-muted-foreground text-sm">Carregando ticket...</span>
+      <div className="h-full flex flex-col items-center justify-center gap-4 bg-background">
+        <div className="relative">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <div className="absolute inset-0 blur-xl bg-primary/20 rounded-full" />
+        </div>
+        <span className="text-muted-foreground text-sm font-medium">Carregando ticket...</span>
       </div>
     );
   }
 
   if (!ticket) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center gap-4 bg-background p-6">
-        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-          <AlertCircle className="w-8 h-8 text-muted-foreground" />
+      <div className="h-full flex flex-col items-center justify-center gap-5 bg-background p-6">
+        <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center shadow-lg">
+          <Headphones className="w-10 h-10 text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-semibold">Ticket não encontrado</h2>
-        <p className="text-muted-foreground text-sm">Este ticket não existe ou foi removido.</p>
-        <Button variant="outline" onClick={() => setLocation('/tickets')}>
+        <div className="text-center space-y-2">
+          <h2 className="text-xl font-semibold">Ticket não encontrado</h2>
+          <p className="text-muted-foreground text-sm">Este ticket não existe ou foi removido.</p>
+        </div>
+        <Button variant="outline" onClick={() => setLocation('/tickets')} className="mt-2 rounded-xl">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Voltar
         </Button>
@@ -278,37 +306,38 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
   const isClosed = ticket.status === 'closed' || ticket.status === 'resolved';
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header Minimalista */}
-      <header className="flex-shrink-0 border-b bg-card/50 backdrop-blur-sm">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-4">
+    <div className="h-full flex flex-col bg-background overflow-hidden rounded-2xl shadow-xl border">
+      {/* Header Compacto e Moderno */}
+      <header className="flex-shrink-0 border-b bg-card/95 backdrop-blur-xl sticky top-0 z-20 shadow-sm">
+        <div className="px-4 py-2.5 flex items-center gap-3">
           <Button 
             variant="ghost" 
             size="icon" 
-            className="flex-shrink-0"
+            className="flex-shrink-0 hover:bg-muted rounded-xl h-9 w-9"
             onClick={() => setLocation('/tickets')}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold truncate">
-                #{ticket.id} - {ticket.subject}
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-sm font-semibold truncate text-foreground">
+                #{ticket.id} · {ticket.subject}
               </h1>
               <span className={cn(
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
+                "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border",
                 statusConfig.bg,
-                statusConfig.color
+                statusConfig.color,
+                statusConfig.border
               )}>
                 <StatusIcon className="w-3 h-3" />
                 {statusConfig.label}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Criado em {new Date(ticket.createdAt).toLocaleDateString('pt-BR', { 
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {new Date(ticket.createdAt).toLocaleDateString('pt-BR', { 
                 day: '2-digit', 
-                month: 'long', 
+                month: 'short', 
                 year: 'numeric' 
               })}
             </p>
@@ -316,19 +345,19 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
         </div>
       </header>
 
-      {/* Messages Area */}
+      {/* Messages Area - Altura fixa com scroll */}
       <main 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto px-4 py-6 bg-muted/30"
+        className="flex-1 overflow-y-auto px-4 py-4 bg-gradient-to-b from-muted/30 to-background scroll-smooth"
       >
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-3xl mx-auto space-y-5">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
+              <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4 shadow-md">
                 <Headphones className="w-6 h-6 text-muted-foreground" />
               </div>
               <p className="text-sm font-medium text-foreground">Envie sua primeira mensagem</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
                 Nossa equipe responderá o mais breve possível
               </p>
             </div>
@@ -342,50 +371,50 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
             return (
               <React.Fragment key={msg.id}>
                 {showDate && (
-                  <div className="flex items-center gap-4 my-6">
-                    <div className="flex-1 h-px bg-border" />
-                    <span className="text-xs text-muted-foreground font-medium">
+                  <div className="flex items-center gap-3 my-6">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
+                    <span className="text-[11px] text-muted-foreground font-medium px-3 py-1 bg-muted/60 rounded-full shadow-sm">
                       {formatDate(msg.createdAt)}
                     </span>
-                    <div className="flex-1 h-px bg-border" />
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
                   </div>
                 )}
 
                 <div className={cn(
-                  "flex gap-3",
+                  "flex gap-2.5",
                   isAdmin ? "justify-start" : "justify-end"
                 )}>
-                  {/* Avatar para admin */}
+                  {/* Avatar Admin */}
                   {isAdmin && (
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Headphones className="w-4 h-4 text-primary" />
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center flex-shrink-0 ring-2 ring-background shadow-sm">
+                      <Headphones className="w-3.5 h-3.5 text-primary" />
                     </div>
                   )}
                   
                   <div className={cn(
-                    "max-w-[75%] space-y-1",
+                    "max-w-[78%] space-y-1",
                     isAdmin ? "items-start" : "items-end"
                   )}>
-                    {/* Nome do remetente */}
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {/* Remetente */}
+                    <div className="flex items-center gap-1.5 text-[11px]">
                       {isAdmin ? (
-                        <span className="font-medium text-primary">Suporte</span>
+                        <span className="font-semibold text-primary">Suporte</span>
                       ) : (
-                        <span className="font-medium">Você</span>
+                        <span className="font-medium text-muted-foreground">Você</span>
                       )}
-                      <span>•</span>
-                      <span>{formatTime(msg.createdAt)}</span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span className="text-muted-foreground/70">{formatTime(msg.createdAt)}</span>
                     </div>
                     
-                    {/* Message Bubble */}
+                    {/* Message Bubble - Estilo Moderno */}
                     <div className={cn(
-                      "px-4 py-2.5 rounded-2xl text-sm leading-relaxed",
+                      "px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm transition-shadow hover:shadow-md",
                       isAdmin 
                         ? "bg-card border rounded-tl-sm" 
                         : "bg-primary text-primary-foreground rounded-tr-sm"
                     )}>
                       {msg.attachments && msg.attachments.length > 0 && (
-                        <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div className="grid grid-cols-2 gap-1.5 mb-2">
                           {msg.attachments.map(att => (
                             <AttachmentPreview 
                               key={att.id} 
@@ -400,10 +429,10 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
                     </div>
                   </div>
                   
-                  {/* Avatar para usuário */}
+                  {/* Avatar Usuário */}
                   {!isAdmin && (
-                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                      <User className="w-4 h-4 text-muted-foreground" />
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-muted to-muted/70 flex items-center justify-center flex-shrink-0 ring-2 ring-background shadow-sm">
+                      <User className="w-3.5 h-3.5 text-muted-foreground" />
                     </div>
                   )}
                 </div>
@@ -414,13 +443,13 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
         </div>
       </main>
 
-      {/* Input Area - Fixed Bottom */}
-      {!isClosed && (
-        <footer className="flex-shrink-0 border-t bg-card">
-          <div className="max-w-4xl mx-auto px-4 py-3">
+      {/* Input Area - Fixo no Rodapé */}
+      {!isClosed ? (
+        <footer className="flex-shrink-0 border-t bg-card/95 backdrop-blur-xl z-20 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+          <div className="px-4 py-3">
             {/* Attachment Previews */}
             {attachmentPreviews.length > 0 && (
-              <div className="flex gap-2 mb-3 flex-wrap">
+              <div className="flex gap-2 mb-2.5 flex-wrap">
                 {attachmentPreviews.map((preview, idx) => (
                   <AttachmentPreview
                     key={idx}
@@ -443,13 +472,13 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="flex-shrink-0 h-10 w-10 rounded-full"
+                className="flex-shrink-0 h-10 w-10 rounded-xl hover:bg-muted transition-colors"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={attachments.length >= 4}
               >
                 <Paperclip className={cn(
-                  "w-5 h-5",
-                  attachments.length >= 4 ? "text-muted-foreground" : "text-foreground"
+                  "w-5 h-5 transition-colors",
+                  attachments.length >= 4 ? "text-muted-foreground/30" : "text-muted-foreground"
                 )} />
               </Button>
               
@@ -471,19 +500,19 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
                   placeholder="Digite sua mensagem..."
                   disabled={sending}
                   rows={1}
-                  className="min-h-[44px] max-h-[120px] pr-12 resize-none py-2.5 rounded-2xl"
+                  className="min-h-[44px] max-h-[100px] pr-3 resize-none py-2.5 rounded-xl bg-muted/60 border-0 focus:bg-background focus:ring-2 focus:ring-primary/20 transition-all text-sm"
                   style={{ height: 'auto' }}
                   onInput={(e) => {
                     const target = e.target as HTMLTextAreaElement;
                     target.style.height = 'auto';
-                    target.style.height = target.scrollHeight + 'px';
+                    target.style.height = Math.min(target.scrollHeight, 100) + 'px';
                   }}
                 />
               </div>
               
               <Button
                 size="icon"
-                className="flex-shrink-0 h-10 w-10 rounded-full"
+                className="flex-shrink-0 h-10 w-10 rounded-xl shadow-sm hover:shadow-md transition-all"
                 onClick={handleSend}
                 disabled={sending || (!messageBody.trim() && attachments.length === 0)}
               >
@@ -496,12 +525,10 @@ export const UserTicketChat: React.FC<Props> = ({ ticketId }) => {
             </div>
           </div>
         </footer>
-      )}
-      
-      {isClosed && (
-        <div className="flex-shrink-0 border-t bg-muted/50 px-4 py-3">
-          <div className="max-w-4xl mx-auto text-center">
-            <p className="text-sm text-muted-foreground">
+      ) : (
+        <div className="flex-shrink-0 border-t bg-muted/40 px-4 py-3">
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">
               Este ticket está {ticket.status === 'resolved' ? 'resolvido' : 'fechado'}.
               {' '}
               <button 
