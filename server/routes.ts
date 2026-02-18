@@ -11770,19 +11770,68 @@ ${config.ai_instructions || ''}
         // Não falhar a operação principal se o cancelamento dos outros falhar
       }
 
-      // Confirmar assinatura como ativa (remover flag pending_receipt)
+      // ATIVAÇÃO AUTOMÁTICA DA ASSINATURA: Calcular datas e ativar plano
       if (receipt.subscription_id) {
-        await supabase
+        // Buscar o plano para calcular a duração
+        const { data: plan, error: planError } = await supabase
+          .from("plans")
+          .select("*")
+          .eq("id", receipt.plan_id)
+          .single();
+
+        if (planError) {
+          console.error("Error fetching plan for activation:", planError);
+        }
+
+        // Calcular data de início (hoje) e fim
+        const dataInicio = new Date();
+        const dataFim = new Date();
+
+        // Determinar a duração em dias
+        let diasDuracao = 30; // Padrão mensal
+
+        if (plan) {
+          if (plan.frequencia_dias) {
+            // Usar frequencia_dias se definido
+            diasDuracao = parseInt(plan.frequencia_dias);
+          } else if (plan.periodicidade === "anual") {
+            // Plano anual = 365 dias
+            diasDuracao = 365;
+          }
+          // Se for mensal ou qualquer outro, mantém 30 dias
+        }
+
+        // Adicionar os dias à data de fim
+        dataFim.setDate(dataFim.getDate() + diasDuracao);
+
+        console.log(`🔄 Ativando assinatura ${receipt.subscription_id}:`);
+        console.log(`   Plano: ${plan?.nome || 'Desconhecido'}`);
+        console.log(`   Duração: ${diasDuracao} dias`);
+        console.log(`   Início: ${dataInicio.toISOString()}`);
+        console.log(`   Fim: ${dataFim.toISOString()}`);
+
+        // Atualizar assinatura com datas calculadas
+        const { error: subUpdateError } = await supabase
           .from("subscriptions")
           .update({
             status: "active",
             pending_receipt: false,
+            data_inicio: dataInicio.toISOString(),
+            data_fim: dataFim.toISOString(),
             updated_at: new Date().toISOString()
           })
           .eq("id", receipt.subscription_id);
+
+        if (subUpdateError) {
+          console.error("Error activating subscription:", subUpdateError);
+          throw subUpdateError;
+        }
+
+        // TODO: Enviar notificação WhatsApp/email para o cliente sobre ativação
+        // Esta funcionalidade pode ser implementada futuramente usando o centralizedMessageSender
       }
 
-      res.json({ success: true, message: "Comprovante aprovado com sucesso!" });
+      res.json({ success: true, message: "Comprovante aprovado e plano ativado com sucesso!" });
     } catch (error) {
       console.error("Error approving receipt:", error);
       res.status(500).json({ message: "Erro ao aprovar comprovante" });
