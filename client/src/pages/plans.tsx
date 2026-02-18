@@ -8,9 +8,395 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Check, Loader2, Shield, Zap, Crown, ChevronDown, ChevronUp, Tag, Key, Copy, Clock, Sparkles, Star, Gift, Calendar, CreditCard } from "lucide-react";
 import type { Plan, Subscription } from "@shared/schema";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { QrCode, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SubscribeModal } from "@/components/subscribe-modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiClient } from "@/lib/api";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPONENTE: Página de Plano de Revenda com QR Code PIX e Upload de Comprovante
+// ═══════════════════════════════════════════════════════════════════════════════
+interface ResellerPlanPageProps {
+  resellerPlan: {
+    isResellerClient: boolean;
+    status?: string;
+    reseller?: {
+      companyName: string;
+      supportEmail?: string;
+      supportPhone?: string;
+      pixKey?: string;
+      pixKeyType?: string;
+      pixHolderName?: string;
+      pixBankName?: string;
+    };
+    plan?: {
+      name: string;
+      price: string;
+      features: string[];
+    };
+  };
+  createResellerSubscriptionMutation: any;
+  setSelectedPlan: (plan: string) => void;
+  setPendingSubscriptionId: (id: string | null) => void;
+  setSubscribeModalOpen: (open: boolean) => void;
+}
+
+function ResellerPlanPage({ 
+  resellerPlan, 
+  createResellerSubscriptionMutation, 
+  setSelectedPlan,
+  setPendingSubscriptionId,
+  setSubscribeModalOpen
+}: ResellerPlanPageProps) {
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const [pixQrCode, setPixQrCode] = useState<string | null>(null);
+  const [pixCode, setPixCode] = useState<string | null>(null);
+  const [loadingPix, setLoadingPix] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [pendingSubscription, setPendingSubscription] = useState<any>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+
+  // Criar assinatura e gerar PIX
+  const handleActivatePlan = async () => {
+    setSelectedPlan("reseller");
+    
+    try {
+      // Criar assinatura via API
+      const response = await apiClient.post('/api/reseller-client/subscription/create', {});
+      const subscription = response.data;
+      setPendingSubscription(subscription);
+      setPendingSubscriptionId(subscription.id);
+      
+      // Gerar QR Code PIX
+      await generatePixForSubscription(subscription.id);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar assinatura",
+        description: error.message || "Tente novamente mais tarde",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Gerar QR Code PIX via API
+  const generatePixForSubscription = async (subscriptionId: string) => {
+    setLoadingPix(true);
+    try {
+      const response = await apiClient.post('/api/payments/generate-pix', { subscriptionId });
+      const data = response.data;
+      
+      setPixQrCode(data.pixQrCode);
+      setPixCode(data.pixCode);
+    } catch (error: any) {
+      console.error("Erro ao gerar PIX:", error);
+      toast({
+        title: "Erro ao gerar QR Code",
+        description: error.message || "Tente copiar a chave PIX manualmente",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingPix(false);
+    }
+  };
+
+  // Upload de comprovante
+  const handleReceiptUpload = async () => {
+    if (!receiptFile || !pendingSubscription) {
+      toast({ title: "Erro", description: "Selecione um arquivo", variant: "destructive" });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("receipt", receiptFile);
+      formData.append("subscriptionId", pendingSubscription.id);
+      formData.append("paymentId", `manual_${pendingSubscription.id}`);
+      formData.append("amount", resellerPlan.plan?.price || "0");
+
+      const response = await fetch("/api/payment-receipts/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include"
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message);
+      }
+
+      setUploadSuccess(true);
+      toast({
+        title: "Comprovante enviado!",
+        description: "Seu acesso foi liberado. Aguarde a confirmação do administrador."
+      });
+
+      setTimeout(() => {
+        setShowUploadModal(false);
+        setLocation("/my-subscription");
+      }, 2000);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao enviar",
+        description: error.message || "Tente novamente",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const copyPixCode = () => {
+    if (pixCode) {
+      navigator.clipboard.writeText(pixCode);
+      toast({ title: "Código PIX copiado!" });
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
+      <div className="max-w-2xl mx-auto px-4 py-6 md:py-12">
+        <div className="text-center mb-8">
+          <Badge className="mb-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-0">
+            Plano Exclusivo
+          </Badge>
+          <h1 className="text-xl md:text-3xl font-semibold text-gray-900 dark:text-white mb-2">
+            {resellerPlan.reseller?.companyName || "Seu Revendedor"}
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400">
+            Assine agora e tenha acesso completo à plataforma
+          </p>
+        </div>
+
+        <Card className="border-2 border-purple-500/50 shadow-lg">
+          <CardHeader className="text-center pb-4">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Crown className="h-6 w-6 text-purple-500" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {resellerPlan.plan?.name}
+              </h2>
+            </div>
+            <div className="flex items-baseline justify-center gap-1">
+              <span className="text-4xl font-bold text-purple-600">
+                R$ {Number(resellerPlan.plan?.price || 0).toFixed(2).replace('.', ',')}
+              </span>
+              <span className="text-gray-500">/mês</span>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="pt-0">
+            <div className="space-y-3 py-4">
+              {resellerPlan.plan?.features.map((feature, index) => (
+                <div key={index} className="flex items-center gap-3">
+                  <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  <span className="text-gray-600 dark:text-gray-300">{feature}</span>
+                </div>
+              ))}
+            </div>
+            
+            {/* Seção de Pagamento PIX */}
+            {resellerPlan.reseller?.pixKey && (
+              <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                {!pixQrCode && !loadingPix && (
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-yellow-800 dark:text-yellow-200 mb-2">
+                      💰 Pague via PIX
+                    </p>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-4">
+                      Clique abaixo para gerar o QR Code
+                    </p>
+                    <Button 
+                      onClick={handleActivatePlan}
+                      className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+                      disabled={createResellerSubscriptionMutation.isPending}
+                    >
+                      {createResellerSubscriptionMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <QrCode className="h-4 w-4 mr-2" />
+                      )}
+                      Gerar QR Code PIX
+                    </Button>
+                  </div>
+                )}
+
+                {loadingPix && (
+                  <div className="text-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-yellow-600" />
+                    <p className="mt-2 text-sm text-yellow-700">Gerando QR Code...</p>
+                  </div>
+                )}
+
+                {pixQrCode && !loadingPix && (
+                  <div className="text-center space-y-4">
+                    <p className="text-lg font-bold text-yellow-800 dark:text-yellow-200">
+                      📱 Escaneie para pagar
+                    </p>
+                    
+                    {/* QR Code */}
+                    <div className="flex justify-center">
+                      <img 
+                        src={pixQrCode} 
+                        alt="QR Code PIX" 
+                        className="w-48 h-48 rounded-lg border-2 border-yellow-300"
+                      />
+                    </div>
+
+                    {/* Valor */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3">
+                      <p className="text-sm text-gray-500">Valor</p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        R$ {Number(resellerPlan.plan?.price || 0).toFixed(2).replace('.', ',')}
+                      </p>
+                    </div>
+
+                    {/* Copia e Cola */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-left">
+                      <p className="text-xs font-medium text-gray-500 mb-1">Pix Copia e Cola</p>
+                      <code className="block text-[10px] leading-relaxed font-mono text-gray-800 break-all bg-gray-100 dark:bg-gray-700 p-2 rounded">
+                        {pixCode}
+                      </code>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full mt-2"
+                        onClick={copyPixCode}
+                      >
+                        <Copy className="w-3 h-3 mr-1" />
+                        Copiar Código
+                      </Button>
+                    </div>
+
+                    {/* Dados bancários */}
+                    <div className="space-y-2 text-left">
+                      {resellerPlan.reseller.pixHolderName && (
+                        <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded p-2 text-sm">
+                          <span className="text-gray-500">Titular:</span>
+                          <span className="font-medium">{resellerPlan.reseller.pixHolderName}</span>
+                        </div>
+                      )}
+                      {resellerPlan.reseller.pixBankName && (
+                        <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded p-2 text-sm">
+                          <span className="text-gray-500">Banco:</span>
+                          <span className="font-medium">{resellerPlan.reseller.pixBankName}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botão "Já paguei" */}
+                    <Button 
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => setShowUploadModal(true)}
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Já paguei? Enviar comprovante
+                    </Button>
+
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                      Após o pagamento, clique em "Já paguei" para enviar o comprovante
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+          
+          <CardFooter className="flex flex-col gap-4">
+            {/* Informações de contato do revendedor */}
+            {(resellerPlan.reseller?.supportEmail || resellerPlan.reseller?.supportPhone) && (
+              <div className="text-center text-sm text-gray-500">
+                <p>Dúvidas? Entre em contato:</p>
+                {resellerPlan.reseller?.supportEmail && (
+                  <p className="font-medium">{resellerPlan.reseller.supportEmail}</p>
+                )}
+                {resellerPlan.reseller?.supportPhone && (
+                  <p className="font-medium">{resellerPlan.reseller.supportPhone}</p>
+                )}
+              </div>
+            )}
+          </CardFooter>
+        </Card>
+      </div>
+
+      {/* Modal de Upload de Comprovante */}
+      <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enviar Comprovante PIX</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {uploadSuccess ? (
+              <div className="text-center py-4">
+                <Check className="h-12 w-12 text-green-500 mx-auto mb-2" />
+                <p className="text-lg font-medium text-green-700">Comprovante enviado!</p>
+                <p className="text-sm text-gray-500">Seu acesso foi liberado.</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">
+                  Envie o comprovante de pagamento para liberarmos seu acesso.
+                </p>
+
+                <div 
+                  onClick={() => receiptInputRef.current?.click()}
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-purple-500 transition-colors"
+                >
+                  <input
+                    ref={receiptInputRef}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                  {receiptFile ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Check className="h-8 w-8 text-green-500" />
+                      <span className="text-sm font-medium">{receiptFile.name}</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="h-8 w-8 text-gray-400" />
+                      <span className="text-sm text-gray-500">Clique para selecionar</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setShowUploadModal(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={handleReceiptUpload}
+                    disabled={!receiptFile || isUploading}
+                  >
+                    {isUploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    Enviar
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 // Componente de Cronômetro de Escassez
 function ScarcityTimer({ onExpire, className }: { onExpire?: () => void; className?: string }) {
@@ -415,184 +801,13 @@ export default function PlansPage() {
   // Se é cliente de revenda, sempre mostrar plano da revenda (com ou sem assinatura tradicional)
   if (resellerPlan?.isResellerClient && resellerPlan.plan) {
     return (
-      <div className="flex-1 overflow-auto bg-white dark:bg-gray-950">
-        <div className="max-w-2xl mx-auto px-4 py-6 md:py-12">
-          <div className="text-center mb-8">
-            <Badge className="mb-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-0">
-              Plano Exclusivo
-            </Badge>
-            <h1 className="text-xl md:text-3xl font-semibold text-gray-900 dark:text-white mb-2">
-              {resellerPlan.reseller?.companyName || "Seu Revendedor"}
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400">
-              Assine agora e tenha acesso completo à plataforma
-            </p>
-          </div>
-
-          <Card className="border-2 border-purple-500/50 shadow-lg">
-            <CardHeader className="text-center pb-4">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Crown className="h-6 w-6 text-purple-500" />
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {resellerPlan.plan.name}
-                </h2>
-              </div>
-              <div className="flex items-baseline justify-center gap-1">
-                <span className="text-4xl font-bold text-purple-600">
-                  R$ {Number(resellerPlan.plan.price).toFixed(2).replace('.', ',')}
-                </span>
-                <span className="text-gray-500">/mês</span>
-              </div>
-            </CardHeader>
-            
-            <CardContent className="pt-0">
-              <div className="space-y-3 py-4">
-                {resellerPlan.plan.features.map((feature, index) => (
-                  <div key={index} className="flex items-center gap-3">
-                    <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
-                    <span className="text-gray-600 dark:text-gray-300">{feature}</span>
-                  </div>
-                ))}
-              </div>
-              
-              {/* Seção de Pagamento PIX */}
-              {resellerPlan.reseller?.pixKey && (
-                <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                  <div className="text-center mb-4">
-                    <p className="text-lg font-bold text-yellow-800 dark:text-yellow-200">
-                      💰 Pague via PIX
-                    </p>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                      Faça o pagamento e envie o comprovante
-                    </p>
-                  </div>
-                  
-                  {/* Dados bancários */}
-                  <div className="space-y-2">
-                    {/* Titular */}
-                    {resellerPlan.reseller.pixHolderName && (
-                      <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg p-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-500">👤</span>
-                          <span className="text-sm text-muted-foreground">Titular:</span>
-                        </div>
-                        <span className="font-medium text-sm">{resellerPlan.reseller.pixHolderName}</span>
-                      </div>
-                    )}
-                    
-                    {/* Banco */}
-                    {resellerPlan.reseller.pixBankName && (
-                      <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg p-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-500">🏦</span>
-                          <span className="text-sm text-muted-foreground">Banco:</span>
-                        </div>
-                        <span className="font-medium text-sm">{resellerPlan.reseller.pixBankName}</span>
-                      </div>
-                    )}
-                    
-                    {/* Chave PIX */}
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-500">🔑</span>
-                          <span className="text-sm text-muted-foreground">
-                            PIX ({resellerPlan.reseller.pixKeyType?.toUpperCase()}):
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            navigator.clipboard.writeText(resellerPlan.reseller!.pixKey!);
-                            toast({ title: "✅ Chave PIX copiada!" });
-                          }}
-                        >
-                          <Copy className="h-3 w-3 mr-1" />
-                          Copiar
-                        </Button>
-                      </div>
-                      <code className="block mt-2 text-center font-mono bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded text-sm break-all">
-                        {resellerPlan.reseller.pixKey}
-                      </code>
-                    </div>
-                  </div>
-                  
-                  {/* Botão WhatsApp */}
-                  {resellerPlan.reseller?.supportPhone && (
-                    <div className="mt-4">
-                      <Button
-                        className="w-full"
-                        style={{ 
-                          backgroundColor: '#25D366',
-                          color: 'white'
-                        }}
-                        onClick={() => {
-                          const phone = resellerPlan.reseller?.supportPhone?.replace(/\D/g, '');
-                          const message = encodeURIComponent(
-                            `Olá! Fiz o pagamento de R$ ${Number(resellerPlan.plan!.price).toFixed(2).replace('.', ',')} via PIX para ativar minha assinatura. Segue o comprovante:`
-                          );
-                          window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
-                        }}
-                      >
-                        📲 Enviar Comprovante via WhatsApp
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-            
-            <CardFooter className="flex flex-col gap-4">
-              <Button 
-                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white"
-                size="lg"
-                onClick={() => {
-                  // Usar a rota específica para clientes de revenda
-                  setSelectedPlan("reseller");
-                  createResellerSubscriptionMutation.mutate();
-                }}
-                disabled={createResellerSubscriptionMutation.isPending}
-              >
-                {createResellerSubscriptionMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processando...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-4 w-4 mr-2" />
-                    Ativar Plano
-                  </>
-                )}
-              </Button>
-              
-              {/* Informações de contato do revendedor */}
-              {(resellerPlan.reseller?.supportEmail || resellerPlan.reseller?.supportPhone) && (
-                <div className="text-center text-sm text-gray-500">
-                  <p>Dúvidas? Entre em contato:</p>
-                  {resellerPlan.reseller?.supportEmail && (
-                    <p className="font-medium">{resellerPlan.reseller.supportEmail}</p>
-                  )}
-                  {resellerPlan.reseller?.supportPhone && (
-                    <p className="font-medium">{resellerPlan.reseller.supportPhone}</p>
-                  )}
-                </div>
-              )}
-            </CardFooter>
-          </Card>
-        </div>
-
-        {/* Modal de subscribe */}
-        <SubscribeModal
-          isOpen={subscribeModalOpen}
-          onClose={() => {
-            setSubscribeModalOpen(false);
-            setPendingSubscriptionId(null);
-          }}
-          subscriptionId={pendingSubscriptionId || ""}
-        />
-      </div>
+      <ResellerPlanPage 
+        resellerPlan={resellerPlan}
+        createResellerSubscriptionMutation={createResellerSubscriptionMutation}
+        setSelectedPlan={setSelectedPlan}
+        setPendingSubscriptionId={setPendingSubscriptionId}
+        setSubscribeModalOpen={setSubscribeModalOpen}
+      />
     );
   }
 

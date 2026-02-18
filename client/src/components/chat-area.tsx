@@ -1157,21 +1157,21 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
           
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" title="Limpar conversa">
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" title="Encerrar chamado">
                 <Trash2 className="w-5 h-5" />
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Limpar conversa?</AlertDialogTitle>
+                <AlertDialogTitle>Encerrar chamado?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Esta ação apagará todas as mensagens desta conversa. Isso é útil para testar o fluxo da IA como se fosse um novo cliente. Esta ação não pode ser desfeita.
+                  Esta ação encerrará o chamado atual e arquivará a conversa. O histórico será mantido para auditoria, mas um novo contato iniciará um novo contexto operacional. Esta ação não pode ser desfeita.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction onClick={() => deleteMessagesMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Limpar
+                  Encerrar
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

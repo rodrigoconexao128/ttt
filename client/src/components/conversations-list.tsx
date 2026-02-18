@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, MessageCircle, Smartphone, X, Tags, Filter, CheckCheck, Circle, Mail, MailOpen, MessageSquarePlus, Archive, ArchiveRestore, Loader2 } from "lucide-react";
+import { Search, MessageCircle, Smartphone, X, Tags, Filter, CheckCheck, Circle, Mail, MailOpen, MessageSquarePlus, Archive, ArchiveRestore, Loader2, Bot } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@shared/schema";
@@ -342,6 +342,44 @@ export function ConversationsList({
     },
   });
 
+  const bulkEnableAIMutation = useMutation({
+    mutationFn: async (conversationIds: string[]) => {
+      const response = await apiRequest("POST", "/api/conversations/bulk/ai-enable", { conversationIds });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
+      toast({ title: "IA ativada nas conversas selecionadas" });
+      clearSelection();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao ativar IA",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkDisableAIMutation = useMutation({
+    mutationFn: async (conversationIds: string[]) => {
+      const response = await apiRequest("POST", "/api/conversations/bulk/ai-disable", { conversationIds });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
+      toast({ title: "IA desativada nas conversas selecionadas" });
+      clearSelection();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao desativar IA",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Handle creating new contact
   const handleCreateNewContact = async () => {
     if (!newContactNumber.trim()) {
@@ -612,6 +650,34 @@ export function ConversationsList({
               >
                 <Tags className="w-3 h-3 mr-1" />
                 <span className="text-xs">Etiquetar</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 bg-green-50 hover:bg-green-100 border-green-200"
+                onClick={() => bulkEnableAIMutation.mutate(selectedIds)}
+                disabled={bulkEnableAIMutation.isPending}
+              >
+                {bulkEnableAIMutation.isPending ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <Bot className="w-3 h-3 mr-1 text-green-600" />
+                )}
+                <span className="text-xs text-green-700">Ativar IA</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 bg-amber-50 hover:bg-amber-100 border-amber-200"
+                onClick={() => bulkDisableAIMutation.mutate(selectedIds)}
+                disabled={bulkDisableAIMutation.isPending}
+              >
+                {bulkDisableAIMutation.isPending ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <Bot className="w-3 h-3 mr-1 text-amber-600" />
+                )}
+                <span className="text-xs text-amber-700">Desativar IA</span>
               </Button>
               <Button
                 variant="ghost"

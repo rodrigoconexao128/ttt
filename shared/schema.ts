@@ -788,6 +788,46 @@ export const paymentReceipts = pgTable("payment_receipts", {
   index("idx_payment_receipts_status").on(table.status),
 ]);
 
+// ============================================================================
+// RESELLER CLIENT PAYMENT RECEIPTS - Comprovantes de pagamento para clientes de revenda
+// Usado quando o cliente de um revendedor paga via PIX (chave do revendedor)
+// ============================================================================
+export const resellerClientPaymentReceipts = pgTable("reseller_client_payment_receipts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Referências
+  resellerClientId: varchar("reseller_client_id").notNull().references(() => resellerClients.id, { onDelete: 'cascade' }),
+  resellerId: varchar("reseller_id").notNull().references(() => resellers.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // O usuário que é cliente do revendedor
+  
+  // Informações do pagamento
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  referenceMonth: varchar("reference_month", { length: 7 }).notNull(), // YYYY-MM
+  
+  // URL e informações do arquivo do comprovante
+  receiptUrl: varchar("receipt_url").notNull(),
+  receiptFilename: varchar("receipt_filename"),
+  receiptMimeType: varchar("receipt_mime_type"),
+  
+  // Status: pending, approved, rejected
+  status: varchar("status", { length: 50 }).default("pending").notNull(),
+  
+  // Dias de acesso concedidos quando aprovado (geralmente 30)
+  daysGranted: integer("days_granted").default(30),
+  
+  // IDs do admin que aprovou/rejeitou
+  reviewedBy: varchar("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_reseller_receipts_client").on(table.resellerClientId),
+  index("idx_reseller_receipts_reseller").on(table.resellerId),
+  index("idx_reseller_receipts_user").on(table.userId),
+  index("idx_reseller_receipts_status").on(table.status),
+]);
+
 // Coupons table - Sistema de cupons de desconto
 export const coupons = pgTable("coupons", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -3107,6 +3147,81 @@ export type TeamMember = typeof teamMembers.$inferSelect;
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
 export type TeamMemberInput = z.infer<typeof teamMemberSchema>;
 export type TeamMemberLogin = z.infer<typeof teamMemberLoginSchema>;
+
+// =============================================================================
+// WHATSAPP STATUSES - Sistema de Status/Mensagens Automáticas do WhatsApp
+// =============================================================================
+
+export const whatsappStatuses = pgTable("whatsapp_statuses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 50 }).notNull().default("text"), // text, image, video, audio
+  content: text("content").notNull(),
+  contentUrl: varchar("content_url"), // URL for media files
+  duration: integer("duration"), // Duration in seconds for video/audio
+  schedule: jsonb("schedule").$type<{
+    enabled: boolean;
+    daysOfWeek: number[]; // 0-6 (Sunday-Saturday)
+    time: string; // "HH:MM"
+    recurrence: "once" | "daily" | "weekly" | "monthly";
+  }>(),
+  rotation: jsonb("rotation").$type<{
+    enabled: boolean;
+    type: "sequential" | "random";
+    priority?: number;
+  }>(),
+  isActive: boolean("is_active").default(true).notNull(),
+  priority: integer("priority").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const statusHistory = pgTable("status_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  statusId: varchar("status_id").notNull().references(() => whatsappStatuses.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  phoneNumber: varchar("phone_number").notNull(),
+  sentAt: timestamp("sent_at").defaultNow(),
+  content: text("content").notNull(),
+  type: varchar("type", { length: 50 }).notNull(),
+  rotationUsed: varchar("rotation_used"), // Track which rotation was used
+});
+
+// Schemas Zod para WhatsApp Statuses
+export const insertWhatsappStatusSchema = createInsertSchema(whatsappStatuses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const whatsappStatusSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(255),
+  type: z.enum(["text", "image", "video", "audio"]).default("text"),
+  content: z.string().min(1, "Conteúdo é obrigatório"),
+  contentUrl: z.string().url().optional().nullable(),
+  duration: z.number().optional().nullable(),
+  schedule: z.object({
+    enabled: z.boolean(),
+    daysOfWeek: z.array(z.number().min(0).max(6)),
+    time: z.string(),
+    recurrence: z.enum(["once", "daily", "weekly", "monthly"]),
+  }).optional().nullable(),
+  rotation: z.object({
+    enabled: z.boolean(),
+    type: z.enum(["sequential", "random"]),
+    priority: z.number().optional(),
+  }).optional().nullable(),
+  isActive: z.boolean().default(true),
+  priority: z.number().default(0),
+});
+
+// Types para WhatsApp Statuses
+export type WhatsappStatus = typeof whatsappStatuses.$inferSelect;
+export type InsertWhatsappStatus = z.infer<typeof insertWhatsappStatusSchema>;
+export type WhatsappStatusInput = z.infer<typeof whatsappStatusSchema>;
+
+export type StatusHistory = typeof statusHistory.$inferSelect;
+export type InsertStatusHistory = typeof statusHistory.$inferInsert;
 export type TeamMemberSession = typeof teamMemberSessions.$inferSelect;
 
 // =====================================================
@@ -3167,3 +3282,221 @@ export type AudioConfig = typeof audioConfig.$inferSelect;
 export type InsertAudioConfig = z.infer<typeof insertAudioConfigSchema>;
 export type UpdateAudioConfig = z.infer<typeof updateAudioConfigSchema>;
 export type AudioMessageCounter = typeof audioMessageCounter.$inferSelect;
+
+// =============================================================================
+// FASE 4 - NOVOS SCHEMAS
+// =============================================================================
+
+// T4.4 - Setores e Roteamento
+export const sectors = pgTable("sectors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  keywords: text("keywords").array().default([]),
+  autoAssignAgentId: varchar("auto_assign_agent_id").references(() => admins.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_sectors_name").on(table.name),
+  index("idx_sectors_auto_assign").on(table.autoAssignAgentId),
+]);
+
+export const sectorMembers = pgTable("sector_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sectorId: varchar("sector_id").notNull().references(() => sectors.id, { onDelete: 'cascade' }),
+  memberId: varchar("member_id").notNull().references(() => teamMembers.id, { onDelete: 'cascade' }),
+  isPrimary: boolean("is_primary").default(false),
+  canReceiveTickets: boolean("can_receive_tickets").default(true),
+  maxOpenTickets: integer("max_open_tickets").default(10),
+  currentOpenTickets: integer("current_open_tickets").default(0),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  assignedBy: varchar("assigned_by"),
+}, (table) => [
+  index("idx_sector_members_sector").on(table.sectorId),
+  index("idx_sector_members_member").on(table.memberId),
+  uniqueIndex("idx_sector_members_unique").on(table.sectorId, table.memberId),
+]);
+
+export const routingLogs = pgTable("routing_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+  messageText: text("message_text"),
+  detectedIntent: varchar("detected_intent", { length: 100 }),
+  matchedSectorId: varchar("matched_sector_id").references(() => sectors.id, { onDelete: 'set null' }),
+  confidenceScore: decimal("confidence_score", { precision: 3, scale: 2 }),
+  assignedToMemberId: varchar("assigned_to_member_id").references(() => teamMembers.id, { onDelete: 'set null' }),
+  routingMethod: varchar("routing_method", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_routing_logs_conversation").on(table.conversationId),
+  index("idx_routing_logs_created").on(table.createdAt),
+  index("idx_routing_logs_sector").on(table.matchedSectorId),
+]);
+
+export const saasOwnerReports = pgTable("saas_owner_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reportType: varchar("report_type", { length: 50 }).notNull(),
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  generatedAt: timestamp("generated_at").defaultNow(),
+  generatedBy: varchar("generated_by"),
+  data: jsonb("data").default({}),
+  totalConversations: integer("total_conversations").default(0),
+  totalMessages: integer("total_messages").default(0),
+  avgResponseTimeMinutes: integer("avg_response_time_minutes"),
+  satisfactionScore: decimal("satisfaction_score", { precision: 3, scale: 2 }),
+  filters: jsonb("filters").default({}),
+}, (table) => [
+  index("idx_saas_reports_type").on(table.reportType),
+  index("idx_saas_reports_period").on(table.periodStart, table.periodEnd),
+  index("idx_saas_reports_generated").on(table.generatedAt),
+]);
+
+// T4.2 - Ticket Closure System
+export const ticketClosureLogs = pgTable("ticket_closure_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+  action: varchar("action", { length: 50 }).notNull(), // 'closed', 'reopened'
+  performedBy: varchar("performed_by").notNull(),
+  performedByName: varchar("performed_by_name", { length: 255 }),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_ticket_closure_conversation").on(table.conversationId),
+  index("idx_ticket_closure_created").on(table.createdAt),
+]);
+
+// T4.1 - Bulk Actions Log
+export const bulkActionsLog = pgTable("bulk_actions_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  actionType: varchar("action_type", { length: 50 }).notNull(),
+  performedBy: varchar("performed_by").notNull(),
+  performedByName: varchar("performed_by_name", { length: 255 }),
+  affectedConversations: integer("affected_conversations").default(0),
+  conversationIds: text("conversation_ids").array(),
+  details: jsonb("details").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_bulk_actions_created").on(table.createdAt),
+  index("idx_bulk_actions_type").on(table.actionType),
+]);
+
+// T4.3 - Scheduled Messages
+export const scheduledMessages = pgTable("scheduled_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+  connectionId: varchar("connection_id").notNull().references(() => whatsappConnections.id, { onDelete: 'cascade' }),
+  messageText: text("message_text").notNull(),
+  messageType: varchar("message_type", { length: 50 }).default("text"),
+  aiPrompt: text("ai_prompt"),
+  aiGeneratedText: text("ai_generated_text"),
+  wasEdited: boolean("was_edited").default(false),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  timezone: varchar("timezone", { length: 50 }).default("America/Sao_Paulo"),
+  status: varchar("status", { length: 50 }).default("pending"),
+  sentAt: timestamp("sent_at"),
+  errorMessage: text("error_message"),
+  createdBy: varchar("created_by").notNull(),
+  createdByName: varchar("created_by_name", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_scheduled_conversation").on(table.conversationId),
+  index("idx_scheduled_status").on(table.status),
+  index("idx_scheduled_at").on(table.scheduledAt),
+  index("idx_scheduled_pending").on(table.status, table.scheduledAt),
+]);
+
+// T4.5 - Multi-WhatsApp Support
+export const connectionAgents = pgTable("connection_agents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  connectionId: varchar("connection_id").notNull().references(() => whatsappConnections.id, { onDelete: 'cascade' }),
+  agentId: varchar("agent_id").notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  isActive: boolean("is_active").default(true),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  assignedBy: varchar("assigned_by"),
+}, (table) => [
+  index("idx_conn_agents_connection").on(table.connectionId),
+  index("idx_conn_agents_agent").on(table.agentId),
+  uniqueIndex("idx_conn_agents_unique").on(table.connectionId, table.agentId),
+]);
+
+export const connectionMembers = pgTable("connection_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  connectionId: varchar("connection_id").notNull().references(() => whatsappConnections.id, { onDelete: 'cascade' }),
+  memberId: varchar("member_id").notNull().references(() => teamMembers.id, { onDelete: 'cascade' }),
+  canView: boolean("can_view").default(true),
+  canRespond: boolean("can_respond").default(true),
+  canManage: boolean("can_manage").default(false),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+}, (table) => [
+  index("idx_conn_members_connection").on(table.connectionId),
+  index("idx_conn_members_member").on(table.memberId),
+  uniqueIndex("idx_conn_members_unique").on(table.connectionId, table.memberId),
+]);
+
+// Relations for Fase 4 tables
+export const sectorsRelations = relations(sectors, ({ many }) => ({
+  members: many(sectorMembers),
+  routingLogs: many(routingLogs),
+}));
+
+export const sectorMembersRelations = relations(sectorMembers, ({ one }) => ({
+  sector: one(sectors, { fields: [sectorMembers.sectorId], references: [sectors.id] }),
+  member: one(teamMembers, { fields: [sectorMembers.memberId], references: [teamMembers.id] }),
+}));
+
+export const routingLogsRelations = relations(routingLogs, ({ one }) => ({
+  conversation: one(conversations, { fields: [routingLogs.conversationId], references: [conversations.id] }),
+  sector: one(sectors, { fields: [routingLogs.matchedSectorId], references: [sectors.id] }),
+  assignedMember: one(teamMembers, { fields: [routingLogs.assignedToMemberId], references: [teamMembers.id] }),
+}));
+
+export const scheduledMessagesRelations = relations(scheduledMessages, ({ one }) => ({
+  conversation: one(conversations, { fields: [scheduledMessages.conversationId], references: [conversations.id] }),
+  connection: one(whatsappConnections, { fields: [scheduledMessages.connectionId], references: [whatsappConnections.id] }),
+}));
+
+// Zod Schemas for Fase 4
+export const insertSectorSchema = createInsertSchema(sectors).omit({
+  id: true, createdAt: true, updatedAt: true,
+});
+
+export const insertSectorMemberSchema = createInsertSchema(sectorMembers).omit({
+  id: true, assignedAt: true,
+});
+
+export const insertScheduledMessageSchema = createInsertSchema(scheduledMessages).omit({
+  id: true, createdAt: true, updatedAt: true, sentAt: true, errorMessage: true,
+});
+
+export const scheduledMessageSchema = z.object({
+  conversationId: z.string(),
+  messageText: z.string().min(1, "Mensagem é obrigatória"),
+  messageType: z.enum(["text", "ai_generated", "template"]).default("text"),
+  aiPrompt: z.string().optional(),
+  scheduledAt: z.date().or(z.string()),
+  timezone: z.string().default("America/Sao_Paulo"),
+});
+
+// Types for Fase 4
+export type Sector = typeof sectors.$inferSelect;
+export type InsertSector = z.infer<typeof insertSectorSchema>;
+
+export type SectorMember = typeof sectorMembers.$inferSelect;
+export type InsertSectorMember = z.infer<typeof insertSectorMemberSchema>;
+
+export type RoutingLog = typeof routingLogs.$inferSelect;
+
+export type SaasOwnerReport = typeof saasOwnerReports.$inferSelect;
+
+export type TicketClosureLog = typeof ticketClosureLogs.$inferSelect;
+
+export type BulkActionLog = typeof bulkActionsLog.$inferSelect;
+
+export type ScheduledMessage = typeof scheduledMessages.$inferSelect;
+export type InsertScheduledMessage = z.infer<typeof insertScheduledMessageSchema>;
+export type ScheduledMessageInput = z.infer<typeof scheduledMessageSchema>;
+
+export type ConnectionAgent = typeof connectionAgents.$inferSelect;
+export type ConnectionMember = typeof connectionMembers.$inferSelect;

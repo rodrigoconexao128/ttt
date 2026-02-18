@@ -6607,6 +6607,27 @@ export async function disconnectWhatsApp(userId: string): Promise<void> {
   broadcastToUser(userId, { type: "disconnected" });
 }
 
+// ?? Map para rastrear conex�es em andamento do ADMIN (evita m�ltiplas tentativas simult�neas)
+const pendingAdminConnections = new Map<string, Promise<void>>();
+
+// ?? Map para rastrear tentativas de reconex�o do ADMIN (evita loops infinitos)
+interface AdminReconnectAttempt {
+  count: number;
+  lastAttempt: number;
+}
+const adminReconnectAttempts = new Map<string, AdminReconnectAttempt>();
+const MAX_ADMIN_RECONNECT_ATTEMPTS = 5;
+const ADMIN_RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconex�o
+
+// ?? Map para rastrear auto-retry ap�s logout do ADMIN
+interface AdminLogoutAutoRetry {
+  count: number;
+  lastAttempt: number;
+}
+const adminLogoutAutoRetry = new Map<string, AdminLogoutAutoRetry>();
+const ADMIN_LOGOUT_AUTO_RETRY_COOLDOWN_MS = 60000; // 60 segundos
+const MAX_ADMIN_LOGOUT_AUTO_RETRY = 1; // Apenas 1 tentativa autom�tica
+
 export function getSession(userId: string): WhatsAppSession | undefined {
   return sessions.get(userId);
 }
@@ -6616,21 +6637,59 @@ export function getAdminSession(adminId: string): AdminWhatsAppSession | undefin
 }
 
 export async function connectAdminWhatsApp(adminId: string): Promise<void> {
-  // ??? MODO DESENVOLVIMENTO: Bloquear conex�es para evitar conflito com produ��o
+  // 🛡️ MODO DESENVOLVIMENTO: Bloquear conexões para evitar conflito com produção
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log(`\n?? [DEV MODE] Conex�o Admin WhatsApp bloqueada para admin ${adminId}`);
-    console.log(`   ?? SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
-    console.log(`   ?? Sess�es do WhatsApp em produ��o n�o ser�o afetadas\n`);
-    throw new Error('WhatsApp Admin desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sess�es em produ��o.');
+    console.log(`\n🛡️ [DEV MODE] Conexão Admin WhatsApp bloqueada para admin ${adminId}`);
+    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
+    throw new Error('WhatsApp Admin desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
   }
+
+  // 🔒 Verificar se já existe uma conexão em andamento
+  const existingPendingConnection = pendingAdminConnections.get(adminId);
+  if (existingPendingConnection) {
+    console.log(`[ADMIN CONNECT] Connection already in progress for admin ${adminId}, waiting...`);
+    return existingPendingConnection;
+  }
+
+  // 🔄 Resetar contador de tentativas quando admin inicia conexão manualmente
+  adminReconnectAttempts.delete(adminId);
+
+  // 🔒 CRÍTICO: Criar e registrar a promise IMEDIATAMENTE para evitar race conditions
+  let resolveConnection: () => void;
+  let rejectConnection: (error: Error) => void;
   
-  try {
-    // Verificar se j� existe uma sess�o ativa
-    const existingSession = adminSessions.get(adminId);
-    if (existingSession?.socket) {
-      console.log(`Admin ${adminId} already has an active session, using existing one`);
-      return;
-    }
+  const connectionPromise = new Promise<void>((resolve, reject) => {
+    resolveConnection = resolve;
+    rejectConnection = reject;
+  });
+  
+  // Registrar ANTES de qualquer operação async
+  pendingAdminConnections.set(adminId, connectionPromise);
+  console.log(`[ADMIN CONNECT] Registered pending connection for admin ${adminId}`);
+
+  // Executar a lógica de conexão
+  (async () => {
+    try {
+      // Verificar se já existe uma sessão ativa
+      const existingSession = adminSessions.get(adminId);
+      if (existingSession?.socket) {
+        // Verificar se o socket está realmente conectado
+        const isSocketConnected = existingSession.socket.user !== undefined;
+        if (isSocketConnected) {
+          console.log(`[ADMIN CONNECT] Admin ${adminId} already has an active connected session`);
+          return;
+        } else {
+          // Sessão existe mas não está conectada - limpar e recriar
+          console.log(`[ADMIN CONNECT] Admin ${adminId} has stale session, cleaning up...`);
+          try {
+            existingSession.socket.end(undefined);
+          } catch (e) {
+            console.log(`[ADMIN CONNECT] Error closing stale socket:`, e);
+          }
+          adminSessions.delete(adminId);
+        }
+      }
 
     let connection = await storage.getAdminWhatsappConnection(adminId);
 
@@ -7477,16 +7536,21 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
 
       // Estado "connecting" - quando o QR Code foi escaneado e está conectando
       if (connStatus === "connecting") {
-        console.log(`Admin ${adminId} is connecting...`);
+        console.log(`[ADMIN] Admin ${adminId} is connecting...`);
         broadcastToAdmin(adminId, { type: "connecting" });
       }
 
       if (connStatus === "open") {
+        // ✅ CONSISTÊNCIA: Resetar tentativas quando conecta
         const phoneNumber = socket.user?.id.split(":")[0];
-        console.log(`? [ADMIN] WhatsApp conectado: ${phoneNumber}`);
+        console.log(`✅ [ADMIN] WhatsApp conectado: ${phoneNumber}`);
         
-        // For�ar presen�a dispon�vel para receber updates de outros usu�rios
-        socket.sendPresenceUpdate('available').catch(err => console.error("Erro ao enviar presen�a:", err));
+        // Forçar presença disponível
+        socket.sendPresenceUpdate('available').catch(err => console.error("[ADMIN] Erro ao enviar presença:", err));
+        
+        // Resetar tentativas de reconexão e limpar pendentes
+        adminReconnectAttempts.delete(adminId);
+        pendingAdminConnections.delete(adminId);
         
         await storage.updateAdminWhatsappConnection(adminId, {
           isConnected: true,
@@ -7503,10 +7567,20 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       }
 
       if (connStatus === "close") {
-        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode; const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        const errorMessage = (lastDisconnect?.error as any)?.message;
+
+        // 🛡️ GUARD CONTRA SOCKET STALE
+        const currentSession = adminSessions.get(adminId);
+        if (currentSession?.socket !== socket) {
+          console.log(`[ADMIN CONNECTION CLOSE] 🛡️ STALE SOCKET IGNORED - Admin ${adminId.substring(0, 8)}...`);
+          return;
+        }
 
         // Sempre deletar a sessão primeiro
         adminSessions.delete(adminId);
+        pendingAdminConnections.delete(adminId);
 
         // Atualizar banco de dados
         await storage.updateAdminWhatsappConnection(adminId, {
@@ -7514,20 +7588,63 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           qrCode: null,
         });
         
-        console.log(`[ADMIN DISCONNECT] Admin ${adminId} disconnected. StatusCode: ${statusCode}, Reason: ${lastDisconnect?.error}`);
+        console.log(`[ADMIN DISCONNECT] Admin ${adminId} disconnected. StatusCode: ${statusCode}`);
+
+        // Verificar limite de tentativas de reconexão
+        const now = Date.now();
+        let attempt = adminReconnectAttempts.get(adminId) || { count: 0, lastAttempt: 0 };
+        
+        // Se passou mais de 30 segundos desde o último ciclo, resetar contador
+        if (now - attempt.lastAttempt > ADMIN_RECONNECT_COOLDOWN_MS) {
+          attempt = { count: 0, lastAttempt: now };
+        }
 
         if (shouldReconnect) {
-          if (statusCode !== 428 && statusCode !== 401) { console.log(`Admin ${adminId} WhatsApp disconnected (code: ${statusCode}), reconnecting...`); }
-          broadcastToAdmin(adminId, { type: "disconnected" });
-          setTimeout(() => connectAdminWhatsApp(adminId), 5000);
+          attempt.count++;
+          attempt.lastAttempt = now;
+          adminReconnectAttempts.set(adminId, attempt);
+
+          if (attempt.count <= MAX_ADMIN_RECONNECT_ATTEMPTS) {
+            console.log(`[ADMIN] Reconnecting in 5s... (attempt ${attempt.count}/${MAX_ADMIN_RECONNECT_ATTEMPTS})`);
+            if (attempt.count === 1) {
+              broadcastToAdmin(adminId, { type: "disconnected" });
+            }
+            setTimeout(() => connectAdminWhatsApp(adminId), 5000);
+          } else {
+            console.log(`[ADMIN] Max reconnect attempts reached. Waiting for admin action.`);
+            broadcastToAdmin(adminId, { type: "disconnected", reason: "max_attempts" });
+            adminReconnectAttempts.delete(adminId);
+            await storage.updateAdminWhatsappConnection(adminId, { qrCode: null });
+          }
         } else {
-          // Foi logout (desconectado pelo celular), limpar TUDO
-          console.log(`Admin ${adminId} logged out from device (Code ${statusCode}), clearing all auth files...`);
+          // Foi logout
+          console.log(`[ADMIN] Admin logged out, clearing auth files...`);
           
           const adminAuthPath = path.join(SESSIONS_BASE, `auth_admin_${adminId}`);
           await clearAuthFiles(adminAuthPath);
 
           broadcastToAdmin(adminId, { type: "disconnected", reason: "logout" });
+          adminReconnectAttempts.delete(adminId);
+
+          // 🔄 AUTO-RETRY APÓS LOGOUT
+          const hasLiveClient = adminWsClients.has(adminId);
+          const retryState = adminLogoutAutoRetry.get(adminId) || { count: 0, lastAttempt: 0 };
+
+          if (now - retryState.lastAttempt > ADMIN_LOGOUT_AUTO_RETRY_COOLDOWN_MS) {
+            retryState.count = 0;
+          }
+
+          if (hasLiveClient && retryState.count < MAX_ADMIN_LOGOUT_AUTO_RETRY) {
+            retryState.count++;
+            retryState.lastAttempt = now;
+            adminLogoutAutoRetry.set(adminId, retryState);
+            console.log(`[ADMIN LOGOUT AUTO-RETRY] Starting auto-retry...`);
+            setTimeout(() => connectAdminWhatsApp(adminId).catch(console.error), 750);
+          } else {
+            if (retryState.count >= MAX_ADMIN_LOGOUT_AUTO_RETRY) {
+              adminLogoutAutoRetry.delete(adminId);
+            }
+          }
         }
       }
     });
@@ -7535,6 +7652,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     console.error(`Error connecting admin ${adminId} WhatsApp:`, error);
     throw error;
   }
+})(); // Fechar a IIFE
 }
 
 export async function disconnectAdminWhatsApp(adminId: string): Promise<void> {

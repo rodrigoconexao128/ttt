@@ -29,12 +29,14 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, UserMinus, Receipt, XCircle, FileImage, TicketCheck, BarChart3, Layers } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, UserMinus, Receipt, XCircle, FileImage, TicketCheck, BarChart3, Layers, Link2 } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminNotificationsPanel from "@/components/admin-notifications-panel";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
+import AdminStatusPanel from "@/components/admin-status-panel";
 import AdminConversations from "@/components/admin-conversations";
 import FollowUpCalendar from "@/components/follow-up-calendar";
+import AdminFollowUpPanel from "@/components/admin-followup-panel";
 import { UserAgentConfigDialog } from "@/components/user-agent-config-dialog";
 import SuspendedUsersManager from "@/components/suspended-users-manager";
 import AdminTicketsPanel from "@/components/admin-tickets-panel";
@@ -288,6 +290,8 @@ export default function AdminPanel() {
             <AdminNotificationsPanel />
           </div>
         );
+      case "status":
+        return <AdminStatusPanel />;
       case "conversations":
         return null; // Renderizado fora do container
       case "calendar":
@@ -304,6 +308,8 @@ export default function AdminPanel() {
         return <AdminTicketReports />;
       case "config":
         return <ConfigManager config={config} />;
+      case "followup":
+        return <AdminFollowUpPanel />;
       default:
         return null;
     }
@@ -421,6 +427,26 @@ export default function AdminPanel() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
+                    onClick={() => handleTabChange("status")}
+                    isActive={activeTab === "status"}
+                    tooltip="Status WhatsApp"
+                  >
+                    <Repeat className="w-4 h-4" />
+                    <span>Status WhatsApp</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => handleTabChange("followup")}
+                    isActive={activeTab === "followup"}
+                    tooltip="Follow-up Inteligente"
+                  >
+                    <Bell className="w-4 h-4" />
+                    <span>Follow-up</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
                     onClick={() => handleTabChange("agent")}
                     isActive={activeTab === "agent"}
                     tooltip="Agente IA"
@@ -497,6 +523,36 @@ export default function AdminPanel() {
                   >
                     <Layers className="w-4 h-4" />
                     <span>Setores</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setLocation("/admin/connections")}
+                    isActive={location === "/admin/connections"}
+                    tooltip="Conexões e Agentes"
+                  >
+                    <Link2 className="w-4 h-4" />
+                    <span>Conexões</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setLocation("/admin/media-flows")}
+                    isActive={location === "/admin/media-flows"}
+                    tooltip="Media Flows"
+                  >
+                    <FileImage className="w-4 h-4" />
+                    <span>Media Flows</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setLocation("/admin/status")}
+                    isActive={location === "/admin/status"}
+                    tooltip="Status WhatsApp"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Status WhatsApp</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -646,6 +702,26 @@ export default function AdminPanel() {
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>WhatsApp</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("status")}
+                  isActive={activeTab === "status"}
+                  tooltip="Status WhatsApp"
+                >
+                  <Repeat className="w-4 h-4" />
+                  <span>Status WhatsApp</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleTabChange("followup")}
+                  isActive={activeTab === "followup"}
+                  tooltip="Follow-up Inteligente"
+                >
+                  <Bell className="w-4 h-4" />
+                  <span>Follow-up</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

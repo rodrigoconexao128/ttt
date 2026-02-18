@@ -455,7 +455,7 @@ const toolsNavigation: ToolNavItem[] = [
   { label: "📅 Agendamentos", href: "/agendamentos", icon: CalendarClock, tooltip: "Painel de agendamentos", isActive: isSchedulingRoute, testId: "button-nav-scheduling" },
   { label: "Follow-up Inteligente", href: "/followup", icon: Sparkles, tooltip: "Mensagens automáticas para recuperar conversas", isActive: isFollowupRoute, testId: "button-nav-followup" },
   { label: "Lista de Exclusão", href: "/lista-exclusao", icon: Ban, tooltip: "Números que a IA não deve responder", isActive: isExclusionListRoute, testId: "button-nav-exclusion-list" },
-  { label: "Tickets", href: "/tickets", icon: Ticket, tooltip: "Meus Chamados", isActive: isTicketsRoute, testId: "button-nav-tickets" },
+  // Tickets removido de Ferramentas - agora está no menu principal como "Suporte"
   { label: "Falar por Áudio", href: "/falar-por-audio", icon: Mic, tooltip: "Respostas em áudio com TTS", isActive: isAudioConfigRoute, testId: "button-nav-audio-config" },
   { label: "Notificador Inteligente", href: "/notificador", icon: Bell, tooltip: "Notificações automáticas", isActive: isNotifierRoute, testId: "button-nav-notifier" },
   { label: "Biblioteca de Mídias", href: "/biblioteca-midias", icon: Upload, tooltip: "Áudios, imagens e vídeos do agente", isActive: isMediaLibraryRoute, testId: "button-nav-media-library" },
@@ -622,6 +622,21 @@ const toolsNavigation: ToolNavItem[] = [
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
+
+              {/* Suporte - Acesso rápido fora de Ferramentas */}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/support"}
+                  tooltip="Suporte"
+                  data-testid="button-nav-support"
+                >
+                  <Link href="/support">
+                    <Ticket className="w-4 h-4" />
+                    <span>Suporte</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
               {/* Menu de Revenda - visível apenas para revendedores (nunca para membros) */}
               {isReseller && !isMember && (
@@ -1204,7 +1219,7 @@ const toolsNavigation: ToolNavItem[] = [
         </div>
         {/* Mobile bottom navigation */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom)]">
-          <div className={`grid ${isMember ? 'grid-cols-4' : 'grid-cols-5'} text-[10px]`}>
+          <div className={`grid ${isMember ? 'grid-cols-5' : 'grid-cols-6'} text-[10px]`}>
             <button
               className={`flex flex-col items-center py-2.5 gap-0.5 ${isDashboardMode && selectedView === "stats" ? "text-primary font-medium" : "text-muted-foreground"}`}
               onClick={() => goToSection("stats")}
@@ -1236,6 +1251,15 @@ const toolsNavigation: ToolNavItem[] = [
               <span>Agente</span>
             </button>
             )}
+
+            {/* Suporte - Acesso rápido mobile */}
+            <button
+              className={`flex flex-col items-center py-2.5 gap-0.5 ${location === "/support" ? "text-primary font-medium" : "text-muted-foreground"}`}
+              onClick={() => setLocation("/support")}
+            >
+              <Ticket className="w-5 h-5" />
+              <span>Suporte</span>
+            </button>
 
             <button
               className={`flex flex-col items-center py-2.5 gap-0.5 ${isToolsRoute ? "text-primary font-medium" : "text-muted-foreground"}`}

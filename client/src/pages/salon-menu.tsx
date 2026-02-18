@@ -77,7 +77,7 @@ interface SalonConfig {
   salon_type: string;
   phone: string | null;
   address: string | null;
-  opening_hours: Record<string, { enabled: boolean; open: string; close: string }>;
+  opening_hours: Record<string, any>;  // Permitir __break e outros campos dinâmicos
   slot_duration: number;
   buffer_between: number;
   max_advance_days: number;
@@ -230,6 +230,7 @@ export default function SalonMenuPage() {
   // Sincronizar config quando carregar
   useEffect(() => {
     if (config) {
+      console.log('[Salon] Config carregada:', config);
       setConfigForm({
         is_active: config.is_active,
         send_to_ai: config.send_to_ai,
@@ -263,13 +264,50 @@ export default function SalonMenuPage() {
         // Remover __break antes de setar openingHours
         const { __break, ...daysOnly } = config.opening_hours as any;
         setOpeningHours(daysOnly);
-        // Carregar configuração de almoço
-        if (__break) {
-          setBreakTime(__break);
+        // Carregar configuração de almoço do servidor
+        if (__break && typeof __break === 'object') {
+          console.log('[Salon] Carregando horário de almoço:', __break);
+          setBreakTime({
+            enabled: __break.enabled ?? false,
+            start: __break.start || '12:00',
+            end: __break.end || '13:00',
+          });
+        } else {
+          // Reset para padrão se não houver config de almoço
+          console.log('[Salon] Nenhum horário de almoço configurado, usando padrão');
+          setBreakTime({ enabled: false, start: '12:00', end: '13:00' });
         }
+      } else {
+        // Resetar horário de almoço se não houver opening_hours
+        setBreakTime({ enabled: false, start: '12:00', end: '13:00' });
       }
     }
   }, [config]);
+
+  // Sincronizar breakTime com configForm sempre que alterar
+  useEffect(() => {
+    const openingHoursWithBreak = breakTime.enabled
+      ? { ...openingHours, __break: breakTime }
+      : { ...openingHours, __break: { enabled: false, start: '12:00', end: '13:00' } };
+    
+    setConfigForm(prev => {
+      // Só atualiza se for diferente para evitar loops
+      const currentOpeningHours = prev.opening_hours || {};
+      
+      // Comparar se mudou usando JSON.stringify para objetos
+      const currentStr = JSON.stringify(currentOpeningHours);
+      const newStr = JSON.stringify(openingHoursWithBreak);
+      
+      if (currentStr === newStr) {
+        return prev;
+      }
+      
+      return {
+        ...prev,
+        opening_hours: openingHoursWithBreak,
+      };
+    });
+  }, [breakTime, openingHours]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // MUTATIONS
@@ -432,15 +470,18 @@ export default function SalonMenuPage() {
   };
 
   const handleSaveConfig = () => {
-    // Incluir __break no opening_hours
+    // Garantir que estamos usando os estados mais atuais
     const openingHoursWithBreak: any = breakTime.enabled
       ? { ...openingHours, __break: breakTime }
-      : openingHours;
+      : { ...openingHours, __break: { enabled: false, start: '12:00', end: '13:00' } };
 
-    updateConfigMutation.mutate({
+    const updateData = {
       ...configForm,
       opening_hours: openingHoursWithBreak,
-    });
+    };
+    
+    console.log('[Salon] Salvando config:', updateData);
+    updateConfigMutation.mutate(updateData);
   };
 
   const handleDeleteConfirm = () => {

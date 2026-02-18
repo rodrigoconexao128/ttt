@@ -4809,6 +4809,360 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
   }
 
   // ============================================================
+  // FOLLOW-UP PARA NÃO PAGANTES
+  // ============================================================
+
+  /**
+   * Busca configuração de follow-up para não pagantes
+   */
+  async getNotapayerFollowupConfig(): Promise<any | null> {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM followup_configs WHERE id = 1 LIMIT 1
+      `);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error getting notapayer followup config:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Atualiza configuração de follow-up para não pagantes
+   */
+  async updateNotapayerFollowupConfig(data: any): Promise<any> {
+    try {
+      const existing = await this.getNotapayerFollowupConfig();
+
+      if (!existing) {
+        await db.execute(sql`
+          INSERT INTO followup_configs (
+            id, is_enabled, active_days, max_attempts,
+            message_template, tone, use_emojis, active_days_start, active_days_end
+          ) VALUES (
+            1, ${data.isEnabled ?? false}, ${data.activeDays ?? 3}, ${data.maxAttempts ?? 3},
+            ${data.messageTemplate ?? 'Olá! Seu plano expirou. Quer renovar?'}, ${data.tone ?? 'friendly'},
+            ${data.useEmojis ?? true}, ${data.activeDaysStart ?? 1}, ${data.activeDaysEnd ?? 7}
+          )
+        `);
+        return data;
+      }
+
+      await db.execute(sql`
+        UPDATE followup_configs SET
+          is_enabled = ${data.isEnabled ?? existing.is_enabled},
+          active_days = ${data.activeDays ?? existing.active_days},
+          max_attempts = ${data.maxAttempts ?? existing.max_attempts},
+          message_template = ${data.messageTemplate ?? existing.message_template},
+          tone = ${data.tone ?? existing.tone},
+          use_emojis = ${data.useEmojis ?? existing.use_emojis},
+          active_days_start = ${data.activeDaysStart ?? existing.active_days_start},
+          active_days_end = ${data.activeDaysEnd ?? existing.active_days_end},
+          updated_at = NOW()
+        WHERE id = 1
+      `);
+
+      return data;
+    } catch (error) {
+      console.error('Error updating notapayer followup config:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca tentativas de follow-up para um usuário
+   */
+  async getNotapayerFollowupAttempts(userId: string): Promise<any[]> {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM followup_attempts
+        WHERE user_id = ${userId}
+        ORDER BY sent_at DESC
+        LIMIT 20
+      `);
+      return result.rows || [];
+    } catch (error) {
+      console.error('Error getting notapayer followup attempts:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Busca histórico completo de follow-ups
+   */
+  async getNotapayerFollowupHistory(limit: number = 100): Promise<any[]> {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM followup_attempts
+        ORDER BY sent_at DESC
+        LIMIT ${limit}
+      `);
+      return result.rows || [];
+    } catch (error) {
+      console.error('Error getting notapayer followup history:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Cria registro de tentativa de follow-up
+   */
+  async createNotapayerFollowupAttempt(data: {
+    userId: string;
+    subscriptionId: number;
+    message: string;
+    sentAt: Date;
+    status: string;
+  }): Promise<void> {
+    try {
+      await db.execute(sql`
+        INSERT INTO followup_attempts (user_id, subscription_id, message, sent_at, status)
+        VALUES (${data.userId}, ${data.subscriptionId}, ${data.message}, ${data.sentAt.toISOString()}, ${data.status})
+      `);
+    } catch (error) {
+      console.error('Error creating notapayer followup attempt:', error);
+    }
+  }
+
+  /**
+   * Lista não pagantes elegíveis para follow-up
+   */
+  async getNotapayerFollowupList(config: any): Promise<any[]> {
+    try {
+      const now = new Date();
+      const activeDaysStart = config.active_days_start || 1;
+      const activeDaysEnd = config.active_days_end || 7;
+
+      // Buscar assinaturas inativas ou expiradas
+      const result = await db.execute(sql`
+        SELECT
+          s.id as subscription_id,
+          s.user_id,
+          u.name as user_name,
+          u.email as user_email,
+          u.whatsapp_number as phone,
+          p.name as plan_name,
+          p.price as plan_price,
+          s.expires_at as expires_at,
+          s.cancelled_at as cancelled_at
+        FROM subscriptions s
+        JOIN users u ON u.id = s.user_id
+        JOIN plans p ON p.id = s.plan_id
+        WHERE s.cancelled_at IS NULL
+          AND s.expires_at <= ${now}
+          AND s.status = 'expired'
+        ORDER BY s.expires_at DESC
+      `);
+
+      const subscriptions = result.rows || [];
+
+      // Filtrar apenas assinaturas dentro do período de follow-up
+      const eligible = subscriptions.filter(sub => {
+        const daysSinceExpiry = Math.floor(
+          (now.getTime() - new Date(sub.expires_at).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        return daysSinceExpiry >= activeDaysStart && daysSinceExpiry <= activeDaysEnd;
+      });
+
+      // Adicionar contagem de tentativas
+      return await Promise.all(
+        eligible.map(async (sub: any) => {
+          const attempts = await this.getNotapayerFollowupAttempts(sub.user_id);
+          return {
+            ...sub,
+            daysSinceExpiry: Math.floor(
+              (now.getTime() - new Date(sub.expires_at).getTime()) / (1000 * 60 * 60 * 24)
+            ),
+            attempts: attempts.length,
+            lastAttempt: attempts[0],
+          };
+        })
+      );
+    } catch (error) {
+      console.error('Error getting notapayer followup list:', error);
+      return [];
+    }
+  }
+
+  // ============================================================
+  // FOLLOW-UP CONFIGURATION (GLOBAL)
+  // ============================================================
+
+  /**
+   * Get global follow-up configuration
+   * GET /api/followup/config
+   */
+  async getFollowupConfig(): Promise<any | null> {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM followup_configs WHERE id = 'global'
+      `);
+      if (result.rows && result.rows.length > 0) {
+        return result.rows[0];
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting followup config:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update global follow-up configuration
+   * PUT /api/followup/config
+   */
+  async updateFollowupConfig(data: {
+    isEnabled: boolean;
+    maxAttempts?: number;
+    intervalsMinutes?: number[];
+    infiniteLoop?: boolean;
+    infiniteLoopMinDays?: number;
+    infiniteLoopMaxDays?: number;
+    respectBusinessHours?: boolean;
+    businessHoursStart?: string;
+    businessHoursEnd?: string;
+    businessDays?: number[];
+    useEmojis?: boolean;
+    tone?: string;
+  }): Promise<any> {
+    try {
+      const existing = await this.getFollowupConfig();
+
+      if (!existing) {
+        // Create new config
+        await db.execute(sql`
+          INSERT INTO followup_configs (
+            id, is_enabled, max_attempts, intervals_minutes,
+            infinite_loop, infinite_loop_min_days, infinite_loop_max_days,
+            respect_business_hours, business_hours_start, business_hours_end,
+            business_days, use_emojis, tone
+          ) VALUES (
+            'global', ${data.isEnabled ?? true}, ${data.maxAttempts ?? 8},
+            ${JSON.stringify(data.intervalsMinutes ?? [10, 30, 180, 1440])},
+            ${data.infiniteLoop ?? true}, ${data.infiniteLoopMinDays ?? 15}, ${data.infiniteLoopMaxDays ?? 30},
+            ${data.respectBusinessHours ?? true}, ${data.businessHoursStart ?? '09:00'}, ${data.businessHoursEnd ?? '18:00'},
+            ${JSON.stringify(data.businessDays ?? [1, 2, 3, 4, 5])},
+            ${data.useEmojis ?? true}, ${data.tone ?? 'friendly'}
+          )
+        `);
+        return data;
+      }
+
+      // Update existing config
+      await db.execute(sql`
+        UPDATE followup_configs SET
+          is_enabled = ${data.isEnabled ?? existing.is_enabled},
+          max_attempts = ${data.maxAttempts ?? existing.max_attempts},
+          intervals_minutes = ${JSON.stringify(data.intervalsMinutes ?? existing.intervals_minutes)},
+          infinite_loop = ${data.infiniteLoop ?? existing.infinite_loop},
+          infinite_loop_min_days = ${data.infiniteLoopMinDays ?? existing.infinite_loop_min_days},
+          infinite_loop_max_days = ${data.infiniteLoopMaxDays ?? existing.infinite_loop_max_days},
+          respect_business_hours = ${data.respectBusinessHours ?? existing.respect_business_hours},
+          business_hours_start = ${data.businessHoursStart ?? existing.business_hours_start},
+          business_hours_end = ${data.businessHoursEnd ?? existing.business_hours_end},
+          business_days = ${JSON.stringify(data.businessDays ?? existing.business_days)},
+          use_emojis = ${data.useEmojis ?? existing.use_emojis},
+          tone = ${data.tone ?? existing.tone},
+          updated_at = NOW()
+        WHERE id = 'global'
+      `);
+
+      return data;
+    } catch (error) {
+      console.error('Error updating followup config:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get follow-up history logs
+   * GET /api/followup/logs
+   */
+  async getFollowupLogs(limit: number = 100): Promise<any[]> {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM followup_logs
+        ORDER BY executed_at DESC
+        LIMIT ${limit}
+      `);
+      return result.rows || [];
+    } catch (error) {
+      console.error('Error getting followup logs:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get follow-up pending events
+   * GET /api/followup/pending
+   */
+  async getFollowupPendingEvents(): Promise<any[]> {
+    try {
+      const result = await db.execute(sql`
+        SELECT
+          a.id,
+          a.contact_number,
+          a.contact_name,
+          a.followup_stage,
+          a.next_followup_at,
+          a.followup_active
+        FROM admin_conversations a
+        WHERE a.followup_active = true
+          AND a.next_followup_at <= NOW()
+        ORDER BY a.next_followup_at ASC
+        LIMIT 50
+      `);
+      return result.rows || [];
+    } catch (error) {
+      console.error('Error getting followup pending events:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get follow-up statistics
+   * GET /api/followup/stats
+   */
+  async getFollowupStats(): Promise<any> {
+    try {
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const result = await db.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE status = 'sent') as total_sent,
+          COUNT(*) FILTER (WHERE status = 'failed') as total_failed,
+          COUNT(*) FILTER (WHERE status = 'cancelled') as total_cancelled,
+          COUNT(*) FILTER (WHERE status = 'skipped') as total_skipped,
+          COUNT(*) FILTER (WHERE status = 'pending') as pending,
+          COUNT(*) FILTER (WHERE DATE(executed_at) = CURRENT_DATE) as scheduled_today
+        FROM followup_logs
+        WHERE executed_at >= ${oneDayAgo.toISOString()}
+      `);
+
+      const row = result.rows[0] as any;
+      return {
+        totalSent: row.total_sent || 0,
+        totalFailed: row.total_failed || 0,
+        totalCancelled: row.total_cancelled || 0,
+        totalSkipped: row.total_skipped || 0,
+        pending: row.pending || 0,
+        scheduledToday: row.scheduled_today || 0,
+      };
+    } catch (error) {
+      console.error('Error getting followup stats:', error);
+      return {
+        totalSent: 0,
+        totalFailed: 0,
+        totalCancelled: 0,
+        totalSkipped: 0,
+        pending: 0,
+        scheduledToday: 0,
+      };
+    }
+  }
+
+  // ============================================================
   // PENDING AI RESPONSES - Persistent Timers
   // ============================================================
   

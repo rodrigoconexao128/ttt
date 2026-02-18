@@ -21,6 +21,8 @@ import AdminConnectionsPage from "@/pages/admin-connections";
 import AdminMediaFlowsPage from "@/pages/admin-media-flows";
 import AdminChatSimulator from "@/pages/admin-chat-simulator";
 import AdminSimulator from "@/pages/AdminSimulator";
+import AdminStatusPanel from "@/pages/admin-status-panel";
+import Support from "@/pages/support";
 import LoadingScreen from "@/components/LoadingScreen";
 import TestTTS from "@/pages/TestTTS";
 import Subscribe from "@/pages/subscribe";
@@ -120,6 +122,7 @@ function Router() {
       <Route path="/admin/sectors" component={() => <RequireAdmin component={AdminSectorsPage} />} />
       <Route path="/admin/connections" component={() => <RequireAdmin component={AdminConnectionsPage} />} />
       <Route path="/admin/media-flows" component={() => <RequireAdmin component={AdminMediaFlowsPage} />} />
+      <Route path="/admin/status" component={() => <RequireAdmin component={AdminStatusPanel} />} />
       <Route path="/admin" component={() => <RequireAdmin component={AdminPanel} />} />
       <Route path="/login" component={Login} />
       <Route path="/membro-login" component={MemberLogin} />
@@ -169,6 +172,7 @@ function Router() {
       <Route path="/salon-agendamentos" component={Dashboard} />
       <Route path="/falar-por-audio" component={Dashboard} />
       <Route path="/construtor-fluxo" component={Dashboard} />
+      <Route path="/support" component={Support} />
       {/* Rotas de Tickets */}
       <Route path="/tickets/new" component={() => <RequireAuth component={Dashboard} />} />
       <Route path="/tickets/:id" component={() => <RequireAuth component={Dashboard} />} />

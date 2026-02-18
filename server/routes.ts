@@ -15,6 +15,7 @@ import { followUpService } from "./followUpService";
 import { userFollowUpService } from "./userFollowUpService";
 
 import { registerFollowUpRoutes } from "./routes_user_followup";
+import { registerAdminFollowUpRoutes } from "./routes_admin_followup";
 
 import { registerAudioConfigRoutes } from "./routes_audio_config";
 
@@ -23,6 +24,7 @@ import { registerChatbotFlowRoutes } from "./routes_chatbot_flow";
 import { registerSalonRoutes } from "./routes_salon";
 import { registerTicketRoutes } from "./tickets/tickets.routes";
 import { registerSectorRoutes } from "./sectors/sectors.routes";
+import adminStatusRoutes from "./routes/admin-status.routes";
 
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 
@@ -914,6 +916,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== FOLLOW-UP INTELIGENTE ROUTES ====================
 
   registerFollowUpRoutes(app);
+  registerAdminFollowUpRoutes(app);
 
   
 
@@ -945,6 +948,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     registerSectorRoutes(app);
   } catch (e) {
     console.error("❌ [DEBUG] Error calling registerSectorRoutes:", e);
+  }
+
+  // ==================== ADMIN STATUS/WHATSAPP STATUS ROUTES ====================
+  try {
+    app.use("/api", adminStatusRoutes);
+    console.log("✅ [STATUS] Admin status routes registered successfully");
+  } catch (e) {
+    console.error("❌ [STATUS] Error registering admin status routes:", e);
   }
 
 
@@ -11612,6 +11623,21 @@ ${config.ai_instructions || ''}
         }
       }
 
+      // Verificar/criar bucket se necessário
+      const { data: bucketData, error: bucketError } = await supabase.storage.getBucket('payment-receipts');
+      if (bucketError && bucketError.message?.includes('not found')) {
+        console.log('[PAYMENT] Criando bucket payment-receipts...');
+        const { error: createError } = await supabase.storage.createBucket('payment-receipts', {
+          public: true,
+          fileSizeLimit: 50 * 1024 * 1024, // 50MB
+        });
+        if (createError) {
+          console.error('[PAYMENT] Erro ao criar bucket:', createError);
+        } else {
+          console.log('[PAYMENT] Bucket criado com sucesso');
+        }
+      }
+
       // Upload do arquivo para Supabase Storage
       const safeOriginalName = file.originalname.replace(/[^\w.\-]+/g, "_");
       const fileName = `receipts/${userId}/${Date.now()}_${safeOriginalName}`;
@@ -11624,7 +11650,7 @@ ${config.ai_instructions || ''}
 
       if (uploadError) {
         console.error("Error uploading receipt:", uploadError);
-        return res.status(500).json({ message: "Erro ao fazer upload do comprovante" });
+        return res.status(500).json({ message: "Erro ao fazer upload do comprovante", error: uploadError.message });
       }
 
       // Obter URL pública do arquivo
@@ -11684,34 +11710,85 @@ ${config.ai_instructions || ''}
       const pageNum = parseInt(page as string);
       const limitNum = parseInt(limit as string);
 
-      let query = supabase
+      // Buscar comprovantes sem joins primeiro
+      let receiptsQuery = supabase
         .from("payment_receipts")
-        .select(`
-          *,
-          users:user_id (id, email, name),
-          plans:plan_id (id, nome, valor)
-        `, { count: "exact" })
+        .select("*", { count: "exact" })
         .order("created_at", { ascending: false });
 
       if (status && status !== "all") {
-        query = query.eq("status", status);
+        receiptsQuery = receiptsQuery.eq("status", status);
       }
 
-      query = query.range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
+      receiptsQuery = receiptsQuery.range((pageNum - 1) * limitNum, pageNum * limitNum - 1);
 
-      const { data, error, count } = await query;
+      const { data: receipts, error: receiptsError, count } = await receiptsQuery;
 
-      if (error) throw error;
+      if (receiptsError) {
+        console.error("[ADMIN] Erro ao buscar comprovantes:", receiptsError);
+        throw receiptsError;
+      }
+
+      // Se não houver comprovantes, retornar vazio
+      if (!receipts || receipts.length === 0) {
+        return res.json({
+          receipts: [],
+          total: 0,
+          page: pageNum,
+          totalPages: 0
+        });
+      }
+
+      // Buscar usuários e planos relacionados separadamente
+      const userIds = [...new Set(receipts.map(r => r.user_id).filter(Boolean))];
+      const planIds = [...new Set(receipts.map(r => r.plan_id).filter(Boolean))];
+
+      // Buscar usuários
+      let usersMap = {};
+      if (userIds.length > 0) {
+        const { data: users, error: usersError } = await supabase
+          .from("users")
+          .select("id, email, name")
+          .in("id", userIds);
+        
+        if (usersError) {
+          console.error("[ADMIN] Erro ao buscar usuários:", usersError);
+        } else if (users) {
+          usersMap = users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {});
+        }
+      }
+
+      // Buscar planos
+      let plansMap = {};
+      if (planIds.length > 0) {
+        const { data: plans, error: plansError } = await supabase
+          .from("plans")
+          .select("id, nome, valor")
+          .in("id", planIds);
+        
+        if (plansError) {
+          console.error("[ADMIN] Erro ao buscar planos:", plansError);
+        } else if (plans) {
+          plansMap = plans.reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
+        }
+      }
+
+      // Combinar dados
+      const enrichedReceipts = receipts.map(receipt => ({
+        ...receipt,
+        users: usersMap[receipt.user_id] || null,
+        plans: plansMap[receipt.plan_id] || null
+      }));
 
       res.json({
-        receipts: data || [],
+        receipts: enrichedReceipts,
         total: count || 0,
         page: pageNum,
         totalPages: Math.ceil((count || 0) / limitNum)
       });
     } catch (error) {
       console.error("Error fetching receipts:", error);
-      res.status(500).json({ message: "Erro ao buscar comprovantes" });
+      res.status(500).json({ message: "Erro ao buscar comprovantes", error: error.message });
     }
   });
 
@@ -11758,7 +11835,7 @@ ${config.ai_instructions || ''}
           status: "cancelled",
           reviewed_at: new Date().toISOString(),
           reviewed_by: adminId,
-          admin_notes: "Cancelado automaticamente - outro comprovante foi aprovado",
+          review_notes: "Cancelado automaticamente - outro comprovante foi aprovado",
           updated_at: new Date().toISOString()
         })
         .eq("user_id", receipt.user_id)
@@ -11867,7 +11944,7 @@ ${config.ai_instructions || ''}
           status: "rejected",
           reviewed_at: new Date().toISOString(),
           reviewed_by: adminId,
-          admin_notes: notes || "Comprovante rejeitado pelo administrador",
+          review_notes: notes || "Comprovante rejeitado pelo administrador",
           updated_at: new Date().toISOString()
         })
         .eq("id", id);
@@ -31124,6 +31201,44 @@ Responda APENAS com o JSON, sem texto adicional.`;
       const isAdmin = req.isAdmin;
 
 
+      // 🆕 SISTEMA DE PING/PONG - Manter conexão WebSocket viva
+      let lastPong = Date.now();
+      const pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          // Verificar se recebeu pong recentemente (60 segundos)
+          if (Date.now() - lastPong > 60000) {
+            console.log(`[WS] Cliente inativo, fechando conexão: ${userId || adminId}`);
+            ws.terminate();
+            clearInterval(pingInterval);
+            return;
+          }
+          
+          try {
+            ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          } catch (err) {
+            console.log(`[WS] Erro ao enviar ping: ${userId || adminId}`);
+            clearInterval(pingInterval);
+          }
+        } else {
+          clearInterval(pingInterval);
+        }
+      }, 25000); // Ping a cada 25 segundos
+
+      // Handler de mensagens para responder pong
+      ws.on("message", (data) => {
+        try {
+          const message = JSON.parse(data.toString());
+          if (message.type === 'pong') {
+            lastPong = Date.now();
+          } else if (message.type === 'ping') {
+            // Responder com pong imediatamente
+            ws.send(JSON.stringify({ type: 'pong', timestamp: message.timestamp }));
+          }
+        } catch (e) {
+          // Ignorar mensagens que não são JSON
+        }
+      });
+
 
       if (isAdmin && adminId) {
 
@@ -31138,6 +31253,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
         ws.on("close", () => {
 
           console.log(`WebSocket admin client disconnected: ${adminId}`);
+
+          clearInterval(pingInterval);
 
         });
 
@@ -31155,11 +31272,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log(`WebSocket client disconnected for user: ${userId}`);
 
+          clearInterval(pingInterval);
+
         });
 
       } else {
 
         console.error("WebSocket connection without valid user ID or admin ID");
+
+        clearInterval(pingInterval);
 
         ws.close(1008, "Unauthorized");
 
@@ -45901,30 +46022,16 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   return httpServer;
 
-}
-
 
 
 // Helper function to generate random password
-
 function generateRandomPassword(): string {
-
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
-
   let password = '';
-
   for (let i = 0; i < 12; i++) {
-
     password += chars.charAt(Math.floor(Math.random() * chars.length));
-
   }
-
   return password;
-
 }
 
-
-
-
-
-
+}

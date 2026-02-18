@@ -2246,7 +2246,7 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
         
       case "CRIAR_CONTA_TESTE":
         // VALIDAÇÃO: Bloquear nomes de empresa genéricos/placeholder
-        const invalidCompanyNames = ['nome', 'empresa', 'minha empresa', 'meu negócio', 'my company', 'company', 'test', 'teste', 'agentezap', 'undefined', 'null', ''];
+        const invalidCompanyNames = ['nome', 'empresa', 'minha empresa', 'meu negócio', 'meu negocio', 'my company', 'company', 'test', 'teste', 'agentezap', 'undefined', 'null', '', 'empresa', 'meu negocio', 'nome da empresa', 'nome da empresa', 'empresa fictícia', 'empresa ficticia', 'empresa teste'];
         const companyName = (action.params.empresa || '').toLowerCase().trim();
         
         if (!companyName || companyName.length < 3 || invalidCompanyNames.includes(companyName)) {

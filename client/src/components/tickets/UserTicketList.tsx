@@ -1,10 +1,44 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'wouter';
+import { Plus, Search, MessageSquare, Clock, CheckCircle, XCircle, Ticket as TicketIcon, Loader2, BookOpen, Mail, Phone, LifeBuoy, ExternalLink } from 'lucide-react';
 import type { Ticket } from '../../types/tickets';
 import { apiClient } from '../../lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
-const STATUS_LABELS: Record<string, string> = { open: 'Aberto', in_progress: 'Em andamento', resolved: 'Resolvido', closed: 'Fechado' };
-const STATUS_COLORS: Record<string, string> = { open: '#3b82f6', in_progress: '#f59e0b', resolved: '#10b981', closed: '#6b7280' };
+const STATUS_CONFIG: Record<string, { 
+  color: string; 
+  bg: string; 
+  label: string;
+  icon: React.ElementType;
+}> = {
+  open: { 
+    color: 'text-blue-600', 
+    bg: 'bg-blue-50', 
+    label: 'Aberto',
+    icon: TicketIcon
+  },
+  in_progress: { 
+    color: 'text-amber-600', 
+    bg: 'bg-amber-50', 
+    label: 'Em andamento',
+    icon: Clock
+  },
+  resolved: { 
+    color: 'text-emerald-600', 
+    bg: 'bg-emerald-50', 
+    label: 'Resolvido',
+    icon: CheckCircle
+  },
+  closed: { 
+    color: 'text-gray-600', 
+    bg: 'bg-gray-50', 
+    label: 'Fechado',
+    icon: XCircle
+  },
+};
 
 export const UserTicketList: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -26,74 +60,224 @@ export const UserTicketList: React.FC = () => {
   }, []);
 
   const filtered = tickets.filter(t =>
-    !search || t.subject.toLowerCase().includes(search.toLowerCase()) || `#${t.id}`.includes(search)
+    !search || 
+    t.subject.toLowerCase().includes(search.toLowerCase()) || 
+    `#${t.id}`.includes(search)
   );
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Carregando...</div>;
-  if (error) return <div style={{ padding: 40, color: '#ef4444', textAlign: 'center' }}>{error}</div>;
+  // Ordenar: abertos primeiro, depois por data
+  const sorted = [...filtered].sort((a, b) => {
+    const statusOrder = { open: 0, in_progress: 1, resolved: 2, closed: 3 };
+    if (statusOrder[a.status as keyof typeof statusOrder] !== statusOrder[b.status as keyof typeof statusOrder]) {
+      return statusOrder[a.status as keyof typeof statusOrder] - statusOrder[b.status as keyof typeof statusOrder];
+    }
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="text-muted-foreground text-sm">Carregando chamados...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 p-6">
+        <div className="w-14 h-14 rounded-full bg-destructive/10 flex items-center justify-center">
+          <XCircle className="w-7 h-7 text-destructive" />
+        </div>
+        <p className="text-destructive text-center">{error}</p>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 20px', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: '#1a1a1a' }}>Meus Chamados</h2>
-        <Link to="/tickets/new" style={{ padding: '10px 20px', backgroundColor: '#10b981', color: 'white', textDecoration: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500 }}>
-          + Novo Chamado
-        </Link>
+    <div className="max-w-3xl mx-auto px-4 py-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <LifeBuoy className="w-6 h-6 text-primary" />
+            Central de Suporte
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Tire dúvidas, reporte problemas e acompanhe seus chamados
+          </p>
+        </div>
+        
+        <Button asChild>
+          <Link href="/tickets/new">
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Chamado
+          </Link>
+        </Button>
+      </div>
+
+      {/* Cards de Ajuda Rápida */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center flex-shrink-0">
+                <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-sm mb-1">Documentação</h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Guias, tutoriais e FAQ para utilizar todas as funcionalidades
+                </p>
+                <a 
+                  href="https://docs.agentezap.online" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Acessar documentação
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border-emerald-200 dark:border-emerald-800">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center flex-shrink-0">
+                <Mail className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-sm mb-1">Contato Direto</h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Precisa de ajuda imediata? Entre em contato com nossa equipe
+                </p>
+                <a 
+                  href="mailto:suporte@agentezap.online" 
+                  className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                >
+                  suporte@agentezap.online
+                </a>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Search */}
-      <div style={{ position: 'relative', marginBottom: 16 }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}>
-          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-        </svg>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar chamados..."
-          style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-          onFocus={e => e.currentTarget.style.borderColor = '#10b981'} onBlur={e => e.currentTarget.style.borderColor = '#d1d5db'} />
+      <div className="relative mb-6">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar chamados..."
+          className="pl-10"
+        />
       </div>
 
-      {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 20px' }}>
-          <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      {/* Lista */}
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <MessageSquare className="w-5 h-5 text-muted-foreground" />
+          Meus Chamados
+          <span className="text-sm font-normal text-muted-foreground">({sorted.length})</span>
+        </h2>
+      </div>
+      
+      {sorted.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+            <Ticket className="w-8 h-8 text-muted-foreground" />
           </div>
-          <p style={{ fontSize: 16, fontWeight: 500, color: '#374151', margin: '0 0 4px' }}>Nenhum chamado ainda</p>
-          <p style={{ fontSize: 14, color: '#9ca3af', margin: '0 0 16px' }}>Crie seu primeiro chamado para receber suporte</p>
-          <Link to="/tickets/new" style={{ display: 'inline-block', padding: '10px 24px', backgroundColor: '#10b981', color: '#fff', textDecoration: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500 }}>
-            Criar primeiro chamado
-          </Link>
+          <p className="text-lg font-medium text-foreground mb-1">
+            {search ? 'Nenhum resultado encontrado' : 'Nenhum chamado ainda'}
+          </p>
+          <p className="text-sm text-muted-foreground mb-6">
+            {search 
+              ? 'Tente buscar com outros termos' 
+              : 'Crie seu primeiro chamado para receber suporte'}
+          </p>
+          {!search && (
+            <Button asChild>
+              <Link href="/tickets/new">
+                <Plus className="w-4 h-4 mr-2" />
+                Criar primeiro chamado
+              </Link>
+            </Button>
+          )}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map(ticket => (
-            <Link key={ticket.id} to={`/tickets/${ticket.id}`}
-              style={{ display: 'block', padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: 10, textDecoration: 'none', color: 'inherit', backgroundColor: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'background-color 0.15s, box-shadow 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f9fafb'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.08)'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fff'; e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'; }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 12 }}>
-                  #{ticket.id} - {ticket.subject}
-                </h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  {ticket.unreadCountUser > 0 && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 20, padding: '0 6px', backgroundColor: '#3b82f6', color: '#fff', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>
-                      {ticket.unreadCountUser}
-                    </span>
-                  )}
-                  <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, backgroundColor: (STATUS_COLORS[ticket.status] || '#6b7280') + '18', color: STATUS_COLORS[ticket.status] || '#6b7280', whiteSpace: 'nowrap' }}>
-                    {STATUS_LABELS[ticket.status] || ticket.status}
-                  </span>
+        <div className="space-y-3">
+          {sorted.map(ticket => {
+            const status = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.open;
+            const StatusIcon = status.icon;
+            
+            return (
+              <Link 
+                key={ticket.id} 
+                href={`/tickets/${ticket.id}`}
+                className="block"
+              >
+                <div className={cn(
+                  "group p-4 rounded-xl border bg-card transition-all",
+                  "hover:shadow-md hover:border-primary/20"
+                )}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-semibold text-foreground">
+                          #{ticket.id}
+                        </span>
+                        <span className={cn(
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
+                          status.bg,
+                          status.color
+                        )}>
+                          <StatusIcon className="w-3 h-3" />
+                          {status.label}
+                        </span>
+                        
+                        {ticket.unreadCountUser > 0 && (
+                          <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 bg-primary text-primary-foreground rounded-full text-xs font-semibold">
+                            {ticket.unreadCountUser}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <h3 className="font-medium text-foreground truncate mb-1">
+                        {ticket.subject}
+                      </h3>
+                      
+                      <p className="text-sm text-muted-foreground line-clamp-1">
+                        {ticket.lastMessagePreview || 'Sem mensagens'}
+                      </p>
+                    </div>
+                    
+                    <div className="text-right flex-shrink-0">
+                      <time className="text-xs text-muted-foreground">
+                        {ticket.lastMessageAt 
+                          ? new Date(ticket.lastMessageAt).toLocaleDateString('pt-BR', { 
+                              day: '2-digit', 
+                              month: 'short' 
+                            })
+                          : new Date(ticket.createdAt).toLocaleDateString('pt-BR', { 
+                              day: '2-digit', 
+                              month: 'short' 
+                            })
+                        }
+                      </time>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div style={{ fontSize: 13, color: '#6b7280' }}>
-                {ticket.lastMessagePreview ? ticket.lastMessagePreview.slice(0, 80) + (ticket.lastMessagePreview.length > 80 ? '...' : '') : 'Sem mensagens'}
-              </div>
-              <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>
-                {ticket.lastMessageAt ? new Date(ticket.lastMessageAt).toLocaleString('pt-BR') : new Date(ticket.createdAt).toLocaleString('pt-BR')}
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
   );
 };
+
+export default UserTicketList;

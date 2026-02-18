@@ -442,3 +442,23 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 };
+
+// Middleware de autorização para admin
+export const isAdmin: RequestHandler = async (req: any, res, next) => {
+  try {
+    // Verificar se é admin via sessão
+    if (req.session && (req.session as any).adminId) {
+      return next();
+    }
+    
+    // Verificar se o usuário tem role de admin
+    if (req.user?.role === 'admin') {
+      return next();
+    }
+    
+    return res.status(403).json({ message: "Forbidden - Admin access required" });
+  } catch (error) {
+    console.error("Erro na autorização de admin:", error);
+    return res.status(403).json({ message: "Forbidden" });
+  }
+};
