@@ -12080,7 +12080,7 @@ ${config.ai_instructions || ''}
     try {
       const userId = getUserId(req);
       const file = req.file;
-      const { paymentId, amount } = req.body;
+      const { paymentId, amount, clientId } = req.body;
 
       if (!file) {
         return res.status(400).json({ message: "Arquivo de comprovante é obrigatório" });
@@ -12171,7 +12171,7 @@ ${config.ai_instructions || ''}
           receipt_mime_type: file.mimetype,
           status: "pending",
           mp_payment_id: paymentId || null,
-          notes: `Comprovante de revendedor - Reseller ID: ${reseller.id}`,
+          admin_notes: `Comprovante de revendedor - Reseller ID: ${reseller.id}${clientId ? ` - Client ID: ${clientId}` : ''}`,
         })
         .select()
         .single();
@@ -12443,6 +12443,96 @@ ${config.ai_instructions || ''}
 
         // TODO: Enviar notificação WhatsApp/email para o cliente sobre ativação
         // Esta funcionalidade pode ser implementada futuramente usando o centralizedMessageSender
+      }
+
+      // ✅ REVENDA: Se for comprovante de revendedor, criar/ativar cliente via resellerService
+      // Detecção melhorada: usa admin_notes OU padrão na receipt_url OU user é revendedor
+      let isResellerReceipt = !!(receipt.admin_notes && receipt.admin_notes.includes("Comprovante de revendedor"));
+      if (!isResellerReceipt && receipt.receipt_url) {
+        // Fallback: detecta pelo padrão na URL do arquivo (reseller_<uuid>)
+        isResellerReceipt = receipt.receipt_url.includes("/reseller_");
+      }
+      if (!isResellerReceipt && receipt.user_id) {
+        // Fallback: verifica se o usuário que enviou é revendedor
+        const { data: resellerCheck } = await supabase
+          .from("resellers")
+          .select("id")
+          .eq("user_id", receipt.user_id)
+          .single();
+        if (resellerCheck) isResellerReceipt = true;
+      }
+
+      if (isResellerReceipt && receipt.mp_payment_id) {
+        try {
+          console.log(`[ADMIN APPROVE] Detectado comprovante de revenda. payment_id: ${receipt.mp_payment_id}`);
+          const { resellerService } = await import("./resellerService");
+
+          // Verificar se é renovação de cliente existente (tem Client ID nas admin_notes)
+          const clientIdMatch = receipt.admin_notes?.match(/Client ID: ([a-zA-Z0-9-]+)/);
+          const renewalClientId = clientIdMatch?.[1];
+
+          if (renewalClientId) {
+            // ♻️ RENOVAÇÃO: Estender a assinatura do cliente existente
+            console.log(`[ADMIN APPROVE] Renovação de cliente ${renewalClientId}`);
+            const resellerClient = await storage.getResellerClient(renewalClientId);
+            if (resellerClient) {
+              const currentDate = resellerClient.saasPaidUntil
+                ? new Date(resellerClient.saasPaidUntil)
+                : new Date();
+              // Se já venceu, começa de hoje
+              const baseDate = currentDate < new Date() ? new Date() : currentDate;
+              const newExpiryDate = new Date(baseDate);
+              newExpiryDate.setDate(newExpiryDate.getDate() + 30);
+
+              await storage.updateResellerClient(renewalClientId, {
+                saasPaidUntil: newExpiryDate,
+                saasStatus: "active",
+                status: "active",
+              });
+
+              // Também atualizar assinatura do usuário no sistema
+              const { error: subExtendError } = await supabase
+                .from("subscriptions")
+                .update({
+                  status: "active",
+                  data_fim: newExpiryDate.toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("user_id", resellerClient.userId)
+                .in("status", ["active", "pending", "overdue", "pending_pix"]);
+
+              if (subExtendError) {
+                console.error("[ADMIN APPROVE] Erro ao estender assinatura:", subExtendError);
+              } else {
+                console.log(`[ADMIN APPROVE] ✅ Renovação do cliente ${renewalClientId} até ${newExpiryDate.toISOString()}`);
+              }
+
+              // Registrar pagamento na invoice
+              await storage.updateResellerPayment(receipt.mp_payment_id, {
+                status: "approved",
+                paidAt: new Date(),
+              }).catch(() => {/* ignore if not found - might be MP payment ID */});
+            }
+          } else {
+            // 🆕 CRIAÇÃO: Criar novo cliente via confirmPixPayment
+            const result = await resellerService.confirmPixPayment(receipt.mp_payment_id);
+            if (result.success) {
+              console.log(`[ADMIN APPROVE] ✅ Cliente de revenda criado com sucesso:`, {
+                clientId: result.clientId,
+                userId: result.userId,
+              });
+            } else {
+              console.error(`[ADMIN APPROVE] ⚠️ Erro ao criar cliente de revenda:`, result.error);
+              // "Pagamento já foi processado" → cliente já existe, não é erro fatal
+              if (!result.error?.includes("processado") && !result.error?.includes("processada")) {
+                console.error(`[ADMIN APPROVE] Erro não fatal:`, result.error);
+              }
+            }
+          }
+        } catch (resellerError: any) {
+          console.error("[ADMIN APPROVE] Erro crítico ao processar cliente de revenda:", resellerError);
+          // Não falhar a aprovação do comprovante
+        }
       }
 
       res.json({ success: true, message: "Comprovante aprovado e plano ativado com sucesso!" });

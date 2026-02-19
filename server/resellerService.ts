@@ -322,15 +322,16 @@ class ResellerService {
         });
 
         if (pixManualEnabled) {
-          // 🔥 PIX MANUAL: Usar chave PIX do revendedor (ou admin se não houver)
-          console.log("[ResellerService] Usando PIX Manual (chave do revendedor se disponível)");
+          // 🔥 PIX MANUAL: Usar chave PIX do SISTEMA (plataforma recebe o pagamento do revendedor)
+          // NÃO usar reseller.pixKey aqui — o revendedor está PAGANDO para a plataforma
+          console.log("[ResellerService] Usando PIX Manual (chave PIX do sistema/plataforma)");
           
           try {
             const { pixCode, pixQrCode } = await generatePixQRCode({
-              planNome: `Cliente: ${clientData.name}`,
+              planNome: `Novo Cliente: ${clientData.name}`,
               valor: costPerClient,
               subscriptionId: payment.id,
-              pixKeyOverride: reseller.pixKey || undefined,
+              // pixKeyOverride: undefined → usa a chave PIX do sistema (system_config.pix_key)
             });
 
             // Atualizar pagamento com dados do PIX manual
