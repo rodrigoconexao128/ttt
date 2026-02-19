@@ -404,12 +404,31 @@ export default function ResellerDashboard() {
   const [granularTotalAmount, setGranularTotalAmount] = useState(0);
   const [isCreatingGranularInvoice, setIsCreatingGranularInvoice] = useState(false);
 
-  // Estados para upload de comprovante PIX ("Já paguei")
+  // Estados para upload de comprovante PIX ("Já paguei") — checkout de novo cliente
   const [showReceiptUploadModal, setShowReceiptUploadModal] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
   const [receiptUploadSuccess, setReceiptUploadSuccess] = useState(false);
   const receiptInputRef = useRef<HTMLInputElement>(null);
+
+  // ========== Estados para "Minhas Faturas" (pagamento do revendedor ao SaaS) ==========
+  const [myInvoicePixData, setMyInvoicePixData] = useState<{
+    paymentId: string | number;
+    qrCode: string;
+    qrCodeBase64: string;
+    amount: number;
+    referenceMonth: string;
+    expirationDate?: string;
+  } | null>(null);
+  const [selectedMyInvoiceId, setSelectedMyInvoiceId] = useState<number | null>(null);
+  const [isMyInvoicePixOpen, setIsMyInvoicePixOpen] = useState(false);
+  const [isGeneratingMyInvoicePix, setIsGeneratingMyInvoicePix] = useState(false);
+  const [isCheckingMyInvoicePayment, setIsCheckingMyInvoicePayment] = useState(false);
+  const [showMyInvoiceReceiptModal, setShowMyInvoiceReceiptModal] = useState(false);
+  const [myInvoiceReceiptFile, setMyInvoiceReceiptFile] = useState<File | null>(null);
+  const [isUploadingMyInvoiceReceipt, setIsUploadingMyInvoiceReceipt] = useState(false);
+  const [myInvoiceReceiptSuccess, setMyInvoiceReceiptSuccess] = useState(false);
+  const myInvoiceReceiptInputRef = useRef<HTMLInputElement>(null);
 
   // Gerar QR Code quando o código PIX mudar
   useEffect(() => {
@@ -461,6 +480,133 @@ export default function ResellerDashboard() {
     queryKey: ["/api/reseller/payments"],
     enabled: !!resellerStatus?.hasResellerPlan,
   });
+
+  // ====== MINHAS FATURAS: Assinatura do revendedor ao SaaS ======
+  // Buscar dados da assinatura do revendedor (fatura mensal que ele paga ao sistema)
+  const { data: mySubscription, isLoading: isLoadingMySubscription, refetch: refetchMySubscription } = useQuery<{
+    activeClients: number;
+    costPerClient: number;
+    totalMonthly: number;
+    billingDay: number;
+    currentInvoice: { id: number; referenceMonth: string; dueDate: string; activeClients: number; totalAmount: string; status: string } | null;
+    pendingInvoices: { id: number; referenceMonth: string; dueDate: string; activeClients: number; totalAmount: string; status: string }[];
+    resellerStatus: string;
+    daysPastDue: number;
+  }>({
+    queryKey: ["/api/reseller/my-subscription"],
+    enabled: !!resellerStatus?.hasResellerPlan,
+  });
+
+  // Buscar histórico de faturas do revendedor
+  const { data: myInvoices, isLoading: isLoadingMyInvoices, refetch: refetchMyInvoices } = useQuery<Array<{
+    id: number;
+    referenceMonth: string;
+    dueDate: string;
+    paidAt?: string;
+    status: string;
+    totalAmount: string;
+    activeClients?: number;
+    paymentMethod?: string;
+  }>>({
+    queryKey: ["/api/reseller/my-invoices"],
+    enabled: !!resellerStatus?.hasResellerPlan,
+  });
+
+  // Gerar PIX para pagar a fatura mensal do revendedor ao SaaS
+  const generateMyInvoicePix = async (invoiceId: number) => {
+    setIsGeneratingMyInvoicePix(true);
+    try {
+      const response = await apiRequest("POST", `/api/reseller/my-invoices/${invoiceId}/pay-pix`);
+      const data = await response.json();
+      if (data.qrCode) {
+        setMyInvoicePixData({
+          paymentId: data.paymentId,
+          qrCode: data.qrCode,
+          qrCodeBase64: data.qrCodeBase64,
+          amount: data.amount,
+          referenceMonth: data.referenceMonth,
+          expirationDate: data.expirationDate,
+        });
+        setSelectedMyInvoiceId(invoiceId);
+        setIsMyInvoicePixOpen(true);
+      } else {
+        toast({ title: "Erro ao gerar PIX", description: data.message || "Tente novamente", variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Erro ao gerar PIX", description: error.message || "Tente novamente mais tarde", variant: "destructive" });
+    } finally {
+      setIsGeneratingMyInvoicePix(false);
+    }
+  };
+
+  // Verificar status do pagamento da fatura do revendedor
+  const checkMyInvoicePayment = async (invoiceId: number) => {
+    setIsCheckingMyInvoicePayment(true);
+    try {
+      const response = await apiRequest("GET", `/api/reseller/my-invoices/${invoiceId}/check-payment`);
+      const data = await response.json();
+      if (data.status === 'paid') {
+        toast({ title: "✅ Pagamento confirmado!", description: "Sua fatura foi paga com sucesso." });
+        setIsMyInvoicePixOpen(false);
+        setMyInvoicePixData(null);
+        setSelectedMyInvoiceId(null);
+        refetchMySubscription();
+        refetchMyInvoices();
+      } else {
+        toast({ title: "Pagamento ainda não confirmado", description: "Continue aguardando ou tente novamente em alguns segundos." });
+      }
+    } catch (error: any) {
+      toast({ title: "Erro ao verificar pagamento", description: error.message, variant: "destructive" });
+    } finally {
+      setIsCheckingMyInvoicePayment(false);
+    }
+  };
+
+  // Upload de comprovante para fatura do próprio revendedor ao SaaS
+  const uploadMyInvoiceReceiptMutation = useMutation({
+    mutationFn: async ({ file, paymentId, amount }: { file: File; paymentId: string; amount: number }) => {
+      const formData = new FormData();
+      formData.append("receipt", file);
+      formData.append("paymentId", paymentId);
+      formData.append("amount", amount.toString());
+      const response = await fetch("/api/reseller/payment-receipts/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Erro ao enviar comprovante");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      setMyInvoiceReceiptSuccess(true);
+      toast({ title: "✅ Comprovante enviado!", description: "Aguarde a confirmação do admin." });
+      setTimeout(() => {
+        setShowMyInvoiceReceiptModal(false);
+        setMyInvoiceReceiptFile(null);
+        setMyInvoiceReceiptSuccess(false);
+        setIsMyInvoicePixOpen(false);
+        setMyInvoicePixData(null);
+      }, 2000);
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao enviar comprovante", description: error.message || "Tente novamente", variant: "destructive" });
+    },
+  });
+
+  const handleMyInvoiceReceiptUpload = async () => {
+    if (!myInvoiceReceiptFile) return;
+    const paymentId = myInvoicePixData?.paymentId ? String(myInvoicePixData.paymentId) : `invoice_${selectedMyInvoiceId}_${Date.now()}`;
+    const amount = myInvoicePixData?.amount || mySubscription?.totalMonthly || 0;
+    setIsUploadingMyInvoiceReceipt(true);
+    try {
+      await uploadMyInvoiceReceiptMutation.mutateAsync({ file: myInvoiceReceiptFile, paymentId, amount });
+    } finally {
+      setIsUploadingMyInvoiceReceipt(false);
+    }
+  };
 
   // Buscar detalhes do cliente selecionado
   const { data: clientDetails, isLoading: isLoadingClientDetails, refetch: refetchClientDetails } = useQuery<ClientDetails>({
@@ -1299,7 +1445,7 @@ export default function ResellerDashboard() {
         - Config: Configurações
       */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
@@ -1307,6 +1453,10 @@ export default function ResellerDashboard() {
           <TabsTrigger value="clients" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Clientes</span>
+          </TabsTrigger>
+          <TabsTrigger value="my-subscription" className="flex items-center gap-2">
+            <Receipt className="h-4 w-4" />
+            <span className="hidden sm:inline">Minhas Faturas</span>
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
@@ -2317,7 +2467,399 @@ export default function ResellerDashboard() {
             </Card>
           </div>
         </TabsContent>
+
+        {/* ===================== MINHAS FATURAS TAB ===================== */}
+        {/* Revendedor paga ao SaaS (AgenteZap) */}
+        <TabsContent value="my-subscription" className="space-y-6">
+          <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+            <CardContent className="py-4">
+              <div className="flex items-start gap-3">
+                <Receipt className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-blue-900 dark:text-blue-100">Minhas Faturas — Pagamentos ao Sistema</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Aqui você gerencia o que <strong>você paga ao AgenteZap</strong> pela plataforma de revenda. 
+                    Valor mensal baseado no número de clientes ativos.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {isLoadingMySubscription ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Resumo financeiro */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Clientes Ativos</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{mySubscription?.activeClients ?? 0}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Custo por Cliente</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">R$ {(mySubscription?.costPerClient ?? 49.99).toFixed(2)}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Mensal</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">R$ {(mySubscription?.totalMonthly ?? 0).toFixed(2)}</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Fatura Atual */}
+              {mySubscription?.currentInvoice && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <CreditCard className="h-5 w-5" />
+                        Fatura do Mês Atual
+                      </CardTitle>
+                      {mySubscription.currentInvoice.status === 'paid' ? (
+                        <Badge className="bg-green-500">✅ Pago</Badge>
+                      ) : mySubscription.currentInvoice.status === 'overdue' ? (
+                        <Badge variant="destructive">⚠️ Vencido</Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-yellow-500 text-yellow-600">⏳ Pendente</Badge>
+                      )}
+                    </div>
+                    <CardDescription>
+                      Mês de referência: <strong>{(() => {
+                        const m = mySubscription.currentInvoice.referenceMonth;
+                        if (!m) return '—';
+                        const [y, mo] = m.split('-');
+                        const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                        return `${months[parseInt(mo)-1]}/${y}`;
+                      })()}</strong> — Vencimento: {new Date(mySubscription.currentInvoice.dueDate).toLocaleDateString('pt-BR')}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between p-4 bg-muted rounded-lg mb-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">{mySubscription.currentInvoice.activeClients} cliente(s) × R$ {(mySubscription?.costPerClient ?? 49.99).toFixed(2)}</p>
+                        <p className="text-2xl font-bold">R$ {parseFloat(mySubscription.currentInvoice.totalAmount).toFixed(2)}</p>
+                      </div>
+                      {mySubscription.currentInvoice.status !== 'paid' && (
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            onClick={() => generateMyInvoicePix(mySubscription!.currentInvoice!.id)}
+                            disabled={isGeneratingMyInvoicePix}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            {isGeneratingMyInvoicePix ? (
+                              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Gerando...</>
+                            ) : (
+                              <><QrCode className="h-4 w-4 mr-2" />Pagar com PIX</>
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedMyInvoiceId(mySubscription!.currentInvoice!.id);
+                              setShowMyInvoiceReceiptModal(true);
+                            }}
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Já paguei
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Faturas Pendentes / Vencidas */}
+              {mySubscription?.pendingInvoices && mySubscription.pendingInvoices.filter(i => i.id !== mySubscription?.currentInvoice?.id).length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-orange-600">
+                      <AlertTriangle className="h-5 w-5" />
+                      Faturas Pendentes / Vencidas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {mySubscription.pendingInvoices
+                        .filter(i => i.id !== mySubscription?.currentInvoice?.id)
+                        .map(invoice => (
+                          <div key={invoice.id} className="flex items-center justify-between p-3 border rounded-lg bg-orange-50 dark:bg-orange-950/30">
+                            <div>
+                              <p className="font-medium">{(() => {
+                                const m = invoice.referenceMonth;
+                                if (!m) return '—';
+                                const [y, mo] = m.split('-');
+                                const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                                return `${months[parseInt(mo)-1]}/${y}`;
+                              })()}</p>
+                              <p className="text-sm text-muted-foreground">Vencimento: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <p className="font-bold">R$ {parseFloat(invoice.totalAmount).toFixed(2)}</p>
+                              <div className="flex flex-col gap-1">
+                                <Button size="sm" variant="destructive" onClick={() => generateMyInvoicePix(invoice.id)} disabled={isGeneratingMyInvoicePix}>
+                                  <QrCode className="h-3 w-3 mr-1" />Pagar PIX
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => { setSelectedMyInvoiceId(invoice.id); setShowMyInvoiceReceiptModal(true); }}>
+                                  <Upload className="h-3 w-3 mr-1" />Já paguei
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Histórico de Faturas */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Histórico de Faturas
+                    </CardTitle>
+                    <Button variant="outline" size="sm" onClick={() => { refetchMySubscription(); refetchMyInvoices(); }}>
+                      <RefreshCw className="h-4 w-4 mr-1" />Atualizar
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingMyInvoices ? (
+                    <div className="flex justify-center py-6"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : (!myInvoices || myInvoices.length === 0) ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Receipt className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                      <p>Nenhuma fatura encontrada</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Mês</TableHead>
+                          <TableHead>Vencimento</TableHead>
+                          <TableHead>Valor</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Pagamento</TableHead>
+                          <TableHead>Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {myInvoices.map(invoice => (
+                          <TableRow key={invoice.id}>
+                            <TableCell className="font-medium">{(() => {
+                              const m = invoice.referenceMonth;
+                              if (!m) return '—';
+                              const [y, mo] = m.split('-');
+                              const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                              return `${months[parseInt(mo)-1]}/${y}`;
+                            })()}</TableCell>
+                            <TableCell>{new Date(invoice.dueDate).toLocaleDateString('pt-BR')}</TableCell>
+                            <TableCell>R$ {parseFloat(invoice.totalAmount).toFixed(2)}</TableCell>
+                            <TableCell>
+                              {invoice.status === 'paid' ? (
+                                <Badge className="bg-green-500">Pago</Badge>
+                              ) : invoice.status === 'overdue' ? (
+                                <Badge variant="destructive">Vencido</Badge>
+                              ) : (
+                                <Badge variant="outline" className="border-yellow-500 text-yellow-600">Pendente</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString('pt-BR') : '—'}
+                            </TableCell>
+                            <TableCell>
+                              {invoice.status !== 'paid' && (
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="outline" onClick={() => generateMyInvoicePix(invoice.id)} disabled={isGeneratingMyInvoicePix}>
+                                    <QrCode className="h-3 w-3 mr-1" />PIX
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => { setSelectedMyInvoiceId(invoice.id); setShowMyInvoiceReceiptModal(true); }}>
+                                    <Upload className="h-3 w-3 mr-1" />Comprovante
+                                  </Button>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
+
+      {/* ====== MODAL PIX — Fatura do revendedor ao SaaS ====== */}
+      <Dialog open={isMyInvoicePixOpen} onOpenChange={setIsMyInvoicePixOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              Pagar Fatura com PIX
+            </DialogTitle>
+            <DialogDescription>
+              Escaneie o QR Code ou copie o código PIX para pagar sua fatura ao AgenteZap
+            </DialogDescription>
+          </DialogHeader>
+          {myInvoicePixData && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg text-center">
+                <p className="text-sm text-muted-foreground">Fatura de {(() => {
+                  const m = myInvoicePixData.referenceMonth;
+                  if (!m) return '—';
+                  const [y, mo] = m.split('-');
+                  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                  return `${months[parseInt(mo)-1]}/${y}`;
+                })()}</p>
+                <p className="text-2xl font-bold text-green-600">R$ {myInvoicePixData.amount.toFixed(2)}</p>
+              </div>
+              {myInvoicePixData.qrCodeBase64 && (
+                <div className="flex justify-center">
+                  <img
+                    src={`data:image/png;base64,${myInvoicePixData.qrCodeBase64}`}
+                    alt="QR Code PIX"
+                    className="w-48 h-48 border rounded-lg"
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Código PIX (Copia e Cola)</Label>
+                <div className="flex gap-2">
+                  <Input value={myInvoicePixData.qrCode} readOnly className="text-xs font-mono" />
+                  <Button variant="outline" size="icon" onClick={() => {
+                    navigator.clipboard.writeText(myInvoicePixData.qrCode);
+                    toast({ title: "Copiado!", description: "Código PIX copiado para a área de transferência" });
+                  }}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <Button
+                className="w-full"
+                onClick={() => selectedMyInvoiceId && checkMyInvoicePayment(selectedMyInvoiceId)}
+                disabled={isCheckingMyInvoicePayment}
+              >
+                {isCheckingMyInvoicePayment ? (
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" />Verificando...</>
+                ) : (
+                  <><RefreshCw className="h-4 w-4 mr-2" />Verificar Pagamento Automático</>
+                )}
+              </Button>
+              <div className="border-t pt-4">
+                <p className="text-xs text-center text-muted-foreground mb-2">Já fez o pagamento e quer enviar comprovante?</p>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowMyInvoiceReceiptModal(true)}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Já paguei — Enviar Comprovante
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ====== MODAL UPLOAD COMPROVANTE — Fatura do revendedor ao SaaS ====== */}
+      <Dialog open={showMyInvoiceReceiptModal} onOpenChange={(open) => { setShowMyInvoiceReceiptModal(open); if (!open) { setMyInvoiceReceiptFile(null); setMyInvoiceReceiptSuccess(false); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Enviar Comprovante de Pagamento
+            </DialogTitle>
+            <DialogDescription>
+              Envie o comprovante do PIX pago. O admin irá confirmar e liberar seus clientes.
+            </DialogDescription>
+          </DialogHeader>
+          {myInvoiceReceiptSuccess ? (
+            <div className="text-center py-6">
+              <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-3" />
+              <p className="text-lg font-semibold text-green-600">Comprovante enviado!</p>
+              <p className="text-sm text-muted-foreground">Aguarde a confirmação do administrador.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div
+                className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
+                onClick={() => myInvoiceReceiptInputRef.current?.click()}
+              >
+                {myInvoiceReceiptFile ? (
+                  <div className="space-y-2">
+                    <FileImage className="h-10 w-10 text-green-500 mx-auto" />
+                    <p className="font-medium text-sm">{myInvoiceReceiptFile.name}</p>
+                    <p className="text-xs text-muted-foreground">{(myInvoiceReceiptFile.size / 1024).toFixed(0)} KB</p>
+                    <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setMyInvoiceReceiptFile(null); }}>
+                      Remover
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm font-medium">Clique para selecionar o comprovante</p>
+                    <p className="text-xs text-muted-foreground">JPG, PNG, PDF (máx. 5MB)</p>
+                  </>
+                )}
+                <input
+                  ref={myInvoiceReceiptInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const validTypes = ["image/jpeg","image/png","image/gif","image/webp","application/pdf"];
+                    if (!validTypes.includes(file.type)) {
+                      toast({ title: "Formato inválido", description: "Envie JPG, PNG, GIF, WebP ou PDF.", variant: "destructive" });
+                      return;
+                    }
+                    if (file.size > 5 * 1024 * 1024) {
+                      toast({ title: "Arquivo muito grande", description: "Máximo 5MB.", variant: "destructive" });
+                      return;
+                    }
+                    setMyInvoiceReceiptFile(file);
+                  }}
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => { setShowMyInvoiceReceiptModal(false); setMyInvoiceReceiptFile(null); }}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={handleMyInvoiceReceiptUpload}
+                  disabled={!myInvoiceReceiptFile || isUploadingMyInvoiceReceipt}
+                >
+                  {isUploadingMyInvoiceReceipt ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enviando...</>
+                  ) : (
+                    <><Upload className="h-4 w-4 mr-2" />Enviar Comprovante</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       
       {/* Dialog Global de Reset de Senha (usado na tabela de clientes) */}
       <Dialog open={isResetPasswordOpen && !!selectedClientForReset} onOpenChange={(open) => {

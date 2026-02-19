@@ -49,6 +49,12 @@ export function ConnectionPanel() {
   const [showNewConnForm, setShowNewConnForm] = useState(false);
   const [newConnName, setNewConnName] = useState("");
   const [newConnType, setNewConnType] = useState("secondary");
+  
+  // Estado para fluxo de nova conexão (QR/pairing selection)
+  const [newConnStep, setNewConnStep] = useState<"form" | "method" | "qr-waiting" | "qr-display" | "pairing-form" | "pairing-waiting" | "pairing-display">("form");
+  const [newConnId, setNewConnId] = useState<string | null>(null);
+  const [newConnPhoneNumber, setNewConnPhoneNumber] = useState("");
+  const [newConnPairingCode, setNewConnPairingCode] = useState<string | null>(null);
 
   const { data: connection, isLoading, refetch: refetchConnection } = useQuery<WhatsappConnection>({
     queryKey: ["/api/whatsapp/connection"],
@@ -65,17 +71,18 @@ export function ConnectionPanel() {
   // Mutation para criar nova conexão
   const createConnectionMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/whatsapp/connections", {
+      const response = await apiRequest("POST", "/api/whatsapp/connections", {
         connectionName: newConnName || undefined,
         connectionType: newConnType,
       });
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
-      setShowNewConnForm(false);
-      setNewConnName("");
-      setNewConnType("secondary");
-      toast({ title: "Nova conexão criada com sucesso!" });
+      // Save the new connection ID and move to method selection
+      setNewConnId(data.id);
+      setNewConnStep("method");
+      toast({ title: "Conexão criada! Escolha como conectar." });
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao criar conexão", description: error.message, variant: "destructive" });
@@ -100,14 +107,29 @@ export function ConnectionPanel() {
   const [connectingConnectionId, setConnectingConnectionId] = useState<string | null>(null);
   const [connectionQrCodes, setConnectionQrCodes] = useState<Record<string, string>>({});
 
+  // Helper to close the new connection flow
+  const closeNewConnFlow = useCallback(() => {
+    setShowNewConnForm(false);
+    setNewConnStep("form");
+    setNewConnId(null);
+    setNewConnName("");
+    setNewConnType("secondary");
+    setNewConnPhoneNumber("");
+    setNewConnPairingCode(null);
+  }, []);
+
   const connectConnectionMutation = useMutation({
     mutationFn: async (connectionId: string) => {
       setConnectingConnectionId(connectionId);
       return await apiRequest("POST", `/api/whatsapp/connections/${connectionId}/connect`);
     },
-    onSuccess: () => {
+    onSuccess: (_, connectionId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
+      // If this is the new connection flow, move to QR waiting
+      if (newConnId && connectionId === newConnId) {
+        setNewConnStep("qr-waiting");
+      }
       toast({ title: "Conectando... Aguarde o QR Code." });
     },
     onError: (error: Error) => {
@@ -158,7 +180,7 @@ export function ConnectionPanel() {
   });
 
   // Função para verificar status da conexão durante polling
-  // NÃO carrega QR code do banco pois pode ser expirado - QR deve vir via WebSocket
+  // Also loads QR code from database as fallback when WebSocket broadcast fails
   const fetchQrCodeFromDb = useCallback(async () => {
     try {
       const response = await apiRequest("GET", "/api/whatsapp/connection");
@@ -173,6 +195,14 @@ export function ConnectionPanel() {
           clearInterval(qrCodePollingRef.current);
           qrCodePollingRef.current = null;
         }
+      } else if (data && data.qrCode && !qrCodeRef.current && isWaitingQrCodeRef.current) {
+        // Fallback: load QR code from database if we don't have one yet via WebSocket
+        console.log("[QR POLLING] QR Code loaded from database (fallback)");
+        setQrCode(data.qrCode);
+        qrCodeRef.current = data.qrCode;
+        setIsConnecting(false);
+        setIsWaitingQrCode(false);
+        isWaitingQrCodeRef.current = false;
       }
     } catch (error) {
       console.error("[QR POLLING] Erro ao verificar conexão:", error);
@@ -401,10 +431,54 @@ export function ConnectionPanel() {
     }
   }, [connection?.isConnected]);
 
+  // Per-connection QR polling fallback for "Nova Conexão" flow
+  // If WebSocket misses the QR event, this polls the connections endpoint
+  useEffect(() => {
+    if (newConnStep !== "qr-waiting" || !newConnId) return;
+
+    let pollInterval: NodeJS.Timeout | null = null;
+    let pollTimeout: NodeJS.Timeout | null = null;
+
+    const pollNewConnQr = async () => {
+      try {
+        const response = await apiRequest("GET", "/api/whatsapp/connections");
+        const connections = await response.json();
+        const target = connections.find((c: any) => c.id === newConnId);
+        if (target?.qrCode && !connectionQrCodes[newConnId]) {
+          console.log("[NEW CONN QR POLL] QR Code loaded from DB fallback for", newConnId);
+          setConnectionQrCodes(prev => ({ ...prev, [newConnId!]: target.qrCode }));
+          setNewConnStep("qr-display");
+          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        } else if (target?.isConnected) {
+          // Already connected, close flow
+          closeNewConnFlow();
+          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        }
+      } catch (err) {
+        console.error("[NEW CONN QR POLL] Error:", err);
+      }
+    };
+
+    // Poll every 3 seconds
+    pollInterval = setInterval(pollNewConnQr, 3000);
+    // Stop after 90 seconds
+    pollTimeout = setTimeout(() => {
+      if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+    }, 90000);
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (pollTimeout) clearTimeout(pollTimeout);
+    };
+  }, [newConnStep, newConnId, connectionQrCodes, closeNewConnFlow]);
+
   useEffect(() => {
     let socket: WebSocket | null = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
+    let isMounted = true;
 
     const connectWebSocket = async () => {
+      if (!isMounted) return;
       try {
         const token = await getAuthToken();
 
@@ -426,6 +500,15 @@ export function ConnectionPanel() {
         socket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
+            
+            // Respond to server pings with pongs to keep connection alive
+            if (data.type === "ping") {
+              if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: "pong", timestamp: data.timestamp }));
+              }
+              return;
+            }
+            
             console.log("[WS] Mensagem recebida:", data.type);
 
             if (data.type === "qr") {
@@ -433,16 +516,27 @@ export function ConnectionPanel() {
               // Track per-connection QR codes
               if (data.connectionId) {
                 setConnectionQrCodes(prev => ({ ...prev, [data.connectionId]: data.qr }));
+                // If this QR is for the new connection being created, update flow state
+                setNewConnId(prevId => {
+                  if (prevId && data.connectionId === prevId) {
+                    setNewConnStep("qr-display");
+                  }
+                  return prevId;
+                });
               }
-              setQrCode(data.qr);
-              qrCodeRef.current = data.qr;
-              setIsConnecting(false);
-              setIsWaitingQrCode(false);
-              isWaitingQrCodeRef.current = false;
-              // Parar polling quando receber QR code via WebSocket
-              if (qrCodePollingRef.current) {
-                clearInterval(qrCodePollingRef.current);
-                qrCodePollingRef.current = null;
+              // Only update global (primary card) QR state for primary connection or legacy events
+              const isPrimaryQr = !data.connectionId || data.connectionId === connection?.id;
+              if (isPrimaryQr) {
+                setQrCode(data.qr);
+                qrCodeRef.current = data.qr;
+                setIsConnecting(false);
+                setIsWaitingQrCode(false);
+                isWaitingQrCodeRef.current = false;
+                // Parar polling quando receber QR code via WebSocket
+                if (qrCodePollingRef.current) {
+                  clearInterval(qrCodePollingRef.current);
+                  qrCodePollingRef.current = null;
+                }
               }
             } else if (data.type === "pairing_restarting") {
               // Backend está reconectando após 515 restartRequired
@@ -450,10 +544,9 @@ export function ConnectionPanel() {
               // Não limpar o código - manter na tela
               // Mostrar indicador de reconexão se quiser (opcional)
             } else if (data.type === "connecting") {
-              // Only show connecting state if we don't have a QR code yet
-              // This prevents the QR code from disappearing if a connecting event
-              // arrives after the QR code is displayed (which can happen during connection)
-              if (!qrCodeRef.current) {
+              // Only update global state for primary connection or legacy events (no connectionId)
+              const isPrimaryConnecting = !data.connectionId || data.connectionId === connection?.id;
+              if (isPrimaryConnecting && !qrCodeRef.current) {
                 setQrCode(null);
                 setIsConnecting(true);
                 setIsWaitingQrCode(false);
@@ -469,22 +562,41 @@ export function ConnectionPanel() {
                   return next;
                 });
                 setConnectingConnectionId(null);
+                // If this is the new connection flow, close it and show success
+                setNewConnId(prevId => {
+                  if (prevId && data.connectionId === prevId) {
+                    setShowNewConnForm(false);
+                    setNewConnStep("form");
+                    setNewConnId(null);
+                    setNewConnName("");
+                    setNewConnType("secondary");
+                    setNewConnPhoneNumber("");
+                    setNewConnPairingCode(null);
+                  }
+                  return prevId && data.connectionId === prevId ? null : prevId;
+                });
               }
-              setQrCode(null);
-              qrCodeRef.current = null;
-              setIsConnecting(false);
-              setIsWaitingQrCode(false);
-              isWaitingQrCodeRef.current = false;
-              // Parar polling
-              if (qrCodePollingRef.current) {
-                clearInterval(qrCodePollingRef.current);
-                qrCodePollingRef.current = null;
+              // Only update global (primary card) state for primary connection or legacy events
+              const isPrimaryConnected = !data.connectionId || data.connectionId === connection?.id;
+              if (isPrimaryConnected) {
+                setQrCode(null);
+                qrCodeRef.current = null;
+                setIsConnecting(false);
+                setIsWaitingQrCode(false);
+                isWaitingQrCodeRef.current = false;
+                // Parar polling
+                if (qrCodePollingRef.current) {
+                  clearInterval(qrCodePollingRef.current);
+                  qrCodePollingRef.current = null;
+                }
               }
               queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
               queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
               toast({
                 title: "Conectado!",
-                description: "WhatsApp conectado com sucesso",
+                description: data.connectionId && data.connectionId !== connection?.id
+                  ? "Nova conexão WhatsApp conectada com sucesso"
+                  : "WhatsApp conectado com sucesso",
               });
             } else if (data.type === "disconnected") {
               console.log("[WS] WhatsApp desconectado!", data.connectionId || "", data.reason || "");
@@ -497,20 +609,33 @@ export function ConnectionPanel() {
                 });
                 setConnectingConnectionId(null);
               }
-              setQrCode(null);
-              qrCodeRef.current = null;
-              setIsConnecting(false);
-              setIsWaitingQrCode(false);
-              isWaitingQrCodeRef.current = false;
-              // Parar polling
-              if (qrCodePollingRef.current) {
-                clearInterval(qrCodePollingRef.current);
-                qrCodePollingRef.current = null;
-              }
-              // Parar timeout
-              if (waitingTimeoutRef.current) {
-                clearTimeout(waitingTimeoutRef.current);
-                waitingTimeoutRef.current = null;
+              
+              // Only update global (primary card) state for primary connection or legacy events
+              const isPrimaryDisconnected = !data.connectionId || data.connectionId === connection?.id;
+              if (isPrimaryDisconnected) {
+                // Only reset connection method if user has an explicit reason (not stale events)
+                if (data.reason) {
+                  setConnectionMethod(null);
+                  setPairingCode(null);
+                  setPhoneNumber("");
+                  setIsRequestingPairingCode(false);
+                }
+                
+                setQrCode(null);
+                qrCodeRef.current = null;
+                setIsConnecting(false);
+                setIsWaitingQrCode(false);
+                isWaitingQrCodeRef.current = false;
+                // Parar polling
+                if (qrCodePollingRef.current) {
+                  clearInterval(qrCodePollingRef.current);
+                  qrCodePollingRef.current = null;
+                }
+                // Parar timeout
+                if (waitingTimeoutRef.current) {
+                  clearTimeout(waitingTimeoutRef.current);
+                  waitingTimeoutRef.current = null;
+                }
               }
               queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
               queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
@@ -560,6 +685,13 @@ export function ConnectionPanel() {
         socket.onclose = () => {
           console.log("[WS] WebSocket connection closed");
           setWsConnected(false);
+          // Auto-reconnect after 3 seconds
+          if (isMounted) {
+            reconnectTimer = setTimeout(() => {
+              console.log("[WS] Auto-reconnecting WebSocket...");
+              connectWebSocket();
+            }, 3000);
+          }
         };
 
         setWs(socket);
@@ -572,7 +704,12 @@ export function ConnectionPanel() {
     connectWebSocket();
 
     return () => {
+      isMounted = false;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
       if (socket) {
+        socket.onclose = null; // Prevent auto-reconnect on intentional close
         socket.close();
       }
       // Limpar polling e timeout ao desmontar
@@ -1038,75 +1175,344 @@ export function ConnectionPanel() {
               <Users className="w-5 h-5 text-primary" />
               <h2 className="text-xl font-bold">Minhas Conexões e Agentes</h2>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowNewConnForm(!showNewConnForm)}
-              className="gap-1"
-            >
-              <Plus className="w-4 h-4" />
-              Nova Conexão
-            </Button>
+            {!showNewConnForm && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setShowNewConnForm(true); setNewConnStep("form"); }}
+                className="gap-1"
+              >
+                <Plus className="w-4 h-4" />
+                Nova Conexão
+              </Button>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             Gerencie suas conexões WhatsApp e veja os agentes de IA atribuídos a cada uma.
           </p>
 
-          {/* Formulário de nova conexão */}
+          {/* ============ FLUXO NOVA CONEXÃO ============ */}
           {showNewConnForm && (
-            <Card className="p-4 space-y-4 border-2 border-primary/20 bg-primary/5">
-              <h3 className="font-semibold text-sm">Adicionar Nova Conexão</h3>
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label htmlFor="conn-name" className="text-sm">Nome da Conexão</Label>
-                  <Input
-                    id="conn-name"
-                    value={newConnName}
-                    onChange={(e) => setNewConnName(e.target.value)}
-                    placeholder="Ex: WhatsApp Vendas, Suporte, etc."
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="conn-type" className="text-sm">Tipo</Label>
-                  <select
-                    id="conn-type"
-                    value={newConnType}
-                    onChange={(e) => setNewConnType(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md bg-background text-sm"
+            <Card className="p-5 space-y-5 border-2 border-primary/20 bg-primary/5">
+              {/* Step 1: Name/Type form */}
+              {newConnStep === "form" && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Plus className="w-5 h-5 text-primary" />
+                    <h3 className="font-semibold">Adicionar Nova Conexão</h3>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="conn-name" className="text-sm">Nome da Conexão (opcional)</Label>
+                      <Input
+                        id="conn-name"
+                        value={newConnName}
+                        onChange={(e) => setNewConnName(e.target.value)}
+                        placeholder="Ex: WhatsApp Vendas, Suporte, etc."
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => createConnectionMutation.mutate()}
+                      disabled={createConnectionMutation.isPending}
+                    >
+                      {createConnectionMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          Criando...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-3 h-3 mr-1" />
+                          Continuar
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={closeNewConnFlow}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* Step 2: Method selection (QR or Pairing) */}
+              {newConnStep === "method" && newConnId && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={closeNewConnFlow}
+                    className="gap-1 text-muted-foreground hover:text-foreground"
                   >
-                    <option value="secondary">Secundária</option>
-                    <option value="support">Suporte</option>
-                    <option value="sales">Vendas</option>
-                    <option value="business">Comercial</option>
-                  </select>
+                    <ArrowLeft className="w-4 h-4" />
+                    Cancelar
+                  </Button>
+                  <div className="text-center space-y-2">
+                    <h3 className="text-lg font-medium text-foreground">Como você quer conectar o novo número?</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Escolha a opção mais fácil para você.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* QR Code Option */}
+                    <button
+                      onClick={() => {
+                        connectConnectionMutation.mutate(newConnId);
+                      }}
+                      disabled={connectConnectionMutation.isPending}
+                      className="group relative flex flex-col items-center p-5 gap-3 rounded-xl border-2 border-muted bg-card hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-all duration-300 shadow-sm hover:shadow-md text-center cursor-pointer"
+                    >
+                      <Badge variant="secondary" className="absolute top-2 right-2 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 font-normal text-[10px] uppercase tracking-wider">
+                        Recomendado
+                      </Badge>
+                      <div className="h-14 w-14 rounded-full bg-emerald-100/50 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                        <QrCode className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="font-semibold group-hover:text-emerald-700 dark:group-hover:text-emerald-400">Escanear QR Code</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Abra a câmera do WhatsApp e aponte.
+                        </p>
+                      </div>
+                      <div className="w-full py-2 bg-muted/50 rounded-lg text-xs font-medium text-foreground group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                        Escolher QR Code
+                      </div>
+                    </button>
+
+                    {/* Pairing Code Option */}
+                    <button
+                      onClick={() => setNewConnStep("pairing-form")}
+                      className="group relative flex flex-col items-center p-5 gap-3 rounded-xl border-2 border-muted bg-card hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all duration-300 shadow-sm hover:shadow-md text-center cursor-pointer"
+                    >
+                      <div className="h-14 w-14 rounded-full bg-blue-100/50 dark:bg-blue-900/30 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                        <Hash className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="font-semibold group-hover:text-blue-700 dark:group-hover:text-blue-400">Código de 8 Dígitos</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Digite seu número e receba um código.
+                        </p>
+                      </div>
+                      <div className="w-full py-2 bg-muted/50 rounded-lg text-xs font-medium text-foreground group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        Escolher Código
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Step 3a: QR Waiting */}
+              {newConnStep === "qr-waiting" && newConnId && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={closeNewConnFlow}
+                    className="gap-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Cancelar
+                  </Button>
+                  <div className="p-6 bg-amber-50 border border-amber-200 rounded-md text-center space-y-4">
+                    <Loader2 className="w-12 h-12 mx-auto text-amber-600 animate-spin" />
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-amber-900">Gerando QR Code...</h4>
+                      <p className="text-sm text-amber-700">
+                        Aguarde enquanto geramos o QR Code para a nova conexão.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Step 3b: QR Display */}
+              {newConnStep === "qr-display" && newConnId && connectionQrCodes[newConnId] && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={closeNewConnFlow}
+                    className="gap-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Cancelar
+                  </Button>
+                  <div className="p-6 bg-white dark:bg-gray-950 rounded-md flex flex-col items-center gap-6">
+                    <img
+                      src={connectionQrCodes[newConnId]}
+                      alt="QR Code Nova Conexão"
+                      className="w-full max-w-[256px] h-auto border-4 border-gray-100 dark:border-gray-800 rounded-lg"
+                    />
+                    <div className="text-center space-y-3 max-w-md">
+                      <h4 className="font-semibold text-lg">Escaneie com o novo número:</h4>
+                      <ol className="text-left space-y-2 text-sm">
+                        <li className="flex gap-2">
+                          <span className="font-semibold text-primary">1.</span>
+                          <span>Abra o WhatsApp <strong>no celular do novo número</strong></span>
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="font-semibold text-primary">2.</span>
+                          <span>Vá em <strong>Configurações → Aparelhos conectados</strong></span>
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="font-semibold text-primary">3.</span>
+                          <span>Toque em <strong>Conectar um aparelho</strong></span>
+                        </li>
+                        <li className="flex gap-2">
+                          <span className="font-semibold text-primary">4.</span>
+                          <span>Aponte a câmera para este QR Code</span>
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      // Re-trigger connect to get a new QR
+                      setConnectionQrCodes(prev => {
+                        const next = { ...prev };
+                        if (newConnId) delete next[newConnId];
+                        return next;
+                      });
+                      setNewConnStep("qr-waiting");
+                      connectConnectionMutation.mutate(newConnId);
+                    }}
+                    disabled={connectConnectionMutation.isPending}
+                    className="w-full"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Gerar Novo QR Code
+                  </Button>
+                </>
+              )}
+
+              {/* Step 3c: Pairing - Phone number form */}
+              {newConnStep === "pairing-form" && newConnId && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setNewConnStep("method")}
+                    className="gap-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Voltar
+                  </Button>
+                  <div className="p-6 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md space-y-4">
+                    <div className="text-center space-y-2">
+                      <Hash className="w-10 h-10 mx-auto text-blue-600" />
+                      <h4 className="font-medium text-blue-900 dark:text-blue-100">Conectar com Código</h4>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        Digite o número do WhatsApp que deseja conectar
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-conn-phone" className="text-blue-900 dark:text-blue-100">
+                        Número do WhatsApp
+                      </Label>
+                      <Input
+                        id="new-conn-phone"
+                        type="tel"
+                        placeholder="5511999999999"
+                        value={newConnPhoneNumber}
+                        onChange={(e) => setNewConnPhoneNumber(e.target.value)}
+                        className="text-center text-lg tracking-wider"
+                      />
+                      <p className="text-xs text-blue-600 dark:text-blue-400">
+                        Digite com código do país (55 para Brasil) e DDD
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      const cleanPhone = newConnPhoneNumber.replace(/\D/g, "");
+                      if (cleanPhone.length < 10) {
+                        toast({ title: "Número muito curto", description: "Digite um número válido com DDI, DDD e número.", variant: "destructive" });
+                        return;
+                      }
+                      setNewConnStep("pairing-waiting");
+                      try {
+                        const response = await apiRequest("POST", "/api/whatsapp/pairing-code", {
+                          phoneNumber: cleanPhone,
+                          connectionId: newConnId,
+                        });
+                        const data = await response.json();
+                        if (data.code) {
+                          setNewConnPairingCode(data.code);
+                          setNewConnStep("pairing-display");
+                        } else {
+                          throw new Error("Código não retornado");
+                        }
+                      } catch (err: any) {
+                        toast({ title: "Erro ao gerar código", description: err.message, variant: "destructive" });
+                        setNewConnStep("pairing-form");
+                      }
+                    }}
+                    disabled={newConnPhoneNumber.replace(/\D/g, "").length < 10}
+                    className="w-full"
+                  >
+                    <Hash className="w-4 h-4 mr-2" />
+                    Gerar Código de Conexão
+                  </Button>
+                </>
+              )}
+
+              {/* Step 3d: Pairing - Waiting */}
+              {newConnStep === "pairing-waiting" && (
+                <div className="p-6 bg-amber-50 border border-amber-200 rounded-md text-center space-y-4">
+                  <Loader2 className="w-12 h-12 mx-auto text-amber-600 animate-spin" />
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-amber-900">Gerando Código...</h4>
+                    <p className="text-sm text-amber-700">Aguarde enquanto geramos seu código de 8 caracteres</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => createConnectionMutation.mutate()}
-                  disabled={createConnectionMutation.isPending}
-                >
-                  {createConnectionMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                      Criando...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-3 h-3 mr-1" />
-                      Criar Conexão
-                    </>
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => { setShowNewConnForm(false); setNewConnName(""); }}
-                >
-                  Cancelar
-                </Button>
-              </div>
+              )}
+
+              {/* Step 3e: Pairing - Code display */}
+              {newConnStep === "pairing-display" && newConnPairingCode && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setNewConnStep("method")}
+                    className="gap-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Voltar
+                  </Button>
+                  <div className="p-6 bg-primary/5 border-2 border-primary/20 rounded-md text-center space-y-4">
+                    <div className="space-y-2">
+                      <CheckCircle2 className="w-10 h-10 mx-auto text-primary" />
+                      <h4 className="font-medium text-lg">Código Gerado!</h4>
+                    </div>
+                    <div className="p-4 bg-white dark:bg-gray-900 rounded-lg shadow-inner">
+                      <p className="text-3xl md:text-4xl font-mono font-bold tracking-[0.3em] text-primary">
+                        {newConnPairingCode}
+                      </p>
+                    </div>
+                    <div className="text-left space-y-2 pt-2">
+                      <p className="text-sm font-medium">No celular do novo número:</p>
+                      <ol className="text-sm text-muted-foreground space-y-1.5">
+                        <li>1. Abra o WhatsApp</li>
+                        <li>2. Vá em <strong>Aparelhos conectados</strong></li>
+                        <li>3. Toque em <strong>Conectar um aparelho</strong></li>
+                        <li>4. Toque em <strong>"Conectar com número de telefone"</strong></li>
+                        <li>5. Digite o código <strong>{newConnPairingCode}</strong></li>
+                      </ol>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-amber-600 pt-2">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Aguardando conexão...</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </Card>
           )}
 

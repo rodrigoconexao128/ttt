@@ -3022,7 +3022,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
             for (const authPath of authPaths) {
               try {
                 const files = await fs.readdir(authPath);
-                const hasCredFiles = files.some(f => f.startsWith('creds') || f.endsWith('.json'));
+                const hasCredFiles = files.some(f => f === 'creds.json');
                 if (hasCredFiles) {
                   hasValidAuth = true;
                   break;
@@ -3131,10 +3131,22 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         // -----------------------------------------------------------------------
         sessions.set(session.connectionId, session);
 
-        // Conexão estabelecida com sucesso - resetar tentativas de reconexão e limpar pendentes
-        reconnectAttempts.delete(session.connectionId);
+        // Conexão estabelecida com sucesso - limpar pendentes
+        // NÃO resetar reconnectAttempts imediatamente — só após 2min de estabilidade
+        // Isso evita loop infinito: open→close→attempt1→open→close→attempt1...
         pendingConnections.delete(session.connectionId);
         pendingConnections.delete(userId); // Also clean legacy key
+
+        // Agendar reset do contador de reconexão após 2 minutos de estabilidade
+        const STABILITY_DELAY_MS = 120_000; // 2 min
+        setTimeout(() => {
+          // Só reseta se este MESMO socket ainda estiver ativo
+          const currentSess = sessions.get(session.connectionId);
+          if (currentSess?.socket === sock) {
+            reconnectAttempts.delete(session.connectionId);
+            console.log(`[RECONNECT] Counter reset for conn ${session.connectionId.substring(0,8)} after ${STABILITY_DELAY_MS/1000}s stability`);
+          }
+        }, STABILITY_DELAY_MS);
 
         const phoneNumber = sock.user?.id?.split(":")[0] || "";
         session.phoneNumber = phoneNumber;

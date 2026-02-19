@@ -29,7 +29,7 @@ export function startWhatsAppLeaderElection(opts: LeaderOptions): {
   isLeader: () => boolean;
 } {
   const lockFilePath = opts.lockFilePath || resolveDefaultLockPath();
-  const staleMs = opts.staleMs ?? 5 * 60 * 1000;
+  const staleMs = opts.staleMs ?? 90 * 1000; // 90 seconds (SIGTERM cleans up immediately, this is safety net)
   const heartbeatMs = opts.heartbeatMs ?? 30 * 1000;
   const retryMs = opts.retryMs ?? 15 * 1000;
 
