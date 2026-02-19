@@ -1,8 +1,7 @@
 import { Express, Request, Response } from "express";
 import { isAdmin } from "./middleware";
-import { storage, db } from "./storage";
+import { storage } from "./storage";
 import { db as dbClient } from "./db";
-import { isAdmin as checkAdmin } from "./supabaseAuth";
 import { z } from "zod";
 import {
   followupConfigs,
@@ -13,6 +12,7 @@ import {
   paymentHistory
 } from "@shared/schema";
 import { followUpService } from "./followUpService";
+import { eq, and, lte, isNull, or } from "drizzle-orm";
 
 // ============================================================================
 // ROUTES PARA FOLLOW-UP DE NÃO PAGANTES
@@ -112,9 +112,9 @@ export function registerNotapayersRoutes(app: Express) {
 
       // Buscar assinaturas inativas ou expiradas
       const inactiveSubscriptions = await dbClient.query.subscriptions.findMany({
-        where: (subscriptions, { and, lte, isNull }) => and(
-          isNull(subscriptions.cancelledAt),
-          lte(subscriptions.expiresAt, now)
+        where: (subs, { and, lte, or, eq }) => and(
+          or(eq(subs.status, 'expired'), eq(subs.status, 'cancelled')),
+          lte(subs.dataFim, now)
         ),
         with: {
           user: true,
@@ -124,7 +124,9 @@ export function registerNotapayersRoutes(app: Express) {
 
       // Filtrar apenas assinaturas dentro do período de follow-up
       const eligibleSubscriptions = inactiveSubscriptions.filter(sub => {
-        const daysSinceExpiry = (now.getTime() - new Date(sub.expiresAt!).getTime()) / (1000 * 60 * 60 * 24);
+        const dataFim = sub.dataFim ? new Date(sub.dataFim) : null;
+        if (!dataFim) return false;
+        const daysSinceExpiry = (now.getTime() - dataFim.getTime()) / (1000 * 60 * 60 * 24);
         return daysSinceExpiry >= activeDaysStart && daysSinceExpiry <= activeDaysEnd;
       });
 
@@ -132,17 +134,18 @@ export function registerNotapayersRoutes(app: Express) {
       const listWithAttempts = await Promise.all(
         eligibleSubscriptions.map(async (sub) => {
           const attempts = await storage.getNotapayerFollowupAttempts(sub.userId);
+          const dataFim = sub.dataFim ? new Date(sub.dataFim) : null;
 
           return {
             id: sub.id,
             userId: sub.userId,
-            userName: sub.user.name,
-            userEmail: sub.user.email,
-            phone: sub.user.whatsappNumber,
-            planName: sub.plan.name,
-            planPrice: sub.plan.price,
-            expiresAt: sub.expiresAt,
-            daysSinceExpiry: Math.floor((now.getTime() - new Date(sub.expiresAt!).getTime()) / (1000 * 60 * 60 * 24)),
+            userName: (sub as any).user?.name || (sub as any).user?.nome || "Desconhecido",
+            userEmail: (sub as any).user?.email || "",
+            phone: (sub as any).user?.whatsappNumber || "",
+            planName: (sub as any).plan?.nome || "Plano",
+            planPrice: (sub as any).plan?.valor || "0",
+            expiresAt: sub.dataFim,
+            daysSinceExpiry: dataFim ? Math.floor((now.getTime() - dataFim.getTime()) / (1000 * 60 * 60 * 24)) : 0,
             attempts: attempts.length,
             lastAttempt: attempts[attempts.length - 1] || null,
           };
@@ -178,10 +181,10 @@ export function registerNotapayersRoutes(app: Express) {
 
       // Verificar se tem assinatura inativa
       const inactiveSub = await dbClient.query.subscriptions.findFirst({
-        where: (subscriptions, { and, lte, isNull }) => and(
-          eq(subscriptions.userId, userId),
-          isNull(subscriptions.cancelledAt),
-          lte(subscriptions.expiresAt, new Date())
+        where: (subs, { and, lte, or, eq }) => and(
+          eq(subs.userId, userId),
+          or(eq(subs.status, 'expired'), eq(subs.status, 'cancelled')),
+          lte(subs.dataFim, new Date())
         )
       });
 
@@ -234,7 +237,7 @@ export function registerNotapayersRoutes(app: Express) {
           name: user.name,
           phone: user.whatsappNumber,
         },
-        message,
+        sentMessage: message,
       });
     } catch (error: any) {
       console.error("Erro ao enviar follow-up:", error);
@@ -283,10 +286,10 @@ export function registerNotapayersRoutes(app: Express) {
 
       // Obter assinatura inativa
       const inactiveSub = await dbClient.query.subscriptions.findFirst({
-        where: (subscriptions, { and, lte, isNull }) => and(
-          eq(subscriptions.userId, userId),
-          isNull(subscriptions.cancelledAt),
-          lte(subscriptions.expiresAt, new Date())
+        where: (subs, { and, lte, or, eq }) => and(
+          eq(subs.userId, userId),
+          or(eq(subs.status, 'expired'), eq(subs.status, 'cancelled')),
+          lte(subs.dataFim, new Date())
         )
       });
 
@@ -301,8 +304,7 @@ export function registerNotapayersRoutes(app: Express) {
       const updatedSub = await dbClient.update(subscriptions)
         .set({
           status: "active",
-          cancelledAt: null,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // +30 dias
+          dataFim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // +30 dias
         })
         .where(eq(subscriptions.id, inactiveSub.id))
         .returning();

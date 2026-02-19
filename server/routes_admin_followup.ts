@@ -224,7 +224,7 @@ export function registerAdminFollowUpRoutes(app: Express) {
       });
 
       // Enriquecer com nome do contato (busca em lote via contactNumber)
-      const numbers = [...new Set(logs.filter(l => l.contactNumber).map(l => l.contactNumber))];
+      const numbers = Array.from(new Set(logs.filter(l => l.contactNumber).map(l => l.contactNumber)));
       const nameMap = new Map<string, string | null>();
       if (numbers.length > 0) {
         // Buscar conversas por número — pegar a mais recente por número
@@ -280,7 +280,7 @@ export function registerAdminFollowUpRoutes(app: Express) {
         nextFollowupAt: conv.nextFollowupAt || "",
         lastMessageText: conv.lastMessageText || null,
         lastMessageTime: conv.lastMessageTime || null,
-        note: conv.followupDisabledReason || null,
+        note: null, // followupDisabledReason not available in adminConversations
         // 🛡️ FOLLOW-UP FOR NON-PAYERS
         paymentStatus: conv.paymentStatus || 'pending',
         followupForNonPayers: conv.followupForNonPayers ?? true,
@@ -335,7 +335,6 @@ export function registerAdminFollowUpRoutes(app: Express) {
           .set({
             followupActive: false,
             nextFollowupAt: null,
-            followupDisabledReason: "Desativado pelo admin"
           })
           .where(eq(adminConversations.id, id));
 
@@ -370,7 +369,7 @@ export function registerAdminFollowUpRoutes(app: Express) {
         active: conversation.followupActive,
         stage: conversation.followupStage,
         nextFollowupAt: conversation.nextFollowupAt,
-        disabledReason: conversation.followupDisabledReason,
+        disabledReason: null, // followupDisabledReason not available in adminConversations
         // 🛡️ FOLLOW-UP FOR NON-PAYERS
         paymentStatus: conversation.paymentStatus || 'pending',
         followupForNonPayers: conversation.followupForNonPayers ?? true,
@@ -597,10 +596,9 @@ export function registerAdminFollowUpRoutes(app: Express) {
       // Por enquanto, vamos usar a tabela followupLogs como placeholder
       const log = await db.insert(followupLogs).values({
         conversationId: id,
-        text: text,
+        contactNumber: conversation.contactNumber || "",
+        messageContent: text,
         scheduledFor: new Date(scheduledFor),
-        useAI: useAI || false,
-        note: note || null,
         executedAt: null, // Ainda não executado
         status: 'scheduled'
       }).returning();

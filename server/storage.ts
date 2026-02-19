@@ -5037,7 +5037,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
    */
   async createNotapayerFollowupAttempt(data: {
     userId: string;
-    subscriptionId: number;
+    subscriptionId: string | number;
     message: string;
     sentAt: Date;
     status: string;
