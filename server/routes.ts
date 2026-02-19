@@ -1884,6 +1884,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         agentId: z.string().min(1),
         phoneNumber: z.string().optional().nullable(),
         isConnected: z.boolean().optional(),
+        connectionName: z.string().optional().nullable(),
+        connectionType: z.string().optional().nullable(),
+        isPrimary: z.boolean().optional(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
@@ -1905,6 +1908,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         agentId: parsed.data.agentId,
         phoneNumber: parsed.data.phoneNumber || null,
         isConnected: parsed.data.isConnected ?? false,
+        connectionName: parsed.data.connectionName || null,
+        connectionType: parsed.data.connectionType || 'primary',
+        isPrimary: parsed.data.isPrimary ?? true,
       });
 
       res.json(connection);
@@ -1921,6 +1927,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         agentId: z.string().optional(),
         phoneNumber: z.string().optional().nullable(),
         isConnected: z.boolean().optional(),
+        connectionName: z.string().optional().nullable(),
+        connectionType: z.string().optional().nullable(),
+        isPrimary: z.boolean().optional(),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
@@ -1956,6 +1965,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[ADMIN] Erro ao excluir conexao:", error);
       res.status(500).json({ message: "Erro ao excluir conexao" });
+    }
+  });
+
+  // ==================== MULTI-AGENT: CONNECTION AGENTS ====================
+
+  // GET agents assigned to a connection
+  app.get("/api/admin/connections/:connectionId/agents", isAdmin, async (req, res) => {
+    try {
+      const connectionAgents = await storage.getConnectionAgents(req.params.connectionId);
+      const allAgents = await storage.getAgents();
+      const agentMap = new Map(allAgents.map((a) => [a.id, a]));
+      const payload = connectionAgents.map((ca) => ({
+        ...ca,
+        agent: agentMap.get(ca.agentId) || null,
+      }));
+      res.json(payload);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao listar agentes da conexao:", error);
+      res.status(500).json({ message: "Erro ao listar agentes da conexao" });
+    }
+  });
+
+  // POST add agent to connection
+  app.post("/api/admin/connections/:connectionId/agents", isAdmin, async (req, res) => {
+    try {
+      const schema = z.object({
+        agentId: z.string().min(1),
+        isActive: z.boolean().optional().default(true),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+      const record = await storage.addConnectionAgent({
+        connectionId: req.params.connectionId,
+        agentId: parsed.data.agentId,
+        isActive: parsed.data.isActive,
+        assignedBy: (req as any).user?.id || "admin",
+      });
+      res.json(record);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao adicionar agente a conexao:", error);
+      res.status(500).json({ message: "Erro ao adicionar agente a conexao" });
+    }
+  });
+
+  // PUT toggle agent active/inactive on connection
+  app.put("/api/admin/connections/:connectionId/agents/:agentId", isAdmin, async (req, res) => {
+    try {
+      const schema = z.object({ isActive: z.boolean() });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos" });
+      }
+      const record = await storage.updateConnectionAgent(
+        req.params.connectionId,
+        req.params.agentId,
+        { isActive: parsed.data.isActive },
+      );
+      res.json(record);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao atualizar agente da conexao:", error);
+      res.status(500).json({ message: "Erro ao atualizar agente da conexao" });
+    }
+  });
+
+  // DELETE remove agent from connection
+  app.delete("/api/admin/connections/:connectionId/agents/:agentId", isAdmin, async (req, res) => {
+    try {
+      await storage.removeConnectionAgent(req.params.connectionId, req.params.agentId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[ADMIN] Erro ao remover agente da conexao:", error);
+      res.status(500).json({ message: "Erro ao remover agente da conexao" });
+    }
+  });
+
+  // ==================== MULTI-AGENT: CONNECTION MEMBERS ====================
+
+  // GET members assigned to a connection
+  app.get("/api/admin/connections/:connectionId/members", isAdmin, async (req, res) => {
+    try {
+      const members = await storage.getConnectionMembers(req.params.connectionId);
+      res.json(members);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao listar membros da conexao:", error);
+      res.status(500).json({ message: "Erro ao listar membros da conexao" });
+    }
+  });
+
+  // POST add member to connection
+  app.post("/api/admin/connections/:connectionId/members", isAdmin, async (req, res) => {
+    try {
+      const schema = z.object({
+        memberId: z.string().min(1),
+        canView: z.boolean().optional().default(true),
+        canRespond: z.boolean().optional().default(true),
+        canManage: z.boolean().optional().default(false),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos", errors: parsed.error.errors });
+      }
+      const record = await storage.addConnectionMember({
+        connectionId: req.params.connectionId,
+        memberId: parsed.data.memberId,
+        canView: parsed.data.canView,
+        canRespond: parsed.data.canRespond,
+        canManage: parsed.data.canManage,
+      });
+      res.json(record);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao adicionar membro a conexao:", error);
+      res.status(500).json({ message: "Erro ao adicionar membro a conexao" });
+    }
+  });
+
+  // PUT update member permissions on connection
+  app.put("/api/admin/connections/:connectionId/members/:memberId", isAdmin, async (req, res) => {
+    try {
+      const schema = z.object({
+        canView: z.boolean().optional(),
+        canRespond: z.boolean().optional(),
+        canManage: z.boolean().optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Dados invalidos" });
+      }
+      const record = await storage.updateConnectionMember(
+        req.params.connectionId,
+        req.params.memberId,
+        parsed.data,
+      );
+      res.json(record);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao atualizar membro da conexao:", error);
+      res.status(500).json({ message: "Erro ao atualizar membro da conexao" });
+    }
+  });
+
+  // DELETE remove member from connection
+  app.delete("/api/admin/connections/:connectionId/members/:memberId", isAdmin, async (req, res) => {
+    try {
+      await storage.removeConnectionMember(req.params.connectionId, req.params.memberId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[ADMIN] Erro ao remover membro da conexao:", error);
+      res.status(500).json({ message: "Erro ao remover membro da conexao" });
+    }
+  });
+
+  // GET all connections for a specific user (multi-connection)
+  app.get("/api/admin/connections/user/:userId", isAdmin, async (req, res) => {
+    try {
+      const connections = await storage.getConnectionsByUserId(req.params.userId);
+      res.json(connections);
+    } catch (error) {
+      console.error("[ADMIN] Erro ao listar conexoes do usuario:", error);
+      res.status(500).json({ message: "Erro ao listar conexoes do usuario" });
     }
   });
 
@@ -3487,6 +3656,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     try {
 
       const userId = getUserId(req);
+      const devMode = process.env.SKIP_WHATSAPP_RESTORE === 'true' || process.env.DISABLE_WHATSAPP_PROCESSING === 'true';
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -3606,7 +3776,109 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
   });
 
+  // ==================== USER-FACING MULTI-CONNECTION ROUTES ====================
 
+  // GET all connections for the authenticated user
+  app.get("/api/whatsapp/connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const connections = await storage.getConnectionsByUserId(userId);
+      const allAgents = await storage.getAgents();
+      const agentMap = new Map(allAgents.map((a) => [a.id, a]));
+
+      const payload = await Promise.all(connections.map(async (conn) => {
+        // Get assigned agents (many-to-many)
+        const connAgents = await storage.getConnectionAgents(conn.id);
+        return {
+          ...conn,
+          agent: conn.agentId ? agentMap.get(conn.agentId) || null : null,
+          assignedAgents: connAgents.map((ca) => ({
+            ...ca,
+            agent: agentMap.get(ca.agentId) || null,
+          })),
+        };
+      }));
+
+      res.json(payload);
+    } catch (error) {
+      console.error("[MULTI-CONN] Erro ao listar conexões do usuário:", error);
+      res.status(500).json({ message: "Erro ao listar conexões" });
+    }
+  });
+
+  // GET agents assigned to a specific connection (user-facing)
+  app.get("/api/whatsapp/connections/:connectionId/agents", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      // Verify the connection belongs to this user
+      const connection = await storage.getConnectionById(req.params.connectionId);
+      if (!connection || connection.userId !== userId) {
+        return res.status(404).json({ message: "Conexão não encontrada" });
+      }
+
+      const connAgents = await storage.getConnectionAgents(req.params.connectionId);
+      const allAgents = await storage.getAgents();
+      const agentMap = new Map(allAgents.map((a) => [a.id, a]));
+
+      const payload = connAgents.map((ca) => ({
+        ...ca,
+        agent: agentMap.get(ca.agentId) || null,
+      }));
+
+      res.json(payload);
+    } catch (error) {
+      console.error("[MULTI-CONN] Erro ao listar agentes da conexão:", error);
+      res.status(500).json({ message: "Erro ao listar agentes da conexão" });
+    }
+  });
+
+  // POST create a new connection for the authenticated user
+  app.post("/api/whatsapp/connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { connectionName, connectionType } = req.body;
+
+      // Check how many connections user already has
+      const existing = await storage.getConnectionsByUserId(userId);
+      if (existing.length >= 5) {
+        return res.status(400).json({ message: "Limite de 5 conexões atingido" });
+      }
+
+      // Create new connection record  
+      const newConn = await storage.createConnection({
+        userId,
+        connectionName: connectionName || `Conexão ${existing.length + 1}`,
+        connectionType: connectionType || "secondary",
+        isPrimary: false,
+        isConnected: false,
+      });
+
+      res.json(newConn);
+    } catch (error) {
+      console.error("[MULTI-CONN] Erro ao criar conexão:", error);
+      res.status(500).json({ message: "Erro ao criar conexão" });
+    }
+  });
+
+  // DELETE a connection for the authenticated user
+  app.delete("/api/whatsapp/connections/:connectionId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const connection = await storage.getConnectionById(req.params.connectionId);
+      if (!connection || connection.userId !== userId) {
+        return res.status(404).json({ message: "Conexão não encontrada" });
+      }
+      // Don't allow deleting the primary connection
+      if ((connection as any).isPrimary) {
+        return res.status(400).json({ message: "Não é possível deletar a conexão principal" });
+      }
+      await storage.deleteConnection(req.params.connectionId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[MULTI-CONN] Erro ao deletar conexão:", error);
+      res.status(500).json({ message: "Erro ao deletar conexão" });
+    }
+  });
 
   app.post("/api/whatsapp/connect", isAuthenticated, async (req: any, res) => {
 
@@ -11798,6 +12070,145 @@ ${config.ai_instructions || ''}
     }
   });
 
+  // ==================== RESELLER PAYMENT RECEIPTS ROUTE ====================
+  /**
+   * POST /api/reseller/payment-receipts/upload
+   * Revendedor envia comprovante PIX para pagamento de cliente (checkout)
+   * Salva na tabela payment_receipts e notifica admin
+   */
+  app.post("/api/reseller/payment-receipts/upload", isAuthenticated, upload.single("receipt"), async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const file = req.file;
+      const { paymentId, amount } = req.body;
+
+      if (!file) {
+        return res.status(400).json({ message: "Arquivo de comprovante é obrigatório" });
+      }
+
+      // Verificar se é revendedor
+      const reseller = await storage.getResellerByUserId(userId);
+      if (!reseller) {
+        return res.status(403).json({ message: "Você não é um revendedor" });
+      }
+
+      // Verificar/criar bucket se necessário
+      const { data: bucketData, error: bucketError } = await supabase.storage.getBucket('payment-receipts');
+      if (bucketError && bucketError.message?.includes('not found')) {
+        console.log('[RESELLER PAYMENT] Criando bucket payment-receipts...');
+        const { error: createError } = await supabase.storage.createBucket('payment-receipts', {
+          public: true,
+          fileSizeLimit: 50 * 1024 * 1024,
+        });
+        if (createError) {
+          console.error('[RESELLER PAYMENT] Erro ao criar bucket:', createError);
+        }
+      }
+
+      // Remover comprovantes duplicados pendentes do mesmo pagamento
+      if (paymentId) {
+        const { data: duplicateReceipts } = await supabase
+          .from("payment_receipts")
+          .select("id, receipt_url")
+          .eq("user_id", userId)
+          .eq("mp_payment_id", paymentId)
+          .eq("status", "pending");
+
+        if (duplicateReceipts && duplicateReceipts.length > 0) {
+          const pathsToRemove = duplicateReceipts
+            .map((r: any) => {
+              const url = r.receipt_url || "";
+              if (url.startsWith("receipts/")) return url;
+              const marker = "/payment-receipts/";
+              const idx = url.indexOf(marker);
+              return idx === -1 ? null : url.slice(idx + marker.length);
+            })
+            .filter(Boolean) as string[];
+
+          if (pathsToRemove.length > 0) {
+            await supabase.storage.from("payment-receipts").remove(pathsToRemove);
+          }
+
+          await supabase
+            .from("payment_receipts")
+            .delete()
+            .in("id", duplicateReceipts.map((r: any) => r.id));
+        }
+      }
+
+      // Upload do arquivo para Supabase Storage
+      const safeOriginalName = file.originalname.replace(/[^\w.\-]+/g, "_");
+      const fileName = `receipts/reseller_${reseller.id}/${Date.now()}_${safeOriginalName}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("payment-receipts")
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error("[RESELLER PAYMENT] Error uploading receipt:", uploadError);
+        return res.status(500).json({ message: "Erro ao fazer upload do comprovante", error: uploadError.message });
+      }
+
+      // Obter URL pública
+      const { data: urlData } = supabase.storage
+        .from("payment-receipts")
+        .getPublicUrl(fileName);
+
+      const receiptUrl = urlData?.publicUrl || fileName;
+
+      // Salvar registro na tabela payment_receipts (sem subscription_id para revendedor)
+      const { data: receipt, error: insertError } = await supabase
+        .from("payment_receipts")
+        .insert({
+          user_id: userId,
+          subscription_id: null, // Revendedor não tem subscription_id direto
+          plan_id: null,
+          amount: parseFloat(amount) || 0,
+          receipt_url: receiptUrl,
+          receipt_filename: file.originalname,
+          receipt_mime_type: file.mimetype,
+          status: "pending",
+          mp_payment_id: paymentId || null,
+          notes: `Comprovante de revendedor - Reseller ID: ${reseller.id}`,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("[RESELLER PAYMENT] Error saving receipt:", insertError);
+        return res.status(500).json({ message: "Erro ao salvar comprovante" });
+      }
+
+      // Se houver paymentId, atualizar o pagamento do revendedor para pending_receipt
+      if (paymentId) {
+        try {
+          await storage.updateResellerPayment(paymentId, {
+            statusDetail: JSON.stringify({
+              ...(JSON.parse((await storage.getResellerPayment(paymentId))?.statusDetail || '{}')),
+              receiptId: receipt.id,
+              receiptUrl: receiptUrl,
+            })
+          });
+        } catch (e) {
+          console.error("[RESELLER PAYMENT] Error updating reseller payment with receipt:", e);
+        }
+      }
+
+      console.log(`[RESELLER PAYMENT] ✅ Comprovante salvo: ${receipt.id} - Revendedor: ${reseller.id}`);
+
+      res.json({
+        success: true,
+        message: "Comprovante enviado com sucesso! Aguarde a confirmação.",
+        receipt
+      });
+    } catch (error) {
+      console.error("[RESELLER PAYMENT] Error uploading receipt:", error);
+      res.status(500).json({ message: "Erro ao processar comprovante" });
+    }
+  });
+
   // Listar comprovantes pendentes (admin)
   app.get("/api/admin/payment-receipts", isAdmin, async (req, res) => {
     try {
@@ -11930,7 +12341,7 @@ ${config.ai_instructions || ''}
           status: "cancelled",
           reviewed_at: new Date().toISOString(),
           reviewed_by: adminId,
-          review_notes: "Cancelado automaticamente - outro comprovante foi aprovado",
+          admin_notes: "Cancelado automaticamente - outro comprovante foi aprovado",
           updated_at: new Date().toISOString()
         })
         .eq("user_id", receipt.user_id)
@@ -11945,40 +12356,69 @@ ${config.ai_instructions || ''}
       // ATIVAÇÃO AUTOMÁTICA DA ASSINATURA: Calcular datas e ativar plano
       if (receipt.subscription_id) {
         // Buscar o plano para calcular a duração
-        const { data: plan, error: planError } = await supabase
-          .from("plans")
-          .select("*")
-          .eq("id", receipt.plan_id)
-          .single();
-
-        if (planError) {
-          console.error("Error fetching plan for activation:", planError);
+        // Primeiro tenta pelo plan_id do comprovante, fallback pela assinatura
+        let plan: any = null;
+        
+        if (receipt.plan_id) {
+          const { data: planData, error: planError } = await supabase
+            .from("plans")
+            .select("*")
+            .eq("id", receipt.plan_id)
+            .single();
+          
+          if (!planError) {
+            plan = planData;
+          } else {
+            console.error("Error fetching plan from receipt.plan_id:", planError);
+          }
+        }
+        
+        // Fallback: buscar plano via assinatura
+        if (!plan) {
+          const { data: subData } = await supabase
+            .from("subscriptions")
+            .select("plan_id")
+            .eq("id", receipt.subscription_id)
+            .single();
+          
+          if (subData?.plan_id) {
+            const { data: planData } = await supabase
+              .from("plans")
+              .select("*")
+              .eq("id", subData.plan_id)
+              .single();
+            if (planData) plan = planData;
+          }
         }
 
         // Calcular data de início (hoje) e fim
         const dataInicio = new Date();
         const dataFim = new Date();
 
-        // Determinar a duração em dias
-        let diasDuracao = 30; // Padrão mensal
-
+        // BUG 1 FIX: Priorizar periodicidade sobre frequencia_dias para datas corretas
+        // Mensal = +30 dias, Anual = +1 ano (não apenas 365 dias)
         if (plan) {
-          if (plan.frequencia_dias) {
-            // Usar frequencia_dias se definido
-            diasDuracao = parseInt(plan.frequencia_dias);
-          } else if (plan.periodicidade === "anual") {
-            // Plano anual = 365 dias
-            diasDuracao = 365;
+          if (plan.periodicidade === "anual") {
+            // Plano anual: adicionar exatamente 1 ano (correto para anos bissextos)
+            dataFim.setFullYear(dataFim.getFullYear() + 1);
+          } else if (plan.periodicidade === "mensal") {
+            // Plano mensal: adicionar exatamente 30 dias
+            dataFim.setDate(dataFim.getDate() + 30);
+          } else if (plan.frequencia_dias && parseInt(plan.frequencia_dias) > 0) {
+            // Fallback: usar frequencia_dias para periodicidades personalizadas
+            dataFim.setDate(dataFim.getDate() + parseInt(plan.frequencia_dias));
+          } else {
+            // Padrão: 30 dias
+            dataFim.setDate(dataFim.getDate() + 30);
           }
-          // Se for mensal ou qualquer outro, mantém 30 dias
+        } else {
+          // Sem plano: padrão 30 dias
+          dataFim.setDate(dataFim.getDate() + 30);
         }
-
-        // Adicionar os dias à data de fim
-        dataFim.setDate(dataFim.getDate() + diasDuracao);
 
         console.log(`🔄 Ativando assinatura ${receipt.subscription_id}:`);
         console.log(`   Plano: ${plan?.nome || 'Desconhecido'}`);
-        console.log(`   Duração: ${diasDuracao} dias`);
+        console.log(`   Periodicidade: ${plan?.periodicidade || 'desconhecida'}`);
         console.log(`   Início: ${dataInicio.toISOString()}`);
         console.log(`   Fim: ${dataFim.toISOString()}`);
 
@@ -11990,6 +12430,8 @@ ${config.ai_instructions || ''}
             pending_receipt: false,
             data_inicio: dataInicio.toISOString(),
             data_fim: dataFim.toISOString(),
+            next_payment_date: dataFim.toISOString(),
+            payment_method: "pix_manual",
             updated_at: new Date().toISOString()
           })
           .eq("id", receipt.subscription_id);
@@ -12039,7 +12481,7 @@ ${config.ai_instructions || ''}
           status: "rejected",
           reviewed_at: new Date().toISOString(),
           reviewed_by: adminId,
-          review_notes: notes || "Comprovante rejeitado pelo administrador",
+          admin_notes: notes || "Comprovante rejeitado pelo administrador",
           updated_at: new Date().toISOString()
         })
         .eq("id", id);

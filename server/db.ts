@@ -183,6 +183,42 @@ setTimeout(async () => {
   }
 }, 5000);
 
+// ============================================================================
+// AUTO-MIGRATION: Corrigir constraint de status em payment_receipts
+// ============================================================================
+setTimeout(async () => {
+  try {
+    const client = await pool.connect();
+
+    // Verificar se a constraint já inclui 'cancelled'
+    const checkConstraint = await client.query(`
+      SELECT pg_get_constraintdef(oid) as definition
+      FROM pg_constraint
+      WHERE conrelid = 'payment_receipts'::regclass
+      AND conname = 'payment_receipts_status_check'
+    `);
+
+    const constraintDef = checkConstraint.rows[0]?.definition || '';
+    if (constraintDef && !constraintDef.includes('cancelled')) {
+      console.log('[DB] Atualizando constraint de status em payment_receipts...');
+      await client.query(`ALTER TABLE payment_receipts DROP CONSTRAINT payment_receipts_status_check`);
+      await client.query(`
+        ALTER TABLE payment_receipts 
+        ADD CONSTRAINT payment_receipts_status_check 
+        CHECK (status::text = ANY (ARRAY['pending'::varchar, 'approved'::varchar, 'rejected'::varchar, 'cancelled'::varchar]::text[]))
+      `);
+      console.log('✅ [DB] Constraint de status em payment_receipts atualizada!');
+    }
+
+    client.release();
+  } catch (error: any) {
+    // Pode falhar se a tabela não existir ainda - não é crítico
+    if (!error.message?.includes('does not exist')) {
+      console.error('❌ [DB] Erro ao atualizar constraint payment_receipts:', error.message);
+    }
+  }
+}, 6000);
+
 // Configurar drizzle SEM prepared statements para compatibilidade com PgBouncer Transaction mode
 // PgBouncer em modo "transaction" não suporta prepared statements
 export const db = drizzle({ 
