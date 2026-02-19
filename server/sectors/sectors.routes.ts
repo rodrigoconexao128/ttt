@@ -20,5 +20,30 @@ export function registerSectorRoutes(app: Express): void {
   app.patch("/api/sectors/:id", isAuthenticated, requireAdmin, controller.updateSector);
   app.delete("/api/sectors/:id", isAuthenticated, requireAdmin, controller.deleteSector);
 
+  // Members
+  app.get("/api/sectors/:id/members", isAuthenticated, requireAdmin, controller.listSectorMembers);
+  app.post("/api/sectors/:id/members", isAuthenticated, requireAdmin, controller.addSectorMember);
+  app.patch("/api/sectors/:id/members/:memberId", isAuthenticated, requireAdmin, controller.updateSectorMember);
+  app.delete("/api/sectors/:id/members/:memberId", isAuthenticated, requireAdmin, controller.removeSectorMember);
+
+  // Routing and reports
+  app.post("/api/sectors/route", isAuthenticated, requireAdmin, controller.routeConversation);
+  app.get("/api/sectors/reports/attendance", isAuthenticated, requireAdmin, controller.getAttendanceReport);
+
+  // Ticket closure
+  app.post("/api/sectors/tickets/:conversationId/close", isAuthenticated, requireAdmin, controller.closeTicket);
+  app.post("/api/sectors/tickets/:conversationId/reopen", isAuthenticated, requireAdmin, controller.reopenTicket);
+
+  // Bulk actions
+  app.post("/api/sectors/bulk/toggle-ai", isAuthenticated, requireAdmin, controller.bulkToggleAI);
+
+  // Scheduled messages
+  app.post("/api/sectors/scheduled-messages", isAuthenticated, requireAdmin, controller.createScheduledMessage);
+  app.get("/api/sectors/scheduled-messages", isAuthenticated, requireAdmin, controller.listScheduledMessages);
+  app.delete("/api/sectors/scheduled-messages/:id", isAuthenticated, requireAdmin, controller.cancelScheduledMessage);
+
+  // AI generation
+  app.post("/api/sectors/ai/generate", isAuthenticated, requireAdmin, controller.generateAIMessage);
+
   console.log("[Sectors] Rotas registradas com sucesso!");
 }

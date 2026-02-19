@@ -2799,15 +2799,25 @@ function PaymentReceiptsManager() {
                     </TableCell>
                   </TableRow>
                 )}
-                {receiptsData?.receipts?.map((receipt: any) => (
-                  <TableRow key={receipt.id}>
+                {receiptsData?.receipts?.map((receipt: any) => {
+                  const isResellerReceipt = receipt.admin_notes && receipt.admin_notes.includes("Comprovante de revendedor");
+                  return (
+                  <TableRow key={receipt.id} className={isResellerReceipt ? "bg-purple-50/30 dark:bg-purple-950/20" : ""}>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{receipt.users?.name || "—"}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{receipt.users?.name || "—"}</p>
+                          {isResellerReceipt && (
+                            <Badge className="bg-purple-100 text-purple-700 border-purple-300 text-xs">Revenda</Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">{receipt.users?.email || "—"}</p>
+                        {isResellerReceipt && receipt.admin_notes && (
+                          <p className="text-xs text-purple-600 mt-1">{receipt.admin_notes}</p>
+                        )}
                       </div>
                     </TableCell>
-                    <TableCell>{receipt.plans?.name || "—"}</TableCell>
+                    <TableCell>{receipt.plans?.name || (isResellerReceipt ? "Criação de Cliente" : "—")}</TableCell>
                     <TableCell className="font-medium">R$ {parseFloat(receipt.amount || 0).toFixed(2)}</TableCell>
                     <TableCell>{formatDate(receipt.created_at)}</TableCell>
                     <TableCell>{getStatusBadge(receipt.status)}</TableCell>
@@ -2860,7 +2870,8 @@ function PaymentReceiptsManager() {
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}

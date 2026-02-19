@@ -32,6 +32,8 @@ import {
   teamMemberSessions,
   audioConfig,
   audioMessageCounter,
+  connectionAgents,
+  connectionMembers,
   type User,
   type UpsertUser,
   type Agent,
@@ -88,6 +90,10 @@ import {
   type TeamMemberSession,
   type AudioConfig,
   type AudioMessageCounter,
+  type ConnectionAgent,
+  type InsertConnectionAgent,
+  type ConnectionMember,
+  type InsertConnectionMember,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray, lte, isNotNull, asc } from "drizzle-orm";
@@ -237,6 +243,22 @@ export interface IStorage {
   createConnection(connection: InsertWhatsappConnection): Promise<WhatsappConnection>;
   updateConnection(id: string, data: Partial<InsertWhatsappConnection>): Promise<WhatsappConnection>;
   deleteConnection(id: string): Promise<void>;
+
+  // Connection Agents (many-to-many) operations
+  getConnectionAgents(connectionId: string): Promise<ConnectionAgent[]>;
+  getAgentConnections(agentId: string): Promise<ConnectionAgent[]>;
+  addConnectionAgent(data: InsertConnectionAgent): Promise<ConnectionAgent>;
+  removeConnectionAgent(connectionId: string, agentId: string): Promise<void>;
+  updateConnectionAgent(connectionId: string, agentId: string, data: { isActive?: boolean }): Promise<ConnectionAgent>;
+
+  // Connection Members operations
+  getConnectionMembers(connectionId: string): Promise<ConnectionMember[]>;
+  addConnectionMember(data: InsertConnectionMember): Promise<ConnectionMember>;
+  removeConnectionMember(connectionId: string, memberId: string): Promise<void>;
+  updateConnectionMember(connectionId: string, memberId: string, data: { canView?: boolean; canRespond?: boolean; canManage?: boolean }): Promise<ConnectionMember>;
+
+  // Multi-connection: get all connections for a user
+  getConnectionsByUserId(userId: string): Promise<WhatsappConnection[]>;
 
   // Conversation operations
   getConversationsByConnectionId(connectionId: string): Promise<Conversation[]>;
@@ -624,6 +646,107 @@ export class DatabaseStorage implements IStorage {
 
   async deleteConnection(id: string): Promise<void> {
     await db.delete(whatsappConnections).where(eq(whatsappConnections.id, id));
+  }
+
+  // Multi-connection: get all connections for a user
+  async getConnectionsByUserId(userId: string): Promise<WhatsappConnection[]> {
+    return await db
+      .select()
+      .from(whatsappConnections)
+      .where(eq(whatsappConnections.userId, userId))
+      .orderBy(desc(whatsappConnections.createdAt));
+  }
+
+  // Connection Agents (many-to-many) CRUD
+  async getConnectionAgents(connectionId: string): Promise<ConnectionAgent[]> {
+    return await db
+      .select()
+      .from(connectionAgents)
+      .where(eq(connectionAgents.connectionId, connectionId))
+      .orderBy(desc(connectionAgents.assignedAt));
+  }
+
+  async getAgentConnections(agentId: string): Promise<ConnectionAgent[]> {
+    return await db
+      .select()
+      .from(connectionAgents)
+      .where(eq(connectionAgents.agentId, agentId))
+      .orderBy(desc(connectionAgents.assignedAt));
+  }
+
+  async addConnectionAgent(data: InsertConnectionAgent): Promise<ConnectionAgent> {
+    const [record] = await db
+      .insert(connectionAgents)
+      .values(data)
+      .onConflictDoUpdate({
+        target: [connectionAgents.connectionId, connectionAgents.agentId],
+        set: { isActive: data.isActive ?? true, assignedBy: data.assignedBy },
+      })
+      .returning();
+    return record;
+  }
+
+  async removeConnectionAgent(connectionId: string, agentId: string): Promise<void> {
+    await db.delete(connectionAgents).where(
+      and(
+        eq(connectionAgents.connectionId, connectionId),
+        eq(connectionAgents.agentId, agentId),
+      ),
+    );
+  }
+
+  async updateConnectionAgent(connectionId: string, agentId: string, data: { isActive?: boolean }): Promise<ConnectionAgent> {
+    const [record] = await db
+      .update(connectionAgents)
+      .set(data)
+      .where(and(
+        eq(connectionAgents.connectionId, connectionId),
+        eq(connectionAgents.agentId, agentId),
+      ))
+      .returning();
+    return record;
+  }
+
+  // Connection Members CRUD
+  async getConnectionMembers(connectionId: string): Promise<ConnectionMember[]> {
+    return await db
+      .select()
+      .from(connectionMembers)
+      .where(eq(connectionMembers.connectionId, connectionId))
+      .orderBy(desc(connectionMembers.assignedAt));
+  }
+
+  async addConnectionMember(data: InsertConnectionMember): Promise<ConnectionMember> {
+    const [record] = await db
+      .insert(connectionMembers)
+      .values(data)
+      .onConflictDoUpdate({
+        target: [connectionMembers.connectionId, connectionMembers.memberId],
+        set: { canView: data.canView, canRespond: data.canRespond, canManage: data.canManage },
+      })
+      .returning();
+    return record;
+  }
+
+  async removeConnectionMember(connectionId: string, memberId: string): Promise<void> {
+    await db.delete(connectionMembers).where(
+      and(
+        eq(connectionMembers.connectionId, connectionId),
+        eq(connectionMembers.memberId, memberId),
+      ),
+    );
+  }
+
+  async updateConnectionMember(connectionId: string, memberId: string, data: { canView?: boolean; canRespond?: boolean; canManage?: boolean }): Promise<ConnectionMember> {
+    const [record] = await db
+      .update(connectionMembers)
+      .set(data)
+      .where(and(
+        eq(connectionMembers.connectionId, connectionId),
+        eq(connectionMembers.memberId, memberId),
+      ))
+      .returning();
+    return record;
   }
 
   // Conversation operations
@@ -1853,20 +1976,25 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       updatedAt: now,
     }));
 
-    await db
-      .insert(whatsappContacts)
-      .values(contactsWithTimestamps)
-      .onConflictDoUpdate({
-        target: [whatsappContacts.connectionId, whatsappContacts.contactId],
-        set: {
-          lid: sql`EXCLUDED.lid`,
-          phoneNumber: sql`EXCLUDED.phone_number`,
-          name: sql`EXCLUDED.name`,
-          imgUrl: sql`EXCLUDED.img_url`,
-          lastSyncedAt: now,
-          updatedAt: now,
-        },
-      });
+    // Process in chunks to avoid DB pool exhaustion with large contact lists
+    const CHUNK_SIZE = 200;
+    for (let i = 0; i < contactsWithTimestamps.length; i += CHUNK_SIZE) {
+      const chunk = contactsWithTimestamps.slice(i, i + CHUNK_SIZE);
+      await db
+        .insert(whatsappContacts)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: [whatsappContacts.connectionId, whatsappContacts.contactId],
+          set: {
+            lid: sql`EXCLUDED.lid`,
+            phoneNumber: sql`EXCLUDED.phone_number`,
+            name: sql`EXCLUDED.name`,
+            imgUrl: sql`EXCLUDED.img_url`,
+            lastSyncedAt: now,
+            updatedAt: now,
+          },
+        });
+    }
 
     console.log(`[DB] Batch upserted ${contacts.length} contacts`);
   }

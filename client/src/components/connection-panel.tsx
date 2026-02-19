@@ -5,14 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Smartphone, QrCode, CheckCircle2, XCircle, RefreshCw, Loader2, Hash, ArrowLeft } from "lucide-react";
+import { Smartphone, QrCode, CheckCircle2, XCircle, RefreshCw, Loader2, Hash, ArrowLeft, Bot, Link2, Users, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getAuthToken } from "@/lib/supabase";
-import type { WhatsappConnection } from "@shared/schema";
+import type { WhatsappConnection, Agent } from "@shared/schema";
 
 // Tipo para o método de conexão
 type ConnectionMethod = "qr" | "pairing" | null;
+
+// Tipo para conexão com agentes
+interface ConnectionWithAgents extends WhatsappConnection {
+  agent?: Agent | null;
+  assignedAgents?: Array<{
+    id: string;
+    connectionId: string;
+    agentId: string;
+    isActive: boolean | null;
+    agent?: Agent | null;
+  }>;
+}
 
 export function ConnectionPanel() {
   const { toast } = useToast();
@@ -32,8 +44,55 @@ export function ConnectionPanel() {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [isRequestingPairingCode, setIsRequestingPairingCode] = useState<boolean>(false);
 
+  // Estado para form de nova conexão
+  const [showNewConnForm, setShowNewConnForm] = useState(false);
+  const [newConnName, setNewConnName] = useState("");
+  const [newConnType, setNewConnType] = useState("secondary");
+
   const { data: connection, isLoading, refetch: refetchConnection } = useQuery<WhatsappConnection>({
     queryKey: ["/api/whatsapp/connection"],
+  });
+
+  // Query for all connections with agents (multi-connection)
+  const { data: allConnections = [], refetch: refetchConnections } = useQuery<ConnectionWithAgents[]>({
+    queryKey: ["/api/whatsapp/connections"],
+    enabled: !!connection, // Only fetch after main connection loads (auth ready)
+    retry: 2,
+    retryDelay: 1000,
+  });
+
+  // Mutation para criar nova conexão
+  const createConnectionMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/whatsapp/connections", {
+        connectionName: newConnName || undefined,
+        connectionType: newConnType,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
+      setShowNewConnForm(false);
+      setNewConnName("");
+      setNewConnType("secondary");
+      toast({ title: "Nova conexão criada com sucesso!" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao criar conexão", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation para deletar conexão
+  const deleteConnectionMutation = useMutation({
+    mutationFn: async (connectionId: string) => {
+      return await apiRequest("DELETE", `/api/whatsapp/connections/${connectionId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
+      toast({ title: "Conexão removida com sucesso!" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao remover conexão", description: error.message, variant: "destructive" });
+    },
   });
 
   // Função para verificar status da conexão durante polling
@@ -885,6 +944,227 @@ export function ConnectionPanel() {
             </div>
           )}
         </Card>
+
+        {/* ============ SEÇÃO MULTI-CONEXÕES E AGENTES ============ */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" />
+              <h2 className="text-xl font-bold">Minhas Conexões e Agentes</h2>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowNewConnForm(!showNewConnForm)}
+              className="gap-1"
+            >
+              <Plus className="w-4 h-4" />
+              Nova Conexão
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Gerencie suas conexões WhatsApp e veja os agentes de IA atribuídos a cada uma.
+          </p>
+
+          {/* Formulário de nova conexão */}
+          {showNewConnForm && (
+            <Card className="p-4 space-y-4 border-2 border-primary/20 bg-primary/5">
+              <h3 className="font-semibold text-sm">Adicionar Nova Conexão</h3>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label htmlFor="conn-name" className="text-sm">Nome da Conexão</Label>
+                  <Input
+                    id="conn-name"
+                    value={newConnName}
+                    onChange={(e) => setNewConnName(e.target.value)}
+                    placeholder="Ex: WhatsApp Vendas, Suporte, etc."
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="conn-type" className="text-sm">Tipo</Label>
+                  <select
+                    id="conn-type"
+                    value={newConnType}
+                    onChange={(e) => setNewConnType(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md bg-background text-sm"
+                  >
+                    <option value="secondary">Secundária</option>
+                    <option value="support">Suporte</option>
+                    <option value="sales">Vendas</option>
+                    <option value="business">Comercial</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => createConnectionMutation.mutate()}
+                  disabled={createConnectionMutation.isPending}
+                >
+                  {createConnectionMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3 h-3 mr-1" />
+                      Criar Conexão
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setShowNewConnForm(false); setNewConnName(""); }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {/* Lista de conexões */}
+          <div className="space-y-4">
+            {allConnections.length === 0 && !showNewConnForm && (
+              <Card className="p-6 text-center text-muted-foreground">
+                <p>Nenhuma conexão encontrada. Clique em "Nova Conexão" para adicionar.</p>
+              </Card>
+            )}
+            {allConnections.map((conn) => (
+                <Card key={conn.id} className="p-5 space-y-4">
+                  {/* Header da conexão */}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        conn.isConnected 
+                          ? 'bg-emerald-100 dark:bg-emerald-900/30' 
+                          : 'bg-gray-100 dark:bg-gray-800'
+                      }`}>
+                        <Link2 className={`w-5 h-5 ${
+                          conn.isConnected 
+                            ? 'text-emerald-600 dark:text-emerald-400' 
+                            : 'text-gray-400'
+                        }`} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-sm">
+                            {(conn as any).connectionName || `Conexão ${conn.phoneNumber || '#' + conn.id.slice(0, 6)}`}
+                          </h3>
+                          {(conn as any).isPrimary && (
+                            <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                              Principal
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {conn.phoneNumber || "Sem número"}
+                          {(conn as any).connectionType && (conn as any).connectionType !== 'primary' && (
+                            <span className="ml-2 text-muted-foreground">
+                              • Tipo: {(conn as any).connectionType}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant={conn.isConnected ? "default" : "secondary"}
+                      className={`gap-1 ${conn.isConnected ? 'bg-emerald-600' : ''}`}
+                    >
+                      {conn.isConnected ? (
+                        <>
+                          <CheckCircle2 className="w-3 h-3" />
+                          Conectado
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-3 h-3" />
+                          Desconectado
+                        </>
+                      )}
+                    </Badge>
+                  </div>
+
+                  {/* Agente principal (1:1) */}
+                  {conn.agent && (
+                    <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-lg border border-primary/10">
+                      <Bot className="w-4 h-4 text-primary" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{conn.agent.name}</p>
+                        <p className="text-xs text-muted-foreground">Agente Principal</p>
+                      </div>
+                      <Badge variant="default" className="text-[10px]">Ativo</Badge>
+                    </div>
+                  )}
+
+                  {/* Agentes atribuídos (many-to-many) */}
+                  {conn.assignedAgents && conn.assignedAgents.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Agentes Atribuídos ({conn.assignedAgents.length})
+                      </p>
+                      <div className="grid gap-2">
+                        {conn.assignedAgents.map((ca) => (
+                          <div 
+                            key={ca.id} 
+                            className={`flex items-center gap-2 p-2.5 rounded-lg border ${
+                              ca.isActive 
+                                ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800' 
+                                : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 opacity-60'
+                            }`}
+                          >
+                            <Bot className={`w-4 h-4 ${ca.isActive ? 'text-emerald-600' : 'text-gray-400'}`} />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">
+                                {ca.agent?.name || `Agente #${ca.agentId.slice(0, 6)}`}
+                              </p>
+                            </div>
+                            <Badge 
+                              variant={ca.isActive ? "default" : "secondary"}
+                              className={`text-[10px] ${ca.isActive ? 'bg-emerald-600' : ''}`}
+                            >
+                              {ca.isActive ? "Ativo" : "Inativo"}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sem agentes */}
+                  {!conn.agent && (!conn.assignedAgents || conn.assignedAgents.length === 0) && (
+                    <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <Bot className="w-4 h-4 text-amber-600" />
+                      <p className="text-sm text-amber-700 dark:text-amber-400">
+                        Nenhum agente atribuído a esta conexão
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Botão deletar (somente conexões não-primárias) */}
+                  {!(conn as any).isPrimary && (
+                    <div className="flex justify-end pt-2 border-t">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 gap-1"
+                        onClick={() => {
+                          if (confirm("Tem certeza que deseja remover esta conexão?")) {
+                            deleteConnectionMutation.mutate(conn.id);
+                          }
+                        }}
+                        disabled={deleteConnectionMutation.isPending}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Remover
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          </div>
       </div>
     </div>
   );

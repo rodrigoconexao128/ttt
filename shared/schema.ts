@@ -159,6 +159,10 @@ export const whatsappConnections = pgTable("whatsapp_connections", {
   safeModeActivatedAt: timestamp("safe_mode_activated_at"),
   safeModeActivatedBy: varchar("safe_mode_activated_by", { length: 255 }),
   safeModeLastCleanupAt: timestamp("safe_mode_last_cleanup_at"),
+  // Multi-connection fields
+  connectionName: varchar("connection_name", { length: 255 }),
+  connectionType: varchar("connection_type", { length: 50 }).default("primary"),
+  isPrimary: boolean("is_primary").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -266,9 +270,9 @@ export const conversations = pgTable("conversations", {
   // Ticket/Chamado - Encerramento (Fase 4.2)
   isClosed: boolean("is_closed").default(false).notNull(),
   closedAt: timestamp("closed_at"),
-  closedBy: varchar("closed_by", { length: 255 }), -- userId or 'system'
+  closedBy: varchar("closed_by", { length: 255 }), // userId or 'system'
   closureReason: text("closure_reason"),
-  ticketNumber: varchar("ticket_number", { length: 50 }), -- Optional ticket reference
+  ticketNumber: varchar("ticket_number", { length: 50 }), // Optional ticket reference
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -3373,7 +3377,7 @@ export const saasOwnerReports = pgTable("saas_owner_reports", {
 ]);
 
 // T4.2 - Ticket Closure System
-export const ticketClosureLogs = pgTable("ticket_closure_logs", {
+export const ticketClosureLogsV4 = pgTable("ticket_closure_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id").notNull().references(() => conversations.id, { onDelete: 'cascade' }),
   action: varchar("action", { length: 50 }).notNull(), // 'closed', 'reopened'
@@ -3456,6 +3460,18 @@ export const connectionMembers = pgTable("connection_members", {
 ]);
 
 // Relations for Fase 4 tables
+
+// Multi-agent relations
+export const connectionAgentsRelations = relations(connectionAgents, ({ one }) => ({
+  connection: one(whatsappConnections, { fields: [connectionAgents.connectionId], references: [whatsappConnections.id] }),
+  agent: one(agents, { fields: [connectionAgents.agentId], references: [agents.id] }),
+}));
+
+export const connectionMembersRelations = relations(connectionMembers, ({ one }) => ({
+  connection: one(whatsappConnections, { fields: [connectionMembers.connectionId], references: [whatsappConnections.id] }),
+  member: one(teamMembers, { fields: [connectionMembers.memberId], references: [teamMembers.id] }),
+}));
+
 export const sectorsRelations = relations(sectors, ({ many }) => ({
   members: many(sectorMembers),
   routingLogs: many(routingLogs),
@@ -3520,3 +3536,30 @@ export type ScheduledMessageInput = z.infer<typeof scheduledMessageSchema>;
 
 export type ConnectionAgent = typeof connectionAgents.$inferSelect;
 export type ConnectionMember = typeof connectionMembers.$inferSelect;
+
+export const insertConnectionAgentSchema = createInsertSchema(connectionAgents).omit({
+  id: true,
+  assignedAt: true,
+});
+export type InsertConnectionAgent = z.infer<typeof insertConnectionAgentSchema>;
+
+export const insertConnectionMemberSchema = createInsertSchema(connectionMembers).omit({
+  id: true,
+  assignedAt: true,
+});
+export type InsertConnectionMember = z.infer<typeof insertConnectionMemberSchema>;
+
+export const connectionAgentSchema = z.object({
+  connectionId: z.string().min(1, "Conexão é obrigatória"),
+  agentId: z.string().min(1, "Agente é obrigatório"),
+  isActive: z.boolean().default(true),
+  assignedBy: z.string().optional(),
+});
+
+export const connectionMemberSchema = z.object({
+  connectionId: z.string().min(1, "Conexão é obrigatória"),
+  memberId: z.string().min(1, "Membro é obrigatório"),
+  canView: z.boolean().default(true),
+  canRespond: z.boolean().default(true),
+  canManage: z.boolean().default(false),
+});
