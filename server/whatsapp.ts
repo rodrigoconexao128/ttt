@@ -582,7 +582,8 @@ interface ReconnectAttempt {
 }
 const reconnectAttempts = new Map<string, ReconnectAttempt>();
 const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconexão
+// Back-off exponencial: 5s, 15s, 45s, 2min, 5min (NUNCA resetar contador)
+const RECONNECT_BACKOFF_MS = [5000, 15000, 45000, 120000, 300000];
 
 // ?? Map para rastrear auto-retry após logout (QR Code)
 // Permite um único auto-retry quando auth inválido causa logout imediato
@@ -2379,9 +2380,28 @@ export async function forceResetWhatsApp(userId: string, connectionId?: string):
   reconnectAttempts.delete(lookupKey);
   
   // APAGAR arquivos de autenticação (força novo QR Code)
-  const authPath = path.join(SESSIONS_BASE, `auth_${lookupKey}`);
-  await clearAuthFiles(authPath);
-  console.log(`[FORCE RESET] Auth files cleared for ${lookupKey}`);
+  // For secondary connections, ONLY clear auth_{connectionId} (don't touch primary's auth_{userId})
+  let isSecondary = false;
+  if (connectionId) {
+    const connRecord = await storage.getConnectionById(connectionId);
+    isSecondary = connRecord?.isPrimary === false;
+  }
+  
+  if (isSecondary && connectionId) {
+    // Secondary: only clear its own auth dir
+    const connAuthPath = path.join(SESSIONS_BASE, `auth_${connectionId}`);
+    await clearAuthFiles(connAuthPath);
+    console.log(`[FORCE RESET] Auth files cleared for secondary connection ${connectionId.substring(0, 8)}`);
+  } else {
+    // Primary: clear both possible paths
+    const authPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+    await clearAuthFiles(authPath);
+    if (connectionId && connectionId !== userId) {
+      const connAuthPath = path.join(SESSIONS_BASE, `auth_${connectionId}`);
+      await clearAuthFiles(connAuthPath);
+    }
+    console.log(`[FORCE RESET] Auth files cleared for user ${userId}`);
+  }
   
   // Atualizar banco de dados
   let connection;
@@ -2483,40 +2503,52 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       console.log(`[CONNECT] Found existing connection record for ${userId} (connId=${connection.id}): isConnected=${connection.isConnected}`);
     }
 
-    // 🔑 MULTI-CONNECTION: Auth path based on connectionId
-    // For backward compat, check if auth_${userId} exists and connection is primary
-    let userAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
-    const legacyAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+    // Auth path: determine based on whether this is a primary or secondary connection
+    // Primary connection: check auth_{userId} first, fall back to auth_{connectionId}
+    // Secondary connection: ALWAYS use auth_{connectionId} (separate phone number)
+    const isSecondaryConnection = connection.isPrimary === false || (targetConnectionId && connection.id !== userId && connection.connectionType === 'secondary');
     
-    // Migration: if auth_${connectionId} doesn't exist but auth_${userId} does
-    // Note: restoreExistingSessions already does a pre-migration pass,
-    // but this handles cases during runtime (manual connect via API)
-    if (connection.isPrimary !== false) {
+    let userAuthPath: string;
+    let authFileCount = 0;
+    
+    if (isSecondaryConnection) {
+      // Secondary connections always use their own connectionId-based auth dir
+      userAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
+      console.log(`[CONNECT] Secondary connection - using auth_${connection.id.substring(0, 8)}`);
       try {
-        const newAuthExists = await fs.stat(userAuthPath).then(() => true).catch(() => false);
-        const legacyExists = await fs.stat(legacyAuthPath).then(() => true).catch(() => false);
-        
-        console.log(`[CONNECT] Auth check: auth_${connection.id} exists=${newAuthExists}, auth_${userId} exists=${legacyExists}`);
-        
-        if (!newAuthExists && legacyExists) {
-          console.log(`[CONNECT] Migrating auth files from auth_${userId} to auth_${connection.id}`);
-          await fs.rename(legacyAuthPath, userAuthPath);
-          console.log(`[CONNECT] ✅ Auth migration successful`);
-        }
+        const authFiles = await fs.readdir(userAuthPath);
+        authFileCount = authFiles.length;
       } catch (e) {
-        console.error(`[CONNECT] Auth migration error:`, e);
+        // dir doesn't exist yet - will show QR
+      }
+    } else {
+      // Primary connection: check auth_{userId} first, fall back to auth_{connectionId}
+      userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+      try {
+        const authFiles = await fs.readdir(userAuthPath);
+        authFileCount = authFiles.length;
+      } catch (e) {
+        // dir doesn't exist
+      }
+      
+      // If auth_{userId} is empty/missing, try auth_{connectionId}
+      if (authFileCount === 0 && connection.id && connection.id !== userId) {
+        const connAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
+        try {
+          const connAuthFiles = await fs.readdir(connAuthPath);
+          if (connAuthFiles.length > 0) {
+            console.log(`[CONNECT] Found auth files at auth_${connection.id.substring(0, 8)} (${connAuthFiles.length} files) - using connectionId path`);
+            userAuthPath = connAuthPath;
+            authFileCount = connAuthFiles.length;
+          }
+        } catch (e) {
+          // dir doesn't exist either
+        }
       }
     }
     
     await ensureDirExists(userAuthPath);
-    
-    // Check if auth files exist
-    try {
-      const authFiles = await fs.readdir(userAuthPath);
-      console.log(`[CONNECT] Auth files for ${userId}: ${authFiles.length > 0 ? authFiles.join(', ') : 'NONE (will show QR)'}`);
-    } catch (e) {
-      console.log(`[CONNECT] Auth directory empty or inaccessible for ${userId}, will show QR`);
-    }
+    console.log(`[CONNECT] Auth path: ${userAuthPath.split('/').pop()} (${authFileCount > 0 ? authFileCount + ' files' : 'EMPTY - will show QR'})`);
     
     const { state, saveCreds } = await useMultiFileAuthState(userAuthPath);
 
@@ -2917,8 +2949,8 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
 
       // Estado "connecting" - quando o QR Code foi escaneado e está conectando
       if (conn === "connecting") {
-        console.log(`User ${userId} is connecting...`);
-        broadcastToUser(userId, { type: "connecting" });
+        console.log(`User ${userId} is connecting... (connection: ${connection.id})`);
+        broadcastToUser(userId, { type: "connecting", connectionId: connection.id });
       }
 
       if (conn === "close") {
@@ -2935,10 +2967,10 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         // Solução: verificar se este sock ainda é o socket atual antes de tomar
         // ações destrutivas (delete, update DB, reconnect).
         // -----------------------------------------------------------------------
-        const currentSession = sessions.get(userId);
+        const currentSession = sessions.get(connection.id);
 
         if (currentSession?.socket !== sock) {
-          console.log(`[CONNECTION CLOSE] ?? STALE SOCKET IGNORED - User ${userId.substring(0, 8)}...`);
+          console.log(`[CONNECTION CLOSE] ?? STALE SOCKET IGNORED - Connection ${connection.id.substring(0, 8)}... User ${userId.substring(0, 8)}...`);
           console.log(`[CONNECTION CLOSE] Current socket differs from closing socket, ignoring close event`);
           // Não fazer nada - o socket atual está ativo, este é um socket antigo
           return;
@@ -2971,47 +3003,84 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         // NOTE: In multi-connection mode, we do NOT sync other connections as disconnected.
         // Each connection has its own socket and lifecycle.
 
-        // Verificar limite de tentativas de reconexão para evitar loop infinito
+        // -----------------------------------------------------------------------
+        // 🛡️ RECONEXÃO INTELIGENTE: Só reconecta se a sessão tinha auth válido
+        // Verifica cred_*.json no disco — sem creds = sessão nunca completou pareamento
+        // Contador ABSOLUTO com back-off exponencial (NUNCA reseta)
+        // -----------------------------------------------------------------------
         const reconnectKey = session.connectionId;
-        const now = Date.now();
         let attempt = reconnectAttempts.get(reconnectKey) || { count: 0, lastAttempt: 0 };
-        
-        // Se passou mais de 30 segundos desde o último ciclo, resetar contador
-        if (now - attempt.lastAttempt > RECONNECT_COOLDOWN_MS) {
-          attempt = { count: 0, lastAttempt: now };
-        }
 
         if (shouldReconnect) {
-          attempt.count++;
-          attempt.lastAttempt = now;
-          reconnectAttempts.set(reconnectKey, attempt);
-
-          if (attempt.count <= MAX_RECONNECT_ATTEMPTS) {
-            console.log(`User ${userId} conn ${session.connectionId.substring(0,8)} disconnected temporarily, reconnecting in 5s... (attempt ${attempt.count}/${MAX_RECONNECT_ATTEMPTS})`);
-            if (attempt.count === 1) {
-              broadcastToUser(userId, { type: "disconnected", connectionId: session.connectionId });
+          // 🔍 Verificar se tem arquivos de auth válidos no disco
+          let hasValidAuth = false;
+          try {
+            const authPaths = [
+              path.join(SESSIONS_BASE, `auth_${session.connectionId}`),
+              path.join(SESSIONS_BASE, `auth_${userId}`),
+            ];
+            for (const authPath of authPaths) {
+              try {
+                const files = await fs.readdir(authPath);
+                const hasCredFiles = files.some(f => f.startsWith('creds') || f.endsWith('.json'));
+                if (hasCredFiles) {
+                  hasValidAuth = true;
+                  break;
+                }
+              } catch { /* dir não existe */ }
             }
-            // 🔑 MULTI-CONNECTION: Reconnect the specific connection
-            setTimeout(() => connectWhatsApp(userId, session.connectionId), 5000);
-          } else {
-            console.log(`User ${userId} conn ${session.connectionId.substring(0,8)} - max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached.`);
-            broadcastToUser(userId, { type: "disconnected", reason: "max_attempts", connectionId: session.connectionId });
+          } catch { /* erro lendo disco */ }
+
+          if (!hasValidAuth) {
+            // Sem auth no disco = sessão nunca foi pareada com sucesso. NÃO reconectar.
+            console.log(`[RECONNECT] User ${userId.substring(0,8)} conn ${session.connectionId.substring(0,8)} - NO auth files on disk. Stopping reconnection (was never paired).`);
+            broadcastToUser(userId, { type: "disconnected", reason: "no_auth", connectionId: session.connectionId });
             reconnectAttempts.delete(reconnectKey);
-            // Limpar QR code do banco para evitar exibi��o de QR expirado
-            await storage.updateConnection(session.connectionId, {
-              qrCode: null,
-            });
+            await storage.updateConnection(session.connectionId, { qrCode: null });
+          } else {
+            // Tem auth — reconectar com back-off exponencial (contador NUNCA reseta)
+            attempt.count++;
+            attempt.lastAttempt = Date.now();
+            reconnectAttempts.set(reconnectKey, attempt);
+
+            if (attempt.count <= MAX_RECONNECT_ATTEMPTS) {
+              const delayMs = RECONNECT_BACKOFF_MS[Math.min(attempt.count - 1, RECONNECT_BACKOFF_MS.length - 1)];
+              console.log(`[RECONNECT] User ${userId.substring(0,8)} conn ${session.connectionId.substring(0,8)} has valid auth, reconnecting in ${delayMs/1000}s... (attempt ${attempt.count}/${MAX_RECONNECT_ATTEMPTS})`);
+              if (attempt.count === 1) {
+                broadcastToUser(userId, { type: "disconnected", connectionId: session.connectionId });
+              }
+              // 🔑 MULTI-CONNECTION: Reconnect the specific connection with back-off
+              setTimeout(() => connectWhatsApp(userId, session.connectionId), delayMs);
+            } else {
+              console.log(`[RECONNECT] User ${userId.substring(0,8)} conn ${session.connectionId.substring(0,8)} - max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Auth exists but connection unstable.`);
+              broadcastToUser(userId, { type: "disconnected", reason: "max_attempts", connectionId: session.connectionId });
+              reconnectAttempts.delete(reconnectKey);
+              await storage.updateConnection(session.connectionId, { qrCode: null });
+            }
           }
         } else {
           // Foi logout (desconectado pelo celular), limpar TUDO
           console.log(`User ${userId} conn ${session.connectionId.substring(0,8)} logged out from device, clearing auth files...`);
 
-          // 🔑 MULTI-CONNECTION: Auth path based on connectionId
-          const connAuthPath = path.join(SESSIONS_BASE, `auth_${session.connectionId}`);
-          await clearAuthFiles(connAuthPath);
-          // Also try legacy path just in case
-          const legacyPath = path.join(SESSIONS_BASE, `auth_${userId}`);
-          try { await clearAuthFiles(legacyPath); } catch {}
+          // Auth path: For secondary connections, only clear auth_{connectionId}
+          // For primary connections, clear both possible paths
+          const connRecord = await storage.getConnectionById(session.connectionId);
+          const isSecondary = connRecord?.isPrimary === false;
+          
+          if (isSecondary) {
+            // Secondary: only clear its own auth dir
+            const connAuthPath = path.join(SESSIONS_BASE, `auth_${session.connectionId}`);
+            await clearAuthFiles(connAuthPath);
+            console.log(`[LOGOUT] Cleared auth for secondary connection ${session.connectionId.substring(0,8)}`);
+          } else {
+            // Primary: clear both possible paths
+            const authPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+            await clearAuthFiles(authPath);
+            if (session.connectionId !== userId) {
+              const connAuthPath = path.join(SESSIONS_BASE, `auth_${session.connectionId}`);
+              await clearAuthFiles(connAuthPath);
+            }
+          }
 
           broadcastToUser(userId, { type: "disconnected", reason: "logout", connectionId: session.connectionId });
 
@@ -6888,8 +6957,8 @@ export async function disconnectWhatsApp(userId: string, connectionId?: string):
     });
   }
 
-  // Limpar arquivos de autenticação para permitir nova conexão
-  const authPath = path.join(SESSIONS_BASE, `auth_${lookupKey}`);
+  // Limpar arquivos de autenticação para permitir nova conexão - always use auth_{userId}
+  const authPath = path.join(SESSIONS_BASE, `auth_${userId}`);
   await clearAuthFiles(authPath);
 
   broadcastToUser(userId, { type: "disconnected", connectionId: lookupKey });
@@ -8068,6 +8137,30 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
   }
 }
 
+// =========================================================================
+// 🛑 GRACEFUL SHUTDOWN: Close all WhatsApp sockets on SIGTERM (deploy)
+// This ensures clean disconnects so the next instance restores faster.
+// =========================================================================
+let _isShuttingDown = false;
+process.once('SIGTERM', async () => {
+  if (_isShuttingDown) return;
+  _isShuttingDown = true;
+  console.log('[SHUTDOWN] SIGTERM received - closing all WhatsApp sessions gracefully...');
+  const startTime = Date.now();
+  let closed = 0;
+  for (const [connId, session] of sessions) {
+    try {
+      if (session.socket) {
+        session.socket.end(undefined);
+        closed++;
+      }
+    } catch (e) {
+      // ignore per-socket errors during shutdown
+    }
+  }
+  console.log(`[SHUTDOWN] Closed ${closed} WhatsApp sockets in ${Date.now() - startTime}ms`);
+});
+
 export async function restoreExistingSessions(): Promise<void> {
   // ??? MODO DESENVOLVIMENTO: N�o restaurar sess�es para evitar conflito com produ��o
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
@@ -8083,20 +8176,69 @@ export async function restoreExistingSessions(): Promise<void> {
     const connections = await storage.getAllConnections();
 
     // ========================================================================
-    // PRE-MIGRATION: Migrate auth files from auth_{userId} to auth_{connectionId}
-    // Group by userId, pick the best connection per user (connected + primary + oldest)
-    // and migrate ONCE per user before restoring any connections.
+    // DISK SCAN: Find ALL auth dirs with files and map them to users
+    // Auth dirs can be named auth_{userId} OR auth_{connectionId} (legacy)
     // ========================================================================
+    const connIdToUserId = new Map<string, string>();
     const userConnectionMap = new Map<string, typeof connections>();
     for (const conn of connections) {
       if (!conn.userId) continue;
+      connIdToUserId.set(conn.id, conn.userId);
       const existing = userConnectionMap.get(conn.userId) || [];
       existing.push(conn);
       userConnectionMap.set(conn.userId, existing);
     }
 
+    // Scan disk for ALL auth_* dirs that have files
+    // MULTI-CANAL: Track auth both per-userId AND per-connectionId
+    const authDirsWithFiles = new Map<string, string>(); // userId -> actual auth dir path
+    const authDirsByConnId = new Map<string, string>(); // connectionId -> actual auth dir path
+    try {
+      const entries = await fs.readdir(SESSIONS_BASE);
+      for (const entry of entries) {
+        if (!entry.startsWith('auth_')) continue;
+        const dirPath = path.join(SESSIONS_BASE, entry);
+        try {
+          const files = await fs.readdir(dirPath);
+          if (files.length === 0) continue; // Empty dir, skip
+          
+          const id = entry.replace('auth_', '');
+          
+          // Check if this ID is a userId directly
+          if (userConnectionMap.has(id)) {
+            // Direct userId match — use this path (highest priority)
+            authDirsWithFiles.set(id, dirPath);
+            console.log(`[RESTORE] Found auth_${id.substring(0, 8)}... (userId, ${files.length} files)`);
+          } else {
+            // Check if this ID is a connectionId
+            const mappedUserId = connIdToUserId.get(id);
+            if (mappedUserId) {
+              // ConnectionId match — store per-connection auth
+              authDirsByConnId.set(id, dirPath);
+              // Also set user-level fallback if not already set
+              if (!authDirsWithFiles.has(mappedUserId)) {
+                authDirsWithFiles.set(mappedUserId, dirPath);
+              }
+              console.log(`[RESTORE] Found auth_${id.substring(0, 8)}... (connectionId → user ${mappedUserId.substring(0, 8)}, ${files.length} files)`);
+            }
+          }
+        } catch (e) {
+          // Can't read dir, skip
+        }
+      }
+      console.log(`[RESTORE] Total users with auth files on disk: ${authDirsWithFiles.size}, per-connection auth dirs: ${authDirsByConnId.size}`);
+    } catch (scanErr) {
+      console.error(`[RESTORE] Error scanning sessions dir:`, scanErr);
+    }
+
+    // ========================================================================
+    // RESTORE: ALL connections with valid auth (MULTI-CANAL ready)
+    // Each connection that has auth files on disk gets restored.
+    // ========================================================================
+    const restoredConnIds = new Set<string>();
+
+    // Sort connections per user: connected first, primary, oldest
     for (const [userId, userConns] of userConnectionMap) {
-      // Sort: connected first, then isPrimary true, then oldest (by createdAt)
       userConns.sort((a, b) => {
         if (a.isConnected && !b.isConnected) return -1;
         if (!a.isConnected && b.isConnected) return 1;
@@ -8106,72 +8248,94 @@ export async function restoreExistingSessions(): Promise<void> {
         const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return aTime - bTime;
       });
-
-      const bestConn = userConns[0];
-      const connAuthPath = path.join(SESSIONS_BASE, `auth_${bestConn.id}`);
-      const legacyAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
-
-      try {
-        const newExists = await fs.stat(connAuthPath).then(() => true).catch(() => false);
-        const legacyExists = await fs.stat(legacyAuthPath).then(() => true).catch(() => false);
-        
-        if (!newExists && legacyExists) {
-          const legacyFiles = await fs.readdir(legacyAuthPath);
-          if (legacyFiles.length > 0) {
-            console.log(`[AUTH MIGRATION] Migrating auth_${userId} -> auth_${bestConn.id} (${legacyFiles.length} files, conn was connected: ${bestConn.isConnected})`);
-            await fs.rename(legacyAuthPath, connAuthPath);
-            console.log(`[AUTH MIGRATION] ✅ Migration successful for user ${userId}`);
-          }
-        } else if (newExists) {
-          console.log(`[AUTH MIGRATION] auth_${bestConn.id} already exists, no migration needed for user ${userId}`);
-        }
-      } catch (e) {
-        console.error(`[AUTH MIGRATION] Error migrating auth for user ${userId}:`, e);
-      }
     }
 
-    // ========================================================================
-    // RESTORE: Now restore connections, primary/connected ones first per user
-    // ========================================================================
-    // Flatten the sorted user connections so primary connections restore first
+    // Flatten sorted connections
     const sortedConnections: typeof connections = [];
     for (const [, userConns] of userConnectionMap) {
       sortedConnections.push(...userConns);
     }
 
+    // ========================================================================
+    // PARALLEL BATCH RESTORE: Connect sessions in batches to minimize downtime
+    // ========================================================================
+    const BATCH_SIZE = 5; // Connect 5 sessions in parallel per batch
+    const BATCH_DELAY_MS = 2000; // 2 seconds between batches
+    let restoredCount = 0;
+    let skippedCount = 0;
+    let noAuthCount = 0;
+    const toRestore: Array<{ userId: string; connectionId: string }> = [];
+
     for (const connection of sortedConnections) {
       if (!connection.userId) continue;
 
-      // Check for auth files at connection-specific path
-      const connAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
-      let hasAuthFiles = false;
-      
-      try {
-        const authFiles = await fs.readdir(connAuthPath);
-        hasAuthFiles = authFiles.length > 0;
-      } catch (e) {
-        // No auth files for this connection
+      // Skip if this specific connection was already queued
+      if (restoredConnIds.has(connection.id)) {
+        skippedCount++;
+        continue;
       }
+
+      // MULTI-CANAL: Check auth files per connectionId first, then fallback to userId
+      const hasOwnAuth = authDirsByConnId.has(connection.id);
+      const hasUserAuth = authDirsWithFiles.has(connection.userId);
+      const hasAuthFiles = hasOwnAuth || hasUserAuth;
       
       if (hasAuthFiles) {
-        // Has auth files - restore this connection (it was a real session)
-        console.log(`Restoring WhatsApp session for connection ${connection.id} (user ${connection.userId})... (wasConnected: ${connection.isConnected}, hasAuthFiles: true)`);
-        try {
-          await connectWhatsApp(connection.userId, connection.id);
-        } catch (error) {
-          console.error(`Failed to restore session for connection ${connection.id}:`, error);
-          await storage.updateConnection(connection.id, {
-            isConnected: false,
-            qrCode: null,
-          });
-        }
+        restoredConnIds.add(connection.id);
+        toRestore.push({ userId: connection.userId, connectionId: connection.id });
       } else if (connection.isConnected) {
-        // No auth files but DB says connected - phantom record, mark as disconnected
-        console.log(`[RESTORE] Connection ${connection.id} (user ${connection.userId}) has no auth files - marking disconnected`);
+        console.log(`[RESTORE] User ${connection.userId.substring(0, 8)} conn ${connection.id.substring(0, 8)} has no auth files on disk - marking disconnected`);
         await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
+        noAuthCount++;
       }
     }
-    console.log("Session restoration complete");
+
+    console.log(`[RESTORE] Found ${toRestore.length} sessions with auth files to restore (${skippedCount} secondary skipped, ${noAuthCount} no auth)`);
+
+    // Parallel batch restore: connect BATCH_SIZE sessions at a time
+    for (let batchStart = 0; batchStart < toRestore.length; batchStart += BATCH_SIZE) {
+      const batch = toRestore.slice(batchStart, batchStart + BATCH_SIZE);
+      const batchNum = Math.floor(batchStart / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(toRestore.length / BATCH_SIZE);
+      console.log(`[RESTORE] Batch ${batchNum}/${totalBatches}: Connecting ${batch.length} sessions in parallel...`);
+
+      const results = await Promise.allSettled(
+        batch.map(async ({ userId, connectionId }, idx) => {
+          const globalIdx = batchStart + idx + 1;
+          console.log(`[RESTORE] (${globalIdx}/${toRestore.length}) Restoring session for user ${userId.substring(0, 8)}... (connId=${connectionId.substring(0, 8)})`);
+          await connectWhatsApp(userId, connectionId);
+          return { userId, connectionId };
+        })
+      );
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          restoredCount++;
+        } else {
+          const reason = result.reason;
+          console.error(`[RESTORE] Failed to restore session:`, reason);
+          // Try to mark as disconnected
+          try {
+            const failedEntry = batch.find((_, idx) => results[batch.indexOf(batch[idx])] === result);
+            if (failedEntry) {
+              await storage.updateConnection(failedEntry.connectionId, {
+                isConnected: false,
+                qrCode: null,
+              });
+            }
+          } catch (e) {
+            // ignore cleanup errors
+          }
+        }
+      }
+
+      // Wait between batches to avoid WhatsApp rate-limiting
+      if (batchStart + BATCH_SIZE < toRestore.length) {
+        console.log(`[RESTORE] Waiting ${BATCH_DELAY_MS}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+    console.log(`[RESTORE] ✅ Session restoration complete: ${restoredCount}/${toRestore.length} restored successfully`);
   } catch (error) {
     console.error("Error restoring sessions:", error);
   }
@@ -8732,7 +8896,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
         // restaurações futuras funcionem normalmente via QR.
         // -----------------------------------------------------------------------
         try {
-          const mainAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
+          const mainAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
           // pairingAuthPath já está definido no escopo da função
 
           // Copiar arquivos do pairing para o principal
@@ -9557,22 +9721,27 @@ async function connectionHealthCheck(): Promise<void> {
         console.log(`?? [HEALTH CHECK] Conex�o zumbi detectada: ${connection.userId}`);
         console.log(`   ?? DB: isConnected=${isDbConnected}, Socket: ${hasActiveSocket ? 'ATIVO' : 'INATIVO'}`);
         
-        // Verificar se há arquivos de auth para restaurar (check connectionId path first, then legacy userId)
-        const connAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
-        const legacyAuthPath = path.join(SESSIONS_BASE, `auth_${connection.userId}`);
+        // Check auth files at auth_{userId} OR auth_{connectionId} (dual-path lookup)
+        let authPath = path.join(SESSIONS_BASE, `auth_${connection.userId}`);
         let hasAuthFiles = false;
         
         try {
-          const authFiles = await fs.readdir(connAuthPath);
+          const authFiles = await fs.readdir(authPath);
           hasAuthFiles = authFiles.length > 0;
         } catch (e) {
+          // Directory doesn't exist
+        }
+        
+        // Fallback: check auth_{connectionId}
+        if (!hasAuthFiles && connection.id !== connection.userId) {
+          const connAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
           try {
-            const authFiles = await fs.readdir(legacyAuthPath);
-            // Legacy path: allow for any connection (isPrimary may be null/true)
-            hasAuthFiles = authFiles.length > 0 && connection.isPrimary !== false;
-          } catch (e2) {
-            // Diretório não existe
-          }
+            const connAuthFiles = await fs.readdir(connAuthPath);
+            if (connAuthFiles.length > 0) {
+              hasAuthFiles = true;
+              console.log(`[HEALTH CHECK] Found auth at auth_${connection.id.substring(0, 8)} (connectionId path)`)
+            }
+          } catch (e) { /* no auth */ }
         }
         
         if (hasAuthFiles) {

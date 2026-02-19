@@ -1170,11 +1170,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
       // Map connection status to users with message usage
-
+      // MULTI-CANAL: use filter() to get ALL connections per user, aggregate isConnected
       const usersWithStatus = await Promise.all(users.map(async user => {
 
-        const connection = connections.find(c => c.userId === user.id);
-
+        const userConnections = connections.filter(c => c.userId === user.id);
+        const primaryConnection = userConnections.find(c => c.isPrimary) || userConnections[0];
         const subscription = subscriptions.find(s => s.userId === user.id && s.status === 'active');
 
         const hasActiveSubscription = !!subscription;
@@ -1183,9 +1183,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         let agentMessagesCount = 0;
 
-        if (connection) {
+        if (primaryConnection) {
 
-          agentMessagesCount = await storage.getAgentMessagesCount(connection.id);
+          agentMessagesCount = await storage.getAgentMessagesCount(primaryConnection.id);
 
         }
 
@@ -1197,15 +1197,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const isLimitReached = !hasActiveSubscription && agentMessagesCount >= FREE_TRIAL_LIMIT;
 
-
+        // MULTI-CANAL: isConnected = true se QUALQUER conexão está ativa
+        const isConnected = userConnections.some(c => c.isConnected);
+        const connectedCount = userConnections.filter(c => c.isConnected).length;
+        const totalConnections = userConnections.length;
 
         return {
 
           ...user,
 
-          isConnected: connection?.isConnected || false,
+          isConnected,
 
-          connectionId: connection?.id,
+          connectionId: primaryConnection?.id,
+          connectedCount,
+          totalConnections,
 
           agentMessagesCount,
 
@@ -1753,7 +1758,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const statusList = await Promise.all(connections.map(async (conn) => {
 
-        const session = conn.userId ? getSession(conn.userId) : null;
+        // MULTI-CANAL: Look up session by connectionId first (accurate), fallback to userId
+        const session = getSession(conn.id) || (conn.userId ? getSession(conn.userId) : null);
 
         const hasActiveSocket = session?.socket?.user !== undefined;
 
@@ -12620,18 +12626,72 @@ ${config.ai_instructions || ''}
               }).catch(() => {/* ignore if not found - might be MP payment ID */});
             }
           } else {
-            // 🆕 CRIAÇÃO: Criar novo cliente via confirmPixPayment
-            const result = await resellerService.confirmPixPayment(receipt.mp_payment_id);
-            if (result.success) {
-              console.log(`[ADMIN APPROVE] ✅ Cliente de revenda criado com sucesso:`, {
-                clientId: result.clientId,
-                userId: result.userId,
-              });
+            // 🆕 PAGAMENTO DE FATURA ou CRIAÇÃO DE CLIENTE
+            // Se o mp_payment_id começa com "reseller_invoice_", é um pagamento de fatura do revendedor ao SaaS
+            if (receipt.mp_payment_id && receipt.mp_payment_id.startsWith('reseller_invoice_')) {
+              console.log(`[ADMIN APPROVE] 🧾 Pagamento de fatura de revendedor: ${receipt.mp_payment_id}`);
+              const invoiceIdMatch = receipt.mp_payment_id.match(/^reseller_invoice_(\d+)_/);
+              if (invoiceIdMatch) {
+                const invoiceId = parseInt(invoiceIdMatch[1]);
+                try {
+                  // Marcar a fatura como paga
+                  await storage.updateResellerInvoice(invoiceId, {
+                    status: 'paid',
+                    paymentMethod: 'pix',
+                    paidAt: new Date(),
+                  });
+                  console.log(`[ADMIN APPROVE] ✅ Fatura ${invoiceId} marcada como paga`);
+
+                  // Buscar o revendedor e ativar
+                  const invoice = await storage.getResellerInvoice(invoiceId);
+                  if (invoice) {
+                    await storage.updateReseller(invoice.resellerId, { resellerStatus: 'active' });
+                    console.log(`[ADMIN APPROVE] ✅ Revendedor ${invoice.resellerId} ativado`);
+
+                    // Reativar clientes suspensos do revendedor
+                    const clients = await storage.getResellerClients(invoice.resellerId);
+                    let clientsActivated = 0;
+                    for (const client of clients) {
+                      if (client.status === 'suspended' || client.saasStatus === 'suspended') {
+                        const newExpiry = new Date();
+                        newExpiry.setDate(newExpiry.getDate() + 30);
+                        await storage.updateResellerClient(client.id, {
+                          status: 'active',
+                          saasStatus: 'active',
+                          saasPaidUntil: newExpiry,
+                        });
+                        // Reativar assinatura do usuário
+                        await supabase
+                          .from('subscriptions')
+                          .update({
+                            status: 'active',
+                            data_fim: newExpiry.toISOString(),
+                            updated_at: new Date().toISOString(),
+                          })
+                          .eq('user_id', client.userId)
+                          .in('status', ['suspended', 'overdue', 'pending']);
+                        clientsActivated++;
+                      }
+                    }
+                    console.log(`[ADMIN APPROVE] ✅ ${clientsActivated} clientes reativados`);
+                  }
+                } catch (invoiceError: any) {
+                  console.error('[ADMIN APPROVE] Erro ao processar fatura:', invoiceError);
+                }
+              }
             } else {
-              console.error(`[ADMIN APPROVE] ⚠️ Erro ao criar cliente de revenda:`, result.error);
-              // "Pagamento já foi processado" → cliente já existe, não é erro fatal
-              if (!result.error?.includes("processado") && !result.error?.includes("processada")) {
-                console.error(`[ADMIN APPROVE] Erro não fatal:`, result.error);
+              // CRIAÇÃO: Criar novo cliente via confirmPixPayment
+              const result = await resellerService.confirmPixPayment(receipt.mp_payment_id);
+              if (result.success) {
+                console.log(`[ADMIN APPROVE] ✅ Cliente de revenda criado:`, {
+                  clientId: result.clientId,
+                  userId: result.userId,
+                });
+              } else {
+                console.error(`[ADMIN APPROVE] ⚠️ Erro ao criar cliente:`, result.error);
+                if (!result.error?.includes("processado") && !result.error?.includes("processada")) {
+                  console.error(`[ADMIN APPROVE] Erro não fatal:`, result.error);
+                }
               }
             }
           }
@@ -35264,7 +35324,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      const { phoneNumber } = req.body;
+      const { phoneNumber, connectionId } = req.body;
 
 
 
@@ -35305,20 +35365,23 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       // -----------------------------------------------------------------------
       // ?? FIX: Verificar se já está conectado antes de gerar novo código
+      // Skip this check when creating a secondary connection (connectionId provided)
       // -----------------------------------------------------------------------
-      const existingConnection = await storage.getConnectionByUserId(userId);
-      if (existingConnection?.isConnected === true) {
-        console.log(`[PAIRING] Usuário ${userId} já está conectado, bloqueando novo código`);
-        return res.status(409).json({
-          success: false,
-          message: "WhatsApp já está conectado. Desconecte antes de gerar um novo código.",
-          alreadyConnected: true
-        });
+      if (!connectionId) {
+        const existingConnection = await storage.getConnectionByUserId(userId);
+        if (existingConnection?.isConnected === true) {
+          console.log(`[PAIRING] Usuário ${userId} já está conectado, bloqueando novo código`);
+          return res.status(409).json({
+            success: false,
+            message: "WhatsApp já está conectado. Desconecte antes de gerar um novo código.",
+            alreadyConnected: true
+          });
+        }
       }
 
       const { requestClientPairingCode } = await import("./whatsapp");
 
-      const code = await requestClientPairingCode(userId, cleanPhone); // Usar número limpo
+      const code = await requestClientPairingCode(userId, cleanPhone, connectionId || undefined); // Pass connectionId for multi-connection
 
 
 
@@ -45555,97 +45618,39 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Buscar usuário do revendedor para pegar email
-
-      const user = await storage.getUser(userId);
-
-
-
-      // Criar pagamento PIX no Mercado Pago (usando credenciais do sistema)
-
-      const configMap = await storage.getSystemConfigs(["mercadopago_access_token"]);
-
-      const mpAccessToken = configMap.get("mercadopago_access_token");
-
-
-
-      if (!mpAccessToken) {
-
-        return res.status(500).json({ message: "Configuração de pagamento não encontrada" });
-
-      }
-
-
-
-      // Criar preferência de pagamento PIX
+      // Gerar PIX estático usando a chave PIX do sistema (sem depender do MercadoPago)
 
       const amount = parseFloat(String(invoice.totalAmount));
 
-      const timestamp = Date.now();
+      const paymentId = `reseller_invoice_${invoice.id}_${Date.now()}`;
 
-      const externalReference = `reseller_invoice_${invoice.id}_${timestamp}`;
+      const planDesc = `Fatura ${invoice.referenceMonth} - ${reseller.companyName || 'Revendedor'}`;
 
-      const idempotencyKey = `reseller-invoice-pix-${invoice.id}-${timestamp}`;
+      const { pixCode, pixQrCode } = await generatePixQRCode({
 
+        planNome: planDesc,
 
+        valor: amount,
 
-      const pixResponse = await fetch('https://api.mercadopago.com/v1/payments', {
-
-        method: 'POST',
-
-        headers: {
-
-          'Authorization': `Bearer ${mpAccessToken}`,
-
-          'Content-Type': 'application/json',
-
-          'X-Idempotency-Key': idempotencyKey,
-
-        },
-
-        body: JSON.stringify({
-
-          transaction_amount: amount,
-
-          description: `Fatura ${invoice.referenceMonth} - ${reseller.companyName}`,
-
-          payment_method_id: 'pix',
-
-          external_reference: externalReference,
-
-          payer: {
-
-            email: user?.email || 'reseller@agentezap.com',
-
-            first_name: reseller.companyName?.split(' ')[0] || 'Revendedor',
-
-          },
-
-        }),
+        subscriptionId: paymentId,
 
       });
 
+      // pixQrCode é data URL: "data:image/png;base64,XXXXXX"
 
+      // O frontend espera qrCodeBase64 sem o prefixo
 
-      const pixData = await pixResponse.json();
+      const base64Match = pixQrCode.match(/^data:image\/[^;]+;base64,(.+)$/);
 
-
-
-      if (!pixResponse.ok || !pixData.point_of_interaction?.transaction_data) {
-
-        console.error('Erro ao criar PIX:', pixData);
-
-        return res.status(500).json({ message: "Erro ao gerar PIX" });
-
-      }
+      const qrCodeBase64 = base64Match ? base64Match[1] : pixQrCode;
 
 
 
-      // Atualizar fatura com ID do pagamento
+      // Salvar paymentId na fatura para rastrear
 
       await storage.updateResellerInvoice(invoiceId, {
 
-        mpPaymentId: String(pixData.id),
+        mpPaymentId: paymentId,
 
         paymentMethod: 'pix',
 
@@ -45655,19 +45660,19 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       res.json({
 
-        paymentId: pixData.id,
+        paymentId,
 
-        qrCode: pixData.point_of_interaction.transaction_data.qr_code,
+        qrCode: pixCode,
 
-        qrCodeBase64: pixData.point_of_interaction.transaction_data.qr_code_base64,
+        qrCodeBase64,
 
-        ticketUrl: pixData.point_of_interaction.transaction_data.ticket_url,
+        expirationDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
 
-        expirationDate: pixData.date_of_expiration,
-
-        amount: amount,
+        amount,
 
         referenceMonth: invoice.referenceMonth,
+
+        isManualPix: true,
 
       });
 
