@@ -16,7 +16,10 @@ import { userFollowUpService } from "./userFollowUpService";
 
 import { registerFollowUpRoutes } from "./routes_user_followup";
 import { registerAdminFollowUpRoutes } from "./routes_admin_followup";
+import { registerNotapayersRoutes } from "./routes_notapayers";
 import { registerAIRoutes } from "./routes_ai";
+
+import { adminConversations } from "@shared/schema";
 
 import { registerAudioConfigRoutes } from "./routes_audio_config";
 
@@ -919,6 +922,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerFollowUpRoutes(app);
   registerAdminFollowUpRoutes(app);
+  registerNotapayersRoutes(app);
   registerAIRoutes(app);
 
 

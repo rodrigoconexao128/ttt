@@ -569,12 +569,41 @@ export const adminConversations = pgTable("admin_conversations", {
   unreadCount: integer("unread_count").default(0).notNull(),
   // Controle de IA - se false, admin responde manualmente
   isAgentEnabled: boolean("is_agent_enabled").default(true).notNull(),
-  
+
   // Follow-up System
   followupActive: boolean("followup_active").default(true).notNull(),
   followupStage: integer("followup_stage").default(0).notNull(),
   nextFollowupAt: timestamp("next_followup_at"),
-  
+
+  // 🛡️ FOLLOW-UP FOR NON-PAYERS
+  paymentStatus: varchar("payment_status", { length: 50 }).default("pending").notNull(), // paid, unpaid, pending
+  followupForNonPayers: boolean("followup_for_non_payers").default(true).notNull(), // Toggle for non-payer follow-up
+  followupConfig: jsonb("followup_config").$type<{
+    enabled: boolean;
+    maxAttempts: number;
+    intervalsMinutes: number[];
+    finalMinDays: number;
+    finalMaxDays: number;
+    businessHoursStart: string;
+    businessHoursEnd: string;
+    respectBusinessHours: boolean;
+    tone: string;
+    formalityLevel: number;
+    useEmojis: boolean;
+  }>().default({
+    enabled: true,
+    maxAttempts: 8,
+    intervalsMinutes: [10, 30, 180, 1440, 4320, 10080, 259200, 432000], // 10m, 30m, 3h, 24h, 48h, 3d, 7d, 15d
+    finalMinDays: 15,
+    finalMaxDays: 30,
+    businessHoursStart: "09:00",
+    businessHoursEnd: "18:00",
+    respectBusinessHours: true,
+    tone: "friendly",
+    formalityLevel: 3,
+    useEmojis: true,
+  }),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -883,13 +912,20 @@ export const followupLogs = pgTable("followup_logs", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   conversationId: varchar("conversation_id").references(() => adminConversations.id),
   contactNumber: text("contact_number").notNull(),
-  status: text("status").notNull(), // 'sent', 'failed'
+  status: text("status").notNull(), // 'sent', 'failed', 'skipped', 'cancelled'
   messageContent: text("message_content"),
   executedAt: timestamp("executed_at").defaultNow(),
   errorReason: text("error_reason"),
+  // 🛡️ FOLLOW-UP FOR NON-PAYERS
+  paymentStatus: varchar("payment_status", { length: 50 }), // paid, unpaid, pending
+  followupType: varchar("followup_type", { length: 50 }), // regular, non_payer, final
+  stage: integer("stage"), // Follow-up stage number
+  // 🛡️ SCHEDULED MESSAGES
+  scheduledFor: timestamp("scheduled_for"),
 }, (table) => [
   index("idx_followup_logs_conversation").on(table.conversationId),
   index("idx_followup_logs_status").on(table.status),
+  index("idx_followup_logs_contact").on(table.contactNumber),
 ]);
 
 // ============================================================================

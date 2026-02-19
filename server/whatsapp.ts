@@ -1,4 +1,4 @@
-import makeWASocket, {
+﻿import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   WASocket,
@@ -348,6 +348,11 @@ interface AdminWhatsAppSession {
   adminId: string;
   phoneNumber?: string;
   contactsCache: Map<string, Contact>;
+  // 🛡️ SESSION STABILITY - Heartbeat and connection health
+  lastHeartbeat?: number;
+  heartbeatInterval?: NodeJS.Timeout;
+  connectionHealth?: 'healthy' | 'degraded' | 'unhealthy';
+  consecutiveDisconnects?: number;
 }
 
 interface AuthenticatedWebSocket extends WebSocket {
@@ -359,6 +364,12 @@ const sessions = new Map<string, WhatsAppSession>();
 const adminSessions = new Map<string, AdminWhatsAppSession>();
 const wsClients = new Map<string, Set<AuthenticatedWebSocket>>();
 const adminWsClients = new Map<string, Set<AuthenticatedWebSocket>>();
+
+// 🛡️ SESSION STABILITY - Heartbeat configuration
+const ADMIN_HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
+const ADMIN_MAX_CONSECUTIVE_DISCONNECTS = 3; // Maximum consecutive disconnects before alert
+const ADMIN_RECONNECT_BACKOFF_BASE_MS = 5000; // Base 5 seconds
+const ADMIN_RECONNECT_BACKOFF_MULTIPLIER = 2; // Exponential backoff multiplier
 
 const DEFAULT_JID_SUFFIX = "s.whatsapp.net";
 
@@ -2053,6 +2064,75 @@ export async function forceReconnectWhatsApp(userId: string): Promise<void> {
   
   // Agora chamar connectWhatsApp normalmente
   await connectWhatsApp(userId);
+}
+
+// ======================================================================
+// 🛡️ SESSION STABILITY - Heartbeat and Auto-Reconnection
+// ======================================================================
+/**
+ * Start heartbeat mechanism to keep admin session alive
+ * Pings every 30 seconds to detect connection issues early
+ */
+function startAdminHeartbeat(adminId: string): void {
+  const session = adminSessions.get(adminId);
+  if (!session?.socket) {
+    console.log(`[HEARTBEAT] No active session for admin ${adminId}, skipping heartbeat`);
+    return;
+  }
+
+  // Clear existing heartbeat if any
+  if (session.heartbeatInterval) {
+    clearInterval(session.heartbeatInterval);
+  }
+
+  session.heartbeatInterval = setInterval(() => {
+    const currentSession = adminSessions.get(adminId);
+    if (!currentSession?.socket) {
+      console.log(`[HEARTBEAT] No active socket for admin ${adminId}, stopping heartbeat`);
+      if (currentSession?.heartbeatInterval) {
+        clearInterval(currentSession.heartbeatInterval);
+      }
+      return;
+    }
+
+    const now = Date.now();
+    const timeSinceLastHeartbeat = now - (currentSession.lastHeartbeat || 0);
+
+    // Check if connection is still responsive
+    const isResponsive = currentSession.socket.user !== undefined;
+
+    if (!isResponsive) {
+      console.warn(`[HEARTBEAT] ⚠️ Admin ${adminId} connection is not responsive (last heartbeat: ${Math.round(timeSinceLastHeartbeat / 1000)}s ago)`);
+      currentSession.connectionHealth = 'unhealthy';
+      currentSession.consecutiveDisconnects = (currentSession.consecutiveDisconnects || 0) + 1;
+
+      if (currentSession.consecutiveDisconnects >= ADMIN_MAX_CONSECUTIVE_DISCONNECTS) {
+        console.error(`[HEARTBEAT] ❌ Admin ${adminId} has ${currentSession.consecutiveDisconnects} consecutive disconnects - forcing reconnect`);
+        currentSession.consecutiveDisconnects = 0;
+        // Force reconnect with exponential backoff
+        const backoffMs = ADMIN_RECONNECT_BACKOFF_BASE_MS * Math.pow(ADMIN_RECONNECT_BACKOFF_MULTIPLIER, 0);
+        setTimeout(() => connectAdminWhatsApp(adminId).catch(console.error), backoffMs);
+      }
+    } else {
+      currentSession.connectionHealth = 'healthy';
+      currentSession.lastHeartbeat = now;
+      currentSession.consecutiveDisconnects = 0;
+    }
+  }, ADMIN_HEARTBEAT_INTERVAL_MS);
+
+  console.log(`[HEARTBEAT] Started for admin ${adminId} (interval: ${ADMIN_HEARTBEAT_INTERVAL_MS / 1000}s)`);
+}
+
+/**
+ * Stop heartbeat mechanism for admin
+ */
+function stopAdminHeartbeat(adminId: string): void {
+  const session = adminSessions.get(adminId);
+  if (session?.heartbeatInterval) {
+    clearInterval(session.heartbeatInterval);
+    session.heartbeatInterval = undefined;
+    console.log(`[HEARTBEAT] Stopped for admin ${adminId}`);
+  }
 }
 
 // ======================================================================
@@ -6616,7 +6696,7 @@ interface AdminReconnectAttempt {
   lastAttempt: number;
 }
 const adminReconnectAttempts = new Map<string, AdminReconnectAttempt>();
-const MAX_ADMIN_RECONNECT_ATTEMPTS = 5;
+const MAX_ADMIN_RECONNECT_ATTEMPTS = 999; // Sessao permanece ativa - reconexao automatica ilimitada
 const ADMIN_RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconex�o
 
 // ?? Map para rastrear auto-retry ap�s logout do ADMIN
@@ -6626,7 +6706,7 @@ interface AdminLogoutAutoRetry {
 }
 const adminLogoutAutoRetry = new Map<string, AdminLogoutAutoRetry>();
 const ADMIN_LOGOUT_AUTO_RETRY_COOLDOWN_MS = 60000; // 60 segundos
-const MAX_ADMIN_LOGOUT_AUTO_RETRY = 1; // Apenas 1 tentativa autom�tica
+const MAX_ADMIN_LOGOUT_AUTO_RETRY = 10; // 10 tentativas automaticas apos logout
 
 export function getSession(userId: string): WhatsAppSession | undefined {
   return sessions.get(userId);
@@ -7561,9 +7641,15 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         const session = adminSessions.get(adminId);
         if (session) {
           session.phoneNumber = phoneNumber;
+          session.lastHeartbeat = Date.now();
+          session.connectionHealth = 'healthy';
+          session.consecutiveDisconnects = 0;
         }
 
         broadcastToAdmin(adminId, { type: "connected", phoneNumber });
+
+        // 🛡️ SESSION STABILITY - Start heartbeat mechanism
+        startAdminHeartbeat(adminId);
       }
 
       if (connStatus === "close") {
@@ -7578,6 +7664,16 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           return;
         }
 
+        // 🛡️ SESSION STABILITY - Update consecutive disconnects counter
+        if (currentSession) {
+          currentSession.consecutiveDisconnects = (currentSession.consecutiveDisconnects || 0) + 1;
+          currentSession.connectionHealth = 'unhealthy';
+          console.log(`[ADMIN DISCONNECT] Admin ${adminId} disconnected. StatusCode: ${statusCode}, consecutive disconnects: ${currentSession.consecutiveDisconnects}`);
+        }
+
+        // Stop heartbeat
+        stopAdminHeartbeat(adminId);
+
         // Sempre deletar a sessão primeiro
         adminSessions.delete(adminId);
         pendingAdminConnections.delete(adminId);
@@ -7587,8 +7683,6 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           isConnected: false,
           qrCode: null,
         });
-        
-        console.log(`[ADMIN DISCONNECT] Admin ${adminId} disconnected. StatusCode: ${statusCode}`);
 
         // Verificar limite de tentativas de reconexão
         const now = Date.now();

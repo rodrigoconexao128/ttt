@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 interface AdminConversation extends Conversation {
   userId?: string;
-  followupActive?: boolean;
+  followupActive: boolean;
   followupStage?: number;
 }
 
@@ -333,6 +333,37 @@ export default function AdminConversations() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao resetar conta",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para encerrar chamado (mantém histórico)
+  const closeTicketMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/conversations/${selectedConversationId}/close-ticket`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Encerrado pelo admin" }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || error.message || "Falha ao encerrar chamado");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+      toast({
+        title: "Chamado encerrado",
+        description: "O chamado foi encerrado. Histórico mantido para auditoria.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao encerrar chamado",
         description: error.message,
         variant: "destructive",
       });

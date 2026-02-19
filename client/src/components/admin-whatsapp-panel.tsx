@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, MessageCircle, QrCode, CheckCircle2, XCircle, Wifi, WifiOff } from "lucide-react";
+import { Loader2, MessageCircle, QrCode, CheckCircle2, XCircle, Wifi, WifiOff, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AdminWhatsappConnection {

@@ -1,8 +1,73 @@
 import type { Express, Request, Response } from "express";
 import { isAdmin } from "./supabaseAuth";
 import { db } from "./db";
-import { conversations, userFollowupLogs } from "@shared/schema";
-import { eq, and, gte, desc, sql } from "drizzle-orm";
+import { adminConversations, followupLogs, systemConfig } from "@shared/schema";
+import { eq, and, gte, desc, sql, asc } from "drizzle-orm";
+
+// ============================================================================
+// HELPERS PARA CONFIGURAÇÃO GLOBAL DE FOLLOW-UP (systemConfig)
+// ============================================================================
+
+const GLOBAL_FOLLOWUP_CONFIG_KEY = "admin_followup_global_config";
+
+const DEFAULT_GLOBAL_FOLLOWUP_CONFIG = {
+  id: "global",
+  userId: "admin",
+  isEnabled: true,
+  // Toggle follow-up para não pagantes
+  followupNonPayersEnabled: true,
+  maxAttempts: 8,
+  intervalsMinutes: [10, 30, 180, 1440, 4320, 10080, 259200, 432000],
+  businessHoursStart: "09:00",
+  businessHoursEnd: "18:00",
+  businessDays: [1, 2, 3, 4, 5],
+  respectBusinessHours: true,
+  tone: "friendly",
+  formalityLevel: 3,
+  useEmojis: true,
+  importantInfo: [],
+  infiniteLoop: true,
+  infiniteLoopMinDays: 15,   // Periodicidade mínima configurável
+  infiniteLoopMaxDays: 30,   // Periodicidade máxima configurável
+};
+
+async function getGlobalFollowupConfig() {
+  try {
+    const row = await db.query.systemConfig.findFirst({
+      where: eq(systemConfig.chave, GLOBAL_FOLLOWUP_CONFIG_KEY),
+    });
+    if (row?.valor) {
+      const saved = JSON.parse(row.valor);
+      return { ...DEFAULT_GLOBAL_FOLLOWUP_CONFIG, ...saved };
+    }
+  } catch (_) {}
+  return DEFAULT_GLOBAL_FOLLOWUP_CONFIG;
+}
+
+async function saveGlobalFollowupConfig(data: Record<string, any>) {
+  const merged = { ...DEFAULT_GLOBAL_FOLLOWUP_CONFIG, ...data };
+  const valor = JSON.stringify(merged);
+  // Upsert via insert + conflict update
+  try {
+    const existing = await db.query.systemConfig.findFirst({
+      where: eq(systemConfig.chave, GLOBAL_FOLLOWUP_CONFIG_KEY),
+    });
+    if (existing) {
+      await db.update(systemConfig)
+        .set({ valor, updatedAt: new Date() })
+        .where(eq(systemConfig.chave, GLOBAL_FOLLOWUP_CONFIG_KEY));
+    } else {
+      await db.insert(systemConfig).values({
+        chave: GLOBAL_FOLLOWUP_CONFIG_KEY,
+        valor,
+      });
+    }
+  } catch (err) {
+    console.error("[ADMIN FOLLOWUP CONFIG] Erro ao salvar config global:", err);
+    throw err;
+  }
+  return merged;
+}
 
 // ============================================================================
 // ROTAS DE FOLLOW-UP DO ADMIN (CONFIGURAÇÃO GLOBAL)
@@ -14,34 +79,12 @@ export function registerAdminFollowUpRoutes(app: Express) {
 
   /**
    * GET /api/admin/followup/config
-   * Buscar configuração global de follow-up do admin
+   * Buscar configuração global de follow-up do admin (persiste no banco)
    */
   app.get("/api/admin/followup/config", isAdmin, async (req: any, res: Response) => {
     try {
-      const adminId = (req.session as any)?.adminId;
-
-      // Para admin, usamos configuração global (hardcoded ou em banco)
-      // Se não houver config, retorna default
-      const defaultConfig = {
-        id: "global",
-        userId: "admin",
-        isEnabled: true,
-        maxAttempts: 8,
-        intervalsMinutes: [10, 30, 180, 1440, 4320, 10080, 259200, 432000],
-        businessHoursStart: "09:00",
-        businessHoursEnd: "18:00",
-        businessDays: [1, 2, 3, 4, 5], // Segunda a Sexta
-        respectBusinessHours: true,
-        tone: "friendly",
-        formalityLevel: 3,
-        useEmojis: true,
-        importantInfo: [],
-        infiniteLoop: true,
-        infiniteLoopMinDays: 15,
-        infiniteLoopMaxDays: 30,
-      };
-
-      res.json(defaultConfig);
+      const config = await getGlobalFollowupConfig();
+      res.json(config);
     } catch (error: any) {
       console.error("Erro ao buscar config de follow-up do admin:", error);
       res.status(500).json({ message: "Erro ao buscar configuração" });
@@ -50,21 +93,43 @@ export function registerAdminFollowUpRoutes(app: Express) {
 
   /**
    * PUT /api/admin/followup/config
-   * Atualizar configuração global de follow-up
+   * Atualizar configuração global de follow-up (persiste no banco)
    */
   app.put("/api/admin/followup/config", isAdmin, async (req: any, res: Response) => {
     try {
       const adminId = (req.session as any)?.adminId;
-      const config = req.body;
+      const incoming = req.body;
 
-      console.log(`[ADMIN] Atualizando config de follow-up para admin ${adminId}`, config);
+      // Validar periodicidade
+      if (incoming.infiniteLoopMinDays !== undefined) {
+        const min = Number(incoming.infiniteLoopMinDays);
+        if (isNaN(min) || min < 1 || min > 365) {
+          return res.status(400).json({ message: "infiniteLoopMinDays deve ser entre 1 e 365" });
+        }
+        incoming.infiniteLoopMinDays = min;
+      }
+      if (incoming.infiniteLoopMaxDays !== undefined) {
+        const max = Number(incoming.infiniteLoopMaxDays);
+        if (isNaN(max) || max < 1 || max > 365) {
+          return res.status(400).json({ message: "infiniteLoopMaxDays deve ser entre 1 e 365" });
+        }
+        incoming.infiniteLoopMaxDays = max;
+      }
+      if (
+        incoming.infiniteLoopMinDays !== undefined &&
+        incoming.infiniteLoopMaxDays !== undefined &&
+        incoming.infiniteLoopMinDays > incoming.infiniteLoopMaxDays
+      ) {
+        return res.status(400).json({ message: "infiniteLoopMinDays não pode ser maior que infiniteLoopMaxDays" });
+      }
 
-      // Atualizar no banco (se tiver tabela de configs globais)
-      // Por enquanto, apenas logamos e retornamos sucesso
+      const saved = await saveGlobalFollowupConfig(incoming);
+      console.log(`[ADMIN] Config de follow-up global atualizada por admin ${adminId}`);
+
       res.json({
         success: true,
         message: "Configuração atualizada com sucesso",
-        config
+        config: saved,
       });
     } catch (error: any) {
       console.error("Erro ao atualizar config de follow-up do admin:", error);
@@ -82,33 +147,56 @@ export function registerAdminFollowUpRoutes(app: Express) {
     try {
       const adminId = (req.session as any)?.adminId;
 
-      // Estatísticas globais de follow-up
-      const stats = await db.query.conversations.findMany({
-        where: sql`${conversations.followupActive} = true`
+      // Buscar todos os logs para stats precisas
+      const allLogs = await db.query.followupLogs.findMany({
+        orderBy: [desc(followupLogs.executedAt)],
+        limit: 10000,
       });
 
-      const totalSent = stats.filter(c => c.followupStage > 0).length;
-      const totalPending = stats.filter(c => c.nextFollowupAt && new Date(c.nextFollowupAt) > new Date()).length;
-      const totalCancelled = stats.filter(c => c.followupDisabledReason).length;
-      const totalSkipped = stats.filter(c => c.followupSkipped).length;
+      const totalSent = allLogs.filter(l => l.status === 'sent').length;
+      const totalFailed = allLogs.filter(l => l.status === 'failed').length;
+      const totalCancelled = allLogs.filter(l => l.status === 'cancelled').length;
+      const totalSkipped = allLogs.filter(l => l.status === 'skipped').length;
 
-      // Conversas com follow-up ativo hoje
+      // Buscar conversas ativas para pending e scheduledToday
+      const activeConversations = await db.query.adminConversations.findMany({
+        where: and(
+          eq(adminConversations.followupActive, true),
+          sql`${adminConversations.nextFollowupAt} IS NOT NULL`
+        ),
+      });
+
+      const now = new Date();
+      const totalPending = activeConversations.filter(c => {
+        if (!c.nextFollowupAt) return false;
+        return new Date(c.nextFollowupAt) <= now;
+      }).length;
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const scheduledToday = stats.filter(c => {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const scheduledToday = activeConversations.filter(c => {
         if (!c.nextFollowupAt) return false;
-        const nextDate = new Date(c.nextFollowupAt);
-        nextDate.setHours(0, 0, 0, 0);
-        return nextDate.getTime() === today.getTime();
+        const next = new Date(c.nextFollowupAt);
+        return next >= today && next < tomorrow;
       }).length;
+
+      // Non-payers stats
+      const allConvs = await db.query.adminConversations.findMany();
+      const unpaidCount = allConvs.filter(c => c.paymentStatus === 'unpaid').length;
+      const unpaidFollowupsEnabled = allConvs.filter(c => c.paymentStatus === 'unpaid' && c.followupForNonPayers).length;
 
       res.json({
         totalSent,
-        totalFailed: 0, // Poderia calcular de logs
+        totalFailed,
         totalCancelled,
         totalSkipped,
         pending: totalPending,
-        scheduledToday
+        scheduledToday,
+        unpaid: unpaidCount,
+        unpaidFollowupsEnabled,
       });
     } catch (error: any) {
       console.error("Erro ao buscar estatísticas de follow-up:", error);
@@ -125,15 +213,38 @@ export function registerAdminFollowUpRoutes(app: Express) {
   app.get("/api/admin/followup/logs", isAdmin, async (req: any, res: Response) => {
     try {
       const adminId = (req.session as any)?.adminId;
-      const limit = parseInt(req.query.limit as string) || 100;
+      const limit = parseInt(req.query.limit as string) || 200;
+      const status = req.query.status as string | undefined;
 
-      // Buscar logs de follow-up
-      const logs = await db.query.userFollowupLogs.findMany({
-        orderBy: [desc(userFollowupLogs.executedAt)],
-        limit
+      // Buscar logs de follow-up com filtros
+      const logs = await db.query.followupLogs.findMany({
+        where: status ? eq(followupLogs.status, status) : undefined,
+        orderBy: [desc(followupLogs.executedAt)],
+        limit,
       });
 
-      res.json(logs);
+      // Enriquecer com nome do contato (busca em lote via contactNumber)
+      const numbers = [...new Set(logs.filter(l => l.contactNumber).map(l => l.contactNumber))];
+      const nameMap = new Map<string, string | null>();
+      if (numbers.length > 0) {
+        // Buscar conversas por número — pegar a mais recente por número
+        const convs = await db.query.adminConversations.findMany({
+          orderBy: [desc(adminConversations.lastMessageTime)],
+          limit: 1000,
+        });
+        for (const c of convs) {
+          if (c.contactNumber && !nameMap.has(c.contactNumber)) {
+            nameMap.set(c.contactNumber, c.contactName);
+          }
+        }
+      }
+
+      const enriched = logs.map(l => ({
+        ...l,
+        contactName: l.contactNumber ? (nameMap.get(l.contactNumber) ?? null) : null,
+      }));
+
+      res.json(enriched);
     } catch (error: any) {
       console.error("Erro ao buscar logs de follow-up:", error);
       res.status(500).json({ message: "Erro ao buscar logs" });
@@ -150,13 +261,13 @@ export function registerAdminFollowUpRoutes(app: Express) {
     try {
       const adminId = (req.session as any)?.adminId;
 
-      const pending = await db.query.conversations.findMany({
+      const pending = await db.query.adminConversations.findMany({
         where: and(
-          eq(conversations.followupActive, true),
-          sql`${conversations.nextFollowupAt} IS NOT NULL`,
-          sql`${conversations.nextFollowupAt} <= NOW()`
+          eq(adminConversations.followupActive, true),
+          sql`${adminConversations.nextFollowupAt} IS NOT NULL`,
+          sql`${adminConversations.nextFollowupAt} <= NOW()`
         ),
-        orderBy: [asc(conversations.nextFollowupAt)],
+        orderBy: [asc(adminConversations.nextFollowupAt)],
         limit: 100
       });
 
@@ -169,7 +280,11 @@ export function registerAdminFollowUpRoutes(app: Express) {
         nextFollowupAt: conv.nextFollowupAt || "",
         lastMessageText: conv.lastMessageText || null,
         lastMessageTime: conv.lastMessageTime || null,
-        note: conv.followupDisabledReason || null
+        note: conv.followupDisabledReason || null,
+        // 🛡️ FOLLOW-UP FOR NON-PAYERS
+        paymentStatus: conv.paymentStatus || 'pending',
+        followupForNonPayers: conv.followupForNonPayers ?? true,
+        followupConfig: conv.followupConfig
       }));
 
       res.json(formatted);
@@ -195,8 +310,8 @@ export function registerAdminFollowUpRoutes(app: Express) {
         return res.status(400).json({ message: "active (boolean) é obrigatório" });
       }
 
-      const conversation = await db.query.conversations.findFirst({
-        where: eq(conversations.id, id)
+      const conversation = await db.query.adminConversations.findFirst({
+        where: eq(adminConversations.id, id)
       });
 
       if (!conversation) {
@@ -205,24 +320,24 @@ export function registerAdminFollowUpRoutes(app: Express) {
 
       if (active) {
         // Ativar follow-up
-        await db.update(conversations)
+        await db.update(adminConversations)
           .set({
             followupActive: true,
             nextFollowupAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutos
             followupStage: 0
           })
-          .where(eq(conversations.id, id));
+          .where(eq(adminConversations.id, id));
 
         console.log(`[ADMIN] Follow-up ATIVADO para conversa ${id}`);
       } else {
         // Desativar follow-up
-        await db.update(conversations)
+        await db.update(adminConversations)
           .set({
             followupActive: false,
             nextFollowupAt: null,
             followupDisabledReason: "Desativado pelo admin"
           })
-          .where(eq(conversations.id, id));
+          .where(eq(adminConversations.id, id));
 
         console.log(`[ADMIN] Follow-up DESATIVADO para conversa ${id}`);
       }
@@ -243,8 +358,8 @@ export function registerAdminFollowUpRoutes(app: Express) {
       const adminId = (req.session as any)?.adminId;
       const { id } = req.params;
 
-      const conversation = await db.query.conversations.findFirst({
-        where: eq(conversations.id, id)
+      const conversation = await db.query.adminConversations.findFirst({
+        where: eq(adminConversations.id, id)
       });
 
       if (!conversation) {
@@ -255,7 +370,11 @@ export function registerAdminFollowUpRoutes(app: Express) {
         active: conversation.followupActive,
         stage: conversation.followupStage,
         nextFollowupAt: conversation.nextFollowupAt,
-        disabledReason: conversation.followupDisabledReason
+        disabledReason: conversation.followupDisabledReason,
+        // 🛡️ FOLLOW-UP FOR NON-PAYERS
+        paymentStatus: conversation.paymentStatus || 'pending',
+        followupForNonPayers: conversation.followupForNonPayers ?? true,
+        followupConfig: conversation.followupConfig
       });
     } catch (error: any) {
       console.error("Erro ao buscar status de follow-up:", error);
@@ -272,20 +391,20 @@ export function registerAdminFollowUpRoutes(app: Express) {
       const adminId = (req.session as any)?.adminId;
       const { id } = req.params;
 
-      const conversation = await db.query.conversations.findFirst({
-        where: eq(conversations.id, id)
+      const conversation = await db.query.adminConversations.findFirst({
+        where: eq(adminConversations.id, id)
       });
 
       if (!conversation) {
         return res.status(404).json({ message: "Conversa não encontrada" });
       }
 
-      await db.update(conversations)
+      await db.update(adminConversations)
         .set({
           followupStage: 0,
           nextFollowupAt: new Date(Date.now() + 10 * 60 * 1000)
         })
-        .where(eq(conversations.id, id));
+        .where(eq(adminConversations.id, id));
 
       console.log(`[ADMIN] Ciclo de follow-up resetado para conversa ${id}`);
 
@@ -293,6 +412,141 @@ export function registerAdminFollowUpRoutes(app: Express) {
     } catch (error: any) {
       console.error("Erro ao resetar follow-up:", error);
       res.status(500).json({ message: "Erro ao resetar follow-up" });
+    }
+  });
+
+  // ==================== 🛡️ FOLLOW-UP FOR NON-PAYERS ====================
+
+  /**
+   * POST /api/admin/followup/conversation/:id/update-payment-status
+   * Atualizar status de pagamento de uma conversa
+   */
+  app.post("/api/admin/followup/conversation/:id/update-payment-status", isAdmin, async (req: any, res: Response) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+      const { paymentStatus } = req.body;
+
+      // Validação
+      const validStatuses = ['paid', 'unpaid', 'pending'];
+      if (!paymentStatus || !validStatuses.includes(paymentStatus)) {
+        return res.status(400).json({ message: "paymentStatus deve ser 'paid', 'unpaid' ou 'pending'" });
+      }
+
+      const conversation = await db.query.adminConversations.findFirst({
+        where: eq(adminConversations.id, id)
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      // Atualizar status de pagamento
+      await db.update(adminConversations)
+        .set({
+          paymentStatus,
+          updatedAt: new Date()
+        })
+        .where(eq(adminConversations.id, id));
+
+      console.log(`[ADMIN] Status de pagamento atualizado para ${paymentStatus} em conversa ${id}`);
+
+      res.json({
+        success: true,
+        paymentStatus,
+        message: "Status de pagamento atualizado com sucesso"
+      });
+    } catch (error: any) {
+      console.error("Erro ao atualizar status de pagamento:", error);
+      res.status(500).json({ message: "Erro ao atualizar status de pagamento" });
+    }
+  });
+
+  /**
+   * POST /api/admin/followup/conversation/:id/toggle-non-payer-followup
+   * Ativar/Desativar follow-up para não pagantes
+   */
+  app.post("/api/admin/followup/conversation/:id/toggle-non-payer-followup", isAdmin, async (req: any, res: Response) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+      const { enabled } = req.body;
+
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ message: "enabled (boolean) é obrigatório" });
+      }
+
+      const conversation = await db.query.adminConversations.findFirst({
+        where: eq(adminConversations.id, id)
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      // Atualizar toggle de follow-up para não pagantes
+      await db.update(adminConversations)
+        .set({
+          followupForNonPayers: enabled,
+          updatedAt: new Date()
+        })
+        .where(eq(adminConversations.id, id));
+
+      console.log(`[ADMIN] Follow-up para não pagantes ${enabled ? 'ATIVADO' : 'DESATIVADO'} para conversa ${id}`);
+
+      res.json({
+        success: true,
+        followupForNonPayers: enabled,
+        message: `Follow-up para não pagantes ${enabled ? 'ativado' : 'desativado'} com sucesso`
+      });
+    } catch (error: any) {
+      console.error("Erro ao alternar follow-up para não pagantes:", error);
+      res.status(500).json({ message: "Erro ao alternar follow-up para não pagantes" });
+    }
+  });
+
+  /**
+   * POST /api/admin/followup/conversation/:id/update-config
+   * Atualizar configuração de follow-up para uma conversa
+   */
+  app.post("/api/admin/followup/conversation/:id/update-config", isAdmin, async (req: any, res: Response) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { id } = req.params;
+      const config = req.body;
+
+      const conversation = await db.query.adminConversations.findFirst({
+        where: eq(adminConversations.id, id)
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      // Validar configuração
+      const validStatuses = ['paid', 'unpaid', 'pending'];
+      if (config.paymentStatus && !validStatuses.includes(config.paymentStatus)) {
+        return res.status(400).json({ message: "paymentStatus deve ser 'paid', 'unpaid' ou 'pending'" });
+      }
+
+      // Atualizar configuração
+      await db.update(adminConversations)
+        .set({
+          ...config,
+          updatedAt: new Date()
+        })
+        .where(eq(adminConversations.id, id));
+
+      console.log(`[ADMIN] Configuração de follow-up atualizada para conversa ${id}`);
+
+      res.json({
+        success: true,
+        message: "Configuração de follow-up atualizada com sucesso",
+        config
+      });
+    } catch (error: any) {
+      console.error("Erro ao atualizar configuração de follow-up:", error);
+      res.status(500).json({ message: "Erro ao atualizar configuração de follow-up" });
     }
   });
 
@@ -318,8 +572,8 @@ export function registerAdminFollowUpRoutes(app: Express) {
         return res.status(400).json({ message: "text é obrigatório" });
       }
 
-      const conversation = await db.query.conversations.findFirst({
-        where: eq(conversations.id, id)
+      const conversation = await db.query.adminConversations.findFirst({
+        where: eq(adminConversations.id, id)
       });
 
       if (!conversation) {
@@ -340,14 +594,13 @@ export function registerAdminFollowUpRoutes(app: Express) {
 
       // Inserir no banco
       // Precisamos criar uma tabela para mensagens agendadas
-      // Por enquanto, vamos usar a tabela userFollowupLogs como placeholder
-      const log = await db.insert(userFollowupLogs).values({
+      // Por enquanto, vamos usar a tabela followupLogs como placeholder
+      const log = await db.insert(followupLogs).values({
         conversationId: id,
         text: text,
         scheduledFor: new Date(scheduledFor),
         useAI: useAI || false,
         note: note || null,
-        createdBy: adminId,
         executedAt: null, // Ainda não executado
         status: 'scheduled'
       }).returning();
@@ -376,12 +629,12 @@ export function registerAdminFollowUpRoutes(app: Express) {
       const adminId = (req.session as any)?.adminId;
       const { id } = req.params;
 
-      const messages = await db.query.userFollowupLogs.findMany({
+      const messages = await db.query.followupLogs.findMany({
         where: and(
-          eq(userFollowupLogs.conversationId, id),
-          eq(userFollowupLogs.status, 'scheduled')
+          eq(followupLogs.conversationId, id),
+          eq(followupLogs.status, 'scheduled')
         ),
-        orderBy: [asc(userFollowupLogs.scheduledFor)]
+        orderBy: [asc(followupLogs.scheduledFor)]
       });
 
       res.json(messages);
@@ -401,11 +654,11 @@ export function registerAdminFollowUpRoutes(app: Express) {
       const { id, messageId } = req.params;
 
       // Atualizar status para cancelled
-      await db.update(userFollowupLogs)
+      await db.update(followupLogs)
         .set({ status: 'cancelled' })
         .where(and(
-          eq(userFollowupLogs.id, messageId),
-          eq(userFollowupLogs.conversationId, id)
+          eq(followupLogs.id, messageId),
+          eq(followupLogs.conversationId, id)
         ));
 
       console.log(`[ADMIN] Mensagem agendada ${messageId} cancelada`);

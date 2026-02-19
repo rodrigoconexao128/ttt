@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { adminConversations, followupLogs, adminMessages } from "@shared/schema";
+import { adminConversations, followupLogs, adminMessages, systemConfig } from "@shared/schema";
 import { eq, and, lte, isNull } from "drizzle-orm";
 import { getLLMClient } from "./llm";
 
@@ -20,9 +20,32 @@ const FOLLOW_UP_SCHEDULE = [
   15 * 24 * 60        // 15 dias (Estágio 7)
 ];
 
-// Intervalo final aleatório entre 15 e 30 dias (em minutos)
-const FINAL_RANDOM_MIN = 15 * 24 * 60;
-const FINAL_RANDOM_MAX = 30 * 24 * 60;
+// Chave da config global de follow-up no systemConfig
+const GLOBAL_FOLLOWUP_CONFIG_KEY = "admin_followup_global_config";
+
+/** Busca configuração global de follow-up do admin */
+async function getAdminFollowupGlobalConfig(): Promise<{
+  isEnabled: boolean;
+  followupNonPayersEnabled: boolean;
+  infiniteLoopMinDays: number;
+  infiniteLoopMaxDays: number;
+}> {
+  try {
+    const row = await db.query.systemConfig.findFirst({
+      where: eq(systemConfig.chave, GLOBAL_FOLLOWUP_CONFIG_KEY),
+    });
+    if (row?.valor) {
+      const saved = JSON.parse(row.valor);
+      return {
+        isEnabled: saved.isEnabled !== false,
+        followupNonPayersEnabled: saved.followupNonPayersEnabled !== false,
+        infiniteLoopMinDays: saved.infiniteLoopMinDays ?? 15,
+        infiniteLoopMaxDays: saved.infiniteLoopMaxDays ?? 30,
+      };
+    }
+  } catch (_) {}
+  return { isEnabled: true, followupNonPayersEnabled: true, infiniteLoopMinDays: 15, infiniteLoopMaxDays: 30 };
+}
 
 type FollowUpCallback = (phoneNumber: string, context: string, attempt: number, type: string) => Promise<{ success: boolean, message?: string, error?: string } | void>;
 type ScheduledContactCallback = (phoneNumber: string, reason: string) => Promise<void>;
@@ -70,14 +93,21 @@ export class FollowUpService {
    */
   private async processFollowUps() {
     if (this.isProcessingCycle) {
-      console.log("? [FOLLOW-UP] Verifica??o anterior ainda em execu??o, pulando ciclo para evitar duplicatas");
+      console.log("⏭️ [FOLLOW-UP] Verificação anterior ainda em execução, pulando ciclo para evitar duplicatas");
       return;
     }
 
     this.isProcessingCycle = true;
     try {
+      // 🛡️ Verificar config global antes de processar
+      const globalConfig = await getAdminFollowupGlobalConfig();
+      if (!globalConfig.isEnabled) {
+        console.log("🛑 [FOLLOW-UP] Follow-up global DESATIVADO na config do admin. Pulando ciclo.");
+        return;
+      }
+
       const now = new Date();
-      
+
       // Buscar conversas que precisam de follow-up
       const pendingConversations = await db.query.adminConversations.findMany({
         where: and(
@@ -108,6 +138,36 @@ export class FollowUpService {
     console.log(`👉 [FOLLOW-UP] Processando ${conversation.contactNumber} (Estágio ${conversation.followupStage})`);
 
     try {
+      // 🛡️ Ler config global do admin
+      const globalConfig = await getAdminFollowupGlobalConfig();
+
+      // 🛡️ FOLLOW-UP FOR NON-PAYERS - Check payment status and toggle
+      const followupForNonPayers = conversation.followupForNonPayers ?? true;
+      const paymentStatus = conversation.paymentStatus ?? 'pending';
+
+      // Se pagamento confirmado, nunca enviar follow-up
+      if (paymentStatus === 'paid') {
+        console.log(`🛑 [FOLLOW-UP] Client already paid. Skipping.`);
+        await this.logFollowUp(conversation.id, conversation.contactNumber, 'skipped', 'Client already paid', undefined, 'paid', 'paid', conversation.followupStage || 0);
+        await this.disableFollowUp(conversation.id, "Cliente já pagou");
+        return;
+      }
+
+      // 🛡️ Se follow-up para não pagantes está desativado GLOBALMENTE e o status é não pago
+      if (!globalConfig.followupNonPayersEnabled && paymentStatus === 'unpaid') {
+        console.log(`🛑 [FOLLOW-UP] Follow-up para não pagantes DESATIVADO globalmente. Pulando ${conversation.contactNumber}`);
+        await this.logFollowUp(conversation.id, conversation.contactNumber, 'skipped', 'Follow-up não pagantes desativado', undefined, paymentStatus, 'non_payer', conversation.followupStage || 0);
+        await this.scheduleNextFollowUp(conversation, 24 * 60); // Reagendar para checar amanhã
+        return;
+      }
+
+      // 🛡️ Se follow-up para não pagantes está desativado NA CONVERSA e o status é não pago
+      if (!followupForNonPayers && (paymentStatus === 'unpaid' || paymentStatus === 'pending')) {
+        console.log(`🛑 [FOLLOW-UP] Follow-up para não pagantes desativado nesta conversa. Pulando ${conversation.contactNumber}`);
+        await this.logFollowUp(conversation.id, conversation.contactNumber, 'skipped', 'Follow-up não pagantes desativado nesta conversa', undefined, paymentStatus, 'non_payer', conversation.followupStage || 0);
+        return;
+      }
+
       // Anti-spam: if a follow-up was sent very recently, do not send again.
       // Protects against accidental re-entry/retries and avoids flooding the lead.
       try {
@@ -137,7 +197,7 @@ export class FollowUpService {
       // Follow-up só deve ser cancelado quando:
       // 1. Toggle global em /followup está desativado (followup_configs.is_enabled)
       // 2. Toggle individual na conversa está desativado (conversations.followupActive)
-      
+
       // Verificar se o follow-up está ativo para esta conversa
       // Se followupActive for false, NÃO enviar mensagem
       if (!conversation.followupActive) {
@@ -148,7 +208,7 @@ export class FollowUpService {
 
       // 1. Analisar histórico com IA para decidir ação
       const decision = await this.analyzeWithAI(conversation);
-      
+
       if (decision.action === 'abort') {
         console.log(`🛑 [FOLLOW-UP] Abortado pela IA para ${conversation.contactNumber}: ${decision.reason}`);
         await this.disableFollowUp(conversation.id);
@@ -158,7 +218,7 @@ export class FollowUpService {
       if (decision.action === 'wait') {
         console.log(`⏳ [FOLLOW-UP] IA sugeriu esperar para ${conversation.contactNumber}: ${decision.reason}`);
         // Adiar por 24h ou conforme sugerido (simplificado para 24h aqui)
-        await this.scheduleNextFollowUp(conversation, 24 * 60); 
+        await this.scheduleNextFollowUp(conversation, 24 * 60);
         return;
       }
 
@@ -166,42 +226,31 @@ export class FollowUpService {
       if (decision.action === 'send') {
         if (this.onFollowUpReady) {
           console.log(`📤 [FOLLOW-UP] Disparando callback para ${conversation.contactNumber}`);
-          
+
           // O callback espera (phoneNumber, context, attempt, type)
           // Vamos adaptar os parâmetros
           const attempt = (conversation.followupStage || 0) + 1;
           const type = attempt >= FOLLOW_UP_SCHEDULE.length ? 'final' : 'reminder';
-          
+
           const result = await this.onFollowUpReady(
-            conversation.contactNumber, 
+            conversation.contactNumber,
             decision.context || "Follow-up automático",
             attempt,
             type
           );
 
-          // Log result
+          // Log result with enhanced details
           try {
             if (result && typeof result === 'object') {
-               await db.insert(followupLogs).values({
-                  conversationId: conversation.id,
-                  contactNumber: conversation.contactNumber,
-                  status: result.success ? 'sent' : 'failed',
-                  messageContent: result.message,
-                  errorReason: result.error
-               });
+               await this.logFollowUp(conversation.id, conversation.contactNumber, result.success ? 'sent' : 'failed', result.message, result.error, paymentStatus, type, attempt);
             } else {
                // Fallback for void return (backward compatibility)
-               await db.insert(followupLogs).values({
-                  conversationId: conversation.id,
-                  contactNumber: conversation.contactNumber,
-                  status: 'sent',
-                  messageContent: 'Mensagem enviada (conteúdo não capturado)',
-               });
+               await this.logFollowUp(conversation.id, conversation.contactNumber, 'sent', 'Mensagem enviada (conteúdo não capturado)', undefined, paymentStatus, type, attempt);
             }
           } catch (logError) {
             console.error("Erro ao logar follow-up:", logError);
           }
-          
+
           // Agendar próximo estágio
           await this.scheduleNextFollowUp(conversation);
         } else {
@@ -211,6 +260,35 @@ export class FollowUpService {
 
     } catch (error) {
       console.error(`❌ [FOLLOW-UP] Erro ao executar para ${conversation.contactNumber}:`, error);
+    }
+  }
+
+  /**
+   * Enhanced log function with payment status and follow-up type
+   */
+  private async logFollowUp(
+    conversationId: string,
+    contactNumber: string,
+    status: string,
+    messageContent: string | undefined,
+    errorReason: string | undefined,
+    paymentStatus: string,
+    followupType: string,
+    stage: number | undefined
+  ): Promise<void> {
+    try {
+      await db.insert(followupLogs).values({
+        conversationId,
+        contactNumber,
+        status,
+        messageContent,
+        errorReason,
+        paymentStatus,
+        followupType,
+        stage,
+      });
+    } catch (logError) {
+      console.error("Erro ao logar follow-up:", logError);
     }
   }
 
@@ -283,10 +361,33 @@ export class FollowUpService {
 
   /**
    * Agenda o próximo follow-up ou finaliza se acabou a sequência
+   * Uses configurable periodicity from global admin config and conversation config
    */
   private async scheduleNextFollowUp(conversation: typeof adminConversations.$inferSelect, customDelayMinutes?: number) {
     const currentStage = conversation.followupStage || 0;
     const nextStage = currentStage + 1;
+
+    // 🛡️ Ler config global para periodicidade
+    const globalConfig = await getAdminFollowupGlobalConfig();
+
+    // Get config from conversation or use defaults
+    const convConfig = conversation.followupConfig || {
+      enabled: true,
+      maxAttempts: 8,
+      intervalsMinutes: [10, 30, 180, 1440, 4320, 10080, 259200, 432000],
+      finalMinDays: 15,
+      finalMaxDays: 30,
+      businessHoursStart: "09:00",
+      businessHoursEnd: "18:00",
+      respectBusinessHours: true,
+      tone: "friendly",
+      formalityLevel: 3,
+      useEmojis: true,
+    };
+
+    // 🛡️ Usar periodicidade da config global do admin (tem prioridade)
+    const finalMinDays = globalConfig.infiniteLoopMinDays ?? convConfig.finalMinDays ?? 15;
+    const finalMaxDays = globalConfig.infiniteLoopMaxDays ?? convConfig.finalMaxDays ?? 30;
 
     if (customDelayMinutes) {
       const nextDate = new Date(Date.now() + customDelayMinutes * 60 * 1000);
@@ -296,28 +397,29 @@ export class FollowUpService {
       return;
     }
 
-    if (currentStage >= FOLLOW_UP_SCHEDULE.length) {
-      // Loop infinito a cada 15-30 dias
-      const randomDelay = Math.floor(Math.random() * (FINAL_RANDOM_MAX - FINAL_RANDOM_MIN + 1) + FINAL_RANDOM_MIN);
-      const nextDate = new Date(Date.now() + randomDelay * 60 * 1000);
-      
-      console.log(`🔄 [FOLLOW-UP] Ciclo infinito: Agendando próximo para daqui a ${Math.floor(randomDelay / 60 / 24)} dias`);
+    if (currentStage >= convConfig.intervalsMinutes.length) {
+      // 🔄 Loop infinito com periodicidade configurável
+      const range = Math.max(1, finalMaxDays - finalMinDays);
+      const randomDelay = Math.floor(Math.random() * (range + 1) + finalMinDays);
+      const nextDate = new Date(Date.now() + randomDelay * 24 * 60 * 60 * 1000);
+
+      console.log(`🔄 [FOLLOW-UP] Ciclo infinito: Agendando próximo para daqui a ${randomDelay} dias (config: ${finalMinDays}-${finalMaxDays}d)`);
 
       await db.update(adminConversations)
-        .set({ 
-          followupStage: currentStage + 1, // Continua incrementando para saber quantas vezes já tentou
-          nextFollowupAt: nextDate 
+        .set({
+          followupStage: nextStage, // Continua incrementando para saber quantas vezes já tentou
+          nextFollowupAt: nextDate
         })
         .where(eq(adminConversations.id, conversation.id));
-        
+
     } else {
-      const delayMinutes = FOLLOW_UP_SCHEDULE[currentStage];
+      const delayMinutes = convConfig.intervalsMinutes[currentStage];
       const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
-      
+
       await db.update(adminConversations)
-        .set({ 
+        .set({
           followupStage: nextStage,
-          nextFollowupAt: nextDate 
+          nextFollowupAt: nextDate
         })
         .where(eq(adminConversations.id, conversation.id));
     }
@@ -328,26 +430,35 @@ export class FollowUpService {
    */
   async disableFollowUp(conversationId: string, reason: string = "Cancelado manualmente") {
     console.log(`🛑 [FOLLOW-UP] Desativando follow-up para conversa ${conversationId}. Motivo: ${reason}`);
-    
-    // Force update regardless of current state to ensure it sticks
-    const [conversation] = await db.update(adminConversations)
-      .set({ 
-        followupActive: false, 
-        nextFollowupAt: null,
-        followupStage: 0 // Reset stage too just in case
-      })
-      .where(eq(adminConversations.id, conversationId))
-      .returning();
+
+    // Get conversation first to log with payment status
+    const conversation = await db.query.adminConversations.findFirst({
+      where: eq(adminConversations.id, conversationId)
+    });
 
     if (conversation) {
+      // Force update regardless of current state to ensure it sticks
+      await db.update(adminConversations)
+        .set({
+          followupActive: false,
+          nextFollowupAt: null,
+          followupStage: 0 // Reset stage too just in case
+        })
+        .where(eq(adminConversations.id, conversationId));
+
       console.log(`✅ [FOLLOW-UP] Sucesso ao desativar follow-up para ${conversation.contactNumber}. Active: ${conversation.followupActive}`);
-      await db.insert(followupLogs).values({
-        conversationId: conversation.id,
-        contactNumber: conversation.contactNumber,
-        status: 'cancelled',
-        messageContent: reason,
-        executedAt: new Date()
-      });
+
+      // Log cancellation with payment status
+      await this.logFollowUp(
+        conversation.id,
+        conversation.contactNumber,
+        'cancelled',
+        reason,
+        undefined,
+        conversation.paymentStatus || 'pending',
+        'cancelled',
+        conversation.followupStage || 0
+      );
     } else {
       console.warn(`⚠️ [FOLLOW-UP] Falha ao desativar: Conversa ${conversationId} não encontrada ou update falhou.`);
     }
