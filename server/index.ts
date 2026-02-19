@@ -202,6 +202,15 @@ app.use((req, res, next) => {
       // Não crashar - continuar mesmo se seed falhar
     }
     
+    // Runtime migration: add ai_enabled column to whatsapp_connections if not exists
+    try {
+      const { pool } = await import("./db");
+      await pool.query(`ALTER TABLE whatsapp_connections ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT true`);
+      console.log("[MIGRATION] ai_enabled column ensured on whatsapp_connections");
+    } catch (migErr) {
+      console.error("[MIGRATION] Error adding ai_enabled column (may already exist):", migErr);
+    }
+    
     // Aguardar mais um pouco antes de restaurar sessões
     await new Promise(resolve => setTimeout(resolve, 2000));
     

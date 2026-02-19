@@ -163,6 +163,9 @@ export const whatsappConnections = pgTable("whatsapp_connections", {
   connectionName: varchar("connection_name", { length: 255 }),
   connectionType: varchar("connection_type", { length: 50 }).default("primary"),
   isPrimary: boolean("is_primary").default(true),
+  // Per-connection AI toggle: when false, AI doesn't auto-respond on this number
+  // but CRM features (conversations, manual replies, etc.) still work
+  aiEnabled: boolean("ai_enabled").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

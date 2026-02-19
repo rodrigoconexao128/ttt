@@ -1,4 +1,4 @@
-﻿import makeWASocket, {
+import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   WASocket,
@@ -360,7 +360,112 @@ interface AuthenticatedWebSocket extends WebSocket {
   adminId?: string;
 }
 
-const sessions = new Map<string, WhatsAppSession>();
+// ---------------------------------------------------------------------------
+// 🔑 MULTI-CONNECTION SESSION MAP
+// ---------------------------------------------------------------------------
+// Custom Map that stores sessions keyed by connectionId but also supports
+// lookup by userId for backward compatibility. This enables multiple
+// WhatsApp numbers per user account while keeping existing code working.
+// ---------------------------------------------------------------------------
+class SessionMap extends Map<string, WhatsAppSession> {
+  private userIdIndex = new Map<string, Set<string>>(); // userId -> Set<connectionId>
+
+  set(connectionId: string, session: WhatsAppSession): this {
+    // Clean up old entry if connectionId was already mapped
+    const oldSession = super.get(connectionId);
+    if (oldSession) {
+      this.userIdIndex.get(oldSession.userId)?.delete(connectionId);
+    }
+    super.set(connectionId, session);
+    if (!this.userIdIndex.has(session.userId)) {
+      this.userIdIndex.set(session.userId, new Set());
+    }
+    this.userIdIndex.get(session.userId)!.add(connectionId);
+    return this;
+  }
+
+  delete(key: string): boolean {
+    // Try direct delete by connectionId first
+    if (super.has(key)) {
+      const session = super.get(key)!;
+      this.userIdIndex.get(session.userId)?.delete(key);
+      if (this.userIdIndex.get(session.userId)?.size === 0) {
+        this.userIdIndex.delete(session.userId);
+      }
+      return super.delete(key);
+    }
+    // Fallback: delete by userId (deletes first session found for that user)
+    const connIds = this.userIdIndex.get(key);
+    if (connIds && connIds.size > 0) {
+      const firstConnId = connIds.values().next().value;
+      if (firstConnId) {
+        connIds.delete(firstConnId);
+        if (connIds.size === 0) this.userIdIndex.delete(key);
+        return super.delete(firstConnId);
+      }
+    }
+    return false;
+  }
+
+  get(key: string): WhatsAppSession | undefined {
+    // Direct lookup by connectionId
+    const direct = super.get(key);
+    if (direct) return direct;
+    // Fallback: lookup by userId (returns first session found)
+    const connIds = this.userIdIndex.get(key);
+    if (connIds) {
+      for (const connId of connIds) {
+        const session = super.get(connId);
+        if (session?.socket) return session; // prefer connected session
+      }
+      // If no connected one found, return any
+      for (const connId of connIds) {
+        const session = super.get(connId);
+        if (session) return session;
+      }
+    }
+    return undefined;
+  }
+
+  has(key: string): boolean {
+    if (super.has(key)) return true;
+    const connIds = this.userIdIndex.get(key);
+    return !!connIds && connIds.size > 0;
+  }
+
+  // Get all sessions for a specific user
+  getAllByUserId(userId: string): WhatsAppSession[] {
+    const result: WhatsAppSession[] = [];
+    const connIds = this.userIdIndex.get(userId);
+    if (connIds) {
+      for (const connId of connIds) {
+        const session = super.get(connId);
+        if (session) result.push(session);
+      }
+    }
+    return result;
+  }
+
+  // Get all connectionIds for a user
+  getConnectionIdsForUser(userId: string): string[] {
+    const connIds = this.userIdIndex.get(userId);
+    return connIds ? Array.from(connIds) : [];
+  }
+
+  // Delete all sessions for a specific user
+  deleteAllByUserId(userId: string): number {
+    const connIds = this.userIdIndex.get(userId);
+    if (!connIds) return 0;
+    let count = 0;
+    for (const connId of Array.from(connIds)) {
+      if (super.delete(connId)) count++;
+    }
+    this.userIdIndex.delete(userId);
+    return count;
+  }
+}
+
+const sessions = new SessionMap();
 const adminSessions = new Map<string, AdminWhatsAppSession>();
 const wsClients = new Map<string, Set<AuthenticatedWebSocket>>();
 const adminWsClients = new Map<string, Set<AuthenticatedWebSocket>>();
@@ -710,6 +815,10 @@ const pendingResponses = new Map<string, PendingResponse>(); // key: conversatio
 // 🔴 ANTI-DUPLICAÇÃO: Set para rastrear conversas em processamento
 // Evita que múltiplos timeouts processem a mesma conversa simultaneamente
 const conversationsBeingProcessed = new Set<string>();
+
+const SESSION_AVAILABLE_RETRY_MS = 30 * 1000;
+const SESSION_UNAVAILABLE_RETRY_MS = 5 * 60 * 1000;
+const SESSION_UNAVAILABLE_MAX_AGE_MS = 30 * 60 * 1000;
 
 // -----------------------------------------------------------------------
 // 🔄 IMPLEMENTAÇÃO REAL: checkForMissedMessages
@@ -2033,7 +2142,7 @@ async function clearAuthFiles(authPath: string): Promise<void> {
 }
 
 // Força reconexão limpando sessão existente na memória (sem apagar arquivos de auth)
-export async function forceReconnectWhatsApp(userId: string): Promise<void> {
+export async function forceReconnectWhatsApp(userId: string, connectionId?: string): Promise<void> {
   // 🛡️ MODO DESENVOLVIMENTO: Bloquear reconexões para evitar conflito com produção
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
     console.log(`\n🛡️ [DEV MODE] forceReconnectWhatsApp bloqueado para user ${userId}`);
@@ -2042,10 +2151,11 @@ export async function forceReconnectWhatsApp(userId: string): Promise<void> {
     throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
   }
   
-  console.log(`[FORCE RECONNECT] Starting force reconnection for user ${userId}...`);
+  const lookupKey = connectionId || userId;
+  console.log(`[FORCE RECONNECT] Starting force reconnection for ${lookupKey}...`);
   
-  // Limpar sess�o existente na mem�ria (se houver)
-  const existingSession = sessions.get(userId);
+  // Limpar sessão existente na memória (se houver)
+  const existingSession = sessions.get(lookupKey);
   if (existingSession?.socket) {
     console.log(`[FORCE RECONNECT] Found existing session in memory, closing it...`);
     try {
@@ -2054,16 +2164,16 @@ export async function forceReconnectWhatsApp(userId: string): Promise<void> {
     } catch (e) {
       console.log(`[FORCE RECONNECT] Error closing existing socket (ignoring):`, e);
     }
-    sessions.delete(userId);
-    unregisterWhatsAppSession(userId);
+    sessions.delete(lookupKey);
+    unregisterWhatsAppSession(lookupKey);
   }
   
-  // Limpar pending connections e tentativas de reconex�o
-  pendingConnections.delete(userId);
-  reconnectAttempts.delete(userId);
+  // Limpar pending connections e tentativas de reconexão
+  pendingConnections.delete(lookupKey);
+  reconnectAttempts.delete(lookupKey);
   
   // Agora chamar connectWhatsApp normalmente
-  await connectWhatsApp(userId);
+  await connectWhatsApp(userId, connectionId);
 }
 
 // ======================================================================
@@ -2239,7 +2349,7 @@ export async function forceFullContactSync(userId: string): Promise<{ success: b
 }
 
 // Força reset COMPLETO - apaga arquivos de autenticação (força novo QR Code)
-export async function forceResetWhatsApp(userId: string): Promise<void> {
+export async function forceResetWhatsApp(userId: string, connectionId?: string): Promise<void> {
   // 🛡️ MODO DESENVOLVIMENTO: Bloquear reset para evitar conflito com produção
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
     console.log(`\n🛡️ [DEV MODE] forceResetWhatsApp bloqueado para user ${userId}`);
@@ -2248,10 +2358,11 @@ export async function forceResetWhatsApp(userId: string): Promise<void> {
     throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
   }
   
-  console.log(`[FORCE RESET] Starting complete reset for user ${userId}...`);
+  const lookupKey = connectionId || userId;
+  console.log(`[FORCE RESET] Starting complete reset for ${lookupKey}...`);
   
-  // Limpar sess�o existente na mem�ria (se houver)
-  const existingSession = sessions.get(userId);
+  // Limpar sessão existente na memória (se houver)
+  const existingSession = sessions.get(lookupKey);
   if (existingSession?.socket) {
     console.log(`[FORCE RESET] Found existing session in memory, closing it...`);
     try {
@@ -2259,21 +2370,26 @@ export async function forceResetWhatsApp(userId: string): Promise<void> {
     } catch (e) {
       console.log(`[FORCE RESET] Error closing existing socket (ignoring):`, e);
     }
-    sessions.delete(userId);
-    unregisterWhatsAppSession(userId);
+    sessions.delete(lookupKey);
+    unregisterWhatsAppSession(lookupKey);
   }
   
-  // Limpar pending connections e tentativas de reconex�o
-  pendingConnections.delete(userId);
-  reconnectAttempts.delete(userId);
+  // Limpar pending connections e tentativas de reconexão
+  pendingConnections.delete(lookupKey);
+  reconnectAttempts.delete(lookupKey);
   
-  // APAGAR arquivos de autentica��o (for�a novo QR Code)
-  const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
-  await clearAuthFiles(userAuthPath);
-  console.log(`[FORCE RESET] Auth files cleared for user ${userId}`);
+  // APAGAR arquivos de autenticação (força novo QR Code)
+  const authPath = path.join(SESSIONS_BASE, `auth_${lookupKey}`);
+  await clearAuthFiles(authPath);
+  console.log(`[FORCE RESET] Auth files cleared for ${lookupKey}`);
   
   // Atualizar banco de dados
-  const connection = await storage.getConnectionByUserId(userId);
+  let connection;
+  if (connectionId) {
+    connection = await storage.getConnectionById(connectionId);
+  } else {
+    connection = await storage.getConnectionByUserId(userId);
+  }
   if (connection) {
     await storage.updateConnection(connection.id, {
       isConnected: false,
@@ -2281,32 +2397,32 @@ export async function forceResetWhatsApp(userId: string): Promise<void> {
     });
   }
   
-  console.log(`[FORCE RESET] Complete reset done for user ${userId}. User will need to scan new QR code.`);
+  console.log(`[FORCE RESET] Complete reset done for ${lookupKey}. User will need to scan new QR code.`);
 }
 
-export async function connectWhatsApp(userId: string): Promise<void> {
-  // ?? MODO DESENVOLVIMENTO: Bloquear conex�es para evitar conflito com produ��o
+export async function connectWhatsApp(userId: string, targetConnectionId?: string): Promise<void> {
+  // 🛡️ MODO DESENVOLVIMENTO: Bloquear conexões para evitar conflito com produção
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log(`\n?? [DEV MODE] Conex�o WhatsApp bloqueada para user ${userId}`);
-    console.log(`   ?? SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
-    console.log(`   ?? Sess�es do WhatsApp em produ��o n�o ser�o afetadas\n`);
-    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sess�es em produ��o.');
+    console.log(`\n🛡️ [DEV MODE] Conexão WhatsApp bloqueada para user ${userId}`);
+    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
   }
   
-  // ??? Verificar se j� existe uma conex�o em andamento
-  const existingPendingConnection = pendingConnections.get(userId);
+  // 🔑 Determine the connection lock key: use connectionId if provided, otherwise userId
+  const lockKey = targetConnectionId || userId;
+  
+  // ⏳ Verificar se já existe uma conexão em andamento
+  const existingPendingConnection = pendingConnections.get(lockKey);
   if (existingPendingConnection) {
-    console.log(`[CONNECT] Connection already in progress for user ${userId}, waiting for it to complete...`);
+    console.log(`[CONNECT] Connection already in progress for ${lockKey}, waiting for it to complete...`);
     return existingPendingConnection;
   }
 
-  // ?? Resetar contador de tentativas de reconex�o quando usu�rio inicia conex�o manualmente
-  // Isso permite novas tentativas ap�s o usu�rio clicar em "Conectar"
-  reconnectAttempts.delete(userId);
+  // 🔄 Resetar contador de tentativas de reconexão quando usuário inicia conexão manualmente
+  reconnectAttempts.delete(lockKey);
 
-  // ?? CR�TICO: Criar e registrar a promise IMEDIATAMENTE para evitar race conditions
-  // A promise deve ser registrada ANTES de qualquer c�digo async para garantir
-  // que m�ltiplas chamadas simult�neas retornem a mesma promise
+  // 🔒 CRÍTICO: Criar e registrar a promise IMEDIATAMENTE para evitar race conditions
   let resolveConnection: () => void;
   let rejectConnection: (error: Error) => void;
   
@@ -2315,36 +2431,47 @@ export async function connectWhatsApp(userId: string): Promise<void> {
     rejectConnection = reject;
   });
   
-  // Registrar ANTES de qualquer opera��o async
-  pendingConnections.set(userId, connectionPromise);
-  console.log(`[CONNECT] Registered pending connection for user ${userId}`);
+  // Registrar ANTES de qualquer operação async
+  pendingConnections.set(lockKey, connectionPromise);
+  console.log(`[CONNECT] Registered pending connection for user ${userId}${targetConnectionId ? ` (connectionId: ${targetConnectionId})` : ''}`);
 
-  // Agora executar a l�gica de conex�o
+  // Agora executar a lógica de conexão
   (async () => {
     try {
-      console.log(`[CONNECT] Starting connection for user ${userId}...`);
+      console.log(`[CONNECT] Starting connection for user ${userId}${targetConnectionId ? ` connectionId=${targetConnectionId}` : ''}...`);
       
-      // Verificar se j� existe uma sess�o ativa
-      const existingSession = sessions.get(userId);
+      // Verificar se já existe uma sessão ativa para esta conexão específica
+      const existingSession = targetConnectionId ? sessions.get(targetConnectionId) : sessions.get(userId);
       if (existingSession?.socket) {
-        // Verificar se o socket est� realmente conectado
+        // Verificar se o socket está realmente conectado
         const isSocketConnected = existingSession.socket.user !== undefined;
         if (isSocketConnected) {
-          console.log(`[CONNECT] User ${userId} already has an active connected session, using existing one`);
+          console.log(`[CONNECT] ${lockKey} already has an active connected session, using existing one`);
           return;
         } else {
-          // Sess�o existe mas n�o est� conectada - limpar e recriar
-          console.log(`[CONNECT] User ${userId} has stale session (not connected), cleaning up...`);
+          // Sessão existe mas não está conectada - limpar e recriar
+          console.log(`[CONNECT] ${lockKey} has stale session (not connected), cleaning up...`);
           try {
             existingSession.socket.end(undefined);
           } catch (e) {
             console.log(`[CONNECT] Error closing stale socket:`, e);
           }
-          sessions.delete(userId);
+          sessions.delete(existingSession.connectionId);
         }
       }
 
-      let connection = await storage.getConnectionByUserId(userId);
+      // Get the specific connection record
+      let connection: any;
+      if (targetConnectionId) {
+        // Specific connection requested (multi-connection)
+        connection = await storage.getConnectionById(targetConnectionId);
+        if (!connection || connection.userId !== userId) {
+          throw new Error(`Connection ${targetConnectionId} not found or unauthorized`);
+        }
+      } else {
+        // Legacy: get primary connection for user
+        connection = await storage.getConnectionByUserId(userId);
+      }
     
     if (!connection) {
       console.log(`[CONNECT] No connection record found, creating new one for ${userId}`);
@@ -2353,10 +2480,34 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         isConnected: false,
       });
     } else {
-      console.log(`[CONNECT] Found existing connection record for ${userId}: isConnected=${connection.isConnected}`);
+      console.log(`[CONNECT] Found existing connection record for ${userId} (connId=${connection.id}): isConnected=${connection.isConnected}`);
     }
 
-    const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+    // 🔑 MULTI-CONNECTION: Auth path based on connectionId
+    // For backward compat, check if auth_${userId} exists and connection is primary
+    let userAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
+    const legacyAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+    
+    // Migration: if auth_${connectionId} doesn't exist but auth_${userId} does
+    // Note: restoreExistingSessions already does a pre-migration pass,
+    // but this handles cases during runtime (manual connect via API)
+    if (connection.isPrimary !== false) {
+      try {
+        const newAuthExists = await fs.stat(userAuthPath).then(() => true).catch(() => false);
+        const legacyExists = await fs.stat(legacyAuthPath).then(() => true).catch(() => false);
+        
+        console.log(`[CONNECT] Auth check: auth_${connection.id} exists=${newAuthExists}, auth_${userId} exists=${legacyExists}`);
+        
+        if (!newAuthExists && legacyExists) {
+          console.log(`[CONNECT] Migrating auth files from auth_${userId} to auth_${connection.id}`);
+          await fs.rename(legacyAuthPath, userAuthPath);
+          console.log(`[CONNECT] ✅ Auth migration successful`);
+        }
+      } catch (e) {
+        console.error(`[CONNECT] Auth migration error:`, e);
+      }
+    }
+    
     await ensureDirExists(userAuthPath);
     
     // Check if auth files exist
@@ -2438,7 +2589,8 @@ export async function connectWhatsApp(userId: string): Promise<void> {
       contactsCache,
     };
 
-    sessions.set(userId, session);
+    // 🔑 MULTI-CONNECTION: Store by connectionId (SessionMap handles userId lookups)
+    sessions.set(connection.id, session);
     
     // 📲 Registrar sessão no serviço de envio para notificações do sistema (delivery, etc)
     registerWhatsAppSession(userId, sock);
@@ -2743,8 +2895,8 @@ export async function connectWhatsApp(userId: string): Promise<void> {
           // for the database write. Persist the QR asynchronously to avoid
           // making the user wait on potentially slow DB operations.
           try {
-            broadcastToUser(userId, { type: "qr", qr: qrCodeDataURL });
-            console.log(`[QR CODE] QR Code broadcasted to user ${userId}`);
+            broadcastToUser(userId, { type: "qr", qr: qrCodeDataURL, connectionId: connection.id });
+            console.log(`[QR CODE] QR Code broadcasted to user ${userId} (connection: ${connection.id})`);
           } catch (bErr) {
             console.error(`[QR CODE ERROR] Failed to broadcast QR code for user ${userId}:`, bErr);
           }
@@ -2805,20 +2957,26 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         }
 
         // Sempre deletar a sessão primeiro (só se for o socket atual, verificado acima)
-        sessions.delete(userId);
-        pendingConnections.delete(userId); // Limpar da lista de pendentes
+        // 🔑 MULTI-CONNECTION: Delete by connectionId, NOT userId
+        sessions.delete(session.connectionId);
+        pendingConnections.delete(session.connectionId); // Limpar da lista de pendentes
+        pendingConnections.delete(userId); // Also clean legacy key
 
-        // Atualizar banco de dados
+        // Atualizar banco de dados - conexão principal
         await storage.updateConnection(session.connectionId, {
           isConnected: false,
           qrCode: null,
         });
 
-        // Verificar limite de tentativas de reconex�o para evitar loop infinito
+        // NOTE: In multi-connection mode, we do NOT sync other connections as disconnected.
+        // Each connection has its own socket and lifecycle.
+
+        // Verificar limite de tentativas de reconexão para evitar loop infinito
+        const reconnectKey = session.connectionId;
         const now = Date.now();
-        let attempt = reconnectAttempts.get(userId) || { count: 0, lastAttempt: 0 };
+        let attempt = reconnectAttempts.get(reconnectKey) || { count: 0, lastAttempt: 0 };
         
-        // Se passou mais de 30 segundos desde o �ltimo ciclo, resetar contador
+        // Se passou mais de 30 segundos desde o último ciclo, resetar contador
         if (now - attempt.lastAttempt > RECONNECT_COOLDOWN_MS) {
           attempt = { count: 0, lastAttempt: now };
         }
@@ -2826,20 +2984,19 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         if (shouldReconnect) {
           attempt.count++;
           attempt.lastAttempt = now;
-          reconnectAttempts.set(userId, attempt);
+          reconnectAttempts.set(reconnectKey, attempt);
 
           if (attempt.count <= MAX_RECONNECT_ATTEMPTS) {
-            console.log(`User ${userId} WhatsApp disconnected temporarily, reconnecting in 5 seconds... (attempt ${attempt.count}/${MAX_RECONNECT_ATTEMPTS})`);
-            // Enviar evento disconnected apenas na primeira tentativa para evitar spam
+            console.log(`User ${userId} conn ${session.connectionId.substring(0,8)} disconnected temporarily, reconnecting in 5s... (attempt ${attempt.count}/${MAX_RECONNECT_ATTEMPTS})`);
             if (attempt.count === 1) {
-              broadcastToUser(userId, { type: "disconnected" });
+              broadcastToUser(userId, { type: "disconnected", connectionId: session.connectionId });
             }
-            setTimeout(() => connectWhatsApp(userId), 5000);
+            // 🔑 MULTI-CONNECTION: Reconnect the specific connection
+            setTimeout(() => connectWhatsApp(userId, session.connectionId), 5000);
           } else {
-            console.log(`User ${userId} WhatsApp disconnected - max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Waiting for user action.`);
-            broadcastToUser(userId, { type: "disconnected", reason: "max_attempts" });
-            // Resetar contador ap�s atingir o limite (usu�rio precisar� clicar em conectar novamente)
-            reconnectAttempts.delete(userId);
+            console.log(`User ${userId} conn ${session.connectionId.substring(0,8)} - max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached.`);
+            broadcastToUser(userId, { type: "disconnected", reason: "max_attempts", connectionId: session.connectionId });
+            reconnectAttempts.delete(reconnectKey);
             // Limpar QR code do banco para evitar exibi��o de QR expirado
             await storage.updateConnection(session.connectionId, {
               qrCode: null,
@@ -2847,15 +3004,19 @@ export async function connectWhatsApp(userId: string): Promise<void> {
           }
         } else {
           // Foi logout (desconectado pelo celular), limpar TUDO
-          console.log(`User ${userId} logged out from device, clearing all auth files...`);
+          console.log(`User ${userId} conn ${session.connectionId.substring(0,8)} logged out from device, clearing auth files...`);
 
-          const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
-          await clearAuthFiles(userAuthPath);
+          // 🔑 MULTI-CONNECTION: Auth path based on connectionId
+          const connAuthPath = path.join(SESSIONS_BASE, `auth_${session.connectionId}`);
+          await clearAuthFiles(connAuthPath);
+          // Also try legacy path just in case
+          const legacyPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+          try { await clearAuthFiles(legacyPath); } catch {}
 
-          broadcastToUser(userId, { type: "disconnected", reason: "logout" });
+          broadcastToUser(userId, { type: "disconnected", reason: "logout", connectionId: session.connectionId });
 
-          // Resetar tentativas de reconex�o
-          reconnectAttempts.delete(userId);
+          // Resetar tentativas de reconexão
+          reconnectAttempts.delete(session.connectionId);
 
           // -----------------------------------------------------------------------
           // ?? AUTO-RETRY APÓS LOGOUT: Recuperar automaticamente se o usuário estiver na tela
@@ -2876,21 +3037,18 @@ export async function connectWhatsApp(userId: string): Promise<void> {
           console.log(`[LOGOUT AUTO-RETRY] User ${userId.substring(0, 8)}... - hasLiveClient: ${hasLiveClient}, retryCount: ${retryState.count}/${MAX_LOGOUT_AUTO_RETRY}`);
 
           if (hasLiveClient && retryState.count < MAX_LOGOUT_AUTO_RETRY) {
-            // Incrementar e registrar
             retryState.count++;
             retryState.lastAttempt = now;
             logoutAutoRetry.set(userId, retryState);
 
-            console.log(`[LOGOUT AUTO-RETRY] Iniciando auto-retry para ${userId.substring(0, 8)}... em 750ms`);
-            // Pequeno delay para garantir que broadcast foi recebido
+            console.log(`[LOGOUT AUTO-RETRY] Iniciando auto-retry para ${userId.substring(0, 8)}... conn ${session.connectionId.substring(0, 8)} em 750ms`);
             setTimeout(() => {
               console.log(`[LOGOUT AUTO-RETRY] Executando connectWhatsApp para ${userId.substring(0, 8)}...`);
-              connectWhatsApp(userId).catch((err) => {
+              connectWhatsApp(userId, session.connectionId).catch((err) => {
                 console.error(`[LOGOUT AUTO-RETRY] Erro na reconexão automática:`, err);
               });
             }, 750);
           } else {
-            // Sem auto-retry: remover estado se atingiu limite ou não tem cliente
             if (retryState.count >= MAX_LOGOUT_AUTO_RETRY) {
               console.log(`[LOGOUT AUTO-RETRY] Limite atingido para ${userId.substring(0, 8)}..., removendo estado`);
               logoutAutoRetry.delete(userId);
@@ -2900,16 +3058,14 @@ export async function connectWhatsApp(userId: string): Promise<void> {
         }
       } else if (conn === "open") {
         // -----------------------------------------------------------------------
-        // ?? CONSISTÊNCIA: Garantir que este socket está registrado como atual
+        // 🔑 MULTI-CONNECTION: Store by connectionId on open
         // -----------------------------------------------------------------------
-        // Em casos de reconexão rápida, pode haver múltiplos sockets. Garantimos
-        // que sessions.set aponta para este socket que acabou de abrir.
-        // -----------------------------------------------------------------------
-        sessions.set(userId, session);
+        sessions.set(session.connectionId, session);
 
         // Conexão estabelecida com sucesso - resetar tentativas de reconexão e limpar pendentes
-        reconnectAttempts.delete(userId);
-        pendingConnections.delete(userId);
+        reconnectAttempts.delete(session.connectionId);
+        pendingConnections.delete(session.connectionId);
+        pendingConnections.delete(userId); // Also clean legacy key
 
         const phoneNumber = sock.user?.id?.split(":")[0] || "";
         session.phoneNumber = phoneNumber;
@@ -2920,7 +3076,9 @@ export async function connectWhatsApp(userId: string): Promise<void> {
           qrCode: null,
         });
 
-        broadcastToUser(userId, { type: "connected", phoneNumber });
+        // 🔑 MULTI-CONNECTION: Each connection is independent, no cross-sync
+
+        broadcastToUser(userId, { type: "connected", phoneNumber, connectionId: session.connectionId });
 
         // ======================================================================
         // ??? SAFE MODE: Verificar se o cliente est� em modo seguro anti-bloqueio
@@ -3262,7 +3420,7 @@ export async function connectWhatsApp(userId: string): Promise<void> {
 
     } catch (error) {
       console.error("Error connecting WhatsApp:", error);
-      pendingConnections.delete(userId);
+      pendingConnections.delete(lockKey);
       rejectConnection!(error as Error);
     }
   })();
@@ -4329,6 +4487,19 @@ async function handleIncomingMessage(
       return;
     }
 
+    // Multi-connection: Check if aiEnabled is false for this specific connection
+    if (session.connectionId) {
+      try {
+        const connRecord = await storage.getConnectionById(session.connectionId);
+        if (connRecord && connRecord.aiEnabled === false) {
+          console.log(`🚫 [AI AGENT] IA desativada para conexão ${session.connectionId} - não responder automaticamente`);
+          return;
+        }
+      } catch (e) {
+        // Ignore lookup errors, proceed with AI
+      }
+    }
+
     // If we have no usable text, do not trigger chatbot/IA.
     if (!effectiveText || !effectiveText.trim()) {
       return;
@@ -4563,10 +4734,27 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       console.log(`   contactNumber: ${contactNumber}`);
       console.log(`   👉 WhatsApp provavelmente desconectado`);
       console.log(`${'!'.repeat(60)}\n`);
-      
-      // 🔄 FIX: Reagendar para tentar novamente em 30 segundos
-      // Timer ficará "pending" no banco e será reprocessado
-      console.log(`🔄 [AI AGENT] Reagendando timer para ${contactNumber} em 30s (sessão indisponível)...`);
+
+      const pendingAgeMs = Date.now() - pending.startTime;
+      const connectionState = await storage.getConnectionByUserId(userId);
+      const isConnectionMarkedConnected = !!connectionState?.isConnected;
+
+      if (!isConnectionMarkedConnected && pendingAgeMs >= SESSION_UNAVAILABLE_MAX_AGE_MS) {
+        console.warn(`🚫 [AI AGENT] Timer antigo sem sessão e conexão offline (${Math.round(pendingAgeMs / 60000)}min). Marcando como failed para evitar loop infinito.`);
+        try {
+          await storage.markPendingAIResponseFailed(conversationId, 'session_unavailable_offline');
+        } catch (dbErr) {
+          console.error(`⚠️ [AI AGENT] Erro ao marcar timer como failed:`, dbErr);
+        }
+        conversationsBeingProcessed.delete(conversationId);
+        return;
+      }
+
+      const retryDelayMs = isConnectionMarkedConnected
+        ? SESSION_AVAILABLE_RETRY_MS
+        : SESSION_UNAVAILABLE_RETRY_MS;
+
+      console.log(`🔄 [AI AGENT] Reagendando timer para ${contactNumber} em ${Math.round(retryDelayMs / 1000)}s (sessão indisponível, connected=${isConnectionMarkedConnected})...`);
       
       const retryPending: PendingResponse = {
         timeout: null as any,
@@ -4581,12 +4769,12 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       retryPending.timeout = setTimeout(async () => {
         console.log(`🔄 [AI AGENT] Retry: Tentando processar ${contactNumber} novamente...`);
         await processAccumulatedMessages(retryPending);
-      }, 30000); // 30 segundos
+      }, retryDelayMs);
       
       pendingResponses.set(conversationId, retryPending);
       
       // Atualizar execute_at no banco para refletir o novo horário
-      const newExecuteAt = new Date(Date.now() + 30000);
+      const newExecuteAt = new Date(Date.now() + retryDelayMs);
       try {
         await storage.updatePendingAIResponseMessages(conversationId, messages, newExecuteAt);
         console.log(`💾 [AI AGENT] Timer reagendado no banco para ${newExecuteAt.toISOString()}`);
@@ -5074,7 +5262,7 @@ export async function triggerAgentResponseForConversation(
   console.log(`${'='.repeat(60)}`);
   
   try {
-    // 1. Buscar a sessão do usuário
+    // 1. Buscar a sessão do usuário (preferir via conversation's connectionId)
     console.log(`[TRIGGER] Verificando sessão no Map sessions...`);
     console.log(`[TRIGGER] Total de sessões no Map: ${sessions.size}`);
     
@@ -5082,8 +5270,21 @@ export async function triggerAgentResponseForConversation(
     const sessionKeys = Array.from(sessions.keys());
     console.log(`[TRIGGER] Chaves no Map sessions: [${sessionKeys.join(', ')}]`);
     
-    const session = sessions.get(userId);
-    console.log(`[TRIGGER] Sessão encontrada para userId ${userId}: ${session ? 'SIM' : 'NÃO'}`);
+    // Try to get connection via conversation first for multi-connection
+    const triggerConversation = await storage.getConversation(conversationId);
+    const session = triggerConversation 
+      ? (sessions.get(triggerConversation.connectionId) || sessions.get(userId))
+      : sessions.get(userId);
+    console.log(`[TRIGGER] Sessão encontrada: ${session ? 'SIM' : 'NÃO'} (connectionId: ${triggerConversation?.connectionId || 'N/A'})`);
+    
+    // Check per-connection aiEnabled flag
+    if (triggerConversation) {
+      const connRecord = await storage.getConnectionById(triggerConversation.connectionId);
+      if (connRecord && connRecord.aiEnabled === false) {
+        console.log(`[TRIGGER] FALHA: IA desativada para esta conexão (${triggerConversation.connectionId})`);
+        return { triggered: false, reason: "IA desativada para este número. Ative na tela de Conexões." };
+      }
+    }
     
     if (!session?.socket) {
       // Verificar se estamos em modo dev sem WhatsApp
@@ -5361,19 +5562,20 @@ export async function sendMessage(
   text: string,
   options?: { isFromAgent?: boolean; source?: "owner" | "agent" | "followup" | "system" }
 ): Promise<void> {
-  const session = sessions.get(userId);
-  if (!session?.socket) {
-    throw new Error("WhatsApp not connected");
-  }
-
   const conversation = await storage.getConversation(conversationId);
   if (!conversation) {
     throw new Error("Conversation not found");
   }
 
-  // Verify ownership
-  const connection = await storage.getConnectionByUserId(userId);
-  if (!connection || conversation.connectionId !== connection.id) {
+  // Multi-connection: resolve session by the conversation's connectionId
+  const session = sessions.get(conversation.connectionId) || sessions.get(userId);
+  if (!session?.socket) {
+    throw new Error("WhatsApp not connected");
+  }
+
+  // Verify ownership - conversation must belong to a connection of this user
+  const connection = await storage.getConnectionById(conversation.connectionId);
+  if (!connection || connection.userId !== userId) {
     throw new Error("Unauthorized access to conversation");
   }
 
@@ -6657,7 +6859,7 @@ export function getSessions(): Map<string, WhatsAppSession> {
   return sessions;
 }
 
-export async function disconnectWhatsApp(userId: string): Promise<void> {
+export async function disconnectWhatsApp(userId: string, connectionId?: string): Promise<void> {
   // 🛡️ MODO DESENVOLVIMENTO: Bloquear desconexões para evitar conflito com produção
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
     console.log(`\n🛡️ [DEV MODE] disconnectWhatsApp bloqueado para user ${userId}`);
@@ -6666,13 +6868,19 @@ export async function disconnectWhatsApp(userId: string): Promise<void> {
     throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
   }
   
-  const session = sessions.get(userId);
+  const lookupKey = connectionId || userId;
+  const session = sessions.get(lookupKey);
   if (session?.socket) {
     await session.socket.logout();
-    sessions.delete(userId);
+    sessions.delete(lookupKey);
   }
 
-  const connection = await storage.getConnectionByUserId(userId);
+  let connection;
+  if (connectionId) {
+    connection = await storage.getConnectionById(connectionId);
+  } else {
+    connection = await storage.getConnectionByUserId(userId);
+  }
   if (connection) {
     await storage.updateConnection(connection.id, {
       isConnected: false,
@@ -6681,10 +6889,10 @@ export async function disconnectWhatsApp(userId: string): Promise<void> {
   }
 
   // Limpar arquivos de autenticação para permitir nova conexão
-  const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
-  await clearAuthFiles(userAuthPath);
+  const authPath = path.join(SESSIONS_BASE, `auth_${lookupKey}`);
+  await clearAuthFiles(authPath);
 
-  broadcastToUser(userId, { type: "disconnected" });
+  broadcastToUser(userId, { type: "disconnected", connectionId: lookupKey });
 }
 
 // ?? Map para rastrear conex�es em andamento do ADMIN (evita m�ltiplas tentativas simult�neas)
@@ -6708,8 +6916,8 @@ const adminLogoutAutoRetry = new Map<string, AdminLogoutAutoRetry>();
 const ADMIN_LOGOUT_AUTO_RETRY_COOLDOWN_MS = 60000; // 60 segundos
 const MAX_ADMIN_LOGOUT_AUTO_RETRY = 10; // 10 tentativas automaticas apos logout
 
-export function getSession(userId: string): WhatsAppSession | undefined {
-  return sessions.get(userId);
+export function getSession(userIdOrConnectionId: string): WhatsAppSession | undefined {
+  return sessions.get(userIdOrConnectionId);
 }
 
 export function getAdminSession(adminId: string): AdminWhatsAppSession | undefined {
@@ -7871,35 +8079,96 @@ export async function restoreExistingSessions(): Promise<void> {
   
   try {
     console.log("Checking for existing WhatsApp connections...");
+    // Multi-connection: Restore ALL connections (each gets its own socket)
     const connections = await storage.getAllConnections();
 
-    for (const connection of connections) {
-      // Tenta restaurar se:
-      // 1. Estava marcada como conectada no banco, OU
-      // 2. Tem arquivos de autentica��o salvos (sess�o persistida)
-      if (connection.userId) {
-        const userAuthPath = path.join(SESSIONS_BASE, `auth_${connection.userId}`);
-        let hasAuthFiles = false;
+    // ========================================================================
+    // PRE-MIGRATION: Migrate auth files from auth_{userId} to auth_{connectionId}
+    // Group by userId, pick the best connection per user (connected + primary + oldest)
+    // and migrate ONCE per user before restoring any connections.
+    // ========================================================================
+    const userConnectionMap = new Map<string, typeof connections>();
+    for (const conn of connections) {
+      if (!conn.userId) continue;
+      const existing = userConnectionMap.get(conn.userId) || [];
+      existing.push(conn);
+      userConnectionMap.set(conn.userId, existing);
+    }
+
+    for (const [userId, userConns] of userConnectionMap) {
+      // Sort: connected first, then isPrimary true, then oldest (by createdAt)
+      userConns.sort((a, b) => {
+        if (a.isConnected && !b.isConnected) return -1;
+        if (!a.isConnected && b.isConnected) return 1;
+        if (a.isPrimary && !b.isPrimary) return -1;
+        if (!a.isPrimary && b.isPrimary) return 1;
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return aTime - bTime;
+      });
+
+      const bestConn = userConns[0];
+      const connAuthPath = path.join(SESSIONS_BASE, `auth_${bestConn.id}`);
+      const legacyAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+
+      try {
+        const newExists = await fs.stat(connAuthPath).then(() => true).catch(() => false);
+        const legacyExists = await fs.stat(legacyAuthPath).then(() => true).catch(() => false);
         
-        try {
-          const authFiles = await fs.readdir(userAuthPath);
-          hasAuthFiles = authFiles.length > 0;
-        } catch (e) {
-          // Diret�rio n�o existe ou erro ao ler
-        }
-        
-        if (connection.isConnected || hasAuthFiles) {
-          console.log(`Restoring WhatsApp session for user ${connection.userId}... (wasConnected: ${connection.isConnected}, hasAuthFiles: ${hasAuthFiles})`);
-          try {
-            await connectWhatsApp(connection.userId);
-          } catch (error) {
-            console.error(`Failed to restore session for user ${connection.userId}:`, error);
-            await storage.updateConnection(connection.id, {
-              isConnected: false,
-              qrCode: null,
-            });
+        if (!newExists && legacyExists) {
+          const legacyFiles = await fs.readdir(legacyAuthPath);
+          if (legacyFiles.length > 0) {
+            console.log(`[AUTH MIGRATION] Migrating auth_${userId} -> auth_${bestConn.id} (${legacyFiles.length} files, conn was connected: ${bestConn.isConnected})`);
+            await fs.rename(legacyAuthPath, connAuthPath);
+            console.log(`[AUTH MIGRATION] ✅ Migration successful for user ${userId}`);
           }
+        } else if (newExists) {
+          console.log(`[AUTH MIGRATION] auth_${bestConn.id} already exists, no migration needed for user ${userId}`);
         }
+      } catch (e) {
+        console.error(`[AUTH MIGRATION] Error migrating auth for user ${userId}:`, e);
+      }
+    }
+
+    // ========================================================================
+    // RESTORE: Now restore connections, primary/connected ones first per user
+    // ========================================================================
+    // Flatten the sorted user connections so primary connections restore first
+    const sortedConnections: typeof connections = [];
+    for (const [, userConns] of userConnectionMap) {
+      sortedConnections.push(...userConns);
+    }
+
+    for (const connection of sortedConnections) {
+      if (!connection.userId) continue;
+
+      // Check for auth files at connection-specific path
+      const connAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
+      let hasAuthFiles = false;
+      
+      try {
+        const authFiles = await fs.readdir(connAuthPath);
+        hasAuthFiles = authFiles.length > 0;
+      } catch (e) {
+        // No auth files for this connection
+      }
+      
+      if (hasAuthFiles) {
+        // Has auth files - restore this connection (it was a real session)
+        console.log(`Restoring WhatsApp session for connection ${connection.id} (user ${connection.userId})... (wasConnected: ${connection.isConnected}, hasAuthFiles: true)`);
+        try {
+          await connectWhatsApp(connection.userId, connection.id);
+        } catch (error) {
+          console.error(`Failed to restore session for connection ${connection.id}:`, error);
+          await storage.updateConnection(connection.id, {
+            isConnected: false,
+            qrCode: null,
+          });
+        }
+      } else if (connection.isConnected) {
+        // No auth files but DB says connected - phantom record, mark as disconnected
+        console.log(`[RESTORE] Connection ${connection.id} (user ${connection.userId}) has no auth files - marking disconnected`);
+        await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
       }
     }
     console.log("Session restoration complete");
@@ -8209,8 +8478,8 @@ function setupPairingConnectionHandler(
         qrCode: null,
       });
 
-      console.log(`? [PAIRING] WhatsApp conectado: ${phoneNum}`);
-      broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum });
+      console.log(`[PAIRING] WhatsApp conectado: ${phoneNum}`);
+      broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum, connectionId: connection.id });
     }
 
     if (conn === "close") {
@@ -8247,7 +8516,7 @@ function setupPairingConnectionHandler(
         pairingSessions.delete(userId);
         clearPairingState(userId);
 
-        broadcastToUser(userId, { type: "disconnected", reason: "pairing_rate_limited" });
+        broadcastToUser(userId, { type: "disconnected", reason: "pairing_rate_limited", connectionId: session.connectionId });
         return;
       }
 
@@ -8270,7 +8539,7 @@ function setupPairingConnectionHandler(
           qrCode: null,
         });
 
-        broadcastToUser(userId, { type: "disconnected", reason: "pairing_failed" });
+        broadcastToUser(userId, { type: "disconnected", reason: "pairing_failed", connectionId: session.connectionId });
         return;
       }
 
@@ -8345,7 +8614,7 @@ function setupPairingConnectionHandler(
   });
 }
 
-export async function requestClientPairingCode(userId: string, phoneNumber: string): Promise<string | null> {
+export async function requestClientPairingCode(userId: string, phoneNumber: string, targetConnectionId?: string): Promise<string | null> {
   // 🛡️ MODO DESENVOLVIMENTO: Bloquear pairing para evitar conflito com produção
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
     console.log(`\n🛡️ [DEV MODE] requestClientPairingCode bloqueado para user ${userId}`);
@@ -8379,22 +8648,27 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       console.log(`?? [PAIRING] Solicitando c�digo para ${phoneNumber} (user: ${userId})`);
 
       // Limpar sessão anterior se existir
-      const existingSession = sessions.get(userId);
+      const lookupKey = targetConnectionId || userId;
+      const existingSession = sessions.get(lookupKey);
       if (existingSession?.socket) {
         try {
-          console.log(`?? [PAIRING] Limpando sessão anterior (encerrando conexão local)...`);
-          // Usar end() em vez de logout() para não enviar logout remoto
-          // Isso evita desconectar a sessão do celular do usuário
+          console.log(`[PAIRING] Limpando sessão anterior (encerrando conexão local)...`);
           await existingSession.socket.end(undefined);
         } catch (e) {
-          console.log(`?? [PAIRING] Erro ao encerrar sessão anterior (ignorando):`, e);
+          console.log(`[PAIRING] Erro ao encerrar sessão anterior (ignorando):`, e);
         }
-        sessions.delete(userId);
-        unregisterWhatsAppSession(userId);
+        sessions.delete(lookupKey);
+        unregisterWhatsAppSession(lookupKey);
       }
 
-      // Criar/obter conex�o
-      let connection = await storage.getConnectionByUserId(userId);
+      // Criar/obter conexão
+      let connection;
+      if (targetConnectionId) {
+        connection = await storage.getConnectionById(targetConnectionId);
+      }
+      if (!connection) {
+        connection = await storage.getConnectionByUserId(userId);
+      }
 
       if (!connection) {
         connection = await storage.createConnection({
@@ -8438,7 +8712,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       contactsCache,
     };
     
-    sessions.set(userId, session);
+    sessions.set(connection.id, session);
     
     sock.ev.on("creds.update", saveCreds);
     
@@ -8458,7 +8732,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
         // restaurações futuras funcionem normalmente via QR.
         // -----------------------------------------------------------------------
         try {
-          const mainAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
+          const mainAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
           // pairingAuthPath já está definido no escopo da função
 
           // Copiar arquivos do pairing para o principal
@@ -8496,7 +8770,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
         });
 
         console.log(`? [PAIRING] WhatsApp conectado: ${phoneNum}`);
-        broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum });
+        broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum, connectionId: session.connectionId });
       }
 
       if (conn === "close") {
@@ -8681,7 +8955,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
                   });
 
                   console.log(`? [PAIRING RESTART] WhatsApp conectado após restart: ${phoneNum}`);
-                  broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum });
+                  broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum, connectionId: session.connectionId });
                 }
 
                 if (newConn === "close") {
@@ -9263,7 +9537,7 @@ async function connectionHealthCheck(): Promise<void> {
   console.log(`?? [HEALTH CHECK] Timestamp: ${new Date().toISOString()}`);
   
   try {
-    // 1. Verificar conexões de usuários
+    // 1. Verificar conexões de usuários (Multi-connection: check ALL connections individually)
     const connections = await storage.getAllConnections();
     let reconnectedUsers = 0;
     let healedUsers = 0;  // DB=false mas socket ativo (curado)
@@ -9274,7 +9548,8 @@ async function connectionHealthCheck(): Promise<void> {
       if (!connection.userId) continue;
       
       const isDbConnected = connection.isConnected;
-      const session = sessions.get(connection.userId);
+      // Check session by connectionId (each connection has its own socket)
+      const session = sessions.get(connection.id);
       const hasActiveSocket = session?.socket?.user !== undefined;
       
       if (isDbConnected && !hasActiveSocket) {
@@ -9282,25 +9557,32 @@ async function connectionHealthCheck(): Promise<void> {
         console.log(`?? [HEALTH CHECK] Conex�o zumbi detectada: ${connection.userId}`);
         console.log(`   ?? DB: isConnected=${isDbConnected}, Socket: ${hasActiveSocket ? 'ATIVO' : 'INATIVO'}`);
         
-        // Verificar se h� arquivos de auth para restaurar
-        const userAuthPath = path.join(SESSIONS_BASE, `auth_${connection.userId}`);
+        // Verificar se há arquivos de auth para restaurar (check connectionId path first, then legacy userId)
+        const connAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
+        const legacyAuthPath = path.join(SESSIONS_BASE, `auth_${connection.userId}`);
         let hasAuthFiles = false;
         
         try {
-          const authFiles = await fs.readdir(userAuthPath);
+          const authFiles = await fs.readdir(connAuthPath);
           hasAuthFiles = authFiles.length > 0;
         } catch (e) {
-          // Diret�rio n�o existe
+          try {
+            const authFiles = await fs.readdir(legacyAuthPath);
+            // Legacy path: allow for any connection (isPrimary may be null/true)
+            hasAuthFiles = authFiles.length > 0 && connection.isPrimary !== false;
+          } catch (e2) {
+            // Diretório não existe
+          }
         }
         
         if (hasAuthFiles) {
-          console.log(`?? [HEALTH CHECK] Tentando reconectar ${connection.userId}...`);
+          console.log(`[HEALTH CHECK] Tentando reconectar connection ${connection.id}...`);
           try {
-            await connectWhatsApp(connection.userId);
+            await connectWhatsApp(connection.userId, connection.id);
             reconnectedUsers++;
-            console.log(`? [HEALTH CHECK] ${connection.userId} reconectado com sucesso!`);
+            console.log(`[HEALTH CHECK] Connection ${connection.id} reconectado com sucesso!`);
           } catch (error) {
-            console.error(`? [HEALTH CHECK] Falha ao reconectar ${connection.userId}:`, error);
+            console.error(`[HEALTH CHECK] Falha ao reconectar connection ${connection.id}:`, error);
             // Marcar como desconectado no banco para evitar loops
             await storage.updateConnection(connection.id, {
               isConnected: false,

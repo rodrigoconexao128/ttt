@@ -240,6 +240,7 @@ export interface IStorage {
   getConnectionById(connectionId: string): Promise<WhatsappConnection | undefined>;
   getAdminConnection(): Promise<AdminWhatsappConnection | undefined>;
   getAllConnections(): Promise<WhatsappConnection[]>;
+  getPrimaryConnectionPerUser(): Promise<WhatsappConnection[]>;
   createConnection(connection: InsertWhatsappConnection): Promise<WhatsappConnection>;
   updateConnection(id: string, data: Partial<InsertWhatsappConnection>): Promise<WhatsappConnection>;
   deleteConnection(id: string): Promise<void>;
@@ -590,14 +591,41 @@ export class DatabaseStorage implements IStorage {
   }
 
   // WhatsApp connection operations
+  // FIX: Priorizar conexão primária/conectada em vez de apenas a mais recente
+  // Isso evita que conexões secundárias recém-criadas "roubem" a sessão principal
   async getConnectionByUserId(userId: string): Promise<WhatsappConnection | undefined> {
-    const [connection] = await db
+    // 1. Primeiro, tentar encontrar a conexão que está realmente conectada
+    const [connectedConn] = await db
+      .select()
+      .from(whatsappConnections)
+      .where(and(
+        eq(whatsappConnections.userId, userId),
+        eq(whatsappConnections.isConnected, true)
+      ))
+      .orderBy(desc(whatsappConnections.createdAt))
+      .limit(1);
+    if (connectedConn) return connectedConn;
+
+    // 2. Se nenhuma está conectada, buscar a primary
+    const [primaryConn] = await db
+      .select()
+      .from(whatsappConnections)
+      .where(and(
+        eq(whatsappConnections.userId, userId),
+        eq(whatsappConnections.isPrimary, true)
+      ))
+      .orderBy(desc(whatsappConnections.createdAt))
+      .limit(1);
+    if (primaryConn) return primaryConn;
+
+    // 3. Fallback: qualquer conexão (mais antiga primeiro = original)
+    const [anyConn] = await db
       .select()
       .from(whatsappConnections)
       .where(eq(whatsappConnections.userId, userId))
-      .orderBy(desc(whatsappConnections.createdAt))
+      .orderBy(whatsappConnections.createdAt)
       .limit(1);
-    return connection;
+    return anyConn;
   }
 
   async getConnectionById(connectionId: string): Promise<WhatsappConnection | undefined> {
@@ -625,6 +653,28 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(whatsappConnections.createdAt))
     );
     return connections;
+  }
+
+  // Retorna UMA conexão por userId (a principal/conectada), para uso em
+  // restoreExistingSessions e healthCheck — evita duplicatas e loops
+  async getPrimaryConnectionPerUser(): Promise<WhatsappConnection[]> {
+    const allConnections = await this.getAllConnections();
+    const seen = new Map<string, WhatsappConnection>();
+    for (const conn of allConnections) {
+      if (!conn.userId) continue;
+      const existing = seen.get(conn.userId);
+      if (!existing) {
+        seen.set(conn.userId, conn);
+      } else {
+        // Prioridade: conectado > primary > mais antigo
+        if (conn.isConnected && !existing.isConnected) {
+          seen.set(conn.userId, conn);
+        } else if (!existing.isConnected && !conn.isConnected && conn.isPrimary && !existing.isPrimary) {
+          seen.set(conn.userId, conn);
+        }
+      }
+    }
+    return Array.from(seen.values());
   }
 
   async createConnection(connectionData: InsertWhatsappConnection): Promise<WhatsappConnection> {

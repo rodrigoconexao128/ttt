@@ -1632,15 +1632,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("[ADMIN] Starting bulk force reconnection...");
 
-      const connections = await storage.getAllConnections();
+      // FIX: Usar getPrimaryConnectionPerUser para evitar reconexões duplicadas
+      const connections = await storage.getPrimaryConnectionPerUser();
 
       let reconnectedCount = 0;
 
-
+      const processedUserIds = new Set<string>();
 
       for (const connection of connections) {
 
-        if (connection.userId) {
+        if (connection.userId && !processedUserIds.has(connection.userId)) {
+
+            processedUserIds.add(connection.userId);
 
             // Add a small delay to avoid overwhelming the server
 
@@ -3881,6 +3884,104 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     } catch (error) {
       console.error("[MULTI-CONN] Erro ao deletar conexão:", error);
       res.status(500).json({ message: "Erro ao deletar conexão" });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // 🔌 PER-CONNECTION ROUTES (Multi-Connection Support)
+  // -----------------------------------------------------------------------
+
+  // Connect a specific connection (creates WhatsApp socket for it)
+  app.post("/api/whatsapp/connections/:connectionId/connect", isAuthenticated, async (req: any, res) => {
+    try {
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        return res.status(403).json({ success: false, message: 'Modo desenvolvimento - WhatsApp desabilitado' });
+      }
+      const userId = getUserId(req);
+      const { connectionId } = req.params;
+      
+      // Verify ownership
+      const connection = await storage.getConnectionById(connectionId);
+      if (!connection || connection.userId !== userId) {
+        return res.status(404).json({ message: "Conexão não encontrada" });
+      }
+      
+      // Check suspension
+      const suspensionStatus = await storage.isUserSuspended(userId);
+      if (suspensionStatus.suspended) {
+        return res.status(403).json({ success: false, message: 'Conta suspensa', suspended: true });
+      }
+      
+      await connectWhatsApp(userId, connectionId);
+      res.json({ success: true, connectionId });
+    } catch (error) {
+      console.error(`[MULTI-CONN] Erro ao conectar conexão ${req.params.connectionId}:`, error);
+      res.status(500).json({ message: "Erro ao conectar" });
+    }
+  });
+
+  // Disconnect a specific connection
+  app.post("/api/whatsapp/connections/:connectionId/disconnect", isAuthenticated, async (req: any, res) => {
+    try {
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        return res.status(403).json({ success: false, message: 'Modo desenvolvimento - WhatsApp desabilitado' });
+      }
+      const userId = getUserId(req);
+      const { connectionId } = req.params;
+      
+      const connection = await storage.getConnectionById(connectionId);
+      if (!connection || connection.userId !== userId) {
+        return res.status(404).json({ message: "Conexão não encontrada" });
+      }
+      
+      await disconnectWhatsApp(userId, connectionId);
+      res.json({ success: true, connectionId });
+    } catch (error) {
+      console.error(`[MULTI-CONN] Erro ao desconectar conexão ${req.params.connectionId}:`, error);
+      res.status(500).json({ message: "Erro ao desconectar" });
+    }
+  });
+
+  // Reset a specific connection (force new QR code)
+  app.post("/api/whatsapp/connections/:connectionId/reset", isAuthenticated, async (req: any, res) => {
+    try {
+      if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
+        return res.status(403).json({ success: false, message: 'Modo desenvolvimento - WhatsApp desabilitado' });
+      }
+      const userId = getUserId(req);
+      const { connectionId } = req.params;
+      
+      const connection = await storage.getConnectionById(connectionId);
+      if (!connection || connection.userId !== userId) {
+        return res.status(404).json({ message: "Conexão não encontrada" });
+      }
+      
+      await forceResetWhatsApp(userId, connectionId);
+      res.json({ success: true, message: "Conexão resetada. Escaneie o novo QR Code.", connectionId });
+    } catch (error) {
+      console.error(`[MULTI-CONN] Erro ao resetar conexão ${req.params.connectionId}:`, error);
+      res.status(500).json({ message: "Erro ao resetar conexão" });
+    }
+  });
+
+  // Toggle AI enabled/disabled for a specific connection
+  app.patch("/api/whatsapp/connections/:connectionId/ai-toggle", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { connectionId } = req.params;
+      const { aiEnabled } = req.body;
+      
+      const connection = await storage.getConnectionById(connectionId);
+      if (!connection || connection.userId !== userId) {
+        return res.status(404).json({ message: "Conexão não encontrada" });
+      }
+      
+      await storage.updateConnection(connectionId, { aiEnabled: typeof aiEnabled === 'boolean' ? aiEnabled : !connection.aiEnabled });
+      const updated = await storage.getConnectionById(connectionId);
+      res.json({ success: true, connectionId, aiEnabled: updated?.aiEnabled });
+    } catch (error) {
+      console.error(`[MULTI-CONN] Erro ao toggle AI:`, error);
+      res.status(500).json({ message: "Erro ao atualizar configuração de IA" });
     }
   });
 

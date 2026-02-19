@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Smartphone, QrCode, CheckCircle2, XCircle, RefreshCw, Loader2, Hash, ArrowLeft, Bot, Link2, Users, Plus, Trash2 } from "lucide-react";
+import { Smartphone, QrCode, CheckCircle2, XCircle, RefreshCw, Loader2, Hash, ArrowLeft, Bot, Link2, Users, Plus, Trash2, Power, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getAuthToken } from "@/lib/supabase";
+import { Switch } from "@/components/ui/switch";
 import type { WhatsappConnection, Agent } from "@shared/schema";
 
 // Tipo para o método de conexão
@@ -92,6 +93,67 @@ export function ConnectionPanel() {
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao remover conexão", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Per-connection mutations
+  const [connectingConnectionId, setConnectingConnectionId] = useState<string | null>(null);
+  const [connectionQrCodes, setConnectionQrCodes] = useState<Record<string, string>>({});
+
+  const connectConnectionMutation = useMutation({
+    mutationFn: async (connectionId: string) => {
+      setConnectingConnectionId(connectionId);
+      return await apiRequest("POST", `/api/whatsapp/connections/${connectionId}/connect`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
+      toast({ title: "Conectando... Aguarde o QR Code." });
+    },
+    onError: (error: Error) => {
+      setConnectingConnectionId(null);
+      toast({ title: "Erro ao conectar", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const disconnectConnectionMutation = useMutation({
+    mutationFn: async (connectionId: string) => {
+      return await apiRequest("POST", `/api/whatsapp/connections/${connectionId}/disconnect`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
+      toast({ title: "Desconectado com sucesso!" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao desconectar", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetConnectionMutation = useMutation({
+    mutationFn: async (connectionId: string) => {
+      return await apiRequest("POST", `/api/whatsapp/connections/${connectionId}/reset`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
+      toast({ title: "Conexão resetada. Escaneie o novo QR Code." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao resetar", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const toggleAiMutation = useMutation({
+    mutationFn: async ({ connectionId, aiEnabled }: { connectionId: string; aiEnabled: boolean }) => {
+      return await apiRequest("PATCH", `/api/whatsapp/connections/${connectionId}/ai-toggle`, { aiEnabled });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
+      toast({ title: "Configuração de IA atualizada!" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao atualizar IA", description: error.message, variant: "destructive" });
     },
   });
 
@@ -367,7 +429,11 @@ export function ConnectionPanel() {
             console.log("[WS] Mensagem recebida:", data.type);
 
             if (data.type === "qr") {
-              console.log("[WS] QR Code recebido via WebSocket!");
+              console.log("[WS] QR Code recebido via WebSocket!", data.connectionId ? `connectionId: ${data.connectionId}` : "");
+              // Track per-connection QR codes
+              if (data.connectionId) {
+                setConnectionQrCodes(prev => ({ ...prev, [data.connectionId]: data.qr }));
+              }
               setQrCode(data.qr);
               qrCodeRef.current = data.qr;
               setIsConnecting(false);
@@ -394,7 +460,16 @@ export function ConnectionPanel() {
                 isWaitingQrCodeRef.current = false;
               }
             } else if (data.type === "connected") {
-              console.log("[WS] WhatsApp conectado!");
+              console.log("[WS] WhatsApp conectado!", data.connectionId || "");
+              // Clear per-connection QR
+              if (data.connectionId) {
+                setConnectionQrCodes(prev => {
+                  const next = { ...prev };
+                  delete next[data.connectionId];
+                  return next;
+                });
+                setConnectingConnectionId(null);
+              }
               setQrCode(null);
               qrCodeRef.current = null;
               setIsConnecting(false);
@@ -406,12 +481,22 @@ export function ConnectionPanel() {
                 qrCodePollingRef.current = null;
               }
               queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
               toast({
                 title: "Conectado!",
                 description: "WhatsApp conectado com sucesso",
               });
             } else if (data.type === "disconnected") {
-              console.log("[WS] WhatsApp desconectado!", data.reason || "");
+              console.log("[WS] WhatsApp desconectado!", data.connectionId || "", data.reason || "");
+              // Clear per-connection QR
+              if (data.connectionId) {
+                setConnectionQrCodes(prev => {
+                  const next = { ...prev };
+                  delete next[data.connectionId];
+                  return next;
+                });
+                setConnectingConnectionId(null);
+              }
               setQrCode(null);
               qrCodeRef.current = null;
               setIsConnecting(false);
@@ -428,6 +513,7 @@ export function ConnectionPanel() {
                 waitingTimeoutRef.current = null;
               }
               queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
               
               // Mostrar mensagem apropriada baseada no motivo
               if (data.reason === "max_attempts") {
@@ -1084,6 +1170,84 @@ export function ConnectionPanel() {
                         </>
                       )}
                     </Badge>
+                  </div>
+
+                  {/* Per-connection QR Code */}
+                  {connectionQrCodes[conn.id] && !conn.isConnected && (
+                    <div className="flex flex-col items-center gap-3 p-4 bg-white dark:bg-gray-900 rounded-lg border">
+                      <p className="text-sm font-medium">Escaneie o QR Code</p>
+                      <img 
+                        src={connectionQrCodes[conn.id]} 
+                        alt="QR Code" 
+                        className="w-48 h-48"
+                      />
+                      <p className="text-xs text-muted-foreground">Abra o WhatsApp no celular &gt; Menu &gt; Aparelhos conectados</p>
+                    </div>
+                  )}
+
+                  {/* Per-connection action buttons */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {!conn.isConnected ? (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="gap-1"
+                        onClick={() => connectConnectionMutation.mutate(conn.id)}
+                        disabled={connectConnectionMutation.isPending && connectingConnectionId === conn.id}
+                      >
+                        {connectConnectionMutation.isPending && connectingConnectionId === conn.id ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Conectando...
+                          </>
+                        ) : (
+                          <>
+                            <Power className="w-3 h-3" />
+                            Conectar
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="gap-1"
+                        onClick={() => {
+                          if (confirm("Deseja desconectar este número?")) {
+                            disconnectConnectionMutation.mutate(conn.id);
+                          }
+                        }}
+                        disabled={disconnectConnectionMutation.isPending}
+                      >
+                        <XCircle className="w-3 h-3" />
+                        Desconectar
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1"
+                      onClick={() => {
+                        if (confirm("Resetar esta conexão? Você precisará escanear um novo QR Code.")) {
+                          resetConnectionMutation.mutate(conn.id);
+                        }
+                      }}
+                      disabled={resetConnectionMutation.isPending}
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      Resetar
+                    </Button>
+
+                    {/* AI Toggle */}
+                    <div className="flex items-center gap-2 ml-auto">
+                      <span className="text-xs text-muted-foreground">IA</span>
+                      <Switch
+                        checked={(conn as any).aiEnabled !== false}
+                        onCheckedChange={(checked) => 
+                          toggleAiMutation.mutate({ connectionId: conn.id, aiEnabled: checked })
+                        }
+                      />
+                    </div>
                   </div>
 
                   {/* Agente principal (1:1) */}
