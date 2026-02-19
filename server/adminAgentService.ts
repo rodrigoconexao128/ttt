@@ -3376,40 +3376,104 @@ export async function setOwnerNotificationNumber(number: string): Promise<void> 
   await storage.updateSystemConfig("owner_notification_number", number);
 }
 
+// ============================================================
+// HELPERS — sanitização e truncamento para prompts de follow-up
+// ============================================================
+
+/** Remove caracteres de controle problemáticos (exceto \n e \t) e normaliza espaços */
+function sanitizeStr(value: unknown, maxChars = 2000): string {
+  if (value === null || value === undefined) return "";
+  const s = String(value)
+    // Remove null-bytes e outros caracteres de controle (exceto \n, \r, \t)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, " ")
+    // Normaliza quebras de linha
+    .replace(/\r\n/g, "\n")
+    .trim();
+  return s.length <= maxChars ? s : s.slice(0, maxChars) + "…[truncado]";
+}
+
+/** Trunca histórico de mensagens para no máximo N mensagens e M caracteres totais */
+function truncateHistory(lines: string[], maxLines = 15, maxChars = 3000): string {
+  const recent = lines.slice(-maxLines);
+  const joined = recent.join("\n");
+  if (joined.length <= maxChars) return joined;
+  // Truncar pelos últimos maxChars caracteres (mantém fim da conversa)
+  return "…[histórico truncado]\n" + joined.slice(-maxChars);
+}
+
 /**
  * Gera resposta de follow-up contextualizada
  */
 export async function generateFollowUpResponse(phoneNumber: string, context: string): Promise<string> {
+  // Session is optional – fall back to DB-based history when not in memory
   const session = getClientSession(phoneNumber);
-  if (!session) return "";
   
   try {
     const mistral = await getLLMClient();
     
-    // Buscar nome do contato no banco
+    // Buscar nome do contato e histórico no banco
     const conversation = await storage.getAdminConversationByPhone(phoneNumber);
-    const contactName = conversation?.contactName || "";
+    // Sanitize contact name to avoid control char injection
+    const contactName = sanitizeStr(conversation?.contactName || "", 80);
     
-    // Aumentar contexto para 30 mensagens para pegar "toda a conversa" relevante
-    const history = session.conversationHistory.slice(-30).map(m => `${m.role}: ${m.content}`).join("\n");
-
-    // Calculate time elapsed
-    const lastMessage = session.conversationHistory[session.conversationHistory.length - 1];
+    // Build history: prefer in-memory session, fall back to DB messages
+    let historyLines: string[] = [];
     let timeContext = "algum tempo";
-    if (lastMessage && lastMessage.timestamp) {
+    
+    if (session && session.conversationHistory.length > 0) {
+      historyLines = session.conversationHistory.slice(-20).map(m =>
+        `${m.role}: ${sanitizeStr(m.content, 400)}`
+      );
+      const lastMessage = session.conversationHistory[session.conversationHistory.length - 1];
+      if (lastMessage && lastMessage.timestamp) {
         const diffMs = Date.now() - new Date(lastMessage.timestamp).getTime();
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
         const diffDays = Math.floor(diffHours / 24);
-        
         if (diffDays > 0) timeContext = `${diffDays} dias`;
         else if (diffHours > 0) timeContext = `${diffHours} horas`;
         else timeContext = "alguns minutos";
+      }
+    } else if (conversation) {
+      // Fallback: load messages from DB
+      try {
+        const { adminMessages } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+        const { db } = await import("./db");
+        const dbMessages = await db.query.adminMessages.findMany({
+          where: eq(adminMessages.conversationId, conversation.id),
+          orderBy: (m: any, { asc: a }: any) => [a(m.timestamp)],
+          limit: 20,
+        });
+        historyLines = dbMessages.map((m: any) =>
+          `${m.fromMe ? "assistant" : "user"}: ${sanitizeStr(m.text || "", 400)}`
+        );
+        if (dbMessages.length > 0) {
+          const lastMsg = dbMessages[dbMessages.length - 1];
+          const diffMs = Date.now() - new Date(lastMsg.timestamp).getTime();
+          const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+          const diffDays = Math.floor(diffHours / 24);
+          if (diffDays > 0) timeContext = `${diffDays} dias`;
+          else if (diffHours > 0) timeContext = `${diffHours} horas`;
+          else timeContext = "alguns minutos";
+        }
+      } catch (dbErr: any) {
+        // Log non-sensitive db error and continue with empty history
+        console.error("[FOLLOWUP] Erro ao carregar histórico do DB (continuando sem histórico):", dbErr?.message || "desconhecido");
+      }
     }
 
-    // Use agent config if available, otherwise fallback to Rodrigo
-    const agentName = session.agentConfig?.name || "RODRIGO";
-    const agentRole = session.agentConfig?.role || "Vendedor";
-    const agentPrompt = session.agentConfig?.prompt || "Você é um vendedor experiente e amigável.";
+    const history = truncateHistory(historyLines, 15, 3000);
+
+    // Use agent config if available, otherwise fallback to defaults
+    // Sanitize and limit agentPrompt to avoid oversized payloads
+    const agentName = sanitizeStr(session?.agentConfig?.name || "Equipe", 60);
+    const agentRole = sanitizeStr(session?.agentConfig?.role || "Vendedor", 60);
+    const rawAgentPrompt = session?.agentConfig?.prompt || "Você é um vendedor experiente e amigável.";
+    const agentPrompt = sanitizeStr(rawAgentPrompt, 1200);
+    // flowState is safe to use with optional chaining
+    const flowState = sanitizeStr(session?.flowState || "desconhecido", 40);
+    // Sanitize dynamic context string
+    const safeContext = sanitizeStr(context, 300);
 
     const prompt = `Você é ${agentName}, ${agentRole}.
 Suas instruções de personalidade e comportamento:
@@ -3417,11 +3481,11 @@ ${agentPrompt}
 
 SITUAÇÃO ATUAL:
 O cliente ${contactName ? `se chama "${contactName}"` : "não tem nome identificado"} e parou de responder há ${timeContext}.
-Contexto do follow-up: ${context}
-Estado do cliente: ${session.flowState}
+Contexto do follow-up: ${safeContext}
+Estado do cliente: ${flowState}
 
-HISTÓRICO DA CONVERSA (Últimas 30 mensagens):
-${history}
+HISTÓRICO DA CONVERSA (Últimas mensagens):
+${history || "(sem histórico disponível)"}
 
 SUA TAREFA:
 Gere uma mensagem de follow-up curta para reativar o cliente.
@@ -3456,19 +3520,27 @@ REGRAS CRÍTICAS (SIGA ESTRITAMENTE):
    - Não repita a última mensagem que você já enviou. Tente uma abordagem diferente.`;
 
     const configuredModel = await getConfiguredModel();
-    const response = await mistral.chat.complete({
-      model: configuredModel,
-      messages: [{ role: "user", content: prompt }],
-      maxTokens: 150,
-      temperature: 0.6, // Reduzido para 0.6 para ser mais determinístico e evitar "criatividade" de dar opções
-    });
+    // ⏱️ Timeout de 20s para evitar hang em históricos longos ou modelo sobrecarregado
+    const FOLLOWUP_TIMEOUT_MS = 20_000;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("FOLLOWUP_TIMEOUT")), FOLLOWUP_TIMEOUT_MS)
+    );
+    const response = await Promise.race([
+      mistral.chat.complete({
+        model: configuredModel,
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: 150,
+        temperature: 0.6,
+      }),
+      timeoutPromise,
+    ]);
     
     let content = response.choices?.[0]?.message?.content?.toString() || "";
     
-    // Limpeza de segurança final
+    // Limpeza de segurança final — remover placeholders vazios
     content = content.replace(/\[Nome\]/gi, "").replace(/\[Cliente\]/gi, "").trim();
     
-    // Remover prefixos comuns de "opções" que a IA as vezes gera
+    // Remover prefixos comuns de "opções" que a IA às vezes gera
     content = content.replace(/^(Opção \d:|Sugestão:|Mensagem:)\s*/i, "");
     
     // Remover aspas se a IA colocar
@@ -3477,16 +3549,28 @@ REGRAS CRÍTICAS (SIGA ESTRITAMENTE):
     }
     
     // Se a IA gerar "Ou..." no meio do texto (indicando duas opções), cortar tudo depois do "Ou"
-    // Ex: "Oi fulano! Tudo bem? Ou se preferir..." -> "Oi fulano! Tudo bem?"
     const splitOptions = content.split(/\n\s*(?:Ou|ou|Ou se preferir|Opção 2)\b/);
     if (splitOptions.length > 1) {
-        content = splitOptions[0].trim();
+      content = splitOptions[0].trim();
+    }
+
+    // Safety: if empty after cleanup, use safe fallback
+    if (!content || content.length < 3) {
+      console.warn("[FOLLOWUP] Resposta IA vazia após limpeza — usando fallback");
+      return "Oi! Tudo bem? Fico à disposição se quiser continuar. 😊";
     }
     
     return content;
-  } catch (error) {
-    console.error("Erro ao gerar follow-up:", error);
-    return "Oi! Tudo bem? Só pra saber se ficou alguma dúvida! 😊";
+  } catch (error: any) {
+    // Log structured error without leaking sensitive data
+    const isTimeout = error?.message === "FOLLOWUP_TIMEOUT";
+    console.error("[FOLLOWUP] Erro ao gerar follow-up:", {
+      type: isTimeout ? "timeout" : "error",
+      message: isTimeout ? "Timeout de 20s excedido (histórico muito longo ou modelo sobrecarregado)" : (error?.message || "desconhecido"),
+      code: error?.code,
+      status: error?.status,
+    });
+    return "Oi! Tudo bem? Só passando para saber se ficou alguma dúvida! 😊";
   }
 }
 
