@@ -585,6 +585,9 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 // Back-off exponencial: 5s, 15s, 45s, 2min, 5min (NUNCA resetar contador)
 const RECONNECT_BACKOFF_MS = [5000, 15000, 45000, 120000, 300000];
 
+// 🔒 RESTORE GUARD: Prevent health check from killing sessions during restore
+let _isRestoringInProgress = false;
+
 // ?? Map para rastrear auto-retry após logout (QR Code)
 // Permite um único auto-retry quando auth inválido causa logout imediato
 interface LogoutAutoRetry {
@@ -8183,6 +8186,7 @@ export async function restoreExistingSessions(): Promise<void> {
   }
   
   try {
+    _isRestoringInProgress = true;
     console.log("Checking for existing WhatsApp connections...");
     // Multi-connection: Restore ALL connections (each gets its own socket)
     const connections = await storage.getAllConnections();
@@ -8350,6 +8354,9 @@ export async function restoreExistingSessions(): Promise<void> {
     console.log(`[RESTORE] ✅ Session restoration complete: ${restoredCount}/${toRestore.length} restored successfully`);
   } catch (error) {
     console.error("Error restoring sessions:", error);
+  } finally {
+    _isRestoringInProgress = false;
+    console.log(`[RESTORE] 🔓 Restore guard released — health check can now run`);
   }
 }
 
@@ -9707,6 +9714,12 @@ async function connectionHealthCheck(): Promise<void> {
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
     return;
   }
+
+  // 🔒 RESTORE GUARD: Skip health check while sessions are being restored
+  if (_isRestoringInProgress) {
+    console.log(`[HEALTH CHECK] ⏳ Skipped — session restore still in progress`);
+    return;
+  }
   
   console.log(`\n?? [HEALTH CHECK] -------------------------------------------`);
   console.log(`?? [HEALTH CHECK] Iniciando verifica��o de conex�es...`);
@@ -9904,10 +9917,10 @@ export function startConnectionHealthCheck(): void {
   console.log(`\n?? [HEALTH CHECK] Iniciando monitor de conex�es...`);
   console.log(`   ?? Intervalo: ${HEALTH_CHECK_INTERVAL_MS / 1000 / 60} minutos`);
   
-  // Executar primeiro check ap�s 30 segundos (dar tempo para restaura��es iniciais)
+  // Executar primeiro check ap�s 5 minutos (dar tempo para restaura��es terminarem)
   setTimeout(() => {
     connectionHealthCheck();
-  }, 30000);
+  }, 5 * 60 * 1000);
   
   // Agendar checks peri�dicos
   healthCheckInterval = setInterval(() => {
