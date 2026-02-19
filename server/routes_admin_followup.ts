@@ -147,56 +147,48 @@ export function registerAdminFollowUpRoutes(app: Express) {
     try {
       const adminId = (req.session as any)?.adminId;
 
-      // Buscar todos os logs para stats precisas
-      const allLogs = await db.query.followupLogs.findMany({
-        orderBy: [desc(followupLogs.executedAt)],
-        limit: 10000,
-      });
+      // Use raw SQL to avoid ORM table mapping ambiguity (followup_logs vs user_followup_logs)
+      const [statusCounts, conversationStats, nonPayerStats] = await Promise.all([
+        // Count follow-up logs by status (admin table: followup_logs)
+        db.execute(sql`
+          SELECT status, COUNT(*)::int AS count
+          FROM followup_logs
+          GROUP BY status
+        `),
+        // Active conversations for pending/scheduled
+        db.execute(sql`
+          SELECT
+            COUNT(CASE WHEN followup_active = true AND next_followup_at IS NOT NULL AND next_followup_at <= NOW() THEN 1 END)::int AS pending,
+            COUNT(CASE WHEN followup_active = true AND next_followup_at IS NOT NULL AND next_followup_at >= DATE_TRUNC('day', NOW()) AND next_followup_at < DATE_TRUNC('day', NOW()) + INTERVAL '1 day' THEN 1 END)::int AS scheduled_today
+          FROM admin_conversations
+        `),
+        // Non-payer stats
+        db.execute(sql`
+          SELECT
+            COUNT(CASE WHEN payment_status = 'unpaid' THEN 1 END)::int AS unpaid,
+            COUNT(CASE WHEN payment_status = 'unpaid' AND followup_for_non_payers = true THEN 1 END)::int AS unpaid_followups_enabled
+          FROM admin_conversations
+        `)
+      ]);
 
-      const totalSent = allLogs.filter(l => l.status === 'sent').length;
-      const totalFailed = allLogs.filter(l => l.status === 'failed').length;
-      const totalCancelled = allLogs.filter(l => l.status === 'cancelled').length;
-      const totalSkipped = allLogs.filter(l => l.status === 'skipped').length;
-
-      // Buscar conversas ativas para pending e scheduledToday
-      const activeConversations = await db.query.adminConversations.findMany({
-        where: and(
-          eq(adminConversations.followupActive, true),
-          sql`${adminConversations.nextFollowupAt} IS NOT NULL`
-        ),
-      });
-
-      const now = new Date();
-      const totalPending = activeConversations.filter(c => {
-        if (!c.nextFollowupAt) return false;
-        return new Date(c.nextFollowupAt) <= now;
-      }).length;
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      const scheduledToday = activeConversations.filter(c => {
-        if (!c.nextFollowupAt) return false;
-        const next = new Date(c.nextFollowupAt);
-        return next >= today && next < tomorrow;
-      }).length;
-
-      // Non-payers stats
-      const allConvs = await db.query.adminConversations.findMany();
-      const unpaidCount = allConvs.filter(c => c.paymentStatus === 'unpaid').length;
-      const unpaidFollowupsEnabled = allConvs.filter(c => c.paymentStatus === 'unpaid' && c.followupForNonPayers).length;
+      // Parse status counts
+      const statsByStatus: Record<string, number> = {};
+      for (const row of statusCounts.rows as any[]) {
+        statsByStatus[row.status] = Number(row.count) || 0;
+      }
+      
+      const convRow = (conversationStats.rows[0] as any) || {};
+      const nonPayerRow = (nonPayerStats.rows[0] as any) || {};
 
       res.json({
-        totalSent,
-        totalFailed,
-        totalCancelled,
-        totalSkipped,
-        pending: totalPending,
-        scheduledToday,
-        unpaid: unpaidCount,
-        unpaidFollowupsEnabled,
+        totalSent: statsByStatus['sent'] || 0,
+        totalFailed: statsByStatus['failed'] || 0,
+        totalCancelled: statsByStatus['cancelled'] || 0,
+        totalSkipped: statsByStatus['skipped'] || 0,
+        pending: Number(convRow.pending) || 0,
+        scheduledToday: Number(convRow.scheduled_today) || 0,
+        unpaid: Number(nonPayerRow.unpaid) || 0,
+        unpaidFollowupsEnabled: Number(nonPayerRow.unpaid_followups_enabled) || 0,
       });
     } catch (error: any) {
       console.error("Erro ao buscar estatísticas de follow-up:", error);

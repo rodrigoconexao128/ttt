@@ -12181,22 +12181,23 @@ ${config.ai_instructions || ''}
         .single();
 
       if (insertError) {
-        console.error("[RESELLER PAYMENT] Error saving receipt:", insertError);
-        return res.status(500).json({ message: "Erro ao salvar comprovante" });
+        console.error("[RESELLER PAYMENT] Error saving receipt:", JSON.stringify(insertError));
+        return res.status(500).json({ message: "Erro ao salvar comprovante", detail: insertError.message });
       }
 
-      // Se houver paymentId, atualizar o pagamento do revendedor para pending_receipt
-      if (paymentId) {
+      // Se houver paymentId válido (UUID), atualizar o statusDetail do pagamento do revendedor
+      // statusDetail é varchar(100), então guardamos apenas o receiptId
+      if (paymentId && paymentId.length <= 50) {
         try {
-          await storage.updateResellerPayment(paymentId, {
-            statusDetail: JSON.stringify({
-              ...(JSON.parse((await storage.getResellerPayment(paymentId))?.statusDetail || '{}')),
-              receiptId: receipt.id,
-              receiptUrl: receiptUrl,
-            })
-          });
+          const existingPayment = await storage.getResellerPayment(paymentId);
+          if (existingPayment) {
+            await storage.updateResellerPayment(paymentId, {
+              statusDetail: `receipt:${receipt.id}`.substring(0, 100),
+            });
+          }
         } catch (e) {
           console.error("[RESELLER PAYMENT] Error updating reseller payment with receipt:", e);
+          // Não falha a operação principal
         }
       }
 
