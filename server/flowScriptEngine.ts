@@ -78,7 +78,7 @@ export async function executeFlowResponse(
   conversationHistory: Array<{ role: "user" | "assistant"; content: string }> = []
 ): Promise<FlowExecutionResult> {
   
-  const client = getLLMClient();
+  const client = await getLLMClient();
   const llmConfig = await getLLMConfig();
   
   // Selecionar modelo correto baseado no provider configurado
