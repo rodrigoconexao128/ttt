@@ -15,9 +15,10 @@ import {
   Bot, ArrowRight, Sparkles, MessageSquare, Edit3, 
   Loader2, Send, Code, Smartphone, 
   CheckCircle2, Wand2, RefreshCw, Settings, Zap,
-  Undo2, Redo2, History, ChevronUp,
+  Undo2, Redo2, History, ChevronUp, ChevronDown,
   Image as ImageIcon, Music, Video, FileText, Plus, Trash2, Upload, Check,
-  Clock, Brain, Pause, X, Save, Pencil, File, Rocket, Wrench, GitBranch
+  Clock, Brain, Pause, X, Save, Pencil, File, Rocket, Wrench, GitBranch,
+  AlignLeft, MoveUp, MoveDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -129,10 +130,22 @@ interface AgentConfig {
   autoReactivateMinutes: number | null;
 }
 
+interface FlowItem {
+  id: string;
+  order: number;
+  type: 'media' | 'text';
+  storageUrl?: string;
+  mediaType?: 'audio' | 'image' | 'video' | 'document';
+  caption?: string;
+  fileName?: string;
+  mimeType?: string;
+  text?: string;
+}
+
 interface MediaItem {
   id: string;
   name: string;
-  mediaType: 'image' | 'audio' | 'video' | 'document';
+  mediaType: 'image' | 'audio' | 'video' | 'document' | 'flow';
   storageUrl: string;
   fileName: string;
   fileSize: number;
@@ -146,6 +159,7 @@ interface MediaItem {
   sendAlone?: boolean;
   isActive: boolean;
   displayOrder: number;
+  flowItems?: FlowItem[];
 }
 
 interface ChatMessage {
@@ -253,15 +267,17 @@ export function AgentStudioUnified() {
   const [editingMedia, setEditingMedia] = useState<MediaItem | null>(null);
   const [mediaForm, setMediaForm] = useState({
     name: "",
-    mediaType: "audio" as "audio" | "image" | "video" | "document",
+    mediaType: "audio" as "audio" | "image" | "video" | "document" | "flow",
     description: "",
     whenToUse: "",
     caption: "",
     transcription: "",
     isPtt: false,
     sendAlone: false,
-    isActive: true
+    isActive: true,
+    flowItems: [] as FlowItem[],
   });
+  const [uploadingFlowItemId, setUploadingFlowItemId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -505,7 +521,7 @@ export function AgentStudioUnified() {
   });
 
   const updateMediaMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<MediaItem> }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Partial<MediaItem> & { flowItems?: FlowItem[] } }) => {
       const res = await apiRequest("PUT", `/api/agent/media/${id}`, data);
       return res.json();
     },
@@ -523,6 +539,22 @@ export function AgentStudioUnified() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/media"] });
       toast({ title: "Removido!", description: "Mídia removida." });
+    }
+  });
+
+  // Mutation para criar fluxo (sem upload de arquivo)
+  const createFlowMediaMutation = useMutation({
+    mutationFn: async (data: Record<string, any>) => {
+      const res = await apiRequest("POST", "/api/agent/media", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agent/media"] });
+      toast({ title: "Fluxo criado!", description: "Fluxo adicionado à biblioteca." });
+      closeMediaDialog();
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro", description: error.message || "Falha ao criar fluxo.", variant: "destructive" });
     }
   });
 
@@ -1060,12 +1092,12 @@ export function AgentStudioUnified() {
     setMediaDialogOpen(false);
     setEditingMedia(null);
     setSelectedFile(null);
-    setMediaForm({ name: "", mediaType: "audio", description: "", whenToUse: "", caption: "", transcription: "", isPtt: false, sendAlone: false, isActive: true });
+    setMediaForm({ name: "", mediaType: "audio", description: "", whenToUse: "", caption: "", transcription: "", isPtt: false, sendAlone: false, isActive: true, flowItems: [] });
   };
 
   const openNewMediaDialog = () => {
     setEditingMedia(null);
-    setMediaForm({ name: "", mediaType: "audio", description: "", whenToUse: "", caption: "", transcription: "", isPtt: false, sendAlone: false, isActive: true });
+    setMediaForm({ name: "", mediaType: "audio", description: "", whenToUse: "", caption: "", transcription: "", isPtt: false, sendAlone: false, isActive: true, flowItems: [] });
     setSelectedFile(null);
     setMediaDialogOpen(true);
   };
@@ -1081,12 +1113,122 @@ export function AgentStudioUnified() {
       transcription: media.transcription || "",
       isPtt: media.isPtt || false,
       sendAlone: media.sendAlone || false,
-      isActive: media.isActive ?? true
+      isActive: media.isActive ?? true,
+      flowItems: (media.flowItems || []) as FlowItem[],
     });
     setMediaDialogOpen(true);
   };
 
+  // ============ FUNÇÕES DE ITEM DE FLUXO ============
+  const generateFlowItemId = () => `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  
+  const addFlowItem = (type: 'media' | 'text') => {
+    const items = mediaForm.flowItems || [];
+    const newItem: FlowItem = {
+      id: generateFlowItemId(),
+      order: items.length,
+      type,
+      mediaType: type === 'media' ? 'image' : undefined,
+    };
+    setMediaForm(prev => ({ ...prev, flowItems: [...(prev.flowItems || []), newItem] }));
+  };
+  
+  const updateFlowItem = (index: number, updated: FlowItem) => {
+    const items = [...(mediaForm.flowItems || [])];
+    items[index] = updated;
+    setMediaForm(prev => ({ ...prev, flowItems: items }));
+  };
+  
+  const deleteFlowItem = (index: number) => {
+    const items = (mediaForm.flowItems || []).filter((_, i) => i !== index);
+    setMediaForm(prev => ({ ...prev, flowItems: items.map((it, i) => ({ ...it, order: i })) }));
+  };
+  
+  const moveFlowItem = (index: number, direction: 'up' | 'down') => {
+    const items = [...(mediaForm.flowItems || [])];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+    [items[index], items[targetIndex]] = [items[targetIndex], items[index]];
+    setMediaForm(prev => ({ ...prev, flowItems: items.map((it, i) => ({ ...it, order: i })) }));
+  };
+  
+  const uploadFlowItemFile = async (itemId: string, file: File): Promise<string | null> => {
+    setUploadingFlowItemId(itemId);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await apiRequest("POST", "/api/agent/media/upload", formData);
+      const data = await res.json() as any;
+      return data.storageUrl || null;
+    } catch (err: any) {
+      toast({ title: "Erro ao enviar arquivo", description: err.message, variant: "destructive" });
+      return null;
+    } finally {
+      setUploadingFlowItemId(null);
+    }
+  };
+
   const handleMediaSubmit = async () => {
+    // Validação básica
+    if (!mediaForm.name.trim()) {
+      toast({ title: "Nome obrigatório", variant: "destructive" });
+      return;
+    }
+    if (!mediaForm.description.trim()) {
+      toast({ title: "Descrição obrigatória", variant: "destructive" });
+      return;
+    }
+    
+    // ====== FLUXO ======
+    if (mediaForm.mediaType === 'flow') {
+      const items = mediaForm.flowItems || [];
+      if (items.length < 2) {
+        toast({ title: "Erro", description: "Um fluxo precisa ter pelo menos 2 itens.", variant: "destructive" });
+        return;
+      }
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type === 'text' && !item.text?.trim()) {
+          toast({ title: "Erro", description: `Item ${i + 1} é texto mas está vazio.`, variant: "destructive" });
+          return;
+        }
+        if (item.type === 'media' && !item.storageUrl) {
+          toast({ title: "Erro", description: `Item ${i + 1} é mídia mas não tem arquivo.`, variant: "destructive" });
+          return;
+        }
+      }
+      
+      const rawName = mediaForm.name || 'FLUXO';
+      const formattedName = rawName.toUpperCase().replace(/[^A-Z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+      
+      if (editingMedia) {
+        updateMediaMutation.mutate({
+          id: editingMedia.id,
+          data: {
+            name: formattedName,
+            mediaType: 'flow',
+            storageUrl: '',
+            description: mediaForm.description,
+            whenToUse: mediaForm.whenToUse,
+            isActive: mediaForm.isActive,
+            flowItems: items.map((it, i) => ({ ...it, order: i })),
+          }
+        });
+      } else {
+        createFlowMediaMutation.mutate({
+          name: formattedName,
+          mediaType: 'flow',
+          storageUrl: '',
+          description: mediaForm.description,
+          whenToUse: mediaForm.whenToUse,
+          isActive: mediaForm.isActive,
+          flowItems: items.map((it, i) => ({ ...it, order: i })),
+        });
+      }
+      return;
+    }
+    // ====== FIM FLUXO ======
+    
     if (editingMedia) {
       // Se há um novo arquivo selecionado, fazer upload primeiro
       if (selectedFile) {
@@ -1187,6 +1329,7 @@ export function AgentStudioUnified() {
       case 'image': return <ImageIcon className="h-5 w-5" />;
       case 'audio': return <Music className="h-5 w-5" />;
       case 'video': return <Video className="h-5 w-5" />;
+      case 'flow': return <GitBranch className="h-5 w-5 text-violet-500" />;
       default: return <File className="h-5 w-5" />;
     }
   };
@@ -1864,7 +2007,10 @@ export function AgentStudioUnified() {
                             <div className="min-w-0 flex-1">
                               <p className="font-medium truncate">{media.name}</p>
                               <p className="text-xs text-muted-foreground">
-                                {formatFileSize(media.fileSize)}
+                                {media.mediaType === 'flow' 
+                                  ? `🔀 ${(media.flowItems || []).length} itens`
+                                  : formatFileSize(media.fileSize)
+                                }
                               </p>
                             </div>
                             <div className="flex gap-1 shrink-0">
@@ -1890,6 +2036,16 @@ export function AgentStudioUnified() {
                             <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
                               {media.whenToUse}
                             </p>
+                          )}
+                          {/* Mostrar sequência do fluxo na card */}
+                          {media.mediaType === 'flow' && media.flowItems && (media.flowItems as FlowItem[]).length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {[...(media.flowItems as FlowItem[])].sort((a, b) => a.order - b.order).map((item, idx) => (
+                                <span key={item.id} className="text-xs px-1 py-0.5 rounded bg-muted border text-muted-foreground">
+                                  {idx + 1}. {item.type === 'text' ? '💬' : item.mediaType === 'audio' ? '🎵' : item.mediaType === 'image' ? '🖼️' : item.mediaType === 'video' ? '🎬' : '📄'} {item.type}
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </CardContent>
                       </Card>
@@ -2402,7 +2558,13 @@ export function AgentStudioUnified() {
               <Label>Tipo de Mídia</Label>
               <Select
                 value={mediaForm.mediaType}
-                onValueChange={(value: "audio" | "image" | "video" | "document") => setMediaForm(prev => ({ ...prev, mediaType: value }))}
+                onValueChange={(value: "audio" | "image" | "video" | "document" | "flow") => {
+                  setMediaForm(prev => ({ 
+                    ...prev, 
+                    mediaType: value,
+                    flowItems: value === 'flow' ? (prev.flowItems || []) : prev.flowItems,
+                  }));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -2412,12 +2574,147 @@ export function AgentStudioUnified() {
                   <SelectItem value="image">🖼️ Imagem</SelectItem>
                   <SelectItem value="video">🎬 Vídeo</SelectItem>
                   <SelectItem value="document">📄 Documento</SelectItem>
+                  <SelectItem value="flow">🔀 Fluxo (sequência de mídias + textos)</SelectItem>
                 </SelectContent>
               </Select>
+              {mediaForm.mediaType === 'flow' && (
+                <p className="text-xs text-violet-600 font-medium">
+                  🔀 Fluxo: monte uma sequência de múltiplos itens enviados em ordem exata.
+                </p>
+              )}
             </div>
 
+            {/* ======= EDITOR DE FLUXO ======= */}
+            {mediaForm.mediaType === 'flow' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Sequência do Fluxo ({mediaForm.flowItems?.length || 0} itens)</Label>
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => addFlowItem('text')}>
+                      <AlignLeft className="h-3 w-3 mr-1" />
+                      + Texto
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => addFlowItem('media')}>
+                      <ImageIcon className="h-3 w-3 mr-1" />
+                      + Mídia
+                    </Button>
+                  </div>
+                </div>
+
+                {(!mediaForm.flowItems || mediaForm.flowItems.length === 0) && (
+                  <div className="border-2 border-dashed rounded-lg p-6 text-center text-muted-foreground">
+                    <p className="text-sm font-medium">Fluxo vazio</p>
+                    <p className="text-xs">Adicione itens de texto ou mídia acima.</p>
+                    <p className="text-xs mt-1">Ex: imagem → texto → áudio</p>
+                  </div>
+                )}
+
+                {(mediaForm.flowItems || []).map((item, idx) => (
+                  <div key={item.id} className="border rounded-lg p-3 bg-muted/20 space-y-2">
+                    {/* Header do item */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs font-mono">#{idx + 1}</Badge>
+                        <Select
+                          value={item.type}
+                          onValueChange={(v) => updateFlowItem(idx, { ...item, type: v as 'media' | 'text', storageUrl: undefined, text: undefined })}
+                        >
+                          <SelectTrigger className="h-7 w-24 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="text">💬 Texto</SelectItem>
+                            <SelectItem value="media">📎 Mídia</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {item.type === 'media' && (
+                          <Select
+                            value={item.mediaType || 'image'}
+                            onValueChange={(v) => updateFlowItem(idx, { ...item, mediaType: v as any })}
+                          >
+                            <SelectTrigger className="h-7 w-28 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="audio">🎵 Áudio</SelectItem>
+                              <SelectItem value="image">🖼️ Imagem</SelectItem>
+                              <SelectItem value="video">🎬 Vídeo</SelectItem>
+                              <SelectItem value="document">📄 Documento</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === 0} onClick={() => moveFlowItem(idx, 'up')}>
+                          <ChevronUp className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === (mediaForm.flowItems?.length || 0) - 1} onClick={() => moveFlowItem(idx, 'down')}>
+                          <ChevronDown className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteFlowItem(idx)}>
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Conteúdo */}
+                    {item.type === 'text' ? (
+                      <Textarea
+                        placeholder="Digite o texto desta etapa..."
+                        value={item.text || ''}
+                        onChange={(e) => updateFlowItem(idx, { ...item, text: e.target.value })}
+                        rows={2}
+                        className="text-xs"
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        <input
+                          type="file"
+                          className="hidden"
+                          id={`flow-file-${item.id}`}
+                          accept={item.mediaType === 'audio' ? 'audio/*' : item.mediaType === 'image' ? 'image/*' : item.mediaType === 'video' ? 'video/*' : '*/*'}
+                          onChange={async (e) => {
+                            if (e.target.files?.[0]) {
+                              const url = await uploadFlowItemFile(item.id, e.target.files[0]);
+                              if (url) updateFlowItem(idx, { ...item, storageUrl: url, fileName: e.target.files[0].name, mimeType: e.target.files[0].type });
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                        <div
+                          className={cn("border border-dashed rounded p-2 text-center cursor-pointer hover:border-primary/50 text-xs", uploadingFlowItemId === item.id && "opacity-60 pointer-events-none")}
+                          onClick={() => document.getElementById(`flow-file-${item.id}`)?.click()}
+                        >
+                          {uploadingFlowItemId === item.id ? (
+                            <span className="flex items-center justify-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Enviando...
+                            </span>
+                          ) : item.storageUrl ? (
+                            <span className="text-green-600">✅ {item.fileName || 'Arquivo pronto'} (clique para trocar)</span>
+                          ) : (
+                            <span className="text-muted-foreground">📎 Clique para selecionar {item.mediaType || 'mídia'}</span>
+                          )}
+                        </div>
+                        {item.mediaType === 'image' && item.storageUrl && (
+                          <img src={item.storageUrl} alt="preview" className="h-16 rounded object-cover" />
+                        )}
+                        {item.mediaType !== 'audio' && (
+                          <Input
+                            placeholder="Legenda (opcional)"
+                            value={item.caption || ''}
+                            onChange={(e) => updateFlowItem(idx, { ...item, caption: e.target.value })}
+                            className="text-xs h-7"
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Upload de Arquivo */}
-            {!editingMedia && (
+            {!editingMedia && mediaForm.mediaType !== 'flow' && (
               <div className="space-y-2">
                 <Label>Upload de Arquivo</Label>
                 <div 
@@ -2788,9 +3085,9 @@ export function AgentStudioUnified() {
             </Button>
             <Button 
               onClick={handleMediaSubmit}
-              disabled={uploadMediaMutation.isPending || updateMediaMutation.isPending}
+              disabled={uploadMediaMutation.isPending || updateMediaMutation.isPending || createFlowMediaMutation.isPending || !!uploadingFlowItemId}
             >
-              {(uploadMediaMutation.isPending || updateMediaMutation.isPending) && (
+              {(uploadMediaMutation.isPending || updateMediaMutation.isPending || createFlowMediaMutation.isPending) && (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               )}
               {editingMedia ? 'Atualizar' : 'Adicionar'}
