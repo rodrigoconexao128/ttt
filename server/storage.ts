@@ -294,7 +294,7 @@ export interface IStorage {
   enableAgentForConversation(conversationId: string): Promise<void>;
   updateDisabledConversationOwnerReply(conversationId: string, autoReactivateAfterMinutes?: number | null): Promise<void>;
   markClientPendingMessage(conversationId: string): Promise<void>;
-  getConversationsToAutoReactivate(): Promise<Array<{ conversationId: string; clientLastMessageAt: Date | null }>>;
+  getConversationsToAutoReactivate(): Promise<Array<{ conversationId: string; clientLastMessageAt: Date | null; clientHasPendingMessage: boolean }>>;
   getDisabledConversationDetails(conversationId: string): Promise<{ ownerLastReplyAt: Date | null; autoReactivateAfterMinutes: number | null; clientHasPendingMessage: boolean } | null>;
 
   // Plan operations
@@ -1427,22 +1427,24 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       .where(eq(agentDisabledConversations.conversationId, conversationId));
   }
 
-  async getConversationsToAutoReactivate(): Promise<Array<{ conversationId: string; clientLastMessageAt: Date | null }>> {
+  async getConversationsToAutoReactivate(): Promise<Array<{ conversationId: string; clientLastMessageAt: Date | null; clientHasPendingMessage: boolean }>> {
     // 🔥 OTIMIZAÇÃO: Query 100% SQL para minimizar Egress
     // Usa cálculo de tempo direto no PostgreSQL ao invés de filtrar em JS
-    // Retorna APENAS registros que precisam ser reativados AGORA
+    // Retorna registros cujo timer expirou (independente de mensagem pendente do cliente)
     // 🐛 FIX CRÍTICO: NÃO usar COALESCE! Quando auto_reactivate_after_minutes é NULL,
     // significa "NUNCA reativar automaticamente" - essas conversas NÃO devem ser incluídas!
+    // 🔄 FIX PARTE 1: Reativar a IA assim que o timer expira (com ou sem msg pendente do cliente)
+    // Isso garante que a IA volte automaticamente para responder a próxima mensagem do cliente
     try {
       const { pool } = await import("./db");
       const result = await pool.query(`
         SELECT 
           conversation_id as "conversationId",
-          client_last_message_at as "clientLastMessageAt"
+          client_last_message_at as "clientLastMessageAt",
+          client_has_pending_message as "clientHasPendingMessage"
         FROM agent_disabled_conversations
         WHERE 
-          client_has_pending_message = true
-          AND owner_last_reply_at IS NOT NULL
+          owner_last_reply_at IS NOT NULL
           AND auto_reactivate_after_minutes IS NOT NULL
           AND owner_last_reply_at + (auto_reactivate_after_minutes * INTERVAL '1 minute') <= NOW()
         LIMIT 10
@@ -1451,6 +1453,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       return result.rows.map(r => ({
         conversationId: r.conversationId,
         clientLastMessageAt: r.clientLastMessageAt ? new Date(r.clientLastMessageAt) : null,
+        clientHasPendingMessage: r.clientHasPendingMessage === true,
       }));
     } catch (error) {
       console.error(`❌ [STORAGE] Erro em getConversationsToAutoReactivate:`, error);
@@ -1471,8 +1474,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
         SELECT EXISTS (
           SELECT 1 FROM agent_disabled_conversations
           WHERE 
-            client_has_pending_message = true
-            AND owner_last_reply_at IS NOT NULL
+            owner_last_reply_at IS NOT NULL
             AND auto_reactivate_after_minutes IS NOT NULL
             AND owner_last_reply_at + (auto_reactivate_after_minutes * INTERVAL '1 minute') <= NOW()
           LIMIT 1
@@ -1496,8 +1498,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       const result = await pool.query(`
         SELECT COUNT(*) as count 
         FROM agent_disabled_conversations
-        WHERE client_has_pending_message = true
-        AND auto_reactivate_after_minutes IS NOT NULL
+        WHERE auto_reactivate_after_minutes IS NOT NULL
       `);
       return parseInt(result.rows[0]?.count || '0', 10);
     } catch (error) {

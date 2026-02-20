@@ -206,15 +206,20 @@ async function checkAndReactivateConversations() {
           type: "agent_auto_reactivated",
           conversationId: conv.conversationId,
           reason: "timer_expired",
-          hasPendingMessage: true,
+          hasPendingMessage: (conv as any).clientHasPendingMessage ?? false,
         });
 
-        // 5. Disparar resposta da IA se houver mensagem pendente
-        try {
-          const triggerResult = await triggerAgentResponseForConversation(connection.userId, conv.conversationId);
-          console.log(`✅ [AUTO-REACTIVATE] IA reativada e respondendo para ${conv.conversationId}: ${triggerResult.reason}`);
-        } catch (triggerError) {
-          console.error(`❌ [AUTO-REACTIVATE] Erro ao disparar resposta para ${conv.conversationId}:`, triggerError);
+        // 5. Disparar resposta da IA APENAS se houver mensagem pendente do cliente
+        // Se não há mensagem pendente, a IA só precisa estar ativa para responder a próxima mensagem
+        if ((conv as any).clientHasPendingMessage) {
+          try {
+            const triggerResult = await triggerAgentResponseForConversation(connection.userId, conv.conversationId);
+            console.log(`✅ [AUTO-REACTIVATE] IA reativada e respondendo para ${conv.conversationId}: ${triggerResult.reason}`);
+          } catch (triggerError) {
+            console.error(`❌ [AUTO-REACTIVATE] Erro ao disparar resposta para ${conv.conversationId}:`, triggerError);
+          }
+        } else {
+          console.log(`✅ [AUTO-REACTIVATE] IA reativada para ${conv.conversationId} (sem msg pendente - aguardando próxima mensagem do cliente)`);
         }
 
       } catch (convError) {

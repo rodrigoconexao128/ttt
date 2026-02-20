@@ -844,9 +844,18 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
             // Atualiza mensagens quando recebe nova mensagem ou resposta do agente
             if (data.type === 'new_message' || data.type === 'agent_response') {
               // Verifica se é para esta conversa
-              if (data.data?.conversationId === conversationId) {
+              if (data.data?.conversationId === conversationId || data.conversationId === conversationId) {
                 queryClient.invalidateQueries({ 
                   queryKey: ["/api/messages", conversationId] 
+                });
+              }
+            }
+            
+            // Atualiza status do agente quando IA é pausada ou reativada automaticamente
+            if (data.type === 'agent_auto_paused' || data.type === 'agent_auto_reactivated') {
+              if (data.conversationId === conversationId) {
+                queryClient.invalidateQueries({ 
+                  queryKey: ["/api/agent/status", conversationId] 
                 });
               }
             }

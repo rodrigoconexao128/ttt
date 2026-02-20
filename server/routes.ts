@@ -4351,7 +4351,40 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     }
   });
 
-  // POST - A��es em massa nas conversas (arquivar/desarquivar)
+  // POST - Ações em massa nas conversas (marcar como não lida)
+  app.post("/api/conversations/bulk/unread", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+
+      if (conversationIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa obrigatórios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp não conectado" });
+      }
+
+      const updated = await db
+        .update(conversationsTable)
+        .set({ unreadCount: 1, updatedAt: new Date() })
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ))
+        .returning({ id: conversationsTable.id });
+
+      res.json({ updated: updated.length });
+    } catch (error) {
+      console.error("Error marking conversations as unread:", error);
+      res.status(500).json({ message: "Failed to mark conversations as unread" });
+    }
+  });
+
+  // POST - Ações em massa nas conversas (arquivar/desarquivar)
   app.post("/api/conversations/bulk/archive", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);

@@ -155,7 +155,12 @@ export function ConversationsList({
             console.log("WebSocket message:", data);
 
             // Atualizar lista de conversas quando receber nova mensagem
-            if (data.type === "new_message" || data.type === "agent_response") {
+            if (
+              data.type === "new_message" ||
+              data.type === "agent_response" ||
+              data.type === "agent_auto_paused" ||
+              data.type === "agent_auto_reactivated"
+            ) {
               queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
             }
           } catch (error) {
@@ -290,6 +295,26 @@ export function ConversationsList({
     onError: (error: any) => {
       toast({
         title: "Erro ao marcar como lidas",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkUnreadMutation = useMutation({
+    mutationFn: async (conversationIds: string[]) => {
+      const response = await apiRequest("POST", "/api/conversations/bulk/unread", { conversationIds });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({ title: "Conversas marcadas como não lidas" });
+      clearSelection();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao marcar como não lidas",
         description: error.message,
         variant: "destructive",
       });
@@ -606,87 +631,109 @@ export function ConversationsList({
         )}
 
         {selectedConversationIds.size > 0 && (
-          <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-2 py-2">
-            <span className="text-xs text-muted-foreground">
-              {selectedConversationIds.size} selecionada(s)
-            </span>
-            <div className="flex items-center gap-1">
+          <div className="rounded-md border bg-muted/40 px-2 py-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">
+                {selectedConversationIds.size} selecionada(s)
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={clearSelection}
+                title="Limpar seleção"
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-thin">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 px-2"
+                className="h-7 px-2 flex-shrink-0"
                 onClick={() => bulkArchiveMutation.mutate({
                   conversationIds: selectedIds,
                   archived: statusFilter !== "archived",
                 })}
                 disabled={bulkArchiveMutation.isPending}
+                title={archiveActionLabel}
               >
                 {bulkArchiveMutation.isPending ? (
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin" />
                 ) : (
-                  <ArchiveActionIcon className="w-3 h-3 mr-1" />
+                  <ArchiveActionIcon className="w-3 h-3" />
                 )}
-                <span className="text-xs">{archiveActionLabel}</span>
+                <span className="text-xs ml-1 hidden sm:inline">{archiveActionLabel}</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 px-2"
+                className="h-7 px-2 flex-shrink-0"
                 onClick={() => bulkReadMutation.mutate(selectedIds)}
                 disabled={bulkReadMutation.isPending}
+                title="Marcar como lidas"
               >
                 {bulkReadMutation.isPending ? (
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin" />
                 ) : (
-                  <MailOpen className="w-3 h-3 mr-1" />
+                  <MailOpen className="w-3 h-3" />
                 )}
-                <span className="text-xs">Marcar lidas</span>
+                <span className="text-xs ml-1 hidden sm:inline">Lidas</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 px-2"
-                onClick={() => setBulkTagDialogOpen(true)}
+                className="h-7 px-2 flex-shrink-0"
+                onClick={() => bulkUnreadMutation.mutate(selectedIds)}
+                disabled={bulkUnreadMutation.isPending}
+                title="Marcar como não lidas"
               >
-                <Tags className="w-3 h-3 mr-1" />
-                <span className="text-xs">Etiquetar</span>
+                {bulkUnreadMutation.isPending ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Mail className="w-3 h-3" />
+                )}
+                <span className="text-xs ml-1 hidden sm:inline">Não lidas</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 px-2 bg-green-50 hover:bg-green-100 border-green-200"
+                className="h-7 px-2 flex-shrink-0"
+                onClick={() => setBulkTagDialogOpen(true)}
+                title="Etiquetar conversas"
+              >
+                <Tags className="w-3 h-3" />
+                <span className="text-xs ml-1 hidden sm:inline">Etiquetar</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 flex-shrink-0 bg-green-50 hover:bg-green-100 border-green-200"
                 onClick={() => bulkEnableAIMutation.mutate(selectedIds)}
                 disabled={bulkEnableAIMutation.isPending}
+                title="Ativar IA para todas selecionadas"
               >
                 {bulkEnableAIMutation.isPending ? (
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin text-green-600" />
                 ) : (
-                  <Bot className="w-3 h-3 mr-1 text-green-600" />
+                  <Bot className="w-3 h-3 text-green-600" />
                 )}
-                <span className="text-xs text-green-700">Ativar IA</span>
+                <span className="text-xs ml-1 text-green-700 hidden sm:inline">Ativar IA</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 px-2 bg-amber-50 hover:bg-amber-100 border-amber-200"
+                className="h-7 px-2 flex-shrink-0 bg-amber-50 hover:bg-amber-100 border-amber-200"
                 onClick={() => bulkDisableAIMutation.mutate(selectedIds)}
                 disabled={bulkDisableAIMutation.isPending}
+                title="Desativar IA para todas selecionadas"
               >
                 {bulkDisableAIMutation.isPending ? (
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  <Loader2 className="w-3 h-3 animate-spin text-amber-600" />
                 ) : (
-                  <Bot className="w-3 h-3 mr-1 text-amber-600" />
+                  <Bot className="w-3 h-3 text-amber-600" />
                 )}
-                <span className="text-xs text-amber-700">Desativar IA</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={clearSelection}
-                title="Limpar seleção"
-              >
-                <X className="w-3.5 h-3.5" />
+                <span className="text-xs ml-1 text-amber-700 hidden sm:inline">Desativar IA</span>
               </Button>
             </div>
           </div>
