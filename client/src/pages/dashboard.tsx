@@ -66,6 +66,7 @@ import FlowBuilderPage from "@/pages/flow-builder";
 import TicketsPage from "@/pages/TicketsPage";
 import TicketDetailPage from "@/pages/TicketDetailPage";
 import TicketCreatePage from "@/pages/TicketCreatePage";
+import HelpCenterPage from "@/pages/help-center";
 import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation, useRoute } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan, Conversation } from "@shared/schema";
@@ -185,6 +186,7 @@ export default function Dashboard() {
   const isAudioConfigRoute = location.startsWith("/falar-por-audio");
   const isFlowBuilderRoute = location.startsWith("/construtor-fluxo");
   const isTicketsRoute = location.startsWith("/tickets");
+  const isHelpCenterRoute = location.startsWith("/ajuda");
   const isTicketsNewRoute = location === "/tickets/new";
   const [matchTicketsDetail] = useRoute("/tickets/:id");
   const isTicketsDetailRoute = matchTicketsDetail && location !== "/tickets/new" && location !== "/tickets";
@@ -222,7 +224,8 @@ export default function Dashboard() {
     !isSalonAppointmentsRoute &&
     !isAudioConfigRoute &&
     !isFlowBuilderRoute &&
-    !isTicketsRoute;
+    !isTicketsRoute &&
+    !isHelpCenterRoute;
   const isToolsRoute =
     isMassSendRoute ||
     isCampaignsRoute ||
@@ -649,6 +652,21 @@ const toolsNavigation: ToolNavItem[] = [
                   <Link href="/support">
                     <HelpCircle className="w-4 h-4" />
                     <span>Suporte</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Central de Ajuda / Tutoriais */}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isHelpCenterRoute}
+                  tooltip="Central de Ajuda"
+                  data-testid="button-nav-help-center"
+                >
+                  <Link href="/ajuda">
+                    <BookUser className="w-4 h-4" />
+                    <span>Central de Ajuda</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -1140,6 +1158,12 @@ const toolsNavigation: ToolNavItem[] = [
           {isTicketsRoute && !isTicketsNewRoute && !isTicketsDetailRoute && (
             <div className="flex-1 overflow-auto">
               <TicketsPage />
+            </div>
+          )}
+
+          {isHelpCenterRoute && (
+            <div className="flex-1 overflow-auto">
+              <HelpCenterPage />
             </div>
           )}
 

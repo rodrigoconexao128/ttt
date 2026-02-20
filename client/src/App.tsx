@@ -173,6 +173,7 @@ function Router() {
       <Route path="/falar-por-audio" component={Dashboard} />
       <Route path="/construtor-fluxo" component={Dashboard} />
       <Route path="/support" component={Support} />
+      <Route path="/ajuda" component={Dashboard} />
       {/* Rotas de Tickets */}
       <Route path="/tickets/new" component={() => <RequireAuth component={Dashboard} />} />
       <Route path="/tickets/:id" component={() => <RequireAuth component={Dashboard} />} />
