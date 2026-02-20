@@ -50,6 +50,7 @@ import { startFullContactSync, getFullSyncStatus, scheduleFullSyncForAllClients,
 
 import { getAccessEntitlement } from "./accessEntitlement";
 
+import { preWarmUserCaches } from "./cacheWarmer";
 
 
 // ============================================
@@ -846,7 +847,6 @@ NÃO FAZER:
   return basePrompt;
 
 }
-
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -3277,6 +3277,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       const userId = getUserId(req);
 
       const user = await storage.getUser(userId);
+
+      // Pre-warm dashboard caches in background on page load
+      preWarmUserCaches(userId);
 
       res.json(user);
 

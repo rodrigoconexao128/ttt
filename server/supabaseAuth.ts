@@ -6,6 +6,7 @@ import type { Express, RequestHandler } from "express";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
+import { preWarmUserCaches } from "./cacheWarmer";
 
 // Criar cliente Supabase
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
@@ -304,6 +305,9 @@ export async function setupAuth(app: Express) {
 
           console.log(`[MASTER LOGIN] Admin logou com sucesso como: ${email}`);
           
+          // Pre-warm dashboard caches in background
+          preWarmUserCaches(data.user.id);
+
           return res.json({ 
             success: true,
             session: data.session,
@@ -333,6 +337,9 @@ export async function setupAuth(app: Express) {
 
       // Criar/atualizar usuário no banco de dados
       await upsertUser(data.user);
+
+      // Pre-warm dashboard caches in background
+      preWarmUserCaches(data.user.id);
 
       res.json({ 
         success: true,
