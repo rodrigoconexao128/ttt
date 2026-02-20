@@ -477,6 +477,53 @@ export function ConnectionPanel() {
     };
   }, [newConnStep, newConnId, connectionQrCodes, closeNewConnFlow]);
 
+  // Poll for QR code when connecting an EXISTING connection card (not "Nova Conexão")
+  // This mirrors the "Nova Conexão" polling but for the existing card "Conectar" flow
+  useEffect(() => {
+    // Only activate when we're connecting an existing card AND don't have a QR yet
+    if (!connectingConnectionId || connectionQrCodes[connectingConnectionId]) return;
+    // Don't activate if this is part of the "Nova Conexão" flow (handled by the effect above)
+    if (newConnId && connectingConnectionId === newConnId) return;
+
+    let pollInterval: NodeJS.Timeout | null = null;
+    let pollTimeout: NodeJS.Timeout | null = null;
+
+    const pollExistingConnQr = async () => {
+      try {
+        const response = await apiRequest("GET", "/api/whatsapp/connections");
+        const connections = await response.json();
+        const target = connections.find((c: any) => c.id === connectingConnectionId);
+        if (target?.qrCode && !connectionQrCodes[connectingConnectionId]) {
+          console.log("[EXISTING CONN QR POLL] QR Code loaded from DB fallback for", connectingConnectionId);
+          setConnectionQrCodes(prev => ({ ...prev, [connectingConnectionId!]: target.qrCode }));
+          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        } else if (target?.isConnected) {
+          // Already connected, stop polling
+          console.log("[EXISTING CONN QR POLL] Connection already connected:", connectingConnectionId);
+          setConnectingConnectionId(null);
+          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        }
+      } catch (err) {
+        console.error("[EXISTING CONN QR POLL] Error:", err);
+      }
+    };
+
+    // Poll every 3 seconds
+    pollInterval = setInterval(pollExistingConnQr, 3000);
+    // Also do an immediate check
+    pollExistingConnQr();
+    // Stop after 90 seconds
+    pollTimeout = setTimeout(() => {
+      if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+      setConnectingConnectionId(null);
+    }, 90000);
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (pollTimeout) clearTimeout(pollTimeout);
+    };
+  }, [connectingConnectionId, connectionQrCodes, newConnId]);
+
   useEffect(() => {
     let socket: WebSocket | null = null;
     let reconnectTimer: NodeJS.Timeout | null = null;
