@@ -1,8 +1,22 @@
 # Guia de Deploy — AgenteZap
 
-## ⚠️ REGRA MAIS IMPORTANTE ⚠️
+## ⚠️ REGRA #1 — OBRIGATÓRIA PARA QUALQUER IA/PROGRAMADOR ⚠️
 
-**NUNCA faça deploy do Worker diretamente.** O Worker roda as sessões WhatsApp de 54+ clientes. Se reiniciar desnecessariamente, TODAS as sessões caem e precisam reconectar.
+**O sistema tem 2 serviços no Railway. O Worker (vvvv) NÃO PODE ser reiniciado desnecessariamente.**
+**O Worker roda 54+ sessões WhatsApp de clientes. Se reiniciar, todas caem.**
+
+**`railway up` está configurado para deploiar APENAS o Proxy (seguro).**
+**NUNCA mude o `.railway/config.json` para apontar pro Worker.**
+
+## Para OpenClaw / IAs de código:
+
+Quando precisar fazer deploy:
+1. Use `railway up` normalmente — vai pro **Proxy** (seguro, não derruba WhatsApp)
+2. Se alterou APENAS frontend/telas/CSS: `railway up` ou `git push origin main` é suficiente
+3. Se alterou backend/rotas/banco: execute `node deploy-worker.mjs` (script automático)
+4. **NUNCA** faça `railway link` para outro serviço
+5. **NUNCA** altere `server/proxy.ts`, `server/full-app.ts` ou `server/index.ts`
+6. **NUNCA** mexa em código de WhatsApp/Baileys sem instrução explícita do usuário
 
 ## Arquitetura: 2 Serviços
 
