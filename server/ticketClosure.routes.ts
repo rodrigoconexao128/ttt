@@ -3,6 +3,7 @@ import { db } from "./db";
 import { ticketClosureLogs } from "../shared/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "./storage";
+import { isAuthenticated } from "./supabaseAuth";
 
 // Helper to get userId from authenticated request
 function getUserId(req: any): string {
@@ -17,7 +18,7 @@ export function registerTicketClosureRoutes(app: Express): void {
   console.log("🔒 [Fase 4.2] Registrando rotas de encerramento de chamados...");
 
   // POST - Encerrar chamado (fechar ticket, manter histórico para auditoria)
-  app.post("/api/conversations/:conversationId/close-ticket", async (req: any, res) => {
+  app.post("/api/conversations/:conversationId/close-ticket", isAuthenticated, async (req: any, res) => {
     try {
       const { conversationId } = req.params;
       const userId = getUserId(req);
@@ -64,9 +65,22 @@ export function registerTicketClosureRoutes(app: Express): void {
       // Disable agent for this conversation
       await storage.disableAgentForConversation(conversationId);
 
-      // Cancel any pending follow-ups
-      const { cancelFollowUp } = await import("./userFollowUpService");
-      cancelFollowUp(conversation.contactNumber);
+      // Cancel any pending follow-ups (graceful - ignore if function not available)
+      try {
+        const followUpModule = await import("./userFollowUpService");
+        if (followUpModule.cancelFollowUp && typeof followUpModule.cancelFollowUp === 'function') {
+          followUpModule.cancelFollowUp(conversation.contactNumber);
+        } else {
+          // Use service method to cancel follow-up if available
+          const { userFollowUpService } = followUpModule;
+          if (userFollowUpService && typeof userFollowUpService.cancelFollowUp === 'function') {
+            userFollowUpService.cancelFollowUp(conversation.contactNumber);
+          }
+        }
+      } catch(e) {
+        // Non-fatal: follow-up cancellation failed
+        console.warn('[Ticket Close] Could not cancel follow-up:', e.message);
+      }
 
       res.json({ 
         success: true, 
@@ -85,7 +99,7 @@ export function registerTicketClosureRoutes(app: Express): void {
   });
 
   // POST - Reabrir chamado (criar nova conversa com mesmo contato)
-  app.post("/api/conversations/:conversationId/reopen-ticket", async (req: any, res) => {
+  app.post("/api/conversations/:conversationId/reopen-ticket", isAuthenticated, async (req: any, res) => {
     try {
       const { conversationId } = req.params;
       const userId = getUserId(req);
@@ -155,7 +169,7 @@ export function registerTicketClosureRoutes(app: Express): void {
   });
 
   // GET - Buscar histórico de encerramento de um chamado
-  app.get("/api/conversations/:conversationId/closure-logs", async (req: any, res) => {
+  app.get("/api/conversations/:conversationId/closure-logs", isAuthenticated, async (req: any, res) => {
     try {
       const { conversationId } = req.params;
       const userId = getUserId(req);

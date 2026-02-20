@@ -3598,11 +3598,17 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       // If user is a reseller client, return reseller branding
 
-      if (user.resellerId) {
+      let resellerId = user.resellerId;
+      if (!resellerId) {
+        const resellerClient = await storage.getResellerClientByUserId(userId);
+        if (resellerClient) resellerId = resellerClient.resellerId;
+      }
 
-        const reseller = await storage.getReseller(user.resellerId);
+      if (resellerId) {
 
-        if (reseller && reseller.isActive) {
+        const reseller = await storage.getReseller(resellerId);
+
+        if (isResellerOperationalForClient(reseller)) {
 
           return res.json({
 
@@ -4310,6 +4316,202 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
   });
 
 
+
+  // ==================== BULK CONVERSATION ACTIONS (must be BEFORE :id routes) ====================
+// POST - A��es em massa nas conversas (marcar como lida)
+  app.post("/api/conversations/bulk/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+
+      if (conversationIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa obrigat�rios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp n�o conectado" });
+      }
+
+      const updated = await db
+        .update(conversationsTable)
+        .set({ unreadCount: 0, updatedAt: new Date() })
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ))
+        .returning({ id: conversationsTable.id });
+
+      res.json({ updated: updated.length });
+    } catch (error) {
+      console.error("Error marking conversations as read:", error);
+      res.status(500).json({ message: "Failed to mark conversations as read" });
+    }
+  });
+
+  // POST - A��es em massa nas conversas (arquivar/desarquivar)
+  app.post("/api/conversations/bulk/archive", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+      const archived = req.body?.archived === false ? false : true;
+
+      if (conversationIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa obrigat�rios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp n�o conectado" });
+      }
+
+      const updated = await db
+        .update(conversationsTable)
+        .set({ isArchived: archived, updatedAt: new Date() })
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ))
+        .returning({ id: conversationsTable.id });
+
+      res.json({ updated: updated.length });
+    } catch (error) {
+      console.error("Error archiving conversations:", error);
+      res.status(500).json({ message: "Failed to archive conversations" });
+    }
+  });
+
+  // POST - A��es em massa nas conversas (etiquetar)
+  app.post("/api/conversations/bulk/tags", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+      const tagIds = Array.isArray(req.body?.tagIds)
+        ? req.body.tagIds.filter(Boolean)
+        : [];
+
+      if (conversationIds.length === 0 || tagIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa e etiquetas s�o obrigat�rios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp n�o conectado" });
+      }
+
+      const validConversations = await db
+        .select({ id: conversationsTable.id })
+        .from(conversationsTable)
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ));
+
+      const validIds = validConversations.map(conv => conv.id);
+      if (validIds.length === 0) {
+        return res.json({ updated: 0 });
+      }
+
+      await storage.addTagsToConversations(validIds, tagIds);
+      res.json({ updated: validIds.length });
+    } catch (error) {
+      console.error("Error tagging conversations:", error);
+      res.status(500).json({ message: "Failed to tag conversations" });
+    }
+  });
+
+  // POST - Ações em massa nas conversas (ativar IA)
+  app.post("/api/conversations/bulk/ai-enable", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+
+      if (conversationIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa obrigatórios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp não conectado" });
+      }
+
+      // Verificar quais conversas pertencem à conexão do usuário
+      const validConversations = await db
+        .select({ id: conversationsTable.id })
+        .from(conversationsTable)
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ));
+
+      const validIds = validConversations.map(conv => conv.id);
+      if (validIds.length === 0) {
+        return res.json({ updated: 0 });
+      }
+
+      // Ativar IA para cada conversa
+      for (const conversationId of validIds) {
+        await storage.enableAgentForConversation(conversationId);
+      }
+
+      res.json({ updated: validIds.length });
+    } catch (error) {
+      console.error("Error enabling AI for conversations:", error);
+      res.status(500).json({ message: "Failed to enable AI for conversations" });
+    }
+  });
+
+  // POST - Ações em massa nas conversas (desativar IA)
+  app.post("/api/conversations/bulk/ai-disable", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const conversationIds = Array.isArray(req.body?.conversationIds)
+        ? req.body.conversationIds.filter(Boolean)
+        : [];
+
+      if (conversationIds.length === 0) {
+        return res.status(400).json({ message: "IDs de conversa obrigatórios" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.status(403).json({ message: "WhatsApp não conectado" });
+      }
+
+      // Verificar quais conversas pertencem à conexão do usuário
+      const validConversations = await db
+        .select({ id: conversationsTable.id })
+        .from(conversationsTable)
+        .where(and(
+          eq(conversationsTable.connectionId, connection.id),
+          inArray(conversationsTable.id, conversationIds)
+        ));
+
+      const validIds = validConversations.map(conv => conv.id);
+      if (validIds.length === 0) {
+        return res.json({ updated: 0 });
+      }
+
+      // Desativar IA para cada conversa
+      for (const conversationId of validIds) {
+        await storage.disableAgentForConversation(conversationId, null); // null = sem auto-reativação
+      }
+
+      res.json({ updated: validIds.length });
+    } catch (error) {
+      console.error("Error disabling AI for conversations:", error);
+      res.status(500).json({ message: "Failed to disable AI for conversations" });
+    }
+  });
+  
 
   // ?? POST - Marcar conversa como lida explicitamente
 
@@ -5094,203 +5296,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     }
 
   });
-
-
-
-  // POST - A��es em massa nas conversas (marcar como lida)
-  app.post("/api/conversations/bulk/read", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = getUserId(req);
-      const conversationIds = Array.isArray(req.body?.conversationIds)
-        ? req.body.conversationIds.filter(Boolean)
-        : [];
-
-      if (conversationIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa obrigat�rios" });
-      }
-
-      const connection = await storage.getConnectionByUserId(userId);
-      if (!connection) {
-        return res.status(403).json({ message: "WhatsApp n�o conectado" });
-      }
-
-      const updated = await db
-        .update(conversationsTable)
-        .set({ unreadCount: 0, updatedAt: new Date() })
-        .where(and(
-          eq(conversationsTable.connectionId, connection.id),
-          inArray(conversationsTable.id, conversationIds)
-        ))
-        .returning({ id: conversationsTable.id });
-
-      res.json({ updated: updated.length });
-    } catch (error) {
-      console.error("Error marking conversations as read:", error);
-      res.status(500).json({ message: "Failed to mark conversations as read" });
-    }
-  });
-
-  // POST - A��es em massa nas conversas (arquivar/desarquivar)
-  app.post("/api/conversations/bulk/archive", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = getUserId(req);
-      const conversationIds = Array.isArray(req.body?.conversationIds)
-        ? req.body.conversationIds.filter(Boolean)
-        : [];
-      const archived = req.body?.archived === false ? false : true;
-
-      if (conversationIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa obrigat�rios" });
-      }
-
-      const connection = await storage.getConnectionByUserId(userId);
-      if (!connection) {
-        return res.status(403).json({ message: "WhatsApp n�o conectado" });
-      }
-
-      const updated = await db
-        .update(conversationsTable)
-        .set({ isArchived: archived, updatedAt: new Date() })
-        .where(and(
-          eq(conversationsTable.connectionId, connection.id),
-          inArray(conversationsTable.id, conversationIds)
-        ))
-        .returning({ id: conversationsTable.id });
-
-      res.json({ updated: updated.length });
-    } catch (error) {
-      console.error("Error archiving conversations:", error);
-      res.status(500).json({ message: "Failed to archive conversations" });
-    }
-  });
-
-  // POST - A��es em massa nas conversas (etiquetar)
-  app.post("/api/conversations/bulk/tags", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = getUserId(req);
-      const conversationIds = Array.isArray(req.body?.conversationIds)
-        ? req.body.conversationIds.filter(Boolean)
-        : [];
-      const tagIds = Array.isArray(req.body?.tagIds)
-        ? req.body.tagIds.filter(Boolean)
-        : [];
-
-      if (conversationIds.length === 0 || tagIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa e etiquetas s�o obrigat�rios" });
-      }
-
-      const connection = await storage.getConnectionByUserId(userId);
-      if (!connection) {
-        return res.status(403).json({ message: "WhatsApp n�o conectado" });
-      }
-
-      const validConversations = await db
-        .select({ id: conversationsTable.id })
-        .from(conversationsTable)
-        .where(and(
-          eq(conversationsTable.connectionId, connection.id),
-          inArray(conversationsTable.id, conversationIds)
-        ));
-
-      const validIds = validConversations.map(conv => conv.id);
-      if (validIds.length === 0) {
-        return res.json({ updated: 0 });
-      }
-
-      await storage.addTagsToConversations(validIds, tagIds);
-      res.json({ updated: validIds.length });
-    } catch (error) {
-      console.error("Error tagging conversations:", error);
-      res.status(500).json({ message: "Failed to tag conversations" });
-    }
-  });
-
-  // POST - Ações em massa nas conversas (ativar IA)
-  app.post("/api/conversations/bulk/ai-enable", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = getUserId(req);
-      const conversationIds = Array.isArray(req.body?.conversationIds)
-        ? req.body.conversationIds.filter(Boolean)
-        : [];
-
-      if (conversationIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa obrigatórios" });
-      }
-
-      const connection = await storage.getConnectionByUserId(userId);
-      if (!connection) {
-        return res.status(403).json({ message: "WhatsApp não conectado" });
-      }
-
-      // Verificar quais conversas pertencem à conexão do usuário
-      const validConversations = await db
-        .select({ id: conversationsTable.id })
-        .from(conversationsTable)
-        .where(and(
-          eq(conversationsTable.connectionId, connection.id),
-          inArray(conversationsTable.id, conversationIds)
-        ));
-
-      const validIds = validConversations.map(conv => conv.id);
-      if (validIds.length === 0) {
-        return res.json({ updated: 0 });
-      }
-
-      // Ativar IA para cada conversa
-      for (const conversationId of validIds) {
-        await storage.enableAgentForConversation(conversationId);
-      }
-
-      res.json({ updated: validIds.length });
-    } catch (error) {
-      console.error("Error enabling AI for conversations:", error);
-      res.status(500).json({ message: "Failed to enable AI for conversations" });
-    }
-  });
-
-  // POST - Ações em massa nas conversas (desativar IA)
-  app.post("/api/conversations/bulk/ai-disable", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = getUserId(req);
-      const conversationIds = Array.isArray(req.body?.conversationIds)
-        ? req.body.conversationIds.filter(Boolean)
-        : [];
-
-      if (conversationIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa obrigatórios" });
-      }
-
-      const connection = await storage.getConnectionByUserId(userId);
-      if (!connection) {
-        return res.status(403).json({ message: "WhatsApp não conectado" });
-      }
-
-      // Verificar quais conversas pertencem à conexão do usuário
-      const validConversations = await db
-        .select({ id: conversationsTable.id })
-        .from(conversationsTable)
-        .where(and(
-          eq(conversationsTable.connectionId, connection.id),
-          inArray(conversationsTable.id, conversationIds)
-        ));
-
-      const validIds = validConversations.map(conv => conv.id);
-      if (validIds.length === 0) {
-        return res.json({ updated: 0 });
-      }
-
-      // Desativar IA para cada conversa
-      for (const conversationId of validIds) {
-        await storage.disableAgentForConversation(conversationId, null); // null = sem auto-reativação
-      }
-
-      res.json({ updated: validIds.length });
-    } catch (error) {
-      console.error("Error disabling AI for conversations:", error);
-      res.status(500).json({ message: "Failed to disable AI for conversations" });
-    }
-  });
-  // ==================== CUSTOM FIELDS - CAMPOS PERSONALIZADOS ====================
+// ==================== CUSTOM FIELDS - CAMPOS PERSONALIZADOS ====================
 
   // Similar ao Digisac: Nome, Empresa, Email, CPF/CNPJ, Endereço, etc.
 
@@ -12073,6 +12079,58 @@ ${config.ai_instructions || ''}
 
   // ==================== PAYMENT RECEIPTS ROUTES ====================
 
+  const isResellerOperationalForClient = (reseller: any) => {
+    if (!reseller) return false;
+    const status = String(reseller.resellerStatus || "active").toLowerCase();
+    return status !== "blocked" && status !== "cancelled";
+  };
+
+  const reactivateResellerAndClients = async (resellerId: string) => {
+    await storage.updateReseller(resellerId, {
+      resellerStatus: "active",
+      isActive: true,
+    });
+
+    const clients = await storage.getResellerClients(resellerId);
+    let clientsActivated = 0;
+    const now = new Date();
+
+    for (const client of clients) {
+      if (client.status === "cancelled") {
+        continue;
+      }
+
+      const paidUntilBase = client.saasPaidUntil ? new Date(client.saasPaidUntil) : now;
+      const baseDate = paidUntilBase < now ? now : paidUntilBase;
+      const newExpiry = new Date(baseDate);
+      newExpiry.setDate(newExpiry.getDate() + 30);
+
+      await storage.updateResellerClient(client.id, {
+        status: "active",
+        saasStatus: "active",
+        saasPaidUntil: newExpiry,
+        nextPaymentDate: newExpiry,
+        suspendedAt: null,
+      });
+
+      await supabase
+        .from("subscriptions")
+        .update({
+          status: "active",
+          data_fim: newExpiry.toISOString(),
+          next_payment_date: newExpiry.toISOString(),
+          pending_receipt: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", client.userId)
+        .in("status", ["suspended", "overdue", "pending", "pending_pix"]);
+
+      clientsActivated++;
+    }
+
+    return clientsActivated;
+  };
+
   // Upload de comprovante de pagamento PIX
   app.post("/api/payment-receipts/upload", isAuthenticated, upload.single("receipt"), async (req: any, res) => {
     try {
@@ -12683,37 +12741,11 @@ ${config.ai_instructions || ''}
                   });
                   console.log(`[ADMIN APPROVE] ✅ Fatura ${invoiceId} marcada como paga`);
 
-                  // Buscar o revendedor e ativar
+                    // Buscar o revendedor e ativar
                   const invoice = await storage.getResellerInvoice(invoiceId);
                   if (invoice) {
-                    await storage.updateReseller(invoice.resellerId, { resellerStatus: 'active' });
+                    const clientsActivated = await reactivateResellerAndClients(invoice.resellerId);
                     console.log(`[ADMIN APPROVE] ✅ Revendedor ${invoice.resellerId} ativado`);
-
-                    // Reativar clientes suspensos do revendedor
-                    const clients = await storage.getResellerClients(invoice.resellerId);
-                    let clientsActivated = 0;
-                    for (const client of clients) {
-                      if (client.status === 'suspended' || client.saasStatus === 'suspended') {
-                        const newExpiry = new Date();
-                        newExpiry.setDate(newExpiry.getDate() + 30);
-                        await storage.updateResellerClient(client.id, {
-                          status: 'active',
-                          saasStatus: 'active',
-                          saasPaidUntil: newExpiry,
-                        });
-                        // Reativar assinatura do usuário
-                        await supabase
-                          .from('subscriptions')
-                          .update({
-                            status: 'active',
-                            data_fim: newExpiry.toISOString(),
-                            updated_at: new Date().toISOString(),
-                          })
-                          .eq('user_id', client.userId)
-                          .in('status', ['suspended', 'overdue', 'pending']);
-                        clientsActivated++;
-                      }
-                    }
                     console.log(`[ADMIN APPROVE] ✅ ${clientsActivated} clientes reativados`);
                   }
                 } catch (invoiceError: any) {
@@ -24339,6 +24371,53 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscriptionWithPlan) {
 
+        if (resellerInfo?.isResellerClient) {
+          const nextDate = resellerInfo.nextPaymentDate ? new Date(resellerInfo.nextPaymentDate) : null;
+          const daysRemainingVirtual = nextDate
+            ? Math.max(0, Math.ceil((nextDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+            : 0;
+
+          const virtualNeedsPayment = !resellerInfo.isFreeClient && (
+            resellerInfo.status !== "active" ||
+            (nextDate ? nextDate.getTime() <= Date.now() : false)
+          );
+
+          return res.json({
+            subscription: {
+              id: `reseller_${resellerInfo.clientId}`,
+              status: resellerInfo.status || "active",
+              dataInicio: resellerInfo.activatedAt || new Date().toISOString(),
+              dataFim: resellerInfo.nextPaymentDate || resellerInfo.activatedAt || new Date().toISOString(),
+              nextPaymentDate: resellerInfo.nextPaymentDate || null,
+              couponCode: null,
+              couponPrice: resellerInfo.clientPrice || null,
+              daysRemaining: daysRemainingVirtual,
+              needsPayment: virtualNeedsPayment,
+              payerEmail: null,
+              paymentMethod: "reseller_manual",
+              mpSubscriptionId: null,
+              cardLastFourDigits: null,
+              cardBrand: null,
+            },
+            plan: {
+              id: "reseller_plan",
+              nome: "Plano Revenda",
+              valor: resellerInfo.clientPrice || "0",
+              tipo: "revenda_cliente",
+              creditos: 0,
+              descricao: `Gerenciado por ${resellerInfo.reseller?.companyName || "Revendedor"}`,
+            },
+            payments: [],
+            stats: {
+              totalPaid: 0,
+              totalPayments: 0,
+              approvedPayments: 0,
+              failedPayments: 0,
+            },
+            resellerInfo,
+          });
+        }
+
         // Retornar resellerInfo mesmo sem subscription (cliente de revenda sem subscription tradicional)
 
         return res.json({
@@ -24461,19 +24540,32 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      const daysRemaining = subscription?.dataFim
+      const resellerNextPaymentDate = resellerInfo?.nextPaymentDate
+        ? new Date(resellerInfo.nextPaymentDate)
+        : null;
 
-        ? Math.ceil((new Date(subscription.dataFim).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-
-        : 0;
+      const daysRemaining = resellerInfo?.isResellerClient
+        ? (resellerNextPaymentDate
+            ? Math.ceil((resellerNextPaymentDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+            : 0)
+        : (subscription?.dataFim
+            ? Math.ceil((new Date(subscription.dataFim).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+            : 0);
 
 
 
       // Check if needs to pay (PIX pending or renewal due)
 
-      const needsPayment = subscription?.status === "pending_pix" ||
+      const resellerNeedsPayment = !!resellerInfo?.isResellerClient &&
+        !resellerInfo?.isFreeClient &&
+        (
+          resellerInfo?.status !== "active" ||
+          (resellerNextPaymentDate ? resellerNextPaymentDate.getTime() <= Date.now() : false)
+        );
 
-        (subscription?.status === "active" && daysRemaining <= 5);
+      const needsPayment = resellerInfo?.isResellerClient
+        ? resellerNeedsPayment
+        : (subscription?.status === "pending_pix" || (subscription?.status === "active" && daysRemaining <= 5));
 
 
 
@@ -24542,9 +24634,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           needsPayment,
 
-          // Se não tem nextPaymentDate definido, usa dataFim
-
-          nextPaymentDate: subscription.nextPaymentDate || subscription.dataFim,
+          // Se cliente de revenda, prioriza vencimento da revenda
+          nextPaymentDate: resellerInfo?.nextPaymentDate || subscription.nextPaymentDate || subscription.dataFim,
 
           // Info do cartão
 
@@ -43965,7 +44056,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const reseller = await storage.getReseller(resellerId);
 
-      if (!reseller || !reseller.isActive) {
+      if (!isResellerOperationalForClient(reseller)) {
 
         return res.json({ isResellerClient: false });
 
@@ -44068,10 +44159,10 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       const userId = getUserId(req);
 
       const user = await storage.getUser(userId);
+      const resellerClient = await storage.getResellerClientByUserId(userId);
+      const resellerId = user?.resellerId || resellerClient?.resellerId;
 
-
-
-      if (!user || !user.resellerId) {
+      if (!user || !resellerId) {
 
         return res.status(403).json({ message: "Apenas clientes de revenda podem usar esta rota" });
 
@@ -44081,17 +44172,15 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       // Buscar dados do revendedor e cliente
 
-      const reseller = await storage.getReseller(user.resellerId);
+      const reseller = await storage.getReseller(resellerId);
 
-      if (!reseller || !reseller.isActive) {
+      if (!isResellerOperationalForClient(reseller)) {
 
         return res.status(403).json({ message: "Revendedor inativo" });
 
       }
 
 
-
-      const resellerClient = await storage.getResellerClientByUserId(userId);
 
       if (!resellerClient) {
 
@@ -45781,6 +45870,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
+      // Pagamento manual de fatura de revendedor (não existe no Mercado Pago)
+      if (invoice.mpPaymentId.startsWith('reseller_invoice_')) {
+        return res.json({ status: invoice.status });
+      }
+
 
 
       // Verificar status no Mercado Pago
@@ -45817,9 +45911,8 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-        // Atualizar status do revendedor
-
-        await storage.updateReseller(reseller.id, { resellerStatus: 'active' });
+        // Atualizar status do revendedor e reativar clientes
+        await reactivateResellerAndClients(reseller.id);
 
 
 
@@ -45919,9 +46012,8 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Atualizar status do revendedor
-
-      await storage.updateReseller(invoice.resellerId, { resellerStatus: 'active' });
+      // Atualizar status do revendedor e reativar clientes
+      await reactivateResellerAndClients(invoice.resellerId);
 
 
 
@@ -45943,6 +46035,132 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
     }
 
+  });
+
+
+
+  /**
+
+   * Listar faturas de revendedores (Admin)
+
+   * GET /api/admin/reseller-invoices
+
+   */
+  app.get("/api/admin/reseller-invoices", isAdmin, async (req: any, res) => {
+    try {
+      const status = String(req.query.status || "pending");
+
+      let query = supabase
+        .from("reseller_invoices")
+        .select("*")
+        .order("due_date", { ascending: true });
+
+      if (status !== "all") {
+        query = query.eq("status", status);
+      }
+
+      const { data: invoices, error } = await query;
+      if (error) throw error;
+
+      const resellerIds = [...new Set((invoices || []).map((invoice: any) => invoice.reseller_id).filter(Boolean))];
+
+      let resellersMap: Record<string, any> = {};
+      if (resellerIds.length > 0) {
+        const { data: resellerRows, error: resellerError } = await supabase
+          .from("resellers")
+          .select("id, company_name, user_id")
+          .in("id", resellerIds);
+        if (resellerError) throw resellerError;
+
+        const userIds = [...new Set((resellerRows || []).map((r: any) => r.user_id).filter(Boolean))];
+        let usersMap: Record<string, any> = {};
+
+        if (userIds.length > 0) {
+          const { data: usersRows, error: usersError } = await supabase
+            .from("users")
+            .select("id, name, email")
+            .in("id", userIds);
+          if (usersError) throw usersError;
+          usersMap = (usersRows || []).reduce((acc: Record<string, any>, user: any) => {
+            acc[user.id] = user;
+            return acc;
+          }, {});
+        }
+
+        resellersMap = (resellerRows || []).reduce((acc: Record<string, any>, reseller: any) => {
+          acc[reseller.id] = {
+            id: reseller.id,
+            companyName: reseller.company_name,
+            user: usersMap[reseller.user_id] || null,
+          };
+          return acc;
+        }, {});
+      }
+
+      const enriched = (invoices || []).map((invoice: any) => ({
+        id: invoice.id,
+        resellerId: invoice.reseller_id,
+        referenceMonth: invoice.reference_month,
+        dueDate: invoice.due_date,
+        activeClients: invoice.active_clients,
+        unitPrice: invoice.unit_price,
+        totalAmount: invoice.total_amount,
+        status: invoice.status,
+        paymentMethod: invoice.payment_method,
+        mpPaymentId: invoice.mp_payment_id,
+        paidAt: invoice.paid_at,
+        createdAt: invoice.created_at,
+        reseller: resellersMap[invoice.reseller_id] || null,
+      }));
+
+      res.json({ invoices: enriched, total: enriched.length });
+    } catch (error: any) {
+      console.error("Error listing reseller invoices for admin:", error);
+      res.status(500).json({ message: "Erro ao listar faturas de revendedores" });
+    }
+  });
+
+
+
+  /**
+
+   * Marcar fatura de revendedor como paga (Admin)
+
+   * POST /api/admin/reseller-invoices/:invoiceId/mark-paid
+
+   */
+  app.post("/api/admin/reseller-invoices/:invoiceId/mark-paid", isAdmin, async (req: any, res) => {
+    try {
+      const invoiceId = parseInt(req.params.invoiceId);
+      const paymentMethod = req.body?.paymentMethod || "manual_admin";
+
+      const invoice = await storage.getResellerInvoice(invoiceId);
+      if (!invoice) {
+        return res.status(404).json({ message: "Fatura não encontrada" });
+      }
+
+      if (invoice.status === "paid") {
+        return res.status(400).json({ message: "Esta fatura já foi paga" });
+      }
+
+      await storage.updateResellerInvoice(invoiceId, {
+        status: "paid",
+        paymentMethod,
+        paidAt: new Date(),
+      });
+
+      const clientsActivated = await reactivateResellerAndClients(invoice.resellerId);
+
+      res.json({
+        message: "Fatura marcada como paga com sucesso",
+        status: "paid",
+        paidAt: new Date(),
+        clientsActivated,
+      });
+    } catch (error: any) {
+      console.error("Error marking reseller invoice as paid (admin):", error);
+      res.status(500).json({ message: "Erro ao marcar fatura como paga" });
+    }
   });
 
 

@@ -45,14 +45,18 @@ export default function MessageScheduler({ conversation, open, onOpenChange }: M
 
   // Buscar mensagens agendadas
   const { data: scheduledMessages = [], refetch } = useQuery<ScheduledMessage[]>({
-    queryKey: ["/api/admin/followup/conversation", conversation?.id, "scheduled-messages"],
+    queryKey: ["/api/conversations", conversation?.id, "scheduled-messages"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/conversations/${conversation?.id}/scheduled-messages`);
+      return res.json();
+    },
     enabled: open && !!conversation?.id,
   });
 
   // Mutation para agendar mensagem
   const scheduleMutation = useMutation({
     mutationFn: async (data: { scheduledFor: string; text: string; useAI: boolean; note?: string }) => {
-      return await apiRequest("POST", `/api/admin/followup/conversation/${conversation?.id}/schedule-message`, data);
+      return await apiRequest("POST", `/api/conversations/${conversation?.id}/schedule-message`, data);
     },
     onSuccess: () => {
       toast({
@@ -78,7 +82,7 @@ export default function MessageScheduler({ conversation, open, onOpenChange }: M
   // Mutation para cancelar mensagem
   const cancelMutation = useMutation({
     mutationFn: async (messageId: string) => {
-      return await apiRequest("DELETE", `/api/admin/followup/conversation/${conversation?.id}/scheduled-messages/${messageId}`);
+      return await apiRequest("DELETE", `/api/conversations/${conversation?.id}/scheduled-messages/${messageId}`);
     },
     onSuccess: () => {
       toast({
@@ -109,7 +113,7 @@ export default function MessageScheduler({ conversation, open, onOpenChange }: M
 
     setIsGenerating(true);
     try {
-      const response = await apiRequest("POST", `/api/ai/generate-message`, {
+      const response = await apiRequest("POST", `/api/user/ai/generate-message`, {
         conversationId: conversation?.id,
         baseMessage: messageText,
         context: "Agendamento de mensagem",

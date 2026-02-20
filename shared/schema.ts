@@ -3602,3 +3602,27 @@ export const connectionMemberSchema = z.object({
   canRespond: z.boolean().default(true),
   canManage: z.boolean().default(false),
 });
+
+// ==================== MENSAGENS AGENDADAS POR USUÁRIO ====================
+// Tabela para armazenar mensagens que o usuário agendou para envio futuro
+export const conversationScheduledMessages = pgTable("conversation_scheduled_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  contactNumber: text("contact_number").notNull(),
+  text: text("text").notNull(),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  useAI: boolean("use_ai").default(false),
+  note: text("note"),
+  status: text("status").notNull().default('scheduled'), // scheduled, sent, failed, cancelled
+  createdAt: timestamp("created_at").defaultNow(),
+  executedAt: timestamp("executed_at"),
+  errorReason: text("error_reason"),
+}, (table) => [
+  index("idx_conv_sched_msgs_conv").on(table.conversationId),
+  index("idx_conv_sched_msgs_user").on(table.userId),
+  index("idx_conv_sched_msgs_status").on(table.status),
+]);
+
+export type ConversationScheduledMessage = typeof conversationScheduledMessages.$inferSelect;
+export type InsertConversationScheduledMessage = typeof conversationScheduledMessages.$inferInsert;

@@ -635,6 +635,7 @@ export default function MySubscription() {
   }
 
   const { subscription, plan, payments, stats, resellerInfo } = data || {};
+  const isResellerManaged = !!resellerInfo?.isResellerClient;
 
   // Tela padrão de "nenhuma assinatura" (mesma para todos)
   if (!subscription) {
@@ -934,7 +935,7 @@ export default function MySubscription() {
                     </div>
                     
                     {/* Se tem assinatura com cartão (e NÃO é cliente revendedor), cobrança é automática */}
-                    {hasCardSubscription ? (
+                    {hasCardSubscription && !isResellerManaged ? (
                       <div className="text-center">
                         <Badge variant="secondary" className="flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
@@ -944,11 +945,17 @@ export default function MySubscription() {
                     ) : (
                       /* Botão para abrir modal de pagamento (Cartão ou PIX) - igual para todos os clientes */
                       <Button
-                        onClick={() => setShowPaymentModal(true)}
+                        onClick={() => {
+                          if (isResellerManaged) {
+                            generatePixMutation.mutate(subscription.id);
+                          } else {
+                            setShowPaymentModal(true);
+                          }
+                        }}
                         className={isOverdue ? "bg-red-600 hover:bg-red-700" : ""}
                       >
                         <Wallet className="w-4 h-4 mr-2" />
-                        {isOverdue ? "Pagar Agora" : "Pagar Antecipado"}
+                        {isResellerManaged ? "Ver Dados PIX" : (isOverdue ? "Pagar Agora" : "Pagar Antecipado")}
                       </Button>
                     )}
                   </div>
@@ -1046,17 +1053,19 @@ export default function MySubscription() {
             
             {/* Botões de Ação */}
             <div className="w-full grid grid-cols-1 gap-2 mt-2 pt-2 border-t">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setLocation("/plans")}
-                className="w-full"
-              >
-                <ArrowRight className="w-4 h-4 mr-2" />
-                Alterar Plano
-              </Button>
+              {!isResellerManaged && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setLocation("/plans")}
+                  className="w-full"
+                >
+                  <ArrowRight className="w-4 h-4 mr-2" />
+                  Alterar Plano
+                </Button>
+              )}
               
-              {annualDiscountEnabled && subscription.status === "active" && plan?.tipo !== "anual" && (
+              {!isResellerManaged && annualDiscountEnabled && subscription.status === "active" && plan?.tipo !== "anual" && (
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -1071,7 +1080,8 @@ export default function MySubscription() {
               {/* Antecipar Pagamento - SÓ PARA PIX (sem assinatura de cartão) */}
               {subscription.status === "active" &&
                subscription.daysRemaining <= 30 &&
-               !subscription.mpSubscriptionId && (
+               !subscription.mpSubscriptionId &&
+               !isResellerManaged && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1607,15 +1617,17 @@ export default function MySubscription() {
       </Dialog>
 
       {/* Modal de Pagamento com opções de Cartão e PIX */}
-      <SubscribeModal
-        open={showPaymentModal}
-        onOpenChange={setShowPaymentModal}
-        subscriptionId={subscription?.id || null}
-        onSuccess={() => {
-          refetch();
-          setShowPaymentModal(false);
-        }}
-      />
+      {!isResellerManaged && (
+        <SubscribeModal
+          open={showPaymentModal}
+          onOpenChange={setShowPaymentModal}
+          subscriptionId={subscription?.id || null}
+          onSuccess={() => {
+            refetch();
+            setShowPaymentModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }

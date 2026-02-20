@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { isAdmin } from "./supabaseAuth";
+import { isAdmin, isAuthenticated } from "./supabaseAuth";
 import { db } from "./db";
 import { conversations, userFollowupLogs } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -82,6 +82,78 @@ export function registerAIRoutes(app: Express) {
       res.status(500).json({
         message: "Erro ao gerar mensagem com IA",
         error: error.message
+      });
+    }
+  });
+
+  /**
+   * POST /api/user/ai/generate-message
+   * Versão para usuários regulares autenticados (isAuthenticated)
+   */
+  app.post("/api/user/ai/generate-message", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const { conversationId, baseMessage, context } = req.body;
+
+      if (!baseMessage || typeof baseMessage !== 'string') {
+        return res.status(400).json({ message: "baseMessage (string) é obrigatório" });
+      }
+
+      let conversationContext = "";
+      if (conversationId) {
+        const conversation = await db.query.conversations.findFirst({
+          where: eq(conversations.id, conversationId)
+        });
+        if (conversation) {
+          conversationContext = `
+            Nome: ${conversation.contactName || 'Não informado'}
+            Telefone: ${conversation.contactNumber || 'Não informado'}
+            Última mensagem: ${conversation.lastMessageText || 'Nenhuma'}
+          `;
+        }
+      }
+
+      const fullContext = `
+        Contexto: ${context || 'Agendamento de mensagem'}
+        Informações do cliente:
+        ${conversationContext}
+        Mensagem base para melhoria:
+        ${baseMessage}
+      `;
+
+      const { MistralClient } = await import("./mistralClient");
+      const mistral = new MistralClient();
+
+      const response = await mistral.chat.completions.create({
+        model: "mistral-large-latest",
+        messages: [
+          {
+            role: "system",
+            content: "Você é um assistente de atendimento ao cliente profissional. Melhore a mensagem base para torná-la mais clara, educada e eficaz, mantendo o tom original. Seja conciso e direto."
+          },
+          {
+            role: "user",
+            content: fullContext
+          }
+        ],
+        max_tokens: 500,
+        temperature: 0.7
+      });
+
+      const generatedMessage = response.choices[0]?.message?.content || baseMessage;
+
+      res.json({
+        generatedMessage,
+        originalMessage: baseMessage,
+        model: "mistral-large-latest"
+      });
+
+    } catch (error: any) {
+      console.error("Erro ao gerar mensagem com IA (user):", error);
+      // Fallback: return original message if AI fails
+      res.json({
+        generatedMessage: req.body?.baseMessage || "",
+        originalMessage: req.body?.baseMessage || "",
+        model: "fallback"
       });
     }
   });

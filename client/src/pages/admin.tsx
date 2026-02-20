@@ -3357,11 +3357,36 @@ interface Reseller {
   clientCount?: number;
 }
 
+interface ResellerInvoiceAdmin {
+  id: number;
+  resellerId: string;
+  referenceMonth: string;
+  dueDate: string;
+  activeClients: number;
+  unitPrice: string;
+  totalAmount: string;
+  status: string;
+  paymentMethod?: string;
+  mpPaymentId?: string;
+  paidAt?: string;
+  createdAt: string;
+  reseller?: {
+    id: string;
+    companyName: string;
+    user?: {
+      id: string;
+      name?: string;
+      email?: string;
+    } | null;
+  } | null;
+}
+
 function ResellersManager() {
   const { toast } = useToast();
   const [selectedReseller, setSelectedReseller] = useState<Reseller | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("pending");
   const [makeResellerDialogOpen, setMakeResellerDialogOpen] = useState(false);
   const [selectedUserForReseller, setSelectedUserForReseller] = useState<string>("");
 
@@ -3373,6 +3398,37 @@ function ResellersManager() {
   // Buscar usuários para atribuir plano de revenda
   const { data: users } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
+  });
+
+  const { data: resellerInvoicesData, isLoading: isLoadingResellerInvoices, refetch: refetchResellerInvoices } = useQuery<{ invoices: ResellerInvoiceAdmin[]; total: number }>({
+    queryKey: ["/api/admin/reseller-invoices", invoiceStatusFilter],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/admin/reseller-invoices?status=${invoiceStatusFilter}`);
+      return response.json();
+    },
+  });
+
+  const markResellerInvoicePaidMutation = useMutation({
+    mutationFn: async (invoiceId: number) => {
+      const response = await apiRequest("POST", `/api/admin/reseller-invoices/${invoiceId}/mark-paid`, {
+        paymentMethod: "manual_admin",
+      });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/reseller-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/resellers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/payment-receipts"] });
+      toast({
+        title: "Fatura marcada como paga",
+        description: typeof data?.clientsActivated === "number"
+          ? `${data.clientsActivated} cliente(s) reativado(s).`
+          : "Revendedor e clientes reativados.",
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao marcar fatura como paga", description: error.message, variant: "destructive" });
+    },
   });
 
   // Mutation para ativar/desativar revendedor
@@ -3659,6 +3715,108 @@ function ResellersManager() {
                           )}
                         </Button>
                       </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Faturas dos Revendedores */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="h-4 w-4" />
+                Faturas de Revendedores
+              </CardTitle>
+              <CardDescription>
+                Marque faturas como pagas e reative clientes do revendedor automaticamente.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={invoiceStatusFilter} onValueChange={setInvoiceStatusFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendentes</SelectItem>
+                  <SelectItem value="overdue">Vencidas</SelectItem>
+                  <SelectItem value="paid">Pagas</SelectItem>
+                  <SelectItem value="all">Todas</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="icon" onClick={() => refetchResellerInvoices()}>
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoadingResellerInvoices ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Revendedor</TableHead>
+                  <TableHead>Mês</TableHead>
+                  <TableHead>Clientes</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(!resellerInvoicesData?.invoices || resellerInvoicesData.invoices.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      Nenhuma fatura encontrada
+                    </TableCell>
+                  </TableRow>
+                )}
+                {resellerInvoicesData?.invoices?.map((invoice) => (
+                  <TableRow key={invoice.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{invoice.reseller?.companyName || "Revendedor"}</p>
+                        <p className="text-xs text-muted-foreground">{invoice.reseller?.user?.email || "-"}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{invoice.referenceMonth}</TableCell>
+                    <TableCell>{invoice.activeClients || 0}</TableCell>
+                    <TableCell>{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('pt-BR') : '-'}</TableCell>
+                    <TableCell className="font-medium">R$ {Number(invoice.totalAmount || 0).toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Badge variant={invoice.status === 'paid' ? 'default' : (invoice.status === 'overdue' ? 'destructive' : 'secondary')}>
+                        {invoice.status === 'paid' ? 'Pago' : invoice.status === 'overdue' ? 'Vencida' : 'Pendente'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {invoice.status !== 'paid' ? (
+                        <Button
+                          size="sm"
+                          onClick={() => markResellerInvoicePaidMutation.mutate(invoice.id)}
+                          disabled={markResellerInvoicePaidMutation.isPending}
+                        >
+                          {markResellerInvoicePaidMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          ) : (
+                            <Check className="h-3 w-3 mr-1" />
+                          )}
+                          Marcar Pago
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          {invoice.paidAt ? `Pago em ${new Date(invoice.paidAt).toLocaleDateString('pt-BR')}` : 'Pago'}
+                        </span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -3,8 +3,9 @@ import { isAuthenticated } from "./supabaseAuth";
 import { userFollowUpService } from "./userFollowUpService";
 import { followupConfigSchema } from "@shared/schema";
 import { db } from "./db";
-import { conversations, userFollowupLogs } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { conversations, userFollowupLogs, conversationScheduledMessages } from "@shared/schema";
+import { eq, and, asc } from "drizzle-orm";
+import { storage } from "./storage";
 
 // ============================================================================
 // ROTAS DO FOLLOW-UP INTELIGENTE
@@ -327,6 +328,147 @@ export function registerFollowUpRoutes(app: Express) {
     } catch (error: any) {
       console.error("Erro ao reorganizar follow-ups:", error);
       res.status(500).json({ message: "Erro ao reorganizar follow-ups" });
+    }
+  });
+
+  // ==================== AGENDAMENTO DE MENSAGENS (USER) ====================
+
+  /**
+   * POST /api/conversations/:id/schedule-message
+   * Agendar mensagem para usuários regulares
+   */
+  app.post("/api/conversations/:id/schedule-message", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { id } = req.params;
+      const { scheduledFor, text, useAI, note } = req.body;
+
+      if (!scheduledFor) {
+        return res.status(400).json({ message: "scheduledFor (data/hora) é obrigatório" });
+      }
+      if (!text) {
+        return res.status(400).json({ message: "text é obrigatório" });
+      }
+
+      // Verify conversation ownership
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, id)
+      });
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      // Save to conversationScheduledMessages table
+      const log = await db.insert(conversationScheduledMessages).values({
+        conversationId: id,
+        userId,
+        contactNumber: conversation.contactNumber || "",
+        text,
+        scheduledFor: new Date(scheduledFor),
+        useAI: useAI || false,
+        note: note || null,
+        status: 'scheduled',
+        createdAt: new Date(),
+      }).returning();
+
+      res.json({
+        success: true,
+        messageId: log[0].id,
+        scheduledFor: log[0].scheduledFor,
+        text: log[0].text,
+        status: 'scheduled',
+        useAI: log[0].useAI,
+        note: log[0].note,
+        createdAt: log[0].createdAt,
+      });
+    } catch (error: any) {
+      console.error("Erro ao agendar mensagem:", error);
+      res.status(500).json({ message: "Erro ao agendar mensagem", error: error.message });
+    }
+  });
+
+  /**
+   * GET /api/conversations/:id/scheduled-messages
+   * Buscar mensagens agendadas de uma conversa (usuário regular)
+   */
+  app.get("/api/conversations/:id/scheduled-messages", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { id } = req.params;
+
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, id)
+      });
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      const messages = await db.query.conversationScheduledMessages.findMany({
+        where: and(
+          eq(conversationScheduledMessages.conversationId, id),
+          eq(conversationScheduledMessages.status, 'scheduled')
+        ),
+        orderBy: [asc(conversationScheduledMessages.scheduledFor)]
+      });
+
+      res.json(messages.map(m => ({
+        id: m.id,
+        text: m.text,
+        scheduledFor: m.scheduledFor,
+        useAI: m.useAI || false,
+        note: m.note,
+        status: m.status,
+        createdAt: m.createdAt,
+      })));
+    } catch (error: any) {
+      console.error("Erro ao buscar mensagens agendadas:", error);
+      res.status(500).json({ message: "Erro ao buscar mensagens agendadas" });
+    }
+  });
+
+  /**
+   * DELETE /api/conversations/:id/scheduled-messages/:messageId
+   * Cancelar mensagem agendada (usuário regular)
+   */
+  app.delete("/api/conversations/:id/scheduled-messages/:messageId", isAuthenticated, async (req: any, res: Response) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { id, messageId } = req.params;
+
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, id)
+      });
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection || conversation.connectionId !== connection.id) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      await db.update(conversationScheduledMessages)
+        .set({ status: 'cancelled' })
+        .where(and(
+          eq(conversationScheduledMessages.id, messageId),
+          eq(conversationScheduledMessages.conversationId, id),
+          eq(conversationScheduledMessages.userId, userId)
+        ));
+
+      res.json({ success: true, message: "Agendamento cancelado" });
+    } catch (error: any) {
+      console.error("Erro ao cancelar mensagem agendada:", error);
+      res.status(500).json({ message: "Erro ao cancelar agendamento" });
     }
   });
 
