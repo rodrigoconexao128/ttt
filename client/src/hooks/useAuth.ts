@@ -78,7 +78,7 @@ async function fetchUser(): Promise<User | null> {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // Timeout de 15s (mais tolerante para Proxy→Worker)
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // Timeout de 10s
 
     try {
       const response = await fetchWithAuth("/api/auth/user", {

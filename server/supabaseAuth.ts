@@ -117,18 +117,18 @@ export async function setupAuth(app: Express) {
 
       const token = authHeader.replace('Bearer ', '');
       
-      // Verificar token com Supabase
-      const { data: { user }, error } = await supabase.auth.getUser(token);
+      // 🚀 Verificar token com CACHE + deduplicação (evita chamada remota ao Supabase)
+      const verifiedUser = await verifyTokenCached(token);
       
-      if (error || !user) {
+      if (!verifiedUser) {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
       // Criar/atualizar usuário no banco de dados
-      await upsertUser(user);
+      await upsertUser({ id: verifiedUser.id, email: verifiedUser.email, user_metadata: {} });
 
       // Buscar usuário completo do banco de dados
-      const dbUser = await storage.getUser(user.id);
+      const dbUser = await storage.getUser(verifiedUser.id);
       
       if (!dbUser) {
         return res.status(404).json({ message: "User not found" });
@@ -333,6 +333,7 @@ export async function setupAuth(app: Express) {
 // =========================================================================
 // 🚀 CACHE DE VERIFICAÇÃO DE TOKEN - Evita chamada remota ao Supabase Auth
 // a cada request. O token JWT é cacheado por 5 minutos após verificação.
+// Inclui deduplicação de requests em voo (thundering herd protection).
 // =========================================================================
 interface CachedAuth {
   user: { id: string; email?: string };
@@ -340,6 +341,53 @@ interface CachedAuth {
 }
 const tokenCache = new Map<string, CachedAuth>();
 const TOKEN_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+// In-flight request deduplication: evita múltiplas chamadas simultâneas ao Supabase
+// para o mesmo token (thundering herd protection)
+const inflightVerifications = new Map<string, Promise<{ id: string; email?: string } | null>>();
+
+/**
+ * Verifica um token JWT com cache + deduplicação.
+ * - Cache hit: retorna imediatamente (0ms)
+ * - In-flight: aguarda a verificação em andamento
+ * - Cache miss: faz chamada remota ao Supabase e cacheia resultado
+ */
+async function verifyTokenCached(token: string): Promise<{ id: string; email?: string } | null> {
+  // 1. Cache hit — retorno instantâneo
+  const cached = tokenCache.get(token);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.user;
+  }
+
+  // 2. In-flight dedup — aguardar verificação já em andamento
+  const inflight = inflightVerifications.get(token);
+  if (inflight) {
+    return inflight;
+  }
+
+  // 3. Cache miss — fazer chamada remota (única)
+  const verificationPromise = (async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (!error && user) {
+        tokenCache.set(token, {
+          user: { id: user.id, email: user.email },
+          expiresAt: Date.now() + TOKEN_CACHE_TTL,
+        });
+        return { id: user.id, email: user.email };
+      }
+      return null;
+    } catch (e) {
+      console.error("[TOKEN_CACHE] Erro na verificação:", e);
+      return null;
+    } finally {
+      inflightVerifications.delete(token);
+    }
+  })();
+
+  inflightVerifications.set(token, verificationPromise);
+  return verificationPromise;
+}
 
 // Limpar entradas expiradas a cada 2 minutos
 setInterval(() => {
@@ -376,38 +424,17 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
 
     const token = authHeader.replace('Bearer ', '');
     
-    // 🚀 CACHE HIT: Verificar se o token já foi validado recentemente
-    const cached = tokenCache.get(token);
-    if (cached && cached.expiresAt > Date.now()) {
+    // 🚀 Verificar token com CACHE + deduplicação (evita chamada remota ao Supabase)
+    const verifiedUser = await verifyTokenCached(token);
+    
+    if (verifiedUser) {
       req.user = {
-        id: cached.user.id,
+        id: verifiedUser.id,
         claims: {
-          sub: cached.user.id,
-          email: cached.user.email,
+          sub: verifiedUser.id,
+          email: verifiedUser.email,
         }
       };
-      return next();
-    }
-    
-    // 🔐 CACHE MISS: Verificar token com Supabase (chamada remota)
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (!error && user) {
-      // Cachear resultado para evitar chamadas repetidas
-      tokenCache.set(token, {
-        user: { id: user.id, email: user.email },
-        expiresAt: Date.now() + TOKEN_CACHE_TTL,
-      });
-      
-      // Adicionar usuário ao request (compatível com código existente)
-      req.user = {
-        id: user.id, // Adicionar id diretamente para compatibilidade
-        claims: {
-          sub: user.id,
-          email: user.email,
-        }
-      };
-
       return next();
     }
 
