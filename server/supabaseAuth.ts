@@ -106,6 +106,10 @@ export async function setupAuth(app: Express) {
   });
 
   // Rota para obter usuário atual (compatível com o código existente)
+  // 🚀 OTIMIZADO: Cache de dados do usuário em memória para evitar DB queries repetidas
+  const userDataCache = new Map<string, { data: any; expiresAt: number }>();
+  const USER_CACHE_TTL = 2 * 60 * 1000; // 2 minutos
+
   app.get("/api/auth/user", async (req: any, res) => {
     try {
       // Verificar se há token de autenticação
@@ -117,23 +121,35 @@ export async function setupAuth(app: Express) {
 
       const token = authHeader.replace('Bearer ', '');
       
-      // 🚀 Verificar token com CACHE + deduplicação (evita chamada remota ao Supabase)
+      // 🚀 Decodificar JWT localmente (instantâneo, sem chamada remota)
       const verifiedUser = await verifyTokenCached(token);
       
       if (!verifiedUser) {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      // Criar/atualizar usuário no banco de dados
-      await upsertUser({ id: verifiedUser.id, email: verifiedUser.email, user_metadata: {} });
+      // 🚀 Cache de dados do usuário — evita DB query a cada request
+      const cached = userDataCache.get(verifiedUser.id);
+      if (cached && cached.expiresAt > Date.now()) {
+        return res.json(cached.data);
+      }
 
-      // Buscar usuário completo do banco de dados
+      // Cache miss — buscar do banco de dados
       const dbUser = await storage.getUser(verifiedUser.id);
       
       if (!dbUser) {
+        // Usuário não existe no DB — criar (primeiro login após signup pelo Supabase)
+        await upsertUser({ id: verifiedUser.id, email: verifiedUser.email, user_metadata: {} });
+        const newUser = await storage.getUser(verifiedUser.id);
+        if (newUser) {
+          userDataCache.set(verifiedUser.id, { data: newUser, expiresAt: Date.now() + USER_CACHE_TTL });
+          return res.json(newUser);
+        }
         return res.status(404).json({ message: "User not found" });
       }
 
+      // Cachear dados do usuário
+      userDataCache.set(verifiedUser.id, { data: dbUser, expiresAt: Date.now() + USER_CACHE_TTL });
       res.json(dbUser);
     } catch (error) {
       console.error("Erro ao obter usuário:", error);
