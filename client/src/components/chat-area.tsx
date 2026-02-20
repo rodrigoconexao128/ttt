@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+﻿import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -381,13 +381,18 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
         throw new Error("Conversa inválida");
       }
 
+      // Envia mensagem de encerramento
       await apiRequest("POST", "/api/messages/send", {
         conversationId,
         text: closeCallMessage,
       });
 
-      await apiRequest("POST", `/api/followup/conversation/${conversationId}/toggle`, { active: false });
-      await apiRequest("POST", `/api/agent/toggle/${conversationId}`, { disable: true });
+      // FIX: Usa endpoint oficial de encerramento que:
+      // 1) Preserva historico para auditoria (nao deleta nada)
+      // 2) Marca isClosed=true para que proximo contato crie nova conversa
+      await apiRequest("POST", `/api/conversations/${conversationId}/close-ticket`, {
+        reason: "Encerrado pelo atendente",
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/messages", conversationId] });

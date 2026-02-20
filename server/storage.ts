@@ -1,4 +1,4 @@
-import {
+﻿import {
   users,
   admins,
   agents,
@@ -264,6 +264,7 @@ export interface IStorage {
   // Conversation operations
   getConversationsByConnectionId(connectionId: string): Promise<Conversation[]>;
   getConversationByContactNumber(connectionId: string, contactNumber: string): Promise<Conversation | undefined>;
+  getActiveConversationByContactNumber(connectionId: string, contactNumber: string): Promise<Conversation | undefined>;
   getConversation(id: string): Promise<Conversation | undefined>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversation(id: string, data: Partial<InsertConversation>): Promise<Conversation>;
@@ -848,6 +849,26 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return conversation;
+  }
+  // FIX Encerramento: retorna apenas conversas ativas (nao fechadas) pelo numero do contato
+  async getActiveConversationByContactNumber(
+    connectionId: string,
+    contactNumber: string
+  ): Promise<Conversation | undefined> {
+    // Use Drizzle ORM to avoid template literal issues in PowerShell patching
+    const result = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.connectionId, connectionId),
+          eq(conversations.contactNumber, contactNumber),
+          eq(conversations.isClosed, false)
+        )
+      )
+      .orderBy(conversations.updatedAt)
+      .limit(1);
+    return result[0];
   }
 
   async getConversation(id: string): Promise<Conversation | undefined> {

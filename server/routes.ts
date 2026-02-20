@@ -1,4 +1,4 @@
-import type { Express, Request, Response, NextFunction } from "express";
+﻿import type { Express, Request, Response, NextFunction } from "express";
 
 import { createServer, type Server } from "http";
 
@@ -11961,10 +11961,9 @@ ${config.ai_instructions || ''}
 
         if (user && user.signatureEnabled && user.signature) {
 
-          const signaturePrefix = `*${user.signature}:* `;
+          const signaturePrefix = `*${user.signature}:*` + "\n";
 
-          // Only prepend if not already present and text is not empty
-
+          // FIX: assinatura em cima com quebra de linha, mensagem embaixo
           if (finalText && finalText.trim().length > 0 && !finalText.startsWith(signaturePrefix)) {
 
             finalText = `${signaturePrefix}${finalText}`;
@@ -12009,24 +12008,24 @@ ${config.ai_instructions || ''}
 
 
 
-      // ?? AUTO-PAUSE IA: Quando o dono envia mensagem pelo sistema, PAUSA a IA
-
+      // FIX AUTO-PAUSE IA: Pausa IA com timer de auto-reativacao correto
       try {
-
-        const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversationId);
-
-        if (!isAlreadyDisabled) {
-
-          await storage.disableAgentForConversation(conversationId);
-
-          console.log(`?? [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversationId} - dono enviou mensagem pelo sistema`);
-
+        const agentConfigForPause = await storage.getAgentConfig(userId);
+        const shouldPauseOnManualReply = agentConfigForPause?.pauseOnManualReply !== false;
+        if (shouldPauseOnManualReply) {
+          const autoReactivateMinutesForPause = agentConfigForPause?.autoReactivateMinutes ?? null;
+          const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversationId);
+          if (!isAlreadyDisabled) {
+            await storage.disableAgentForConversation(conversationId, autoReactivateMinutesForPause);
+            console.log(`[AUTO-PAUSE] IA pausada para conversa ${conversationId}${autoReactivateMinutesForPause ? ` (reativa em ${autoReactivateMinutesForPause} min)` : ""}`);
+          } else {
+            // JA PAUSADA: atualiza ownerLastReplyAt para resetar o contador do timer
+            await storage.updateDisabledConversationOwnerReply(conversationId, autoReactivateMinutesForPause);
+            console.log(`[AUTO-PAUSE] Timer atualizado para ${conversationId}${autoReactivateMinutesForPause ? ` (${autoReactivateMinutesForPause} min)` : ""}`);
+          }
         }
-
       } catch (pauseError) {
-
         console.error("Erro ao pausar IA automaticamente:", pauseError);
-
       }
 
 

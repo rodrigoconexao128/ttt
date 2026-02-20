@@ -1,4 +1,4 @@
-import makeWASocket, {
+﻿import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   WASocket,
@@ -4453,8 +4453,8 @@ async function handleIncomingMessage(
     console.log(`?? [AVATAR] Sem foto de perfil para ${contactNumber}`);
   }
 
-  // EXATAMENTE como no backup - buscar/criar/atualizar com contactNumber
-  let conversation = await storage.getConversationByContactNumber(
+  // FIX Encerramento: buscar apenas conversa ATIVA (nao fechada) - se fechada, cria nova
+  let conversation = await storage.getActiveConversationByContactNumber(
     session.connectionId,
     contactNumber
   );
