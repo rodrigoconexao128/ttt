@@ -42,6 +42,7 @@ export default function AdminWhatsappPanel() {
   const isReconnectingRef = useRef(false);
   const lastPongRef = useRef<number>(Date.now());
   const isManualCloseRef = useRef(false);
+  const connectWebSocketRef = useRef<() => void>(() => {});
 
   // Buscar sessão do admin para obter o adminId real
   const { data: adminSession } = useQuery<AdminSession>({
@@ -141,7 +142,7 @@ export default function AdminWhatsappPanel() {
     reconnectTimeoutRef.current = setTimeout(() => {
       reconnectAttemptsRef.current++;
       isReconnectingRef.current = false;
-      connectWebSocket();
+      connectWebSocketRef.current();
     }, delay);
   }, [getReconnectDelay, toast]);
 
@@ -258,6 +259,9 @@ export default function AdminWhatsappPanel() {
     }
   }, [adminSession?.adminId, connection?._devMode, cleanupWebSocket, startPingInterval, scheduleReconnect, queryClient, toast]);
 
+  // Keep ref in sync so scheduleReconnect always calls the latest version
+  connectWebSocketRef.current = connectWebSocket;
+
   // Efeito para conectar WebSocket quando tivermos o adminId
   useEffect(() => {
     if (!adminSession?.adminId) return;
@@ -272,25 +276,11 @@ export default function AdminWhatsappPanel() {
     };
   }, [adminSession?.adminId, connectWebSocket, cleanupWebSocket]);
 
-  // Efeito para reconexão automática quando a conexão cair (polling detecta)
-  useEffect(() => {
-    // Se a conexão foi perdida e não estamos desconectando manualmente
-    if (connection?.isConnected === false && !isManualCloseRef.current && wsConnected) {
-      console.log('[ADMIN WS] Detetado desconexão via polling, iniciando reconexão automática');
-
-      // Agendar reconexão automática após um breve delay
-      const reconnectTimeout = setTimeout(() => {
-        if (connection?.isConnected === false && !isManualCloseRef.current && wsConnected) {
-          console.log('[ADMIN WS] Iniciando reconexão automática');
-          isManualCloseRef.current = false;
-          cleanupWebSocket();
-          connectWebSocket();
-        }
-      }, 3000); // 3 segundos de delay antes de tentar reconectar
-
-      return () => clearTimeout(reconnectTimeout);
-    }
-  }, [connection?.isConnected, wsConnected]);
+  // NOTE: Removed the useEffect that killed the panel WebSocket when polling returned
+  // isConnected: false. The panel WebSocket (real-time updates) and WhatsApp Baileys
+  // connection are independent. Killing the panel WS based on polling caused a rapid
+  // connect/disconnect cycle. The WebSocket's own onclose handler + scheduleReconnect
+  // is sufficient for reconnection.
 
   // Mutation para conectar
   const connectMutation = useMutation({

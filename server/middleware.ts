@@ -121,6 +121,11 @@ export async function isAdmin(req: Request, res: Response, next: NextFunction) {
     }
 
     (req as any).admin = admin;
+    // Sync adminId into session for endpoints that read from req.session.adminId
+    // This ensures compatibility when auth was via Bearer token instead of session cookie
+    if (req.session && !(req.session as any).adminId) {
+      (req.session as any).adminId = admin.id;
+    }
     next();
   } catch (error) {
     console.error("Error checking admin status:", error);

@@ -26033,7 +26033,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      const adminId = (req.session as any)?.adminId;
+      const adminId = (req as any).admin?.id || (req.session as any)?.adminId;
+
+      if (!adminId) {
+        return res.json({ isConnected: false });
+      }
 
       const connection = await storage.getAdminWhatsappConnection(adminId);
 
@@ -26149,7 +26153,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      const adminId = (req.session as any)?.adminId;
+      const adminId = (req as any).admin?.id || (req.session as any)?.adminId;
 
       const { connectAdminWhatsApp } = await import("./whatsapp");
 
@@ -26195,7 +26199,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      const adminId = (req.session as any)?.adminId;
+      const adminId = (req as any).admin?.id || (req.session as any)?.adminId;
 
       const { disconnectAdminWhatsApp } = await import("./whatsapp");
 

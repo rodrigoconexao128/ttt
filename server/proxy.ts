@@ -170,6 +170,14 @@ function proxyWebSocket(
         clientSocket.write(proxyHead);
       }
 
+      // Enable TCP keepalive to prevent Railway/infrastructure idle timeouts
+      if (typeof (clientSocket as any).setKeepAlive === 'function') {
+        (clientSocket as any).setKeepAlive(true, 30000);
+      }
+      if (typeof (proxySocket as any).setKeepAlive === 'function') {
+        (proxySocket as any).setKeepAlive(true, 30000);
+      }
+
       // Bidirecional: proxy ↔ client
       proxySocket.pipe(clientSocket);
       clientSocket.pipe(proxySocket);
