@@ -183,8 +183,21 @@ export function registerUserSectorRoutes(app: Express): void {
       totalConversations: summary?.total_conversations || 0,
       totalOpen: summary?.open_conversations || 0,
       totalClosed: summary?.closed_conversations || 0,
-      bySector,
-      byMember,
+      bySector: (bySector || []).map((r: any) => ({
+        sectorId: r.sector_id,
+        sectorName: r.sector_name,
+        assignedCount: r.assigned_count,
+        closedCount: r.closed_count,
+        avgHours: r.avg_hours,
+      })),
+      byMember: (byMember || []).map((r: any) => ({
+        memberId: r.member_id,
+        memberName: r.member_name,
+        memberEmail: r.member_email,
+        assignedCount: r.assigned_count,
+        closedCount: r.closed_count,
+        avgHours: r.avg_hours,
+      })),
     });
   }));
 
