@@ -153,8 +153,44 @@ export function resetBookingState(userId: string, customerPhone: string, convers
 // FUNÇÕES AUXILIARES
 // ═══════════════════════════════════════════════════════════════════════
 
+/**
+ * Verifica se o horário atual está dentro do intervalo de almoço configurado.
+ * Retorna { isDuringBreak: true, message } se estiver em pausa.
+ */
+export function isCurrentlyInBreak(openingHours?: Record<string, OpeningHoursDay>): {
+  isDuringBreak: boolean;
+  message: string;
+  breakStart: string;
+  breakEnd: string;
+} {
+  const breakConfig = openingHours?.['__break'] as { enabled: boolean; start: string; end: string } | undefined;
+
+  if (!breakConfig || !breakConfig.enabled) {
+    return { isDuringBreak: false, message: '', breakStart: '12:00', breakEnd: '13:00' };
+  }
+
+  const now = new Date();
+  const brazilTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const currentHour = brazilTime.getHours();
+  const currentMinute = brazilTime.getMinutes();
+  const currentMinutes = currentHour * 60 + currentMinute;
+
+  const [bStartH, bStartM] = breakConfig.start.split(':').map(Number);
+  const [bEndH, bEndM] = breakConfig.end.split(':').map(Number);
+  const breakStartMin = bStartH * 60 + bStartM;
+  const breakEndMin = bEndH * 60 + bEndM;
+
+  const isDuringBreak = currentMinutes >= breakStartMin && currentMinutes < breakEndMin;
+  const message = isDuringBreak
+    ? `Estamos no horário de almoço (${breakConfig.start} às ${breakConfig.end}). Voltamos em breve! 🍽️`
+    : '';
+
+  return { isDuringBreak, message, breakStart: breakConfig.start, breakEnd: breakConfig.end };
+}
+
 export function isSalonOpen(openingHours?: Record<string, OpeningHoursDay>): {
   isOpen: boolean;
+  isDuringBreak: boolean;
   currentDay: string;
   currentTime: string;
   message: string;
@@ -172,20 +208,27 @@ export function isSalonOpen(openingHours?: Record<string, OpeningHoursDay>): {
   const currentTime = `${currentHour}:${currentMinute}`;
 
   if (!openingHours || Object.keys(openingHours).length === 0) {
-    return { isOpen: true, currentDay, currentTime, message: '' };
+    return { isOpen: true, isDuringBreak: false, currentDay, currentTime, message: '' };
   }
   const todayHours = openingHours[currentDay];
   if (!todayHours || !todayHours.enabled) {
-    return { isOpen: false, currentDay, currentTime, message: `Estamos fechados hoje (${dayNamesPt[currentDay]}).` };
+    return { isOpen: false, isDuringBreak: false, currentDay, currentTime, message: `Estamos fechados hoje (${dayNamesPt[currentDay]}).` };
   }
   const openTime = todayHours.open || '09:00';
   const closeTime = todayHours.close || '19:00';
   const currentMinutes = parseInt(currentHour) * 60 + parseInt(currentMinute);
   const openMinutes = parseInt(openTime.split(':')[0]) * 60 + parseInt(openTime.split(':')[1] || '0');
   const closeMinutes = parseInt(closeTime.split(':')[0]) * 60 + parseInt(closeTime.split(':')[1] || '0');
-  const isOpen = currentMinutes >= openMinutes && currentMinutes < closeMinutes;
-  if (isOpen) return { isOpen: true, currentDay, currentTime, message: '' };
-  return { isOpen: false, currentDay, currentTime, message: `Nosso horário hoje é das ${openTime} às ${closeTime}.` };
+  const isOpenHours = currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+  if (!isOpenHours) {
+    return { isOpen: false, isDuringBreak: false, currentDay, currentTime, message: `Nosso horário hoje é das ${openTime} às ${closeTime}.` };
+  }
+  // Verificar horário de almoço
+  const breakStatus = isCurrentlyInBreak(openingHours);
+  if (breakStatus.isDuringBreak) {
+    return { isOpen: false, isDuringBreak: true, currentDay, currentTime, message: breakStatus.message };
+  }
+  return { isOpen: true, isDuringBreak: false, currentDay, currentTime, message: '' };
 }
 
 function formatSalonHours(openingHours?: Record<string, OpeningHoursDay>): string {
@@ -768,6 +811,15 @@ export async function generateSalonResponse(
 
     console.log(`💇 [Salon v2] msg="${message.substring(0, 80)}" phone=${customerPhone}`);
     console.log(`💇 [Salon v2] state: svc=${state.service?.name || '-'} prof=${state.professional?.name || '-'} date=${state.date || '-'} time=${state.time || '-'} confirm=${state.awaitingConfirmation}`);
+
+    // 0. VERIFICAR HORÁRIO DE ALMOÇO — bloquear se estiver no intervalo
+    const breakStatus = isCurrentlyInBreak(config.opening_hours);
+    if (breakStatus.isDuringBreak) {
+      console.log(`💇 [Salon v2] ⏸️ HORÁRIO DE ALMOÇO (${breakStatus.breakStart}–${breakStatus.breakEnd}) — bloqueando resposta`);
+      return {
+        text: breakStatus.message,
+      };
+    }
 
     // 1. EXTRAIR CAMPOS VIA IA
     const extracted = await extractSalonFieldsLLM(message, history, salonData, state);
