@@ -3670,8 +3670,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const userId = getUserId(req);
       const devMode = process.env.SKIP_WHATSAPP_RESTORE === 'true' || process.env.DISABLE_WHATSAPP_PROCESSING === 'true';
+      const qsConnectionId = req.query?.connectionId as string | undefined;
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, qsConnectionId);
 
 
 
@@ -4218,12 +4219,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     try {
 
       const userId = getUserId(req);
+      const qsConnectionId = req.query?.connectionId as string | undefined;
 
 
 
       // Get user's connection
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, qsConnectionId);
 
       if (!connection) {
 
@@ -5037,11 +5039,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const userId = getUserId(req);
 
-      const { tagId } = req.query;
+      const { tagId, connectionId: qsConnectionId } = req.query;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, qsConnectionId as string | undefined);
 
       if (!connection) {
 
@@ -11462,7 +11464,7 @@ ${config.ai_instructions || ''}
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
       if (!connection || conversation.connectionId !== connection.id) {
 
@@ -11474,9 +11476,15 @@ ${config.ai_instructions || ''}
 
       const afterRaw = (req.query?.after as string | undefined) || undefined;
 
+      const beforeRaw = (req.query?.before as string | undefined) || undefined;
+
       const limitRaw = (req.query?.limit as string | undefined) || undefined;
 
+      const paginated = req.query?.paginated === 'true';
 
+
+
+      // Mode 1: Incremental sync (buscar mensagens APÓS uma data)
 
       if (afterRaw) {
 
@@ -11503,6 +11511,38 @@ ${config.ai_instructions || ''}
       }
 
 
+
+      // Mode 2: Paginação reversa (carregar N mensagens mais recentes, com cursor "before")
+
+      if (paginated) {
+
+        const parsedLimit = limitRaw ? Number.parseInt(limitRaw, 10) : 50;
+
+        const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(parsedLimit, 200)) : 50;
+
+        let before: Date | undefined;
+
+        if (beforeRaw) {
+
+          before = new Date(beforeRaw);
+
+          if (Number.isNaN(before.getTime())) {
+
+            return res.status(400).json({ message: "Invalid 'before' timestamp" });
+
+          }
+
+        }
+
+        const result = await storage.getMessagesByConversationIdPaginated(conversationId, limit, before);
+
+        return res.json(result);
+
+      }
+
+
+
+      // Mode 3: Legacy - carregar todas (para compatibilidade)
 
       const allMessages = await storage.getMessagesByConversationId(conversationId);
 
@@ -11973,8 +12013,9 @@ ${config.ai_instructions || ''}
     try {
 
       const userId = getUserId(req);
+      const qsConnectionId = req.query?.connectionId as string | undefined;
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, qsConnectionId);
 
 
 

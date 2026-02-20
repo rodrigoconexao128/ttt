@@ -96,7 +96,7 @@ import {
   type InsertConnectionMember,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
-import { eq, desc, and, gte, sql, inArray, lte, isNotNull, asc } from "drizzle-orm";
+import { eq, desc, and, gte, sql, inArray, lte, lt, gt, isNotNull, asc } from "drizzle-orm";
 import { transcribeAudioWithMistral, analyzeImageWithMistral } from "./mistralClient";
 
 // ============================================
@@ -236,7 +236,7 @@ export interface IStorage {
   deleteAgent(id: string): Promise<void>;
 
   // WhatsApp connection operations
-  getConnectionByUserId(userId: string): Promise<WhatsappConnection | undefined>;
+  getConnectionByUserId(userId: string, connectionId?: string): Promise<WhatsappConnection | undefined>;
   getConnectionById(connectionId: string): Promise<WhatsappConnection | undefined>;
   getAdminConnection(): Promise<AdminWhatsappConnection | undefined>;
   getAllConnections(): Promise<WhatsappConnection[]>;
@@ -270,6 +270,8 @@ export interface IStorage {
 
   // Message operations
   getMessagesByConversationId(conversationId: string): Promise<Message[]>;
+  getMessagesByConversationIdPaginated(conversationId: string, limit?: number, before?: Date): Promise<{ messages: Message[]; hasMore: boolean }>;
+  getMessagesByConversationIdAfter(conversationId: string, after: Date, limit?: number): Promise<Message[]>;
   getMessageByMessageId(messageId: string): Promise<Message | undefined>;
   deleteMessagesByConversationId(conversationId: string): Promise<void>;
   createMessage(message: InsertMessage): Promise<Message>;
@@ -593,8 +595,33 @@ export class DatabaseStorage implements IStorage {
   // WhatsApp connection operations
   // FIX: Priorizar conexão primária/conectada em vez de apenas a mais recente
   // Isso evita que conexões secundárias recém-criadas "roubem" a sessão principal
-  async getConnectionByUserId(userId: string): Promise<WhatsappConnection | undefined> {
-    // 1. Primeiro, tentar encontrar a conexão que está realmente conectada
+  async getConnectionByUserId(userId: string, connectionId?: string): Promise<WhatsappConnection | undefined> {
+    // 0. Se um connectionId específico foi passado, retornar essa conexão (se pertence ao user)
+    if (connectionId) {
+      const [specific] = await db
+        .select()
+        .from(whatsappConnections)
+        .where(and(
+          eq(whatsappConnections.id, connectionId),
+          eq(whatsappConnections.userId, userId)
+        ))
+        .limit(1);
+      if (specific) return specific;
+    }
+
+    // 1. PRIMARY + CONNECTED tem prioridade máxima (conexão principal ativa)
+    const [primaryConnected] = await db
+      .select()
+      .from(whatsappConnections)
+      .where(and(
+        eq(whatsappConnections.userId, userId),
+        eq(whatsappConnections.isConnected, true),
+        eq(whatsappConnections.isPrimary, true)
+      ))
+      .limit(1);
+    if (primaryConnected) return primaryConnected;
+
+    // 2. Qualquer conexão conectada (mais antiga primeiro = original)
     const [connectedConn] = await db
       .select()
       .from(whatsappConnections)
@@ -602,11 +629,11 @@ export class DatabaseStorage implements IStorage {
         eq(whatsappConnections.userId, userId),
         eq(whatsappConnections.isConnected, true)
       ))
-      .orderBy(desc(whatsappConnections.createdAt))
+      .orderBy(whatsappConnections.createdAt)
       .limit(1);
     if (connectedConn) return connectedConn;
 
-    // 2. Se nenhuma está conectada, buscar a primary
+    // 3. Se nenhuma está conectada, buscar a primary
     const [primaryConn] = await db
       .select()
       .from(whatsappConnections)
@@ -614,11 +641,10 @@ export class DatabaseStorage implements IStorage {
         eq(whatsappConnections.userId, userId),
         eq(whatsappConnections.isPrimary, true)
       ))
-      .orderBy(desc(whatsappConnections.createdAt))
       .limit(1);
     if (primaryConn) return primaryConn;
 
-    // 3. Fallback: qualquer conexão (mais antiga primeiro = original)
+    // 4. Fallback: qualquer conexão (mais antiga primeiro = original)
     const [anyConn] = await db
       .select()
       .from(whatsappConnections)
@@ -893,6 +919,85 @@ export class DatabaseStorage implements IStorage {
 
     // Cache por 60 segundos (aumentado para reduzir queries)
     memoryCache.set(cacheKey, result as Message[], 60000);
+    return result as Message[];
+  }
+
+  // Paginação: carrega as N mensagens mais recentes (ou antes de um cursor)
+  async getMessagesByConversationIdPaginated(
+    conversationId: string,
+    limit: number = 50,
+    before?: Date
+  ): Promise<{ messages: Message[]; hasMore: boolean }> {
+    const fetchLimit = limit + 1; // busca 1 a mais para saber se tem mais
+    const conditions = [eq(messages.conversationId, conversationId)];
+    if (before) {
+      conditions.push(lt(messages.timestamp, before));
+    }
+
+    const result = await db
+      .select({
+        id: messages.id,
+        conversationId: messages.conversationId,
+        messageId: messages.messageId,
+        fromMe: messages.fromMe,
+        text: messages.text,
+        timestamp: messages.timestamp,
+        status: messages.status,
+        isFromAgent: messages.isFromAgent,
+        mediaType: messages.mediaType,
+        mediaUrl: messages.mediaUrl,
+        mediaKey: messages.mediaKey,
+        directPath: messages.directPath,
+        mediaMimeType: messages.mediaMimeType,
+        mediaDuration: messages.mediaDuration,
+        mediaCaption: messages.mediaCaption,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(and(...conditions))
+      .orderBy(desc(messages.timestamp))
+      .limit(fetchLimit);
+
+    const hasMore = result.length > limit;
+    const page = hasMore ? result.slice(0, limit) : result;
+    // Retornar em ordem cronológica (mais antiga primeiro)
+    page.reverse();
+    return { messages: page as Message[], hasMore };
+  }
+
+  // Busca mensagens mais recentes que uma data (para sync incremental)
+  async getMessagesByConversationIdAfter(
+    conversationId: string,
+    after: Date,
+    limit: number = 500
+  ): Promise<Message[]> {
+    const result = await db
+      .select({
+        id: messages.id,
+        conversationId: messages.conversationId,
+        messageId: messages.messageId,
+        fromMe: messages.fromMe,
+        text: messages.text,
+        timestamp: messages.timestamp,
+        status: messages.status,
+        isFromAgent: messages.isFromAgent,
+        mediaType: messages.mediaType,
+        mediaUrl: messages.mediaUrl,
+        mediaKey: messages.mediaKey,
+        directPath: messages.directPath,
+        mediaMimeType: messages.mediaMimeType,
+        mediaDuration: messages.mediaDuration,
+        mediaCaption: messages.mediaCaption,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(and(
+        eq(messages.conversationId, conversationId),
+        gt(messages.timestamp, after)
+      ))
+      .orderBy(messages.timestamp)
+      .limit(limit);
+
     return result as Message[];
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
   const [, setLocation] = useLocation();
   const [messageText, setMessageText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   const [avatarModalImage, setAvatarModalImage] = useState("");
   const [avatarModalName, setAvatarModalName] = useState("");
@@ -174,10 +175,89 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages", conversationId],
+    queryFn: async () => {
+      const memberToken = localStorage.getItem("memberToken");
+      const token = memberToken || await getAuthToken();
+      const res = await fetch(`/api/messages/${conversationId}?paginated=true&limit=50`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      // Compatível: se backend retornar array legado, usar direto
+      if (Array.isArray(data)) {
+        setHasMoreMessages(false);
+        return data;
+      }
+      // Paginado: { messages: Message[], hasMore: boolean }
+      setHasMoreMessages(data.hasMore ?? false);
+      return data.messages ?? [];
+    },
     enabled: !!conversationId,
     refetchInterval: 30000, // Fallback polling - WebSocket é primário (economia de egress)
     staleTime: 5000, // Considera dados frescos por 5s
   });
+
+  // State para mensagens mais antigas (carregadas sob demanda)
+  const [olderMessages, setOlderMessages] = useState<Message[]>([]);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+
+  // Resetar mensagens antigas quando trocar de conversa
+  useEffect(() => {
+    setOlderMessages([]);
+    setHasMoreMessages(false);
+  }, [conversationId]);
+
+  // Combinar mensagens: antigas + recentes, deduplicando por ID e ordenando
+  const allMessages = useMemo(() => {
+    const map = new Map<number, Message>();
+    for (const m of olderMessages) map.set(m.id, m);
+    for (const m of messages) map.set(m.id, m);
+    return Array.from(map.values()).sort((a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+  }, [olderMessages, messages]);
+
+  // Carregar mensagens mais antigas
+  const loadOlderMessages = useCallback(async () => {
+    if (!conversationId || isLoadingOlder || !hasMoreMessages) return;
+    setIsLoadingOlder(true);
+    try {
+      const oldest = allMessages[0]?.timestamp;
+      if (!oldest) return;
+      const beforeISO = typeof oldest === 'string' ? oldest : new Date(oldest).toISOString();
+      const memberToken = localStorage.getItem("memberToken");
+      const token = memberToken || await getAuthToken();
+      const res = await fetch(
+        `/api/messages/${conversationId}?paginated=true&limit=50&before=${encodeURIComponent(beforeISO)}`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include',
+        }
+      );
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      const older = Array.isArray(data) ? data : (data.messages ?? []);
+      const moreAvailable = Array.isArray(data) ? false : (data.hasMore ?? false);
+      // Preservar posição de scroll
+      const container = messagesContainerRef.current;
+      const prevScrollHeight = container?.scrollHeight ?? 0;
+      setOlderMessages(prev => [...older, ...prev]);
+      setHasMoreMessages(moreAvailable);
+      // Restaurar posição de scroll após prepend
+      requestAnimationFrame(() => {
+        if (container) {
+          const newScrollHeight = container.scrollHeight;
+          container.scrollTop += (newScrollHeight - prevScrollHeight);
+        }
+      });
+    } catch (err) {
+      console.error('[LAZY-LOAD] Erro ao carregar mensagens antigas:', err);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [conversationId, isLoadingOlder, hasMoreMessages, allMessages]);
 
   const { data: agentConfig } = useQuery<AiAgentConfig | null>({
     queryKey: ["/api/agent/config"],
@@ -697,7 +777,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
   // Auto-scroll para última mensagem quando messages mudar
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [allMessages.length]);
 
   // Auto-scroll quando abrir uma nova conversa
   useEffect(() => {
@@ -710,9 +790,9 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
 
   // Auto-transcrição ao abrir conversa
   useEffect(() => {
-    if (conversationId && messages.length > 0 && !isAutoTranscribing) {
+    if (conversationId && allMessages.length > 0 && !isAutoTranscribing) {
       // Debug: log todas as mensagens de áudio
-      const audioMessages = messages.filter(msg => 
+      const audioMessages = allMessages.filter(msg => 
         msg.mediaType === "audio" || msg.text?.includes("Áudio") || msg.text?.includes("[Áudio")
       );
       console.log('[AUTO-TRANSCRIBE] Mensagens de áudio encontradas:', audioMessages.map(m => ({
@@ -723,7 +803,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
       })));
       
       // Verifica se há áudios sem transcrição
-      const hasUntranscribedAudios = messages.some(msg => 
+      const hasUntranscribedAudios = allMessages.some(msg => 
         msg.mediaType === "audio" && 
         msg.mediaUrl && 
         (!msg.text || msg.text === "🎵 Áudio" || msg.text === "🎤 Áudio" || msg.text.startsWith("[Áudio"))
@@ -737,7 +817,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
         autoTranscribeMutation.mutate();
       }
     }
-  }, [conversationId, messages.length]);
+  }, [conversationId, allMessages.length]);
 
   // WebSocket para atualizações em tempo real
   useEffect(() => {
@@ -1215,6 +1295,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
 
       {/* Messages Area - Scrollable entre header fixo e input fixo no mobile */}
       <div
+        ref={messagesContainerRef}
         className={cn(
           "overflow-auto p-3 md:p-4 space-y-3 md:space-y-4",
           isMobile
@@ -1223,13 +1304,32 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
         )}
         data-testid="container-messages"
       >
+        {/* Botão para carregar mensagens mais antigas */}
+        {hasMoreMessages && !isLoading && (
+          <div className="flex justify-center py-2">
+            <button
+              onClick={loadOlderMessages}
+              disabled={isLoadingOlder}
+              className="text-xs text-muted-foreground hover:text-primary transition-colors px-3 py-1.5 rounded-full border border-border hover:border-primary/50 flex items-center gap-1.5"
+            >
+              {isLoadingOlder ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  Carregando...
+                </>
+              ) : (
+                <>↑ Carregar mensagens anteriores</>
+              )}
+            </button>
+          </div>
+        )}
         {/* Filtrar mensagens de sistema/eco que vieram de integrações antigas,
             por exemplo textos \"[Mensagem n\u00e3o suportada]\" */}
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : messages.filter((m) => {
+        ) : allMessages.filter((m) => {
             if (m.mediaType) return true;
             const t = m.text?.toLowerCase() || "";
             // esconde mensagens de placeholder como \"[mensagem n\u00e3o suportada]\"
@@ -1241,7 +1341,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
             </div>
           </div>
         ) : (
-          messages
+          allMessages
             .filter((m) => {
               if (m.mediaType) return true;
               const t = m.text?.toLowerCase() || "";
@@ -1598,7 +1698,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
               <UserAIMessageGenerator
                 onGenerate={handleAIGenerate}
                 contactName={conversation?.contactName || undefined}
-                lastMessages={messages?.slice(-5).map(m => m.text || "").filter(Boolean) || []}
+                lastMessages={allMessages?.slice(-5).map(m => m.text || "").filter(Boolean) || []}
                 disabled={false}
               />
             </div>
