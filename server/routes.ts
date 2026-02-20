@@ -5318,8 +5318,12 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       // Se tem filtro por tag, busca apenas conversas com essa tag
       if (tagId) {
+        const cacheKey = `api:convs-tags:${connection.id}:tag:${tagId}`;
+        const cached = memoryCache.get(cacheKey);
+        if (cached !== undefined) return res.json(cached);
+
         const conversations = await storage.getConversationsByTag(tagId, connection.id);
-        if (conversations.length === 0) return res.json([]);
+        if (conversations.length === 0) { memoryCache.set(cacheKey, [], 15_000); return res.json([]); }
         // 🔥 OTIMIZADO: Batch ao invés de N+1 (Promise.all com getConversationTags individual)
         const convIds = conversations.map(c => c.id);
         const allTagsForConvs = await storage.getTagsForConversations(convIds);
@@ -5327,16 +5331,19 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
           ...conv,
           tags: allTagsForConvs.get(conv.id) || [],
         }));
+        memoryCache.set(cacheKey, conversationsWithTags, 15_000);
         return res.json(conversationsWithTags);
       }
 
 
 
-      // Sem filtro, retorna todas as conversas com suas tags
+      // Sem filtro, retorna todas as conversas com suas tags (cache 15s)
+      const cacheKey = `api:convs-tags:${connection.id}:all`;
+      const result = await memoryCache.getOrCompute(cacheKey, async () => {
+        return await storage.getConversationsWithTags(connection.id);
+      }, 15_000);
 
-      const conversationsWithTags = await storage.getConversationsWithTags(connection.id);
-
-      res.json(conversationsWithTags);
+      res.json(result);
 
     } catch (error) {
 

@@ -3,6 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 import { fetchWithAuth, getAuthToken, refreshSession, supabase } from "@/lib/supabase";
 
+// Singleton flag: only ONE onAuthStateChange listener across all useAuth() instances
+let _authListenerActive = false;
+
 // Função para verificar se é login de membro
 function isMemberSession(): boolean {
   return !!localStorage.getItem("memberToken");
@@ -140,6 +143,9 @@ export function useAuth() {
   useEffect(() => {
     // Pular listener para membros (usam token próprio)
     if (isMemberSession()) return;
+    // Singleton: only the FIRST useAuth() instance sets up the listener
+    if (_authListenerActive) return;
+    _authListenerActive = true;
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -157,13 +163,14 @@ export function useAuth() {
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
               queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-            }, 300); // Espera 300ms para agrupar eventos consecutivos
+            }, 500); // 500ms debounce to batch consecutive events
           }
         }
       }
     );
 
     return () => {
+      _authListenerActive = false;
       if (debounceTimer) clearTimeout(debounceTimer);
       subscription.unsubscribe();
     };
