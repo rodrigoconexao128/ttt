@@ -310,6 +310,17 @@ export function AgentStudioUnified() {
     }
   });
 
+  // 🔀 PARTE 5: Query para saber se Modo Fluxo está ativo (afeta exibição do simulador)
+  const { data: flowConfig } = useQuery<{ flowScript: string | null; flowModeActive: boolean }>({
+    queryKey: ["/api/agent/flow"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/agent/flow");
+      return res.json();
+    },
+    staleTime: 10000,
+  });
+  const flowModeActive = flowConfig?.flowModeActive === true;
+
   // 🔒 Query para buscar limites diários (estilo Lovable)
   const { data: dailyLimits, refetch: refetchDailyLimits } = useQuery<{
     hasActiveSubscription: boolean;
@@ -2381,14 +2392,26 @@ export function AgentStudioUnified() {
         )}>
           
           {/* Simulator Header */}
-          <div className="bg-[#075E54] dark:bg-zinc-800 text-white px-4 py-3 flex items-center gap-3 flex-shrink-0">
+          <div className={cn(
+            "text-white px-4 py-3 flex items-center gap-3 flex-shrink-0",
+            flowModeActive ? "bg-[#4a1080] dark:bg-purple-900" : "bg-[#075E54] dark:bg-zinc-800"
+          )}>
             <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
               <Bot className="w-5 h-5" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-sm">Simulador WhatsApp</p>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-sm">Simulador WhatsApp</p>
+                {flowModeActive && (
+                  <span className="text-[10px] font-bold bg-purple-400/30 border border-purple-300/40 text-purple-100 px-1.5 py-0.5 rounded-full">
+                    🔀 FLUXO ON
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-white/70">
-                Teste seu agente em tempo real
+                {flowModeActive
+                  ? "Simulando com roteiro do Modo Fluxo"
+                  : "Teste seu agente em tempo real"}
               </p>
             </div>
             <Button
@@ -2411,9 +2434,16 @@ export function AgentStudioUnified() {
           >
             {simulatorMessages.length === 0 && (
               <div className="flex justify-center">
-                <div className="bg-[#FCF4CB] dark:bg-yellow-900/30 text-[#54656F] dark:text-yellow-200 text-xs px-4 py-2 rounded-lg shadow-sm text-center max-w-[250px]">
+                <div className={cn(
+                  "text-xs px-4 py-2 rounded-lg shadow-sm text-center max-w-[260px]",
+                  flowModeActive
+                    ? "bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200 border border-purple-300/40"
+                    : "bg-[#FCF4CB] dark:bg-yellow-900/30 text-[#54656F] dark:text-yellow-200"
+                )}>
                   <Smartphone className="w-4 h-4 mx-auto mb-1" />
-                  Teste como seu agente responde. Digite uma mensagem abaixo.
+                  {flowModeActive
+                    ? "🔀 Modo Fluxo ativo. O agente seguirá estritamente o roteiro configurado."
+                    : "Teste como seu agente responde. Digite uma mensagem abaixo."}
                 </div>
               </div>
             )}

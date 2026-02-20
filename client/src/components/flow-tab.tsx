@@ -4,20 +4,24 @@
  *
  * Permite ao cliente escrever um roteiro/prompt de fluxo em texto livre.
  * A IA segue estritamente esse fluxo quando ativo (chatbot pré-definido).
+ *
+ * CORREÇÃO PARTE 5:
+ * - Removido simulador embutido (era duplicação indevida).
+ * - O simulador ÚNICO está no painel direito (Simulador WhatsApp).
+ * - Quando Fluxo ON, o simulador direito já usa o FlowScriptEngine automaticamente.
+ * - Este chat é EXCLUSIVAMENTE para criar/editar o roteiro.
  */
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Loader2, Send, GitBranch, Play, Square, Save,
+  Loader2, GitBranch, Save,
   Lightbulb, AlertTriangle, CheckCircle2, Info,
-  ArrowRight, RefreshCw, Zap
+  Zap, PlayCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -26,13 +30,6 @@ import { cn } from "@/lib/utils";
 // ============================================================
 // INTERFACES
 // ============================================================
-interface FlowSimMessage {
-  id: string;
-  role: "user" | "agent";
-  text: string;
-  time: string;
-}
-
 interface FlowConfig {
   flowScript: string | null;
   flowModeActive: boolean;
@@ -117,21 +114,12 @@ interface FlowTabProps {
 export function FlowTab({ className }: FlowTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const simEndRef = useRef<HTMLDivElement>(null);
 
   // Estado
   const [flowScript, setFlowScript] = useState("");
   const [flowModeActive, setFlowModeActive] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [simMessages, setSimMessages] = useState<FlowSimMessage[]>([]);
-  const [simInput, setSimInput] = useState("");
-  const [isSimulating, setIsSimulating] = useState(false);
   const [showExamples, setShowExamples] = useState(false);
-
-  // Scroll automático no simulador
-  useEffect(() => {
-    simEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [simMessages]);
 
   // ============ QUERY: buscar fluxo salvo ============
   const { data: flowConfig, isLoading } = useQuery<FlowConfig>({
@@ -181,7 +169,7 @@ export function FlowTab({ className }: FlowTabProps) {
       toast({
         title: active ? "🔀 Modo Fluxo ATIVADO" : "🤖 Modo Fluxo DESATIVADO",
         description: active
-          ? "A IA agora segue estritamente o roteiro."
+          ? "A IA agora segue estritamente o roteiro. Use o Simulador (painel direito) para testar."
           : "A IA voltou ao comportamento normal.",
       });
     },
@@ -210,69 +198,6 @@ export function FlowTab({ className }: FlowTabProps) {
     setFlowScript(script);
     setHasChanges(true);
     setShowExamples(false);
-  };
-
-  // ============ SIMULADOR DO FLUXO ============
-  const handleSimulate = async () => {
-    if (!simInput.trim() || isSimulating) return;
-    if (!flowScript || flowScript.trim().length < 10) {
-      toast({
-        title: "Roteiro vazio",
-        description: "Escreva um roteiro para testar.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    const userMsg: FlowSimMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      text: simInput,
-      time,
-    };
-
-    setSimMessages((prev) => [...prev, userMsg]);
-    const inputText = simInput;
-    setSimInput("");
-    setIsSimulating(true);
-
-    try {
-      // Converter histórico para formato do backend
-      const history = simMessages.map((m) => ({
-        role: m.role === "agent" ? "assistant" : ("user" as "user" | "assistant"),
-        content: m.text,
-      }));
-
-      const res = await apiRequest("POST", "/api/agent/flow/test", {
-        message: inputText,
-        flowScript,
-        history,
-      });
-
-      const data = await res.json();
-      const agentTime = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
-      setSimMessages((prev) => [
-        ...prev,
-        {
-          id: `agent-${Date.now()}`,
-          role: "agent",
-          text: data.response || "❌ Sem resposta",
-          time: agentTime,
-        },
-      ]);
-    } catch (error: any) {
-      toast({ title: "Erro no simulador", description: error.message, variant: "destructive" });
-    } finally {
-      setIsSimulating(false);
-    }
-  };
-
-  const clearSimulator = () => {
-    setSimMessages([]);
-    setSimInput("");
-    setIsSimulating(false);
   };
 
   // ============ LOADING ============
@@ -343,7 +268,7 @@ export function FlowTab({ className }: FlowTabProps) {
           <CheckCircle2 className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-purple-700 dark:text-purple-300">
             <strong>Modo Fluxo ativo.</strong> A IA está seguindo estritamente o roteiro abaixo.
-            Nenhuma resposta fora do roteiro será gerada.
+            Nenhuma resposta fora do roteiro será gerada. Use o <strong>Simulador WhatsApp</strong> (painel direito) para testar.
           </p>
         </div>
       )}
@@ -359,56 +284,63 @@ export function FlowTab({ className }: FlowTabProps) {
         </div>
       )}
 
-      {/* ── Seção principal: Editor + Simulador ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* ─ Editor de roteiro ─ */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium flex items-center gap-1.5">
-              <GitBranch className="w-3.5 h-3.5 text-purple-500" />
-              Roteiro do Fluxo
-            </label>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={() => setShowExamples(!showExamples)}
-            >
-              <Lightbulb className="w-3 h-3" />
-              Exemplos
-            </Button>
-          </div>
+      {/* ── Dica do simulador ── */}
+      <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-blue-500/8 border border-blue-500/15">
+        <PlayCircle className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-blue-700 dark:text-blue-300">
+          <strong>Simulador:</strong> Use o <strong>Simulador WhatsApp</strong> no painel direito para testar o comportamento do fluxo.
+          Com Fluxo ON, o simulador usa automaticamente o roteiro definido aqui.
+        </p>
+      </div>
 
-          {/* Exemplos expansíveis */}
-          {showExamples && (
-            <Card className="border-dashed border-purple-200 dark:border-purple-800">
-              <CardContent className="p-3 space-y-2">
-                <p className="text-xs text-muted-foreground font-medium">
-                  Clique para usar como base:
-                </p>
-                {FLOW_EXAMPLES.map((ex, i) => (
-                  <button
-                    key={i}
-                    onClick={() => applyExample(ex.script)}
-                    className="w-full text-left px-3 py-2 rounded-lg text-xs border border-border hover:bg-muted transition-colors"
-                  >
-                    <div className="font-medium">{ex.label}</div>
-                    <div className="text-muted-foreground mt-0.5 line-clamp-1">
-                      {ex.script.split("\n")[0]}
-                    </div>
-                  </button>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+      {/* ── Editor de roteiro (full-width) ── */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium flex items-center gap-1.5">
+            <GitBranch className="w-3.5 h-3.5 text-purple-500" />
+            Roteiro do Fluxo
+          </label>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs gap-1"
+            onClick={() => setShowExamples(!showExamples)}
+          >
+            <Lightbulb className="w-3 h-3" />
+            Exemplos
+          </Button>
+        </div>
 
-          <Textarea
-            value={flowScript}
-            onChange={(e) => {
-              setFlowScript(e.target.value);
-              setHasChanges(true);
-            }}
-            placeholder={`Escreva o roteiro do seu atendimento aqui em texto livre.
+        {/* Exemplos expansíveis */}
+        {showExamples && (
+          <Card className="border-dashed border-purple-200 dark:border-purple-800">
+            <CardContent className="p-3 space-y-2">
+              <p className="text-xs text-muted-foreground font-medium">
+                Clique para usar como base:
+              </p>
+              {FLOW_EXAMPLES.map((ex, i) => (
+                <button
+                  key={i}
+                  onClick={() => applyExample(ex.script)}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs border border-border hover:bg-muted transition-colors"
+                >
+                  <div className="font-medium">{ex.label}</div>
+                  <div className="text-muted-foreground mt-0.5 line-clamp-1">
+                    {ex.script.split("\n")[0]}
+                  </div>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        <Textarea
+          value={flowScript}
+          onChange={(e) => {
+            setFlowScript(e.target.value);
+            setHasChanges(true);
+          }}
+          placeholder={`Escreva o roteiro do seu atendimento aqui em texto livre.
 
 Exemplo:
 Quando o cliente mandar "oi" ou saudação:
@@ -419,142 +351,31 @@ Responda: "Os preços estão disponíveis no nosso site..."
 
 Para encerrar:
 Responda: "Obrigado pelo contato! Até logo! 😊"`}
-            className="flex-1 min-h-[320px] font-mono text-sm resize-none bg-slate-950 text-green-400 border-slate-700 placeholder:text-slate-600 rounded-xl"
-            spellCheck={false}
-          />
+          className="flex-1 min-h-[380px] font-mono text-sm resize-none bg-slate-950 text-green-400 border-slate-700 placeholder:text-slate-600 rounded-xl"
+          spellCheck={false}
+        />
 
-          {/* Info box */}
-          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-blue-500/8 border border-blue-500/15">
-            <Info className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-700 dark:text-blue-300">
-              Escreva em texto livre. Use "se", "quando", "caso" para ramificações.
-              A IA interpreta e segue seu roteiro fielmente.
-            </p>
-          </div>
-
-          <Button
-            onClick={handleSave}
-            disabled={saveFlowMutation.isPending || !hasChanges}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-          >
-            {saveFlowMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <Save className="w-4 h-4 mr-2" />
-            )}
-            Salvar Roteiro
-          </Button>
+        {/* Info box */}
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-blue-500/8 border border-blue-500/15">
+          <Info className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-blue-700 dark:text-blue-300">
+            Escreva em texto livre. Use "se", "quando", "caso" para ramificações.
+            A IA interpreta e segue seu roteiro fielmente — sem improviso.
+          </p>
         </div>
 
-        {/* ─ Simulador do Fluxo ─ */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium flex items-center gap-1.5">
-              <Play className="w-3.5 h-3.5 text-green-500" />
-              Testar Fluxo
-            </label>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={clearSimulator}
-            >
-              <RefreshCw className="w-3 h-3" />
-              Limpar
-            </Button>
-          </div>
-
-          {/* Área de mensagens do simulador */}
-          <div className="flex-1 min-h-[300px] max-h-[360px] overflow-y-auto rounded-xl border bg-[#e5ddd5] dark:bg-zinc-900 p-3 space-y-2">
-            {simMessages.length === 0 && (
-              <div className="flex items-center justify-center h-full text-center">
-                <div className="text-xs text-muted-foreground">
-                  <Play className="w-6 h-6 mx-auto mb-2 text-muted-foreground/50" />
-                  Digite uma mensagem abaixo para testar o roteiro
-                </div>
-              </div>
-            )}
-
-            {simMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
-              >
-                <div
-                  className={cn(
-                    "px-3 py-2 rounded-lg max-w-[80%] text-sm shadow-sm",
-                    msg.role === "user"
-                      ? "bg-[#DCF8C6] dark:bg-green-800 text-slate-900 dark:text-white rounded-tr-none"
-                      : "bg-white dark:bg-zinc-700 text-slate-900 dark:text-white rounded-tl-none"
-                  )}
-                >
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
-                  <p className="text-[10px] text-right mt-1 text-slate-500 dark:text-slate-400">
-                    {msg.time} {msg.role === "user" ? "✓✓" : ""}
-                  </p>
-                </div>
-              </div>
-            ))}
-
-            {isSimulating && (
-              <div className="flex justify-start">
-                <div className="bg-white dark:bg-zinc-700 px-3 py-2 rounded-lg rounded-tl-none shadow-sm">
-                  <div className="flex gap-1 items-center">
-                    <span
-                      className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0ms" }}
-                    />
-                    <span
-                      className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "150ms" }}
-                    />
-                    <span
-                      className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "300ms" }}
-                    />
-                    <span className="text-xs text-muted-foreground ml-1">fluxo processando...</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div ref={simEndRef} />
-          </div>
-
-          {/* Input do simulador */}
-          <div className="flex gap-2">
-            <Textarea
-              value={simInput}
-              onChange={(e) => setSimInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && simInput.trim()) {
-                  e.preventDefault();
-                  handleSimulate();
-                }
-              }}
-              placeholder="Simule uma mensagem do cliente..."
-              className="flex-1 resize-none min-h-[44px] max-h-[120px] rounded-xl py-3 px-3 text-sm"
-              rows={1}
-            />
-            <Button
-              onClick={handleSimulate}
-              disabled={isSimulating || !simInput.trim()}
-              size="icon"
-              className="h-11 w-11 rounded-xl bg-purple-600 hover:bg-purple-700 flex-shrink-0"
-            >
-              {isSimulating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <ArrowRight className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-
-          {/* Dica */}
-          <div className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
-            💡 <strong>Dica:</strong> O simulador usa o roteiro atual do editor (não precisa salvar para testar).
-          </div>
-        </div>
+        <Button
+          onClick={handleSave}
+          disabled={saveFlowMutation.isPending || !hasChanges}
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+        >
+          {saveFlowMutation.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          ) : (
+            <Save className="w-4 h-4 mr-2" />
+          )}
+          Salvar Roteiro
+        </Button>
       </div>
 
       {/* ── Card de instruções ── */}
@@ -593,9 +414,9 @@ Responda: "Obrigado pelo contato! Até logo! 😊"`}
               <span className="text-xs font-bold text-purple-600">3</span>
             </div>
             <div>
-              <p className="text-xs font-medium">IA segue o roteiro</p>
+              <p className="text-xs font-medium">Teste no simulador</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Com Fluxo ativo, a IA NÃO improvisa. Ela responde apenas conforme o roteiro escrito.
+                Com Fluxo ON, use o <strong>Simulador WhatsApp</strong> (painel direito) para confirmar que o roteiro é seguido.
               </p>
             </div>
           </div>

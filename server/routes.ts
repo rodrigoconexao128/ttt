@@ -15902,9 +15902,27 @@ Responda APENAS com o JSON, sem texto adicional.`;
         } as any);
       }
 
-      // Se flowModeActive mudou, sincronizar com business_agent_configs
+      // 🔀 PARTE 5: Se flowModeActive mudou, garantir prioridade correta
       if (typeof result.data.flowModeActive === "boolean") {
         console.log(`[FLOW] flowModeActive=${result.data.flowModeActive} salvo para userId=${userId}`);
+        
+        if (result.data.flowModeActive === true) {
+          // Quando Modo Fluxo é ativado:
+          // 1. Visual Flow Builder (chatbot_configs) deve ser desativado para evitar conflito
+          try {
+            await db.execute(sql`
+              UPDATE chatbot_configs SET
+                is_active = false,
+                updated_at = now()
+              WHERE user_id = ${userId}
+            `);
+            const { clearFlowCache } = await import("./chatbotFlowEngine");
+            clearFlowCache(userId);
+            console.log(`[FLOW] ✅ Visual Flow Builder desativado (Modo Fluxo tem prioridade)`);
+          } catch (syncErr) {
+            console.error(`[FLOW] Aviso ao desativar chatbot_configs:`, syncErr);
+          }
+        }
       }
 
       res.json({ success: true, message: "Fluxo salvo com sucesso" });

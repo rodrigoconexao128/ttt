@@ -3991,8 +3991,11 @@ export async function testAgentResponse(
     const flowModeActive = (agentConfig as any).flowModeActive === true;
     const flowScript = (agentConfig as any).flowScript;
 
-    if (!customPrompt && flowModeActive && flowScript && flowScript.trim().length > 10) {
-      console.log(`🔀 [SIMULADOR] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine`);
+    // 🔀 PARTE 5 CORREÇÃO CRÍTICA:
+    // Se flowModeActive=true, o roteiro tem PRIORIDADE MÁXIMA mesmo que customPrompt seja passado.
+    // Isso garante que o simulador e o atendimento real sempre usem o mesmo FlowScriptEngine.
+    if (flowModeActive && flowScript && flowScript.trim().length > 10) {
+      console.log(`🔀 [SIMULADOR] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine (prioridade máxima)`);
       
       try {
         const { executeFlowResponse } = await import("./flowScriptEngine");

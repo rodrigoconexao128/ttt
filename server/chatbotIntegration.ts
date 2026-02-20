@@ -35,6 +35,15 @@ export async function tryProcessChatbotMessage(
   isFirstContact: boolean = false
 ): Promise<ChatbotMessageResult> {
   try {
+    // 🔀 PARTE 5 CORREÇÃO: Se Modo Fluxo (flowModeActive) está ativo,
+    // o FlowScriptEngine tem PRIORIDADE MÁXIMA sobre o Visual Flow Builder.
+    // Retornar handled=false para que a IA em generateAIResponse use o roteiro de fluxo.
+    const agentConfig = await storage.getAgentConfig(userId);
+    if ((agentConfig as any)?.flowModeActive === true && (agentConfig as any)?.flowScript?.trim().length > 10) {
+      console.log(`🔀 [CHATBOT_INTEGRATION] Modo Fluxo ativo para ${userId} — delegando para FlowScriptEngine (prioridade)`);
+      return { handled: false };
+    }
+
     // Verificar se o chatbot está ativo para este usuário
     const chatbotActive = await isChatbotActive(userId);
     
