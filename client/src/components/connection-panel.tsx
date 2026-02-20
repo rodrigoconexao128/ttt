@@ -262,6 +262,11 @@ export function ConnectionPanel() {
       isWaitingQrCodeRef.current = false;
       setIsConnecting(false);
       setConnectionMethod(null);
+      // Stop polling started in onClick
+      if (qrCodePollingRef.current) {
+        clearInterval(qrCodePollingRef.current);
+        qrCodePollingRef.current = null;
+      }
       toast({
         title: "Erro ao conectar",
         description: error.message,
@@ -476,16 +481,32 @@ export function ConnectionPanel() {
     let socket: WebSocket | null = null;
     let reconnectTimer: NodeJS.Timeout | null = null;
     let isMounted = true;
+    let authRetryCount = 0;
+    const MAX_AUTH_RETRIES = 15; // Retry up to 15 times (~30s total)
 
     const connectWebSocket = async () => {
       if (!isMounted) return;
       try {
-        const token = await getAuthToken();
+        let token = await getAuthToken();
 
-        if (!token) {
-          console.error("No auth token available for WebSocket connection");
+        // Retry mechanism for when Supabase session hasn't hydrated from localStorage yet
+        if (!token && authRetryCount < MAX_AUTH_RETRIES) {
+          authRetryCount++;
+          const delay = Math.min(1000 + authRetryCount * 500, 3000); // 1.5s, 2s, 2.5s, 3s...
+          console.log(`[WS] Auth token not available yet, retry ${authRetryCount}/${MAX_AUTH_RETRIES} in ${delay}ms...`);
+          reconnectTimer = setTimeout(() => {
+            if (isMounted) connectWebSocket();
+          }, delay);
           return;
         }
+
+        if (!token) {
+          console.error("No auth token available for WebSocket connection after all retries");
+          return;
+        }
+
+        // Reset auth retry count on successful token acquisition
+        authRetryCount = 0;
 
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const wsUrl = `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
@@ -790,6 +811,11 @@ export function ConnectionPanel() {
                   <button
                     onClick={() => {
                         setConnectionMethod("qr");
+                        // Set waiting state IMMEDIATELY to avoid blank UI gap
+                        setIsWaitingQrCode(true);
+                        isWaitingQrCodeRef.current = true;
+                        // Start polling right away so we catch the QR even without WebSocket
+                        startQrCodePolling();
                         connectMutation.mutate();
                     }}
                     disabled={connectMutation.isPending}
