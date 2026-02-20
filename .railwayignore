@@ -91,7 +91,6 @@ lid-mapping-*.json
 
 # Media and data files
 *.txt
-*.png
 *.jpg
 *.jpeg
 *.webp
@@ -107,6 +106,9 @@ lid-mapping-*.json
 *.out
 *.err
 dev-server.*
+# Note: *.png excluded from ignore to allow tutorial screenshots in client/public
+# Individual .png files not in client/public are excluded below:
+!client/public/tutorial-screenshots/*.png
 
 # Admin cookies and temp
 admin_cookies.txt
