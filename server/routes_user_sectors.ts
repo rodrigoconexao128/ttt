@@ -9,8 +9,8 @@
  */
 
 import type { Express, Request, Response, NextFunction } from "express";
-import { pool } from "../db";
-import { isAuthenticated } from "../supabaseAuth";
+import { pool } from "./db";
+import { isAuthenticated } from "./supabaseAuth";
 
 // ---------------------------------------------------------------------------
 // Helpers
