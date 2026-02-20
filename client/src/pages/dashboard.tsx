@@ -641,21 +641,6 @@ const toolsNavigation: ToolNavItem[] = [
               </SidebarMenuItem>
               )}
 
-              {/* Suporte - Acesso rápido fora de Ferramentas */}
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={location === "/support"}
-                  tooltip="Suporte"
-                  data-testid="button-nav-support"
-                >
-                  <Link href="/support">
-                    <HelpCircle className="w-4 h-4" />
-                    <span>Suporte</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
               {/* Central de Ajuda / Tutoriais */}
               <SidebarMenuItem>
                 <SidebarMenuButton
@@ -1291,13 +1276,13 @@ const toolsNavigation: ToolNavItem[] = [
             </button>
             )}
 
-            {/* Suporte - Acesso rápido mobile */}
+            {/* Ajuda - Acesso rápido mobile */}
             <button
-              className={`flex flex-col items-center py-2.5 gap-0.5 ${location === "/support" ? "text-primary font-medium" : "text-muted-foreground"}`}
-              onClick={() => setLocation("/support")}
+              className={`flex flex-col items-center py-2.5 gap-0.5 ${isHelpCenterRoute ? "text-primary font-medium" : "text-muted-foreground"}`}
+              onClick={() => setLocation("/ajuda")}
             >
-              <Ticket className="w-5 h-5" />
-              <span>Suporte</span>
+              <HelpCircle className="w-5 h-5" />
+              <span>Ajuda</span>
             </button>
 
             <button

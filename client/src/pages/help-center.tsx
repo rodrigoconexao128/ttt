@@ -429,40 +429,245 @@ const HELP_CATEGORIES: Category[] = [
     color: "text-purple-600",
     articles: [
       {
-        id: "ai-agent-prompt",
-        title: "Como escrever um bom prompt para o agente",
-        description: "Guia completo para criar um agente eficiente",
-        tags: ["prompt", "configuração", "ia", "agente", "personalidade", "instrução"],
-        difficulty: "intermediate",
+        id: "ai-agent-overview",
+        title: "Visão geral da tela Meu Agente IA",
+        description: "Entenda o layout: abas de configuração e simulador ao lado direito",
+        tags: ["meu agente", "visão geral", "layout", "abas", "simulador"],
+        difficulty: "beginner",
         content: [
           {
             type: "text",
             content:
-              "O prompt é o coração do agente — é onde você ensina tudo sobre o seu negócio. Quanto mais detalhado, melhor a IA vai responder.",
+              'A tela "Meu Agente IA" é o coração do seu negócio. Ela fica dividida em duas partes principais: à esquerda, as abas de configuração (Instruções, Mídias, Config, Testar) — e à direita, quando você está na aba "Testar", o simulador de conversa aparece em tempo real, mostrando exatamente como o agente vai responder no WhatsApp.',
           },
           {
             type: "list",
-            heading: "O que incluir no prompt:",
+            heading: "As 4 abas principais:",
             content: [
-              "🏷️ **Nome do agente** (ex: 'Você se chama Maria')",
-              "🏢 **Nome e descrição do negócio**",
-              "📋 **Produtos, serviços e preços**",
-              "⏰ **Horário de funcionamento**",
-              "📍 **Endereço e cidade**",
-              "📞 **Formas de contato e pagamento**",
-              "🎯 **Tom de voz** (formal, descontraído, jovem...)",
-              "❌ **O que o agente NÃO deve falar/fazer**",
+              "📝 **Instruções (Prompt)** — onde você escreve o comportamento, nome e conhecimento do agente.",
+              "🖼️ **Mídias** — onde você sobe imagens, áudios, PDFs que o agente envia automaticamente.",
+              "⚙️ **Config** — configurações avançadas: modelo de IA, idioma, modo de resposta, calibração.",
+              "🧪 **Testar** — simulador de conversa: você faz o papel do cliente e vê as respostas em tempo real.",
             ],
           },
           {
             type: "tip",
             content:
-              'Use o botão "Gerar com IA" para criar um prompt automaticamente. Basta descrever seu negócio em linguagem natural e a IA cria o prompt para você.',
+              "O fluxo recomendado é: escreva as Instruções → configure as Mídias → ajuste as Configs → e valide tudo no Simulador. Só ative para o público depois de aprovado no simulador.",
+          },
+        ],
+      },
+      {
+        id: "ai-agent-chat",
+        title: "Chat do Agente — Como funciona na prática",
+        description: "Entenda como o agente responde às mensagens dos seus clientes",
+        tags: ["chat", "conversa", "ia", "resposta automática", "atendimento", "whatsapp"],
+        difficulty: "beginner",
+        content: [
+          {
+            type: "text",
+            content:
+              "Quando um cliente manda uma mensagem no seu WhatsApp, o agente recebe essa mensagem e gera uma resposta baseada no que você configurou no prompt (Instruções). O processo acontece em segundos e de forma 100% automática, 24h por dia.",
+          },
+          {
+            type: "list",
+            heading: "O que acontece em cada mensagem:",
+            content: [
+              "1️⃣ Cliente envia mensagem → o sistema recebe via WhatsApp Web (Baileys).",
+              "2️⃣ O histórico da conversa é carregado para dar contexto ao agente.",
+              "3️⃣ O prompt + histórico + nova mensagem são enviados ao modelo de IA.",
+              "4️⃣ A IA gera a resposta e o sistema a envia de volta para o cliente.",
+              "5️⃣ A conversa fica salva em 'Conversas' para você acompanhar.",
+            ],
+          },
+          {
+            type: "tip",
+            content:
+              "Você pode assumir o atendimento manual a qualquer momento na tela de Conversas — basta abrir a conversa e digitar. O agente para de responder automaticamente quando detecta intervenção humana.",
           },
           {
             type: "warning",
             content:
-              "Evite prompts muito curtos (menos de 3 parágrafos). O agente ficará genérico demais e não representará bem o seu negócio.",
+              "Se o agente não estiver respondendo, verifique: (1) se o toggle 'Agente Ativo' está ligado, (2) se o WhatsApp está conectado (tela Conexão), e (3) se o número não está na Lista de Exclusão.",
+          },
+        ],
+      },
+      {
+        id: "ai-agent-prompt",
+        title: "Aba Instruções — Escrever e editar o prompt do agente",
+        description: "Guia completo para criar instruções eficientes para o agente",
+        tags: ["prompt", "instruções", "editar", "configuração", "ia", "agente", "personalidade"],
+        difficulty: "intermediate",
+        content: [
+          {
+            type: "text",
+            content:
+              "As Instruções (também chamadas de prompt ou system prompt) são o conjunto de regras e informações que você passa para a IA sobre quem ela é e como deve se comportar. É como um manual de treinamento para o seu atendente virtual. Quanto mais rico e preciso esse manual, mais natural e eficiente será o atendimento.",
+          },
+          {
+            type: "list",
+            heading: "O que incluir nas instruções:",
+            content: [
+              "🏷️ **Identidade** — nome do agente (ex: 'Você se chama Ana') e papel (atendente, vendedor, especialista...)",
+              "🏢 **Contexto do negócio** — nome da empresa, o que vende, como funciona, diferenciais.",
+              "📋 **Produtos e serviços** — lista completa com nomes, descrições e preços.",
+              "⏰ **Horário de funcionamento** — dias e horários disponíveis.",
+              "📍 **Localização** — endereço, bairro, cidade, se tem delivery ou atende presencialmente.",
+              "💳 **Pagamentos** — formas aceitas: PIX, cartão, dinheiro etc.",
+              "🎯 **Tom de voz** — formal, descontraído, jovem, técnico... adapte ao seu público.",
+              "❌ **Restrições** — o que o agente NÃO deve falar (ex: 'não prometa prazos que não consigo cumprir').",
+            ],
+          },
+          {
+            type: "steps",
+            heading: "Como criar ou editar as instruções:",
+            content: [
+              'Acesse "Meu Agente IA" no menu lateral.',
+              'Clique na aba "Instruções".',
+              "Se não tem prompt ainda: clique em \"Gerar com IA\" e descreva seu negócio em texto livre. A IA monta o prompt por você.",
+              "Se já tem prompt: edite diretamente no campo de texto, ou use \"Melhorar\" para a IA sugerir aprimoramentos.",
+              'Para editar em tela cheia (recomendado para prompts longos): clique em "Expandir".',
+              "Após editar, clique em \"Salvar Configurações\".",
+              "Vá para a aba \"Testar\" e valide se as respostas estão como esperado.",
+            ],
+          },
+          {
+            type: "tip",
+            content:
+              'Exemplo de instrução inicial eficaz: "Você é a Mari, atendente virtual da Padaria do Zé. Seja simpática, use emojis com moderação e responda em português informal. O cardápio hoje é: Pão francês R$0,80 (unidade), Café R$3, Coxinha R$5. Abrimos de segunda a sábado das 6h às 20h. Localização: Rua das Flores, 123, Centro. Pagamos no PIX e dinheiro."',
+          },
+          {
+            type: "warning",
+            content:
+              "Evite instruções muito curtas (menos de 5 linhas). O agente fica genérico, responde errado, ou inventa informações. Dedique 20 a 30 minutos para escrever um prompt completo — isso vai economizar horas de correção depois.",
+          },
+        ],
+      },
+      {
+        id: "ai-agent-calibration",
+        title: "Aba Config — Calibrar e ajustar o comportamento do agente",
+        description: "Configure modelos, temperatura, estilo de resposta e recursos avançados",
+        tags: ["calibrar", "calibração", "config", "configuração", "modelo", "temperatura", "ajuste fino"],
+        difficulty: "advanced",
+        content: [
+          {
+            type: "text",
+            content:
+              "A aba Config permite ajustar como o agente pensa e se comporta em detalhes técnicos. Aqui você escolhe o modelo de IA, define o estilo de resposta e habilita recursos como histórico longo, follow-up automático e modo de calibração avançada.",
+          },
+          {
+            type: "list",
+            heading: "Principais configurações:",
+            content: [
+              "🤖 **Modelo de IA** — Auto (recomendado), GPT-4o, Claude, Mistral etc. O Auto escolhe o melhor disponível.",
+              "🌡️ **Temperatura** — controla a criatividade das respostas. Baixa (0.1–0.3) = mais consistente e previsível. Alta (0.7–1.0) = mais criativa e variada.",
+              "📜 **Histórico de mensagens** — quantas mensagens anteriores o agente considera para gerar a resposta. Mais histórico = mais contexto, mas pode ser mais lento.",
+              "⏸️ **Pausar IA ao responder manualmente** — se você responder na tela de Conversas, o agente pausa automaticamente nessa conversa.",
+              "🔄 **Reativar IA automaticamente** — após X horas sem resposta do atendente, o agente assume de volta.",
+              "🔇 **Modo silencioso** — o agente lê as mensagens mas só responde quando ativado por uma palavra-chave.",
+            ],
+          },
+          {
+            type: "steps",
+            heading: "Calibração manual do agente:",
+            content: [
+              'Em "Meu Agente IA" → aba "Config", role até a seção "Calibração".',
+              "Clique em \"Iniciar Calibração\" para abrir o modo de ajuste fino.",
+              "Envie exemplos de perguntas e corrija as respostas que não estiverem adequadas.",
+              "O sistema usa essas correções para ajustar o comportamento do agente.",
+              "Repita o processo com 5 a 10 cenários reais do seu negócio.",
+              "Salve ao final.",
+            ],
+          },
+          {
+            type: "tip",
+            content:
+              "Use a calibração para cenários específicos do seu negócio: perguntas de preço, situações de reclamação, pedidos complexos. Cada correção que você faz ensina o agente a responder melhor nesses contextos.",
+          },
+        ],
+      },
+      {
+        id: "ai-agent-simulator",
+        title: "Aba Testar — Simulador de conversa (lado direito)",
+        description: "Use o simulador para testar o agente antes de ativar para os clientes",
+        tags: ["testar", "simulador", "teste", "agente", "validar", "conversa de teste"],
+        difficulty: "beginner",
+        content: [
+          {
+            type: "text",
+            content:
+              'A aba "Testar" abre o simulador de conversa do WhatsApp. Ele fica do lado direito da tela (em desktop) ou em tela cheia (em mobile). O simulador mostra exatamente como o agente vai responder, com a mesma formatação que o cliente veria no WhatsApp — bolhas de mensagem, emojis, negrito etc.',
+          },
+          {
+            type: "steps",
+            heading: "Como usar o simulador:",
+            content: [
+              'Acesse "Meu Agente IA" → aba "Testar".',
+              "O simulador aparece à direita (desktop) ou abaixo (mobile).",
+              "Digite uma mensagem como se fosse um cliente (ex: 'Oi, qual o preço do corte?').",
+              "A IA processa e mostra a resposta em bolhas, como no WhatsApp real.",
+              "Se quiser testar outro cenário do zero, clique em \"Limpar conversa\".",
+              "Se a resposta não ficou boa: volte para a aba Instruções, melhore o prompt e volte ao simulador.",
+            ],
+          },
+          {
+            type: "list",
+            heading: "Cenários obrigatórios para testar antes de ativar:",
+            content: [
+              "✅ Saudação inicial (ex: 'Oi', 'Bom dia')",
+              "✅ Pergunta de preço (ex: 'Quanto custa X?')",
+              "✅ Pergunta de horário (ex: 'Que horas vocês fecham?')",
+              "✅ Situação de reclamação (ex: 'Tive um problema com meu pedido')",
+              "✅ Pedido de informações que o agente NÃO deve ter (ex: dados pessoais de outros clientes)",
+              "✅ Mensagem fora do escopo do negócio (ex: 'Me conta uma piada')",
+            ],
+          },
+          {
+            type: "tip",
+            content:
+              "Convide um amigo para testar também! Às vezes a gente fica \"cego\" para os problemas do próprio agente. Um olhar de fora identifica respostas estranhas ou incompletas com mais facilidade.",
+          },
+        ],
+      },
+      {
+        id: "ai-agent-media",
+        title: "Aba Mídias — Configure arquivos que o agente envia automaticamente",
+        description: "Imagens, áudios, PDFs e vídeos enviados pelo agente na hora certa",
+        tags: ["mídia", "imagem", "áudio", "vídeo", "pdf", "envio automático", "biblioteca", "cardápio"],
+        difficulty: "intermediate",
+        content: [
+          {
+            type: "text",
+            content:
+              "Na aba Mídias você faz upload de arquivos que o agente pode enviar automaticamente durante a conversa. Isso é muito usado para: enviar o cardápio quando o cliente perguntar, mandar uma foto do produto, enviar tabela de preços em PDF, ou até mandar um áudio de apresentação.",
+          },
+          {
+            type: "steps",
+            heading: "Como adicionar uma mídia:",
+            content: [
+              'Em "Meu Agente IA" → aba "Mídias".',
+              'Clique em "Adicionar Mídia".',
+              "Selecione o tipo: Imagem, Áudio, Vídeo ou Documento (PDF, Excel etc.).",
+              "Faça o upload do arquivo.",
+              "Preencha o **nome** (para você identificar) e a **descrição** (o que é esse arquivo).",
+              "No campo **Quando usar**: escreva a instrução para a IA (ex: 'Envie quando o cliente pedir o cardápio ou perguntar o que você vende').",
+              "Clique em Salvar.",
+            ],
+          },
+          {
+            type: "tip",
+            content:
+              'Seja muito específico no campo "Quando usar". Em vez de "envie quando relevante", escreva "Envie esta imagem quando o cliente perguntar pelo cardápio, pelos preços, ou quiser ver o que você tem". Instruções vagas geram envios errados.',
+          },
+          {
+            type: "list",
+            heading: "Tipos de arquivo suportados:",
+            content: [
+              "🖼️ **Imagem**: JPG, PNG, WebP — até 5MB",
+              "🎵 **Áudio**: MP3, OGG, M4A — até 10MB (enviado como mensagem de voz)",
+              "🎬 **Vídeo**: MP4 — até 16MB",
+              "📄 **Documento**: PDF, XLSX, DOCX — até 10MB",
+            ],
           },
         ],
       },
@@ -476,113 +681,54 @@ const HELP_CATEGORIES: Category[] = [
           {
             type: "text",
             content:
-              "O AgenteZap suporta múltiplos modelos de IA. O modelo padrão é configurado pelo administrador, mas você pode escolher na aba de configuração do agente.",
+              "O AgenteZap suporta múltiplos modelos de IA. O modelo padrão é configurado pelo administrador do sistema, mas você pode escolher na aba Config do agente. Cada modelo tem características diferentes em termos de velocidade, custo e qualidade de resposta.",
           },
           {
             type: "list",
             heading: "Modelos disponíveis:",
             content: [
-              "**Auto (Recomendado)** — seleciona automaticamente o melhor modelo disponível.",
-              "**GPT-4o** — excelente para conversas ricas e contexto longo.",
-              "**Claude Haiku** — rápido e eficiente para respostas simples.",
-              "**Mistral** — bom custo-benefício para negócios em português.",
+              "**Auto (Recomendado)** — seleciona automaticamente o melhor modelo disponível no momento. Ideal para quem não quer se preocupar com isso.",
+              "**GPT-4o** — excelente para conversas ricas, raciocínio complexo e respostas longas com contexto grande.",
+              "**Claude Haiku** — muito rápido e eficiente para respostas simples e objetivas.",
+              "**Mistral** — bom custo-benefício, funciona muito bem para português brasileiro.",
             ],
           },
           {
             type: "tip",
             content:
-              "Para a maioria dos negócios, o modo Auto já é o suficiente. Só mude o modelo se tiver necessidade específica.",
-          },
-        ],
-      },
-      {
-        id: "ai-agent-media",
-        title: "Biblioteca de Mídias do agente",
-        description: "Configure imagens, áudios e vídeos que a IA envia automaticamente",
-        tags: ["mídia", "imagem", "áudio", "vídeo", "envio automático", "biblioteca"],
-        difficulty: "intermediate",
-        content: [
-          {
-            type: "text",
-            content:
-              "Você pode fazer o agente enviar automaticamente arquivos de mídia (cardápio, tabela de preços, áudio de apresentação etc.) quando julgar necessário.",
-          },
-          {
-            type: "steps",
-            heading: "Como adicionar mídia:",
-            content: [
-              'Em "Meu Agente IA", vá na aba "Mídias".',
-              'Clique em "Adicionar Mídia".',
-              "Faça upload do arquivo (imagem, áudio, vídeo ou documento).",
-              "Preencha: nome, descrição e **quando usar** (instrução para a IA).",
-              "Salve.",
-            ],
-          },
-          {
-            type: "tip",
-            content:
-              'No campo "Quando usar", seja específico: "Envie quando o cliente perguntar pelo cardápio ou perguntar o que você vende."',
+              "Para a maioria dos negócios (delivery, salão, serviços gerais), o modo Auto já é excelente. Só mude o modelo se você tiver uma necessidade específica identificada — como velocidade máxima (Haiku) ou raciocínio mais profundo (GPT-4o).",
           },
         ],
       },
       {
         id: "ai-agent-flow",
-        title: "Construtor de Fluxo (chatbot)",
-        description: "Crie fluxos de conversa automáticos sem IA para casos específicos",
-        tags: ["fluxo", "chatbot", "automação", "menu", "bot", "sem ia"],
+        title: "Construtor de Fluxo (chatbot sem IA)",
+        description: "Crie fluxos de conversa automáticos para casos específicos e menus estruturados",
+        tags: ["fluxo", "chatbot", "automação", "menu", "bot", "sem ia", "construtor"],
         difficulty: "advanced",
         content: [
           {
             type: "text",
             content:
-              "O Construtor de Fluxo permite criar árvores de conversa fixas (menus, perguntas e respostas predefinidas) que funcionam independente da IA. Ideal para coleta de dados, menus de atendimento ou fluxos comerciais estruturados.",
+              "O Construtor de Fluxo permite criar roteiros de conversa fixos — diferente da IA que improvisa, o fluxo segue exatamente o roteiro que você definiu. É ideal para coleta de dados estruturados (nome, CPF, endereço), menus de atendimento com opções numeradas, ou fluxos comerciais previsíveis.",
           },
           {
             type: "steps",
             heading: "Como criar um fluxo:",
             content: [
-              'Acesse "Meu Agente IA" → aba "Fluxo".',
+              'Acesse "Meu Agente IA" → aba "Config" → seção "Fluxo" (ou pelo Construtor de Fluxo no menu Ferramentas).',
               'Clique em "Criar Novo Fluxo".',
-              "Dê um nome e defina a palavra-gatilho (ex: 'menu', 'oi', 'começar').",
-              "Adicione nós: Mensagem, Pergunta ou Condição.",
-              "Conecte os nós arrastando as arestas.",
+              "Defina o **nome** e a **palavra-gatilho** (ex: 'menu', 'oi', 'começar', 'olá').",
+              "Adicione nós: Mensagem (envia texto), Pergunta (aguarda resposta), Condição (bifurca o caminho).",
+              "Conecte os nós arrastando as setas entre eles.",
               'Ative o fluxo com o toggle "Ativo".',
-              "Teste digitando a palavra-gatilho no simulador.",
+              "Teste digitando a palavra-gatilho na aba Testar.",
             ],
           },
           {
             type: "warning",
             content:
-              "O fluxo tem prioridade sobre a IA quando ativo. Certifique-se de cobrir os casos de saída do fluxo para a IA retomar normalmente.",
-          },
-        ],
-      },
-      {
-        id: "ai-agent-test",
-        title: "Testando o agente",
-        description: "Simule conversas antes de ativar para os clientes",
-        tags: ["testar", "simulador", "teste", "agente"],
-        difficulty: "beginner",
-        content: [
-          {
-            type: "text",
-            content:
-              "O simulador permite conversar com o agente como se fosse um cliente, sem enviar nada para o WhatsApp real.",
-          },
-          {
-            type: "steps",
-            heading: "Como testar:",
-            content: [
-              'Vá em "Meu Agente IA" → aba "Testar".',
-              "Digite uma mensagem no simulador.",
-              "Veja a resposta do agente.",
-              "Clique em 'Limpar conversa' para reiniciar o contexto.",
-            ],
-          },
-          {
-            type: "tip",
-            content:
-              "Teste os cenários mais comuns do seu negócio: perguntas de preço, disponibilidade, formas de pagamento e situações de reclamação.",
+              "Quando um fluxo está ativo e é acionado, ele tem prioridade sobre a IA — a IA não responde enquanto o cliente estiver dentro do fluxo. Crie sempre um 'nó de saída' ao final para retornar o controle para o agente.",
           },
         ],
       },
@@ -1611,58 +1757,102 @@ const HELP_CATEGORIES: Category[] = [
   },
 
   // ══════════════════════════════════════════════════════════════════
-  // 22. TICKETS / SUPORTE
+  // 22. CONTATO & SUPORTE
   // ══════════════════════════════════════════════════════════════════
   {
     id: "support-tickets",
-    title: "Suporte & Tickets",
-    description: "Abra e acompanhe tickets de suporte",
+    title: "Contato & Suporte",
+    description: "Fale com nosso suporte diretamente pelo WhatsApp",
     icon: Ticket,
     color: "text-orange-600",
     articles: [
       {
-        id: "tickets-overview",
-        title: "Como abrir um Ticket de Suporte",
-        description: "Registre problemas ou dúvidas para a equipe de suporte",
-        tags: ["ticket", "suporte", "ajuda", "problema", "solicitação", "chamado"],
+        id: "support-whatsapp",
+        title: "Como falar com o suporte pelo WhatsApp",
+        description: "Entre em contato direto com nossa equipe via WhatsApp",
+        tags: ["suporte", "whatsapp", "ajuda", "contato", "atendimento", "problema"],
         difficulty: "beginner",
         content: [
           {
+            type: "text",
+            content:
+              "Nossa equipe de suporte está disponível diretamente pelo WhatsApp. É a forma mais rápida e eficiente de resolver dúvidas, relatar problemas ou solicitar ajuda personalizada.",
+          },
+          {
             type: "steps",
-            heading: "Abrir ticket:",
+            heading: "Como entrar em contato:",
             content: [
-              'Clique em "Suporte" no menu lateral.',
-              'Clique em "Novo Ticket" ou "Abrir Chamado".',
-              "Selecione a categoria do problema.",
-              "Descreva o problema detalhadamente.",
-              "Adicione prints ou arquivos se ajudar.",
-              'Clique em "Enviar".',
-              "Você receberá atualizações por e-mail e no painel.",
+              "Clique no botão verde 'Falar no WhatsApp' abaixo — ou salve o número +55 17 99164-8288.",
+              "Envie uma mensagem descrevendo o problema ou dúvida.",
+              "Informe: seu nome, e-mail de cadastro e o que está acontecendo.",
+              "Nossa equipe responde em horário comercial (segunda a sexta, 9h–18h).",
             ],
           },
           {
             type: "tip",
             content:
-              "Tickets com descrição detalhada e screenshots são resolvidos mais rapidamente. Inclua: o que estava fazendo, o que esperava acontecer e o que aconteceu.",
+              "Para agilizar o atendimento, envie também um print da tela com o problema. Isso ajuda muito nossa equipe a entender e resolver mais rápido!",
+          },
+          {
+            type: "list",
+            heading: "Exemplos de como descrever bem o problema:",
+            content: [
+              "✅ BOM: 'Meu agente parou de responder desde ontem às 14h. O WhatsApp está conectado mas nenhuma mensagem está sendo respondida. Testei no simulador e deu erro.'",
+              "✅ BOM: 'Preciso de ajuda para configurar o cardápio do delivery. Tenho 3 categorias e não sei como organizar.'",
+              "❌ RUIM: 'Não funciona' — sem contexto, muito difícil de ajudar.",
+              "❌ RUIM: 'Tem um erro' — qual erro? Em qual tela?",
+            ],
           },
         ],
       },
       {
-        id: "tickets-track",
-        title: "Acompanhar Tickets Abertos",
-        description: "Veja o status e histórico dos seus chamados",
-        tags: ["ticket", "status", "acompanhar", "chamado", "resposta"],
+        id: "support-self-help",
+        title: "Resolução rápida — problemas comuns",
+        description: "Soluções para os problemas mais frequentes sem precisar contatar o suporte",
+        tags: ["problema", "erro", "não funciona", "solucionar", "whatsapp desconectado", "agente não responde"],
         difficulty: "beginner",
         content: [
           {
-            type: "steps",
-            heading: "Ver tickets:",
+            type: "list",
+            heading: "Problemas mais comuns e soluções:",
             content: [
-              'Acesse "Suporte" no menu.',
-              "Veja a lista de tickets: Aberto, Em andamento, Resolvido.",
-              "Clique em um ticket para ver o histórico de mensagens.",
-              "Responda ou adicione informações ao ticket.",
+              "🔌 **WhatsApp desconectado** → Vá em 'Conexão' e reconecte escaneando o QR Code. Verifique se o celular está com internet.",
+              "🤖 **Agente não responde** → Verifique se o toggle 'Agente Ativo' está ligado em 'Meu Agente IA'. Verifique se o número não está na Lista de Exclusão.",
+              "📵 **QR Code não aparece** → Atualize a página (F5). Se persistir, limpe o cache do navegador.",
+              "📨 **Mensagens em massa não enviam** → Verifique se a lista de contatos está preenchida e se o WhatsApp está conectado.",
+              "🔐 **Não consigo fazer login** → Use 'Esqueci minha senha' na tela de login. Verifique o spam do e-mail.",
+              "💳 **Problema com pagamento** → Verifique se o cartão não está bloqueado ou com limite insuficiente. Tente PIX como alternativa.",
             ],
+          },
+          {
+            type: "tip",
+            content:
+              "Mais de 80% dos problemas são resolvidos reconectando o WhatsApp ou verificando se o agente está ativo. Sempre comece por aí antes de contatar o suporte.",
+          },
+        ],
+      },
+      {
+        id: "support-hours",
+        title: "Horários e política de atendimento",
+        description: "Saiba quando e como nossa equipe está disponível",
+        tags: ["horário", "atendimento", "suporte", "disponibilidade", "prazo", "resposta"],
+        difficulty: "beginner",
+        content: [
+          {
+            type: "list",
+            heading: "Informações de atendimento:",
+            content: [
+              "📅 **Dias**: Segunda a Sexta-feira",
+              "⏰ **Horário**: 9h às 18h (horário de Brasília)",
+              "📱 **Canal**: WhatsApp +55 17 99164-8288",
+              "⚡ **Tempo médio de resposta**: até 4 horas úteis",
+              "🚨 **Urgências técnicas** (sistema fora do ar): Tratamos com prioridade máxima",
+            ],
+          },
+          {
+            type: "tip",
+            content:
+              "Fora do horário comercial, nossa Central de Ajuda (este guia) tem resposta para os problemas mais comuns. A maioria das dúvidas pode ser resolvida consultando os artigos antes mesmo de precisar do suporte.",
           },
         ],
       },
@@ -1815,6 +2005,26 @@ function ArticleView({
           ))}
         </div>
       </div>
+
+      {/* CTA WhatsApp para artigos de suporte */}
+      {category.id === "support-tickets" && (
+        <div className="mt-6 p-5 rounded-xl bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-800 text-center">
+          <p className="text-sm font-semibold text-green-800 dark:text-green-200 mb-3">
+            Precisa de ajuda personalizada? Fale com a gente!
+          </p>
+          <a
+            href="https://wa.me/5517991648288?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20AgenteZap."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-semibold text-sm transition-colors"
+          >
+            <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            Falar no WhatsApp — +55 17 99164-8288
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -1874,6 +2084,29 @@ function CategoryView({
           </button>
         ))}
       </div>
+
+      {/* CTA WhatsApp para categoria de suporte */}
+      {category.id === "support-tickets" && (
+        <div className="mt-8 p-5 rounded-xl bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-800 text-center">
+          <p className="text-base font-semibold text-green-800 dark:text-green-200 mb-1">
+            Fale direto com o suporte
+          </p>
+          <p className="text-sm text-green-700 dark:text-green-300 mb-4">
+            Nossa equipe responde em até 4 horas úteis, de segunda a sexta das 9h às 18h.
+          </p>
+          <a
+            href="https://wa.me/5517991648288?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20AgenteZap."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-semibold text-sm transition-colors"
+          >
+            <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            Abrir WhatsApp — +55 17 99164-8288
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -2108,14 +2341,18 @@ export default function HelpCenter() {
               <HelpCircle className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
               <h3 className="font-semibold text-foreground mb-1">Não encontrou o que precisava?</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Nossa equipe de suporte está pronta para ajudar você.
+                Nossa equipe de suporte está pronta para ajudar você diretamente pelo WhatsApp.
               </p>
               <a
-                href="/support"
-                className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+                href="https://wa.me/5517991648288?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20AgenteZap."
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-semibold text-sm transition-colors"
               >
-                Abrir ticket de suporte
-                <ArrowRight className="w-4 h-4" />
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                </svg>
+                Falar com o Suporte no WhatsApp
               </a>
             </div>
           </>
