@@ -6960,7 +6960,14 @@ export async function disconnectWhatsApp(userId: string, connectionId?: string):
   const lookupKey = connectionId || userId;
   const session = sessions.get(lookupKey);
   if (session?.socket) {
-    await session.socket.logout();
+    // Use end() instead of logout() to avoid cascade disconnect
+    // logout() sends a revoke command to WhatsApp servers, disconnecting ALL linked devices (phone, PC, etc.)
+    // end() only closes this local connection, leaving the phone and other devices connected
+    try {
+      session.socket.end(undefined);
+    } catch (e) {
+      console.log(`[DISCONNECT] Error closing socket for ${lookupKey}:`, e);
+    }
     sessions.delete(lookupKey);
   }
 
@@ -8057,7 +8064,14 @@ export async function disconnectAdminWhatsApp(adminId: string): Promise<void> {
   
   const session = adminSessions.get(adminId);
   if (session?.socket) {
-    await session.socket.logout();
+    // Use end() instead of logout() to avoid cascade disconnect
+    // logout() sends a revoke command to WhatsApp servers, disconnecting ALL linked devices
+    // end() only closes this local server connection
+    try {
+      session.socket.end(undefined);
+    } catch (e) {
+      console.log(`[DISCONNECT] Error closing admin socket for ${adminId}:`, e);
+    }
     adminSessions.delete(adminId);
   }
 
