@@ -66,10 +66,20 @@ interface Article {
   difficulty: "beginner" | "intermediate" | "advanced";
 }
 
+interface VisualStep {
+  step: string;       // número ou label do passo
+  action: string;     // o que fazer (instrução)
+  explain: string;    // por que fazer / o que acontece
+  screenshot?: string; // caminho da imagem (relativo a /tutorial-screenshots/)
+  result?: string;    // resultado esperado deste passo
+}
+
 interface ArticleSection {
-  type: "text" | "steps" | "tip" | "warning" | "code" | "list";
+  type: "text" | "steps" | "tip" | "warning" | "code" | "list" | "screenshot" | "visual-steps" | "heading" | "badge-row";
   heading?: string;
-  content: string | string[];
+  caption?: string;    // legenda da imagem (type=screenshot)
+  src?: string;        // caminho da imagem (type=screenshot)
+  content?: string | string[] | VisualStep[];
 }
 
 interface Category {
@@ -438,297 +448,438 @@ const HELP_CATEGORIES: Category[] = [
           {
             type: "text",
             content:
-              'A tela "Meu Agente IA" é o coração do seu negócio. Ela fica dividida em duas partes principais: à esquerda, as abas de configuração (Instruções, Mídias, Config, Testar) — e à direita, quando você está na aba "Testar", o simulador de conversa aparece em tempo real, mostrando exatamente como o agente vai responder no WhatsApp.',
+              'A tela "Meu Agente IA" é o coração do sistema. Ela fica dividida em duas colunas: à esquerda as abas de configuração (Chat, Editar, Mídias, Config, Corrigir, Fluxo) e à direita o Simulador WhatsApp onde você testa em tempo real.',
+          },
+          {
+            type: "screenshot",
+            src: "03-agente-ia-chat-editor.png",
+            caption: "Tela Meu Agente IA — coluna esquerda (editor/chat) + coluna direita (simulador WhatsApp)",
+          },
+          {
+            type: "badge-row",
+            content: ["Chat", "Editar", "Mídias", "Config", "Corrigir", "Fluxo"],
           },
           {
             type: "list",
-            heading: "As 4 abas principais:",
+            heading: "O que cada aba faz:",
             content: [
-              "📝 **Instruções (Prompt)** — onde você escreve o comportamento, nome e conhecimento do agente.",
-              "🖼️ **Mídias** — onde você sobe imagens, áudios, PDFs que o agente envia automaticamente.",
-              "⚙️ **Config** — configurações avançadas: modelo de IA, idioma, modo de resposta, calibração.",
-              "🧪 **Testar** — simulador de conversa: você faz o papel do cliente e vê as respostas em tempo real.",
+              "💬 **Chat** — Calibra o agente via conversa: você digita uma instrução em linguagem natural e a IA ajusta o prompt automaticamente.",
+              "✏️ **Editar** — Editor de código do prompt (texto bruto). Para quem quer controle total da instrução.",
+              "🖼️ **Mídias** — Sobe imagens, áudios e vídeos que o agente envia automaticamente.",
+              "⚙️ **Config** — Ajustes técnicos: delay de resposta, tamanho máximo, gatilhos de pausa.",
+              "🔧 **Corrigir** — A IA revisa e corrige o prompt atual, apontando inconsistências.",
+              "🔀 **Fluxo** — Cria roteiros de conversa estruturados (chatbot clássico, sem IA).",
             ],
           },
           {
             type: "tip",
             content:
-              "O fluxo recomendado é: escreva as Instruções → configure as Mídias → ajuste as Configs → e valide tudo no Simulador. Só ative para o público depois de aprovado no simulador.",
+              "Fluxo recomendado: calibre pelo Chat → confira no Editar → suba Mídias → ajuste o Config → valide no Simulador. Só ative para o público depois.",
           },
         ],
       },
       {
         id: "ai-agent-chat",
-        title: "Chat do Agente — Como funciona na prática",
-        description: "Entenda como o agente responde às mensagens dos seus clientes",
-        tags: ["chat", "conversa", "ia", "resposta automática", "atendimento", "whatsapp"],
+        title: "Aba Chat — Calibrar o agente com linguagem natural",
+        description: "Ensine o agente digitando instruções em português, como conversa",
+        tags: ["chat", "calibrar", "calibração", "instrução", "linguagem natural", "bot"],
         difficulty: "beginner",
         content: [
           {
             type: "text",
             content:
-              "Quando um cliente manda uma mensagem no seu WhatsApp, o agente recebe essa mensagem e gera uma resposta baseada no que você configurou no prompt (Instruções). O processo acontece em segundos e de forma 100% automática, 24h por dia.",
+              "A aba Chat é onde você se comunica com o agente para calibrá-lo. Em vez de escrever código de prompt, você digita em português do dia a dia: 'Seja mais formal', 'Adicione emojis', 'Não mencione concorrentes'. O agente edita o próprio prompt com base na sua instrução.",
+          },
+          {
+            type: "visual-steps",
+            heading: "Tutorial passo a passo — Calibrar via Chat",
+            content: [
+              {
+                step: "1",
+                action: "Acesse **Meu Agente IA** no menu lateral esquerdo",
+                explain: "Ao clicar, você já entra diretamente na aba Chat. O histórico de calibrações anteriores fica no painel central, mostrando o que foi solicitado e o que foi alterado.",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "Você vê o painel do Chat com a caixa de texto 'Descreva como deseja alterar seu agente...' na parte inferior."
+              },
+              {
+                step: "2",
+                action: "Digite uma instrução de calibração no campo de texto no rodapé do painel",
+                explain: "Exemplos de instruções que funcionam bem: 'Seja mais direto e objetivo nas respostas', 'Sempre cumprimente o cliente pelo nome', 'Não use emojis', 'Adicione o link do cardápio quando perguntarem sobre preços'. Escreva como falaria para um funcionário.",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "O campo de texto fica preenchido. Você pode usar os botões de atalho: 'Mais formal', 'Mais vendedor', 'Mais curto'."
+              },
+              {
+                step: "3",
+                action: "Clique na seta de envio (→) ou pressione **Enter**",
+                explain: "O sistema processa sua instrução e aplica as mudanças no prompt do agente. Você verá a resposta do sistema confirmando o que foi alterado, junto com um score de validação (ex: Score 95/100). Se o score for abaixo de 70, as mudanças não foram aplicadas — reformule a instrução.",
+                result: "Aparece a confirmação 'Edição aplicada ✅' com o score. O prompt foi atualizado automaticamente."
+              },
+              {
+                step: "4",
+                action: "Teste no **Simulador** à direita para validar se a mudança ficou boa",
+                explain: "O Simulador WhatsApp ao lado direito permite que você escreva como um cliente e veja a resposta em tempo real. É a forma mais rápida de validar se a calibração funcionou como esperado.",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "A resposta do simulador reflete a nova calibração. Se não estiver satisfatório, faça mais ajustes pelo Chat."
+              },
+            ] as any,
           },
           {
             type: "list",
-            heading: "O que acontece em cada mensagem:",
+            heading: "Botões de atalho de calibração:",
             content: [
-              "1️⃣ Cliente envia mensagem → o sistema recebe via WhatsApp Web (Baileys).",
-              "2️⃣ O histórico da conversa é carregado para dar contexto ao agente.",
-              "3️⃣ O prompt + histórico + nova mensagem são enviados ao modelo de IA.",
-              "4️⃣ A IA gera a resposta e o sistema a envia de volta para o cliente.",
-              "5️⃣ A conversa fica salva em 'Conversas' para você acompanhar.",
+              "**Mais formal** — ajusta o tom para linguagem mais corporativa e profissional.",
+              "**Mais vendedor** — adiciona persuasão, gatilhos de urgência e escassez.",
+              "**Mais curto** — reduz o tamanho das respostas, tornando-as mais diretas.",
             ],
-          },
-          {
-            type: "tip",
-            content:
-              "Você pode assumir o atendimento manual a qualquer momento na tela de Conversas — basta abrir a conversa e digitar. O agente para de responder automaticamente quando detecta intervenção humana.",
           },
           {
             type: "warning",
             content:
-              "Se o agente não estiver respondendo, verifique: (1) se o toggle 'Agente Ativo' está ligado, (2) se o WhatsApp está conectado (tela Conexão), e (3) se o número não está na Lista de Exclusão.",
+              "Se receber 'Calibração falhou: Score X/100 (mínimo: 70)', sua instrução pode ser ambígua ou contraditória com o prompt atual. Tente reescrever de forma mais clara e objetiva.",
+          },
+          {
+            type: "tip",
+            content:
+              "Depois de vários ajustes, use o botão 'Histórico' (↺ ícone) para ver e desfazer alterações passadas. Funciona como um ctrl+z do seu agente.",
           },
         ],
       },
       {
         id: "ai-agent-prompt",
-        title: "Aba Instruções — Escrever e editar o prompt do agente",
-        description: "Guia completo para criar instruções eficientes para o agente",
-        tags: ["prompt", "instruções", "editar", "configuração", "ia", "agente", "personalidade"],
+        title: "Aba Editar — Editor direto do prompt",
+        description: "Edite o texto bruto das instruções do agente diretamente",
+        tags: ["prompt", "instruções", "editar", "configuração", "ia", "agente", "personalidade", "editor"],
         difficulty: "intermediate",
         content: [
           {
             type: "text",
             content:
-              "As Instruções (também chamadas de prompt ou system prompt) são o conjunto de regras e informações que você passa para a IA sobre quem ela é e como deve se comportar. É como um manual de treinamento para o seu atendente virtual. Quanto mais rico e preciso esse manual, mais natural e eficiente será o atendimento.",
+              "A aba Editar exibe o prompt completo do agente em um editor de código de fundo preto. Aqui você tem controle total sobre cada palavra das instruções — ideal para ajustes precisos, adicionar seções inteiras ou revisar o texto gerado pela aba Chat.",
+          },
+          {
+            type: "visual-steps",
+            heading: "Tutorial passo a passo — Editar o prompt diretamente",
+            content: [
+              {
+                step: "1",
+                action: "Em **Meu Agente IA**, clique na aba **Editar** (ícone </>)",
+                explain: "O editor de código abre mostrando o prompt atual em texto verde sobre fundo preto. Todo o conteúdo é editável — não existe botão de 'salvar automático', você precisará salvar manualmente.",
+                screenshot: "03b-agente-ia-editar-prompt.png",
+                result: "O editor aparece com o prompt atual formatado, pronto para edição."
+              },
+              {
+                step: "2",
+                action: "Clique no texto dentro do editor e faça suas alterações",
+                explain: "Use este editor para: adicionar novas seções de produto, alterar preços, mudar o tom da escrita, adicionar FAQs, inserir instruções de fluxo. Tudo que estiver neste texto será o 'manual' do agente. Quanto mais rico, melhor o resultado.",
+                result: "O texto fica editável no cursor. Você vê as mudanças em tempo real."
+              },
+              {
+                step: "3",
+                action: "Role para baixo e clique no botão de **Salvar** (ícone disco/save)",
+                explain: "Depois de editar, é obrigatório clicar em Salvar. Se fechar a aba sem salvar, todas as alterações são perdidas. O sistema valida o prompt automaticamente ao salvar.",
+                result: "Prompt salvo. Notificação de confirmação aparece no topo da tela."
+              },
+              {
+                step: "4",
+                action: "Vá para o **Simulador** e teste as mudanças",
+                explain: "Sempre valide no simulador após editar. Perguntas de teste: saudação inicial, pergunta de preço, situação fora do escopo, pedido de informação sensível.",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "O simulador já usa o prompt atualizado. Teste pelo menos 5 cenários diferentes."
+              },
+            ] as any,
           },
           {
             type: "list",
-            heading: "O que incluir nas instruções:",
+            heading: "Estrutura recomendada para o prompt:",
             content: [
-              "🏷️ **Identidade** — nome do agente (ex: 'Você se chama Ana') e papel (atendente, vendedor, especialista...)",
-              "🏢 **Contexto do negócio** — nome da empresa, o que vende, como funciona, diferenciais.",
-              "📋 **Produtos e serviços** — lista completa com nomes, descrições e preços.",
-              "⏰ **Horário de funcionamento** — dias e horários disponíveis.",
-              "📍 **Localização** — endereço, bairro, cidade, se tem delivery ou atende presencialmente.",
-              "💳 **Pagamentos** — formas aceitas: PIX, cartão, dinheiro etc.",
-              "🎯 **Tom de voz** — formal, descontraído, jovem, técnico... adapte ao seu público.",
-              "❌ **Restrições** — o que o agente NÃO deve falar (ex: 'não prometa prazos que não consigo cumprir').",
-            ],
-          },
-          {
-            type: "steps",
-            heading: "Como criar ou editar as instruções:",
-            content: [
-              'Acesse "Meu Agente IA" no menu lateral.',
-              'Clique na aba "Instruções".',
-              "Se não tem prompt ainda: clique em \"Gerar com IA\" e descreva seu negócio em texto livre. A IA monta o prompt por você.",
-              "Se já tem prompt: edite diretamente no campo de texto, ou use \"Melhorar\" para a IA sugerir aprimoramentos.",
-              'Para editar em tela cheia (recomendado para prompts longos): clique em "Expandir".',
-              "Após editar, clique em \"Salvar Configurações\".",
-              "Vá para a aba \"Testar\" e valide se as respostas estão como esperado.",
+              "**Seção 1 — Identidade:** nome do agente, cargo, empresa, tom de voz.",
+              "**Seção 2 — Contexto do negócio:** o que faz, diferenciais, localização, horários.",
+              "**Seção 3 — Produtos/Serviços:** lista completa com nomes e preços.",
+              "**Seção 4 — Regras de comportamento:** o que deve e o que não deve fazer.",
+              "**Seção 5 — Fluxo de atendimento:** como conduzir a conversa do início ao fechamento.",
+              "**Seção 6 — Respostas padrão:** como responder a dúvidas frequentes.",
             ],
           },
           {
             type: "tip",
             content:
-              'Exemplo de instrução inicial eficaz: "Você é a Mari, atendente virtual da Padaria do Zé. Seja simpática, use emojis com moderação e responda em português informal. O cardápio hoje é: Pão francês R$0,80 (unidade), Café R$3, Coxinha R$5. Abrimos de segunda a sábado das 6h às 20h. Localização: Rua das Flores, 123, Centro. Pagamos no PIX e dinheiro."',
+              "Para prompts longos: use a aba Chat para ajustes pequenos e a aba Editar para revisões estruturais completas. Uma boa divisão é: 80% construído pelo Chat (IA edita por você) + 20% ajuste fino manual no Editar.",
           },
           {
             type: "warning",
             content:
-              "Evite instruções muito curtas (menos de 5 linhas). O agente fica genérico, responde errado, ou inventa informações. Dedique 20 a 30 minutos para escrever um prompt completo — isso vai economizar horas de correção depois.",
+              "Não remova acidentalmente seções inteiras do prompt. Se isso acontecer, use o botão 'Histórico' na aba Chat para restaurar uma versão anterior.",
           },
         ],
       },
       {
         id: "ai-agent-calibration",
-        title: "Aba Config — Calibrar e ajustar o comportamento do agente",
-        description: "Configure modelos, temperatura, estilo de resposta e recursos avançados",
-        tags: ["calibrar", "calibração", "config", "configuração", "modelo", "temperatura", "ajuste fino"],
+        title: "Aba Config — Configurações avançadas do agente",
+        description: "Delay de resposta, tamanho de mensagem, gatilhos de pausa e mais",
+        tags: ["calibrar", "calibração", "config", "configuração", "delay", "gatilho", "pausa", "ajuste fino"],
         difficulty: "advanced",
         content: [
           {
             type: "text",
             content:
-              "A aba Config permite ajustar como o agente pensa e se comporta em detalhes técnicos. Aqui você escolhe o modelo de IA, define o estilo de resposta e habilita recursos como histórico longo, follow-up automático e modo de calibração avançada.",
+              "A aba Config controla o comportamento técnico do agente: quanto tempo ele espera antes de responder, qual o tamanho máximo das mensagens, quando pausar automaticamente, e quais gatilhos de texto ativam ou desativam o bot.",
           },
           {
-            type: "list",
-            heading: "Principais configurações:",
+            type: "visual-steps",
+            heading: "Tutorial passo a passo — Configurar o agente",
             content: [
-              "🤖 **Modelo de IA** — Auto (recomendado), GPT-4o, Claude, Mistral etc. O Auto escolhe o melhor disponível.",
-              "🌡️ **Temperatura** — controla a criatividade das respostas. Baixa (0.1–0.3) = mais consistente e previsível. Alta (0.7–1.0) = mais criativa e variada.",
-              "📜 **Histórico de mensagens** — quantas mensagens anteriores o agente considera para gerar a resposta. Mais histórico = mais contexto, mas pode ser mais lento.",
-              "⏸️ **Pausar IA ao responder manualmente** — se você responder na tela de Conversas, o agente pausa automaticamente nessa conversa.",
-              "🔄 **Reativar IA automaticamente** — após X horas sem resposta do atendente, o agente assume de volta.",
-              "🔇 **Modo silencioso** — o agente lê as mensagens mas só responde quando ativado por uma palavra-chave.",
-            ],
-          },
-          {
-            type: "steps",
-            heading: "Calibração manual do agente:",
-            content: [
-              'Em "Meu Agente IA" → aba "Config", role até a seção "Calibração".',
-              "Clique em \"Iniciar Calibração\" para abrir o modo de ajuste fino.",
-              "Envie exemplos de perguntas e corrija as respostas que não estiverem adequadas.",
-              "O sistema usa essas correções para ajustar o comportamento do agente.",
-              "Repita o processo com 5 a 10 cenários reais do seu negócio.",
-              "Salve ao final.",
-            ],
+              {
+                step: "1",
+                action: "Acesse **Meu Agente IA** → clique na aba **Config**",
+                explain: "A aba Config exibe as configurações técnicas do agente. É a tela certa quando você quer ajustar o timing das respostas ou controlar quando o bot deve entrar em modo silencioso.",
+                screenshot: "03c-agente-ia-config.png",
+                result: "Você vê as seções: Delay de Resposta, Tamanho das Mensagens, e Gatilho."
+              },
+              {
+                step: "2",
+                action: "Ajuste o **Delay de Resposta** (padrão: 10 segundos)",
+                explain: "O delay é o tempo que o agente espera antes de responder após receber uma mensagem. Um delay de 10-30 segundos faz o agente parecer mais humano, como se ele estivesse 'digitando'. Um delay muito curto (0-3s) parece robótico.",
+                screenshot: "03c-agente-ia-config.png",
+                result: "O slider ajusta o tempo em segundos. 'Rápido (10s)' é o mínimo — para a maioria dos negócios, 15-30s é ideal."
+              },
+              {
+                step: "3",
+                action: "Configure o **Tamanho das Mensagens** (padrão: 300 caracteres)",
+                explain: "Define o tamanho máximo de cada bolha de resposta. Mensagens longas demais são cansativas no WhatsApp. Para atendimento ao cliente, 200-400 caracteres é o ideal. Para respostas técnicas ou tutoriais, pode subir para 800.",
+                screenshot: "03c-agente-ia-config.png",
+                result: "O agente vai quebrar respostas longas automaticamente para respeitar o limite configurado."
+              },
+              {
+                step: "4",
+                action: "Configure os **Gatilhos** (palavras que pausam/reativam o bot)",
+                explain: "Gatilhos são palavras-chave que controlam o bot durante a conversa. Exemplo: se o cliente digitar 'humano' ou 'atendente', o bot pausa e notifica você. Se você digitar 'bot' em uma conversa, o bot pode reativar. Escreva os gatilhos separados por vírgula.",
+                screenshot: "03c-agente-ia-config.png",
+                result: "Os gatilhos ficam salvos e entram em vigor imediatamente. Teste enviando a palavra-gatilho no simulador."
+              },
+              {
+                step: "5",
+                action: "Clique em **Salvar** para confirmar as alterações",
+                explain: "Sem salvar, as configurações são perdidas ao trocar de aba. Sempre confirme antes de sair.",
+                result: "Configurações salvas. O agente já opera com os novos parâmetros."
+              },
+            ] as any,
           },
           {
             type: "tip",
             content:
-              "Use a calibração para cenários específicos do seu negócio: perguntas de preço, situações de reclamação, pedidos complexos. Cada correção que você faz ensina o agente a responder melhor nesses contextos.",
+              "Delay recomendado por tipo de negócio: delivery (10-15s — respostas rápidas são importantes), consultórios e advogados (20-30s — aparência mais humana), e-commerce (15s — balanço entre velocidade e naturalidade).",
           },
         ],
       },
       {
         id: "ai-agent-simulator",
-        title: "Aba Testar — Simulador de conversa (lado direito)",
-        description: "Use o simulador para testar o agente antes de ativar para os clientes",
+        title: "Simulador WhatsApp — Testar o agente em tempo real",
+        description: "Use o simulador do lado direito para validar antes de ativar",
         tags: ["testar", "simulador", "teste", "agente", "validar", "conversa de teste"],
         difficulty: "beginner",
         content: [
           {
             type: "text",
             content:
-              'A aba "Testar" abre o simulador de conversa do WhatsApp. Ele fica do lado direito da tela (em desktop) ou em tela cheia (em mobile). O simulador mostra exatamente como o agente vai responder, com a mesma formatação que o cliente veria no WhatsApp — bolhas de mensagem, emojis, negrito etc.',
+              "O Simulador fica permanentemente no lado direito da tela Meu Agente IA. Ele imita o WhatsApp — bolhas de mensagem, leitura confirmada, digitando... — e usa exatamente o mesmo agente que vai responder seus clientes reais.",
           },
           {
-            type: "steps",
-            heading: "Como usar o simulador:",
+            type: "screenshot",
+            src: "03-agente-ia-chat-editor.png",
+            caption: "Lado direito da tela: Simulador WhatsApp — 'Teste como seu agente responde. Digite uma mensagem abaixo.'",
+          },
+          {
+            type: "visual-steps",
+            heading: "Como usar o simulador",
             content: [
-              'Acesse "Meu Agente IA" → aba "Testar".',
-              "O simulador aparece à direita (desktop) ou abaixo (mobile).",
-              "Digite uma mensagem como se fosse um cliente (ex: 'Oi, qual o preço do corte?').",
-              "A IA processa e mostra a resposta em bolhas, como no WhatsApp real.",
-              "Se quiser testar outro cenário do zero, clique em \"Limpar conversa\".",
-              "Se a resposta não ficou boa: volte para a aba Instruções, melhore o prompt e volte ao simulador.",
-            ],
+              {
+                step: "1",
+                action: "Localize o **Simulador WhatsApp** no lado direito da tela",
+                explain: "O simulador fica visível assim que você entra em Meu Agente IA. Ele tem o cabeçalho verde 'Simulador WhatsApp — Teste seu agente em tempo real' e um botão 'Limpar' para resetar.",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "Você vê a tela do simulador com a mensagem inicial 'Teste como seu agente responde. Digite uma mensagem abaixo.'"
+              },
+              {
+                step: "2",
+                action: "Digite uma mensagem no campo 'Digite sua mensagem...' no rodapé do simulador",
+                explain: "Escreva como se fosse um cliente real — pode ser uma saudação ('Oi!'), uma pergunta específica ('Qual o preço?'), ou uma situação difícil ('Quero cancelar'). O simulador é isolado dos clientes reais.",
+                result: "Sua mensagem aparece como bolha azul/cinza do lado direito (você = cliente)."
+              },
+              {
+                step: "3",
+                action: "Aguarde a resposta do agente aparecer no painel",
+                explain: "O agente processa sua mensagem usando o prompt atual e retorna uma resposta. O delay configurado no Config também se aplica aqui — se estiver em 30s, vai esperar 30s para responder.",
+                result: "A resposta aparece como bolha do agente no lado esquerdo do simulador."
+              },
+              {
+                step: "4",
+                action: "Clique em **Limpar** para começar um novo teste do zero",
+                explain: "Ao limpar, o histórico de conversa é apagado e o simulador age como se fosse um novo cliente entrando em contato pela primeira vez. Útil para testar o fluxo de acolhimento inicial.",
+                result: "Simulador resetado, pronto para um novo cenário de teste."
+              },
+            ] as any,
           },
           {
             type: "list",
-            heading: "Cenários obrigatórios para testar antes de ativar:",
+            heading: "Cenários obrigatórios antes de ativar:",
             content: [
-              "✅ Saudação inicial (ex: 'Oi', 'Bom dia')",
-              "✅ Pergunta de preço (ex: 'Quanto custa X?')",
-              "✅ Pergunta de horário (ex: 'Que horas vocês fecham?')",
-              "✅ Situação de reclamação (ex: 'Tive um problema com meu pedido')",
-              "✅ Pedido de informações que o agente NÃO deve ter (ex: dados pessoais de outros clientes)",
-              "✅ Mensagem fora do escopo do negócio (ex: 'Me conta uma piada')",
+              "✅ Saudação simples: 'Oi', 'Bom dia', 'Olá'",
+              "✅ Pergunta de preço: 'Quanto custa X?', 'Qual o valor?'",
+              "✅ Pergunta de horário: 'Que horas vocês abrem?'",
+              "✅ Pedido completo: simule um cliente fazendo um pedido do início ao fim",
+              "✅ Reclamação: 'Tive um problema, quero resolver'",
+              "✅ Mensagem fora do escopo: 'Você pode me ajudar com X?' (algo que não faz parte do negócio)",
+              "✅ Gatilho de pausa: teste a palavra-gatilho configurada no Config",
             ],
           },
           {
             type: "tip",
             content:
-              "Convide um amigo para testar também! Às vezes a gente fica \"cego\" para os problemas do próprio agente. Um olhar de fora identifica respostas estranhas ou incompletas com mais facilidade.",
+              "Peça para um amigo testar sem ver o prompt. Se ele conseguir completar uma jornada de compra/atendimento com naturalidade, o agente está pronto. Se ele travar em algum ponto, é sinal de que o prompt precisa cobrir aquele cenário.",
           },
         ],
       },
       {
         id: "ai-agent-media",
-        title: "Aba Mídias — Configure arquivos que o agente envia automaticamente",
-        description: "Imagens, áudios, PDFs e vídeos enviados pelo agente na hora certa",
+        title: "Aba Mídias — Imagens, áudios e vídeos automáticos",
+        description: "Configure arquivos que o agente envia automaticamente na hora certa",
         tags: ["mídia", "imagem", "áudio", "vídeo", "pdf", "envio automático", "biblioteca", "cardápio"],
         difficulty: "intermediate",
         content: [
           {
             type: "text",
             content:
-              "Na aba Mídias você faz upload de arquivos que o agente pode enviar automaticamente durante a conversa. Isso é muito usado para: enviar o cardápio quando o cliente perguntar, mandar uma foto do produto, enviar tabela de preços em PDF, ou até mandar um áudio de apresentação.",
+              "Na aba Mídias você cadastra arquivos (imagens, áudios, vídeos, PDFs) e ensina ao agente quando cada arquivo deve ser enviado. A IA decide sozinha o momento certo — quando o cliente perguntar sobre cardápio, ela envia a imagem do cardápio. Quando perguntar como funciona, ela envia o vídeo de demonstração.",
           },
           {
-            type: "steps",
-            heading: "Como adicionar uma mídia:",
+            type: "screenshot",
+            src: "09-biblioteca-midias.png",
+            caption: "Biblioteca de Mídias — cada card mostra o tipo, nome, descrição e instrução de quando usar",
+          },
+          {
+            type: "visual-steps",
+            heading: "Como adicionar uma nova mídia",
             content: [
-              'Em "Meu Agente IA" → aba "Mídias".',
-              'Clique em "Adicionar Mídia".',
-              "Selecione o tipo: Imagem, Áudio, Vídeo ou Documento (PDF, Excel etc.).",
-              "Faça o upload do arquivo.",
-              "Preencha o **nome** (para você identificar) e a **descrição** (o que é esse arquivo).",
-              "No campo **Quando usar**: escreva a instrução para a IA (ex: 'Envie quando o cliente pedir o cardápio ou perguntar o que você vende').",
-              "Clique em Salvar.",
-            ],
-          },
-          {
-            type: "tip",
-            content:
-              'Seja muito específico no campo "Quando usar". Em vez de "envie quando relevante", escreva "Envie esta imagem quando o cliente perguntar pelo cardápio, pelos preços, ou quiser ver o que você tem". Instruções vagas geram envios errados.',
+              {
+                step: "1",
+                action: "Acesse **Meu Agente IA** → aba **Mídias**",
+                explain: "A Biblioteca de Mídias exibe todos os arquivos já cadastrados em cards. Cada card mostra o nome, tipo (Vídeo/Áudio/Imagem) e a instrução de quando usar. O botão '+ Nova Mídia' fica no topo direito.",
+                screenshot: "09-biblioteca-midias.png",
+                result: "Você vê a lista de mídias cadastradas com os cards de cada arquivo."
+              },
+              {
+                step: "2",
+                action: "Clique em **+ Nova Mídia**",
+                explain: "Abre o formulário de cadastro de nova mídia. Você precisará: fazer upload do arquivo, dar um nome, escrever uma descrição e definir quando deve ser enviado.",
+                result: "Modal de cadastro de mídia abre na tela."
+              },
+              {
+                step: "3",
+                action: "Faça o upload do arquivo clicando na área pontilhada",
+                explain: "Arraste e solte o arquivo ou clique para selecionar. Formatos aceitos: JPG, PNG, MP3, OGG, MP4, PDF, DOCX, XLSX. Limite: 16MB para vídeos, 10MB para áudios e documentos, 5MB para imagens.",
+                result: "Arquivo carregado e preview exibido no formulário."
+              },
+              {
+                step: "4",
+                action: "Preencha o **Nome** e a **Descrição** do arquivo",
+                explain: "O nome é só para sua identificação (ex: 'Cardápio Atualizado Jan/2026'). A descrição deve ser clara sobre o que o arquivo contém — ela ajuda a IA a decidir quando usar.",
+                result: "Campos preenchidos. O nome aparecerá no card da mídia."
+              },
+              {
+                step: "5",
+                action: "Escreva a instrução **Quando usar** com detalhes",
+                explain: "Este é o campo mais importante! Seja específico: 'Envie quando o cliente perguntar pelo cardápio, quiser ver os preços, ou perguntar o que você vende'. Instruções vagas como 'envie quando relevante' fazem a IA enviar no momento errado.",
+                screenshot: "09-biblioteca-midias.png",
+                result: "Instrução salva. A IA usará este texto para decidir quando enviar o arquivo."
+              },
+              {
+                step: "6",
+                action: "Clique em **Salvar**",
+                explain: "A mídia é cadastrada e aparece na lista. A partir deste momento, o agente já pode enviá-la automaticamente nas conversas com os clientes.",
+                result: "Novo card aparece na Biblioteca de Mídias. Teste no simulador enviando uma mensagem que deveria acionar o arquivo."
+              },
+            ] as any,
           },
           {
             type: "list",
             heading: "Tipos de arquivo suportados:",
             content: [
-              "🖼️ **Imagem**: JPG, PNG, WebP — até 5MB",
-              "🎵 **Áudio**: MP3, OGG, M4A — até 10MB (enviado como mensagem de voz)",
-              "🎬 **Vídeo**: MP4 — até 16MB",
-              "📄 **Documento**: PDF, XLSX, DOCX — até 10MB",
-            ],
-          },
-        ],
-      },
-      {
-        id: "ai-agent-models",
-        title: "Modelos de IA disponíveis",
-        description: "Escolha o modelo certo para seu caso de uso",
-        tags: ["modelo", "ia", "gpt", "claude", "mistral", "openai"],
-        difficulty: "advanced",
-        content: [
-          {
-            type: "text",
-            content:
-              "O AgenteZap suporta múltiplos modelos de IA. O modelo padrão é configurado pelo administrador do sistema, mas você pode escolher na aba Config do agente. Cada modelo tem características diferentes em termos de velocidade, custo e qualidade de resposta.",
-          },
-          {
-            type: "list",
-            heading: "Modelos disponíveis:",
-            content: [
-              "**Auto (Recomendado)** — seleciona automaticamente o melhor modelo disponível no momento. Ideal para quem não quer se preocupar com isso.",
-              "**GPT-4o** — excelente para conversas ricas, raciocínio complexo e respostas longas com contexto grande.",
-              "**Claude Haiku** — muito rápido e eficiente para respostas simples e objetivas.",
-              "**Mistral** — bom custo-benefício, funciona muito bem para português brasileiro.",
+              "🖼️ **Imagem**: JPG, PNG, WebP — até 5MB (cardápio, foto do produto, localização)",
+              "🎵 **Áudio**: MP3, OGG, M4A — até 10MB (enviado como mensagem de voz no WhatsApp)",
+              "🎬 **Vídeo**: MP4 — até 16MB (demo do produto, tutorial)",
+              "📄 **Documento**: PDF, XLSX, DOCX — até 10MB (tabela de preços, contrato, proposta)",
             ],
           },
           {
             type: "tip",
             content:
-              "Para a maioria dos negócios (delivery, salão, serviços gerais), o modo Auto já é excelente. Só mude o modelo se você tiver uma necessidade específica identificada — como velocidade máxima (Haiku) ou raciocínio mais profundo (GPT-4o).",
+              "Use áudio para dar um toque humano ao atendimento. Grave um áudio de boas-vindas seu mesmo (ou da sua equipe) e instrua o agente a enviá-lo na primeira interação. Aumenta muito a conexão e a taxa de resposta.",
           },
         ],
       },
       {
         id: "ai-agent-flow",
-        title: "Construtor de Fluxo (chatbot sem IA)",
-        description: "Crie fluxos de conversa automáticos para casos específicos e menus estruturados",
-        tags: ["fluxo", "chatbot", "automação", "menu", "bot", "sem ia", "construtor"],
+        title: "Aba Fluxo — Chatbot estruturado sem IA",
+        description: "Crie roteiros fixos de conversa para menus e coleta de dados",
+        tags: ["fluxo", "chatbot", "automação", "menu", "bot", "sem ia", "construtor", "roteiro"],
         difficulty: "advanced",
         content: [
           {
             type: "text",
             content:
-              "O Construtor de Fluxo permite criar roteiros de conversa fixos — diferente da IA que improvisa, o fluxo segue exatamente o roteiro que você definiu. É ideal para coleta de dados estruturados (nome, CPF, endereço), menus de atendimento com opções numeradas, ou fluxos comerciais previsíveis.",
+              "O Fluxo é um chatbot baseado em regras — diferente da IA que improvisa, o fluxo segue exatamente o roteiro que você definiu. Ideal para: menus numéricos ('Digite 1 para pedidos, 2 para suporte'), coleta de dados (nome, CPF, endereço), ou fluxos comerciais previsíveis (cotação, agendamento).",
           },
           {
-            type: "steps",
-            heading: "Como criar um fluxo:",
+            type: "visual-steps",
+            heading: "Como criar um fluxo de conversa",
             content: [
-              'Acesse "Meu Agente IA" → aba "Config" → seção "Fluxo" (ou pelo Construtor de Fluxo no menu Ferramentas).',
-              'Clique em "Criar Novo Fluxo".',
-              "Defina o **nome** e a **palavra-gatilho** (ex: 'menu', 'oi', 'começar', 'olá').",
-              "Adicione nós: Mensagem (envia texto), Pergunta (aguarda resposta), Condição (bifurca o caminho).",
-              "Conecte os nós arrastando as setas entre eles.",
-              'Ative o fluxo com o toggle "Ativo".',
-              "Teste digitando a palavra-gatilho na aba Testar.",
-            ],
+              {
+                step: "1",
+                action: "Acesse **Meu Agente IA** → aba **Fluxo** (ou menu Ferramentas → Construtor de Fluxo)",
+                explain: "O Construtor de Fluxo exibe os fluxos existentes em cards. Cada fluxo tem um nome, uma palavra-gatilho e um status (ativo/inativo). Clique em '+ Novo Fluxo' para criar.",
+                result: "Você vê a lista de fluxos cadastrados ou uma tela vazia se for o primeiro."
+              },
+              {
+                step: "2",
+                action: "Defina o **nome** do fluxo e a **palavra-gatilho**",
+                explain: "A palavra-gatilho é o que ativa este fluxo. Quando o cliente digitar essa palavra, o chatbot entra no fluxo automaticamente. Exemplos de boas palavras-gatilho: 'menu', 'pedido', 'oi', 'começar', 'cardápio'.",
+                result: "Nome e gatilho configurados. Você pode avançar para criar os nós."
+              },
+              {
+                step: "3",
+                action: "Adicione o primeiro **nó de mensagem** (o agente fala)",
+                explain: "Um nó de mensagem envia um texto para o cliente. Exemplo: 'Olá! Escolha uma opção: 1 - Ver cardápio | 2 - Falar com atendente | 3 - Horários'. Este é normalmente o primeiro nó do fluxo.",
+                result: "Nó criado no canvas do construtor."
+              },
+              {
+                step: "4",
+                action: "Adicione um **nó de pergunta** (aguarda resposta do cliente)",
+                explain: "O nó de pergunta pausa o fluxo e espera o cliente digitar. Você pode criar ramificações — se o cliente digitar '1', vai para um caminho; se digitar '2', vai para outro. Conecte os nós arrastando as setas.",
+                result: "Ramificações configuradas. O fluxo bifurca conforme a resposta do cliente."
+              },
+              {
+                step: "5",
+                action: "Finalize com um **nó de saída** para retornar ao agente IA",
+                explain: "IMPORTANTE: sempre termine o fluxo com um nó de saída (finalizar). Sem ele, o cliente fica 'preso' no fluxo para sempre, mesmo depois de terminar o atendimento.",
+                result: "Fluxo completo com início, meio e saída."
+              },
+              {
+                step: "6",
+                action: "Ative o fluxo com o toggle e teste no simulador",
+                explain: "Com o fluxo ativo, qualquer cliente que digitar a palavra-gatilho entra no roteiro. O fluxo tem prioridade sobre a IA enquanto estiver ativo. Teste usando a palavra-gatilho no simulador.",
+                result: "Fluxo rodando. O simulador executa o roteiro passo a passo conforme as respostas."
+              },
+            ] as any,
           },
           {
             type: "warning",
             content:
-              "Quando um fluxo está ativo e é acionado, ele tem prioridade sobre a IA — a IA não responde enquanto o cliente estiver dentro do fluxo. Crie sempre um 'nó de saída' ao final para retornar o controle para o agente.",
+              "Quando um fluxo está ativo e é acionado, a IA para de responder até o fluxo terminar. Crie sempre um nó de saída claro ao final do fluxo para liberar o cliente de volta ao atendimento normal.",
+          },
+          {
+            type: "tip",
+            content:
+              "Combine Fluxo + IA: use o fluxo para coletar dados iniciais (nome, tipo de serviço, urgência) e, ao final, entregue o contexto coletado para a IA continuar o atendimento de forma personalizada.",
           },
         ],
       },
@@ -876,21 +1027,61 @@ const HELP_CATEGORIES: Category[] = [
         difficulty: "intermediate",
         content: [
           {
-            type: "steps",
-            heading: "Como enviar:",
+            type: "text",
+            content:
+              "O Envio em Massa é o disparo de mensagens para múltiplos contatos de uma vez. Funciona em 4 etapas: Destinatários → Mensagem → Configurações → Revisar & Enviar.",
+          },
+          {
+            type: "screenshot",
+            src: "07-envio-massa.png",
+            caption: "Tela de Envio em Massa — Passo 1: selecionar os destinatários",
+          },
+          {
+            type: "visual-steps",
+            heading: "Passo a passo — Envio em Massa",
             content: [
-              'Vá em "Ferramentas → Envio em Massa".',
-              "Selecione a Lista de Contatos ou importe um CSV.",
-              "Escreva a mensagem (suporta variáveis como {{nome}}).",
-              "Defina um intervalo entre mensagens (recomendado: 5–30 segundos).",
-              'Clique em "Enviar".',
-              "Acompanhe o progresso em tempo real.",
-            ],
+              {
+                step: "1",
+                action: "Acesse **Ferramentas → Envio em Massa** no menu lateral",
+                explain: "A tela de Envio em Massa abre no Passo 1: Destinatários. Você tem 4 opções para adicionar quem receberá a mensagem: Inserir Manualmente, Listas de Contatos, Contatos Seguros ou Grupos do WhatsApp.",
+                screenshot: "07-envio-massa.png",
+                result: "Você vê os 4 cards de opção de destinatários e o indicador de progresso no topo (1 → 2 → 3 → 4)."
+              },
+              {
+                step: "2",
+                action: "Escolha a origem dos contatos e avance para **Mensagem**",
+                explain: "**Inserir Manualmente**: cole uma lista no formato 'Nome, Número' (um por linha). **Contatos Seguros**: pessoas que já conversaram com você (recomendado — menor risco de bloqueio). **Grupos do WhatsApp**: envia para todos os membros de grupos. **Listas**: usa listas salvas em Ferramentas → Listas de Contatos.",
+                result: "Contatos selecionados. Botão 'Próximo' fica ativo."
+              },
+              {
+                step: "3",
+                action: "Na aba **Mensagem**, escreva o texto e adicione variáveis",
+                explain: "Escreva a mensagem que será enviada. Use variáveis como {{nome}} para personalizar automaticamente com o nome de cada contato. Ex: 'Oi {{nome}}! Temos uma promoção especial hoje.' O sistema substitui {{nome}} pelo nome real de cada pessoa.",
+                result: "Preview da mensagem aparece à direita com os dados preenchidos."
+              },
+              {
+                step: "4",
+                action: "Configure o **intervalo entre envios** (recomendado: 15-30 segundos)",
+                explain: "O intervalo é o tempo que o sistema espera entre cada mensagem enviada. Intervalos curtos (menos de 5s) aumentam o risco de bloqueio pelo WhatsApp. Para listas grandes (mais de 100 contatos), use 20-30s.",
+                result: "Configuração de timing salva."
+              },
+              {
+                step: "5",
+                action: "Revise o resumo na aba **Revisar** e clique em **Enviar**",
+                explain: "A aba de revisão mostra: total de destinatários, preview da mensagem, configurações. Confirme que tudo está certo antes de disparar — não é possível cancelar um envio em andamento.",
+                result: "Disparo iniciado. Barra de progresso mostra o avanço em tempo real: X enviados de Y total."
+              },
+            ] as any,
+          },
+          {
+            type: "warning",
+            content:
+              "Nunca envie para mais de 500 contatos de uma vez sem histórico de uso. Comece com listas pequenas (50-100) e aumente gradualmente. WhatsApp pode banir números com comportamento de spam.",
           },
           {
             type: "tip",
             content:
-              "Use {{nome}} na mensagem para personalizar com o nome do contato. Ex: 'Olá {{nome}}, temos uma promoção especial para você!'",
+              "Use {{nome}} na mensagem para personalizar com o nome do contato. Ex: 'Olá {{nome}}, temos uma promoção especial para você!' A personalização aumenta significativamente a taxa de resposta.",
           },
         ],
       },
@@ -931,44 +1122,123 @@ const HELP_CATEGORIES: Category[] = [
     articles: [
       {
         id: "kanban-overview",
-        title: "Como usar o Kanban",
-        description: "Organize conversas por etapa do funil de vendas",
-        tags: ["kanban", "funil", "pipeline", "etapa", "lead"],
+        title: "Como usar o Kanban CRM",
+        description: "Organize conversas por etapa do funil de vendas com drag-and-drop",
+        tags: ["kanban", "funil", "pipeline", "etapa", "lead", "crm"],
         difficulty: "intermediate",
         content: [
           {
             type: "text",
             content:
-              "O Kanban permite visualizar as conversas em colunas representando etapas do seu processo de vendas (ex: Novo Lead → Qualificado → Proposta → Fechado).",
+              "O Kanban CRM organiza seus contatos em colunas que representam etapas do funil de vendas. Você arrasta os cards de uma coluna para outra conforme avança no processo comercial.",
           },
           {
-            type: "steps",
-            heading: "Como usar:",
+            type: "screenshot",
+            src: "11-kanban.png",
+            caption: "Kanban CRM — colunas Inbox, Novos, Prospectando. Arraste os cards entre as colunas.",
+          },
+          {
+            type: "visual-steps",
+            heading: "Como usar o Kanban",
             content: [
-              'Acesse "Ferramentas → Kanban".',
-              "Crie colunas representando cada etapa da sua venda.",
-              "Arraste os cards de conversa entre as colunas.",
-              "Clique em um card para ver detalhes da conversa.",
-            ],
+              {
+                step: "1",
+                action: "Acesse **Ferramentas → Kanban** no menu lateral",
+                explain: "O Kanban exibe suas colunas (Inbox, Novos, Prospectando, etc.) com os cards de contato em cada uma. A coluna Inbox tem todos os contatos ainda não categorizados — é seu ponto de partida.",
+                screenshot: "11-kanban.png",
+                result: "Você vê o painel com todas as colunas e os cards dos contatos."
+              },
+              {
+                step: "2",
+                action: "Crie novas **etapas** (colunas) clicando em **+ Nova Etapa**",
+                explain: "Personalize as etapas de acordo com seu processo de vendas. Exemplos: Novo Lead → Qualificado → Proposta Enviada → Negociando → Fechado/Ganho → Perdido. Use nomes que façam sentido para o seu negócio.",
+                result: "Nova coluna adicionada ao Kanban."
+              },
+              {
+                step: "3",
+                action: "Arraste os cards entre as colunas conforme o avanço de cada contato",
+                explain: "Clique e segure um card, depois arraste para a coluna desejada. O card vai para a nova etapa automaticamente. Você pode clicar em um card para ver o histórico de conversas daquele contato.",
+                screenshot: "11-kanban.png",
+                result: "Card movido para a nova etapa. O contador de cada coluna atualiza automaticamente."
+              },
+              {
+                step: "4",
+                action: "Clique no **card** para ver detalhes e abrir a conversa",
+                explain: "Dentro do card você vê: última mensagem, data de contato, etiquetas e um botão para abrir a conversa completa no painel de Conversas. Tudo integrado — você não precisa sair do Kanban.",
+                result: "Painel de detalhes abre ao lado ou você é redirecionado para a conversa."
+              },
+            ] as any,
           },
           {
             type: "tip",
             content:
-              "A IA pode mover automaticamente os contatos para as colunas certas com base no conteúdo da conversa. Configure isso nas instruções do agente.",
+              "Use o Kanban como ritual diário: toda manhã revise o Inbox e classifique os contatos novos. Contatos sem categoria perdem-se facilmente. Mova os que avançaram nas negociações antes de começar o dia.",
           },
         ],
       },
       {
         id: "funnel-overview",
-        title: "Funil de Vendas",
-        description: "Visualize o fluxo de leads em forma de funil",
-        tags: ["funil", "vendas", "conversão", "métricas"],
+        title: "Qualificação de Lead com IA",
+        description: "A IA classifica automaticamente seus contatos em Quentes, Mornos e Frios",
+        tags: ["funil", "vendas", "conversão", "qualificação", "lead", "quente", "morno", "frio"],
         difficulty: "intermediate",
         content: [
           {
             type: "text",
             content:
-              "O Funil mostra quantos leads estão em cada etapa do processo, ajudando a identificar gargalos e oportunidades de melhoria.",
+              "A Qualificação de Lead usa IA para analisar o histórico de cada conversa e classificar automaticamente cada contato como Quente 🔥 (pronto para comprar), Morno ☀️ (interessado mas não decidido) ou Frio ❄️ (baixo engajamento).",
+          },
+          {
+            type: "screenshot",
+            src: "10-qualificacao-lead.png",
+            caption: "Qualificação de Lead — 3 colunas: Leads Quentes, Mornos e Frios. Cada card mostra o contato, análise da IA e ações disponíveis.",
+          },
+          {
+            type: "visual-steps",
+            heading: "Como usar a Qualificação de Lead",
+            content: [
+              {
+                step: "1",
+                action: "Acesse **Ferramentas → Qualificação de Lead**",
+                explain: "A tela mostra os contatos em 3 colunas: Leads Quentes (alta intenção de compra), Leads Mornos (interesse moderado) e Leads Frios (baixo engajamento). Cada card mostra o nome, número, última mensagem e a análise da IA.",
+                screenshot: "10-qualificacao-lead.png",
+                result: "Você vê os leads classificados nas 3 colunas com a justificativa da IA para cada classificação."
+              },
+              {
+                step: "2",
+                action: "Clique em **Atualizar com IA** para reclassificar todos os leads",
+                explain: "O botão 'Atualizar com IA' faz a IA analisar todas as conversas recentes e atualizar as classificações. Use este botão toda manhã ou após um período de conversas intenso.",
+                result: "IA processa as conversas e redistribui os leads nas colunas. Leads que esquentaram ou esfriaram mudam de coluna."
+              },
+              {
+                step: "3",
+                action: "Clique em **Ver conversa** para abrir o chat daquele lead",
+                explain: "O botão 'Ver conversa' em cada card abre o histórico completo da conversa. Use para entender o contexto antes de entrar em contato.",
+                result: "Painel de conversa abre com o histórico completo."
+              },
+              {
+                step: "4",
+                action: "Clique em **Entrar em contato** para abrir a conversa no painel de envio",
+                explain: "Direto do card de qualificação você pode abrir a conversa e enviar uma mensagem. Isso agiliza o processo: identifique um lead quente → clique → envie uma proposta.",
+                result: "Abre a conversa pronta para resposta."
+              },
+              {
+                step: "5",
+                action: "Use **Reclassificar** para corrigir manualmente uma classificação errada",
+                explain: "Se a IA classificou errado (ex: marcou como Frio um lead que você sabe que está quente), clique em Reclassificar e escolha a categoria correta. Isso também alimenta o aprendizado do sistema.",
+                result: "Lead movido para a categoria correta."
+              },
+            ] as any,
+          },
+          {
+            type: "tip",
+            content:
+              "Foque 80% do seu tempo nos Leads Quentes. São os que têm maior probabilidade de conversão hoje. Leads Mornos precisam de um empurrão — use o Envio em Massa ou Follow-up para reaquecê-los.",
+          },
+          {
+            type: "warning",
+            content:
+              "A classificação é baseada em conversas existentes. Se um lead novo acabou de entrar, ele pode aparecer como Frio até ter mais histórico de conversa. Use 'Atualizar com IA' periodicamente.",
           },
         ],
       },
@@ -1281,27 +1551,68 @@ const HELP_CATEGORIES: Category[] = [
       },
       {
         id: "followup-setup",
-        title: "Como configurar Follow-up",
-        description: "Passo a passo para ativar o follow-up automático",
-        tags: ["follow-up", "configurar", "ativar", "mensagem", "tempo"],
+        title: "Como configurar o Follow-up Inteligente",
+        description: "Passo a passo para ativar o acompanhamento automático de clientes",
+        tags: ["follow-up", "configurar", "ativar", "mensagem", "tempo", "agenda"],
         difficulty: "intermediate",
         content: [
           {
-            type: "steps",
-            heading: "Configurar follow-up:",
+            type: "text",
+            content:
+              "O Follow-up Inteligente envia mensagens automáticas para clientes que pararam de responder. Você vê todos os follow-ups agendados no calendário e pode gerenciar cada um individualmente.",
+          },
+          {
+            type: "screenshot",
+            src: "06-followup.png",
+            caption: "Follow-up Inteligente — painel com estatísticas (enviados, pendentes, hoje, cancelados) e calendário visual",
+          },
+          {
+            type: "visual-steps",
+            heading: "Como configurar o Follow-up",
             content: [
-              'Acesse "Ferramentas → Follow-up Inteligente".',
-              "Ative o toggle de follow-up.",
-              "Defina o tempo de espera (ex: 2 horas).",
-              "Escreva a mensagem a ser enviada.",
-              "Adicione até 3 tentativas com intervalos diferentes.",
-              "Salve.",
-            ],
+              {
+                step: "1",
+                action: "Acesse **Ferramentas → Follow-up Inteligente**",
+                explain: "A tela do Follow-up mostra estatísticas no topo (Enviados, Pendentes, Hoje, Cancelados) e o calendário com os follow-ups agendados. O toggle 'Follow-up Ativado' controla se o sistema está ativo.",
+                screenshot: "06-followup.png",
+                result: "Você vê o painel completo com o calendário de Fevereiro e os follow-ups marcados em cada dia."
+              },
+              {
+                step: "2",
+                action: "Clique na aba **Configuração** para definir os parâmetros",
+                explain: "Na Configuração você define: tempo de espera antes do primeiro follow-up (ex: 2 horas), quantidade de tentativas (ex: 3 mensagens), e intervalos entre tentativas.",
+                result: "Formulário de configuração aberto."
+              },
+              {
+                step: "3",
+                action: "Configure o **tempo de espera** e as **mensagens**",
+                explain: "Defina: '2h sem resposta → enviar primeira mensagem'. Escreva as mensagens de cada tentativa. Dica: seja empático, não insistente. 1ª tentativa: dúvida. 2ª tentativa: benefício extra. 3ª tentativa: última chance gentil.",
+                result: "Sequência de mensagens configurada."
+              },
+              {
+                step: "4",
+                action: "Configure os **Horários** permitidos para envio",
+                explain: "Na aba Horários, defina em quais dias e faixas horárias o follow-up pode ser enviado. Nunca envie fora do horário comercial — causa irritação e pode gerar bloqueio.",
+                result: "Horários definidos. Follow-ups fora da faixa são automaticamente reagendados para o próximo horário permitido."
+              },
+              {
+                step: "5",
+                action: "Ative o toggle **Follow-up Ativado** no topo da tela",
+                explain: "Com o toggle ativo, o sistema monitora todas as conversas e agenda follow-ups automaticamente quando detecta inatividade no tempo configurado.",
+                screenshot: "06-followup.png",
+                result: "Toggle verde = sistema ativo. Os próximos follow-ups aparecem no calendário."
+              },
+            ] as any,
           },
           {
             type: "warning",
             content:
-              "O follow-up só é enviado se o cliente não respondeu. Se ele responder, o timer é reiniciado.",
+              "O follow-up para automaticamente se o cliente responder — o timer é reiniciado. Nunca configure mais de 3 tentativas ou intervalos menores que 2 horas. Excesso de follow-up resulta em bloqueio.",
+          },
+          {
+            type: "tip",
+            content:
+              "Use a aba Pendentes para revisar os follow-ups antes que sejam enviados. Se um cliente não deve receber, você pode cancelar individualmente sem desativar o sistema inteiro.",
           },
         ],
       },
@@ -1364,25 +1675,64 @@ const HELP_CATEGORIES: Category[] = [
     articles: [
       {
         id: "notifier-overview",
-        title: "O que é o Notificador Inteligente",
-        description: "Envie mensagens automáticas por gatilhos ou API",
-        tags: ["notificador", "notificação", "automação", "gatilho", "api", "evento"],
+        title: "Notificador Inteligente — Como configurar",
+        description: "Receba alertas no WhatsApp quando clientes precisam de atenção",
+        tags: ["notificador", "notificação", "automação", "gatilho", "api", "evento", "alerta"],
         difficulty: "advanced",
         content: [
           {
             type: "text",
             content:
-              "O Notificador Inteligente envia mensagens proativas para contatos com base em gatilhos: data especial (aniversário), integração via API externa, ou ação no sistema.",
+              "O Notificador Inteligente monitora as conversas e envia um alerta para o seu WhatsApp pessoal quando detectar algo que precisa da sua atenção — como um cliente pedindo PIX, fazendo reclamação, ou qualquer situação que você definir.",
           },
           {
-            type: "list",
-            heading: "Casos de uso:",
+            type: "screenshot",
+            src: "08-notificador.png",
+            caption: "Notificador Inteligente — configure o número que receberá os alertas e o modo de detecção",
+          },
+          {
+            type: "visual-steps",
+            heading: "Como configurar o Notificador",
             content: [
-              "Lembrete de aniversário do cliente",
-              "Notificação de pagamento confirmado",
-              "Alerta de pedido pronto",
-              "Integração com sistema de ERP ou e-commerce via webhook",
-            ],
+              {
+                step: "1",
+                action: "Acesse **Ferramentas → Notificador Inteligente**",
+                explain: "A tela do Notificador mostra: o toggle de ativação, o número que receberá os alertas, e as opções de modo de detecção. O número deve incluir o código do país (ex: 5511999888777).",
+                screenshot: "08-notificador.png",
+                result: "Você vê a tela com Status do Notificador e o campo de número preenchível."
+              },
+              {
+                step: "2",
+                action: "Configure o **Número para Notificação** (seu WhatsApp pessoal)",
+                explain: "Digite o número que vai receber os alertas no formato 55 + DDD + número (ex: 5517991956944). É o seu número pessoal ou de um responsável pelo atendimento.",
+                result: "Número salvo no campo."
+              },
+              {
+                step: "3",
+                action: "Escolha o **Modo de Detecção**",
+                explain: "3 opções disponíveis: **IA** (recomendado) — a IA analisa o contexto e decide quando notificar, mais preciso. **Palavras-chave manual** — notifica quando detectar palavras específicas que você cadastra. **Ambos** — usa IA + palavras-chave para máxima cobertura.",
+                screenshot: "08-notificador.png",
+                result: "Modo selecionado. Se escolheu IA ou Ambos, o campo 'Gatilho da IA' aparece."
+              },
+              {
+                step: "4",
+                action: "Escreva o **Gatilho da IA** em linguagem natural",
+                explain: "Descreva em português o que você quer monitorar. Ex: 'Me notifique quando um cliente pedir o PIX', 'Avise quando alguém reclamar de entrega', 'Alerte quando cliente perguntar por gerente'. A IA entende a intenção.",
+                screenshot: "08-notificador.png",
+                result: "Gatilho cadastrado. A IA usará este texto para decidir quando disparar o alerta."
+              },
+              {
+                step: "5",
+                action: "Ative o toggle **Status do Notificador**",
+                explain: "Com o toggle ligado (verde), o sistema monitora todas as conversas em tempo real. Quando detectar o gatilho, você recebe uma mensagem no seu WhatsApp pessoal com o contexto da conversa.",
+                result: "Notificador ativo. Você receberá alertas automaticamente."
+              },
+            ] as any,
+          },
+          {
+            type: "tip",
+            content:
+              "Use o modo 'Ambos (IA + Manual)' para garantir cobertura total. Configure o gatilho da IA para situações complexas e as palavras-chave para termos diretos ('pix', 'cancelar', 'reclamação'). Custo de falsos positivos é baixo, mas falta de alerta pode perder vendas.",
           },
         ],
       },
@@ -1990,6 +2340,117 @@ function ArticleView({
             );
           }
 
+          // ── NOVO: screenshot embutido ──────────────────────────────────
+          if (section.type === "screenshot") {
+            return (
+              <figure key={idx} className="my-4">
+                {section.heading && (
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                    {section.heading}
+                  </p>
+                )}
+                <div className="rounded-xl border border-border overflow-hidden shadow-sm">
+                  <img
+                    src={`/tutorial-screenshots/${section.src}`}
+                    alt={section.caption || section.heading || "Screenshot"}
+                    className="w-full h-auto block"
+                    loading="lazy"
+                  />
+                </div>
+                {section.caption && (
+                  <figcaption className="text-xs text-muted-foreground mt-1.5 text-center italic">
+                    {section.caption}
+                  </figcaption>
+                )}
+              </figure>
+            );
+          }
+
+          // ── NOVO: passo visual (passo + print + explicação) ──────────────
+          if (section.type === "visual-steps") {
+            const steps = section.content as VisualStep[];
+            return (
+              <div key={idx} className="space-y-6">
+                {section.heading && (
+                  <h3 className="font-bold text-foreground text-base border-b border-border pb-2">
+                    {section.heading}
+                  </h3>
+                )}
+                {steps.map((vs, i) => (
+                  <div
+                    key={i}
+                    className="rounded-xl border border-border bg-card overflow-hidden"
+                  >
+                    {/* Cabeçalho do passo */}
+                    <div className="flex items-center gap-3 px-4 py-3 bg-primary/5 border-b border-border">
+                      <span className="flex-shrink-0 w-7 h-7 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                        {vs.step}
+                      </span>
+                      <span
+                        className="font-semibold text-foreground text-sm leading-snug"
+                        dangerouslySetInnerHTML={{
+                          __html: vs.action.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"),
+                        }}
+                      />
+                    </div>
+
+                    {/* Screenshot do passo */}
+                    {vs.screenshot && (
+                      <div className="border-b border-border">
+                        <img
+                          src={`/tutorial-screenshots/${vs.screenshot}`}
+                          alt={`Passo ${vs.step}: ${vs.action}`}
+                          className="w-full h-auto block"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+
+                    {/* Explicação + resultado */}
+                    <div className="px-4 py-3 space-y-2">
+                      <p
+                        className="text-sm text-foreground leading-relaxed"
+                        dangerouslySetInnerHTML={{
+                          __html: vs.explain.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"),
+                        }}
+                      />
+                      {vs.result && (
+                        <div className="flex items-start gap-2 mt-2 p-2 rounded-md bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
+                          <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                          <span className="text-xs text-green-800 dark:text-green-200 leading-relaxed">
+                            {vs.result}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          }
+
+          // ── NOVO: heading interno ──────────────────────────────────────
+          if (section.type === "heading") {
+            return (
+              <h3 key={idx} className="font-bold text-foreground text-base mt-2 mb-1 border-l-4 border-primary pl-3">
+                {section.content as string}
+              </h3>
+            );
+          }
+
+          // ── NOVO: row de badges ─────────────────────────────────────────
+          if (section.type === "badge-row") {
+            return (
+              <div key={idx} className="flex flex-wrap gap-2">
+                {(section.content as string[]).map((b, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                    {b}
+                  </span>
+                ))}
+              </div>
+            );
+          }
+
           return null;
         })}
       </div>
@@ -2006,25 +2467,26 @@ function ArticleView({
         </div>
       </div>
 
-      {/* CTA WhatsApp para artigos de suporte */}
-      {category.id === "support-tickets" && (
-        <div className="mt-6 p-5 rounded-xl bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-800 text-center">
-          <p className="text-sm font-semibold text-green-800 dark:text-green-200 mb-3">
-            Precisa de ajuda personalizada? Fale com a gente!
-          </p>
-          <a
-            href="https://wa.me/5517991648288?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20AgenteZap."
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-semibold text-sm transition-colors"
-          >
-            <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-            </svg>
-            Falar no WhatsApp — +55 17 99164-8288
-          </a>
-        </div>
-      )}
+      {/* CTA WhatsApp — sempre visível em todos os artigos */}
+      <div className="mt-8 p-5 rounded-xl bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-800 text-center">
+        <p className="text-sm font-semibold text-green-800 dark:text-green-200 mb-1">
+          Ainda com dúvida? Fale direto com o suporte!
+        </p>
+        <p className="text-xs text-green-700 dark:text-green-300 mb-4">
+          Nossa equipe responde pelo WhatsApp em horário comercial.
+        </p>
+        <a
+          href="https://wa.me/5517991648288?text=Olá!%20Preciso%20de%20ajuda%20com%20o%20AgenteZap."
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 text-white font-semibold text-sm transition-colors"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+          </svg>
+          Abrir chamado / Falar com o suporte
+        </a>
+      </div>
     </div>
   );
 }
@@ -2130,7 +2592,7 @@ export default function HelpCenter() {
         const matchDesc = art.description.toLowerCase().includes(query);
         const matchTags = art.tags.some((t) => t.includes(query));
         const matchContent = art.content.some((s) => {
-          const c = Array.isArray(s.content) ? s.content.join(" ") : s.content;
+          const c = Array.isArray(s.content) ? s.content.join(" ") : (s.content ?? "");
           return c.toLowerCase().includes(query);
         });
         if (matchTitle || matchDesc || matchTags || matchContent) {
