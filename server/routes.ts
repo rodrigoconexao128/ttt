@@ -3697,12 +3697,18 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       const devMode = process.env.SKIP_WHATSAPP_RESTORE === 'true' || process.env.DISABLE_WHATSAPP_PROCESSING === 'true';
       const qsConnectionId = req.query?.connectionId as string | undefined;
 
+      // PERF: Response cache (10s TTL) - short cache to reduce DB hits during page load
+      const connCacheKey = `api:wa-conn:${userId}:${qsConnectionId || 'default'}`;
+      const cachedConn = memoryCache.get<any>(connCacheKey);
+      if (cachedConn !== null && cachedConn !== undefined) return res.json(cachedConn);
+
       const connection = await storage.getConnectionByUserId(userId, qsConnectionId);
 
 
 
       if (!connection) {
 
+        memoryCache.set(connCacheKey, null, 10_000);
         return res.json(null);
 
       }
@@ -3801,7 +3807,8 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       };
 
-
+      // PERF: Cache after healing (10s TTL)
+      memoryCache.set(connCacheKey, response, 10_000);
 
       res.json(response);
 
@@ -12062,13 +12069,18 @@ ${config.ai_instructions || ''}
       const userId = getUserId(req);
       const qsConnectionId = req.query?.connectionId as string | undefined;
 
+      // PERF: Response cache (15s TTL) - stats update frequently but not per-second
+      const statsCacheKey = `api:stats:${userId}:${qsConnectionId || 'default'}`;
+      const cachedStats = memoryCache.get<any>(statsCacheKey);
+      if (cachedStats) return res.json(cachedStats);
+
       const connection = await storage.getConnectionByUserId(userId, qsConnectionId);
 
 
 
       if (!connection) {
 
-        return res.json({
+        const emptyStats = {
 
           totalConversations: 0,
 
@@ -12078,25 +12090,32 @@ ${config.ai_instructions || ''}
 
           agentMessages: 0,
 
-        });
+        };
+        memoryCache.set(statsCacheKey, emptyStats, 15_000);
+        return res.json(emptyStats);
 
       }
 
 
 
-      const { total: totalConversations, unread: unreadMessages } = await storage.getConversationStatsCount(connection.id);
-      const todayMessages = await storage.getTodayMessagesCount(connection.id);
-      const agentMessages = await storage.getAgentMessagesCount(connection.id);
+      // PERF: Parallelize all 3 independent DB calls
+      const [conversationStats, todayMessages, agentMessages] = await Promise.all([
+        storage.getConversationStatsCount(connection.id),
+        storage.getTodayMessagesCount(connection.id),
+        storage.getAgentMessagesCount(connection.id),
+      ]);
 
-      res.json({
-        totalConversations,
-        unreadMessages,
+      const statsData = {
+        totalConversations: conversationStats.total,
+        unreadMessages: conversationStats.unread,
 
         todayMessages,
 
         agentMessages,
 
-      });
+      };
+      memoryCache.set(statsCacheKey, statsData, 15_000);
+      res.json(statsData);
 
     } catch (error) {
 
