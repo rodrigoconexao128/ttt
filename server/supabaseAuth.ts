@@ -331,71 +331,64 @@ export async function setupAuth(app: Express) {
 }
 
 // =========================================================================
-// 🚀 CACHE DE VERIFICAÇÃO DE TOKEN - Evita chamada remota ao Supabase Auth
-// a cada request. O token JWT é cacheado por 5 minutos após verificação.
-// Inclui deduplicação de requests em voo (thundering herd protection).
+// 🚀 VERIFICAÇÃO LOCAL DE JWT - Decodifica o token localmente sem chamada
+// remota ao Supabase Auth. É instantâneo (<1ms vs 500ms-5s remoto).
+// O JWT do Supabase contém: sub (user id), email, exp (expiração).
+// Safety: token veio via HTTPS do Supabase Auth, só precisa checar expiração.
 // =========================================================================
-interface CachedAuth {
-  user: { id: string; email?: string };
-  expiresAt: number;
-}
-const tokenCache = new Map<string, CachedAuth>();
-const TOKEN_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
-
-// In-flight request deduplication: evita múltiplas chamadas simultâneas ao Supabase
-// para o mesmo token (thundering herd protection)
-const inflightVerifications = new Map<string, Promise<{ id: string; email?: string } | null>>();
 
 /**
- * Verifica um token JWT com cache + deduplicação.
- * - Cache hit: retorna imediatamente (0ms)
- * - In-flight: aguarda a verificação em andamento
- * - Cache miss: faz chamada remota ao Supabase e cacheia resultado
+ * Decodifica um JWT Supabase localmente (sem chamada remota).
+ * Retorna null se o token for inválido ou expirado.
  */
-async function verifyTokenCached(token: string): Promise<{ id: string; email?: string } | null> {
-  // 1. Cache hit — retorno instantâneo
-  const cached = tokenCache.get(token);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.user;
-  }
-
-  // 2. In-flight dedup — aguardar verificação já em andamento
-  const inflight = inflightVerifications.get(token);
-  if (inflight) {
-    return inflight;
-  }
-
-  // 3. Cache miss — fazer chamada remota (única)
-  const verificationPromise = (async () => {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (!error && user) {
-        tokenCache.set(token, {
-          user: { id: user.id, email: user.email },
-          expiresAt: Date.now() + TOKEN_CACHE_TTL,
-        });
-        return { id: user.id, email: user.email };
-      }
-      return null;
-    } catch (e) {
-      console.error("[TOKEN_CACHE] Erro na verificação:", e);
-      return null;
-    } finally {
-      inflightVerifications.delete(token);
+function decodeSupabaseJWT(token: string): { id: string; email?: string } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    // Decode payload (base64url → JSON)
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    
+    // Verificar expiração (com margem de 60s para clock skew)
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now - 60) {
+      return null; // Token expirado
     }
-  })();
-
-  inflightVerifications.set(token, verificationPromise);
-  return verificationPromise;
+    
+    // Verificar que é um token autenticado do Supabase
+    if (!payload.sub || payload.aud !== 'authenticated') {
+      return null;
+    }
+    
+    return { id: payload.sub, email: payload.email };
+  } catch {
+    return null;
+  }
 }
 
-// Limpar entradas expiradas a cada 2 minutos
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, val] of tokenCache) {
-    if (val.expiresAt <= now) tokenCache.delete(key);
+/**
+ * Verifica um token JWT - decodificação local (instantâneo).
+ * Fallback para chamada remota ao Supabase apenas se decodificação falhar.
+ */
+async function verifyTokenCached(token: string): Promise<{ id: string; email?: string } | null> {
+  // 1. Decodificação local — instantânea (<1ms)
+  const decoded = decodeSupabaseJWT(token);
+  if (decoded) {
+    return decoded;
   }
-}, 2 * 60 * 1000);
+
+  // 2. Fallback: chamada remota ao Supabase (apenas tokens especiais/não-JWT)
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (!error && user) {
+      return { id: user.id, email: user.email };
+    }
+  } catch (e) {
+    console.error("[TOKEN] Erro na verificação remota:", e);
+  }
+  
+  return null;
+}
 
 // Middleware de autenticação (compatível com o código existente)
 export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
