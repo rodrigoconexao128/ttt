@@ -1,38 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
-import { fetchWithAuth, getAuthToken, supabase } from "@/lib/supabase";
-
-// Flag global para evitar limpeza duplicada (não causa re-render)
-let hasCleanedInvalidSession = false;
-
-// Função para limpar sessão inválida de forma segura
-async function cleanInvalidSession() {
-  if (hasCleanedInvalidSession) return;
-  hasCleanedInvalidSession = true;
-  
-  console.warn("[AUTH] Limpando sessão inválida...");
-  
-  try {
-    // Apenas limpa o storage local, não faz chamada ao servidor
-    // (evita erro 403 quando o token já é inválido)
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('sb-')) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-    
-    // Reset flag após 5 segundos para permitir nova limpeza se necessário
-    setTimeout(() => {
-      hasCleanedInvalidSession = false;
-    }, 5000);
-  } catch (e) {
-    console.warn("[AUTH] Erro ao limpar sessão:", e);
-    hasCleanedInvalidSession = false;
-  }
-}
+import { fetchWithAuth, getAuthToken, refreshSession, supabase } from "@/lib/supabase";
 
 // Função para verificar se é login de membro
 function isMemberSession(): boolean {
@@ -93,14 +62,23 @@ async function fetchUser(): Promise<User | null> {
       return await fetchMemberUser();
     }
 
-    const token = await getAuthToken();
+    let token = await getAuthToken();
 
+    // Se não tem token, tenta refresh antes de desistir
     if (!token) {
-      return null;
+      console.log("[AUTH] Token não encontrado, tentando refresh...");
+      const refreshed = await refreshSession();
+      if (refreshed) {
+        token = await getAuthToken();
+        console.log("[AUTH] Refresh bem sucedido, token:", token ? "obtido" : "ainda null");
+      }
+      if (!token) {
+        return null;
+      }
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5s
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // Timeout de 8s (mais tolerante)
 
     try {
       const response = await fetchWithAuth("/api/auth/user", {
@@ -110,20 +88,39 @@ async function fetchUser(): Promise<User | null> {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Token inválido - limpa de forma segura
-          await cleanInvalidSession();
+          // Token inválido - tenta refresh UMA VEZ antes de desistir
+          console.log("[AUTH] 401 no /api/auth/user, tentando refresh...");
+          const refreshed = await refreshSession();
+          if (refreshed) {
+            // Retry com token novo
+            const retryResponse = await fetchWithAuth("/api/auth/user");
+            if (retryResponse.ok) {
+              console.log("[AUTH] ✅ Retry após refresh bem sucedido");
+              return await retryResponse.json();
+            }
+          }
+          // Refresh falhou ou retry falhou - sessão realmente inválida
+          console.warn("[AUTH] Sessão realmente inválida após retry");
           return null;
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Login válido - reset flag
-      hasCleanedInvalidSession = false;
       return await response.json();
     } catch (fetchError) {
       clearTimeout(timeoutId);
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
         console.warn("[AUTH] Timeout ao buscar usuário");
+        // No timeout, NÃO retorna null imediatamente - pode ser lentidão do servidor
+        // Tenta uma vez mais com timeout maior
+        try {
+          const retryResponse = await fetchWithAuth("/api/auth/user");
+          if (retryResponse.ok) {
+            return await retryResponse.json();
+          }
+        } catch {
+          // Ignora erro do retry
+        }
         return null;
       }
       throw fetchError;
@@ -135,14 +132,47 @@ async function fetchUser(): Promise<User | null> {
 }
 
 export function useAuth() {
+  const queryClient = useQueryClient();
+  
   const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     queryFn: fetchUser,
-    retry: false, // Não retentar - fetchUser já trata erros e retorna null
+    retry: 1, // Retry uma vez em caso de erro de rede/transiente
+    retryDelay: 2000, // Espera 2s antes de retry
 
     staleTime: 5 * 60 * 1000, // 5 minutos
     gcTime: 5 * 60 * 1000, // Substitui cacheTime
   });
+
+  // 🔄 Listener para mudanças de autenticação do Supabase
+  // Detecta: login, logout, token refresh, sessão expirada
+  useEffect(() => {
+    // Pular listener para membros (usam token próprio)
+    if (isMemberSession()) return;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log("[AUTH] onAuthStateChange:", event, session ? "com sessão" : "sem sessão");
+        
+        if (event === 'SIGNED_OUT') {
+          // Usuário fez logout - limpar cache
+          queryClient.setQueryData(["/api/auth/user"], null);
+        } else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+          // Token foi renovado ou login novo - refetch para atualizar dados
+          queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        } else if (event === 'INITIAL_SESSION') {
+          // Sessão inicial carregada do localStorage
+          if (session) {
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+          }
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [queryClient]);
 
   return {
     user: user || undefined,

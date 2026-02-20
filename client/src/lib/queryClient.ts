@@ -46,8 +46,8 @@ export async function apiRequest(
   if (res.status === 401 && retryCount === 0 && !memberToken) {
     console.log('🔄 [API] Sessão expirou, fazendo refresh e retry...');
     
-    // Tenta refresh da sessão
-    const refreshed = await refreshSession();
+    // Tenta refresh da sessão (singleton para evitar race conditions)
+    const refreshed = await singletonRefresh();
     
     if (refreshed) {
       console.log('✅ [API] Sessão renovada, tentando request novamente');
@@ -70,7 +70,7 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     // Verificar se tem token de membro primeiro
     const memberToken = localStorage.getItem("memberToken");
-    const token = memberToken || await getAuthToken();
+    let token = memberToken || await getAuthToken();
 
     const headers: Record<string, string> = {};
     if (token) {
@@ -81,6 +81,46 @@ export const getQueryFn: <T>(options: {
       credentials: "include",
       headers,
     });
+
+    // 🔄 RETRY: Se receber 401, tenta refresh e retry uma vez (apenas para não-membros)
+    if (res.status === 401 && !memberToken) {
+      console.log('🔄 [QUERY] 401 em', queryKey[0], '- tentando refresh...');
+      const refreshed = await singletonRefresh();
+      
+      if (refreshed) {
+        // Pegar novo token após refresh
+        const newToken = await getAuthToken();
+        if (newToken) {
+          console.log('✅ [QUERY] Sessão renovada, retry em', queryKey[0]);
+          const retryHeaders: Record<string, string> = {
+            "Authorization": `Bearer ${newToken}`,
+          };
+          const retryRes = await fetch(queryKey.join("/") as string, {
+            credentials: "include",
+            headers: retryHeaders,
+          });
+          
+          if (retryRes.ok) {
+            return await retryRes.json();
+          }
+          
+          // Se retry também falhou com 401, agora sim trata como não autorizado
+          if (retryRes.status === 401) {
+            if (unauthorizedBehavior === "returnNull") return null;
+            const text = (await retryRes.text()) || retryRes.statusText;
+            throw new Error(`${retryRes.status}: ${text}`);
+          }
+          
+          await throwIfResNotOk(retryRes);
+          return await retryRes.json();
+        }
+      }
+      
+      // Refresh falhou
+      if (unauthorizedBehavior === "returnNull") return null;
+      const text = (await res.text()) || res.statusText;
+      throw new Error(`${res.status}: ${text}`);
+    }
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;

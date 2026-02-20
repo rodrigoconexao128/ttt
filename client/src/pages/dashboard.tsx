@@ -69,7 +69,7 @@ import TicketCreatePage from "@/pages/TicketCreatePage";
 import { UpgradeBanner } from "@/components/upgrade-cta";
 import { useLocation, useRoute } from "wouter";
 import type { WhatsappConnection, AiAgentConfig, Subscription, Plan, Conversation } from "@shared/schema";
-import { supabase } from "@/lib/supabase";
+import { supabase, refreshSession } from "@/lib/supabase";
 import { queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
@@ -363,12 +363,33 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    // Aguardar pelo menos 2 segundos antes de redirecionar para login
-    // Isso dá tempo para o token ser recuperado do localStorage
+    // Aguardar antes de redirecionar para login
+    // Isso dá tempo para o token ser recuperado/refreshed do localStorage
     if (!isLoading && !isAuthenticated) {
-      const timer = setTimeout(() => {
-        // Verificar novamente antes de redirecionar
-        // (pode ter sido uma race condition)
+      const timer = setTimeout(async () => {
+        // 🔄 ANTES de redirecionar, tenta refresh da sessão
+        // (pode ser que o token expirou mas o refresh token ainda é válido)
+        try {
+          console.log("[DASHBOARD] Não autenticado, tentando refresh antes de redirecionar...");
+          const refreshed = await refreshSession();
+          if (refreshed) {
+            console.log("[DASHBOARD] ✅ Refresh bem sucedido, cancelando redirect");
+            // Invalidar query para re-fetch com novo token
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+            return; // NÃO redirecionar - sessão foi recuperada
+          }
+        } catch (e) {
+          console.warn("[DASHBOARD] Erro ao tentar refresh:", e);
+        }
+
+        // Verificar novamente se virou autenticado (pode ter mudado enquanto refreshava)
+        const currentUser = queryClient.getQueryData(["/api/auth/user"]);
+        if (currentUser) {
+          console.log("[DASHBOARD] Usuário encontrado no cache após refresh, cancelando redirect");
+          return;
+        }
+        
+        // Realmente não autenticado - redirecionar
         toast({
           title: "Não autorizado",
           description: "Você precisa fazer login. Redirecionando...",
@@ -377,7 +398,7 @@ export default function Dashboard() {
         setTimeout(() => {
           setLocation("/login");
         }, 500);
-      }, 1500);
+      }, 4000); // 4 segundos ao invés de 1.5 - mais tolerante para deploys/rede lenta
       
       return () => clearTimeout(timer);
     }
