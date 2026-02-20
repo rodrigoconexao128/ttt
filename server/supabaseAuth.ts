@@ -330,6 +330,25 @@ export async function setupAuth(app: Express) {
   });
 }
 
+// =========================================================================
+// 🚀 CACHE DE VERIFICAÇÃO DE TOKEN - Evita chamada remota ao Supabase Auth
+// a cada request. O token JWT é cacheado por 5 minutos após verificação.
+// =========================================================================
+interface CachedAuth {
+  user: { id: string; email?: string };
+  expiresAt: number;
+}
+const tokenCache = new Map<string, CachedAuth>();
+const TOKEN_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+// Limpar entradas expiradas a cada 2 minutos
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of tokenCache) {
+    if (val.expiresAt <= now) tokenCache.delete(key);
+  }
+}, 2 * 60 * 1000);
+
 // Middleware de autenticação (compatível com o código existente)
 export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
   try {
@@ -357,10 +376,29 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
 
     const token = authHeader.replace('Bearer ', '');
     
-    // Verificar token com Supabase
+    // 🚀 CACHE HIT: Verificar se o token já foi validado recentemente
+    const cached = tokenCache.get(token);
+    if (cached && cached.expiresAt > Date.now()) {
+      req.user = {
+        id: cached.user.id,
+        claims: {
+          sub: cached.user.id,
+          email: cached.user.email,
+        }
+      };
+      return next();
+    }
+    
+    // 🔐 CACHE MISS: Verificar token com Supabase (chamada remota)
     const { data: { user }, error } = await supabase.auth.getUser(token);
     
     if (!error && user) {
+      // Cachear resultado para evitar chamadas repetidas
+      tokenCache.set(token, {
+        user: { id: user.id, email: user.email },
+        expiresAt: Date.now() + TOKEN_CACHE_TTL,
+      });
+      
       // Adicionar usuário ao request (compatível com código existente)
       req.user = {
         id: user.id, // Adicionar id diretamente para compatibilidade

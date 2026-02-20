@@ -58,6 +58,7 @@ export function ConnectionPanel() {
 
   const { data: connection, isLoading, refetch: refetchConnection } = useQuery<WhatsappConnection>({
     queryKey: ["/api/whatsapp/connection"],
+    staleTime: 10000, // 10s: evita múltiplas chamadas desnecessárias
   });
 
   // Query for all connections with agents (multi-connection)
@@ -66,6 +67,8 @@ export function ConnectionPanel() {
     enabled: !!connection, // Only fetch after main connection loads (auth ready)
     retry: 2,
     retryDelay: 1000,
+    staleTime: 15000, // 15s: evita refetch desnecessário ao navegar entre páginas
+    refetchOnWindowFocus: false,
   });
 
   // Mutation para criar nova conexão

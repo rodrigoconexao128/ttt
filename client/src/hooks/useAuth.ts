@@ -78,7 +78,7 @@ async function fetchUser(): Promise<User | null> {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // Timeout de 8s (mais tolerante)
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // Timeout de 15s (mais tolerante para Proxy→Worker)
 
     try {
       const response = await fetchWithAuth("/api/auth/user", {
@@ -111,16 +111,6 @@ async function fetchUser(): Promise<User | null> {
       clearTimeout(timeoutId);
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
         console.warn("[AUTH] Timeout ao buscar usuário");
-        // No timeout, NÃO retorna null imediatamente - pode ser lentidão do servidor
-        // Tenta uma vez mais com timeout maior
-        try {
-          const retryResponse = await fetchWithAuth("/api/auth/user");
-          if (retryResponse.ok) {
-            return await retryResponse.json();
-          }
-        } catch {
-          // Ignora erro do retry
-        }
         return null;
       }
       throw fetchError;
@@ -146,30 +136,35 @@ export function useAuth() {
 
   // 🔄 Listener para mudanças de autenticação do Supabase
   // Detecta: login, logout, token refresh, sessão expirada
+  // DEBOUNCE: Evita múltiplas invalidações simultâneas (SIGNED_IN + INITIAL_SESSION)
   useEffect(() => {
     // Pular listener para membros (usam token próprio)
     if (isMemberSession()) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log("[AUTH] onAuthStateChange:", event, session ? "com sessão" : "sem sessão");
         
         if (event === 'SIGNED_OUT') {
-          // Usuário fez logout - limpar cache
+          // Usuário fez logout - limpar cache imediatamente
+          if (debounceTimer) clearTimeout(debounceTimer);
           queryClient.setQueryData(["/api/auth/user"], null);
-        } else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
-          // Token foi renovado ou login novo - refetch para atualizar dados
-          queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-        } else if (event === 'INITIAL_SESSION') {
-          // Sessão inicial carregada do localStorage
+        } else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          // Debounce: agrupar múltiplos eventos em um único refetch
           if (session) {
-            queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+            }, 300); // Espera 300ms para agrupar eventos consecutivos
           }
         }
       }
     );
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       subscription.unsubscribe();
     };
   }, [queryClient]);
