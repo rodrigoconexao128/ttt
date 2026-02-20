@@ -63,10 +63,12 @@ function normKeywords(kws: string[]): string[] {
   return Array.from(seen);
 }
 
-// Verifica se é o dono (tem claims.sub = userId)
+// Verifica se é o dono (tem claims.sub = userId e NÃO é membro de equipe)
 function requireOwner(req: any, res: Response, next: NextFunction) {
   const userId = getUserId(req);
   if (!userId) return res.status(403).json({ error: "Acesso negado." });
+  // Membros de equipe autenticados via Bearer token do membro NÃO devem acessar rotas de dono
+  if (req.user?.isMember === true) return res.status(403).json({ error: "Acesso restrito ao dono da conta." });
   next();
 }
 

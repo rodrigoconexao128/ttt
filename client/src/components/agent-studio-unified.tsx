@@ -17,13 +17,14 @@ import {
   CheckCircle2, Wand2, RefreshCw, Settings, Zap,
   Undo2, Redo2, History, ChevronUp,
   Image as ImageIcon, Music, Video, FileText, Plus, Trash2, Upload, Check,
-  Clock, Brain, Pause, X, Save, Pencil, File, Rocket, Wrench
+  Clock, Brain, Pause, X, Save, Pencil, File, Rocket, Wrench, GitBranch
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { getAuthToken } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { CalibrationChat } from "@/components/calibration-chat";
+import { FlowTab } from "@/components/flow-tab";
 
 // 🔒 Modal de upgrade estilo Lovable
 interface UpgradeModalProps {
@@ -171,7 +172,7 @@ interface PromptHistoryEntry {
   summary: string;
 }
 
-type Section = 'chat' | 'code' | 'media' | 'config' | 'tools';
+type Section = 'chat' | 'code' | 'media' | 'config' | 'tools' | 'flow';
 
 // ============ HELPER: FORMATAÇÃO WHATSAPP ============
 function formatWhatsAppText(text: string): string {
@@ -1274,7 +1275,8 @@ export function AgentStudioUnified() {
                 <p className="text-[10px] text-muted-foreground">
                   {activeSection === "chat" ? "Converse para editar" : 
                    activeSection === "code" ? "Edite o prompt diretamente" :
-                   activeSection === "media" ? "Biblioteca de mídias" : "Configurações"}
+                   activeSection === "media" ? "Biblioteca de mídias" :
+                   activeSection === "flow" ? "Roteiro pré-definido" : "Configurações"}
                 </p>
               </div>
             </div>
@@ -1383,6 +1385,18 @@ export function AgentStudioUnified() {
                   <Wrench className="w-3 h-3 mr-1" />
                   Corrigir
                 </Button>
+                <Button
+                  variant={activeSection === "flow" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveSection("flow")}
+                  className={cn(
+                    "h-7 px-2 text-xs",
+                    activeSection === "flow" && "bg-purple-500/20 text-purple-700 dark:text-purple-300 hover:bg-purple-500/30"
+                  )}
+                >
+                  <GitBranch className="w-3 h-3 mr-1" />
+                  Fluxo
+                </Button>
               </div>
               
               {/* Save Button */}
@@ -1462,6 +1476,18 @@ export function AgentStudioUnified() {
             >
               <Wrench className="w-3 h-3 mr-1" />
               Corrigir
+            </Button>
+            <Button
+              variant={activeSection === "flow" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setActiveSection("flow")}
+              className={cn(
+                "h-7 px-2 text-xs flex-shrink-0",
+                activeSection === "flow" && "bg-purple-500/20 text-purple-700 dark:text-purple-300"
+              )}
+            >
+              <GitBranch className="w-3 h-3 mr-1" />
+              Fluxo
             </Button>
           </div>
 
@@ -2180,6 +2206,13 @@ export function AgentStudioUnified() {
                 }}
                 className="h-full border-0 rounded-none"
               />
+            </div>
+          )}
+
+          {/* ============ SECTION: FLOW (MODO FLUXO - PARTE 5) ============ */}
+          {activeSection === 'flow' && (
+            <div className="flex-1 overflow-y-auto">
+              <FlowTab />
             </div>
           )}
         </div>

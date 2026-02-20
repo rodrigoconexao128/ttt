@@ -419,16 +419,7 @@ const toolsNavigation: ToolNavItem[] = [
       goToSection("agent");
     },
   },
-  { 
-    label: "🤖 Robô / Fluxo", 
-    icon: Workflow, 
-    tooltip: "Chatbot com fluxo predefinido", 
-    isActive: isFlowBuilderRoute, 
-    testId: "button-nav-flow-builder",
-    subItems: [
-      { label: "Construtor", href: "/construtor-fluxo", icon: Workflow, tooltip: "Construtor de fluxo visual", isActive: isFlowBuilderRoute, testId: "button-nav-flow-constructor" },
-    ]
-  },
+  // [PARTE 5] Menu "Robô / Fluxo" removido - Fluxo agora fica em Meu Agente IA (aba Fluxo)
   { 
     label: "🍕 Delivery", 
     icon: UtensilsCrossed, 

@@ -15875,6 +15875,98 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
   // ==========================================================================
+  // PARTE 5 - MODO FLUXO: ROTAS DO FLUXO DO AGENTE
+  // ==========================================================================
+
+  // GET /api/agent/flow - Buscar configuração de fluxo do usuário
+  app.get("/api/agent/flow", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const config = await storage.getAgentConfig(userId);
+      if (!config) {
+        return res.json({ flowScript: null, flowModeActive: false });
+      }
+      res.json({
+        flowScript: (config as any).flowScript || null,
+        flowModeActive: (config as any).flowModeActive || false,
+      });
+    } catch (error: any) {
+      console.error("[FLOW] Erro ao buscar configuração de fluxo:", error);
+      res.status(500).json({ message: "Erro ao buscar configuração de fluxo" });
+    }
+  });
+
+  // POST /api/agent/flow - Salvar/atualizar roteiro de fluxo
+  app.post("/api/agent/flow", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const schema = z.object({
+        flowScript: z.string().optional().nullable(),
+        flowModeActive: z.boolean().optional(),
+      });
+      const result = schema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: "Dados inválidos", errors: result.error });
+      }
+
+      const existingConfig = await storage.getAgentConfig(userId);
+      
+      if (existingConfig) {
+        await storage.updateAgentConfig(userId, result.data as any);
+      } else {
+        await storage.upsertAgentConfig(userId, {
+          prompt: "Você é um assistente virtual.",
+          ...result.data,
+        } as any);
+      }
+
+      // Se flowModeActive mudou, sincronizar com business_agent_configs
+      if (typeof result.data.flowModeActive === "boolean") {
+        console.log(`[FLOW] flowModeActive=${result.data.flowModeActive} salvo para userId=${userId}`);
+      }
+
+      res.json({ success: true, message: "Fluxo salvo com sucesso" });
+    } catch (error: any) {
+      console.error("[FLOW] Erro ao salvar fluxo:", error);
+      res.status(500).json({ message: "Erro ao salvar fluxo" });
+    }
+  });
+
+  // POST /api/agent/flow/test - Testar fluxo com mensagem simulada
+  app.post("/api/agent/flow/test", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const schema = z.object({
+        message: z.string(),
+        flowScript: z.string(),
+        history: z.array(z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string(),
+        })).optional(),
+      });
+      const result = schema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: "Dados inválidos" });
+      }
+
+      const { executeFlowResponse } = await import("./flowScriptEngine");
+      const flowResult = await executeFlowResponse(
+        result.data.message,
+        result.data.flowScript,
+        result.data.history || []
+      );
+
+      res.json({
+        response: flowResult.response,
+        isOnFlow: flowResult.isOnFlow,
+      });
+    } catch (error: any) {
+      console.error("[FLOW] Erro ao testar fluxo:", error);
+      res.status(500).json({ message: "Erro ao testar fluxo: " + error.message });
+    }
+  });
+
+  // ==========================================================================
 
   // CALENDAR ROUTES
 

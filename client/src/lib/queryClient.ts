@@ -8,6 +8,14 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Flag para evitar múltiplos refreshes simultâneos
+let _refreshPromise: Promise<boolean> | null = null;
+async function singletonRefresh(): Promise<boolean> {
+  if (_refreshPromise) return _refreshPromise;
+  _refreshPromise = refreshSession().finally(() => { _refreshPromise = null; });
+  return _refreshPromise;
+}
+
 export async function apiRequest(
   method: string,
   url: string,

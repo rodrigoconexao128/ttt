@@ -2409,6 +2409,36 @@ export async function generateAIResponse(
       console.log(`[PRICE FLOW] Enforcement active for this lead`);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔀 PARTE 5 - MODO FLUXO: GUARDRAIL FORTE (produção/WhatsApp)
+    // Quando flowModeActive=true, toda resposta real segue o roteiro.
+    // ═══════════════════════════════════════════════════════════════════════
+    const prodFlowModeActive = (agentConfig as any).flowModeActive === true;
+    const prodFlowScript = (agentConfig as any).flowScript;
+
+    if (prodFlowModeActive && prodFlowScript && prodFlowScript.trim().length > 10) {
+      console.log(`🔀 [AI Agent PROD] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine`);
+      try {
+        const { executeFlowResponse } = await import("./flowScriptEngine");
+        const flowHistory = conversationHistory.slice(-10).map(msg => ({
+          role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
+          content: msg.text || "",
+        }));
+        const flowResult = await executeFlowResponse(newMessageText, prodFlowScript, flowHistory);
+        console.log(`🔀 [AI Agent FLUXO PROD] Resposta (${flowResult.response.length} chars)`);
+        return {
+          text: flowResult.response,
+          mediaActions: [],
+        };
+      } catch (flowErr: any) {
+        console.error(`🔀 [AI Agent FLUXO PROD] Erro:`, flowErr);
+        return {
+          text: "Olá! Estou aqui para ajudar. Por favor, siga as instruções do atendimento. 😊",
+          mediaActions: [],
+        };
+      }
+    }
+
     
     // ═══════════════════════════════════════════════════════════════════════
     // 🔗 INTEGRAÇÃO COM FLOW ENGINE
@@ -3953,6 +3983,43 @@ export async function testAgentResponse(
     console.log(`🧪 [SIMULADOR] Histórico: ${history.length} mensagens`);
     console.log(`🧪 [SIMULADOR] Mídias já enviadas: ${sentMedias?.length || 0}`);
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔀 PARTE 5 - MODO FLUXO: VERIFICAR SE FLUXO ESTÁ ATIVO (PRIORIDADE MÁXIMA)
+    // Quando flowModeActive=true, a IA segue estritamente o roteiro.
+    // Sem improviso, sem saída do fluxo, guardrails fortes.
+    // ═══════════════════════════════════════════════════════════════════════
+    const flowModeActive = (agentConfig as any).flowModeActive === true;
+    const flowScript = (agentConfig as any).flowScript;
+
+    if (!customPrompt && flowModeActive && flowScript && flowScript.trim().length > 10) {
+      console.log(`🔀 [SIMULADOR] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine`);
+      
+      try {
+        const { executeFlowResponse } = await import("./flowScriptEngine");
+        
+        // Converter histórico para formato do FlowScriptEngine
+        const flowHistory = history.slice(-10).map(msg => ({
+          role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
+          content: msg.text || "",
+        }));
+        
+        const flowResult = await executeFlowResponse(testMessage, flowScript, flowHistory);
+        
+        console.log(`🔀 [SIMULADOR FLUXO] Resposta gerada (${flowResult.response.length} chars)`);
+        
+        return {
+          text: flowResult.response,
+          mediaActions: [],
+        };
+      } catch (flowError: any) {
+        console.error(`🔀 [SIMULADOR FLUXO] Erro no FlowScriptEngine:`, flowError);
+        return {
+          text: "Olá! Estou disponível para ajudar. Por favor, siga as instruções do atendimento. 😊",
+          mediaActions: [],
+        };
+      }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // 🤖 CHATBOT VISUAL (FLOW BUILDER) - VERIFICAR PRIMEIRO
     // O chatbot visual tem prioridade sobre FlowEngine e IA

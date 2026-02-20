@@ -330,6 +330,9 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   fetchHistoryOnFirstResponse: boolean("fetch_history_on_first_response").default(false).notNull(), // Buscar histórico do WhatsApp ao responder pela primeira vez
   pauseOnManualReply: boolean("pause_on_manual_reply").default(true).notNull(), // Pausar IA automaticamente quando dono responde manualmente
   autoReactivateMinutes: integer("auto_reactivate_minutes"), // Tempo em minutos para reativar IA automaticamente (NULL = nunca)
+  // PARTE 5 - Modo Fluxo: chatbot com roteiro pré-definido
+  flowScript: text("flow_script"), // Roteiro/prompt de fluxo em texto livre
+  flowModeActive: boolean("flow_mode_active").default(false).notNull(), // Se TRUE, IA segue estritamente o roteiro (sem improviso)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
