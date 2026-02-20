@@ -1,9 +1,12 @@
-import { storage } from "./storage";
+import { storage, memoryCache } from "./storage";
 
 /**
  * Canonical entitlement check - single source of truth for "is user paid/active?"
  * Mirrors the full logic of /api/access-status so that /api/usage, /api/daily-limits,
  * and any other endpoint that needs to know "paid vs free" all agree.
+ *
+ * PERFORMANCE: Results cached for 30s per userId. In-flight deduplication prevents
+ * thundering herd when multiple endpoints call this simultaneously on page load.
  */
 
 export interface AccessEntitlement {
@@ -13,9 +16,45 @@ export interface AccessEntitlement {
   planName: string | null;         // "Plano Revenda" or SaaS plan name
 }
 
+const ENTITLEMENT_CACHE_TTL = 30_000; // 30 seconds
+// In-flight request deduplication (thundering herd protection)
+const _inflightEntitlements = new Map<string, Promise<AccessEntitlement>>();
+
 export async function getAccessEntitlement(userId: string): Promise<AccessEntitlement> {
-  const subscription = await storage.getUserSubscription(userId);
-  const resellerClient = await storage.getResellerClientByUserId(userId);
+  const cacheKey = `entitlement:${userId}`;
+
+  // Check memory cache first
+  const cached = memoryCache.get<AccessEntitlement>(cacheKey);
+  if (cached) return cached;
+
+  // In-flight deduplication: if another call for same userId is running, wait for it
+  const inflight = _inflightEntitlements.get(userId);
+  if (inflight) return inflight;
+
+  const promise = _computeEntitlement(userId).then(result => {
+    memoryCache.set(cacheKey, result, ENTITLEMENT_CACHE_TTL);
+    _inflightEntitlements.delete(userId);
+    return result;
+  }).catch(err => {
+    _inflightEntitlements.delete(userId);
+    throw err;
+  });
+
+  _inflightEntitlements.set(userId, promise);
+  return promise;
+}
+
+/** Invalidate entitlement cache for a user (call after subscription/plan changes) */
+export function invalidateEntitlementCache(userId: string): void {
+  memoryCache.invalidate(`entitlement:${userId}`);
+}
+
+async function _computeEntitlement(userId: string): Promise<AccessEntitlement> {
+  // Parallelize the two independent DB calls
+  const [subscription, resellerClient] = await Promise.all([
+    storage.getUserSubscription(userId),
+    storage.getResellerClientByUserId(userId),
+  ]);
 
   const now = new Date();
 

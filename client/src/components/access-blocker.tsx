@@ -67,7 +67,8 @@ export function AccessBlocker({ children }: { children: React.ReactNode }) {
   
   const { data: accessStatus, isLoading } = useQuery<AccessStatus>({
     queryKey: ["/api/access-status"],
-    refetchInterval: 30000, // Check every 30 seconds
+    staleTime: 30_000,
+    refetchInterval: 60_000, // Check every 60s (server caches for 30s)
   });
 
   // Routes that should always be accessible
@@ -385,7 +386,8 @@ export function SubscriptionExpiringBanner() {
   
   const { data: accessStatus } = useQuery<AccessStatus>({
     queryKey: ["/api/access-status"],
-    refetchInterval: 60000, // Check every minute
+    staleTime: 30_000,
+    refetchInterval: 60_000, // Check every minute
   });
 
   // Only show if subscription is active but expiring soon (5 days or less)
@@ -427,7 +429,8 @@ export function TrialProgressBanner() {
   
   const { data: accessStatus } = useQuery<AccessStatus>({
     queryKey: ["/api/access-status"],
-    refetchInterval: 30000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
   // Only show for trial users who haven't hit the limit yet

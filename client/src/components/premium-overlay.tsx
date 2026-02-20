@@ -57,7 +57,8 @@ export default function PremiumBlocked({
   // Buscar dados de uso para verificar se deve bloquear
   const { data: usage, isLoading } = useQuery<UsageData>({
     queryKey: ["/api/usage"],
-    refetchInterval: 10000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
   // Determinar se deve mostrar o bloqueio

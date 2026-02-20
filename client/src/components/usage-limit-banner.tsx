@@ -15,7 +15,8 @@ interface UsageData {
 export function UsageLimitBanner() {
   const { data: usage } = useQuery<UsageData>({
     queryKey: ["/api/usage"],
-    refetchInterval: 10000, // Refetch every 10 seconds for more responsive updates
+    staleTime: 30_000,
+    refetchInterval: 60_000, // Check every 60s (server caches for 30s)
   });
 
   // Don't show if user has active paid subscription (unlimited)
@@ -155,7 +156,8 @@ export function UsageLimitBanner() {
 export function LimitReachedTopBanner() {
   const { data: usage } = useQuery<UsageData>({
     queryKey: ["/api/usage"],
-    refetchInterval: 10000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
   // Only show if limit is reached and no active subscription

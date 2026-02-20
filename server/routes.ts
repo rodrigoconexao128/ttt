@@ -3592,6 +3592,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const userId = getUserId(req);
 
+      // PERF: Response cache (120s TTL) - branding rarely changes
+      const brandingCacheKey = `api:branding:${userId}`;
+      const cachedBranding = memoryCache.get<any>(brandingCacheKey);
+      if (cachedBranding) return res.json(cachedBranding);
+
       const user = await storage.getUser(userId);
 
 
@@ -3618,7 +3623,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         if (isResellerOperationalForClient(reseller)) {
 
-          return res.json({
+          const brandingData = {
 
             isWhiteLabel: true,
 
@@ -3638,7 +3643,10 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
             welcomeMessage: reseller.welcomeMessage,
 
-          });
+          };
+
+          memoryCache.set(brandingCacheKey, brandingData, 120_000);
+          return res.json(brandingData);
 
         }
 
@@ -3648,7 +3656,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       // Return default AgenteZap branding
 
-      return res.json({
+      const defaultBranding = {
 
         isWhiteLabel: false,
 
@@ -3662,7 +3670,10 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         accentColor: "#22c55e",
 
-      });
+      };
+
+      memoryCache.set(brandingCacheKey, defaultBranding, 120_000);
+      return res.json(defaultBranding);
 
     } catch (error) {
 
@@ -12875,15 +12886,18 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      const connection = await storage.getConnectionByUserId(userId);
+      // PERF: Response cache (30s TTL) - avoid redundant DB hits on page refresh
+      const cacheKey = `api:access-status:${userId}`;
+      const cachedResponse = memoryCache.get<any>(cacheKey);
+      if (cachedResponse) return res.json(cachedResponse);
 
-      const subscription = await storage.getUserSubscription(userId);
-
-
-
-      // Verificar se é cliente de revendedor
-
-      const resellerClient = await storage.getResellerClientByUserId(userId);
+      // PERF: Parallelize all independent DB calls
+      const [connection, subscription, resellerClient, entitlement] = await Promise.all([
+        storage.getConnectionByUserId(userId),
+        storage.getUserSubscription(userId),
+        storage.getResellerClientByUserId(userId),
+        getAccessEntitlement(userId),
+      ]);
 
       let resellerInfo = null;
 
@@ -12966,7 +12980,7 @@ ${config.ai_instructions || ''}
 
 
       // Use canonical entitlement helper for subscription status (single source of truth)
-      const entitlement = await getAccessEntitlement(userId);
+      // NOTE: entitlement already fetched in parallel above (cached + deduped)
       let hasActiveSubscription = entitlement.hasActiveSubscription;
       let isSubscriptionExpired = entitlement.isExpired;
 
@@ -13096,7 +13110,7 @@ ${config.ai_instructions || ''}
 
 
 
-      res.json({
+      const responseData = {
 
         accessStatus,
 
@@ -13144,7 +13158,11 @@ ${config.ai_instructions || ''}
 
         message,
 
-      });
+      };
+
+      // PERF: Cache response for 30s
+      memoryCache.set(cacheKey, responseData, 30_000);
+      res.json(responseData);
 
     } catch (error) {
 
@@ -13166,10 +13184,16 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      const connection = await storage.getConnectionByUserId(userId);
+      // PERF: Response cache (30s TTL)
+      const usageCacheKey = `api:usage:${userId}`;
+      const cachedUsage = memoryCache.get<any>(usageCacheKey);
+      if (cachedUsage) return res.json(cachedUsage);
 
-      // Use canonical entitlement helper (same logic as /api/access-status)
-      const entitlement = await getAccessEntitlement(userId);
+      // PERF: Parallelize independent DB calls
+      const [connection, entitlement] = await Promise.all([
+        storage.getConnectionByUserId(userId),
+        getAccessEntitlement(userId),
+      ]);
       const hasActiveSubscription = entitlement.hasActiveSubscription;
 
 
@@ -13200,7 +13224,7 @@ ${config.ai_instructions || ''}
 
 
 
-      res.json({
+      const usageResponseData = {
 
         agentMessagesCount,
 
@@ -13214,7 +13238,11 @@ ${config.ai_instructions || ''}
 
         planName: entitlement.planName,
 
-      });
+      };
+
+      // PERF: Cache response for 30s
+      memoryCache.set(usageCacheKey, usageResponseData, 30_000);
+      res.json(usageResponseData);
 
     } catch (error) {
 
@@ -13340,9 +13368,16 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
+      // PERF: Response cache (30s TTL)
+      const agentCacheKey = `api:agent-config:${userId}`;
+      const cachedAgent = memoryCache.get<any>(agentCacheKey);
+      if (cachedAgent !== null && cachedAgent !== undefined) return res.json(cachedAgent);
+
       const config = await storage.getAgentConfig(userId);
 
-      res.json(config || null);
+      const agentData = config || null;
+      memoryCache.set(agentCacheKey, agentData, 30_000);
+      res.json(agentData);
 
     } catch (error) {
 
@@ -13604,6 +13639,8 @@ ${config.ai_instructions || ''}
 
 
 
+      // PERF: Invalidate agent config cache after update
+      memoryCache.invalidate(`api:agent-config:${userId}`);
       res.json(config);
 
     } catch (error) {
@@ -18796,13 +18833,20 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
+      // PERF: Response cache (60s TTL)
+      const planCacheKey = `api:assigned-plan:${userId}`;
+      const cachedPlan = memoryCache.get<any>(planCacheKey);
+      if (cachedPlan) return res.json(cachedPlan);
+
       const user = await storage.getUser(userId);
 
 
 
       if (!user || !(user as any).assignedPlanId) {
 
-        return res.json({ hasAssignedPlan: false });
+        const noPlan = { hasAssignedPlan: false };
+        memoryCache.set(planCacheKey, noPlan, 60_000);
+        return res.json(noPlan);
 
       }
 
@@ -18812,13 +18856,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan || !plan.ativo) {
 
-        return res.json({ hasAssignedPlan: false });
+        const noPlan = { hasAssignedPlan: false };
+        memoryCache.set(planCacheKey, noPlan, 60_000);
+        return res.json(noPlan);
 
       }
 
 
 
-      res.json({
+      const planData = {
 
         hasAssignedPlan: true,
 
@@ -18844,7 +18890,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-      });
+      };
+      memoryCache.set(planCacheKey, planData, 60_000);
+      res.json(planData);
 
     } catch (error) {
 
@@ -18868,9 +18916,16 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
+      // PERF: Response cache (30s TTL)
+      const subCacheKey = `api:subscription:${userId}`;
+      const cachedSub = memoryCache.get<any>(subCacheKey);
+      if (cachedSub !== null && cachedSub !== undefined) return res.json(cachedSub);
+
       const subscription = await storage.getUserSubscription(userId);
 
-      res.json(subscription || null);
+      const subData = subscription || null;
+      memoryCache.set(subCacheKey, subData, 30_000);
+      res.json(subData);
 
     } catch (error) {
 
@@ -24135,13 +24190,18 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
+      // PERF: Response cache (60s TTL) - suspension status rarely changes
+      const suspCacheKey = `api:suspension:${userId}`;
+      const cachedSusp = memoryCache.get<any>(suspCacheKey);
+      if (cachedSusp) return res.json(cachedSusp);
+
       const suspensionStatus = await storage.isUserSuspended(userId);
 
-
+      let suspData;
 
       if (suspensionStatus.suspended) {
 
-        res.json({
+        suspData = {
 
           suspended: true,
 
@@ -24155,13 +24215,16 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           refundAmount: suspensionStatus.data?.refundAmount,
 
-        });
+        };
 
       } else {
 
-        res.json({ suspended: false });
+        suspData = { suspended: false };
 
       }
+
+      memoryCache.set(suspCacheKey, suspData, 60_000);
+      res.json(suspData);
 
     } catch (error) {
 
@@ -24175,39 +24238,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // GET - Buscar plano atribuído do usuário
-
-  app.get("/api/user/assigned-plan", isAuthenticated, async (req: any, res) => {
-
-    try {
-
-      const userId = getUserId(req);
-
-      const user = await storage.getUserById(userId);
-
-
-
-      if (!user?.assignedPlanId) {
-
-        return res.json(null);
-
-      }
-
-
-
-      const plan = await storage.getPlan(user.assignedPlanId);
-
-      res.json(plan || null);
-
-    } catch (error) {
-
-      console.error("Error fetching assigned plan:", error);
-
-      res.status(500).json({ message: "Erro ao buscar plano atribuído" });
-
-    }
-
-  });
+  // NOTE: /api/user/assigned-plan is defined earlier (line ~18830) with caching. This duplicate was removed.
 
 
 
@@ -42378,19 +42409,27 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      const hasReseller = await resellerService.hasResellerPlan(userId);
+      // PERF: Response cache (60s TTL) - reseller status rarely changes
+      const resellerCacheKey = `api:reseller-status:${userId}`;
+      const cachedReseller = memoryCache.get<any>(resellerCacheKey);
+      if (cachedReseller) return res.json(cachedReseller);
 
-      const reseller = await storage.getResellerByUserId(userId);
+      const [hasReseller, reseller] = await Promise.all([
+        resellerService.hasResellerPlan(userId),
+        storage.getResellerByUserId(userId),
+      ]);
 
-
-
-      res.json({
+      const resellerResponseData = {
 
         hasResellerPlan: hasReseller,
 
         reseller: reseller || null
 
-      });
+      };
+
+      // PERF: Cache response for 60s
+      memoryCache.set(resellerCacheKey, resellerResponseData, 60_000);
+      res.json(resellerResponseData);
 
     } catch (error: any) {
 
