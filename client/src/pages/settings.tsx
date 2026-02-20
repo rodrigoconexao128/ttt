@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, User, Lock, Eye, EyeOff, PenLine } from "lucide-react";
 import type { User as UserType } from "@shared/schema";
 import TeamMembersManager from "@/components/team-members-manager";
+import SectorsManager from "@/components/sectors-manager";
+import SectorsReport from "@/components/sectors-report";
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -340,6 +342,12 @@ export default function SettingsPage() {
 
         {/* Gerenciador de Membros da Equipe */}
         <TeamMembersManager />
+
+        {/* Setores de Atendimento (Parte 4) */}
+        <SectorsManager />
+
+        {/* Relatórios de Setores (somente dono) */}
+        <SectorsReport />
       </div>
     </div>
   );

@@ -36,6 +36,7 @@ import { UserAudioRecorder } from "@/components/user-audio-recorder";
 import { UserMediaUploader } from "@/components/user-media-uploader";
 import { UserQuickReplies } from "@/components/user-quick-replies";
 import { UserAIMessageGenerator } from "@/components/user-ai-message-generator";
+import ConversationTransfer from "@/components/conversation-transfer";
 import { cn } from "@/lib/utils";
 import { getAuthToken } from "@/lib/supabase";
 
@@ -1089,6 +1090,24 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
           </p>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
+          {/* Encaminhar para outro Setor */}
+          {conversationId && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <ConversationTransfer
+                      conversationId={conversationId}
+                      currentSectorId={(conversation as any)?.sector_id || null}
+                      currentSectorName={(conversation as any)?.sector_name || null}
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Encaminhar conversa para outro setor</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
           {/* Follow-up Toggle */}
           <TooltipProvider>
             <Tooltip>

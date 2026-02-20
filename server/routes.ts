@@ -29,6 +29,7 @@ import { registerSalonRoutes } from "./routes_salon";
 import { registerTicketRoutes } from "./tickets/tickets.routes";
 import { registerSectorRoutes } from "./sectors/sectors.routes";
 import { registerTicketClosureRoutes } from "./ticketClosure.routes";
+import { registerUserSectorRoutes } from "./routes_user_sectors";
 import adminStatusRoutes from "./routes/admin-status.routes";
 
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
@@ -954,6 +955,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     registerSectorRoutes(app);
   } catch (e) {
     console.error("❌ [DEBUG] Error calling registerSectorRoutes:", e);
+  }
+
+  // ==================== USER SECTORS ROUTES (PARTE 4) ====================
+  try {
+    registerUserSectorRoutes(app);
+  } catch (e) {
+    console.error("❌ [Parte4] Error calling registerUserSectorRoutes:", e);
   }
 
   // ==================== TICKET CLOSURE ROUTES (FASE 4.2) ====================
