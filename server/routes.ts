@@ -5297,27 +5297,17 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
       // Se tem filtro por tag, busca apenas conversas com essa tag
-
       if (tagId) {
-
         const conversations = await storage.getConversationsByTag(tagId, connection.id);
-
-        // Adiciona as tags a cada conversa
-
-        const conversationsWithTags = await Promise.all(
-
-          conversations.map(async (conv) => ({
-
-            ...conv,
-
-            tags: await storage.getConversationTags(conv.id),
-
-          }))
-
-        );
-
+        if (conversations.length === 0) return res.json([]);
+        // 🔥 OTIMIZADO: Batch ao invés de N+1 (Promise.all com getConversationTags individual)
+        const convIds = conversations.map(c => c.id);
+        const allTagsForConvs = await storage.getTagsForConversations(convIds);
+        const conversationsWithTags = conversations.map(conv => ({
+          ...conv,
+          tags: allTagsForConvs.get(conv.id) || [],
+        }));
         return res.json(conversationsWithTags);
-
       }
 
 
@@ -12083,20 +12073,12 @@ ${config.ai_instructions || ''}
 
 
 
-      const conversations = await storage.getConversationsByConnectionId(connection.id);
-
-      const unreadMessages = conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
-
+      const { total: totalConversations, unread: unreadMessages } = await storage.getConversationStatsCount(connection.id);
       const todayMessages = await storage.getTodayMessagesCount(connection.id);
-
       const agentMessages = await storage.getAgentMessagesCount(connection.id);
 
-
-
       res.json({
-
-        totalConversations: conversations.length,
-
+        totalConversations,
         unreadMessages,
 
         todayMessages,

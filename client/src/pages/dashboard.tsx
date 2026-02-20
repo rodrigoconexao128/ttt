@@ -107,7 +107,8 @@ export default function Dashboard() {
   const { data: usageData } = useQuery<UsageData>({
     queryKey: ["/api/usage"],
     enabled: !!isAuthenticated,
-    refetchInterval: 30000,
+    refetchInterval: 60000, // 60s ao invés de 30s
+    staleTime: 30000,
   });
   // True subscription active status (from canonical helper, not just subscription.status)
   const isEffectivelyPaid = usageData?.hasActiveSubscription ?? false;
@@ -411,6 +412,8 @@ export default function Dashboard() {
 
   const { data: agentConfig } = useQuery<AiAgentConfig | null>({
     queryKey: ["/api/agent/config"],
+    enabled: !!isAuthenticated,
+    staleTime: 60000,
   });
 
   // Query para buscar os dados da conversa selecionada (para o painel de detalhes)

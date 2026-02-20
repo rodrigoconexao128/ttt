@@ -263,6 +263,7 @@ export interface IStorage {
 
   // Conversation operations
   getConversationsByConnectionId(connectionId: string): Promise<Conversation[]>;
+  getConversationStatsCount(connectionId: string): Promise<{ total: number; unread: number }>;
   getConversationByContactNumber(connectionId: string, contactNumber: string): Promise<Conversation | undefined>;
   getActiveConversationByContactNumber(connectionId: string, contactNumber: string): Promise<Conversation | undefined>;
   getConversation(id: string): Promise<Conversation | undefined>;
@@ -833,6 +834,25 @@ export class DatabaseStorage implements IStorage {
       .from(conversations)
       .where(eq(conversations.connectionId, connectionId))
       .orderBy(desc(conversations.lastMessageTime));
+  }
+
+  // 🔥 OTIMIZADO: Retorna apenas COUNT e SUM ao invés de carregar 20k+ rows
+  async getConversationStatsCount(connectionId: string): Promise<{ total: number; unread: number }> {
+    const cacheKey = `convStats:${connectionId}`;
+    const cached = memoryCache.get<{ total: number; unread: number }>(cacheKey);
+    if (cached !== null) return cached;
+
+    const result = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        unread: sql<number>`coalesce(sum("unread_count"), 0)::int`,
+      })
+      .from(conversations)
+      .where(eq(conversations.connectionId, connectionId));
+
+    const stats = { total: result[0]?.total || 0, unread: result[0]?.unread || 0 };
+    memoryCache.set(cacheKey, stats, 30000); // Cache 30s
+    return stats;
   }
 
   async getConversationByContactNumber(
@@ -3855,6 +3875,31 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
   }
 
   /**
+   * 🔥 OTIMIZADO: Batch - obtém tags para múltiplas conversas em 1 query (evita N+1)
+   */
+  async getTagsForConversations(conversationIds: string[]): Promise<Map<string, Tag[]>> {
+    if (conversationIds.length === 0) return new Map();
+    
+    const allTags = await db
+      .select({
+        conversationId: conversationTags.conversationId,
+        tag: tags,
+      })
+      .from(conversationTags)
+      .innerJoin(tags, eq(conversationTags.tagId, tags.id))
+      .where(inArray(conversationTags.conversationId, conversationIds));
+    
+    const tagsByConversation = new Map<string, Tag[]>();
+    for (const { conversationId, tag } of allTags) {
+      if (!tagsByConversation.has(conversationId)) {
+        tagsByConversation.set(conversationId, []);
+      }
+      tagsByConversation.get(conversationId)!.push(tag);
+    }
+    return tagsByConversation;
+  }
+
+  /**
    * Obtém conversas filtradas por tag
    */
   async getConversationsByTag(tagId: string, connectionId: string): Promise<Conversation[]> {
@@ -3937,8 +3982,13 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
 
   /**
    * Obtém conversas com suas tags para um connectionId
+   * 🔥 OTIMIZADO: Cache de 15s para evitar queries repetidas em polling
    */
   async getConversationsWithTags(connectionId: string): Promise<(Conversation & { tags: Tag[] })[]> {
+    const cacheKey = `convWithTags:${connectionId}`;
+    const cached = memoryCache.get<(Conversation & { tags: Tag[] })[]>(cacheKey);
+    if (cached !== null) return cached;
+
     // Busca todas as conversas
     const allConversations = await db
       .select()
@@ -3972,10 +4022,13 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     }
     
     // Combina conversas com suas tags
-    return allConversations.map(conv => ({
+    const result = allConversations.map(conv => ({
       ...conv,
       tags: tagsByConversation.get(conv.id) || [],
     }));
+
+    memoryCache.set(cacheKey, result, 15000); // Cache 15s
+    return result;
   }
 
   // ============================================

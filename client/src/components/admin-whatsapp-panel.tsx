@@ -52,8 +52,8 @@ export default function AdminWhatsappPanel() {
   // Buscar status da conexão
   const { data: connection, isLoading, refetch: refetchConnection } = useQuery<AdminWhatsappConnection>({
     queryKey: ["/api/admin/whatsapp/connection"],
-    refetchInterval: 5000, // Atualizar a cada 5 segundos
-    refetchIntervalInBackground: true,
+    refetchInterval: 15000, // Atualizar a cada 15 segundos
+    refetchIntervalInBackground: false,
   });
 
   // Calcular delay de reconexão com backoff exponencial

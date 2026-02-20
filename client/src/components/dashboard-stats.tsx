@@ -24,10 +24,13 @@ export function DashboardStats({ connection }: DashboardStatsProps) {
   const { data: stats } = useQuery<Stats>({
     queryKey: ["/api/stats"],
     enabled: !!connection?.isConnected,
+    staleTime: 30000, // Cache 30s - dados estatísticos não precisam ser real-time
+    refetchInterval: 60000, // Atualizar a cada 60s
   });
 
   const { data: agentConfig } = useQuery<AiAgentConfig | null>({
     queryKey: ["/api/agent/config"],
+    staleTime: 60000,
   });
 
   // Calcular progresso de configuração estilo Shopify

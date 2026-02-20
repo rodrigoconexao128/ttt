@@ -104,11 +104,12 @@ export default function AdminConversations() {
       if (!res.ok) throw new Error("Failed to fetch messages");
       return res.json();
     },
-    refetchInterval: 2000,
+    refetchInterval: 5000, // Reduzido de 2s para 5s (economia de queries)
   });
 
   const { data: agentConfig } = useQuery<AiAgentConfig | null>({
     queryKey: ["/api/agent/config"],
+    staleTime: 60000,
   });
 
   const { data: agentStatus } = useQuery<{ isDisabled: boolean }>({

@@ -282,7 +282,8 @@ export function AgentStudioUnified() {
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/agent/config");
       return res.json();
-    }
+    },
+    staleTime: 30000,
   });
 
   const { data: mediaItems = [], isLoading: mediaLoading } = useQuery<MediaItem[]>({

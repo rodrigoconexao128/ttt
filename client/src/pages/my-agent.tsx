@@ -161,6 +161,7 @@ export default function MyAgent() {
   // Query de configuração
   const { data: config, isLoading } = useQuery<AiAgentConfig | null>({
     queryKey: ["/api/agent/config"],
+    staleTime: 30000,
   });
 
   // Carregar configuração

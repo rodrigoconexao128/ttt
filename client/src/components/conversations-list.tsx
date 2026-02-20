@@ -109,8 +109,8 @@ export function ConversationsList({
       return response.json();
     },
     enabled: !!connectionId,
-    refetchInterval: 30000, // Fallback polling - WebSocket é primário (economia de egress)
-    staleTime: 5000, // Considera dados frescos por 5s
+    refetchInterval: 60000, // Fallback polling - WebSocket é primário (economia de egress)
+    staleTime: 15000, // Considera dados frescos por 15s
   });
   
   // Buscar tags disponíveis para filtro
