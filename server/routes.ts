@@ -3592,7 +3592,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const userId = getUserId(req);
 
-      // PERF: Response cache (120s TTL) - branding rarely changes
+      // PERF: Response cache (600s TTL) - branding rarely changes
       const brandingCacheKey = `api:branding:${userId}`;
       const cachedBranding = memoryCache.get<any>(brandingCacheKey);
       if (cachedBranding) return res.json(cachedBranding);
@@ -3645,7 +3645,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
           };
 
-          memoryCache.set(brandingCacheKey, brandingData, 120_000);
+          memoryCache.set(brandingCacheKey, brandingData, 600_000);
           return res.json(brandingData);
 
         }
@@ -3672,7 +3672,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       };
 
-      memoryCache.set(brandingCacheKey, defaultBranding, 120_000);
+      memoryCache.set(brandingCacheKey, defaultBranding, 600_000);
       return res.json(defaultBranding);
 
     } catch (error) {
@@ -3697,10 +3697,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       const devMode = process.env.SKIP_WHATSAPP_RESTORE === 'true' || process.env.DISABLE_WHATSAPP_PROCESSING === 'true';
       const qsConnectionId = req.query?.connectionId as string | undefined;
 
-      // PERF: Response cache (10s TTL) - short cache to reduce DB hits during page load
+      // PERF: Response cache (30s TTL) - cache to reduce DB hits during page load
       const connCacheKey = `api:wa-conn:${userId}:${qsConnectionId || 'default'}`;
-      const cachedConn = memoryCache.get<any>(connCacheKey);
-      if (cachedConn !== null && cachedConn !== undefined) return res.json(cachedConn);
+      if (memoryCache.has(connCacheKey)) return res.json(memoryCache.get<any>(connCacheKey));
 
       const connection = await storage.getConnectionByUserId(userId, qsConnectionId);
 
@@ -3708,7 +3707,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (!connection) {
 
-        memoryCache.set(connCacheKey, null, 10_000);
+        memoryCache.set(connCacheKey, null, 30_000);
         return res.json(null);
 
       }
@@ -3807,8 +3806,8 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       };
 
-      // PERF: Cache after healing (10s TTL)
-      memoryCache.set(connCacheKey, response, 10_000);
+      // PERF: Cache after healing (30s TTL)
+      memoryCache.set(connCacheKey, response, 30_000);
 
       res.json(response);
 
@@ -12069,52 +12068,27 @@ ${config.ai_instructions || ''}
       const userId = getUserId(req);
       const qsConnectionId = req.query?.connectionId as string | undefined;
 
-      // PERF: Response cache (15s TTL) - stats update frequently but not per-second
+      // PERF: getOrCompute with thundering herd protection (60s TTL)
       const statsCacheKey = `api:stats:${userId}:${qsConnectionId || 'default'}`;
-      const cachedStats = memoryCache.get<any>(statsCacheKey);
-      if (cachedStats) return res.json(cachedStats);
-
-      const connection = await storage.getConnectionByUserId(userId, qsConnectionId);
-
-
-
-      if (!connection) {
-
-        const emptyStats = {
-
-          totalConversations: 0,
-
-          unreadMessages: 0,
-
-          todayMessages: 0,
-
-          agentMessages: 0,
-
+      const statsData = await memoryCache.getOrCompute(statsCacheKey, async () => {
+        const connection = await storage.getConnectionByUserId(userId, qsConnectionId);
+        if (!connection) {
+          return { totalConversations: 0, unreadMessages: 0, todayMessages: 0, agentMessages: 0 };
+        }
+        // Parallelize all 3 independent DB calls
+        const [conversationStats, todayMessages, agentMessages] = await Promise.all([
+          storage.getConversationStatsCount(connection.id),
+          storage.getTodayMessagesCount(connection.id),
+          storage.getAgentMessagesCount(connection.id),
+        ]);
+        return {
+          totalConversations: conversationStats.total,
+          unreadMessages: conversationStats.unread,
+          todayMessages,
+          agentMessages,
         };
-        memoryCache.set(statsCacheKey, emptyStats, 15_000);
-        return res.json(emptyStats);
+      }, 60_000);
 
-      }
-
-
-
-      // PERF: Parallelize all 3 independent DB calls
-      const [conversationStats, todayMessages, agentMessages] = await Promise.all([
-        storage.getConversationStatsCount(connection.id),
-        storage.getTodayMessagesCount(connection.id),
-        storage.getAgentMessagesCount(connection.id),
-      ]);
-
-      const statsData = {
-        totalConversations: conversationStats.total,
-        unreadMessages: conversationStats.unread,
-
-        todayMessages,
-
-        agentMessages,
-
-      };
-      memoryCache.set(statsCacheKey, statsData, 15_000);
       res.json(statsData);
 
     } catch (error) {
@@ -12905,7 +12879,7 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      // PERF: Response cache (30s TTL) - avoid redundant DB hits on page refresh
+      // PERF: Response cache (120s TTL) - avoid redundant DB hits on page refresh
       const cacheKey = `api:access-status:${userId}`;
       const cachedResponse = memoryCache.get<any>(cacheKey);
       if (cachedResponse) return res.json(cachedResponse);
@@ -13179,8 +13153,8 @@ ${config.ai_instructions || ''}
 
       };
 
-      // PERF: Cache response for 30s
-      memoryCache.set(cacheKey, responseData, 30_000);
+      // PERF: Cache response for 120s
+      memoryCache.set(cacheKey, responseData, 120_000);
       res.json(responseData);
 
     } catch (error) {
@@ -13203,7 +13177,7 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      // PERF: Response cache (30s TTL)
+      // PERF: Response cache (120s TTL)
       const usageCacheKey = `api:usage:${userId}`;
       const cachedUsage = memoryCache.get<any>(usageCacheKey);
       if (cachedUsage) return res.json(cachedUsage);
@@ -13260,7 +13234,7 @@ ${config.ai_instructions || ''}
       };
 
       // PERF: Cache response for 30s
-      memoryCache.set(usageCacheKey, usageResponseData, 30_000);
+      memoryCache.set(usageCacheKey, usageResponseData, 120_000);
       res.json(usageResponseData);
 
     } catch (error) {
@@ -13387,15 +13361,14 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
-      // PERF: Response cache (30s TTL)
+      // PERF: Response cache (120s TTL)
       const agentCacheKey = `api:agent-config:${userId}`;
-      const cachedAgent = memoryCache.get<any>(agentCacheKey);
-      if (cachedAgent !== null && cachedAgent !== undefined) return res.json(cachedAgent);
+      if (memoryCache.has(agentCacheKey)) return res.json(memoryCache.get<any>(agentCacheKey));
 
       const config = await storage.getAgentConfig(userId);
 
       const agentData = config || null;
-      memoryCache.set(agentCacheKey, agentData, 30_000);
+      memoryCache.set(agentCacheKey, agentData, 120_000);
       res.json(agentData);
 
     } catch (error) {
@@ -18852,7 +18825,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      // PERF: Response cache (60s TTL)
+      // PERF: Response cache (300s TTL) - plan assignment rarely changes
       const planCacheKey = `api:assigned-plan:${userId}`;
       const cachedPlan = memoryCache.get<any>(planCacheKey);
       if (cachedPlan) return res.json(cachedPlan);
@@ -18864,7 +18837,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
       if (!user || !(user as any).assignedPlanId) {
 
         const noPlan = { hasAssignedPlan: false };
-        memoryCache.set(planCacheKey, noPlan, 60_000);
+        memoryCache.set(planCacheKey, noPlan, 300_000);
         return res.json(noPlan);
 
       }
@@ -18876,7 +18849,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
       if (!plan || !plan.ativo) {
 
         const noPlan = { hasAssignedPlan: false };
-        memoryCache.set(planCacheKey, noPlan, 60_000);
+        memoryCache.set(planCacheKey, noPlan, 300_000);
         return res.json(noPlan);
 
       }
@@ -18910,7 +18883,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
         }
 
       };
-      memoryCache.set(planCacheKey, planData, 60_000);
+      memoryCache.set(planCacheKey, planData, 300_000);
       res.json(planData);
 
     } catch (error) {
@@ -18935,15 +18908,12 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      // PERF: Response cache (30s TTL)
+      // PERF: Response cache (120s TTL)
       const subCacheKey = `api:subscription:${userId}`;
-      const cachedSub = memoryCache.get<any>(subCacheKey);
-      if (cachedSub !== null && cachedSub !== undefined) return res.json(cachedSub);
-
-      const subscription = await storage.getUserSubscription(userId);
-
-      const subData = subscription || null;
-      memoryCache.set(subCacheKey, subData, 30_000);
+      const subData = await memoryCache.getOrCompute(subCacheKey, async () => {
+        const subscription = await storage.getUserSubscription(userId);
+        return subscription || null;
+      }, 120_000);
       res.json(subData);
 
     } catch (error) {
@@ -24209,7 +24179,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      // PERF: Response cache (60s TTL) - suspension status rarely changes
+      // PERF: Response cache (300s TTL) - suspension status rarely changes
       const suspCacheKey = `api:suspension:${userId}`;
       const cachedSusp = memoryCache.get<any>(suspCacheKey);
       if (cachedSusp) return res.json(cachedSusp);
@@ -24242,7 +24212,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      memoryCache.set(suspCacheKey, suspData, 60_000);
+      memoryCache.set(suspCacheKey, suspData, 300_000);
       res.json(suspData);
 
     } catch (error) {
@@ -42428,26 +42398,15 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const userId = getUserId(req);
 
-      // PERF: Response cache (60s TTL) - reseller status rarely changes
+      // PERF: Response cache (300s TTL) - reseller status rarely changes
       const resellerCacheKey = `api:reseller-status:${userId}`;
-      const cachedReseller = memoryCache.get<any>(resellerCacheKey);
-      if (cachedReseller) return res.json(cachedReseller);
-
-      const [hasReseller, reseller] = await Promise.all([
-        resellerService.hasResellerPlan(userId),
-        storage.getResellerByUserId(userId),
-      ]);
-
-      const resellerResponseData = {
-
-        hasResellerPlan: hasReseller,
-
-        reseller: reseller || null
-
-      };
-
-      // PERF: Cache response for 60s
-      memoryCache.set(resellerCacheKey, resellerResponseData, 60_000);
+      const resellerResponseData = await memoryCache.getOrCompute(resellerCacheKey, async () => {
+        const [hasReseller, reseller] = await Promise.all([
+          resellerService.hasResellerPlan(userId),
+          storage.getResellerByUserId(userId),
+        ]);
+        return { hasResellerPlan: hasReseller, reseller: reseller || null };
+      }, 300_000);
       res.json(resellerResponseData);
 
     } catch (error: any) {

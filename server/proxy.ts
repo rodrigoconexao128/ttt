@@ -21,6 +21,14 @@ const WORKER_HOSTNAME = WORKER.hostname;
 const WORKER_PORT = parseInt(WORKER.port) || 5000;
 const WORKER_PROTOCOL = WORKER.protocol === 'https:' ? https : http;
 
+// Keep-alive agent para reutilizar conexões TCP com o Worker
+const keepAliveAgent = new http.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 30000,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+});
+
 const PORT = parseInt(process.env.PORT || '5000', 10);
 
 // Retry config para quando Worker está reiniciando
@@ -60,6 +68,7 @@ function proxyRequest(
     port: WORKER_PORT,
     path: clientReq.url,
     method: clientReq.method,
+    agent: keepAliveAgent,
     headers: {
       ...clientReq.headers,
       // Preservar host original para que o Worker saiba o domínio público

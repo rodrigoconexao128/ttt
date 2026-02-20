@@ -110,7 +110,8 @@ interface CacheEntry<T> {
 
 class MemoryCache {
   private cache = new Map<string, CacheEntry<any>>();
-  private maxSize = 500; // Máximo de entradas no cache
+  private inflight = new Map<string, Promise<any>>();
+  private maxSize = 2000; // Máximo de entradas no cache
 
   set<T>(key: string, data: T, ttlMs: number = 30000): void {
     // Limpar cache se estiver muito grande
@@ -129,6 +130,43 @@ class MemoryCache {
       return null;
     }
     return entry.data as T;
+  }
+
+  /** Check if key exists in cache (distinguishes cached null from cache miss) */
+  has(key: string): boolean {
+    const entry = this.cache.get(key);
+    if (!entry) return false;
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Get-or-compute with thundering herd protection.
+   * Only ONE concurrent call per key actually runs computeFn;
+   * all others await the same Promise.
+   */
+  async getOrCompute<T>(key: string, computeFn: () => Promise<T>, ttlMs: number = 30000): Promise<T> {
+    // 1. Check cache
+    if (this.has(key)) {
+      return this.get<T>(key) as T;
+    }
+    // 2. Check inflight (thundering herd protection)
+    const existing = this.inflight.get(key);
+    if (existing) return existing as Promise<T>;
+    // 3. Compute, cache, and return
+    const promise = computeFn().then(result => {
+      this.set(key, result, ttlMs);
+      this.inflight.delete(key);
+      return result;
+    }).catch(err => {
+      this.inflight.delete(key);
+      throw err;
+    });
+    this.inflight.set(key, promise);
+    return promise;
   }
 
   invalidate(pattern: string): void {
@@ -159,7 +197,7 @@ class MemoryCache {
     return {
       size: this.cache.size,
       maxSize: this.maxSize,
-      hitRate: 'n/a', // Podemos implementar contagem de hits/misses futuramente
+      hitRate: 'n/a',
     };
   }
 }
