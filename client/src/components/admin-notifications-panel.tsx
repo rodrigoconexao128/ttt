@@ -355,6 +355,29 @@ export default function AdminNotificationsPanel() {
   });
 
   // Mutation para cancelar agendamento
+
+  // === HISTÓRICO ===
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<string>('');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<string>('');
+
+  const { data: historyData, isLoading: loadingHistory, refetch: refetchHistory } = useQuery<{
+    logs: any[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+    stats: any;
+  }>({
+    queryKey: ["/api/admin/notifications/history", historyPage, historyTypeFilter, historyStatusFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(historyPage), limit: '30' });
+      if (historyTypeFilter) params.set('type', historyTypeFilter);
+      if (historyStatusFilter) params.set('status', historyStatusFilter);
+      const response = await fetch(`/api/admin/notifications/history?${params}`, { credentials: "include" });
+      if (!response.ok) throw new Error("Erro ao carregar histórico");
+      return response.json();
+    },
+    enabled: activeTab === 'historico',
+  });
+
   const cancelScheduledMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await fetch(`/api/admin/notifications/scheduled/${id}`, {
@@ -627,10 +650,14 @@ export default function AdminNotificationsPanel() {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="agenda" className="flex items-center gap-1">
                 <CalendarDays className="w-4 h-4" />
                 Agenda
+              </TabsTrigger>
+              <TabsTrigger value="historico" className="flex items-center gap-1">
+                <History className="w-4 h-4" />
+                Histórico
               </TabsTrigger>
               <TabsTrigger value="boasvindas" className="flex items-center gap-1">
                 <Sparkles className="w-4 h-4" />
@@ -947,6 +974,181 @@ export default function AdminNotificationsPanel() {
                     )}
                   </CardContent>
                 </Card>
+              )}
+            </TabsContent>
+
+            {/* Tab: Histórico */}
+            <TabsContent value="historico" className="space-y-4 mt-6">
+              {/* Stats Cards */}
+              {historyData?.stats && (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="bg-white border rounded-lg p-3">
+                    <div className="text-xs text-gray-500">Enviados (total)</div>
+                    <div className="text-xl font-bold text-green-600">{historyData.stats.total_sent || 0}</div>
+                  </div>
+                  <div className="bg-white border rounded-lg p-3">
+                    <div className="text-xs text-gray-500">Falhas (total)</div>
+                    <div className="text-xl font-bold text-red-600">{historyData.stats.total_failed || 0}</div>
+                  </div>
+                  <div className="bg-white border rounded-lg p-3">
+                    <div className="text-xs text-gray-500">Enviados hoje</div>
+                    <div className="text-xl font-bold text-blue-600">{historyData.stats.sent_today || 0}</div>
+                  </div>
+                  <div className="bg-white border rounded-lg p-3">
+                    <div className="text-xs text-gray-500">Enviados (7 dias)</div>
+                    <div className="text-xl font-bold text-purple-600">{historyData.stats.sent_week || 0}</div>
+                  </div>
+                  <div className="bg-white border rounded-lg p-3">
+                    <div className="text-xs text-gray-500">Pendentes na fila</div>
+                    <div className="text-xl font-bold text-yellow-600">{historyData.stats.pending_count || 0}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Type breakdown */}
+              {historyData?.stats && (
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                    <div className="text-xs text-blue-600">Pagamento</div>
+                    <div className="text-lg font-bold text-blue-700">{historyData.stats.payment_reminders || 0}</div>
+                  </div>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+                    <div className="text-xs text-orange-600">Cobrança</div>
+                    <div className="text-lg font-bold text-orange-700">{historyData.stats.overdue_reminders || 0}</div>
+                  </div>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                    <div className="text-xs text-green-600">Check-in</div>
+                    <div className="text-lg font-bold text-green-700">{historyData.stats.checkins || 0}</div>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                    <div className="text-xs text-red-600">Desconectado</div>
+                    <div className="text-lg font-bold text-red-700">{historyData.stats.disconnected_alerts || 0}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Filters */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <Select value={historyTypeFilter || 'all'} onValueChange={(v) => { setHistoryTypeFilter(v === 'all' ? '' : v); setHistoryPage(1); }}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    <SelectItem value="payment_reminder">Pagamento</SelectItem>
+                    <SelectItem value="overdue_reminder">Cobrança</SelectItem>
+                    <SelectItem value="checkin">Check-in</SelectItem>
+                    <SelectItem value="periodic_checkin">Check-in periódico</SelectItem>
+                    <SelectItem value="disconnected">Desconectado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={historyStatusFilter || 'all'} onValueChange={(v) => { setHistoryStatusFilter(v === 'all' ? '' : v); setHistoryPage(1); }}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="sent">Enviados</SelectItem>
+                    <SelectItem value="failed">Falhas</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" onClick={() => refetchHistory()}>
+                  <RefreshCw className="w-3 h-3 mr-1" /> Atualizar
+                </Button>
+                {historyData?.pagination && (
+                  <span className="text-xs text-gray-500 ml-auto">
+                    {historyData.pagination.total} registros
+                  </span>
+                )}
+              </div>
+
+              {/* History list */}
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(!historyData?.logs || historyData.logs.length === 0) ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <History className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                      <p className="text-sm">Nenhum registro encontrado</p>
+                    </div>
+                  ) : (
+                    <>
+                      {historyData.logs.map((log: any) => {
+                        const typeLabels: Record<string, string> = {
+                          payment_reminder: 'Pagamento',
+                          overdue_reminder: 'Cobrança',
+                          checkin: 'Check-in',
+                          periodic_checkin: 'Check-in',
+                          disconnected: 'Desconectado',
+                          subscription_expired: 'Plano expirado',
+                        };
+                        const typeColors: Record<string, string> = {
+                          payment_reminder: 'bg-blue-100 text-blue-700',
+                          overdue_reminder: 'bg-orange-100 text-orange-700',
+                          checkin: 'bg-green-100 text-green-700',
+                          periodic_checkin: 'bg-green-100 text-green-700',
+                          disconnected: 'bg-red-100 text-red-700',
+                          subscription_expired: 'bg-gray-100 text-gray-700',
+                        };
+                        const isSent = log.status === 'sent';
+                        const dateStr = log.created_at ? new Date(log.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
+                        return (
+                          <div key={log.id} className={`flex items-start gap-3 p-3 rounded-lg border ${isSent ? 'bg-white border-gray-200' : 'bg-red-50 border-red-200'}`}>
+                            <div className="flex-shrink-0 mt-0.5">
+                              {isSent ? (
+                                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              ) : (
+                                <XCircle className="w-4 h-4 text-red-500" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-sm truncate">{log.recipient_name || log.user_name || 'Cliente'}</span>
+                                <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${typeColors[log.notification_type] || 'bg-gray-100'}`}>
+                                  {typeLabels[log.notification_type] || log.notification_type}
+                                </Badge>
+                                <span className="text-[10px] text-gray-400 ml-auto flex-shrink-0">{dateStr}</span>
+                              </div>
+                              {log.message_sent && (
+                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{log.message_sent}</p>
+                              )}
+                              {!isSent && log.error_message && (
+                                <p className="text-xs text-red-500 mt-1">{log.error_message}</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Pagination */}
+                      {historyData.pagination.totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 pt-3">
+                          <Button
+                            variant="outline" size="sm"
+                            disabled={historyPage <= 1}
+                            onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                          >
+                            <ChevronLeft className="w-3 h-3" />
+                          </Button>
+                          <span className="text-xs text-gray-500">
+                            {historyPage} / {historyData.pagination.totalPages}
+                          </span>
+                          <Button
+                            variant="outline" size="sm"
+                            disabled={historyPage >= historyData.pagination.totalPages}
+                            onClick={() => setHistoryPage(p => p + 1)}
+                          >
+                            <ChevronRight className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </TabsContent>
 

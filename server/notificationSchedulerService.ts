@@ -77,6 +77,10 @@ export function stopNotificationScheduler(): void {
   }
 }
 
+// Controle de auto-reorganize (rodar a cada 2 horas, não a cada 5 min)
+let lastAutoReorganize: number = 0;
+const AUTO_REORGANIZE_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 horas
+
 /**
  * Processa todas as notificações pendentes
  */
@@ -89,6 +93,13 @@ async function processNotifications(): Promise<void> {
 
     // ✅ NOVO: Verificar e atualizar planos vencidos automaticamente
     await processExpiredSubscriptions();
+
+    // ✅ AUTO-REORGANIZE: Criar novas notificações automaticamente (a cada 2h)
+    const now = Date.now();
+    if (now - lastAutoReorganize >= AUTO_REORGANIZE_INTERVAL_MS) {
+      await autoReorganizeAllAdmins();
+      lastAutoReorganize = now;
+    }
 
     // ✅ PRIMEIRO: Processar fila de scheduled_notifications
     await processScheduledNotificationsQueue();
@@ -103,6 +114,315 @@ async function processNotifications(): Promise<void> {
     console.log(`🔔 [NOTIFICATION SCHEDULER] Processamento concluído (${configs.length} admins)`);
   } catch (error) {
     console.error('🔔 [NOTIFICATION SCHEDULER] Erro:', error);
+  }
+}
+
+/**
+ * ✅ AUTO-REORGANIZE: Cria notificações automaticamente para todos os admins
+ * Roda a cada 2 horas para garantir que a fila nunca fica vazia
+ */
+async function autoReorganizeAllAdmins(): Promise<void> {
+  try {
+    console.log('🔄 [AUTO-REORGANIZE] Iniciando reorganização automática...');
+    
+    // Buscar todos os admins com config de notificações
+    const adminResult = await db.execute(sql`
+      SELECT DISTINCT admin_id FROM admin_notification_config
+      WHERE payment_reminder_enabled = true
+         OR overdue_reminder_enabled = true
+         OR periodic_checkin_enabled = true
+         OR disconnected_alert_enabled = true
+    `);
+    
+    const adminIds = (adminResult.rows as any[]).map(r => r.admin_id);
+    
+    if (adminIds.length === 0) {
+      console.log('🔄 [AUTO-REORGANIZE] Nenhum admin com notificações habilitadas');
+      return;
+    }
+    
+    for (const adminId of adminIds) {
+      try {
+        await autoReorganizeForAdmin(adminId);
+      } catch (err) {
+        console.error(`🔄 [AUTO-REORGANIZE] Erro para admin ${adminId}:`, err);
+      }
+    }
+    
+    console.log(`🔄 [AUTO-REORGANIZE] Concluído para ${adminIds.length} admin(s)`);
+  } catch (error) {
+    console.error('🔄 [AUTO-REORGANIZE] Erro geral:', error);
+  }
+}
+
+/**
+ * Auto-reorganiza notificações para um admin específico
+ * Cria entradas em scheduled_notifications para os próximos 14 dias
+ */
+async function autoReorganizeForAdmin(adminId: string): Promise<void> {
+  const now = new Date();
+  
+  // Buscar config do admin
+  const configResult = await db.execute(sql`
+    SELECT * FROM admin_notification_config WHERE admin_id = ${adminId}
+  `);
+  const rawConfig = (configResult.rows as any[])[0];
+  if (!rawConfig) return;
+  
+  const config = {
+    paymentReminderEnabled: rawConfig.payment_reminder_enabled ?? true,
+    paymentReminderDaysBefore: rawConfig.payment_reminder_days_before || [7, 3, 1],
+    paymentReminderMessageTemplate: rawConfig.payment_reminder_message_template || 'Olá {cliente_nome}! Seu pagamento vence em {dias_restantes} dias. Vencimento: {data_vencimento}. Valor: R$ {valor}',
+    paymentReminderAiEnabled: rawConfig.payment_reminder_ai_enabled ?? true,
+    paymentReminderAiPrompt: rawConfig.payment_reminder_ai_prompt || 'Reescreva de forma natural e personalizada.',
+    overdueReminderEnabled: rawConfig.overdue_reminder_enabled ?? true,
+    overdueReminderDaysAfter: rawConfig.overdue_reminder_days_after || [1, 3, 7, 14],
+    overdueReminderMessageTemplate: rawConfig.overdue_reminder_message_template || 'Olá {cliente_nome}! Seu pagamento está em atraso há {dias_atraso} dias. Venceu em: {data_vencimento}. Valor: R$ {valor}',
+    overdueReminderAiEnabled: rawConfig.overdue_reminder_ai_enabled ?? true,
+    overdueReminderAiPrompt: rawConfig.overdue_reminder_ai_prompt || 'Reescreva de forma educada e empática.',
+    periodicCheckinEnabled: rawConfig.periodic_checkin_enabled ?? true,
+    periodicCheckinMinDays: rawConfig.periodic_checkin_min_days || 7,
+    periodicCheckinMaxDays: rawConfig.periodic_checkin_max_days || 15,
+    periodicCheckinMessageTemplate: rawConfig.periodic_checkin_message_template || 'Olá {cliente_nome}! Passando para ver se está tudo bem!',
+    checkinAiEnabled: rawConfig.checkin_ai_enabled ?? true,
+    checkinAiPrompt: rawConfig.checkin_ai_prompt || 'Reescreva de forma calorosa e natural.',
+    disconnectedAlertEnabled: rawConfig.disconnected_alert_enabled ?? true,
+    disconnectedAlertHours: rawConfig.disconnected_alert_hours || 2,
+    disconnectedAlertMessageTemplate: rawConfig.disconnected_alert_message_template || 'Olá {cliente_nome}! Notamos que seu WhatsApp está desconectado.',
+    disconnectedAiEnabled: rawConfig.disconnected_ai_enabled ?? true,
+    disconnectedAiPrompt: rawConfig.disconnected_ai_prompt || 'Reescreva de forma prestativa.',
+    aiVariationPrompt: rawConfig.ai_variation_prompt || '',
+    businessHoursStart: rawConfig.business_hours_start || '09:00',
+    businessHoursEnd: rawConfig.business_hours_end || '18:00',
+    businessDays: rawConfig.business_days || [1, 2, 3, 4, 5],
+    respectBusinessHours: rawConfig.respect_business_hours ?? true,
+  };
+  
+  // Limpar pendentes antigos (que já passaram)
+  await db.execute(sql`
+    DELETE FROM scheduled_notifications
+    WHERE admin_id = ${adminId}
+    AND status = 'pending'
+    AND scheduled_for < NOW()
+  `);
+  
+  // Buscar logs enviados (30 dias)
+  const sentLogsResult = await db.execute(sql`
+    SELECT user_id, notification_type,
+           (metadata->>'daysBefore')::int as days_before,
+           (metadata->>'daysAfter')::int as days_after
+    FROM admin_notification_logs
+    WHERE admin_id = ${adminId}
+    AND created_at > NOW() - INTERVAL '30 days'
+  `);
+  const sentLogs = sentLogsResult.rows || [];
+  
+  // Buscar pendentes existentes
+  const existingResult = await db.execute(sql`
+    SELECT user_id, notification_type,
+           (metadata->>'daysBefore')::int as days_before,
+           (metadata->>'daysAfter')::int as days_after
+    FROM scheduled_notifications
+    WHERE admin_id = ${adminId}
+    AND status = 'pending'
+  `);
+  const existingScheduled = existingResult.rows || [];
+  
+  const alreadySentOrScheduled = (userId: string, type: string, daysBefore?: number, daysAfter?: number) => {
+    const wasSent = sentLogs.some((log: any) =>
+      log.user_id === userId &&
+      log.notification_type === type &&
+      (daysBefore === undefined || log.days_before === daysBefore) &&
+      (daysAfter === undefined || log.days_after === daysAfter)
+    );
+    const isScheduled = existingScheduled.some((s: any) =>
+      s.user_id === userId &&
+      s.notification_type === type &&
+      (daysBefore === undefined || s.days_before === daysBefore) &&
+      (daysAfter === undefined || s.days_after === daysAfter)
+    );
+    return wasSent || isScheduled;
+  };
+  
+  // Buscar usuários com subscriptions e connections
+  const usersResult = await db.execute(sql`
+    SELECT 
+      u.id, u.phone, u.name,
+      s.id as sub_id, s.status as sub_status, 
+      s.data_fim, s.data_inicio, s.next_payment_date as next_payment_date,
+      s.plan_id,
+      p.valor as plan_valor, p.nome as plan_nome, p.frequencia_dias as frequencia_dias,
+      COALESCE(wc.is_connected, false) as whatsapp_connected,
+      wc.updated_at as connection_updated_at
+    FROM users u
+    LEFT JOIN LATERAL (
+      SELECT * FROM subscriptions sub 
+      WHERE sub.user_id = u.id AND sub.status IN ('active', 'pending')
+      ORDER BY sub.created_at DESC LIMIT 1
+    ) s ON true
+    LEFT JOIN plans p ON s.plan_id = p.id
+    LEFT JOIN LATERAL (
+      SELECT c.is_connected, c.updated_at FROM whatsapp_connections c 
+      WHERE c.user_id = u.id ORDER BY c.created_at DESC LIMIT 1
+    ) wc ON true
+    WHERE u.id != ${adminId}
+    AND (u.parent_id = ${adminId} OR u.id IN (
+      SELECT user_id FROM subscriptions WHERE user_id = u.id
+    ))
+    AND u.phone IS NOT NULL
+    AND u.phone != ''
+  `);
+  const users = usersResult.rows as any[];
+  
+  const scheduledItems: any[] = [];
+  
+  for (const user of users) {
+    if (!user.phone) continue;
+    
+    // Calcular data de vencimento
+    let dueDate = user.next_payment_date || user.data_fim;
+    if (!dueDate && user.data_inicio && user.frequencia_dias) {
+      const startDate = new Date(user.data_inicio);
+      const calculatedDue = new Date(startDate);
+      calculatedDue.setDate(calculatedDue.getDate() + (user.frequencia_dias || 30));
+      dueDate = calculatedDue.toISOString();
+    }
+    
+    const planValor = user.plan_valor || '0';
+    const hasSubscription = user.sub_id && (user.sub_status === 'active' || user.sub_status === 'pending');
+    
+    // 1. LEMBRETE DE PAGAMENTO
+    if (config.paymentReminderEnabled && hasSubscription && dueDate) {
+      const dueDateObj = new Date(dueDate);
+      const daysUntilDue = Math.ceil((dueDateObj.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      for (const daysBefore of config.paymentReminderDaysBefore) {
+        if (daysUntilDue > 0 && daysUntilDue <= daysBefore + 7) {
+          if (alreadySentOrScheduled(user.id, 'payment_reminder', daysBefore)) continue;
+          
+          const scheduleDate = new Date(dueDateObj);
+          scheduleDate.setDate(scheduleDate.getDate() - daysBefore);
+          if (scheduleDate <= now) {
+            scheduleDate.setTime(now.getTime());
+            scheduleDate.setDate(scheduleDate.getDate() + 1);
+          }
+          if (config.respectBusinessHours) {
+            const [startHour] = config.businessHoursStart.split(':').map(Number);
+            scheduleDate.setHours(startHour + Math.floor(Math.random() * 2), Math.floor(Math.random() * 60), 0);
+          }
+          
+          scheduledItems.push({
+            admin_id: adminId, user_id: user.id, notification_type: 'payment_reminder',
+            recipient_phone: user.phone, recipient_name: user.name || 'Cliente',
+            message_template: config.paymentReminderMessageTemplate,
+            ai_prompt: config.paymentReminderAiPrompt || config.aiVariationPrompt,
+            scheduled_for: scheduleDate.toISOString(),
+            ai_enabled: config.paymentReminderAiEnabled,
+            metadata: JSON.stringify({ daysBefore, dueDate: dueDateObj.toISOString(), valor: planValor, planName: user.plan_nome || 'Plano' }),
+          });
+        }
+      }
+    }
+    
+    // 2. COBRANÇA EM ATRASO
+    if (config.overdueReminderEnabled && hasSubscription && dueDate) {
+      const dueDateObj = new Date(dueDate);
+      const daysOverdue = Math.ceil((now.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysOverdue > 0) {
+        for (const daysAfter of config.overdueReminderDaysAfter) {
+          if (daysOverdue >= daysAfter && daysOverdue < daysAfter + 7) {
+            if (alreadySentOrScheduled(user.id, 'overdue_reminder', undefined, daysAfter)) continue;
+            
+            const scheduleDate = new Date();
+            if (config.respectBusinessHours) {
+              const [startHour] = config.businessHoursStart.split(':').map(Number);
+              scheduleDate.setHours(startHour + Math.floor(Math.random() * 2), Math.floor(Math.random() * 60), 0);
+            }
+            if (scheduleDate <= now) scheduleDate.setDate(scheduleDate.getDate() + 1);
+            
+            scheduledItems.push({
+              admin_id: adminId, user_id: user.id, notification_type: 'overdue_reminder',
+              recipient_phone: user.phone, recipient_name: user.name || 'Cliente',
+              message_template: config.overdueReminderMessageTemplate,
+              ai_prompt: config.overdueReminderAiPrompt || config.aiVariationPrompt,
+              scheduled_for: scheduleDate.toISOString(),
+              ai_enabled: config.overdueReminderAiEnabled,
+              metadata: JSON.stringify({ daysAfter, daysOverdue, dueDate: dueDateObj.toISOString(), valor: planValor, planName: user.plan_nome || 'Plano' }),
+            });
+          }
+        }
+      }
+    }
+    
+    // 3. CHECK-IN PERIÓDICO (só com plano ativo)
+    if (config.periodicCheckinEnabled && hasSubscription) {
+      if (!alreadySentOrScheduled(user.id, 'checkin')) {
+        const minDays = config.periodicCheckinMinDays;
+        const maxDays = config.periodicCheckinMaxDays;
+        const randomDays = Math.floor(Math.random() * (maxDays - minDays + 1)) + minDays;
+        
+        const scheduleDate = new Date();
+        scheduleDate.setDate(scheduleDate.getDate() + randomDays);
+        if (config.respectBusinessHours) {
+          const [startHour] = config.businessHoursStart.split(':').map(Number);
+          scheduleDate.setHours(startHour + Math.floor(Math.random() * 4), Math.floor(Math.random() * 60), 0);
+        }
+        
+        scheduledItems.push({
+          admin_id: adminId, user_id: user.id, notification_type: 'checkin',
+          recipient_phone: user.phone, recipient_name: user.name || 'Cliente',
+          message_template: config.periodicCheckinMessageTemplate,
+          ai_prompt: config.checkinAiPrompt || config.aiVariationPrompt,
+          scheduled_for: scheduleDate.toISOString(),
+          ai_enabled: config.checkinAiEnabled,
+          metadata: JSON.stringify({ minDays, maxDays, randomDays }),
+        });
+      }
+    }
+    
+    // 4. ALERTA DESCONECTADO (com plano ativo e desconectado)
+    if (config.disconnectedAlertEnabled && hasSubscription && !user.whatsapp_connected) {
+      if (!alreadySentOrScheduled(user.id, 'disconnected')) {
+        const scheduleDate = new Date();
+        scheduleDate.setHours(scheduleDate.getHours() + config.disconnectedAlertHours);
+        
+        scheduledItems.push({
+          admin_id: adminId, user_id: user.id, notification_type: 'disconnected',
+          recipient_phone: user.phone, recipient_name: user.name || 'Cliente',
+          message_template: config.disconnectedAlertMessageTemplate,
+          ai_prompt: config.disconnectedAiPrompt || config.aiVariationPrompt,
+          scheduled_for: scheduleDate.toISOString(),
+          ai_enabled: config.disconnectedAiEnabled,
+          metadata: JSON.stringify({ disconnectedSince: user.connection_updated_at }),
+        });
+      }
+    }
+  }
+  
+  // Inserir novos agendamentos
+  if (scheduledItems.length > 0) {
+    for (const item of scheduledItems) {
+      try {
+        await db.execute(sql`
+          INSERT INTO scheduled_notifications (
+            admin_id, user_id, notification_type, recipient_phone, recipient_name,
+            message_template, ai_prompt, scheduled_for, ai_enabled, metadata, status
+          ) VALUES (
+            ${item.admin_id}, ${item.user_id}, ${item.notification_type},
+            ${item.recipient_phone}, ${item.recipient_name}, ${item.message_template},
+            ${item.ai_prompt}, ${item.scheduled_for}::timestamp, ${item.ai_enabled},
+            ${item.metadata}::jsonb, 'pending'
+          )
+          ON CONFLICT DO NOTHING
+        `);
+      } catch (insertErr) {
+        // ignore duplicates
+      }
+    }
+    console.log(`🔄 [AUTO-REORGANIZE] Admin ${adminId}: ${scheduledItems.length} notificações agendadas automaticamente`);
+  } else {
+    console.log(`🔄 [AUTO-REORGANIZE] Admin ${adminId}: nenhuma nova notificação para agendar`);
   }
 }
 
@@ -631,19 +951,23 @@ async function checkPaymentReminder(config: any, user: any): Promise<void> {
 
   const reminderDays = config.payment_reminder_days_before || [7, 3, 1];
   
-  for (const days of reminderDays) {
-    if (daysUntilExpiration === days) {
-      // ✅ CORRIGIDO: Usar 'payment_reminder' (tipo real usado nos logs e fila)
+  // Ordenar do maior para o menor (ex: [7, 3, 1]) para enviar o lembrete mais relevante
+  const sortedDays = [...reminderDays].sort((a: number, b: number) => b - a);
+  
+  for (const days of sortedDays) {
+    // ✅ FIX: Usar range ao invés de === para não perder notificações
+    // Se faltam X dias ou menos que X (mas mais que o próximo nível), enviar
+    if (daysUntilExpiration > 0 && daysUntilExpiration <= days) {
       const recentlySent = await wasNotificationSentRecently(
         config.admin_id,
         user.id,
-        'payment_reminder', // ✅ Tipo correto sem sufixo
+        'payment_reminder',
         48 // Não reenviar se já enviou nas últimas 48h
       );
 
       if (!recentlySent) {
         await sendNotification(config, user, 'payment_reminder', {
-          daysUntilExpiration: days,
+          daysUntilExpiration: daysUntilExpiration,
           expirationDate: expiresAt.toLocaleDateString('pt-BR'),
         });
         break; // Enviar apenas um lembrete por vez
@@ -663,19 +987,22 @@ async function checkOverdueReminder(config: any, user: any): Promise<void> {
 
   const overdueReminderDays = config.overdue_reminder_days_after || [1, 3, 7, 14];
   
-  for (const days of overdueReminderDays) {
-    if (daysOverdue === days) {
-      // ✅ CORRIGIDO: Usar 'overdue_reminder' (tipo real usado nos logs e fila)
+  // Ordenar do menor para o maior (ex: [1, 3, 7, 14]) - enviar a cobrança mais adequada
+  const sortedOverdueDays = [...overdueReminderDays].sort((a: number, b: number) => a - b);
+  
+  for (const days of sortedOverdueDays) {
+    // ✅ FIX: Usar range ao invés de === para não perder cobranças
+    if (daysOverdue >= days) {
       const recentlySent = await wasNotificationSentRecently(
         config.admin_id,
         user.id,
-        'overdue_reminder', // ✅ Tipo correto sem sufixo
+        'overdue_reminder',
         48
       );
 
       if (!recentlySent) {
         await sendNotification(config, user, 'overdue_reminder', {
-          daysOverdue: days,
+          daysOverdue: daysOverdue,
           expirationDate: expiresAt.toLocaleDateString('pt-BR'),
         });
         break;

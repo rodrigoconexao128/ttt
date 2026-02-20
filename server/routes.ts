@@ -27672,6 +27672,81 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
+  // ==================== NOTIFICATION HISTORY ====================
+
+  // Get notification history (logs) with pagination
+  app.get("/api/admin/notifications/history", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req as any).admin?.id || (req.session as any)?.adminId;
+      if (!adminId) return res.status(401).json({ message: "Admin não autenticado" });
+
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = (page - 1) * limit;
+      const { type, status, startDate, endDate } = req.query;
+
+      // Count total
+      const countResult = await db.execute(sql`
+        SELECT COUNT(*) as total FROM admin_notification_logs
+        WHERE admin_id = ${adminId}
+        ${type ? sql`AND notification_type = ${type}` : sql``}
+        ${status ? sql`AND status = ${status}` : sql``}
+        ${startDate ? sql`AND created_at >= ${startDate}::timestamp` : sql``}
+        ${endDate ? sql`AND created_at <= ${endDate}::timestamp` : sql``}
+      `);
+      const total = parseInt((countResult.rows[0] as any)?.total || '0', 10);
+
+      // Get logs
+      const logsResult = await db.execute(sql`
+        SELECT anl.*,
+               u.name as user_name, u.phone as user_phone
+        FROM admin_notification_logs anl
+        LEFT JOIN users u ON anl.user_id = u.id
+        WHERE anl.admin_id = ${adminId}
+        ${type ? sql`AND anl.notification_type = ${type}` : sql``}
+        ${status ? sql`AND anl.status = ${status}` : sql``}
+        ${startDate ? sql`AND anl.created_at >= ${startDate}::timestamp` : sql``}
+        ${endDate ? sql`AND anl.created_at <= ${endDate}::timestamp` : sql``}
+        ORDER BY anl.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `);
+
+      // Get summary stats
+      const statsResult = await db.execute(sql`
+        SELECT 
+          COUNT(*) FILTER (WHERE status = 'sent') as total_sent,
+          COUNT(*) FILTER (WHERE status = 'failed') as total_failed,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours' AND status = 'sent') as sent_today,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours' AND status = 'failed') as failed_today,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days' AND status = 'sent') as sent_week,
+          COUNT(*) FILTER (WHERE notification_type = 'payment_reminder' AND status = 'sent') as payment_reminders,
+          COUNT(*) FILTER (WHERE notification_type = 'overdue_reminder' AND status = 'sent') as overdue_reminders,
+          COUNT(*) FILTER (WHERE notification_type = 'checkin' OR notification_type = 'periodic_checkin' AND status = 'sent') as checkins,
+          COUNT(*) FILTER (WHERE notification_type = 'disconnected' AND status = 'sent') as disconnected_alerts
+        FROM admin_notification_logs
+        WHERE admin_id = ${adminId}
+      `);
+
+      // Get pending count from scheduled_notifications
+      const pendingResult = await db.execute(sql`
+        SELECT COUNT(*) as pending_count FROM scheduled_notifications
+        WHERE admin_id = ${adminId} AND status = 'pending'
+      `);
+
+      res.json({
+        logs: logsResult.rows || [],
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+        stats: {
+          ...(statsResult.rows[0] || {}),
+          pending_count: parseInt((pendingResult.rows[0] as any)?.pending_count || '0', 10),
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching notification history:", error);
+      res.status(500).json({ message: "Failed to fetch notification history" });
+    }
+  });
+
   // ==================== SCHEDULED NOTIFICATIONS / AGENDAMENTOS ====================
 
 
@@ -27844,7 +27919,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      const adminId = (req.session as any)?.adminId;
+      const adminId = (req as any).admin?.id || (req.session as any)?.adminId;
 
 
 
