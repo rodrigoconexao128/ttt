@@ -347,10 +347,10 @@ export const agentMediaLibrary = pgTable("agent_media_library", {
   name: varchar("name", { length: 100 }).notNull(), // Ex: "AUDIO_PRECO", "IMG_BOAS_VINDAS"
   
   // Tipo da mídia
-  mediaType: varchar("media_type", { length: 20 }).notNull(), // 'audio', 'image', 'video', 'document'
+  mediaType: varchar("media_type", { length: 20 }).notNull(), // 'audio', 'image', 'video', 'document', 'flow'
   
   // Armazenamento
-  storageUrl: text("storage_url").notNull(), // URL pública ou base64
+  storageUrl: text("storage_url").notNull().default(''), // URL pública ou base64 (vazio para tipo 'flow')
   fileName: varchar("file_name", { length: 255 }),
   fileSize: integer("file_size"), // Tamanho em bytes
   mimeType: varchar("mime_type", { length: 100 }),
@@ -367,6 +367,23 @@ export const agentMediaLibrary = pgTable("agent_media_library", {
   
   // Opção de envio combinado
   sendAlone: boolean("send_alone").default(false), // true = enviar sozinha, false = pode ser combinada com outras
+  
+  // === FLUXO DE MÍDIA (PARTE 6) ===
+  // Sequência ordenada de itens (mídia + texto) para envio em ordem exata
+  // Cada item: { type: 'media'|'text', storageUrl?, mediaType?, caption?, text?, fileName?, mimeType? }
+  flowItems: jsonb("flow_items").$type<Array<{
+    id: string;           // UUID único do item no fluxo
+    order: number;        // Posição na sequência (0-based)
+    type: 'media' | 'text'; // Tipo do bloco
+    // Campos para type='media':
+    storageUrl?: string;
+    mediaType?: 'audio' | 'image' | 'video' | 'document';
+    caption?: string;
+    fileName?: string;
+    mimeType?: string;
+    // Campos para type='text':
+    text?: string;
+  }>>(),
   
   // Ordenação e status
   isActive: boolean("is_active").default(true).notNull(),
@@ -1568,11 +1585,26 @@ export const insertAgentMediaSchema = createInsertSchema(agentMediaLibrary).omit
   updatedAt: true,
 });
 
+// Schema de item individual de fluxo
+export const flowItemSchema = z.object({
+  id: z.string(),
+  order: z.number(),
+  type: z.enum(["media", "text"]),
+  storageUrl: z.string().optional(),
+  mediaType: z.enum(["audio", "image", "video", "document"]).optional(),
+  caption: z.string().optional(),
+  fileName: z.string().optional(),
+  mimeType: z.string().optional(),
+  text: z.string().optional(),
+});
+
+export type FlowItem = z.infer<typeof flowItemSchema>;
+
 export const agentMediaSchema = z.object({
   userId: z.string(),
   name: z.string().min(1, "Nome da mídia é obrigatório").max(100),
-  mediaType: z.enum(["audio", "image", "video", "document"]),
-  storageUrl: z.string().min(1, "URL de armazenamento é obrigatória"),
+  mediaType: z.enum(["audio", "image", "video", "document", "flow"]),
+  storageUrl: z.string().optional().default(""), // vazio para 'flow'
   fileName: z.string().optional(),
   fileSize: z.number().optional(),
   mimeType: z.string().optional(),
@@ -1586,6 +1618,8 @@ export const agentMediaSchema = z.object({
   isActive: z.boolean().default(true),
   displayOrder: z.number().default(0),
   wapiMediaId: z.string().optional(),
+  // Itens do fluxo (somente para mediaType='flow')
+  flowItems: z.array(flowItemSchema).optional(),
 });
 
 export type InsertAgentMedia = z.infer<typeof insertAgentMediaSchema>;

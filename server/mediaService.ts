@@ -258,7 +258,13 @@ Um áudio/vídeo vale mais que mil palavras de texto.
     const whenToUse = media.whenToUse || 'quando solicitado';
     const mediaType = media.mediaType === 'audio' ? '🎤 ÁUDIO' :
                       media.mediaType === 'video' ? '🎥 VÍDEO' :
-                      media.mediaType === 'image' ? '🖼️ IMAGEM' : '📄 DOCUMENTO/PDF';
+                      media.mediaType === 'image' ? '🖼️ IMAGEM' :
+                      media.mediaType === 'flow' ? '🔀 FLUXO' : '📄 DOCUMENTO/PDF';
+    
+    // Para fluxos, mostrar resumo dos itens
+    const flowSummary = media.mediaType === 'flow' && media.flowItems && Array.isArray(media.flowItems) && media.flowItems.length > 0
+      ? `(${media.flowItems.length} itens: ${(media.flowItems as any[]).map((it: any) => it.type === 'text' ? '💬texto' : `📎${it.mediaType||'mídia'}`).join('→')})`
+      : '';
     
     // Extrair palavras-chave do whenToUse para criar gatilhos explícitos
     const keywordsRaw = whenToUse.toLowerCase()
@@ -271,7 +277,7 @@ Um áudio/vídeo vale mais que mil palavras de texto.
     
     mediaBlock += `
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ ${mediaType}: ${media.name.padEnd(58)}│
+│ ${mediaType}: ${(media.name + (flowSummary ? ' ' + flowSummary : '')).substring(0, 58).padEnd(58)}│
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ 🎯 GATILHO: ${whenToUse.substring(0, 60).padEnd(60)}│
 │ 🔑 KEYWORDS: ${(keywords.length > 0 ? keywords.join(', ') : media.name.toLowerCase().replace(/_/g, ', ')).substring(0, 58).padEnd(58)}│
@@ -1366,6 +1372,156 @@ export async function executeMediaActions(
 
     // Enviar todas as mídias relacionadas
     for (const media of allMediasForName) {
+      // === SUPORTE A FLUXO (PARTE 6) ===
+      // Se for tipo 'flow', iterar pelos flowItems em ordem e enviar cada um
+      if (media.mediaType === 'flow') {
+        const flowItems = (media.flowItems as any[] | null) || [];
+        if (flowItems.length === 0) {
+          console.error(`📁 [MediaService] ❌ Fluxo "${media.name}" não tem itens configurados`);
+          continue;
+        }
+        
+        // Ordenar por campo 'order'
+        const sortedItems = [...flowItems].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        
+        console.log(`🔀 [MediaService] Iniciando fluxo "${media.name}" com ${sortedItems.length} itens`);
+        
+        for (let idx = 0; idx < sortedItems.length; idx++) {
+          const item = sortedItems[idx];
+          console.log(`🔀 [MediaService] Fluxo item ${idx + 1}/${sortedItems.length}: type=${item.type}`);
+          
+          // Delay entre itens do fluxo (1-2s para parecer humano)
+          if (idx > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1200));
+          }
+          
+          if (item.type === 'text') {
+            // Enviar como mensagem de texto
+            const textContent = item.text || '';
+            if (!textContent.trim()) continue;
+            
+            try {
+              let textMsgId: string | undefined;
+              if (wapiConfig) {
+                const textEndpoint = `${wapiConfig.apiUrl}/message/sendText`;
+                const formattedNumber = jid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+                const chatId = formattedNumber.includes('@') ? formattedNumber : `${formattedNumber}@s.whatsapp.net`;
+                const textResp = await fetch(textEndpoint, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${wapiConfig.apiKey}`,
+                    'x-instance-id': wapiConfig.instanceId,
+                  },
+                  body: JSON.stringify({ chatId, message: textContent }),
+                });
+                const textJson = await textResp.json() as any;
+                textMsgId = textJson.key?.id;
+              } else if (socket) {
+                const result = await socket.sendMessage(jid, { text: textContent });
+                textMsgId = result?.key?.id;
+              }
+              
+              if (textMsgId) registerAgentMessageId(textMsgId);
+              
+              // Salvar no banco
+              if (conversationId) {
+                await db.insert(messages).values({
+                  conversationId,
+                  messageId: textMsgId || `flow-text-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                  fromMe: true,
+                  text: textContent,
+                  timestamp: new Date(),
+                  status: 'sent',
+                  isFromAgent: true,
+                  mediaCaption: `[FLOW:${media.name}:${idx}]`,
+                });
+              }
+              
+              console.log(`🔀 [MediaService] Fluxo item texto enviado: "${textContent.substring(0, 50)}..."`);
+            } catch (textErr) {
+              console.error(`🔀 [MediaService] Erro ao enviar texto do fluxo item ${idx}:`, textErr);
+            }
+            
+          } else if (item.type === 'media') {
+            // Enviar como mídia
+            const itemMediaType = item.mediaType as 'audio' | 'image' | 'video' | 'document';
+            const itemUrl = item.storageUrl || '';
+            if (!itemUrl || !itemMediaType) continue;
+            
+            try {
+              let sendResult: { success: boolean; messageId?: string; error?: string } = { success: false };
+              
+              // Criar objeto AgentMedia temporário para reutilizar sendMediaViaBaileys
+              const tempMedia: AgentMedia = {
+                id: `flow-item-${idx}`,
+                userId,
+                name: `${media.name}_ITEM_${idx}`,
+                mediaType: itemMediaType,
+                storageUrl: itemUrl,
+                fileName: item.fileName || null,
+                fileSize: null,
+                mimeType: item.mimeType || null,
+                durationSeconds: null,
+                description: '',
+                whenToUse: null,
+                caption: item.caption || null,
+                transcription: null,
+                isPtt: itemMediaType === 'audio',
+                sendAlone: false,
+                isActive: true,
+                displayOrder: idx,
+                wapiMediaId: null,
+                flowItems: null,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              };
+              
+              if (wapiConfig) {
+                sendResult = await sendMediaViaWApi(wapiConfig, {
+                  to: jid.split('@')[0],
+                  mediaType: itemMediaType,
+                  mediaUrl: itemUrl,
+                  caption: itemMediaType !== 'audio' ? (item.caption || undefined) : undefined,
+                  fileName: item.fileName || undefined,
+                  isPtt: itemMediaType === 'audio',
+                });
+              } else if (socket) {
+                sendResult = await sendMediaViaBaileys(socket, jid, tempMedia, userId);
+              }
+              
+              if (sendResult.success && sendResult.messageId) {
+                registerAgentMessageId(sendResult.messageId);
+              }
+              
+              if (sendResult.success && conversationId) {
+                const msgText = item.caption || `*${itemMediaType.charAt(0).toUpperCase() + itemMediaType.slice(1)}*`;
+                await db.insert(messages).values({
+                  conversationId,
+                  messageId: sendResult.messageId || `flow-media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                  fromMe: true,
+                  text: msgText,
+                  timestamp: new Date(),
+                  status: 'sent',
+                  isFromAgent: true,
+                  mediaType: itemMediaType,
+                  mediaUrl: itemUrl,
+                  mediaCaption: `[FLOW:${media.name}:${idx}]`,
+                });
+              }
+              
+              console.log(`🔀 [MediaService] Fluxo item mídia enviada: ${itemMediaType} url=${itemUrl.substring(0, 50)}`);
+            } catch (mediaErr) {
+              console.error(`🔀 [MediaService] Erro ao enviar mídia do fluxo item ${idx}:`, mediaErr);
+            }
+          }
+        }
+        
+        console.log(`🔀 [MediaService] ✅ Fluxo "${media.name}" concluído (${sortedItems.length} itens enviados)`);
+        continue; // Vai para próxima mídia no grupo
+      }
+      // === FIM SUPORTE A FLUXO ===
+      
       let retryCount = 0;
       const maxRetries = 2;
       let sendSuccess = false;
