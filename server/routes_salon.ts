@@ -119,9 +119,24 @@ export function registerSalonRoutes(app: Express): void {
       // Verificar se já existe
       const { data: existing } = await supabase
         .from("salon_config")
-        .select("id")
+        .select("id, opening_hours")
         .eq("user_id", userId)
         .single();
+
+      // 🔒 Garantir persistência do horário de almoço (__break)
+      // Se frontend/cliente enviar opening_hours sem __break, preserva o valor existente no banco.
+      if (updateData.opening_hours && typeof updateData.opening_hours === "object") {
+        const incomingOpeningHours = updateData.opening_hours as Record<string, any>;
+        const incomingBreak = incomingOpeningHours.__break;
+        const existingBreak = (existing?.opening_hours as Record<string, any> | undefined)?.__break;
+
+        if (incomingBreak === undefined && existingBreak) {
+          updateData.opening_hours = {
+            ...incomingOpeningHours,
+            __break: existingBreak,
+          };
+        }
+      }
       
       let result;
       if (existing) {
@@ -186,6 +201,11 @@ export function registerSalonRoutes(app: Express): void {
       if (!name) {
         return res.status(400).json({ message: "Nome é obrigatório" });
       }
+
+      const parsedDuration = Number(duration_minutes ?? 30);
+      if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+        return res.status(400).json({ message: "Duração do serviço inválida" });
+      }
       
       // Obter próximo display_order
       const { data: existing } = await supabase
@@ -203,7 +223,7 @@ export function registerSalonRoutes(app: Express): void {
           user_id: userId,
           name,
           description: description || null,
-          duration_minutes: duration_minutes || 30,
+          duration_minutes: parsedDuration,
           price: price ? parseFloat(price) : null,
           is_active: is_active !== false,
           color: color || "#6366f1",
@@ -228,13 +248,18 @@ export function registerSalonRoutes(app: Express): void {
       const userId = getUserId(req);
       const { id } = req.params;
       const { name, description, duration_minutes, price, is_active, color } = req.body;
+
+      const parsedDuration = Number(duration_minutes ?? 30);
+      if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+        return res.status(400).json({ message: "Duração do serviço inválida" });
+      }
       
       const { data, error } = await supabase
         .from("scheduling_services")
         .update({
           name,
           description: description || null,
-          duration_minutes: duration_minutes || 30,
+          duration_minutes: parsedDuration,
           price: price ? parseFloat(price) : null,
           is_active,
           color: color || "#6366f1",
