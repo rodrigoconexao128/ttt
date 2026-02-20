@@ -11,7 +11,7 @@
  * - Aceita texto livre (não formato rígido).
  */
 
-import { getLLMClient, getLLMConfig } from "./llm";
+import { getLLMClient } from "./llm";
 
 // ============================================================
 // TIPOS
@@ -79,14 +79,7 @@ export async function executeFlowResponse(
 ): Promise<FlowExecutionResult> {
   
   const client = await getLLMClient();
-  const llmConfig = await getLLMConfig();
-  
-  // Selecionar modelo correto baseado no provider configurado
-  const llmModel = llmConfig.provider === 'groq' 
-    ? (llmConfig.groqModel || "llama-3.1-8b-instant")
-    : llmConfig.provider === 'mistral'
-      ? (llmConfig.mistralModel || "mistral-small-latest")
-      : (llmConfig.openrouterModel || "openai/gpt-4o-mini");
+  // getLLMConfig não é mais necessário aqui - chatComplete gerencia config internamente
 
   const systemPrompt = buildFlowSystemPrompt(flowScript);
 
@@ -100,12 +93,11 @@ export async function executeFlowResponse(
   try {
     let response: string;
 
-    // Compatível com OpenAI SDK (OpenRouter/Mistral)
-    const completion = await (client as any).chat.completions.create({
-      model: llmModel,
+    // Usar chatComplete do llm.ts (compatível com todos os providers configurados)
+    const completion = await (client as any).chat.complete({
       messages,
-      max_tokens: 800,
-      temperature: 0.1, // Temperatura baixa = mais determinístico
+      maxTokens: 800,
+      temperature: 0.1, // Temperatura baixa = mais determinístico/fiel ao roteiro
     });
 
     response = completion.choices?.[0]?.message?.content?.trim() || 
