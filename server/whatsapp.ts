@@ -588,6 +588,11 @@ const RECONNECT_BACKOFF_MS = [5000, 15000, 45000, 120000, 300000];
 // 🔒 RESTORE GUARD: Prevent health check from killing sessions during restore
 let _isRestoringInProgress = false;
 
+// Export function to check if restore is in progress (used by API endpoints)
+export function isRestoringInProgress(): boolean {
+  return _isRestoringInProgress;
+}
+
 // ?? Map para rastrear auto-retry após logout (QR Code)
 // Permite um único auto-retry quando auth inválido causa logout imediato
 interface LogoutAutoRetry {
@@ -8374,8 +8379,22 @@ export async function restoreAdminSessions(): Promise<void> {
     for (const admin of allAdmins) {
       const adminConnection = await storage.getAdminWhatsappConnection(admin.id);
 
-      if (adminConnection && adminConnection.isConnected) {
-        console.log(`Restoring admin WhatsApp session for admin ${admin.id}...`);
+      // Check for auth files on disk (persistent volume) - this avoids the race
+      // condition where the API endpoint syncs isConnected=false to DB before
+      // this restore function runs after a worker restart.
+      const adminAuthPath = path.join(SESSIONS_BASE, `auth_admin_${admin.id}`);
+      let hasAuthFiles = false;
+      try {
+        const files = await fs.readdir(adminAuthPath);
+        hasAuthFiles = files.some(f => f.includes('creds'));
+      } catch {
+        // Directory doesn't exist
+      }
+
+      const shouldRestore = hasAuthFiles || (adminConnection && adminConnection.isConnected);
+
+      if (shouldRestore) {
+        console.log(`Restoring admin WhatsApp session for admin ${admin.id} (authFiles=${hasAuthFiles}, dbConnected=${adminConnection?.isConnected})...`);
         try {
           await connectAdminWhatsApp(admin.id);
           console.log(`✅ Admin WhatsApp session restored for ${admin.id}`);

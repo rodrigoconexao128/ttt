@@ -26102,7 +26102,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // Verificar estado REAL da sessão na memória
 
-      const { getAdminSession } = await import("./whatsapp");
+      const { getAdminSession, isRestoringInProgress } = await import("./whatsapp");
 
       const activeSession = getAdminSession(adminId);
 
@@ -26111,8 +26111,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
       // Se há discrepância entre banco e sessão real, sincronizar
-
-      if (connection && connection.isConnected !== isReallyConnected) {
+      // BUT: don't sync isConnected=false during restore window (race condition)
+      const restoring = isRestoringInProgress();
+      if (connection && connection.isConnected !== isReallyConnected && !(restoring && !isReallyConnected)) {
 
         console.log(`?? [ADMIN WS] Sincronizando estado: banco=${connection.isConnected}, real=${isReallyConnected}`);
 
