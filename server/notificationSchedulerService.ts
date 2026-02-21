@@ -324,13 +324,12 @@ async function autoReorganizeForAdmin(adminId: string): Promise<void> {
       WHERE c.user_id = u.id ORDER BY c.created_at DESC LIMIT 1
     ) wc ON true
     WHERE u.id != ${adminId}
-    AND (u.parent_id = ${adminId} OR u.id IN (
-      SELECT sub.user_id FROM subscriptions sub WHERE sub.user_id = u.id AND EXISTS (
-        SELECT 1 FROM users admin WHERE admin.id = ${adminId} AND (
-          u.parent_id = admin.id OR u.created_by = admin.id
-        )
-      )
-    ))
+    AND u.id NOT IN (
+      SELECT uu.id FROM users uu 
+      JOIN admins a ON a.email = uu.email 
+      WHERE a.id = ${adminId}
+    )
+    AND u.role IS DISTINCT FROM 'owner'
     AND u.phone IS NOT NULL
     AND u.phone != ''
   `);
@@ -959,6 +958,9 @@ function isWithinBusinessHours(config: any): boolean {
 
 /**
  * Busca usuários de um admin
+ * NOTE: There is NO parent_id column in the users table.
+ * In this single-admin system, all users belong to the admin.
+ * We exclude the admin's own user record (matched by email from admins table).
  */
 async function getAdminUsers(adminId: string): Promise<any[]> {
   try {
@@ -985,8 +987,13 @@ async function getAdminUsers(adminId: string): Promise<any[]> {
         LIMIT 1
       ) wc ON true
       LEFT JOIN subscriptions s ON s.user_id = u.id
-      WHERE u.parent_id = ${adminId}
-         AND u.id != ${adminId}
+      WHERE u.id != (
+        SELECT uu.id FROM users uu 
+        JOIN admins a ON a.email = uu.email 
+        WHERE a.id = ${adminId}
+        LIMIT 1
+      )
+      AND u.role != 'owner'
       ORDER BY u.created_at DESC
     `);
     return result.rows;
