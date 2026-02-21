@@ -5302,9 +5302,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       const userId = getUserId(req);
 
-      const { tagId, connectionId: qsConnectionId } = req.query;
-
-
+      const { tagId, connectionId: qsConnectionId, limit: qsLimit, offset: qsOffset } = req.query;
 
       const connection = await storage.getConnectionByUserId(userId, qsConnectionId as string | undefined);
 
@@ -5330,12 +5328,27 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
         return res.json(conversationsWithTags);
       }
 
+      // Paginação: limit e offset opcionais
+      const limit = qsLimit ? parseInt(qsLimit as string, 10) : undefined;
+      const offset = qsOffset ? parseInt(qsOffset as string, 10) : undefined;
 
+      // Sem filtro, retorna conversas com suas tags (com paginação se solicitado)
+      const result = await storage.getConversationsWithTags(connection.id, limit, offset);
 
-      // Sem filtro, retorna todas as conversas com suas tags (sem cache - dado em tempo real)
-      const result = await storage.getConversationsWithTags(connection.id);
-
-      res.json(result);
+      // Se tem paginação, retornar formato { data, total, hasMore }
+      if (limit != null) {
+        const currentOffset = offset || 0;
+        res.json({
+          data: result.data,
+          total: result.total,
+          hasMore: currentOffset + result.data.length < result.total,
+          offset: currentOffset,
+          limit,
+        });
+      } else {
+        // Compatibilidade: sem paginação retorna array direto
+        res.json(result.data);
+      }
 
     } catch (error) {
 

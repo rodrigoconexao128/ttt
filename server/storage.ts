@@ -4022,17 +4022,36 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
    * Obtém conversas com suas tags para um connectionId
    * 🔥 OTIMIZADO: Cache de 15s para evitar queries repetidas em polling
    */
-  async getConversationsWithTags(connectionId: string): Promise<(Conversation & { tags: Tag[] })[]> {
-    const cacheKey = `convWithTags:${connectionId}`;
-    const cached = memoryCache.get<(Conversation & { tags: Tag[] })[]>(cacheKey);
-    if (cached !== null) return cached;
+  async getConversationsWithTags(connectionId: string, limit?: number, offset?: number): Promise<{ data: (Conversation & { tags: Tag[] })[]; total: number }> {
+    // Se tem paginação, não usar cache (cada página é diferente)
+    if (limit == null) {
+      const cacheKey = `convWithTags:${connectionId}`;
+      const cached = memoryCache.get<{ data: (Conversation & { tags: Tag[] })[]; total: number }>(cacheKey);
+      if (cached !== null) return cached;
+    }
 
-    // Busca todas as conversas
-    const allConversations = await db
+    // Busca total de conversas para paginação
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(conversations)
+      .where(eq(conversations.connectionId, connectionId));
+    const total = Number(countResult[0]?.count || 0);
+
+    // Busca conversas com limit/offset
+    let query = db
       .select()
       .from(conversations)
       .where(eq(conversations.connectionId, connectionId))
       .orderBy(desc(conversations.lastMessageTime));
+    
+    if (limit != null) {
+      query = query.limit(limit) as any;
+    }
+    if (offset != null && offset > 0) {
+      query = query.offset(offset) as any;
+    }
+    
+    const allConversations = await query;
     
     // Busca todas as tags associadas
     const conversationIds = allConversations.map(c => c.id);
@@ -4060,12 +4079,16 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     }
     
     // Combina conversas com suas tags
-    const result = allConversations.map(conv => ({
+    const data = allConversations.map(conv => ({
       ...conv,
       tags: tagsByConversation.get(conv.id) || [],
     }));
 
-    memoryCache.set(cacheKey, result, 15000); // Cache 15s
+    const result = { data, total };
+    if (limit == null) {
+      const cacheKey = `convWithTags:${connectionId}`;
+      memoryCache.set(cacheKey, result, 15000); // Cache 15s
+    }
     return result;
   }
 

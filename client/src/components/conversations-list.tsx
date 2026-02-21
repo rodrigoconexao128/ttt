@@ -87,18 +87,26 @@ export function ConversationsList({
   const [tagModalConversationId, setTagModalConversationId] = useState<string>("");
   const [tagModalCurrentTags, setTagModalCurrentTags] = useState<Tag[]>([]);
 
-  // Buscar conversas com tags
-  const { data: conversationsWithTags = [], isLoading } = useQuery<ConversationWithTags[]>({
-    queryKey: ["/api/conversations-with-tags", selectedTagFilter],
+  // Paginação
+  const PAGE_SIZE = 50;
+  const [allConversations, setAllConversations] = useState<ConversationWithTags[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [currentOffset, setCurrentOffset] = useState(0);
+
+  // Buscar conversas com tags (paginado - primeira página)
+  const { isLoading } = useQuery<any>({
+    queryKey: ["/api/conversations-with-tags", selectedTagFilter, "page0"],
     queryFn: async () => {
-      // Prioridade para token de membro
       const memberToken = localStorage.getItem("memberToken");
       const supabaseToken = await getAuthToken();
       const token = memberToken || supabaseToken;
       
+      // Se tem filtro de tag, buscar tudo (sem paginação)
       const url = selectedTagFilter 
         ? `/api/conversations-with-tags?tagId=${selectedTagFilter}`
-        : "/api/conversations-with-tags";
+        : `/api/conversations-with-tags?limit=${PAGE_SIZE}&offset=0`;
       const response = await fetch(url, {
         credentials: "include",
         headers: {
@@ -106,12 +114,61 @@ export function ConversationsList({
         },
       });
       if (!response.ok) throw new Error("Failed to fetch conversations");
-      return response.json();
+      const result = await response.json();
+      
+      // Se veio paginado (com propriedade data), extrair
+      if (result.data) {
+        setAllConversations(result.data);
+        setHasMore(result.hasMore);
+        setTotalCount(result.total);
+        setCurrentOffset(result.data.length);
+      } else {
+        // Sem paginação (filtro de tag retorna array direto)
+        setAllConversations(Array.isArray(result) ? result : []);
+        setHasMore(false);
+        setTotalCount(Array.isArray(result) ? result.length : 0);
+        setCurrentOffset(Array.isArray(result) ? result.length : 0);
+      }
+      return result;
     },
     enabled: !!connectionId,
-    refetchInterval: 60000, // Fallback polling - WebSocket é primário (economia de egress)
-    staleTime: 0, // Sem staleTime - WebSocket invalida quando chega nova mensagem
+    refetchInterval: 120000, // Fallback polling 2min (WebSocket é primário)
+    staleTime: 0,
   });
+
+  // Função para carregar mais conversas
+  const loadMoreConversations = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const memberToken = localStorage.getItem("memberToken");
+      const supabaseToken = await getAuthToken();
+      const token = memberToken || supabaseToken;
+      
+      const url = `/api/conversations-with-tags?limit=${PAGE_SIZE}&offset=${currentOffset}`;
+      const response = await fetch(url, {
+        credentials: "include",
+        headers: {
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
+      });
+      if (!response.ok) throw new Error("Failed to load more");
+      const result = await response.json();
+      
+      if (result.data) {
+        setAllConversations(prev => [...prev, ...result.data]);
+        setHasMore(result.hasMore);
+        setCurrentOffset(prev => prev + result.data.length);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar mais conversas:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+  
+  // Alias para compatibilidade com o restante do código
+  const conversationsWithTags = allConversations;
   
   // Buscar tags disponíveis para filtro
   const { data: availableTags = [] } = useQuery<Tag[]>({
@@ -154,13 +211,57 @@ export function ConversationsList({
             const data = JSON.parse(event.data);
             console.log("WebSocket message:", data);
 
-            // Atualizar lista de conversas quando receber nova mensagem
-            if (
-              data.type === "new_message" ||
+            // 🔥 Real-time update: atualizar conversa inline sem refetch completo
+            if (data.type === "new_message" && data.conversationUpdate) {
+              const update = data.conversationUpdate;
+              setAllConversations(prev => {
+                const existingIdx = prev.findIndex(c => c.id === update.id);
+                if (existingIdx >= 0) {
+                  // Atualizar conversa existente e mover pro topo
+                  const updated = {
+                    ...prev[existingIdx],
+                    lastMessageText: update.lastMessageText,
+                    lastMessageTime: update.lastMessageTime,
+                    lastMessageFromMe: update.lastMessageFromMe,
+                    unreadCount: update.unreadCount,
+                    contactName: update.contactName || prev[existingIdx].contactName,
+                    contactAvatar: update.contactAvatar || prev[existingIdx].contactAvatar,
+                  };
+                  const newList = [...prev];
+                  newList.splice(existingIdx, 1);
+                  return [updated, ...newList];
+                } else if (update.isNew) {
+                  // Nova conversa: adicionar no topo
+                  const newConv: ConversationWithTags = {
+                    id: update.id,
+                    connectionId: connectionId || "",
+                    contactNumber: update.contactNumber,
+                    contactName: update.contactName,
+                    contactAvatar: update.contactAvatar,
+                    lastMessageText: update.lastMessageText,
+                    lastMessageTime: update.lastMessageTime,
+                    lastMessageFromMe: update.lastMessageFromMe,
+                    unreadCount: update.unreadCount || 1,
+                    remoteJid: null,
+                    jidSuffix: null,
+                    hasReplied: false,
+                    isArchived: false,
+                    tags: [],
+                  } as ConversationWithTags;
+                  return [newConv, ...prev];
+                }
+                return prev;
+              });
+              setTotalCount(prev => {
+                if (update.isNew) return prev + 1;
+                return prev;
+              });
+            } else if (
               data.type === "agent_response" ||
               data.type === "agent_auto_paused" ||
               data.type === "agent_auto_reactivated"
             ) {
+              // Para eventos do agente, fazer refetch da primeira página
               queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
             }
           } catch (error) {
@@ -900,6 +1001,35 @@ export function ConversationsList({
               );
             })}
           </div>
+
+          {/* Botão Carregar Mais */}
+          {hasMore && !selectedTagFilter && (
+            <div className="p-3 text-center border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={loadMoreConversations}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Carregando...
+                  </>
+                ) : (
+                  `Carregar mais (${totalCount - allConversations.length} restantes)`
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Mostrando contagem */}
+          {totalCount > 0 && !selectedTagFilter && (
+            <div className="px-3 py-1 text-xs text-center text-muted-foreground">
+              Mostrando {allConversations.length} de {totalCount} conversas
+            </div>
+          )}
         )}
       </div>
       

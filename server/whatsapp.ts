@@ -2588,6 +2588,12 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       browser: Browsers.macOS('Desktop'),
       syncFullHistory: true,
       // -----------------------------------------------------------------------
+      // FIX 2026: Evita que WhatsApp redirecione mensagens pro Baileys
+      // Sem isso, mensagens ficam como "Aguardando mensagem" no celular
+      // Ref: https://github.com/WhiskeySockets/Baileys/issues/1767
+      // -----------------------------------------------------------------------
+      markOnlineOnConnect: false,
+      // -----------------------------------------------------------------------
       // ?? FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE)
       // -----------------------------------------------------------------------
       // Esta fun��o � chamada pelo Baileys quando precisa reenviar uma mensagem
@@ -2609,9 +2615,19 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         // Fallback: tentar buscar do banco de dados
         try {
           const dbMessage = await storage.getMessageByMessageId(key.id);
-          if (dbMessage && dbMessage.text) {
-            console.log(`?? [getMessage] Mensagem ${key.id} recuperada do banco de dados`);
-            return { conversation: dbMessage.text };
+          if (dbMessage) {
+            console.log(`?? [getMessage] Mensagem ${key.id} recuperada do banco de dados (tipo: ${(dbMessage as any).messageType || 'text'})`);
+            // FIX 2026: Retornar proto.IMessage completo quando disponível
+            // Para mídia, o formato { conversation: text } não funciona no retry
+            if ((dbMessage as any).rawMessage) {
+              try {
+                const raw = JSON.parse((dbMessage as any).rawMessage);
+                return raw;
+              } catch {}
+            }
+            if (dbMessage.text) {
+              return { conversation: dbMessage.text };
+            }
           }
         } catch (err) {
           console.error(`? [getMessage] Erro ao buscar mensagem do banco:`, err);
@@ -2785,6 +2801,42 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       console.log(`[HISTORY SYNC] Messages: ${messages?.length || 0}`);
       console.log(`[HISTORY SYNC] isLatest: ${isLatest}`);
       console.log(`========================================\n`);
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // FIX 2026: Processar mensagens RECENTES do history sync para auto-resposta
+      // Mensagens que chegaram durante desconexão precisam ser processadas
+      // ─────────────────────────────────────────────────────────────────────────
+      if (messages && messages.length > 0) {
+        const now = Date.now();
+        const MAX_AGE_MS = 10 * 60 * 1000; // 10 minutos
+        let processedCount = 0;
+
+        for (const msg of messages) {
+          if (!msg || !msg.key || msg.key.fromMe) continue;
+          if (!msg.key.remoteJid || msg.key.remoteJid.includes('@g.us') || msg.key.remoteJid.includes('@broadcast')) continue;
+          if (!msg.message) continue;
+
+          const msgTs = Number(msg.messageTimestamp) * 1000;
+          const age = now - msgTs;
+          if (age > MAX_AGE_MS) continue;
+
+          // Cachear para getMessage retry
+          if (msg.key.id && msg.message) {
+            cacheMessage(userId, msg.key.id, msg.message);
+          }
+
+          // Re-emitir como upsert notify para processamento
+          processedCount++;
+          sock.ev.emit('messages.upsert', {
+            type: 'notify',
+            messages: [msg as any],
+          });
+        }
+
+        if (processedCount > 0) {
+          console.log(`[HISTORY SYNC] 🔄 ${processedCount} mensagens recentes re-emitidas para processamento`);
+        }
+      }
 
       // Processar contatos do histórico
       if (contacts && contacts.length > 0) {
@@ -3204,8 +3256,19 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         // 1. Primeira mensagem de cada contato chegar (contacts.upsert dispara)
         // 2. Usu�rio enviar mensagem (parseRemoteJid salva no DB via fallback)
         
+        // ─────────────────────────────────────────────────────────────────────
+        // FIX 2026: Enviar presenceUpdate('available') após conexão aberta
+        // Sem isso, WhatsApp pode não rotear mensagens novas pro Baileys
+        // ─────────────────────────────────────────────────────────────────────
+        try {
+          await sock.sendPresenceUpdate('available');
+          console.log(`✅ [PRESENCE] Status 'available' enviado para socket principal`);
+        } catch (presErr) {
+          console.error(`❌ [PRESENCE] Erro ao enviar presença:`, presErr);
+        }
+
         console.log(`\n?? [CONTACTS INFO] Aguardando contatos do Baileys...`);
-        console.log(`   Contatos ser�o sincronizados automaticamente quando:`);
+        console.log(`   Contatos serão sincronizados automaticamente quando:`);
         console.log(`   1. Evento contacts.upsert do Baileys disparar`);
         console.log(`   2. Mensagens forem recebidas/enviadas`);
         console.log(`   Cache warming carregou ${contactsCache.size} contatos do DB\n`);
@@ -3262,12 +3325,39 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // 🗳️ HANDLER DE VOTOS DE ENQUETE (POLL UPDATES) v2.0
-    // Captura quando o usuário vota em uma enquete enviada pelo chatbot
-    // Usa getAggregateVotesInPollMessage para decodificar o voto
+    // � HANDLER DE ATUALIZAÇÕES DE MENSAGENS (messages.update) v3.0
+    // - Processa votos de enquete (poll updates)
+    // - FIX 2026: Processa mensagens que chegam descriptografadas via retry
+    //   (resolve "Aguardando mensagem" / "Waiting for this message")
     // ═══════════════════════════════════════════════════════════════════════════
     sock.ev.on("messages.update", async (updates) => {
       for (const { key, update } of updates) {
+        // ─────────────────────────────────────────────────────────────────────
+        // FIX 2026: Se uma mensagem que estava "pending" agora tem conteúdo,
+        // cachear para retry e re-emitir como upsert para processamento
+        // ─────────────────────────────────────────────────────────────────────
+        if ((update as any).message && key.remoteJid && !key.fromMe) {
+          const msgContent = (update as any).message;
+          if (key.id && msgContent) {
+            cacheMessage(userId, key.id, msgContent);
+            console.log(`🔄 [MSG-UPDATE] Mensagem ${key.id} descriptografada via retry, re-emitindo como upsert`);
+            console.log(`   📨 JID: ${key.remoteJid}`);
+            console.log(`   📝 Tipo de conteúdo: ${Object.keys(msgContent).join(', ')}`);
+            // Re-emitir como upsert notify para que seja processada normalmente
+            // NOTA: O dedupe system permite reprocessamento pois stubs NÃO são marcados
+            sock.ev.emit('messages.upsert', {
+              type: 'notify',
+              messages: [{
+                key,
+                message: msgContent,
+                messageTimestamp: Math.floor(Date.now() / 1000),
+                // Preservar pushName se disponível no update
+                pushName: (update as any).pushName || undefined,
+              } as any],
+            });
+          }
+        }
+
         // Verificar se é um voto de enquete
         if (update.pollUpdates && update.pollUpdates.length > 0) {
           try {
@@ -3379,15 +3469,48 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         const eventTs = hasValidTs ? new Date(nTs * 1000) : new Date();
         const ageMs = Math.max(0, Date.now() - eventTs.getTime());
 
-        // Avoid processing long history sync. Meta ads leads sometimes arrive via append.
+        // FIX 2026: Aumentado threshold de 2min para 10min para não perder
+        // mensagens recentes que chegam via append após reconexão.
+        // Meta ads leads e mensagens durante desconexão podem chegar como append.
         const isAppendRecent =
           source === "append" &&
-          ((hasValidTs && ageMs <= 2 * 60 * 1000) || (!hasValidTs && (m.messages?.length || 0) <= 3 && !!message.key.id));
+          ((hasValidTs && ageMs <= 10 * 60 * 1000) || (!hasValidTs && (m.messages?.length || 0) <= 5 && !!message.key.id));
         const shouldProcess = source === "notify" || isAppendRecent;
 
         // Cache message for getMessage() retries
         if (message.key.id && message.message) {
           cacheMessage(userId, message.key.id, message.message);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // FIX 2026: FORÇAR PRESENCE PARA MENSAGENS STUB DE NOVOS CONTATOS
+        // ═══════════════════════════════════════════════════════════════════
+        // Quando um contato NOVO envia a primeira mensagem, a sessão Signal
+        // Protocol ainda não existe. A mensagem chega como "stub" (sem conteúdo).
+        // Baileys envia um retry receipt, mas o remetente pode não re-enviar
+        // se o bot não estiver "available" para esse JID específico.
+        //
+        // Solução: Enviar presence 'available' global + para o JID específico
+        // + presenceSubscribe para estabelecer o canal bidirecional.
+        // Isso permite que o retry do Signal Protocol complete com sucesso.
+        // ═══════════════════════════════════════════════════════════════════
+        if (!message.message && remoteJid && !message.key.fromMe) {
+          if (!remoteJid.includes("@g.us") && !remoteJid.includes("@broadcast")) {
+            try {
+              console.log(`📱 [STUB-SESSION-FIX] Mensagem sem conteúdo de ${remoteJid} - forçando presence para retry decrypt`);
+              await sock.sendPresenceUpdate('available');
+              await sock.sendPresenceUpdate('available', remoteJid);
+              // presenceSubscribe estabelece canal bidirecional necessário para retry
+              try {
+                const { jidNormalizedUser } = await import('@whiskeysockets/baileys');
+                await sock.presenceSubscribe(jidNormalizedUser(remoteJid));
+              } catch (subErr) {
+                // presenceSubscribe pode falhar para JIDs inválidos, não é crítico
+              }
+            } catch (presErr) {
+              console.log(`⚠️ [STUB-SESSION-FIX] Erro ao enviar presence:`, presErr);
+            }
+          }
         }
 
         if (!shouldProcess) continue;
@@ -4488,8 +4611,25 @@ async function handleIncomingMessage(
     });
   }
 
-  // ? FOLLOW-UP USU�RIOS: Resetar ciclo quando cliente responde
-  // O sistema de follow-up para usu�rios usa a tabela "conversations" (n�o admin_conversations)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FIX 2026: PRESENCE + SUBSCRIBE PARA NOVOS CONTATOS
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Para contatos novos (primeira mensagem), estabelecer a sessão Signal
+  // Protocol enviando presence e fazendo presenceSubscribe.
+  // Isso é CRÍTICO para que o retry de mensagens "Aguardando" funcione.
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (wasNewConversation) {
+    try {
+      await session.socket.sendPresenceUpdate('available', normalizedJid);
+      await session.socket.presenceSubscribe(normalizedJid);
+      console.log(`📱 [NEW-CONTACT-FIX] Presence + Subscribe enviados para novo contato ${contactNumber} (${normalizedJid})`);
+    } catch (presErr) {
+      console.log(`⚠️ [NEW-CONTACT-FIX] Erro ao enviar presence para novo contato:`, presErr);
+    }
+  }
+
+  // ✅ FOLLOW-UP USUÁRIOS: Resetar ciclo quando cliente responde
+  // O sistema de follow-up para usuários usa a tabela "conversations" (não admin_conversations)
   try {
     await userFollowUpService.resetFollowUpCycle(conversation.id, "Cliente respondeu");
   } catch (error) {
@@ -4559,8 +4699,20 @@ async function handleIncomingMessage(
     broadcastToUser(session.userId, {
       type: "new_message",
       conversationId: conversation.id,
-      message: effectiveText, // ? Usar texto transcrito (se for �udio)
+      message: effectiveText,
       mediaType,
+      // 🔥 FIX 2026: Enviar dados da conversa inline para real-time update sem refetch
+      conversationUpdate: {
+        id: conversation.id,
+        contactNumber,
+        contactName: conversation.contactName || waMessage.pushName || null,
+        contactAvatar: conversation.contactAvatar || null,
+        lastMessageText: effectiveText,
+        lastMessageTime: eventTs.toISOString(),
+        lastMessageFromMe: false,
+        unreadCount: (conversation.unreadCount || 0) + 1,
+        isNew: wasNewConversation,
+      },
   });
 
   // 🤖 AI Agent/Chatbot Auto-Response com SISTEMA DE ACUMULAÇÃO DE MENSAGENS
@@ -4626,18 +4778,65 @@ async function handleIncomingMessage(
     
     if (!canAutoReplyThis) {
       if (messageKind === "stub") {
-        // WhatsApp sometimes delivers a "stub" for first-lead messages (client sees "carregando mensagem").
-        // We still keep the lead in the CRM and ask the client to resend.
+        // ═══════════════════════════════════════════════════════════════════
+        // FIX 2026: AGUARDAR RETRY DECRYPT ANTES DE PEDIR REENVIO
+        // ═══════════════════════════════════════════════════════════════════
+        // Mensagens de novos contatos chegam como "stub" (sem conteúdo)
+        // porque a sessão Signal Protocol ainda não foi estabelecida.
+        // O Baileys internamente solicita retry ao remetente.
+        //
+        // ANTES: Enviava "reenvie por favor" imediatamente (ruim UX)
+        // AGORA: Aguardamos 15s para o retry completar. Se o retry funcionar,
+        //        a mensagem real chega via messages.update → re-emitida como
+        //        upsert → processada normalmente pela IA.
+        //        Se o retry NÃO funcionar após 15s, aí sim pedimos reenvio.
+        // ═══════════════════════════════════════════════════════════════════
+        const stubMsgId = waMessage.key.id;
+        const stubConversationId = conversation.id;
+        const stubUserId = session.userId;
+        const stubContactNumber = contactNumber;
+        const stubConnectionId = session.connectionId;
+        const stubRemoteJid = remoteJid;
+        const STUB_RETRY_WAIT_MS = 15000; // 15 segundos para retry
+
+        console.log(`⏳ [STUB-RETRY-FIX] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - aguardando ${STUB_RETRY_WAIT_MS / 1000}s para retry decrypt...`);
+
+        // Enviar presence extra para ajudar no retry
         try {
-          await sendMessage(
-            session.userId,
-            conversation.id,
-            "Oi! Sua mensagem chegou incompleta aqui. Pode reenviar por favor?",
-            { isFromAgent: true }
-          );
-        } catch (sendErr) {
-          console.error("Erro ao enviar pedido de reenvio (stub):", sendErr);
-        }
+          await session.socket.sendPresenceUpdate('available', normalizedJid);
+        } catch (_presErr) { /* não-crítico */ }
+
+        // Capturar params de dedupe para verificar após timeout
+        const stubDedupeParams = incomingDedupeParams ? { ...incomingDedupeParams } : null;
+
+        setTimeout(async () => {
+          try {
+            // Verificar se o retry completou (mensagem real foi processada)
+            // Se foi processada via retry, estará marcada no dedupe
+            if (stubDedupeParams) {
+              const wasDecrypted = await isIncomingMessageProcessed(stubDedupeParams);
+              if (wasDecrypted) {
+                console.log(`✅ [STUB-RETRY-FIX] Mensagem ${stubMsgId} foi descriptografada via retry! IA já respondeu.`);
+                return;
+              }
+            }
+
+            // Retry não completou após timeout - verificar se conversa ainda existe e está ativa
+            console.log(`⚠️ [STUB-RETRY-FIX] Mensagem ${stubMsgId} ainda incompleta após ${STUB_RETRY_WAIT_MS / 1000}s - pedindo reenvio`);
+            try {
+              await sendMessage(
+                stubUserId,
+                stubConversationId,
+                "Oi! Sua mensagem chegou incompleta aqui. Pode reenviar por favor? 😊",
+                { isFromAgent: true }
+              );
+            } catch (sendErr) {
+              console.error(`❌ [STUB-RETRY-FIX] Erro ao enviar pedido de reenvio:`, sendErr);
+            }
+          } catch (err) {
+            console.error(`❌ [STUB-RETRY-FIX] Erro no timeout de stub:`, err);
+          }
+        }, STUB_RETRY_WAIT_MS);
       }
       return;
     }
@@ -4926,7 +5125,14 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             console.log(`   contactNumber: ${contactNumber}`);
             console.log(`   Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
             console.log(`   👉 IA PAUSADA para este cliente - precisa renovar assinatura`);
+            console.log(`   🛑 Timer marcado como COMPLETED (sem retry - bloqueio permanente)`);
             console.log(`${'!'.repeat(60)}\n`);
+            // 🛑 FIX: Marcar como completed para PARAR retry loop infinito
+            // Plano vencido + limite atingido = bloqueio permanente, não adianta retry
+            try {
+              await storage.markPendingAIResponseCompleted(conversationId);
+            } catch (e) { /* ignora */ }
+            conversationsBeingProcessed.delete(conversationId);
             return;
           }
         }
@@ -4938,8 +5144,14 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           console.log(`   contactNumber: ${contactNumber}`);
           console.log(`   Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
           console.log(`   👉 Usuário precisa assinar plano`);
+          console.log(`   🛑 Timer marcado como COMPLETED (sem retry - bloqueio permanente)`);
           console.log(`${'!'.repeat(60)}\n`);
-          // Não enviar resposta - limite atingido
+          // 🛑 FIX: Marcar como completed para PARAR retry loop infinito
+          // Limite atingido = bloqueio permanente, não adianta retry a cada 30s
+          try {
+            await storage.markPendingAIResponseCompleted(conversationId);
+          } catch (e) { /* ignora */ }
+          conversationsBeingProcessed.delete(conversationId);
           return;
         }
         
