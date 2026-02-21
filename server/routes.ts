@@ -14192,6 +14192,14 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       sendEvent({ type: 'log', message: '?? Lendo prompt atual...' });
 
+      const existingConfig = await storage.getAgentConfig(userId);
+      const promptBase = existingConfig?.prompt || currentPrompt;
+      const modelForEdit = existingConfig?.model || 'mistral-medium-latest';
+
+      if (existingConfig?.prompt && existingConfig.prompt !== currentPrompt) {
+        sendEvent({ type: 'log', message: 'ℹ️ Detectado prompt mais recente no servidor; usando versão atual para evitar sobrescrita.' });
+      }
+
 
 
       // Editar prompt via IA
@@ -14208,7 +14216,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       sendEvent({ type: 'log', message: '? Aguardando resposta do modelo...' });
 
-      const result = await editarPromptViaIA(currentPrompt, instruction, mistralApiKey, "mistral");
+      const result = await editarPromptViaIA(promptBase, instruction, mistralApiKey, modelForEdit);
 
 
 

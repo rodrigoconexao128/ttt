@@ -2570,7 +2570,6 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
       },
       logger: pino({ level: "silent" }),
-      printQRInTerminal: false,
       // ======================================================================
       // 📱 FIX 2025: SINCRONIZAÇÃO COMPLETA DE CONTATOS DA AGENDA
       // ======================================================================
@@ -2580,6 +2579,8 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       // 1. browser: Browsers.macOS('Desktop') - Emula conexão desktop para
       //    receber histórico completo (mais contatos e mensagens)
       // 2. syncFullHistory: true - Habilita sync completo de contatos e histórico
+      // 3. shouldSyncHistoryMessage: () => true - Necessário após atualização
+      //    do Baileys (master 2026-02) que mudou o default para pular FULL sync
       //
       // O evento contacts.upsert será disparado com TODOS os contatos logo
       // após o QR Code ser escaneado e conexão estabelecida.
@@ -2587,6 +2588,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       // ======================================================================
       browser: Browsers.macOS('Desktop'),
       syncFullHistory: true,
+      shouldSyncHistoryMessage: () => true,
       // -----------------------------------------------------------------------
       // FIX 2026: Evita que WhatsApp redirecione mensagens pro Baileys
       // Sem isso, mensagens ficam como "Aguardando mensagem" no celular
@@ -3458,6 +3460,18 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
 
     sock.ev.on("messages.upsert", async (m) => {
       const source = m.type;
+      const requestId = (m as any).requestId;
+
+      // ═══════════════════════════════════════════════════════════════════
+      // LOG: Mensagem CTWA resolvida via Placeholder Resend (PR #2334)
+      // Quando requestId está presente, significa que o Baileys resolveu
+      // uma mensagem de anúncio Instagram/Facebook via PDO (Peer Data Operation)
+      // ═══════════════════════════════════════════════════════════════════
+      if (requestId) {
+        const msgIds = (m.messages || []).map(msg => msg?.key?.id).join(', ');
+        const remoteJids = (m.messages || []).map(msg => msg?.key?.remoteJid).join(', ');
+        console.log(`📢 [CTWA-RESOLVED] Mensagem de anúncio resolvida via placeholder resend! requestId=${requestId}, msgs=[${msgIds}], from=[${remoteJids}]`);
+      }
 
       for (const message of m.messages || []) {
         if (!message) continue;
@@ -3483,33 +3497,21 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // FIX 2026: FORÇAR PRESENCE PARA MENSAGENS STUB DE NOVOS CONTATOS
+        // FIX 2026-02: MONITORAMENTO DE MENSAGENS CTWA (Anúncios Instagram/Facebook)
         // ═══════════════════════════════════════════════════════════════════
-        // Quando um contato NOVO envia a primeira mensagem, a sessão Signal
-        // Protocol ainda não existe. A mensagem chega como "stub" (sem conteúdo).
-        // Baileys envia um retry receipt, mas o remetente pode não re-enviar
-        // se o bot não estiver "available" para esse JID específico.
+        // Após atualização do Baileys para master (PR #2334), mensagens de
+        // anúncios CTWA agora são detectadas automaticamente pelo Baileys.
+        // O Baileys chama requestPlaceholderResend() internamente e re-emite
+        // a mensagem real via messages.upsert com type: 'notify'.
         //
-        // Solução: Enviar presence 'available' global + para o JID específico
-        // + presenceSubscribe para estabelecer o canal bidirecional.
-        // Isso permite que o retry do Signal Protocol complete com sucesso.
+        // Este bloco monitora e loga quando uma mensagem chega como stub/
+        // placeholder (sem conteúdo), que pode indicar CTWA ou retry em andamento.
         // ═══════════════════════════════════════════════════════════════════
         if (!message.message && remoteJid && !message.key.fromMe) {
           if (!remoteJid.includes("@g.us") && !remoteJid.includes("@broadcast")) {
-            try {
-              console.log(`📱 [STUB-SESSION-FIX] Mensagem sem conteúdo de ${remoteJid} - forçando presence para retry decrypt`);
-              await sock.sendPresenceUpdate('available');
-              await sock.sendPresenceUpdate('available', remoteJid);
-              // presenceSubscribe estabelece canal bidirecional necessário para retry
-              try {
-                const { jidNormalizedUser } = await import('@whiskeysockets/baileys');
-                await sock.presenceSubscribe(jidNormalizedUser(remoteJid));
-              } catch (subErr) {
-                // presenceSubscribe pode falhar para JIDs inválidos, não é crítico
-              }
-            } catch (presErr) {
-              console.log(`⚠️ [STUB-SESSION-FIX] Erro ao enviar presence:`, presErr);
-            }
+            const stubType = (message as any).messageStubType;
+            const stubParams = (message as any).messageStubParameters;
+            console.log(`📡 [CTWA-MONITOR] Mensagem sem conteúdo de ${remoteJid} (stub=${stubType}, params=${JSON.stringify(stubParams)}, source=${source}) - Baileys irá solicitar placeholder resend automaticamente`);
           }
         }
 
