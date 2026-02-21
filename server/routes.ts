@@ -27005,6 +27005,18 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ========================================================================
 
+  // Helper: resolve the effective admin ID for notifications
+  // If logged-in admin is not the 'owner', use the owner's admin_id
+  // since the scheduler creates all notifications under the owner
+  async function resolveNotificationAdminId(adminId: string): Promise<string> {
+    try {
+      const adminRow = await db.execute(sql`SELECT role FROM admins WHERE id = ${adminId}`);
+      if ((adminRow.rows[0] as any)?.role === 'owner') return adminId;
+      const ownerRow = await db.execute(sql`SELECT id FROM admins WHERE role = 'owner' ORDER BY created_at ASC LIMIT 1`);
+      return (ownerRow.rows[0] as any)?.id || adminId;
+    } catch { return adminId; }
+  }
+
 
 
   // Get notification config
@@ -27013,7 +27025,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      const adminId = (req.session as any)?.adminId;
+      const rawAdminId = (req.session as any)?.adminId;
+      const adminId = await resolveNotificationAdminId(rawAdminId);
 
       const config = await storage.getAdminNotificationConfig?.(adminId);
 
@@ -27213,7 +27226,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      const adminId = (req.session as any)?.adminId;
+      const rawAdminId = (req.session as any)?.adminId;
+      const adminId = await resolveNotificationAdminId(rawAdminId);
 
       const configData = req.body;
 
@@ -27812,8 +27826,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
   // Get notification history (logs) with pagination
   app.get("/api/admin/notifications/history", isAdmin, async (req: any, res) => {
     try {
-      const adminId = (req as any).admin?.id || (req.session as any)?.adminId;
-      if (!adminId) return res.status(401).json({ message: "Admin não autenticado" });
+      const rawAdminId = (req as any).admin?.id || (req.session as any)?.adminId;
+      if (!rawAdminId) return res.status(401).json({ message: "Admin não autenticado" });
+      const adminId = await resolveNotificationAdminId(rawAdminId);
 
       const page = parseInt(req.query.page as string) || 1;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
@@ -27893,8 +27908,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      const adminId = (req.session as any)?.adminId;
-
+      const rawAdminId = (req.session as any)?.adminId;
+      const adminId = await resolveNotificationAdminId(rawAdminId);
       const { startDate, endDate, status, type } = req.query;
 
 
