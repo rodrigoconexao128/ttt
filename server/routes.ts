@@ -27856,8 +27856,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days' AND status = 'sent') as sent_week,
           COUNT(*) FILTER (WHERE notification_type = 'payment_reminder' AND status = 'sent') as payment_reminders,
           COUNT(*) FILTER (WHERE notification_type = 'overdue_reminder' AND status = 'sent') as overdue_reminders,
-          COUNT(*) FILTER (WHERE notification_type = 'checkin' OR notification_type = 'periodic_checkin' AND status = 'sent') as checkins,
-          COUNT(*) FILTER (WHERE notification_type = 'disconnected' AND status = 'sent') as disconnected_alerts
+          COUNT(*) FILTER (WHERE (notification_type = 'checkin' OR notification_type = 'periodic_checkin') AND status = 'sent') as checkins,
+          COUNT(*) FILTER (WHERE notification_type = 'disconnected' AND status = 'sent') as disconnected_alerts,
+          COUNT(*) FILTER (WHERE notification_type = 'welcome' AND status = 'sent') as welcome_messages
         FROM admin_notification_logs
         WHERE admin_id = ${adminId}
       `);

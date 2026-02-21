@@ -1251,7 +1251,7 @@ async function sendNotification(
  * ✅ APLICA VARIAÇÃO COM IA NA MENSAGEM - GERA MENSAGEM ÚNICA PARA CADA CLIENTE
  * Isso evita detecção de bot pelo WhatsApp
  */
-async function applyAIVariation(message: string, customPrompt?: string, clientName?: string): Promise<string> {
+export async function applyAIVariation(message: string, customPrompt?: string, clientName?: string): Promise<string> {
   try {
     const prompt = customPrompt || 
       `Reescreva esta mensagem mantendo o mesmo significado mas com palavras e estrutura diferentes.

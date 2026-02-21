@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -202,28 +201,16 @@ const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 export default function AdminNotificationsPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [location, setLocation] = useLocation();
   
-  // Detectar aba pela URL
-  const getTabFromUrl = () => {
-    const hash = location.split('#')[1];
-    return hash || 'pagamentos';
-  };
-  
-  const [activeTab, setActiveTab] = useState(getTabFromUrl());
+  // FIXED: Use internal state only — do NOT touch URL hash.
+  // The parent admin.tsx owns the hash (#whatsapp). Changing it to #historico etc.
+  // caused the panel to unmount because admin.tsx has no case for those hashes.
+  const [activeTab, setActiveTab] = useState('pagamentos');
   const [config, setConfig] = useState<NotificationConfig>(defaultConfig);
   const [hasChanges, setHasChanges] = useState(false);
   
-  // Sincronizar aba com URL
-  useEffect(() => {
-    const tab = getTabFromUrl();
-    setActiveTab(tab);
-  }, [location]);
-  
   const handleTabChange = (value: string) => {
     setActiveTab(value);
-    const basePath = location.split('#')[0];
-    setLocation(`${basePath}#${value}`);
   };
   
   // Estado do broadcast

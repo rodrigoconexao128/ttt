@@ -8459,22 +8459,6 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
   try {
     console.log(`[WELCOME] Iniciando envio de mensagem de boas-vindas para ${userPhone}`);
 
-    // Obter configuração de mensagem de boas-vindas
-    const enabledConfig = await storage.getSystemConfig('welcome_message_enabled');
-    const messageConfig = await storage.getSystemConfig('welcome_message_text');
-
-    if (!enabledConfig || enabledConfig.valor !== 'true') {
-      console.log('[WELCOME] Mensagem de boas-vindas desabilitada');
-      return;
-    }
-
-    if (!messageConfig || !messageConfig.valor) {
-      console.log('[WELCOME] Mensagem de boas-vindas não configurada');
-      return;
-    }
-
-    console.log('[WELCOME] Configuração encontrada, procurando admin...');
-
     // Obter admin (assumindo que há apenas um admin owner)
     const allAdmins = await storage.getAllAdmins();
     const adminUser = allAdmins.find(a => a.role === 'owner');
@@ -8485,6 +8469,59 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
     }
 
     console.log(`[WELCOME] Admin encontrado: ${adminUser.id}`);
+
+    // ✅ PRIORIDADE: Verificar config do painel de notificações (admin_notification_config)
+    const notifConfig = await storage.getAdminNotificationConfig?.(adminUser.id);
+    
+    let messageText = '';
+    let aiEnabled = false;
+    let aiPrompt = '';
+    
+    if (notifConfig && notifConfig.welcome_message_enabled) {
+      // Usar variações do painel de notificações
+      const variations = notifConfig.welcome_message_variations;
+      if (Array.isArray(variations) && variations.length > 0) {
+        // Escolher variação aleatória
+        messageText = variations[Math.floor(Math.random() * variations.length)];
+        aiEnabled = notifConfig.welcome_message_ai_enabled ?? false;
+        aiPrompt = notifConfig.welcome_message_ai_prompt || '';
+        console.log(`[WELCOME] Usando config do painel de notificações (${variations.length} variações)`);
+      }
+    }
+    
+    // Fallback: config do sistema antigo
+    if (!messageText) {
+      const enabledConfig = await storage.getSystemConfig('welcome_message_enabled');
+      const messageConfig = await storage.getSystemConfig('welcome_message_text');
+      
+      if (!enabledConfig || enabledConfig.valor !== 'true') {
+        console.log('[WELCOME] Mensagem de boas-vindas desabilitada');
+        return;
+      }
+      
+      if (!messageConfig || !messageConfig.valor) {
+        console.log('[WELCOME] Mensagem de boas-vindas não configurada');
+        return;
+      }
+      
+      messageText = messageConfig.valor;
+      console.log('[WELCOME] Usando config do sistema legado');
+    }
+
+    // Substituir variáveis
+    messageText = messageText.replace(/\{\{name\}\}/g, '').replace(/\{nome\}/g, '').trim();
+
+    // Aplicar variação IA se habilitado
+    if (aiEnabled && aiPrompt) {
+      try {
+        const { applyAIVariation } = await import('./notificationSchedulerService');
+        messageText = await applyAIVariation(messageText, aiPrompt, '');
+        console.log('[WELCOME] Variação IA aplicada');
+      } catch (aiError) {
+        console.error('[WELCOME] Erro ao aplicar variação IA:', aiError);
+        // Continua com a mensagem original
+      }
+    }
 
     // Verificar se admin tem WhatsApp conectado
     const adminConnection = await storage.getAdminWhatsappConnection(adminUser.id);
@@ -8522,12 +8559,30 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
     // Formatar número para envio (remover + e adicionar @s.whatsapp.net)
     const formattedNumber = `${cleanContactNumber(userPhone) || userPhone.replace('+', '')}@${DEFAULT_JID_SUFFIX}`;
 
-    // ??? ANTI-BLOQUEIO: Enviar via fila
+    // ✅ ANTI-BLOQUEIO: Enviar via fila
     await sendWithQueue('ADMIN_AGENT', 'credenciais welcome', async () => {
       await adminSession!.socket!.sendMessage(formattedNumber, {
-        text: messageConfig.valor,
+        text: messageText,
       });
     });
+
+    // ✅ Registrar log na tabela de notificações
+    try {
+      await storage.createAdminNotificationLog?.({
+        adminId: adminUser.id,
+        userId: null as any,
+        notificationType: 'welcome',
+        recipientPhone: userPhone,
+        recipientName: '',
+        messageSent: messageText,
+        messageOriginal: messageText,
+        status: 'sent',
+        errorMessage: null as any,
+        metadata: { source: notifConfig?.welcome_message_enabled ? 'notification_panel' : 'system_config' },
+      });
+    } catch (logError) {
+      console.error('[WELCOME] Erro ao registrar log:', logError);
+    }
 
     console.log(`[WELCOME] ✅ Mensagem de boas-vindas enviada com sucesso para ${userPhone}`);
   } catch (error) {
