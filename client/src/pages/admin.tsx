@@ -29,7 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useLocation, useSearch, useRoute } from "wouter";
-import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, UserMinus, Receipt, XCircle, FileImage, TicketCheck, BarChart3, Layers, Link2, Repeat, Bell } from "lucide-react";
+import { Loader2, Plus, Trash2, Check, DollarSign, Users, CreditCard, MessageCircle, Bot, LayoutDashboard, Settings, UserCog, Calendar, Edit, Send, Play, RefreshCw, Search, CheckCircle, Copy, Key, Eye, EyeOff, TestTube, LogIn, LogOut, CheckSquare, Square, ArrowUpDown, ArrowUp, ArrowDown, Lock, Tag, Crown, Building2, ShieldAlert, ShieldCheck, ShieldOff, AlertTriangle, UserMinus, Receipt, XCircle, FileImage, TicketCheck, BarChart3, Layers, Link2, Repeat, Bell } from "lucide-react";
 import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminNotificationsPanel from "@/components/admin-notifications-panel";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
@@ -98,6 +98,16 @@ export default function AdminPanel() {
     window.addEventListener('admin-tab-change', onTabChange);
     return () => window.removeEventListener('admin-tab-change', onTabChange);
   }, []);
+
+  // Logout do admin
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/admin/logout", { method: "POST", credentials: "include" });
+    } catch (e) {
+      console.warn("Falha ao chamar /api/admin/logout:", e);
+    }
+    setLocation("/admin-login");
+  };
 
   // Guard: exige sessão de admin
   useEffect(() => {
@@ -580,7 +590,15 @@ export default function AdminPanel() {
             </SidebarGroup>
           </SidebarContent>
           <SidebarFooter>
-            <div className="p-4 text-xs text-muted-foreground text-center">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Sair" onClick={handleLogout} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                  <LogOut className="w-4 h-4" />
+                  <span>Sair</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+            <div className="p-2 text-xs text-muted-foreground text-center">
               Admin Panel v1.0
             </div>
           </SidebarFooter>
@@ -829,7 +847,15 @@ export default function AdminPanel() {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <div className="p-4 text-xs text-muted-foreground text-center">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Sair" onClick={handleLogout} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                <LogOut className="w-4 h-4" />
+                <span>Sair</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <div className="p-2 text-xs text-muted-foreground text-center">
             Admin Panel v1.0
           </div>
         </SidebarFooter>

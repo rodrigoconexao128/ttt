@@ -551,16 +551,39 @@ RESPONDA APENAS COM JSON VÁLIDO:
     flow.globalRules = globalRules;
     flow.sourcePrompt = prompt;
     
-    // 🎯 CRÍTICO: Sobrescrever mensagem START se customizada detectada
-    if (customGreeting && flow.states.INICIO) {
-      console.log(`[FlowBuilder] ✅ Substituindo mensagem START por customizada`);
-      flow.states.INICIO.description = customGreeting;
-      // Também criar uma ação customizada
+    // 🎯 CRÍTICO: Sobrescrever TODAS as ações de saudação quando há mensagem customizada
+    if (customGreeting) {
+      console.log(`[FlowBuilder] ✅ Aplicando saudação customizada no flow inteiro`);
+
+      // 1) Atualiza descrição do estado inicial (independente do nome do estado)
+      if (flow.states[flow.initialState]) {
+        flow.states[flow.initialState].description = customGreeting;
+      }
+
+      // 2) Cria ação dedicada de saudação customizada
       flow.actions.GREET_CUSTOM = {
         name: 'Saudação Customizada',
         type: 'RESPONSE',
         template: customGreeting
       };
+
+      // 3) Reaponta transições de GREETING para GREET_CUSTOM
+      for (const state of Object.values(flow.states)) {
+        if (!Array.isArray(state.transitions)) continue;
+        for (const transition of state.transitions) {
+          if (transition.intent === 'GREETING') {
+            transition.action = 'GREET_CUSTOM';
+          }
+        }
+      }
+
+      // 4) Hardening: qualquer ação de saudação já existente passa a usar o mesmo template
+      for (const [actionKey, actionDef] of Object.entries(flow.actions)) {
+        const isGreetingAction = /greet|sauda|welcome/i.test(actionKey) || /greet|sauda|welcome/i.test(actionDef.name || '');
+        if (isGreetingAction && actionDef.type === 'RESPONSE') {
+          actionDef.template = customGreeting;
+        }
+      }
     }
     
     // 5. Se tiver IA disponível, fazer análise profunda
