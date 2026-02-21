@@ -1095,6 +1095,9 @@ export default function AdminNotificationsPanel() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-medium text-sm truncate">{log.recipient_name || log.user_name || 'Cliente'}</span>
+                                {(log.recipient_phone || log.user_phone) && (
+                                  <span className="text-[10px] text-gray-400 font-mono">{log.recipient_phone || log.user_phone}</span>
+                                )}
                                 <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${typeColors[log.notification_type] || 'bg-gray-100'}`}>
                                   {typeLabels[log.notification_type] || log.notification_type}
                                 </Badge>

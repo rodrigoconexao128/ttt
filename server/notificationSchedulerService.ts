@@ -219,13 +219,17 @@ async function autoReorganizeForAdmin(adminId: string): Promise<void> {
   };
   
   // ✅ CORRIGIDO: Reagendar pendentes atrasados para o próximo horário comercial
-  // (antes deletava, perdendo notificações do fim de semana/fora do horário)
+  // Agora usa business_days da config do admin (não mais hardcoded Sáb/Dom)
+  const businessDays = config.businessDays || [1, 2, 3, 4, 5];
+  const excludedDays = [0, 1, 2, 3, 4, 5, 6].filter(d => !businessDays.includes(d));
+  // Se todos os dias estão habilitados, não precisamos pular fins de semana
+  const hasExcludedDays = excludedDays.length > 0;
   try {
     const staleResult = await db.execute(sql`
       UPDATE scheduled_notifications
       SET scheduled_for = (
         CASE 
-          WHEN EXTRACT(DOW FROM NOW() AT TIME ZONE 'America/Sao_Paulo') IN (0, 6)
+          WHEN ${hasExcludedDays} AND EXTRACT(DOW FROM NOW() AT TIME ZONE 'America/Sao_Paulo') = ANY(${excludedDays}::int[])
             THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Sao_Paulo') + INTERVAL '1 day' * 
                   CASE WHEN EXTRACT(DOW FROM NOW() AT TIME ZONE 'America/Sao_Paulo') = 6 THEN 2 ELSE 1 END
                  ) + (${config.businessHoursStart || '09:00'})::time + (floor(random() * 120) || ' minutes')::interval
@@ -315,7 +319,7 @@ async function autoReorganizeForAdmin(adminId: string): Promise<void> {
     FROM users u
     LEFT JOIN LATERAL (
       SELECT * FROM subscriptions sub 
-      WHERE sub.user_id = u.id AND sub.status IN ('active', 'pending')
+      WHERE sub.user_id = u.id AND sub.status IN ('active', 'pending', 'expired')
       ORDER BY sub.created_at DESC LIMIT 1
     ) s ON true
     LEFT JOIN plans p ON s.plan_id = p.id
@@ -351,6 +355,8 @@ async function autoReorganizeForAdmin(adminId: string): Promise<void> {
     
     const planValor = user.plan_valor || '0';
     const hasSubscription = user.sub_id && (user.sub_status === 'active' || user.sub_status === 'pending');
+    // Para cobrança, incluir também planos expirados (continuar cobrando mesmo após cancelamento)
+    const hasSubscriptionForOverdue = user.sub_id && (user.sub_status === 'active' || user.sub_status === 'pending' || user.sub_status === 'expired');
     
     // 1. LEMBRETE DE PAGAMENTO
     if (config.paymentReminderEnabled && hasSubscription && dueDate) {
@@ -385,8 +391,8 @@ async function autoReorganizeForAdmin(adminId: string): Promise<void> {
       }
     }
     
-    // 2. COBRANÇA EM ATRASO
-    if (config.overdueReminderEnabled && hasSubscription && dueDate) {
+    // 2. COBRANÇA EM ATRASO (inclui planos expirados para continuar cobrando)
+    if (config.overdueReminderEnabled && hasSubscriptionForOverdue && dueDate) {
       const dueDateObj = new Date(dueDate);
       const daysOverdue = Math.ceil((now.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24));
       
