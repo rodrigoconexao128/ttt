@@ -2564,12 +2564,39 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
     const contactsCache = new Map<string, Contact>();
 
     console.log(`[CONNECT] Creating WASocket for ${userId}...`);
+    // Create a custom Baileys logger that captures CTWA-related debug messages
+    // while keeping everything else silent to avoid log flooding.
+    // pino({ level: 'silent' }) completely disables .debug() calls, so we need 
+    // level: 'debug' with selective output to see CTWA/PDO internal Baileys logs.
+    const baseLogger = pino({ level: "debug" });
+    // Create a selective wrapper that only outputs CTWA/PDO related messages
+    const isCTWARelated = (...args: any[]) => {
+      try {
+        const str = JSON.stringify(args);
+        return str.includes('placeholder') || str.includes('PLACEHOLDER') || 
+               str.includes('absent') || str.includes('PDO') ||
+               str.includes('peerData') || str.includes('unavailable_fanout');
+      } catch { return false; }
+    };
+    const ctwaLogger: any = {
+      level: 'debug',
+      fatal: (...args: any[]) => { console.error(`💀 [BAILEYS]`, ...args); },
+      error: (...args: any[]) => { console.error(`❌ [BAILEYS]`, ...args); },
+      warn: (...args: any[]) => { /* silent - too noisy */ },
+      info: (...args: any[]) => { /* silent - too noisy */ },
+      debug: (...args: any[]) => { if (isCTWARelated(...args)) console.log(`🔍 [BAILEYS-CTWA]`, ...args); },
+      trace: (...args: any[]) => { /* silent */ },
+      child: () => ctwaLogger,
+    };
+    
     const sock = makeWASocket({
       auth: {
         creds: state.creds,
         keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
       },
-      logger: pino({ level: "silent" }),
+      // FIX 2026-02: Custom CTWA-intercepting logger
+      // Captures CTWA/PDO/placeholder debug messages from Baileys while keeping other logs silent
+      logger: ctwaLogger as any,
       // ======================================================================
       // 📱 FIX 2025: SINCRONIZAÇÃO COMPLETA DE CONTATOS DA AGENDA
       // ======================================================================
