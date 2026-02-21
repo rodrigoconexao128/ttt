@@ -2640,6 +2640,25 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       },
     });
 
+    // ======================================================================
+    // 📢 CTWA FIX VERIFICATION: Verify Baileys has PR #2334 CTWA fix loaded
+    // ======================================================================
+    try {
+      const baileysPath = require.resolve('@whiskeysockets/baileys/lib/Socket/messages-recv.js');
+      const fs = require('fs');
+      const baileysCode = fs.readFileSync(baileysPath, 'utf-8');
+      const hasCTWAFix = baileysCode.includes('requestPlaceholderResend');
+      const hasNO_MESSAGE_FOUND = baileysCode.includes('NO_MESSAGE_FOUND_ERROR_TEXT');
+      console.log(`📢 [CTWA-STARTUP] Baileys CTWA fix check: requestPlaceholderResend=${hasCTWAFix}, NO_MESSAGE_FOUND_ERROR_TEXT=${hasNO_MESSAGE_FOUND}`);
+      if (!hasCTWAFix) {
+        console.error(`❌ [CTWA-STARTUP] CRITICAL: Baileys does NOT have the CTWA fix (PR #2334). CTWA ads messages will NOT work!`);
+      } else {
+        console.log(`✅ [CTWA-STARTUP] Baileys has CTWA fix (PR #2334) loaded successfully. Instagram/Facebook ads messages should be handled.`);
+      }
+    } catch (e) {
+      console.error(`⚠️ [CTWA-STARTUP] Could not verify Baileys CTWA fix:`, e);
+    }
+
     const session: WhatsAppSession = {
       socket: sock,
       userId,
@@ -3327,13 +3346,28 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // � HANDLER DE ATUALIZAÇÕES DE MENSAGENS (messages.update) v3.0
+    // ═══════════════════════════════════════════════════════════════════════════
+    // HANDLER DE ATUALIZAÇÕES DE MENSAGENS (messages.update) v3.1
     // - Processa votos de enquete (poll updates)
     // - FIX 2026: Processa mensagens que chegam descriptografadas via retry
     //   (resolve "Aguardando mensagem" / "Waiting for this message")
+    // - FIX 2026-02: Detecta CTWA placeholder resend requests (PR #2334)
     // ═══════════════════════════════════════════════════════════════════════════
     sock.ev.on("messages.update", async (updates) => {
       for (const { key, update } of updates) {
+        // ─────────────────────────────────────────────────────────────────────
+        // FIX 2026-02: Log CTWA placeholder resend status (from Baileys PR #2334)
+        // When Baileys detects a CTWA message, it emits an update with
+        // requestId in messageStubParameters[1]. Log this for monitoring.
+        // ─────────────────────────────────────────────────────────────────────
+        const stubParams = (update as any).messageStubParameters;
+        if (stubParams && Array.isArray(stubParams) && stubParams.length >= 2) {
+          const requestIdFromStub = stubParams[1];
+          if (requestIdFromStub && typeof requestIdFromStub === 'string' && requestIdFromStub.length > 5) {
+            console.log(`📢 [CTWA-PDO-REQUEST] Baileys solicitou placeholder resend para mensagem ${key.id} de ${key.remoteJid} (requestId=${requestIdFromStub})`);
+          }
+        }
+
         // ─────────────────────────────────────────────────────────────────────
         // FIX 2026: Se uma mensagem que estava "pending" agora tem conteúdo,
         // cachear para retry e re-emitir como upsert para processamento
@@ -3463,6 +3497,79 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       const requestId = (m as any).requestId;
 
       // ═══════════════════════════════════════════════════════════════════
+      // 📋 ALL-MESSAGES LOGGER v1.0: Log EVERY message for CTWA debugging
+      // Shows message type, content keys, stub info - essential for diagnosing
+      // missing Instagram/Facebook ads messages (CTWA/Click-to-WhatsApp)
+      // ═══════════════════════════════════════════════════════════════════
+      for (const msg of m.messages || []) {
+        const jid = msg?.key?.remoteJid || 'unknown';
+        const msgId = msg?.key?.id || 'no-id';
+        const fromMe = msg?.key?.fromMe ? 'OUT' : 'IN';
+        const contentKeys = msg?.message ? Object.keys(msg.message).join(',') : 'NO-CONTENT';
+        const stubType = (msg as any).messageStubType;
+        const stubParams = (msg as any).messageStubParameters;
+        const hasProtocol = msg?.message?.protocolMessage ? true : false;
+        
+        // Only log non-fromMe or protocol messages (to reduce noise)
+        if (!msg?.key?.fromMe || hasProtocol || stubType) {
+          console.log(`📋 [MSG-UPSERT] ${fromMe} ${source}${requestId ? ' PDO:'+requestId : ''} | ${jid.split('@')[0]} | id=${msgId.substring(0,12)} | content=[${contentKeys}] | stub=${stubType || 'none'}${stubParams ? ' params='+JSON.stringify(stubParams) : ''}`);
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // 🔄 USERLAND PDO RESPONSE HANDLER (Fallback for Baileys PR #2334)
+        // If Baileys' internal processMessage fails to decode the PDO response,
+        // this catches it and manually decodes webMessageInfoBytes.
+        // This handles the case where the phone responds to the placeholder
+        // resend request but Baileys fails to process it internally.
+        // ═══════════════════════════════════════════════════════════════════
+        const protocolMsg = msg?.message?.protocolMessage;
+        if (protocolMsg) {
+          const pdoResponse = (protocolMsg as any).peerDataOperationRequestResponseMessage;
+          if (pdoResponse) {
+            const peerResults = pdoResponse.peerDataOperationResult || [];
+            console.log(`📢 [CTWA-PDO-RESPONSE] Received PDO response from phone! stanzaId=${pdoResponse.stanzaId}, results=${peerResults.length}`);
+            
+            for (const result of peerResults) {
+              const resendResponse = result?.placeholderMessageResendResponse;
+              if (resendResponse?.webMessageInfoBytes) {
+                console.log(`📢 [CTWA-PDO-DECODE] Found webMessageInfoBytes in PDO response (${resendResponse.webMessageInfoBytes.length} bytes)`);
+                
+                // Note: Baileys' processMessage should handle this automatically.
+                // This log confirms the phone DID respond - if CTWA-RESOLVED doesn't
+                // follow, then processMessage has a bug.
+                try {
+                  const { proto } = await import('@whiskeysockets/baileys');
+                  const decoded = proto.WebMessageInfo.decode(resendResponse.webMessageInfoBytes);
+                  console.log(`📢 [CTWA-PDO-DECODE] Decoded message: id=${decoded?.key?.id}, from=${decoded?.key?.remoteJid}, contentKeys=${decoded?.message ? Object.keys(decoded.message).join(',') : 'NONE'}`);
+                  
+                  // If Baileys didn't emit the resolved message within 3 seconds, do it ourselves
+                  const decodedMsgId = decoded?.key?.id;
+                  if (decodedMsgId && decoded?.message) {
+                    setTimeout(() => {
+                      // Check if this message was already processed by checking our cache
+                      const alreadyCached = getCachedMessage(userId, decodedMsgId);
+                      if (!alreadyCached) {
+                        console.log(`⚠️ [CTWA-FALLBACK] Baileys didn't emit resolved message after 3s. Manually emitting as upsert!`);
+                        sock.ev.emit('messages.upsert', {
+                          messages: [decoded],
+                          type: 'notify',
+                          requestId: pdoResponse.stanzaId || 'userland-fallback'
+                        } as any);
+                      } else {
+                        console.log(`✅ [CTWA-PDO-DECODE] Message ${decodedMsgId} already in cache - Baileys handled it correctly`);
+                      }
+                    }, 3000);
+                  }
+                } catch (decodeErr) {
+                  console.error(`❌ [CTWA-PDO-DECODE] Failed to decode webMessageInfoBytes:`, decodeErr);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════════
       // LOG: Mensagem CTWA resolvida via Placeholder Resend (PR #2334)
       // Quando requestId está presente, significa que o Baileys resolveu
       // uma mensagem de anúncio Instagram/Facebook via PDO (Peer Data Operation)
@@ -3489,7 +3596,17 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         const isAppendRecent =
           source === "append" &&
           ((hasValidTs && ageMs <= 10 * 60 * 1000) || (!hasValidTs && (m.messages?.length || 0) <= 5 && !!message.key.id));
-        const shouldProcess = source === "notify" || isAppendRecent;
+        
+        // FIX 2026-02: CTWA resolved messages (from PDO) come with requestId
+        // and may arrive as 'append' type from process-message.js
+        // Always process these regardless of source/age
+        const isCTWAResolved = !!requestId && !!message.message;
+        
+        const shouldProcess = source === "notify" || isAppendRecent || isCTWAResolved;
+        
+        if (isCTWAResolved) {
+          console.log(`📢 [CTWA-PROCESS] Processing CTWA-resolved message from PDO: ${message.key.id} from ${remoteJid} (source=${source}, requestId=${requestId})`);
+        }
 
         // Cache message for getMessage() retries
         if (message.key.id && message.message) {
