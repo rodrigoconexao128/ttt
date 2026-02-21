@@ -2644,12 +2644,25 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
     // 📢 CTWA FIX VERIFICATION: Verify Baileys has PR #2334 CTWA fix loaded
     // ======================================================================
     try {
-      // Check if Baileys has the CTWA fix by testing if the socket has
-      // the expected internal structure (sendPeerDataOperationMessage)
-      const hasSendPDO = typeof (sock as any).sendPeerDataOperationMessage === 'function';
-      const hasMessageRetryManager = !!(sock as any).messageRetryManager || !!(sock as any).config?.messageRetryManager;
-      console.log(`📢 [CTWA-STARTUP] Baileys CTWA capability check: sendPeerDataOperationMessage=${hasSendPDO}`);
-      console.log(`✅ [CTWA-STARTUP] Baileys socket created successfully. CTWA fix (PR #2334) should be available via master branch.`);
+      // Test 1: Check if proto has PLACEHOLDER_MESSAGE_RESEND (basic proto check)
+      const hasPDOType = !!(proto?.Message?.PeerDataOperationRequestType as any)?.PLACEHOLDER_MESSAGE_RESEND;
+      // Test 2: Check if proto has CIPHERTEXT stub type (used by CTWA fix)
+      const hasCiphertextStub = !!(proto?.Message?.MessageStubType as any)?.CIPHERTEXT;
+      // Test 3: Read package version from Baileys (via createRequire for ESM compat)
+      let baileysVersion = 'unknown';
+      try {
+        const { createRequire } = await import('module');
+        const req = createRequire(import.meta.url);
+        const pkg = req('@whiskeysockets/baileys/package.json');
+        baileysVersion = pkg.version || 'no-version';
+      } catch { baileysVersion = 'read-failed'; }
+      
+      console.log(`📢 [CTWA-STARTUP] Baileys v${baileysVersion} | PLACEHOLDER_MESSAGE_RESEND=${hasPDOType} | CIPHERTEXT_STUB=${hasCiphertextStub}`);
+      if (hasPDOType) {
+        console.log(`✅ [CTWA-STARTUP] Baileys CTWA fix (PR #2334) proto definitions present. PDO placeholder resend should work.`);
+      } else {
+        console.error(`❌ [CTWA-STARTUP] Baileys may be missing CTWA fix proto definitions!`);
+      }
     } catch (e) {
       console.error(`⚠️ [CTWA-STARTUP] Could not verify Baileys CTWA fix:`, e);
     }
