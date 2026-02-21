@@ -4932,17 +4932,21 @@ async function handleIncomingMessage(
     if (!canAutoReplyThis) {
       if (messageKind === "stub") {
         // ═══════════════════════════════════════════════════════════════════
-        // FIX 2026: AGUARDAR RETRY DECRYPT ANTES DE PEDIR REENVIO
+        // FIX 2026-02-21: STUB FALLBACK INTELIGENTE
         // ═══════════════════════════════════════════════════════════════════
         // Mensagens de novos contatos chegam como "stub" (sem conteúdo)
         // porque a sessão Signal Protocol ainda não foi estabelecida.
         // O Baileys internamente solicita retry ao remetente.
         //
-        // ANTES: Enviava "reenvie por favor" imediatamente (ruim UX)
-        // AGORA: Aguardamos 15s para o retry completar. Se o retry funcionar,
-        //        a mensagem real chega via messages.update → re-emitida como
-        //        upsert → processada normalmente pela IA.
-        //        Se o retry NÃO funcionar após 15s, aí sim pedimos reenvio.
+        // FLUXO:
+        // 1. Aguarda 15s para o Baileys descriptografar via retry
+        // 2. Se retry funcionar → mensagem real chega via messages.update
+        //    e é processada normalmente (IA já responde)
+        // 3. Se retry NÃO funcionar após 15s → FALLBACK:
+        //    a) Atualiza texto da mensagem salva para "Oi"
+        //    b) Dispara processamento via Chatbot/IA normalmente
+        //    c) Assim o cliente SEMPRE recebe uma resposta útil da IA
+        //    (Antes: enviava "reenvie por favor" que era experiência ruim)
         // ═══════════════════════════════════════════════════════════════════
         const stubMsgId = waMessage.key.id;
         const stubConversationId = conversation.id;
@@ -4950,6 +4954,8 @@ async function handleIncomingMessage(
         const stubContactNumber = contactNumber;
         const stubConnectionId = session.connectionId;
         const stubRemoteJid = remoteJid;
+        const stubSavedMessageId = savedMessage.id;
+        const stubJidSuffix = jidSuffix || DEFAULT_JID_SUFFIX;
         const STUB_RETRY_WAIT_MS = 15000; // 15 segundos para retry
 
         console.log(`⏳ [STUB-RETRY-FIX] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - aguardando ${STUB_RETRY_WAIT_MS / 1000}s para retry decrypt...`);
@@ -4964,8 +4970,7 @@ async function handleIncomingMessage(
 
         setTimeout(async () => {
           try {
-            // Verificar se o retry completou (mensagem real foi processada)
-            // Se foi processada via retry, estará marcada no dedupe
+            // ── ETAPA 1: Verificar se o retry completou ──
             if (stubDedupeParams) {
               const wasDecrypted = await isIncomingMessageProcessed(stubDedupeParams);
               if (wasDecrypted) {
@@ -4974,20 +4979,149 @@ async function handleIncomingMessage(
               }
             }
 
-            // Retry não completou após timeout - verificar se conversa ainda existe e está ativa
-            console.log(`⚠️ [STUB-RETRY-FIX] Mensagem ${stubMsgId} ainda incompleta após ${STUB_RETRY_WAIT_MS / 1000}s - pedindo reenvio`);
+            // ── ETAPA 2: Retry falhou → Fallback com "Oi" para IA responder ──
+            const fallbackText = "Oi";
+            console.log(`⚠️ [STUB-FALLBACK] Mensagem ${stubMsgId} ainda incompleta após ${STUB_RETRY_WAIT_MS / 1000}s - usando fallback "${fallbackText}" para IA responder`);
+
+            // 2a. Atualizar texto da mensagem salva no banco (remover texto de erro)
             try {
-              await sendMessage(
+              await storage.updateMessage(stubSavedMessageId, { text: fallbackText });
+              console.log(`📝 [STUB-FALLBACK] Mensagem ${stubSavedMessageId} atualizada para "${fallbackText}"`);
+            } catch (updateErr) {
+              console.error(`❌ [STUB-FALLBACK] Erro ao atualizar mensagem:`, updateErr);
+            }
+
+            // 2b. Atualizar lastMessageText da conversa
+            try {
+              await storage.updateConversation(stubConversationId, {
+                lastMessageText: fallbackText,
+              });
+            } catch (convErr) {
+              console.error(`❌ [STUB-FALLBACK] Erro ao atualizar conversa:`, convErr);
+            }
+
+            // 2c. Marcar como processada no anti-reenvio
+            if (stubDedupeParams) {
+              try {
+                await markIncomingMessageProcessed(stubDedupeParams);
+              } catch (_dedupErr) { /* não-crítico */ }
+            }
+
+            // 2d. Broadcast para UI atualizar o texto da mensagem
+            try {
+              broadcastToUser(stubUserId, {
+                type: "message_updated",
+                conversationId: stubConversationId,
+                messageId: stubSavedMessageId,
+                text: fallbackText,
+              });
+            } catch (_broadcastErr) { /* não-crítico */ }
+
+            // ── ETAPA 3: Verificar se agente/IA pode responder ──
+            const isAgentDisabled = await storage.isAgentDisabledForConversation(stubConversationId);
+            if (isAgentDisabled) {
+              console.log(`⏸️ [STUB-FALLBACK] Agente pausado para conversa ${stubConversationId}, não processar`);
+              return;
+            }
+
+            if (stubConnectionId) {
+              try {
+                const connRecord = await storage.getConnectionById(stubConnectionId);
+                if (connRecord && connRecord.aiEnabled === false) {
+                  console.log(`🚫 [STUB-FALLBACK] IA desativada para conexão ${stubConnectionId}`);
+                  return;
+                }
+              } catch (_e) { /* prosseguir */ }
+            }
+
+            const isExcluded = await storage.isNumberExcluded(stubUserId, stubContactNumber);
+            if (isExcluded) {
+              console.log(`🚫 [STUB-FALLBACK] Número ${stubContactNumber} na lista de exclusão`);
+              return;
+            }
+
+            // ── ETAPA 4: Processar via Chatbot (prioridade) ──
+            try {
+              const { tryProcessChatbotMessage, isNewContact } = await import("./chatbotIntegration");
+              const isFirstContact = await isNewContact(stubConversationId);
+              const chatbotResult = await tryProcessChatbotMessage(
                 stubUserId,
                 stubConversationId,
-                "Oi! Sua mensagem chegou incompleta aqui. Pode reenviar por favor? 😊",
-                { isFromAgent: true }
+                stubContactNumber,
+                fallbackText,
+                isFirstContact
               );
-            } catch (sendErr) {
-              console.error(`❌ [STUB-RETRY-FIX] Erro ao enviar pedido de reenvio:`, sendErr);
+
+              if (chatbotResult.handled) {
+                console.log(`🤖 [STUB-FALLBACK] Mensagem processada pelo chatbot de fluxo`);
+                return;
+              }
+            } catch (chatbotErr) {
+              console.error(`⚠️ [STUB-FALLBACK] Erro no chatbot (tentando IA):`, chatbotErr);
+            }
+
+            // ── ETAPA 5: Processar via IA (sistema de acumulação) ──
+            try {
+              const agentConfig = await storage.getAgentConfig(stubUserId);
+              const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
+              const responseDelayMs = responseDelaySeconds * 1000;
+
+              const existingPending = pendingResponses.get(stubConversationId);
+
+              if (existingPending) {
+                clearTimeout(existingPending.timeout);
+                existingPending.messages.push(fallbackText);
+                const executeAt = new Date(Date.now() + responseDelayMs);
+                existingPending.timeout = setTimeout(async () => {
+                  await processAccumulatedMessages(existingPending);
+                }, responseDelayMs);
+                console.log(`📨 [STUB-FALLBACK] Mensagem acumulada (${existingPending.messages.length} msgs) para ${stubContactNumber}`);
+                try {
+                  await storage.updatePendingAIResponseMessages(stubConversationId, existingPending.messages, executeAt);
+                } catch (_dbErr) { /* não-crítico */ }
+              } else {
+                const executeAt = new Date(Date.now() + responseDelayMs);
+                const pending: PendingResponse = {
+                  timeout: null as any,
+                  messages: [fallbackText],
+                  conversationId: stubConversationId,
+                  userId: stubUserId,
+                  contactNumber: stubContactNumber,
+                  jidSuffix: stubJidSuffix,
+                  startTime: Date.now(),
+                };
+                pending.timeout = setTimeout(async () => {
+                  await processAccumulatedMessages(pending);
+                }, responseDelayMs);
+                pendingResponses.set(stubConversationId, pending);
+                console.log(`🕐 [STUB-FALLBACK] Timer IA de ${responseDelaySeconds}s iniciado para ${stubContactNumber}`);
+                try {
+                  await storage.savePendingAIResponse({
+                    conversationId: stubConversationId,
+                    userId: stubUserId,
+                    contactNumber: stubContactNumber,
+                    jidSuffix: stubJidSuffix,
+                    messages: [fallbackText],
+                    executeAt,
+                  });
+                } catch (_dbErr) { /* não-crítico */ }
+              }
+
+              console.log(`🤖 [STUB-FALLBACK] IA ativada para ${stubContactNumber} com texto "${fallbackText}"`);
+            } catch (aiErr) {
+              console.error(`❌ [STUB-FALLBACK] Erro ao iniciar IA:`, aiErr);
+              // Fallback final: enviar mensagem de reenvio se tudo falhar
+              try {
+                await sendMessage(
+                  stubUserId,
+                  stubConversationId,
+                  "Oi! Sua mensagem chegou incompleta aqui. Pode reenviar por favor? 😊",
+                  { isFromAgent: true }
+                );
+              } catch (_sendErr) { /* silenciar */ }
             }
           } catch (err) {
-            console.error(`❌ [STUB-RETRY-FIX] Erro no timeout de stub:`, err);
+            console.error(`❌ [STUB-FALLBACK] Erro no timeout de stub:`, err);
           }
         }, STUB_RETRY_WAIT_MS);
       }
