@@ -88,6 +88,26 @@ async function processNotifications(): Promise<void> {
   try {
     console.log('🔔 [NOTIFICATION SCHEDULER] Verificando notificações...');
 
+    // ✅ RECOVERY: Resetar notificações stuck em 'processing' por mais de 30min (crash do servidor)
+    try {
+      const stuckResult = await db.execute(sql`
+        UPDATE scheduled_notifications
+        SET status = 'pending', updated_at = NOW(), retry_count = COALESCE(retry_count, 0) + 1
+        WHERE status = 'processing'
+          AND updated_at < NOW() - INTERVAL '30 minutes'
+        RETURNING id, recipient_name, notification_type
+      `);
+      const stuckRows = stuckResult.rows as any[];
+      if (stuckRows.length > 0) {
+        console.log(`🔔 [RECOVERY] ♻️ Resetou ${stuckRows.length} notificações stuck em 'processing' → 'pending'`);
+        for (const row of stuckRows) {
+          console.log(`   ↳ ${row.recipient_name} (${row.notification_type}) ID: ${row.id}`);
+        }
+      }
+    } catch (recoveryErr) {
+      console.error('🔔 [RECOVERY] Erro ao resetar stuck:', recoveryErr);
+    }
+
     // ✅ Limpar contadores antigos
     cleanOldCounters();
 
@@ -198,13 +218,51 @@ async function autoReorganizeForAdmin(adminId: string): Promise<void> {
     respectBusinessHours: rawConfig.respect_business_hours ?? true,
   };
   
-  // Limpar pendentes antigos (que já passaram)
-  await db.execute(sql`
-    DELETE FROM scheduled_notifications
-    WHERE admin_id = ${adminId}
-    AND status = 'pending'
-    AND scheduled_for < NOW()
-  `);
+  // ✅ CORRIGIDO: Reagendar pendentes atrasados para o próximo horário comercial
+  // (antes deletava, perdendo notificações do fim de semana/fora do horário)
+  try {
+    const staleResult = await db.execute(sql`
+      UPDATE scheduled_notifications
+      SET scheduled_for = (
+        CASE 
+          WHEN EXTRACT(DOW FROM NOW() AT TIME ZONE 'America/Sao_Paulo') IN (0, 6)
+            THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Sao_Paulo') + INTERVAL '1 day' * 
+                  CASE WHEN EXTRACT(DOW FROM NOW() AT TIME ZONE 'America/Sao_Paulo') = 6 THEN 2 ELSE 1 END
+                 ) + (${config.businessHoursStart || '09:00'})::time + (floor(random() * 120) || ' minutes')::interval
+          ELSE (NOW() AT TIME ZONE 'America/Sao_Paulo') + INTERVAL '5 minutes' + (floor(random() * 30) || ' minutes')::interval
+        END
+      ) AT TIME ZONE 'America/Sao_Paulo',
+      updated_at = NOW(),
+      retry_count = COALESCE(retry_count, 0) + 1
+      WHERE admin_id = ${adminId}
+        AND status = 'pending'
+        AND scheduled_for < NOW() - INTERVAL '2 hours'
+        AND COALESCE(retry_count, 0) < 5
+      RETURNING id, notification_type, recipient_name
+    `);
+    const rescheduled = staleResult.rows as any[];
+    if (rescheduled.length > 0) {
+      console.log(`🔄 [AUTO-REORGANIZE] ♻️ Reagendou ${rescheduled.length} notificações atrasadas (antes seriam deletadas)`);
+    }
+    
+    // Deletar apenas as que já falharam 5+ vezes no reagendamento
+    await db.execute(sql`
+      DELETE FROM scheduled_notifications
+      WHERE admin_id = ${adminId}
+        AND status = 'pending'
+        AND scheduled_for < NOW() - INTERVAL '2 hours'
+        AND COALESCE(retry_count, 0) >= 5
+    `);
+  } catch (rescheduleErr) {
+    console.error('🔄 [AUTO-REORGANIZE] Erro ao reagendar atrasados:', rescheduleErr);
+    // Fallback: deletar como antes para não travar
+    await db.execute(sql`
+      DELETE FROM scheduled_notifications
+      WHERE admin_id = ${adminId}
+        AND status = 'pending'
+        AND scheduled_for < NOW()
+    `);
+  }
   
   // Buscar logs enviados (30 dias)
   const sentLogsResult = await db.execute(sql`
@@ -267,7 +325,11 @@ async function autoReorganizeForAdmin(adminId: string): Promise<void> {
     ) wc ON true
     WHERE u.id != ${adminId}
     AND (u.parent_id = ${adminId} OR u.id IN (
-      SELECT user_id FROM subscriptions WHERE user_id = u.id
+      SELECT sub.user_id FROM subscriptions sub WHERE sub.user_id = u.id AND EXISTS (
+        SELECT 1 FROM users admin WHERE admin.id = ${adminId} AND (
+          u.parent_id = admin.id OR u.created_by = admin.id
+        )
+      )
     ))
     AND u.phone IS NOT NULL
     AND u.phone != ''
@@ -705,10 +767,33 @@ async function processAdminScheduledQueue(adminId: string, notifications: any[])
           }
         }
         
-        // Enviar mensagem
-        const sendResult = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
-        const sent = sendResult.success;
-        const errorMsg = sendResult.error || 'Falha desconhecida';
+        // Enviar mensagem COM RETRY (até 3 tentativas com backoff exponencial)
+        let sent = false;
+        let errorMsg = 'Falha desconhecida';
+        const maxRetries = 3;
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            const sendResult = await sendAdminNotification(adminId, notification.recipient_phone, finalMessage);
+            sent = sendResult.success;
+            errorMsg = sendResult.error || 'Falha desconhecida';
+            
+            if (sent) break;
+            
+            if (attempt < maxRetries) {
+              const backoffMs = Math.pow(2, attempt) * 2000; // 4s, 8s
+              console.log(`📋 [QUEUE] ⚠️ Tentativa ${attempt}/${maxRetries} falhou para ${notification.recipient_name}: ${errorMsg}. Retry em ${backoffMs/1000}s...`);
+              await new Promise(resolve => setTimeout(resolve, backoffMs));
+            }
+          } catch (retryErr) {
+            errorMsg = String(retryErr);
+            if (attempt < maxRetries) {
+              const backoffMs = Math.pow(2, attempt) * 2000;
+              console.log(`📋 [QUEUE] ⚠️ Tentativa ${attempt}/${maxRetries} erro para ${notification.recipient_name}: ${errorMsg}. Retry em ${backoffMs/1000}s...`);
+              await new Promise(resolve => setTimeout(resolve, backoffMs));
+            }
+          }
+        }
         
         if (sent) {
           processed++;
@@ -716,7 +801,7 @@ async function processAdminScheduledQueue(adminId: string, notifications: any[])
           console.log(`📋 [QUEUE] ✓ Enviado para ${notification.recipient_name} (${processed}/${notifications.length})`);
         } else {
           failed++;
-          console.log(`📋 [QUEUE] ✗ Falha ao enviar para ${notification.recipient_name}: ${errorMsg}`);
+          console.log(`📋 [QUEUE] ✗ Falha ao enviar para ${notification.recipient_name} após ${maxRetries} tentativas: ${errorMsg}`);
         }
         
         // Atualizar status da notificação
@@ -900,8 +985,8 @@ async function getAdminUsers(adminId: string): Promise<any[]> {
         LIMIT 1
       ) wc ON true
       LEFT JOIN subscriptions s ON s.user_id = u.id
-      WHERE u.id = ${adminId}
-         OR u.parent_id = ${adminId}
+      WHERE u.parent_id = ${adminId}
+         AND u.id != ${adminId}
       ORDER BY u.created_at DESC
     `);
     return result.rows;
