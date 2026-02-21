@@ -124,14 +124,14 @@ async function processNotifications(): Promise<void> {
     // ✅ PRIMEIRO: Processar fila de scheduled_notifications
     await processScheduledNotificationsQueue();
 
-    // Buscar todos os admins com notificações habilitadas
-    const configs = await getActiveNotificationConfigs();
+    // ✅ REMOVIDO: processAdminNotifications() era o caminho ANTIGO que enviava diretamente
+    // SEM delays anti-ban e com variáveis erradas ({nome} ao invés de {cliente_nome}).
+    // O sistema de fila (autoReorganize + processScheduledNotificationsQueue) já cobre
+    // TODOS os casos com delays adequados (30-60s) e variáveis corretas.
+    // NÃO usar mais o caminho direto.
     
-    for (const config of configs) {
-      await processAdminNotifications(config);
-    }
-
-    console.log(`🔔 [NOTIFICATION SCHEDULER] Processamento concluído (${configs.length} admins)`);
+    const configs = await getActiveNotificationConfigs();
+    console.log(`🔔 [NOTIFICATION SCHEDULER] Processamento concluído (${configs.length} admins, usando fila com delays)`);
   } catch (error) {
     console.error('🔔 [NOTIFICATION SCHEDULER] Erro:', error);
   }
@@ -1204,11 +1204,16 @@ async function sendNotification(
       return;
     }
 
-    // Substituir variáveis
+    // Substituir variáveis (suporta tanto {cliente_nome} quanto {nome})
     let message = template
+      .replace(/\{cliente_nome\}/g, user.name || 'Cliente')
       .replace(/\{nome\}/g, user.name || 'Cliente')
+      .replace(/\{dias_restantes\}/g, data.daysUntilExpiration || '')
+      .replace(/\{dias_atraso\}/g, data.daysOverdue || '')
       .replace(/\{dias\}/g, data.daysUntilExpiration || data.daysOverdue || data.daysSinceLastCheckin || '')
+      .replace(/\{data_vencimento\}/g, data.expirationDate || '')
       .replace(/\{data\}/g, data.expirationDate || '')
+      .replace(/\{valor\}/g, data.valor || '')
       .replace(/\{horas\}/g, data.hoursDisconnected || '');
 
     // ✅ APLICAR VARIAÇÃO COM IA SE HABILITADO (anti-bot)

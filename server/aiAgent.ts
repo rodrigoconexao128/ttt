@@ -2417,25 +2417,48 @@ export async function generateAIResponse(
     const prodFlowScript = (agentConfig as any).flowScript;
 
     if (prodFlowModeActive && prodFlowScript && prodFlowScript.trim().length > 10) {
-      console.log(`🔀 [AI Agent PROD] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine`);
+      let flowScriptInSync = false;
       try {
-        const { executeFlowResponse } = await import("./flowScriptEngine");
-        const flowHistory = conversationHistory.slice(-10).map(msg => ({
-          role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
-          content: msg.text || "",
-        }));
-        const flowResult = await executeFlowResponse(newMessageText, prodFlowScript, flowHistory);
-        console.log(`🔀 [AI Agent FLUXO PROD] Resposta (${flowResult.response.length} chars)`);
-        return {
-          text: flowResult.response,
-          mediaActions: [],
-        };
-      } catch (flowErr: any) {
-        console.error(`🔀 [AI Agent FLUXO PROD] Erro:`, flowErr);
-        return {
-          text: "Olá! Estou aqui para ajudar. Por favor, siga as instruções do atendimento. 😊",
-          mediaActions: [],
-        };
+        const flow = await FlowStorage.loadFlow(userId);
+        const currentPrompt = agentConfig?.prompt || "";
+        const sourcePrompt = flow?.sourcePrompt || "";
+
+        if (flow && sourcePrompt && currentPrompt) {
+          const promptHash = crypto.createHash('md5').update(currentPrompt).digest('hex').substring(0, 8);
+          const sourceHash = crypto.createHash('md5').update(sourcePrompt).digest('hex').substring(0, 8);
+          flowScriptInSync = promptHash === sourceHash;
+
+          if (!flowScriptInSync) {
+            console.log(`⚠️ [AI Agent PROD] FlowScript desatualizado com prompt atual (promptHash=${promptHash}, sourceHash=${sourceHash}) - ignorando flowModeActive`);
+          }
+        } else {
+          console.log(`⚠️ [AI Agent PROD] FlowScript sem sourcePrompt sincronizado - ignorando flowModeActive`);
+        }
+      } catch (flowSyncError) {
+        console.log(`⚠️ [AI Agent PROD] Falha ao validar sync do flowScript - ignorando flowModeActive`, flowSyncError);
+      }
+
+      if (flowScriptInSync) {
+        console.log(`🔀 [AI Agent PROD] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine`);
+        try {
+          const { executeFlowResponse } = await import("./flowScriptEngine");
+          const flowHistory = conversationHistory.slice(-10).map(msg => ({
+            role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
+            content: msg.text || "",
+          }));
+          const flowResult = await executeFlowResponse(newMessageText, prodFlowScript, flowHistory);
+          console.log(`🔀 [AI Agent FLUXO PROD] Resposta (${flowResult.response.length} chars)`);
+          return {
+            text: flowResult.response,
+            mediaActions: [],
+          };
+        } catch (flowErr: any) {
+          console.error(`🔀 [AI Agent FLUXO PROD] Erro:`, flowErr);
+          return {
+            text: "Olá! Estou aqui para ajudar. Por favor, siga as instruções do atendimento. 😊",
+            mediaActions: [],
+          };
+        }
       }
     }
 
@@ -3995,31 +4018,54 @@ export async function testAgentResponse(
     // Se flowModeActive=true, o roteiro tem PRIORIDADE MÁXIMA mesmo que customPrompt seja passado.
     // Isso garante que o simulador e o atendimento real sempre usem o mesmo FlowScriptEngine.
     if (flowModeActive && flowScript && flowScript.trim().length > 10) {
-      console.log(`🔀 [SIMULADOR] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine (prioridade máxima)`);
-      
+      let flowScriptInSync = false;
       try {
-        const { executeFlowResponse } = await import("./flowScriptEngine");
+        const flow = await FlowStorage.loadFlow(userId);
+        const currentPrompt = agentConfig?.prompt || "";
+        const sourcePrompt = flow?.sourcePrompt || "";
+
+        if (flow && sourcePrompt && currentPrompt) {
+          const promptHash = crypto.createHash('md5').update(currentPrompt).digest('hex').substring(0, 8);
+          const sourceHash = crypto.createHash('md5').update(sourcePrompt).digest('hex').substring(0, 8);
+          flowScriptInSync = promptHash === sourceHash;
+
+          if (!flowScriptInSync) {
+            console.log(`⚠️ [SIMULADOR] FlowScript desatualizado com prompt atual (promptHash=${promptHash}, sourceHash=${sourceHash}) - ignorando flowModeActive`);
+          }
+        } else {
+          console.log(`⚠️ [SIMULADOR] FlowScript sem sourcePrompt sincronizado - ignorando flowModeActive`);
+        }
+      } catch (flowSyncError) {
+        console.log(`⚠️ [SIMULADOR] Falha ao validar sync do flowScript - ignorando flowModeActive`, flowSyncError);
+      }
+
+      if (flowScriptInSync) {
+        console.log(`🔀 [SIMULADOR] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine (prioridade máxima)`);
         
-        // Converter histórico para formato do FlowScriptEngine
-        const flowHistory = history.slice(-10).map(msg => ({
-          role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
-          content: msg.text || "",
-        }));
-        
-        const flowResult = await executeFlowResponse(testMessage, flowScript, flowHistory);
-        
-        console.log(`🔀 [SIMULADOR FLUXO] Resposta gerada (${flowResult.response.length} chars)`);
-        
-        return {
-          text: flowResult.response,
-          mediaActions: [],
-        };
-      } catch (flowError: any) {
-        console.error(`🔀 [SIMULADOR FLUXO] Erro no FlowScriptEngine:`, flowError);
-        return {
-          text: "Olá! Estou disponível para ajudar. Por favor, siga as instruções do atendimento. 😊",
-          mediaActions: [],
-        };
+        try {
+          const { executeFlowResponse } = await import("./flowScriptEngine");
+          
+          // Converter histórico para formato do FlowScriptEngine
+          const flowHistory = history.slice(-10).map(msg => ({
+            role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
+            content: msg.text || "",
+          }));
+          
+          const flowResult = await executeFlowResponse(testMessage, flowScript, flowHistory);
+          
+          console.log(`🔀 [SIMULADOR FLUXO] Resposta gerada (${flowResult.response.length} chars)`);
+          
+          return {
+            text: flowResult.response,
+            mediaActions: [],
+          };
+        } catch (flowError: any) {
+          console.error(`🔀 [SIMULADOR FLUXO] Erro no FlowScriptEngine:`, flowError);
+          return {
+            text: "Olá! Estou disponível para ajudar. Por favor, siga as instruções do atendimento. 😊",
+            mediaActions: [],
+          };
+        }
       }
     }
 

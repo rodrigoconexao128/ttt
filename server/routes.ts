@@ -29577,16 +29577,16 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
       // Obter configuração para delays
-
+      // ✅ CORRIGIDO: Usar delays consistentes com o scheduler (anti-ban)
       const config = await storage.getAdminNotificationConfig?.(adminId);
 
-      const minDelay = config?.broadcastMinIntervalSeconds || 10;
+      const minDelay = Math.max(config?.broadcastMinIntervalSeconds || 30, 30); // MÍNIMO 30s
 
-      const maxDelay = config?.broadcastMaxIntervalSeconds || 20;
+      const maxDelay = Math.max(config?.broadcastMaxIntervalSeconds || 60, 60); // MÍNIMO 60s
 
-      const batchSize = 10; // A cada 10 mensagens, pausa maior
+      const batchSize = 5; // A cada 5 mensagens, pausa maior (era 10)
 
-      const batchPauseSeconds = 60; // Pausa de 60 segundos a cada lote
+      const batchPauseSeconds = 300; // Pausa de 5 MINUTOS a cada lote (era 60s)
 
 
 
