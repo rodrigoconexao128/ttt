@@ -892,6 +892,7 @@ export function ConversationsList({
             )}
           </div>
         ) : (
+          <>
           <div className="divide-y" data-testid="list-conversations">
             {statusFilteredConversations.map((conversation) => {
               const displayNumber =
@@ -1030,6 +1031,7 @@ export function ConversationsList({
               Mostrando {allConversations.length} de {totalCount} conversas
             </div>
           )}
+          </>
         )}
       </div>
       
