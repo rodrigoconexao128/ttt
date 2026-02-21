@@ -4960,10 +4960,26 @@ async function handleIncomingMessage(
 
         console.log(`⏳ [STUB-RETRY-FIX] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - aguardando ${STUB_RETRY_WAIT_MS / 1000}s para retry decrypt...`);
 
-        // Enviar presence extra para ajudar no retry
+        // ── RETRY BOOST: Sinais agressivos para ajudar Baileys a descriptografar ──
+        // 1. Enviar presença 'available' (ajuda no retry do Signal Protocol)
+        // 2. Enviar read receipt (readMessages) para sinalizar ao celular
+        // 3. Repetir presença após 5s para reforçar a sessão
         try {
           await session.socket.sendPresenceUpdate('available', normalizedJid);
         } catch (_presErr) { /* não-crítico */ }
+
+        try {
+          // Read receipt ajuda a triggar re-entrega pelo WhatsApp
+          await session.socket.readMessages([waMessage.key]);
+          console.log(`📖 [STUB-RETRY-FIX] Read receipt enviado para ${stubMsgId}`);
+        } catch (_readErr) { /* não-crítico */ }
+
+        // Presença extra após 5s para manter sessão ativa durante retry
+        setTimeout(async () => {
+          try {
+            await session.socket.sendPresenceUpdate('available', normalizedJid);
+          } catch (_e) { /* não-crítico */ }
+        }, 5000);
 
         // Capturar params de dedupe para verificar após timeout
         const stubDedupeParams = incomingDedupeParams ? { ...incomingDedupeParams } : null;
