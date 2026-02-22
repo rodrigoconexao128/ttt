@@ -4382,7 +4382,7 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
 async function handleIncomingMessage(
   session: WhatsAppSession,
   waMessage: WAMessage,
-  opts?: { source?: string; allowAutoReply?: boolean; isAppendRecent?: boolean; eventTs?: Date }
+  opts?: { source?: string; allowAutoReply?: boolean; isAppendRecent?: boolean; eventTs?: Date; isCTWAResolved?: boolean }
 ) {
   // ?? MODO DEV: Pular processamento se DISABLE_WHATSAPP_PROCESSING=true
   if (DISABLE_MESSAGE_PROCESSING) {
@@ -4896,23 +4896,53 @@ async function handleIncomingMessage(
     const inboundMessageId =
       waMessage.key.id || `wa_${eventTs.getTime()}_${Math.random().toString(16).slice(2, 10)}`;
 
-    const savedMessage = await storage.createMessage({
-      conversationId: conversation.id,
-      messageId: inboundMessageId,
-      fromMe: false,
-      text: messageText,
-    timestamp: eventTs,
-    isFromAgent: false,
-    mediaType,
-      mediaUrl,
-      mediaMimeType,
-      mediaDuration,
-      mediaCaption,
-      // 🔑 Metadados para re-download de mídia do WhatsApp
-      mediaKey,
-      directPath,
-      mediaUrlOriginal,
-    });
+    // ═══════════════════════════════════════════════════════════════════
+    // FIX CTWA-RESOLVED: Quando PDO descriptografa, a mensagem já existe
+    // como stub no banco. Atualizar em vez de criar duplicata.
+    // ═══════════════════════════════════════════════════════════════════
+    const isCTWAResolved = opts?.isCTWAResolved ?? false;
+    let savedMessage: any;
+    let ctwaUpdatedExisting = false;
+
+    if (isCTWAResolved && waMessage.key.id) {
+      try {
+        const existingStub = await storage.getMessageByMessageId(waMessage.key.id);
+        if (existingStub) {
+          // Atualizar mensagem existente (stub → texto real)
+          await storage.updateMessage(existingStub.id, {
+            text: messageText,
+            mediaType: mediaType || undefined,
+            mediaUrl: mediaUrl || undefined,
+            mediaMimeType: mediaMimeType || undefined,
+          });
+          savedMessage = { ...existingStub, text: messageText };
+          ctwaUpdatedExisting = true;
+          console.log(`✅ [CTWA-RESOLVED-PIPELINE] Stub atualizado → "${messageText.substring(0, 80)}" (msg=${existingStub.id})`);
+        }
+      } catch (lookupErr) {
+        console.error(`⚠️ [CTWA-RESOLVED-PIPELINE] Erro ao buscar stub:`, lookupErr);
+      }
+    }
+
+    if (!ctwaUpdatedExisting) {
+      savedMessage = await storage.createMessage({
+        conversationId: conversation.id,
+        messageId: inboundMessageId,
+        fromMe: false,
+        text: messageText,
+        timestamp: eventTs,
+        isFromAgent: false,
+        mediaType,
+        mediaUrl,
+        mediaMimeType,
+        mediaDuration,
+        mediaCaption,
+        // 🔑 Metadados para re-download de mídia do WhatsApp
+        mediaKey,
+        directPath,
+        mediaUrlOriginal,
+      });
+    }
 
     // Marcar como processada no anti-reenvio APENAS quando nao for stub/incompleta.
     // Isso evita perder mensagens de leads Meta que chegam primeiro como stub e depois descriptografam.
@@ -5046,11 +5076,13 @@ async function handleIncomingMessage(
         // Porém o celular tem apenas 8s para responder → frequentemente falha
         // se o celular estiver dormindo/sem internet/em background.
         //
-        // SOLUÇÃO: Múltiplas tentativas de PDO com intervalos crescentes:
+        // SOLUÇÃO: 5 tentativas de PDO (inspirado no whatsmeow que faz até 5):
         //   1ª tentativa: Baileys interna (t=0, timeout 8s)
-        //   2ª tentativa: Nossa re-tentativa manual (t=12s)
-        //   3ª tentativa: Nossa re-tentativa manual (t=25s)
-        //   Fallback: "Oi" para IA responder (t=40s)
+        //   2ª tentativa: Nossa re-tentativa manual (t=10s)
+        //   3ª tentativa: Nossa re-tentativa manual (t=22s)
+        //   4ª tentativa: Nossa re-tentativa manual (t=40s)
+        //   5ª tentativa: Nossa re-tentativa manual (t=60s)
+        //   Fallback: "Oi" para IA responder (t=75s)
         //
         // Ref: https://github.com/WhiskeySockets/Baileys/pull/2334
         // Ref: https://github.com/WhiskeySockets/Baileys/issues/1767
@@ -5064,13 +5096,15 @@ async function handleIncomingMessage(
         const stubSavedMessageId = savedMessage.id;
         const stubJidSuffix = jidSuffix || DEFAULT_JID_SUFFIX;
 
-        // Tempos para cada tentativa (ms)
-        const PDO_RETRY_2_MS = 12000;  // 2ª tentativa: 12s (após 8s timeout interno)
-        const PDO_RETRY_3_MS = 25000;  // 3ª tentativa: 25s
-        const FINAL_FALLBACK_MS = 40000; // Fallback "Oi": 40s
+        // Tempos para cada tentativa (ms) — inspirado no whatsmeow (5 retries)
+        const PDO_RETRY_2_MS = 10000;   // 2ª tentativa: 10s (após 8s timeout interno do Baileys)
+        const PDO_RETRY_3_MS = 22000;   // 3ª tentativa: 22s
+        const PDO_RETRY_4_MS = 40000;   // 4ª tentativa: 40s
+        const PDO_RETRY_5_MS = 60000;   // 5ª tentativa: 60s
+        const FINAL_FALLBACK_MS = 75000; // Fallback "Oi": 75s (dá mais tempo para o celular responder)
 
-        console.log(`⏳ [STUB-PDO-RETRY] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - iniciando sistema multi-retry PDO`);
-        console.log(`   📋 Plano: Baileys PDO interno (0s) → Re-PDO (${PDO_RETRY_2_MS/1000}s) → Re-PDO (${PDO_RETRY_3_MS/1000}s) → Fallback (${FINAL_FALLBACK_MS/1000}s)`);
+        console.log(`⏳ [STUB-PDO-RETRY] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - iniciando sistema 5-retry PDO (whatsmeow-style)`);
+        console.log(`   📋 Plano: Baileys (0s) → #2 (${PDO_RETRY_2_MS/1000}s) → #3 (${PDO_RETRY_3_MS/1000}s) → #4 (${PDO_RETRY_4_MS/1000}s) → #5 (${PDO_RETRY_5_MS/1000}s) → Fallback (${FINAL_FALLBACK_MS/1000}s)`);
 
         // ── RETRY BOOST: Sinais agressivos para ajudar na descriptografia ──
         try {
@@ -5082,7 +5116,11 @@ async function handleIncomingMessage(
           console.log(`📖 [STUB-PDO-RETRY] Read receipt enviado para ${stubMsgId}`);
         } catch (_readErr) { /* não-crítico */ }
 
-        // Presença extra após 5s
+        // Presença extra após 3s e 5s (whatsmeow envia IMEDIATAMENTE para CTWA)
+        setTimeout(async () => {
+          try { await session.socket.sendPresenceUpdate('available', normalizedJid); } catch (_e) { /* */ }
+          try { await session.socket.readMessages([waMessage.key]); } catch (_e) { /* */ }
+        }, 3000);
         setTimeout(async () => {
           try { await session.socket.sendPresenceUpdate('available', normalizedJid); } catch (_e) { /* */ }
         }, 5000);
@@ -5148,13 +5186,19 @@ async function handleIncomingMessage(
           }
         };
 
-        // ── 2ª TENTATIVA PDO (t=12s) ──
+        // ── 2ª TENTATIVA PDO (t=10s) ──
         setTimeout(() => attemptPDO(2), PDO_RETRY_2_MS);
 
-        // ── 3ª TENTATIVA PDO (t=25s) ──
+        // ── 3ª TENTATIVA PDO (t=22s) ──
         setTimeout(() => attemptPDO(3), PDO_RETRY_3_MS);
 
-        // ── FALLBACK FINAL (t=40s): Se nenhuma PDO funcionou → "Oi" ──
+        // ── 4ª TENTATIVA PDO (t=40s) ──
+        setTimeout(() => attemptPDO(4), PDO_RETRY_4_MS);
+
+        // ── 5ª TENTATIVA PDO (t=60s) ──
+        setTimeout(() => attemptPDO(5), PDO_RETRY_5_MS);
+
+        // ── FALLBACK FINAL (t=75s): Se nenhuma PDO funcionou → "Oi" ──
         setTimeout(async () => {
           try {
             // Verificar uma última vez se foi resolvido
@@ -5165,7 +5209,7 @@ async function handleIncomingMessage(
 
             // ── FALLBACK: Usar "Oi" como texto para IA responder ──
             const fallbackText = "Oi";
-            console.log(`⚠️ [STUB-FALLBACK] Mensagem ${stubMsgId} ainda incompleta após 3 tentativas PDO (${FINAL_FALLBACK_MS/1000}s) - usando fallback "${fallbackText}"`);
+            console.log(`⚠️ [STUB-FALLBACK] Mensagem ${stubMsgId} ainda incompleta após 5 tentativas PDO (${FINAL_FALLBACK_MS/1000}s) - usando fallback "${fallbackText}"`);
 
             // Atualizar texto da mensagem salva
             try {
@@ -5290,14 +5334,9 @@ async function handleIncomingMessage(
               console.log(`🤖 [STUB-FALLBACK] IA ativada para ${stubContactNumber} com texto "${fallbackText}"`);
             } catch (aiErr) {
               console.error(`❌ [STUB-FALLBACK] Erro ao iniciar IA:`, aiErr);
-              try {
-                await sendMessage(
-                  stubUserId,
-                  stubConversationId,
-                  "Oi! Sua mensagem chegou incompleta aqui. Pode reenviar por favor? 😊",
-                  { isFromAgent: true }
-                );
-              } catch (_sendErr) { /* silenciar */ }
+              // NÃO enviar mensagem de erro para o cliente - apenas logar
+              // A mensagem "reenviar por favor" causava UX ruim
+              console.log(`⚠️ [STUB-FALLBACK] IA falhou para ${stubContactNumber} - aguardando próxima mensagem do cliente`);
             }
           } catch (err) {
             console.error(`❌ [STUB-FALLBACK] Erro no timeout final:`, err);
