@@ -131,7 +131,7 @@ export function ConversationsList({
       }
       return result;
     },
-    enabled: !!connectionId,
+    enabled: true, // ⚡ OTIMIZADO: Carregar imediatamente - API resolve connectionId server-side
     refetchInterval: 120000, // Fallback polling 2min (WebSocket é primário)
     staleTime: 10000, // ⚡ OTIMIZAÇÃO: Dados frescos por 10s - evita refetches redundantes
   });
@@ -173,7 +173,7 @@ export function ConversationsList({
   // Buscar tags disponíveis para filtro
   const { data: availableTags = [] } = useQuery<Tag[]>({
     queryKey: ["/api/tags"],
-    enabled: !!connectionId,
+    enabled: true, // ⚡ OTIMIZADO: Carregar imediatamente
   });
 
   // WebSocket para atualização em tempo real
@@ -842,7 +842,11 @@ export function ConversationsList({
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        {!connectionId ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center h-32">
+            <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : !connectionId && statusFilteredConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
             <Smartphone className="w-12 h-12 text-muted-foreground mb-4" />
             <h3 className="font-medium text-sm mb-2">WhatsApp não conectado</h3>
@@ -857,10 +861,6 @@ export function ConversationsList({
             >
               Conectar WhatsApp
             </Button>
-          </div>
-        ) : isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : statusFilteredConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
