@@ -165,14 +165,39 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
     ? (accessStatus.planName ? `Plano: ${accessStatus.planName}` : "Plano: Sem plano")
     : "Plano: ...";
 
-  // 🔧 FIX: Quando conversa é carregada (marcada como lida no backend), atualizar lista de conversas
+  // 🔧 FIX: Quando conversa é carregada (marcada como lida no backend), atualizar APENAS o badge
+  // OTIMIZAÇÃO: Em vez de invalidar toda a lista (causa refetch completo de 672 conversas),
+  // fazemos update otimista só do unreadCount da conversa selecionada
   useEffect(() => {
     if (conversation && conversationId) {
-      // Invalidar lista de conversas para atualizar o badge de não lidas
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations-with-tags"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      // Update otimista: zerar unreadCount da conversa no cache local
+      queryClient.setQueryData(
+        ["/api/conversations-with-tags", null, "page0"],
+        (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((c: any) =>
+              c.id === conversationId ? { ...c, unreadCount: 0 } : c
+            ),
+          };
+        }
+      );
+      // Também atualiza quando há filtro de tag ativo
+      queryClient.setQueriesData(
+        { queryKey: ["/api/conversations-with-tags"] },
+        (old: any) => {
+          if (!old?.data && !Array.isArray(old)) return old;
+          const arr = old?.data || old;
+          if (!Array.isArray(arr)) return old;
+          const updated = arr.map((c: any) =>
+            c.id === conversationId ? { ...c, unreadCount: 0 } : c
+          );
+          return old?.data ? { ...old, data: updated } : updated;
+        }
+      );
     }
-  }, [conversationId, conversation]);
+  }, [conversationId]);
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages", conversationId],
@@ -195,7 +220,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
       return data.messages ?? [];
     },
     enabled: !!conversationId,
-    refetchInterval: 30000, // Fallback polling - WebSocket é primário (economia de egress)
+    refetchInterval: 120000, // ⚡ OTIMIZAÇÃO: Fallback polling 2min (era 30s) - WebSocket é primário
     staleTime: 5000, // Considera dados frescos por 5s
   });
 

@@ -133,7 +133,7 @@ export function ConversationsList({
     },
     enabled: !!connectionId,
     refetchInterval: 120000, // Fallback polling 2min (WebSocket é primário)
-    staleTime: 0,
+    staleTime: 10000, // ⚡ OTIMIZAÇÃO: Dados frescos por 10s - evita refetches redundantes
   });
 
   // Função para carregar mais conversas

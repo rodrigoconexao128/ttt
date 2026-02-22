@@ -4024,18 +4024,30 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
    */
   async getConversationsWithTags(connectionId: string, limit?: number, offset?: number): Promise<{ data: (Conversation & { tags: Tag[] })[]; total: number }> {
     // Se tem paginação, não usar cache (cada página é diferente)
+    // EXCETO para a primeira página (offset=0 ou null) que é a mais requisitada
+    const isFirstPage = limit != null && (!offset || offset === 0);
+    
     if (limit == null) {
       const cacheKey = `convWithTags:${connectionId}`;
       const cached = memoryCache.get<{ data: (Conversation & { tags: Tag[] })[]; total: number }>(cacheKey);
       if (cached !== null) return cached;
+    } else if (isFirstPage) {
+      const cacheKey = `convWithTags:${connectionId}:page0:${limit}`;
+      const cached = memoryCache.get<{ data: (Conversation & { tags: Tag[] })[]; total: number }>(cacheKey);
+      if (cached !== null) return cached;
     }
 
-    // Busca total de conversas para paginação
-    const countResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(conversations)
-      .where(eq(conversations.connectionId, connectionId));
-    const total = Number(countResult[0]?.count || 0);
+    // ⚡ OTIMIZAÇÃO: Cache do COUNT por 30s (evita re-contar 672+ conversas a cada request)
+    const countCacheKey = `convCount:${connectionId}`;
+    let total = memoryCache.get<number>(countCacheKey);
+    if (total === null) {
+      const countResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(conversations)
+        .where(eq(conversations.connectionId, connectionId));
+      total = Number(countResult[0]?.count || 0);
+      memoryCache.set(countCacheKey, total, 30000); // Cache 30s
+    }
 
     // Busca conversas com limit/offset
     let query = db
@@ -4057,7 +4069,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     const conversationIds = allConversations.map(c => c.id);
     
     if (conversationIds.length === 0) {
-      return [];
+      return { data: [], total };
     }
 
     const allTags = await db
@@ -4088,6 +4100,9 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     if (limit == null) {
       const cacheKey = `convWithTags:${connectionId}`;
       memoryCache.set(cacheKey, result, 15000); // Cache 15s
+    } else if (isFirstPage) {
+      const cacheKey = `convWithTags:${connectionId}:page0:${limit}`;
+      memoryCache.set(cacheKey, result, 10000); // Cache 10s para primeira página
     }
     return result;
   }
