@@ -135,7 +135,51 @@ setInterval(() => {
 }, 30 * 60 * 1000);
 
 // -----------------------------------------------------------------------
-// 🔄 SISTEMA DE VERIFICAÇÃO DE MENSAGENS NÃO PROCESSADAS
+// � MUTEX DE CRIAÇÃO DE CONVERSA (FIX DUPLICATAS)
+// -----------------------------------------------------------------------
+// Previne race condition quando múltiplas mensagens do mesmo contato
+// chegam simultaneamente e ambas tentam criar conversa nova.
+// Chave: "connectionId:contactNumber" → Promise que resolve com a conversa
+// -----------------------------------------------------------------------
+const conversationCreationLocks = new Map<string, Promise<any>>();
+
+async function getOrCreateConversationSafe(
+  connectionId: string,
+  contactNumber: string,
+  createFn: () => Promise<any>,
+  lookupFn: () => Promise<any>
+): Promise<any> {
+  const lockKey = `${connectionId}:${contactNumber}`;
+  
+  // Se já existe um lock ativo, esperar ele terminar e usar o resultado
+  const existingLock = conversationCreationLocks.get(lockKey);
+  if (existingLock) {
+    try {
+      await existingLock;
+    } catch {}
+    // Após o lock liberar, buscar a conversa que foi criada
+    const existing = await lookupFn();
+    if (existing) return existing;
+  }
+  
+  // Verificar se já existe
+  const existing = await lookupFn();
+  if (existing) return existing;
+  
+  // Criar com lock
+  const createPromise = createFn();
+  conversationCreationLocks.set(lockKey, createPromise);
+  
+  try {
+    const result = await createPromise;
+    return result;
+  } finally {
+    conversationCreationLocks.delete(lockKey);
+  }
+}
+
+// -----------------------------------------------------------------------
+// �🔄 SISTEMA DE VERIFICAÇÃO DE MENSAGENS NÃO PROCESSADAS
 // -----------------------------------------------------------------------
 // NOTA: A implementação real está mais abaixo no arquivo, após as declarações
 // de pendingResponses, conversationsBeingProcessed, etc.
@@ -4730,37 +4774,47 @@ async function handleIncomingMessage(
   }
 
   // FIX Encerramento: buscar apenas conversa ATIVA (nao fechada) - se fechada, cria nova
-  let conversation = await storage.getActiveConversationByContactNumber(
+  // FIX 2026-02-21: Usa mutex para prevenir race condition de criação duplicada
+  let conversation = await getOrCreateConversationSafe(
     session.connectionId,
-    contactNumber
+    contactNumber,
+    // createFn
+    async () => {
+      return await storage.createConversation({
+        connectionId: session.connectionId,
+        contactNumber,
+        remoteJid: normalizedJid,
+        jidSuffix,
+        contactName: waMessage.pushName,
+        contactAvatar,
+        lastMessageText: messageText,
+        lastMessageTime: eventTs,
+        lastMessageFromMe: false,
+        unreadCount: 1,
+      });
+    },
+    // lookupFn
+    async () => {
+      return await storage.getActiveConversationByContactNumber(
+        session.connectionId,
+        contactNumber
+      );
+    }
   );
 
   // Used later to decide append-based auto-reply eligibility (Meta/Instagram leads).
-  const wasNewConversation = !conversation;
+  const wasNewConversation = !conversation.unreadCount || conversation.unreadCount <= 1;
 
-  if (!conversation) {
-    conversation = await storage.createConversation({
-      connectionId: session.connectionId,
-      contactNumber, // N�mero LIMPO para exibir no CRM
-      remoteJid: normalizedJid, // JID normalizado para enviar mensagens
-      jidSuffix,
-      contactName: waMessage.pushName,
-      contactAvatar, // ??? Foto de perfil
-      lastMessageText: messageText,
-      lastMessageTime: eventTs,
-      lastMessageFromMe: false,
-      unreadCount: 1,
-    });
-  } else {
+  if (!wasNewConversation) {
     await storage.updateConversation(conversation.id, {
-      remoteJid: normalizedJid, // Atualizar JID (pode mudar)
+      remoteJid: normalizedJid,
       jidSuffix,
       lastMessageText: messageText,
       lastMessageTime: eventTs,
       lastMessageFromMe: false,
       unreadCount: (conversation.unreadCount || 0) + 1,
       contactName: waMessage.pushName || conversation.contactName,
-      contactAvatar: contactAvatar || conversation.contactAvatar, // Atualizar foto se dispon�vel
+      contactAvatar: contactAvatar || conversation.contactAvatar,
     });
   }
 
