@@ -2078,6 +2078,7 @@ export interface AIResponseOptions {
   contactPhone?: string; // Telefone do cliente (para agendamento)
   sentMedias?: string[]; // Lista de mídias já enviadas nesta conversa
   conversationId?: string; // ID da conversa (para vincular pedidos de delivery)
+  isCTWAFallback?: boolean; // 📢 Mensagem de Meta Ads (CTWA) - PDO falhou, tratar como saudação de interesse
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -3146,6 +3147,45 @@ ${jaDisseOQueTrabalha || jaPediuAjuda ? `
         console.log(`🛡️ [AI Agent] Anti-amnesia prompt injetado (${conversationHistory.length} msgs, saudação=${isSaudacao}, hasReplies=${hasAgentReplies}, jaDisseNegocio=${jaDisseOQueTrabalha})`);
     }
     
+    // 📢 CONTEXTO CTWA (Click-to-WhatsApp): Mensagem veio de anúncio Meta Ads
+    // Quando o PDO (Peer Data Operation) falha após 5 tentativas, não conseguimos
+    // ler a mensagem original do cliente. Em 99% dos casos, é uma saudação como
+    // "Oi, tenho interesse" vinda de um clique em anúncio do Facebook/Instagram.
+    // Instruímos a IA a tratar como primeiro contato de cliente interessado.
+    if (options?.isCTWAFallback) {
+      const ctwaContextPrompt = `
+═══════════════════════════════════════════════════════════════════════════════
+📢 CONTEXTO IMPORTANTE: CLIENTE VEIO DE ANÚNCIO META ADS (Click-to-WhatsApp)
+═══════════════════════════════════════════════════════════════════════════════
+
+Este cliente CLICOU em um anúncio do Facebook/Instagram e iniciou conversa pelo WhatsApp.
+Por uma limitação técnica do WhatsApp, a mensagem original não pôde ser lida completamente.
+
+O QUE VOCÊ SABE:
+- O cliente veio de um ANÚNCIO (Facebook Ads ou Instagram Ads)
+- Ele demonstrou INTERESSE no produto/serviço ao clicar no anúncio
+- A mensagem que aparece ("Oi") é um placeholder - a mensagem real provavelmente era algo como "Oi, tenho interesse", "Quero saber mais", etc.
+
+COMO VOCÊ DEVE RESPONDER:
+✅ Responda como se fosse um PRIMEIRO CONTATO de cliente INTERESSADO
+✅ Dê boas-vindas calorosas e mencione que viu o interesse dele
+✅ Apresente-se brevemente e pergunte como pode ajudar
+✅ Seja proativo - o cliente JÁ demonstrou interesse ao clicar no anúncio
+✅ Use sua mensagem de boas-vindas padrão/saudação inicial
+
+🚫 NÃO mencione problemas técnicos, mensagem incompleta ou erros
+🚫 NÃO peça para reenviar a mensagem
+🚫 NÃO diga que não conseguiu ler a mensagem
+🚫 NÃO mencione "anúncio" explicitamente (o cliente pode não lembrar)
+═══════════════════════════════════════════════════════════════════════════════
+`;
+      messages.push({
+        role: "system",
+        content: ctwaContextPrompt,
+      });
+      console.log(`📢 [AI Agent] CTWA fallback context injected - IA vai tratar como primeiro contato de cliente interessado`);
+    }
+
     // 🧹 REMOVER DUPLICATAS: Mensagens idênticas confundem a IA
     // MELHORADO: Remove duplicatas adjacentes, mas permite repetição se houver intervalo
     const uniqueMessages: Message[] = [];

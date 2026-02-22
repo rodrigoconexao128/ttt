@@ -862,6 +862,7 @@ interface PendingResponse {
   jidSuffix: string;
   startTime: number;
   isProcessing?: boolean; // ?? FLAG ANTI-DUPLICA��O
+  isCTWAFallback?: boolean; // 📢 Flag: mensagem veio de Meta Ads (CTWA) e PDO falhou - IA deve tratar como saudação de interesse
 }
 const pendingResponses = new Map<string, PendingResponse>(); // key: conversationId
 
@@ -5295,6 +5296,7 @@ async function handleIncomingMessage(
               if (existingPending) {
                 clearTimeout(existingPending.timeout);
                 existingPending.messages.push(fallbackText);
+                existingPending.isCTWAFallback = true; // 📢 Marcar como CTWA fallback
                 const executeAt = new Date(Date.now() + responseDelayMs);
                 existingPending.timeout = setTimeout(async () => {
                   await processAccumulatedMessages(existingPending);
@@ -5313,6 +5315,7 @@ async function handleIncomingMessage(
                   contactNumber: stubContactNumber,
                   jidSuffix: stubJidSuffix,
                   startTime: Date.now(),
+                  isCTWAFallback: true, // 📢 Marcar como CTWA fallback
                 };
                 pending.timeout = setTimeout(async () => {
                   await processAccumulatedMessages(pending);
@@ -5498,6 +5501,9 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
   console.log(`\n🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========`);
   console.log(`   ⏱️ Aguardou ${totalWaitTime}s | ${messages.length} mensagem(s) acumulada(s)`);
   console.log(`   📞 Contato: ${contactNumber}`);
+  if (pending.isCTWAFallback) {
+    console.log(`   📢 CTWA FALLBACK: IA vai receber contexto de cliente via Meta Ads`);
+  }
   
   // 🎯 FLAG DE SUCESSO: Só marca completed se a mensagem foi REALMENTE enviada
   let responseSuccessful = false;
@@ -5557,6 +5563,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         contactNumber,
         jidSuffix,
         startTime: pending.startTime, // Manter tempo original
+        isCTWAFallback: pending.isCTWAFallback, // Preservar flag CTWA no retry
       };
       
       retryPending.timeout = setTimeout(async () => {
@@ -5731,6 +5738,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         contactPhone: contactNumber, // ? Telefone do cliente para agendamento
         sentMedias,  // ? M�dias j� enviadas para evitar repeti��o
         conversationId, // 🍕 ID da conversa para vincular pedidos de delivery
+        isCTWAFallback: pending.isCTWAFallback, // 📢 Flag CTWA: IA deve tratar como saudação de interesse via Meta Ads
       }
     );
 
