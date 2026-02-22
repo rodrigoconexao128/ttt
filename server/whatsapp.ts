@@ -3648,14 +3648,64 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       }
 
       // ═══════════════════════════════════════════════════════════════════
-      // LOG: Mensagem CTWA resolvida via Placeholder Resend (PR #2334)
+      // LOG + FIX: Mensagem CTWA resolvida via Placeholder Resend (PR #2334)
       // Quando requestId está presente, significa que o Baileys resolveu
       // uma mensagem de anúncio Instagram/Facebook via PDO (Peer Data Operation)
       // ═══════════════════════════════════════════════════════════════════
       if (requestId) {
         const msgIds = (m.messages || []).map(msg => msg?.key?.id).join(', ');
         const remoteJids = (m.messages || []).map(msg => msg?.key?.remoteJid).join(', ');
-        console.log(`📢 [CTWA-RESOLVED] Mensagem de anúncio resolvida via placeholder resend! requestId=${requestId}, msgs=[${msgIds}], from=[${remoteJids}]`);
+        const contentTypes = (m.messages || []).map(msg => msg?.message ? Object.keys(msg.message).join(',') : 'NONE').join('; ');
+        console.log(`📢 [CTWA-RESOLVED] ✅ Mensagem CTWA DESCRIPTOGRAFADA com sucesso!`);
+        console.log(`   📡 requestId=${requestId}`);
+        console.log(`   💬 msgs=[${msgIds}]`);
+        console.log(`   📨 from=[${remoteJids}]`);
+        console.log(`   📝 content=[${contentTypes}]`);
+        
+        // Atualizar mensagem stub no banco com o conteúdo real
+        for (const msg of m.messages || []) {
+          if (msg?.key?.id && msg?.message) {
+            // Cachear mensagem resolvida
+            cacheMessage(userId, msg.key.id, msg.message);
+            
+            // Extrair texto real da mensagem descriptografada
+            const realContent = msg.message;
+            let realText = '';
+            if ((realContent as any)?.conversation) {
+              realText = (realContent as any).conversation;
+            } else if ((realContent as any)?.extendedTextMessage?.text) {
+              realText = (realContent as any).extendedTextMessage.text;
+            } else if ((realContent as any)?.imageMessage?.caption) {
+              realText = `[Imagem] ${(realContent as any).imageMessage.caption}`;
+            } else {
+              const keys = Object.keys(realContent);
+              realText = `[${keys.join(',')}]`;
+            }
+            
+            if (realText) {
+              console.log(`   🔓 Texto real descriptografado: "${realText.substring(0, 100)}"`);
+              
+              // Tentar atualizar a mensagem stub no banco para o texto real
+              try {
+                const dbMsg = await storage.getMessageByMessageId(msg.key.id);
+                if (dbMsg && dbMsg.text && (dbMsg.text.includes('Mensagem incompleta') || dbMsg.text === 'Oi' || dbMsg.text === 'oi')) {
+                  await storage.updateMessage(dbMsg.id, { text: realText });
+                  console.log(`   📝 Mensagem ${dbMsg.id} atualizada no banco: stub → "${realText.substring(0, 50)}"`);
+                  
+                  // Broadcast para UI
+                  broadcastToUser(userId, {
+                    type: "message_updated",
+                    conversationId: (dbMsg as any).conversationId || (dbMsg as any).conversation_id,
+                    messageId: dbMsg.id,
+                    text: realText,
+                  });
+                }
+              } catch (dbErr) {
+                console.error(`   ❌ Erro ao atualizar mensagem no banco:`, dbErr);
+              }
+            }
+          }
+        }
       }
 
       for (const message of m.messages || []) {
@@ -4986,21 +5036,24 @@ async function handleIncomingMessage(
     if (!canAutoReplyThis) {
       if (messageKind === "stub") {
         // ═══════════════════════════════════════════════════════════════════
-        // FIX 2026-02-21: STUB FALLBACK INTELIGENTE
+        // FIX 2026-02-21 v2: MULTI-ATTEMPT PDO RETRY + FALLBACK INTELIGENTE
         // ═══════════════════════════════════════════════════════════════════
-        // Mensagens de novos contatos chegam como "stub" (sem conteúdo)
-        // porque a sessão Signal Protocol ainda não foi estabelecida.
-        // O Baileys internamente solicita retry ao remetente.
+        // Mensagens CTWA (Click-to-WhatsApp de anúncios Meta/Instagram)
+        // chegam SEM encriptação (sem nó 'enc') → Baileys gera stub CIPHERTEXT.
         //
-        // FLUXO:
-        // 1. Aguarda 15s para o Baileys descriptografar via retry
-        // 2. Se retry funcionar → mensagem real chega via messages.update
-        //    e é processada normalmente (IA já responde)
-        // 3. Se retry NÃO funcionar após 15s → FALLBACK:
-        //    a) Atualiza texto da mensagem salva para "Oi"
-        //    b) Dispara processamento via Chatbot/IA normalmente
-        //    c) Assim o cliente SEMPRE recebe uma resposta útil da IA
-        //    (Antes: enviava "reenvie por favor" que era experiência ruim)
+        // O Baileys PR #2334 internamente chama requestPlaceholderResend()
+        // para pedir ao CELULAR que reenvie o conteúdo real via PDO.
+        // Porém o celular tem apenas 8s para responder → frequentemente falha
+        // se o celular estiver dormindo/sem internet/em background.
+        //
+        // SOLUÇÃO: Múltiplas tentativas de PDO com intervalos crescentes:
+        //   1ª tentativa: Baileys interna (t=0, timeout 8s)
+        //   2ª tentativa: Nossa re-tentativa manual (t=12s)
+        //   3ª tentativa: Nossa re-tentativa manual (t=25s)
+        //   Fallback: "Oi" para IA responder (t=40s)
+        //
+        // Ref: https://github.com/WhiskeySockets/Baileys/pull/2334
+        // Ref: https://github.com/WhiskeySockets/Baileys/issues/1767
         // ═══════════════════════════════════════════════════════════════════
         const stubMsgId = waMessage.key.id;
         const stubConversationId = conversation.id;
@@ -5010,50 +5063,111 @@ async function handleIncomingMessage(
         const stubRemoteJid = remoteJid;
         const stubSavedMessageId = savedMessage.id;
         const stubJidSuffix = jidSuffix || DEFAULT_JID_SUFFIX;
-        const STUB_RETRY_WAIT_MS = 15000; // 15 segundos para retry
 
-        console.log(`⏳ [STUB-RETRY-FIX] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - aguardando ${STUB_RETRY_WAIT_MS / 1000}s para retry decrypt...`);
+        // Tempos para cada tentativa (ms)
+        const PDO_RETRY_2_MS = 12000;  // 2ª tentativa: 12s (após 8s timeout interno)
+        const PDO_RETRY_3_MS = 25000;  // 3ª tentativa: 25s
+        const FINAL_FALLBACK_MS = 40000; // Fallback "Oi": 40s
 
-        // ── RETRY BOOST: Sinais agressivos para ajudar Baileys a descriptografar ──
-        // 1. Enviar presença 'available' (ajuda no retry do Signal Protocol)
-        // 2. Enviar read receipt (readMessages) para sinalizar ao celular
-        // 3. Repetir presença após 5s para reforçar a sessão
+        console.log(`⏳ [STUB-PDO-RETRY] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - iniciando sistema multi-retry PDO`);
+        console.log(`   📋 Plano: Baileys PDO interno (0s) → Re-PDO (${PDO_RETRY_2_MS/1000}s) → Re-PDO (${PDO_RETRY_3_MS/1000}s) → Fallback (${FINAL_FALLBACK_MS/1000}s)`);
+
+        // ── RETRY BOOST: Sinais agressivos para ajudar na descriptografia ──
         try {
           await session.socket.sendPresenceUpdate('available', normalizedJid);
         } catch (_presErr) { /* não-crítico */ }
 
         try {
-          // Read receipt ajuda a triggar re-entrega pelo WhatsApp
           await session.socket.readMessages([waMessage.key]);
-          console.log(`📖 [STUB-RETRY-FIX] Read receipt enviado para ${stubMsgId}`);
+          console.log(`📖 [STUB-PDO-RETRY] Read receipt enviado para ${stubMsgId}`);
         } catch (_readErr) { /* não-crítico */ }
 
-        // Presença extra após 5s para manter sessão ativa durante retry
+        // Presença extra após 5s
         setTimeout(async () => {
-          try {
-            await session.socket.sendPresenceUpdate('available', normalizedJid);
-          } catch (_e) { /* não-crítico */ }
+          try { await session.socket.sendPresenceUpdate('available', normalizedJid); } catch (_e) { /* */ }
         }, 5000);
 
-        // Capturar params de dedupe para verificar após timeout
+        // Capturar params de dedupe para verificar após timeouts
         const stubDedupeParams = incomingDedupeParams ? { ...incomingDedupeParams } : null;
 
-        setTimeout(async () => {
+        // Dados do PDO: chave da mensagem + metadados para preservar
+        const pdoMessageKey = {
+          remoteJid: waMessage.key.remoteJid,
+          fromMe: waMessage.key.fromMe,
+          id: waMessage.key.id,
+          participant: waMessage.key.participant,
+        };
+        const pdoMsgData = {
+          key: waMessage.key,
+          messageTimestamp: (waMessage as any).messageTimestamp,
+          pushName: waMessage.pushName,
+          participant: (waMessage as any).participant,
+          verifiedBizName: (waMessage as any).verifiedBizName,
+        };
+
+        // ── Função helper: verificar se stub já foi resolvido ──
+        const checkIfResolved = async (): Promise<boolean> => {
+          if (stubDedupeParams) {
+            const wasDecrypted = await isIncomingMessageProcessed(stubDedupeParams);
+            if (wasDecrypted) return true;
+          }
+          // Verificar também se a mensagem no cache indica resolução
+          const cached = getCachedMessage(stubUserId, stubMsgId || '');
+          if (cached) return true;
+          return false;
+        };
+
+        // ── Função helper: tentar PDO via requestPlaceholderResend ──
+        const attemptPDO = async (attemptNum: number): Promise<void> => {
           try {
-            // ── ETAPA 1: Verificar se o retry completou ──
-            if (stubDedupeParams) {
-              const wasDecrypted = await isIncomingMessageProcessed(stubDedupeParams);
-              if (wasDecrypted) {
-                console.log(`✅ [STUB-RETRY-FIX] Mensagem ${stubMsgId} foi descriptografada via retry! IA já respondeu.`);
-                return;
-              }
+            if (await checkIfResolved()) {
+              console.log(`✅ [STUB-PDO-RETRY] Mensagem ${stubMsgId} já resolvida antes da tentativa #${attemptNum}`);
+              return;
             }
 
-            // ── ETAPA 2: Retry falhou → Fallback com "Oi" para IA responder ──
-            const fallbackText = "Oi";
-            console.log(`⚠️ [STUB-FALLBACK] Mensagem ${stubMsgId} ainda incompleta após ${STUB_RETRY_WAIT_MS / 1000}s - usando fallback "${fallbackText}" para IA responder`);
+            console.log(`🔄 [STUB-PDO-RETRY] Tentativa #${attemptNum} de PDO para ${stubMsgId} de ${stubContactNumber}`);
 
-            // 2a. Atualizar texto da mensagem salva no banco (remover texto de erro)
+            // Enviar presença para manter sessão ativa
+            try { await session.socket.sendPresenceUpdate('available', normalizedJid); } catch (_e) { /* */ }
+            try { await session.socket.readMessages([waMessage.key]); } catch (_e) { /* */ }
+
+            // Chamar requestPlaceholderResend do Baileys
+            // Após o timeout de 8s do Baileys, o placeholderResendCache é limpo
+            // para este msgId, permitindo nova tentativa
+            const requestId = await (session.socket as any).requestPlaceholderResend(pdoMessageKey, pdoMsgData);
+            
+            if (requestId === 'RESOLVED') {
+              console.log(`✅ [STUB-PDO-RETRY] Mensagem ${stubMsgId} resolvida durante tentativa #${attemptNum}!`);
+            } else if (requestId) {
+              console.log(`📡 [STUB-PDO-RETRY] PDO #${attemptNum} enviado para ${stubMsgId} (requestId=${requestId})`);
+            } else {
+              console.log(`⚠️ [STUB-PDO-RETRY] PDO #${attemptNum} retornou undefined para ${stubMsgId} (já em cache ou resolvido)`);
+            }
+          } catch (pdoErr) {
+            console.error(`❌ [STUB-PDO-RETRY] Erro na tentativa #${attemptNum} para ${stubMsgId}:`, pdoErr);
+          }
+        };
+
+        // ── 2ª TENTATIVA PDO (t=12s) ──
+        setTimeout(() => attemptPDO(2), PDO_RETRY_2_MS);
+
+        // ── 3ª TENTATIVA PDO (t=25s) ──
+        setTimeout(() => attemptPDO(3), PDO_RETRY_3_MS);
+
+        // ── FALLBACK FINAL (t=40s): Se nenhuma PDO funcionou → "Oi" ──
+        setTimeout(async () => {
+          try {
+            // Verificar uma última vez se foi resolvido
+            if (await checkIfResolved()) {
+              console.log(`✅ [STUB-PDO-RETRY] Mensagem ${stubMsgId} resolvida após ${FINAL_FALLBACK_MS/1000}s! Nenhum fallback necessário.`);
+              return;
+            }
+
+            // ── FALLBACK: Usar "Oi" como texto para IA responder ──
+            const fallbackText = "Oi";
+            console.log(`⚠️ [STUB-FALLBACK] Mensagem ${stubMsgId} ainda incompleta após 3 tentativas PDO (${FINAL_FALLBACK_MS/1000}s) - usando fallback "${fallbackText}"`);
+
+            // Atualizar texto da mensagem salva
             try {
               await storage.updateMessage(stubSavedMessageId, { text: fallbackText });
               console.log(`📝 [STUB-FALLBACK] Mensagem ${stubSavedMessageId} atualizada para "${fallbackText}"`);
@@ -5061,23 +5175,19 @@ async function handleIncomingMessage(
               console.error(`❌ [STUB-FALLBACK] Erro ao atualizar mensagem:`, updateErr);
             }
 
-            // 2b. Atualizar lastMessageText da conversa
+            // Atualizar lastMessageText da conversa
             try {
-              await storage.updateConversation(stubConversationId, {
-                lastMessageText: fallbackText,
-              });
+              await storage.updateConversation(stubConversationId, { lastMessageText: fallbackText });
             } catch (convErr) {
               console.error(`❌ [STUB-FALLBACK] Erro ao atualizar conversa:`, convErr);
             }
 
-            // 2c. Marcar como processada no anti-reenvio
+            // Marcar como processada no anti-reenvio
             if (stubDedupeParams) {
-              try {
-                await markIncomingMessageProcessed(stubDedupeParams);
-              } catch (_dedupErr) { /* não-crítico */ }
+              try { await markIncomingMessageProcessed(stubDedupeParams); } catch (_dedupErr) { /* */ }
             }
 
-            // 2d. Broadcast para UI atualizar o texto da mensagem
+            // Broadcast para UI
             try {
               broadcastToUser(stubUserId, {
                 type: "message_updated",
@@ -5085,12 +5195,12 @@ async function handleIncomingMessage(
                 messageId: stubSavedMessageId,
                 text: fallbackText,
               });
-            } catch (_broadcastErr) { /* não-crítico */ }
+            } catch (_broadcastErr) { /* */ }
 
-            // ── ETAPA 3: Verificar se agente/IA pode responder ──
+            // Verificar se agente pode responder
             const isAgentDisabled = await storage.isAgentDisabledForConversation(stubConversationId);
             if (isAgentDisabled) {
-              console.log(`⏸️ [STUB-FALLBACK] Agente pausado para conversa ${stubConversationId}, não processar`);
+              console.log(`⏸️ [STUB-FALLBACK] Agente pausado para conversa ${stubConversationId}`);
               return;
             }
 
@@ -5110,7 +5220,7 @@ async function handleIncomingMessage(
               return;
             }
 
-            // ── ETAPA 4: Processar via Chatbot (prioridade) ──
+            // Processar via Chatbot (prioridade)
             try {
               const { tryProcessChatbotMessage, isNewContact } = await import("./chatbotIntegration");
               const isFirstContact = await isNewContact(stubConversationId);
@@ -5130,7 +5240,7 @@ async function handleIncomingMessage(
               console.error(`⚠️ [STUB-FALLBACK] Erro no chatbot (tentando IA):`, chatbotErr);
             }
 
-            // ── ETAPA 5: Processar via IA (sistema de acumulação) ──
+            // Processar via IA (sistema de acumulação)
             try {
               const agentConfig = await storage.getAgentConfig(stubUserId);
               const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
@@ -5148,7 +5258,7 @@ async function handleIncomingMessage(
                 console.log(`📨 [STUB-FALLBACK] Mensagem acumulada (${existingPending.messages.length} msgs) para ${stubContactNumber}`);
                 try {
                   await storage.updatePendingAIResponseMessages(stubConversationId, existingPending.messages, executeAt);
-                } catch (_dbErr) { /* não-crítico */ }
+                } catch (_dbErr) { /* */ }
               } else {
                 const executeAt = new Date(Date.now() + responseDelayMs);
                 const pending: PendingResponse = {
@@ -5174,13 +5284,12 @@ async function handleIncomingMessage(
                     messages: [fallbackText],
                     executeAt,
                   });
-                } catch (_dbErr) { /* não-crítico */ }
+                } catch (_dbErr) { /* */ }
               }
 
               console.log(`🤖 [STUB-FALLBACK] IA ativada para ${stubContactNumber} com texto "${fallbackText}"`);
             } catch (aiErr) {
               console.error(`❌ [STUB-FALLBACK] Erro ao iniciar IA:`, aiErr);
-              // Fallback final: enviar mensagem de reenvio se tudo falhar
               try {
                 await sendMessage(
                   stubUserId,
@@ -5191,9 +5300,9 @@ async function handleIncomingMessage(
               } catch (_sendErr) { /* silenciar */ }
             }
           } catch (err) {
-            console.error(`❌ [STUB-FALLBACK] Erro no timeout de stub:`, err);
+            console.error(`❌ [STUB-FALLBACK] Erro no timeout final:`, err);
           }
-        }, STUB_RETRY_WAIT_MS);
+        }, FINAL_FALLBACK_MS);
       }
       return;
     }
