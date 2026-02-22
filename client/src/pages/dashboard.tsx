@@ -402,7 +402,7 @@ export default function Dashboard() {
         setTimeout(() => {
           setLocation("/login");
         }, 500);
-      }, 4000); // 4 segundos ao invés de 1.5 - mais tolerante para deploys/rede lenta
+      }, 2000); // ⚡ 2 segundos (antes 4s) - getAuthToken() agora faz refresh proativo
       
       return () => clearTimeout(timer);
     }

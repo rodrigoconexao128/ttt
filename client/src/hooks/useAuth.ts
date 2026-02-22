@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
-import { fetchWithAuth, getAuthToken, refreshSession, supabase } from "@/lib/supabase";
+import { getAuthToken, refreshSession, supabase } from "@/lib/supabase";
 
 // Singleton flag: only ONE onAuthStateChange listener across all useAuth() instances
 let _authListenerActive = false;
@@ -81,11 +81,18 @@ async function fetchUser(): Promise<User | null> {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // Timeout de 10s
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // ⚡ Timeout de 5s (antes 10s)
 
     try {
-      const response = await fetchWithAuth("/api/auth/user", {
+      // 🚀 OTIMIZADO: Usar fetch direto com token já obtido (evita chamar getAuthToken() de novo dentro de fetchWithAuth)
+      const response = await fetch("/api/auth/user", {
         signal: controller.signal,
+        credentials: "include",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
       });
       clearTimeout(timeoutId);
 
@@ -95,11 +102,21 @@ async function fetchUser(): Promise<User | null> {
           console.log("[AUTH] 401 no /api/auth/user, tentando refresh...");
           const refreshed = await refreshSession();
           if (refreshed) {
-            // Retry com token novo
-            const retryResponse = await fetchWithAuth("/api/auth/user");
-            if (retryResponse.ok) {
-              console.log("[AUTH] ✅ Retry após refresh bem sucedido");
-              return await retryResponse.json();
+            const newToken = await getAuthToken();
+            if (newToken) {
+              // Retry com token novo (fetch direto, sem timeout extra)
+              const retryResponse = await fetch("/api/auth/user", {
+                credentials: "include",
+                headers: {
+                  'Authorization': `Bearer ${newToken}`,
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                },
+              });
+              if (retryResponse.ok) {
+                console.log("[AUTH] ✅ Retry após refresh bem sucedido");
+                return await retryResponse.json();
+              }
             }
           }
           // Refresh falhou ou retry falhou - sessão realmente inválida
@@ -131,7 +148,7 @@ export function useAuth() {
     queryKey: ["/api/auth/user"],
     queryFn: fetchUser,
     retry: 1, // Retry uma vez em caso de erro de rede/transiente
-    retryDelay: 2000, // Espera 2s antes de retry
+    retryDelay: 1000, // ⚡ Espera 1s antes de retry (antes 2s)
 
     staleTime: 5 * 60 * 1000, // 5 minutos
     gcTime: 5 * 60 * 1000, // Substitui cacheTime

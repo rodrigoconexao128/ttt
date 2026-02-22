@@ -18,7 +18,21 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// 🚀 Verifica se um JWT está expirado localmente (sem chamada de rede)
+function isTokenExpired(token: string, marginSeconds = 30): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1]));
+    const now = Math.floor(Date.now() / 1000);
+    return !payload.exp || payload.exp < now - marginSeconds;
+  } catch {
+    return true;
+  }
+}
+
 // Função auxiliar para obter o token de autenticação
+// 🚀 OTIMIZADO: Verifica expiração localmente e faz refresh proativo se necessário
 export async function getAuthToken(): Promise<string | null> {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
@@ -26,7 +40,22 @@ export async function getAuthToken(): Promise<string | null> {
       console.error('[SUPABASE] Erro ao obter sessão:', error.message);
       return null;
     }
-    return session?.access_token || null;
+    
+    const token = session?.access_token;
+    if (!token) return null;
+    
+    // 🚀 Verificar expiração localmente — se expirado, fazer refresh ANTES de retornar
+    if (isTokenExpired(token)) {
+      console.log('[SUPABASE] Token expirado localmente, fazendo refresh proativo...');
+      const refreshed = await refreshSession();
+      if (refreshed) {
+        const { data: { session: newSession } } = await supabase.auth.getSession();
+        return newSession?.access_token || null;
+      }
+      return null;
+    }
+    
+    return token;
   } catch (e) {
     console.error('[SUPABASE] Exceção ao obter token:', e);
     return null;
