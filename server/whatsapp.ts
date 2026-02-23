@@ -6491,8 +6491,9 @@ export async function sendMessage(
 
   const messageId = queueResult.messageId || Date.now().toString();
 
+  let savedSentMsg: any = null;
   try {
-    await storage.createMessage({
+    savedSentMsg = await storage.createMessage({
       conversationId,
       messageId,
       fromMe: true,
@@ -6532,6 +6533,22 @@ export async function sendMessage(
     type: "message_sent",
     conversationId,
     message: text,
+    messageData: savedSentMsg ? {
+      id: savedSentMsg.id,
+      conversationId,
+      messageId: savedSentMsg.messageId || messageId,
+      fromMe: true,
+      text: text,
+      timestamp: savedSentMsg.timestamp || new Date().toISOString(),
+      isFromAgent: options?.isFromAgent ?? false,
+      status: "sent",
+    } : undefined,
+    conversationUpdate: {
+      id: conversationId,
+      lastMessageText: text,
+      lastMessageTime: new Date().toISOString(),
+      lastMessageFromMe: true,
+    },
   });
 }
 

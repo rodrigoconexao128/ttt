@@ -881,7 +881,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
             console.log('[ChatArea WebSocket] Received:', data.type);
             
             // ⚡ REAL-TIME: Append mensagem inline (sem refetch da API)
-            if (data.type === 'new_message' || data.type === 'agent_response') {
+            if (data.type === 'new_message' || data.type === 'agent_response' || data.type === 'message_sent') {
               const targetConvId = data.data?.conversationId || data.conversationId;
               if (targetConvId === conversationId) {
                 if (data.messageData) {

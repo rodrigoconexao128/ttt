@@ -220,7 +220,7 @@ export function ConversationsList({
             console.log("WebSocket message:", data);
 
             // 🔥 Real-time update: atualizar conversa inline sem refetch completo
-            if (data.type === "new_message" && data.conversationUpdate) {
+            if ((data.type === "new_message" || data.type === "message_sent") && data.conversationUpdate) {
               const update = data.conversationUpdate;
               setAllConversations(prev => {
                 const existingIdx = prev.findIndex(c => c.id === update.id);
