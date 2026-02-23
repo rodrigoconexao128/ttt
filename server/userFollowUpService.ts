@@ -205,6 +205,8 @@ type FollowUpCallback = (
 export class UserFollowUpService {
   private checkInterval: NodeJS.Timeout | null = null;
   private isRunning = false;
+  // 🔧 FIX: Guard contra ciclos sobrepostos (timer overlap pode spammar leads)
+  private isProcessingCycle = false;
   private onFollowUpReady: FollowUpCallback | null = null;
 
   start() {
@@ -236,6 +238,13 @@ export class UserFollowUpService {
    * Processa todas as conversas pendentes de follow-up
    */
   private async processFollowUps() {
+    // 🔧 FIX: Guard contra ciclos sobrepostos
+    if (this.isProcessingCycle) {
+      console.log("⏭️ [USER-FOLLOW-UP] Verificação anterior ainda em execução, pulando ciclo para evitar duplicatas");
+      return;
+    }
+
+    this.isProcessingCycle = true;
     try {
       // 🚀 REMOVIDO: Verificação global hasAnyActiveWhatsAppConnection()
       // Motivo: Após restart do servidor, a memória está vazia mas o banco tem conexões ativas
@@ -264,11 +273,42 @@ export class UserFollowUpService {
         console.log(`🔍 [USER-FOLLOW-UP] Encontradas ${pendingConversations.length} conversas para processar`);
       }
 
-      for (const conv of pendingConversations) {
+      // 🔧 FIX: Deduplicar por numero de telefone - processar apenas a conversa
+      // mais recente de cada numero para evitar followups duplicados
+      const seenPhones = new Set<string>();
+      const uniqueConversations = [];
+      
+      // Ordenar por last_message_time desc para pegar a mais recente primeiro
+      const sorted = [...pendingConversations].sort((a, b) => {
+        const aTime = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+        const bTime = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+        return bTime - aTime;
+      });
+      
+      for (const conv of sorted) {
+        if (!seenPhones.has(conv.contactNumber)) {
+          seenPhones.add(conv.contactNumber);
+          uniqueConversations.push(conv);
+        } else {
+          // Conversa duplicada - desativar followup para evitar spam
+          console.log(`🔧 [USER-FOLLOW-UP] Desativando followup DUPLICADO para ${conv.contactNumber} (conv ${conv.id})`);
+          await db.update(conversations)
+            .set({ followupActive: false, nextFollowupAt: null, followupDisabledReason: 'Duplicado - outra conversa ativa' })
+            .where(eq(conversations.id, conv.id));
+        }
+      }
+      
+      if (uniqueConversations.length !== pendingConversations.length) {
+        console.log(`🔧 [USER-FOLLOW-UP] Deduplicação: ${pendingConversations.length} → ${uniqueConversations.length} conversas únicas`);
+      }
+
+      for (const conv of uniqueConversations) {
         await this.executeFollowUp(conv);
       }
     } catch (error) {
       console.error("❌ [USER-FOLLOW-UP] Erro ao processar follow-ups:", error);
+    } finally {
+      this.isProcessingCycle = false;
     }
   }
 
@@ -333,7 +373,33 @@ export class UserFollowUpService {
     console.log(`👉 [USER-FOLLOW-UP] Processando ${conversation.contactNumber} (Estágio ${conversation.followupStage})`);
 
     try {
-      // 🚫 LISTA DE EXCLUSÃO: Verificar se o número está excluído de follow-up
+      // � FIX CRÍTICO: Anti-spam cooldown - verificar se a última mensagem (nossa ou do cliente)
+      // foi há menos de 10 minutos. Se sim, NÃO enviar follow-up agora.
+      // Isso evita enviar follow-up enquanto conversa está ativa.
+      try {
+        const recentMsg = await db.query.messages.findFirst({
+          where: eq(messages.conversationId, conversation.id),
+          orderBy: (msgs, { desc }) => [desc(msgs.timestamp)],
+        });
+        
+        if (recentMsg?.timestamp) {
+          const ageMs = Date.now() - new Date(recentMsg.timestamp as any).getTime();
+          const cooldownMs = 10 * 60 * 1000; // 10 minutos de cooldown mínimo
+          if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs < cooldownMs) {
+            console.log(`🧊 [USER-FOLLOW-UP] Cooldown ativo (${Math.round(ageMs / 1000)}s desde última msg) para ${conversation.contactNumber}, reagendando`);
+            // Reagendar para 10 min após a última mensagem
+            const nextDate = addRandomSeconds(new Date(new Date(recentMsg.timestamp as any).getTime() + cooldownMs));
+            await db.update(conversations)
+              .set({ nextFollowupAt: nextDate })
+              .where(eq(conversations.id, conversation.id));
+            return;
+          }
+        }
+      } catch (cooldownErr) {
+        console.warn('⚠️ [USER-FOLLOW-UP] Falha ao checar cooldown, continuando:', cooldownErr);
+      }
+
+      // �🚫 LISTA DE EXCLUSÃO: Verificar se o número está excluído de follow-up
       const isExcludedFromFollowup = await storage.isNumberExcludedFromFollowup(userId, conversation.contactNumber);
       if (isExcludedFromFollowup) {
         console.log(`🚫 [USER-FOLLOW-UP] Número ${conversation.contactNumber} está na LISTA DE EXCLUSÃO - não enviar follow-up`);
@@ -1198,6 +1264,9 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
 
   /**
    * Ativa follow-up para uma conversa
+   * 🔧 FIX CRÍTICO: NÃO resetar se follow-up já está ativo!
+   * Apenas ativar se estava desativado. Isso evita que o agent response
+   * resete o timer a cada mensagem, criando loop de spam.
    */
   async enableFollowUp(conversationId: string) {
     // Buscar conversa para obter userId via connection
@@ -1208,6 +1277,14 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
 
     if (!conversation?.connection?.userId) {
       console.log(`⚠️ [USER-FOLLOW-UP] Não foi possível ativar follow-up: userId não encontrado`);
+      return;
+    }
+
+    // 🔧 FIX CRÍTICO: Se follow-up JÁ está ativo, NÃO resetar!
+    // Isso evita que cada resposta do agente resete o timer para 10 min,
+    // criando um loop infinito de follow-ups a cada 10 minutos.
+    if (conversation.followupActive && conversation.nextFollowupAt) {
+      console.log(`ℹ️ [USER-FOLLOW-UP] Follow-up já ativo para ${conversationId} (stage=${conversation.followupStage}, next=${conversation.nextFollowupAt}). NÃO resetando.`);
       return;
     }
 
