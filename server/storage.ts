@@ -96,7 +96,7 @@
   type InsertConnectionMember,
 } from "@shared/schema";
 import { db, withRetry } from "./db";
-import { eq, desc, and, gte, sql, inArray, lte, lt, gt, isNotNull, asc } from "drizzle-orm";
+import { eq, desc, and, gte, sql, inArray, lte, lt, gt, isNotNull, isNull, asc, or } from "drizzle-orm";
 import { transcribeAudioWithMistral, analyzeImageWithMistral } from "./mistralClient";
 
 // ============================================
@@ -871,7 +871,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(conversations)
       .where(eq(conversations.connectionId, connectionId))
-      .orderBy(desc(conversations.lastMessageTime));
+      .orderBy(sql`${conversations.lastMessageTime} DESC NULLS LAST`);
   }
 
   // 🔥 OTIMIZADO: Retorna apenas COUNT e SUM ao invés de carregar 20k+ rows
@@ -913,7 +913,7 @@ export class DatabaseStorage implements IStorage {
     connectionId: string,
     contactNumber: string
   ): Promise<Conversation | undefined> {
-    // Use Drizzle ORM to avoid template literal issues in PowerShell patching
+    // FIX: Handle NULL is_closed (treat as open) and order by DESC to get newest
     const result = await db
       .select()
       .from(conversations)
@@ -921,10 +921,10 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(conversations.connectionId, connectionId),
           eq(conversations.contactNumber, contactNumber),
-          eq(conversations.isClosed, false)
+          or(eq(conversations.isClosed, false), isNull(conversations.isClosed))
         )
       )
-      .orderBy(conversations.updatedAt)
+      .orderBy(desc(conversations.updatedAt))
       .limit(1);
     return result[0];
   }
@@ -938,6 +938,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createConversation(conversationData: InsertConversation): Promise<Conversation> {
+    // FIX DUPLICATAS: Antes de inserir, verificar se já existe conversa ativa para o mesmo contato
+    if (conversationData.connectionId && conversationData.contactNumber) {
+      const existing = await this.getActiveConversationByContactNumber(
+        conversationData.connectionId,
+        conversationData.contactNumber
+      );
+      if (existing) {
+        console.log(`⚠️ [STORAGE] Conversa ativa já existe para ${conversationData.contactNumber} (${existing.id}), retornando existente em vez de duplicar`);
+        // Atualizar dados da conversa existente se necessário
+        const updated = await this.updateConversation(existing.id, {
+          contactName: conversationData.contactName || existing.contactName,
+          contactAvatar: conversationData.contactAvatar || existing.contactAvatar,
+          lastMessageText: conversationData.lastMessageText || existing.lastMessageText,
+          lastMessageTime: conversationData.lastMessageTime || existing.lastMessageTime,
+        });
+        return updated;
+      }
+    }
     const [conversation] = await db
       .insert(conversations)
       .values(conversationData)
@@ -3953,7 +3971,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
           eq(conversations.connectionId, connectionId)
         )
       )
-      .orderBy(desc(conversations.lastMessageTime));
+      .orderBy(sql`${conversations.lastMessageTime} DESC NULLS LAST`);
     
     return result.map(r => r.conversation);
   }
@@ -4050,11 +4068,12 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     }
 
     // Busca conversas com limit/offset
+    // FIX ORDENAÇÃO: NULLS LAST para que conversas sem mensagens não fiquem fixas no topo
     let query = db
       .select()
       .from(conversations)
       .where(eq(conversations.connectionId, connectionId))
-      .orderBy(desc(conversations.lastMessageTime));
+      .orderBy(sql`${conversations.lastMessageTime} DESC NULLS LAST`);
     
     if (limit != null) {
       query = query.limit(limit) as any;

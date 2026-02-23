@@ -4210,11 +4210,19 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     return;
   }
 
-  // Buscar/criar conversa
-  let conversation = await storage.getConversationByContactNumber(
+  // Buscar/criar conversa - FIX: usar getActiveConversation para não pegar conversa fechada
+  let conversation = await storage.getActiveConversationByContactNumber(
     session.connectionId,
     contactNumber
   );
+
+  // Fallback: se não tem conversa ativa, tentar a antiga (para outgoing em conversa fechada)
+  if (!conversation) {
+    conversation = await storage.getConversationByContactNumber(
+      session.connectionId,
+      contactNumber
+    );
+  }
 
   const wasNewConversation = !conversation;
 

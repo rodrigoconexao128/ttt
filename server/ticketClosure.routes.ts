@@ -134,15 +134,25 @@ export function registerTicketClosureRoutes(app: Express): void {
         createdAt: new Date(),
       });
 
-      // Create new conversation for fresh context
-      const newConversation = await storage.createConversation({
-        connectionId: connection.id,
-        contactNumber: oldConversation.contactNumber,
-        remoteJid: oldConversation.remoteJid,
-        jidSuffix: oldConversation.jidSuffix || 's.whatsapp.net',
-        contactName: oldConversation.contactName,
-        contactAvatar: oldConversation.contactAvatar,
-      });
+      // FIX DUPLICATAS: Verificar se já existe conversa ativa para este contato antes de criar nova
+      let newConversation = await storage.getActiveConversationByContactNumber(
+        connection.id,
+        oldConversation.contactNumber
+      );
+
+      if (newConversation) {
+        console.log(`⚠️ [REOPEN] Conversa ativa já existe para ${oldConversation.contactNumber} (${newConversation.id}), reutilizando`);
+      } else {
+        // Create new conversation for fresh context
+        newConversation = await storage.createConversation({
+          connectionId: connection.id,
+          contactNumber: oldConversation.contactNumber,
+          remoteJid: oldConversation.remoteJid,
+          jidSuffix: oldConversation.jidSuffix || 's.whatsapp.net',
+          contactName: oldConversation.contactName,
+          contactAvatar: oldConversation.contactAvatar,
+        });
+      }
 
       // Mark new conversation as open and ready
       await storage.updateConversation(newConversation.id, {
