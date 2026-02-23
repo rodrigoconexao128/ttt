@@ -4273,8 +4273,9 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   }
   
   // Mensagem realmente nova do dono - salvar e processar auto-pause
+  let savedOutgoingMsg: any = null;
   try {
-    await storage.createMessage({
+    savedOutgoingMsg = await storage.createMessage({
       conversationId: conversation.id,
       messageId: waMessage.key.id || `msg_${Date.now()}`,
       fromMe: true,
@@ -4383,6 +4384,31 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     conversationId: conversation.id,
     message: messageText,
     mediaType,
+    // ⚡ REAL-TIME: Enviar mensagem completa para append inline
+    messageData: savedOutgoingMsg ? {
+      id: savedOutgoingMsg.id,
+      conversationId: conversation.id,
+      messageId: savedOutgoingMsg.messageId,
+      fromMe: true,
+      text: messageText,
+      timestamp: savedOutgoingMsg.timestamp?.toISOString?.() || new Date().toISOString(),
+      isFromAgent: false,
+      mediaType: mediaType || null,
+      mediaUrl: savedOutgoingMsg.mediaUrl || null,
+      mediaMimeType: savedOutgoingMsg.mediaMimeType || null,
+      mediaDuration: savedOutgoingMsg.mediaDuration || null,
+      mediaCaption: savedOutgoingMsg.mediaCaption || null,
+    } : undefined,
+    // Conversation update for list
+    conversationUpdate: {
+      id: conversation.id,
+      contactNumber,
+      contactName: conversation.contactName || null,
+      lastMessageText: messageText,
+      lastMessageTime: new Date().toISOString(),
+      lastMessageFromMe: true,
+      unreadCount: 0,
+    },
   });
 
   console.log(`?? [FROM ME] Mensagem sincronizada: ${contactNumber} - "${messageText}"`);
@@ -5008,6 +5034,21 @@ async function handleIncomingMessage(
         lastMessageFromMe: false,
         unreadCount: (conversation.unreadCount || 0) + 1,
         isNew: wasNewConversation,
+      },
+      // ⚡ REAL-TIME: Enviar mensagem completa para append inline (sem refetch)
+      messageData: {
+        id: savedMessage.id,
+        conversationId: conversation.id,
+        messageId: savedMessage.messageId,
+        fromMe: false,
+        text: effectiveText,
+        timestamp: eventTs.toISOString(),
+        isFromAgent: false,
+        mediaType: mediaType || null,
+        mediaUrl: savedMessage.mediaUrl || null,
+        mediaMimeType: savedMessage.mediaMimeType || null,
+        mediaDuration: savedMessage.mediaDuration || null,
+        mediaCaption: savedMessage.mediaCaption || null,
       },
   });
 
@@ -5909,6 +5950,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       for (let i = 0; i < messageParts.length; i++) {
         const part = messageParts[i];
         const isLast = i === messageParts.length - 1;
+        let savedAgentMsg: any = null;
         
         // ??? ANTI-BLOQUEIO: Usar fila de mensagens para garantir delay entre envios
         // Cada WhatsApp tem sua pr�pria fila - m�ltiplos usu�rios podem enviar ao mesmo tempo
@@ -5923,7 +5965,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           const messageId = queueResult.messageId || `${Date.now()}-${i}`;
 
           try {
-            await storage.createMessage({
+            savedAgentMsg = await storage.createMessage({
               conversationId: conversationId,
               messageId,
               fromMe: true,
@@ -5956,6 +5998,24 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             type: "agent_response",
             conversationId: conversationId,
             message: aiResponse,
+            // ⚡ REAL-TIME: Enviar mensagem completa para append inline
+            messageData: savedAgentMsg ? {
+              id: savedAgentMsg.id,
+              conversationId: conversationId,
+              messageId: savedAgentMsg.messageId,
+              fromMe: true,
+              text: part,
+              timestamp: new Date().toISOString(),
+              isFromAgent: true,
+              mediaType: null,
+              mediaUrl: null,
+            } : undefined,
+            conversationUpdate: {
+              id: conversationId,
+              lastMessageText: part,
+              lastMessageTime: new Date().toISOString(),
+              lastMessageFromMe: true,
+            },
           });
         }
 

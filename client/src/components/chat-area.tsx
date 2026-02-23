@@ -872,13 +872,43 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
             const data = JSON.parse(event.data);
             console.log('[ChatArea WebSocket] Received:', data.type);
             
-            // Atualiza mensagens quando recebe nova mensagem ou resposta do agente
+            // ⚡ REAL-TIME: Append mensagem inline (sem refetch da API)
             if (data.type === 'new_message' || data.type === 'agent_response') {
-              // Verifica se é para esta conversa
-              if (data.data?.conversationId === conversationId || data.conversationId === conversationId) {
-                queryClient.invalidateQueries({ 
-                  queryKey: ["/api/messages", conversationId] 
-                });
+              const targetConvId = data.data?.conversationId || data.conversationId;
+              if (targetConvId === conversationId) {
+                if (data.messageData) {
+                  // Append direto ao cache do React Query (instantâneo!)
+                  queryClient.setQueryData(
+                    ["/api/messages", conversationId],
+                    (old: any) => {
+                      if (!old) return old;
+                      // Verificar duplicata por messageId
+                      const messages = Array.isArray(old) ? old : (old.messages || []);
+                      const exists = messages.some((m: any) => 
+                        m.id === data.messageData.id || m.messageId === data.messageData.messageId
+                      );
+                      if (exists) return old;
+                      
+                      const newMsg = {
+                        ...data.messageData,
+                        timestamp: data.messageData.timestamp || new Date().toISOString(),
+                      };
+                      
+                      if (Array.isArray(old)) {
+                        return [...old, newMsg];
+                      }
+                      return {
+                        ...old,
+                        messages: [...(old.messages || []), newMsg],
+                      };
+                    }
+                  );
+                } else {
+                  // Fallback: se não tiver messageData, refetch
+                  queryClient.invalidateQueries({ 
+                    queryKey: ["/api/messages", conversationId] 
+                  });
+                }
               }
             }
             
