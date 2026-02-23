@@ -209,6 +209,14 @@ export function ConversationsList({
         websocket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
+            
+            // ⚡ KEEP-ALIVE: Responder pings do servidor para manter conexão viva
+            if (data.type === 'ping') {
+              websocket?.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
+              return;
+            }
+            if (data.type === 'pong') return;
+            
             console.log("WebSocket message:", data);
 
             // 🔥 Real-time update: atualizar conversa inline sem refetch completo

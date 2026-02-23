@@ -870,6 +870,14 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
+            
+            // ⚡ KEEP-ALIVE: Responder pings do servidor para manter conexão viva
+            if (data.type === 'ping') {
+              ws?.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
+              return;
+            }
+            if (data.type === 'pong') return; // Ignorar pongs
+            
             console.log('[ChatArea WebSocket] Received:', data.type);
             
             // ⚡ REAL-TIME: Append mensagem inline (sem refetch da API)

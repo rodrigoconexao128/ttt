@@ -193,6 +193,13 @@ export default function AdminWhatsappPanel() {
             return;
           }
           
+          // ⚡ KEEP-ALIVE: Responder pings do servidor
+          if (data.type === 'ping') {
+            websocket.send(JSON.stringify({ type: 'pong', timestamp: data.timestamp }));
+            lastPongRef.current = Date.now();
+            return;
+          }
+          
           console.log("[WS] Admin WebSocket message:", data.type);
 
           if (data.type === 'qr') {
