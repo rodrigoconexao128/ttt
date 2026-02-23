@@ -14296,7 +14296,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
               numeroCenarios: 2,
 
-              maxTentativasReparo: 100, // ILIMITADO - continua até atingir 70
+              maxTentativasReparo: 3, // Limitado para reduzir drift do prompt
 
               scoreMinimoAprovacao: 70
 
@@ -14824,11 +14824,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // ==================================================================================
 
+      const shouldSyncFlowFromInstruction = (text: string): boolean => {
+
+        const normalized = (text || "").toLowerCase();
+
+        return /(fluxo|flow|etapa|n[óo]s?|node|funil|sequ[eê]ncia|gatilho|trigger|menu|bot[aã]o|bloco)/i.test(normalized);
+
+      };
+
       let calibrationResult = null;
 
       let promptFinal = result.novoPrompt;
 
       let calibrationMessage = "";
+
+      let flowUpdated = false;
 
 
 
@@ -14856,7 +14866,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               numeroCenarios: 2, // Balancear velocidade vs precisão
 
-              maxTentativasReparo: 100, // ILIMITADO - continua até atingir 70
+              maxTentativasReparo: 3, // Limitado para reduzir drift do prompt
 
               scoreMinimoAprovacao: 70 // Score mínimo obrigatório
 
@@ -15014,39 +15024,41 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // Quando cliente edita o prompt, o fluxo é regenerado baseado na nova instrução
 
-        let flowUpdated = false;
-
         try {
 
-          const { handleEditPrompt } = await import("./flowIntegration");
+          if (shouldSyncFlowFromInstruction(instruction)) {
 
-          console.log(`\n?? [Edit Prompt] Regenerando FlowDefinition conforme nova instrução...`);
+            const { handleEditPrompt } = await import("./flowIntegration");
 
+            console.log(`\n?? [Edit Prompt] Regenerando FlowDefinition conforme nova instrução...`);
 
+            const flowResult = await handleEditPrompt(
 
-          const flowResult = await handleEditPrompt(
+              userId,
 
-            userId,
+              currentPrompt,
 
-            currentPrompt,
+              instruction,
 
-            instruction,
+              promptFinal,
 
-            promptFinal,
+              mistralApiKey
 
-            mistralApiKey
+            );
 
-          );
+            flowUpdated = flowResult.flowUpdated;
 
+            console.log(`?? [Edit Prompt] FlowDefinition: ${flowUpdated ? '? Atualizado' : '? Não atualizado'}`);
 
+            if (flowUpdated && flowResult.changes.length > 0) {
 
-          flowUpdated = flowResult.flowUpdated;
+              console.log(`?? [Edit Prompt] Mudanças no fluxo: ${flowResult.changes.join(', ')}`);
 
-          console.log(`?? [Edit Prompt] FlowDefinition: ${flowUpdated ? '? Atualizado' : '? Não atualizado'}`);
+            }
 
-          if (flowUpdated && flowResult.changes.length > 0) {
+          } else {
 
-            console.log(`?? [Edit Prompt] Mudanças no fluxo: ${flowResult.changes.join(', ')}`);
+            console.log(`?? [Edit Prompt] Sem intenção de fluxo detectada - não regenerar FlowDefinition`);
 
           }
 
@@ -15118,7 +15130,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         },
 
-        flowUpdated: result.success && result.novoPrompt !== currentPrompt ? true : false,
+        flowUpdated,
 
         calibration: calibrationResult ? {
 

@@ -80,7 +80,7 @@ export function analyzeUserPrompt(prompt: string): PromptAnalysis {
     ['hidráulica', /hidráulic|encanador|vazamento|cano|torneira|descarga|esgoto/i],
     ['construção', /construção|pedreiro|obra|reforma|alvenaria|acabamento/i],
     ['mecânica', /mecânic|oficina|carro|moto|veículo|motor|conserto/i],
-    ['TI/Suporte', /suporte|ti|informática|computador|notebook|software|sistema/i],
+    ['TI/Suporte', /suporte\s+técnico|informática|computador|notebook|software\s+de|desenvolvimento\s+de\s+sistema/i],
     
     // SAÚDE (alta prioridade - não são delivery)
     ['clínica', /clínica|médic|saúde|consulta|exame|doutor|psicólog|terapeut|odonto|dentista/i],
@@ -107,13 +107,22 @@ export function analyzeUserPrompt(prompt: string): PromptAnalysis {
     ['serviços', /serviço|consult|atend|orçamento/i],
   ];
 
+  // 2. Detectar tipo de negócio usando apenas os primeiros 4000 chars e sem exemplos negativos
+  // CRÍTICO: Evitar falsos positivos causados por exemplos em regras de PROIBIÇÃO
+  // Ex: "ex: construção, hidráulica, advocacia" → NÃO deve detectar tipo como "hidráulica"
+  const promptForTypeDetection = prompt
+    .substring(0, 4000)                                              // só o início do prompt
+    .replace(/\(ex[:.].*?\)/gi, '')                                   // remove (ex: ...)
+    .replace(/\(exemplo[:.].*?\)/gi, '')                              // remove (exemplo: ...)
+    .replace(/ex[:.]\s*[^\n,]+[,\n]/gi, '')                          // remove ex: texto,
+    .replace(/(?:não|nunca|proibido|evite|jamais)[^.!?\n]+[.!?\n]/gi, ''); // remove linhas de proibição
+
   for (const [type, regex] of businessTypes) {
-    if (regex.test(prompt)) {
+    if (regex.test(promptForTypeDetection)) {
       analysis.businessType = type;
       break;
     }
   }
-
   // 3. Extrair identidade/nome do assistente
   const matchIdentidade = prompt.match(/(?:você é|sou|me chamo|atendente)\s+(?:o\s+|a\s+)?(\w+)/i);
   if (matchIdentidade) {
@@ -150,54 +159,15 @@ export function analyzeUserPrompt(prompt: string): PromptAnalysis {
 
 /**
  * Gera uma pré-blindagem curta e direta que vai NO INÍCIO do prompt
- * para evitar que a IA confunda o tipo de negócio
  * 
- * CRÍTICO: Esta blindagem previne o problema da JB ELÉTRICA onde a IA
- * respondia sobre "cardápio/delivery" mesmo sendo empresa de serviços elétricos
+ * NOTA: A detecção automática de tipo de negócio foi REMOVIDA pois causava
+ * falsos positivos quando o prompt do cliente tinha exemplos negativos 
+ * (ex: "ex: construção, hidráulica" numa regra de proibição).
+ * As regras genéricas de blindagem são aplicadas via generateUniversalBlindagem.
  */
-export function generatePreBlindagem(analysis: PromptAnalysis): string {
-  // Detectar se NÃO é delivery/restaurante para evitar alucinação
-  const isNotFood = !['restaurante', 'delivery'].includes(analysis.businessType);
-  const isService = ['elétrica', 'hidráulica', 'construção', 'mecânica', 'TI/Suporte', 'serviços'].includes(analysis.businessType);
-  const isHealth = ['clínica', 'terapia'].includes(analysis.businessType);
-  
-  let antiHallucination = '';
-  
-  if (isNotFood && isService) {
-    antiHallucination = `
-⛔ PROIBIÇÃO ABSOLUTA - NUNCA MENCIONE:
-- Cardápio, menu, delivery, entrega de comida
-- Pedidos de comida, restaurante, lanchonete
-- Preços de comida, bebidas, refeições
-ESTE É UM NEGÓCIO DE ${analysis.businessType.toUpperCase()}, NÃO DE ALIMENTAÇÃO!`;
-  } else if (isNotFood && isHealth) {
-    antiHallucination = `
-⛔ PROIBIÇÃO ABSOLUTA - NUNCA MENCIONE:
-- Cardápio, menu, delivery, entrega de comida
-- Pedidos de comida, restaurante, lanchonete
-ESTE É UM NEGÓCIO DE SAÚDE/TERAPIA, NÃO DE ALIMENTAÇÃO!`;
-  } else if (isNotFood) {
-    antiHallucination = `
-⛔ PROIBIÇÃO ABSOLUTA - NUNCA MENCIONE:
-- Cardápio, menu, delivery (a menos que esteja no prompt abaixo)
-FOQUE APENAS no escopo de ${analysis.businessName}!`;
-  }
-
-  return `
-╔══════════════════════════════════════════════════════════════════════════════╗
-║ 🛡️ PRÉ-BLINDAGEM V3.1 - IDENTIDADE OBRIGATÓRIA                              ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║ VOCÊ É: ${analysis.identity.padEnd(62)}║
-║ NEGÓCIO: ${analysis.businessName.substring(0, 60).padEnd(61)}║
-║ TIPO: ${analysis.businessType.toUpperCase().padEnd(64)}║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║ ⚠️ LEIA TODO O PROMPT ABAIXO ANTES DE RESPONDER                              ║
-║ ⚠️ RESPONDA APENAS SOBRE O QUE ESTÁ NO PROMPT                                ║
-║ ⚠️ NUNCA INVENTE INFORMAÇÕES QUE NÃO ESTÃO ESCRITAS                          ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-${antiHallucination}
-
-`;
+export function generatePreBlindagem(_analysis: PromptAnalysis): string {
+  // Retorno vazio — a blindagem universal já cobre tudo sem risco de falso positivo
+  return '';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -128,12 +128,14 @@ PROMPT ATUAL (resumo):
 
 EDIÇÃO PEDIDA: "{{INSTRUCAO}}"
 PROBLEMA: {{PROBLEMA}}
+ÂNCORAS OBRIGATÓRIAS: {{ANCORAS_OBRIGATORIAS}}
 
 Retorne JSON: {"resposta_chat":"ajuste feito","operacao":"editar","edicoes":[{"buscar":"texto existente","substituir":"texto corrigido"}]}
 
 DICAS:
 - Use texto que EXISTE no prompt para "buscar"
-- Se não encontrar, adicione nova instrução no final`;
+- Se não encontrar, adicione nova instrução no final
+- NUNCA remova ou altere as âncoras obrigatórias`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CLASSE PRINCIPAL
@@ -258,6 +260,8 @@ export class PromptCalibrationService {
     let resultados: ResultadoCenario[] = [];
     let scoreGeral = 0;
     let cenariosAprovados = 0;
+    const ancorasObrigatorias = this.extrairAncorasObrigatorias(instrucaoUsuario)
+      .filter((ancora) => promptEditado.includes(ancora));
 
     this.emitProgress('start', '🎯 Iniciando testes com clientes simulados...', {
       instrucao: instrucaoUsuario.substring(0, 100)
@@ -368,7 +372,8 @@ export class PromptCalibrationService {
               promptAtual,
               instrucaoUsuario,
               cenarioFalhou,
-              piorResultado
+              piorResultado,
+              ancorasObrigatorias
             );
 
             if (repairResult.promptReparado && repairResult.promptReparado !== promptAtual) {
@@ -619,12 +624,18 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
     promptAtual: string,
     instrucaoOriginal: string,
     cenarioFalhou: CenarioTeste,
-    resultadoFalhou: ResultadoCenario
+    resultadoFalhou: ResultadoCenario,
+    ancorasObrigatorias: string[]
   ): Promise<{ promptReparado: string | null; edicoesAplicadas: number }> {
+    const ancorasTexto = ancorasObrigatorias.length > 0
+      ? ancorasObrigatorias.map((a) => `- ${a}`).join("\n")
+      : "- nenhuma";
+
     const promptReparo = PROMPT_REPARADOR
       .replace("{{PROMPT}}", promptAtual)
       .replace("{{INSTRUCAO}}", instrucaoOriginal)
       .replace("{{PROBLEMA}}", resultadoFalhou.motivo)
+      .replace("{{ANCORAS_OBRIGATORIAS}}", ancorasTexto)
       .replace("{{PERGUNTA}}", resultadoFalhou.perguntaCliente)
       .replace("{{RESPOSTA}}", resultadoFalhou.respostaAgente)
       .replace("{{EXPECTATIVA}}", cenarioFalhou.expectativaResposta);
@@ -647,7 +658,12 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
           
           // Tentar match exato primeiro
           if (promptReparado.includes(edicao.buscar)) {
-            promptReparado = promptReparado.replace(edicao.buscar, edicao.substituir);
+            const candidato = promptReparado.replace(edicao.buscar, edicao.substituir);
+            if (this.violariaAncorasObrigatorias(promptReparado, candidato, ancorasObrigatorias)) {
+              this.emitProgress('repair_done', `   ⚠️ Edição ignorada para preservar instrução mandatória`, {});
+              continue;
+            }
+            promptReparado = candidato;
             edicoesAplicadas++;
             this.emitProgress('repair_done', `   ✓ Edição aplicada (match exato)`, {});
             continue;
@@ -660,7 +676,12 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
           
           if (indexCI !== -1) {
             const textoOriginal = promptReparado.substring(indexCI, indexCI + edicao.buscar.length);
-            promptReparado = promptReparado.replace(textoOriginal, edicao.substituir);
+            const candidato = promptReparado.replace(textoOriginal, edicao.substituir);
+            if (this.violariaAncorasObrigatorias(promptReparado, candidato, ancorasObrigatorias)) {
+              this.emitProgress('repair_done', `   ⚠️ Edição fuzzy ignorada para preservar instrução mandatória`, {});
+              continue;
+            }
+            promptReparado = candidato;
             edicoesAplicadas++;
             this.emitProgress('repair_done', `   ✓ Edição aplicada (fuzzy match)`, {});
             continue;
@@ -669,9 +690,22 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
           // Se não encontrou, tentar adicionar no final (como regra adicional)
           if (edicao.substituir && edicao.substituir.length > 20) {
             // Adiciona como nova instrução no final do prompt
-            promptReparado = promptReparado.trim() + "\n\n" + edicao.substituir;
+            const candidato = promptReparado.trim() + "\n\n" + edicao.substituir;
+            if (this.violariaAncorasObrigatorias(promptReparado, candidato, ancorasObrigatorias)) {
+              this.emitProgress('repair_done', `   ⚠️ Nova instrução ignorada para preservar instrução mandatória`, {});
+              continue;
+            }
+            promptReparado = candidato;
             edicoesAplicadas++;
             this.emitProgress('repair_done', `   ✓ Nova instrução adicionada ao prompt`, {});
+          }
+        }
+
+        for (const ancora of ancorasObrigatorias) {
+          if (!promptReparado.includes(ancora)) {
+            promptReparado = `${promptReparado.trim()}\n\nINSTRUÇÃO MANDATÓRIA PRESERVADA:\n${ancora}`;
+            edicoesAplicadas++;
+            this.emitProgress('repair_done', `   ✓ Âncora mandatória restaurada`, {});
           }
         }
         
@@ -686,6 +720,39 @@ Gere ${quantidade} cenários de teste para validar se essa edição foi aplicada
       console.error("[Calibração] Erro ao reparar prompt:", error);
       return { promptReparado: null, edicoesAplicadas: 0 };
     }
+  }
+
+  private extrairAncorasObrigatorias(instrucao: string): string[] {
+    if (!instrucao) return [];
+
+    const candidatos: string[] = [];
+    const regex = /["“”']([^"“”']{12,})["“”']/g;
+    let match: RegExpExecArray | null = null;
+
+    while ((match = regex.exec(instrucao)) !== null) {
+      const texto = match[1].trim();
+      if (texto.length >= 12) {
+        candidatos.push(texto);
+      }
+    }
+
+    return [...new Set(candidatos)];
+  }
+
+  private violariaAncorasObrigatorias(
+    promptAntes: string,
+    promptDepois: string,
+    ancorasObrigatorias: string[]
+  ): boolean {
+    if (!ancorasObrigatorias.length) return false;
+
+    for (const ancora of ancorasObrigatorias) {
+      if (promptAntes.includes(ancora) && !promptDepois.includes(ancora)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }
 

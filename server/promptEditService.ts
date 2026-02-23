@@ -68,6 +68,8 @@ REGRAS OBRIGATÓRIAS:
 3. SEMPRE use operacao="editar" quando houver mudanças
 4. Faça pelo menos 1 edição para cada solicitação
 5. Seja específico - encontre trechos exatos para modificar
+6. Preserve o restante do prompt; NUNCA reescreva seções não solicitadas
+7. Se a instrução do usuário trouxer texto entre aspas, preserve esse texto literalmente
 
 TIPOS DE EDIÇÃO:
 • MUDAR: {"buscar":"texto antigo existente","substituir":"texto novo"}

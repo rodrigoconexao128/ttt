@@ -2078,7 +2078,6 @@ export interface AIResponseOptions {
   contactPhone?: string; // Telefone do cliente (para agendamento)
   sentMedias?: string[]; // Lista de mídias já enviadas nesta conversa
   conversationId?: string; // ID da conversa (para vincular pedidos de delivery)
-  isCTWAFallback?: boolean; // 📢 Mensagem de Meta Ads (CTWA) - PDO falhou, tratar como saudação de interesse
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2418,48 +2417,25 @@ export async function generateAIResponse(
     const prodFlowScript = (agentConfig as any).flowScript;
 
     if (prodFlowModeActive && prodFlowScript && prodFlowScript.trim().length > 10) {
-      let flowScriptInSync = false;
+      console.log(`🔀 [AI Agent PROD] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine`);
       try {
-        const flow = await FlowStorage.loadFlow(userId);
-        const currentPrompt = agentConfig?.prompt || "";
-        const sourcePrompt = flow?.sourcePrompt || "";
-
-        if (flow && sourcePrompt && currentPrompt) {
-          const promptHash = crypto.createHash('md5').update(currentPrompt).digest('hex').substring(0, 8);
-          const sourceHash = crypto.createHash('md5').update(sourcePrompt).digest('hex').substring(0, 8);
-          flowScriptInSync = promptHash === sourceHash;
-
-          if (!flowScriptInSync) {
-            console.log(`⚠️ [AI Agent PROD] FlowScript desatualizado com prompt atual (promptHash=${promptHash}, sourceHash=${sourceHash}) - ignorando flowModeActive`);
-          }
-        } else {
-          console.log(`⚠️ [AI Agent PROD] FlowScript sem sourcePrompt sincronizado - ignorando flowModeActive`);
-        }
-      } catch (flowSyncError) {
-        console.log(`⚠️ [AI Agent PROD] Falha ao validar sync do flowScript - ignorando flowModeActive`, flowSyncError);
-      }
-
-      if (flowScriptInSync) {
-        console.log(`🔀 [AI Agent PROD] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine`);
-        try {
-          const { executeFlowResponse } = await import("./flowScriptEngine");
-          const flowHistory = conversationHistory.slice(-10).map(msg => ({
-            role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
-            content: msg.text || "",
-          }));
-          const flowResult = await executeFlowResponse(newMessageText, prodFlowScript, flowHistory);
-          console.log(`🔀 [AI Agent FLUXO PROD] Resposta (${flowResult.response.length} chars)`);
-          return {
-            text: flowResult.response,
-            mediaActions: [],
-          };
-        } catch (flowErr: any) {
-          console.error(`🔀 [AI Agent FLUXO PROD] Erro:`, flowErr);
-          return {
-            text: "Olá! Estou aqui para ajudar. Por favor, siga as instruções do atendimento. 😊",
-            mediaActions: [],
-          };
-        }
+        const { executeFlowResponse } = await import("./flowScriptEngine");
+        const flowHistory = conversationHistory.slice(-10).map(msg => ({
+          role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
+          content: msg.text || "",
+        }));
+        const flowResult = await executeFlowResponse(newMessageText, prodFlowScript, flowHistory);
+        console.log(`🔀 [AI Agent FLUXO PROD] Resposta (${flowResult.response.length} chars)`);
+        return {
+          text: flowResult.response,
+          mediaActions: [],
+        };
+      } catch (flowErr: any) {
+        console.error(`🔀 [AI Agent FLUXO PROD] Erro:`, flowErr);
+        return {
+          text: "Olá! Estou aqui para ajudar. Por favor, siga as instruções do atendimento. 😊",
+          mediaActions: [],
+        };
       }
     }
 
@@ -3147,45 +3123,6 @@ ${jaDisseOQueTrabalha || jaPediuAjuda ? `
         console.log(`🛡️ [AI Agent] Anti-amnesia prompt injetado (${conversationHistory.length} msgs, saudação=${isSaudacao}, hasReplies=${hasAgentReplies}, jaDisseNegocio=${jaDisseOQueTrabalha})`);
     }
     
-    // 📢 CONTEXTO CTWA (Click-to-WhatsApp): Mensagem veio de anúncio Meta Ads
-    // Quando o PDO (Peer Data Operation) falha após 5 tentativas, não conseguimos
-    // ler a mensagem original do cliente. Em 99% dos casos, é uma saudação como
-    // "Oi, tenho interesse" vinda de um clique em anúncio do Facebook/Instagram.
-    // Instruímos a IA a tratar como primeiro contato de cliente interessado.
-    if (options?.isCTWAFallback) {
-      const ctwaContextPrompt = `
-═══════════════════════════════════════════════════════════════════════════════
-📢 CONTEXTO IMPORTANTE: CLIENTE VEIO DE ANÚNCIO META ADS (Click-to-WhatsApp)
-═══════════════════════════════════════════════════════════════════════════════
-
-Este cliente CLICOU em um anúncio do Facebook/Instagram e iniciou conversa pelo WhatsApp.
-Por uma limitação técnica do WhatsApp, a mensagem original não pôde ser lida completamente.
-
-O QUE VOCÊ SABE:
-- O cliente veio de um ANÚNCIO (Facebook Ads ou Instagram Ads)
-- Ele demonstrou INTERESSE no produto/serviço ao clicar no anúncio
-- A mensagem que aparece ("Oi") é um placeholder - a mensagem real provavelmente era algo como "Oi, tenho interesse", "Quero saber mais", etc.
-
-COMO VOCÊ DEVE RESPONDER:
-✅ Responda como se fosse um PRIMEIRO CONTATO de cliente INTERESSADO
-✅ Dê boas-vindas calorosas e mencione que viu o interesse dele
-✅ Apresente-se brevemente e pergunte como pode ajudar
-✅ Seja proativo - o cliente JÁ demonstrou interesse ao clicar no anúncio
-✅ Use sua mensagem de boas-vindas padrão/saudação inicial
-
-🚫 NÃO mencione problemas técnicos, mensagem incompleta ou erros
-🚫 NÃO peça para reenviar a mensagem
-🚫 NÃO diga que não conseguiu ler a mensagem
-🚫 NÃO mencione "anúncio" explicitamente (o cliente pode não lembrar)
-═══════════════════════════════════════════════════════════════════════════════
-`;
-      messages.push({
-        role: "system",
-        content: ctwaContextPrompt,
-      });
-      console.log(`📢 [AI Agent] CTWA fallback context injected - IA vai tratar como primeiro contato de cliente interessado`);
-    }
-
     // 🧹 REMOVER DUPLICATAS: Mensagens idênticas confundem a IA
     // MELHORADO: Remove duplicatas adjacentes, mas permite repetição se houver intervalo
     const uniqueMessages: Message[] = [];
@@ -3290,10 +3227,10 @@ COMO VOCÊ DEVE RESPONDER:
       // Se a imagem foi analisada pelo Vision, manter a descrição para a IA entender
       if (content.includes('[IMAGEM ANALISADA:')) {
         // Manter o conteúdo da análise - a IA precisa saber o que tem na imagem!
-        // Apenas reformatar para ficar mais claro
+        // IMPORTANTE: Deixar MUITO claro que o conteúdo veio do cliente, não do negócio do agente
         const match = content.match(/\[IMAGEM ANALISADA:\s*(.*?)\]/s);
         if (match && match[1]) {
-          content = `(Cliente enviou uma imagem: ${match[1].trim()})`;
+          content = `(O cliente enviou uma imagem com o seguinte conteúdo: "${match[1].trim()}" — Este conteúdo foi enviado PELO CLIENTE e NÃO representa os produtos, serviços ou área de atuação do seu negócio. Responda no contexto do SEU negócio habitual.)`;
         }
       } else if (content === '📷 Imagem' || content === '🖼️ Imagem' || content === '*Imagem*') {
         // Imagem não foi analisada (fallback)
@@ -4058,54 +3995,31 @@ export async function testAgentResponse(
     // Se flowModeActive=true, o roteiro tem PRIORIDADE MÁXIMA mesmo que customPrompt seja passado.
     // Isso garante que o simulador e o atendimento real sempre usem o mesmo FlowScriptEngine.
     if (flowModeActive && flowScript && flowScript.trim().length > 10) {
-      let flowScriptInSync = false;
+      console.log(`🔀 [SIMULADOR] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine (prioridade máxima)`);
+      
       try {
-        const flow = await FlowStorage.loadFlow(userId);
-        const currentPrompt = agentConfig?.prompt || "";
-        const sourcePrompt = flow?.sourcePrompt || "";
-
-        if (flow && sourcePrompt && currentPrompt) {
-          const promptHash = crypto.createHash('md5').update(currentPrompt).digest('hex').substring(0, 8);
-          const sourceHash = crypto.createHash('md5').update(sourcePrompt).digest('hex').substring(0, 8);
-          flowScriptInSync = promptHash === sourceHash;
-
-          if (!flowScriptInSync) {
-            console.log(`⚠️ [SIMULADOR] FlowScript desatualizado com prompt atual (promptHash=${promptHash}, sourceHash=${sourceHash}) - ignorando flowModeActive`);
-          }
-        } else {
-          console.log(`⚠️ [SIMULADOR] FlowScript sem sourcePrompt sincronizado - ignorando flowModeActive`);
-        }
-      } catch (flowSyncError) {
-        console.log(`⚠️ [SIMULADOR] Falha ao validar sync do flowScript - ignorando flowModeActive`, flowSyncError);
-      }
-
-      if (flowScriptInSync) {
-        console.log(`🔀 [SIMULADOR] ✅ MODO FLUXO ATIVO - usando FlowScriptEngine (prioridade máxima)`);
+        const { executeFlowResponse } = await import("./flowScriptEngine");
         
-        try {
-          const { executeFlowResponse } = await import("./flowScriptEngine");
-          
-          // Converter histórico para formato do FlowScriptEngine
-          const flowHistory = history.slice(-10).map(msg => ({
-            role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
-            content: msg.text || "",
-          }));
-          
-          const flowResult = await executeFlowResponse(testMessage, flowScript, flowHistory);
-          
-          console.log(`🔀 [SIMULADOR FLUXO] Resposta gerada (${flowResult.response.length} chars)`);
-          
-          return {
-            text: flowResult.response,
-            mediaActions: [],
-          };
-        } catch (flowError: any) {
-          console.error(`🔀 [SIMULADOR FLUXO] Erro no FlowScriptEngine:`, flowError);
-          return {
-            text: "Olá! Estou disponível para ajudar. Por favor, siga as instruções do atendimento. 😊",
-            mediaActions: [],
-          };
-        }
+        // Converter histórico para formato do FlowScriptEngine
+        const flowHistory = history.slice(-10).map(msg => ({
+          role: (msg.fromMe ? "assistant" : "user") as "user" | "assistant",
+          content: msg.text || "",
+        }));
+        
+        const flowResult = await executeFlowResponse(testMessage, flowScript, flowHistory);
+        
+        console.log(`🔀 [SIMULADOR FLUXO] Resposta gerada (${flowResult.response.length} chars)`);
+        
+        return {
+          text: flowResult.response,
+          mediaActions: [],
+        };
+      } catch (flowError: any) {
+        console.error(`🔀 [SIMULADOR FLUXO] Erro no FlowScriptEngine:`, flowError);
+        return {
+          text: "Olá! Estou disponível para ajudar. Por favor, siga as instruções do atendimento. 😊",
+          mediaActions: [],
+        };
       }
     }
 
