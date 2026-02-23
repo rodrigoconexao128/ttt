@@ -636,62 +636,68 @@ export class DatabaseStorage implements IStorage {
   // FIX: Priorizar conexão primária/conectada em vez de apenas a mais recente
   // Isso evita que conexões secundárias recém-criadas "roubem" a sessão principal
   async getConnectionByUserId(userId: string, connectionId?: string): Promise<WhatsappConnection | undefined> {
-    // 0. Se um connectionId específico foi passado, retornar essa conexão (se pertence ao user)
-    if (connectionId) {
-      const [specific] = await db
+    // ⚡ CACHE: Connection ownership muda raramente - cache por 5 min
+    const cacheKey = connectionId 
+      ? `connByUser:${userId}:${connectionId}` 
+      : `connByUser:${userId}`;
+    return memoryCache.getOrCompute(cacheKey, async () => {
+      // 0. Se um connectionId específico foi passado, retornar essa conexão (se pertence ao user)
+      if (connectionId) {
+        const [specific] = await db
+          .select()
+          .from(whatsappConnections)
+          .where(and(
+            eq(whatsappConnections.id, connectionId),
+            eq(whatsappConnections.userId, userId)
+          ))
+          .limit(1);
+        if (specific) return specific;
+      }
+
+      // 1. PRIMARY + CONNECTED tem prioridade máxima (conexão principal ativa)
+      const [primaryConnected] = await db
         .select()
         .from(whatsappConnections)
         .where(and(
-          eq(whatsappConnections.id, connectionId),
-          eq(whatsappConnections.userId, userId)
+          eq(whatsappConnections.userId, userId),
+          eq(whatsappConnections.isConnected, true),
+          eq(whatsappConnections.isPrimary, true)
         ))
         .limit(1);
-      if (specific) return specific;
-    }
+      if (primaryConnected) return primaryConnected;
 
-    // 1. PRIMARY + CONNECTED tem prioridade máxima (conexão principal ativa)
-    const [primaryConnected] = await db
-      .select()
-      .from(whatsappConnections)
-      .where(and(
-        eq(whatsappConnections.userId, userId),
-        eq(whatsappConnections.isConnected, true),
-        eq(whatsappConnections.isPrimary, true)
-      ))
-      .limit(1);
-    if (primaryConnected) return primaryConnected;
+      // 2. Qualquer conexão conectada (mais antiga primeiro = original)
+      const [connectedConn] = await db
+        .select()
+        .from(whatsappConnections)
+        .where(and(
+          eq(whatsappConnections.userId, userId),
+          eq(whatsappConnections.isConnected, true)
+        ))
+        .orderBy(whatsappConnections.createdAt)
+        .limit(1);
+      if (connectedConn) return connectedConn;
 
-    // 2. Qualquer conexão conectada (mais antiga primeiro = original)
-    const [connectedConn] = await db
-      .select()
-      .from(whatsappConnections)
-      .where(and(
-        eq(whatsappConnections.userId, userId),
-        eq(whatsappConnections.isConnected, true)
-      ))
-      .orderBy(whatsappConnections.createdAt)
-      .limit(1);
-    if (connectedConn) return connectedConn;
+      // 3. Se nenhuma está conectada, buscar a primary
+      const [primaryConn] = await db
+        .select()
+        .from(whatsappConnections)
+        .where(and(
+          eq(whatsappConnections.userId, userId),
+          eq(whatsappConnections.isPrimary, true)
+        ))
+        .limit(1);
+      if (primaryConn) return primaryConn;
 
-    // 3. Se nenhuma está conectada, buscar a primary
-    const [primaryConn] = await db
-      .select()
-      .from(whatsappConnections)
-      .where(and(
-        eq(whatsappConnections.userId, userId),
-        eq(whatsappConnections.isPrimary, true)
-      ))
-      .limit(1);
-    if (primaryConn) return primaryConn;
-
-    // 4. Fallback: qualquer conexão (mais antiga primeiro = original)
-    const [anyConn] = await db
-      .select()
-      .from(whatsappConnections)
-      .where(eq(whatsappConnections.userId, userId))
-      .orderBy(whatsappConnections.createdAt)
-      .limit(1);
-    return anyConn;
+      // 4. Fallback: qualquer conexão (mais antiga primeiro = original)
+      const [anyConn] = await db
+        .select()
+        .from(whatsappConnections)
+        .where(eq(whatsappConnections.userId, userId))
+        .orderBy(whatsappConnections.createdAt)
+        .limit(1);
+      return anyConn;
+    }, 300000); // 5 min cache
   }
 
   async getConnectionById(connectionId: string): Promise<WhatsappConnection | undefined> {
@@ -930,11 +936,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getConversation(id: string): Promise<Conversation | undefined> {
-    const [conversation] = await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, id));
-    return conversation;
+    // ⚡ CACHE: Conversation metadata por 30s (ownership check frequente)
+    return memoryCache.getOrCompute(`conv:${id}`, async () => {
+      const [conversation] = await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.id, id));
+      return conversation;
+    }, 30000);
   }
 
   async createConversation(conversationData: InsertConversation): Promise<Conversation> {
@@ -964,6 +973,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateConversation(id: string, data: Partial<InsertConversation>): Promise<Conversation> {
+    // ⚡ Invalidar cache da conversa
+    memoryCache.invalidate(`conv:${id}`);
     const [conversation] = await db
       .update(conversations)
       .set({ ...data, updatedAt: new Date() })

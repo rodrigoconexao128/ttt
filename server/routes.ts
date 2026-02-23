@@ -11519,11 +11519,71 @@ ${config.ai_instructions || ''}
 
       const userId = getUserId(req);
 
+      const afterRaw = (req.query?.after as string | undefined) || undefined;
+
+      const beforeRaw = (req.query?.before as string | undefined) || undefined;
+
+      const limitRaw = (req.query?.limit as string | undefined) || undefined;
+
+      const paginated = req.query?.paginated === 'true';
 
 
-      // Verify ownership
 
-      const conversation = await storage.getConversation(conversationId);
+      // ⚡ OTIMIZAÇÃO: Carregar conversa + mensagens em PARALELO
+
+      // getConversation e getConnectionByUserId são cacheados, então geralmente <1ms
+
+      const parsedLimit = limitRaw ? Number.parseInt(limitRaw, 10) : (paginated ? 50 : 500);
+
+      const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(parsedLimit, 2000)) : 50;
+
+      
+
+      let before: Date | undefined;
+
+      if (beforeRaw) {
+
+        before = new Date(beforeRaw);
+
+        if (Number.isNaN(before.getTime())) before = undefined;
+
+      }
+
+      let afterDate: Date | undefined;
+
+      if (afterRaw) {
+
+        afterDate = new Date(afterRaw);
+
+        if (Number.isNaN(afterDate.getTime())) {
+
+          return res.status(400).json({ message: "Invalid 'after' timestamp" });
+
+        }
+
+      }
+
+
+
+      // Executar ownership check e message loading em paralelo
+
+      const [conversation, messagesResult] = await Promise.all([
+
+        storage.getConversation(conversationId),
+
+        afterDate
+
+          ? storage.getMessagesByConversationIdAfter(conversationId, afterDate, limit)
+
+          : paginated
+
+            ? storage.getMessagesByConversationIdPaginated(conversationId, limit, before)
+
+            : storage.getMessagesByConversationId(conversationId),
+
+      ]);
+
+
 
       if (!conversation) {
 
@@ -11543,79 +11603,7 @@ ${config.ai_instructions || ''}
 
 
 
-      const afterRaw = (req.query?.after as string | undefined) || undefined;
-
-      const beforeRaw = (req.query?.before as string | undefined) || undefined;
-
-      const limitRaw = (req.query?.limit as string | undefined) || undefined;
-
-      const paginated = req.query?.paginated === 'true';
-
-
-
-      // Mode 1: Incremental sync (buscar mensagens APÓS uma data)
-
-      if (afterRaw) {
-
-        const afterDate = new Date(afterRaw);
-
-        if (Number.isNaN(afterDate.getTime())) {
-
-          return res.status(400).json({ message: "Invalid 'after' timestamp" });
-
-        }
-
-
-
-        const parsedLimit = limitRaw ? Number.parseInt(limitRaw, 10) : 500;
-
-        const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(parsedLimit, 2000)) : 500;
-
-
-
-        const newer = await storage.getMessagesByConversationIdAfter(conversationId, afterDate, limit);
-
-        return res.json(newer);
-
-      }
-
-
-
-      // Mode 2: Paginação reversa (carregar N mensagens mais recentes, com cursor "before")
-
-      if (paginated) {
-
-        const parsedLimit = limitRaw ? Number.parseInt(limitRaw, 10) : 50;
-
-        const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(parsedLimit, 200)) : 50;
-
-        let before: Date | undefined;
-
-        if (beforeRaw) {
-
-          before = new Date(beforeRaw);
-
-          if (Number.isNaN(before.getTime())) {
-
-            return res.status(400).json({ message: "Invalid 'before' timestamp" });
-
-          }
-
-        }
-
-        const result = await storage.getMessagesByConversationIdPaginated(conversationId, limit, before);
-
-        return res.json(result);
-
-      }
-
-
-
-      // Mode 3: Legacy - carregar todas (para compatibilidade)
-
-      const allMessages = await storage.getMessagesByConversationId(conversationId);
-
-      res.json(allMessages);
+      return res.json(messagesResult);
 
     } catch (error) {
 
