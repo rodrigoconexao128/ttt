@@ -34,6 +34,8 @@ interface LLMConfigCache {
   openrouterProvider: string; // Provider específico do OpenRouter (ex: 'chutes', 'hyperbolic')
   mistralApiKey: string; // 🆕 Mistral API key do banco de dados
   mistralModel: string;  // 🆕 Mistral model selecionado
+  nvidiaApiKey: string;  // 🆕 NVIDIA NIM API key
+  nvidiaModel: string;   // 🆕 NVIDIA NIM model (ex: nvidia/llama-3.3-nemotron-super-49b-v1)
   timestamp: number;
 }
 let llmConfigCache: LLMConfigCache | null = null;
@@ -480,6 +482,8 @@ export async function getLLMConfig(): Promise<{
   openrouterProvider: string;
   mistralApiKey: string;
   mistralModel: string;
+  nvidiaApiKey: string;
+  nvidiaModel: string;
 }> {
   // Verificar cache
   if (llmConfigCache && (Date.now() - llmConfigCache.timestamp < LLM_CONFIG_CACHE_TTL_MS)) {
@@ -491,7 +495,9 @@ export async function getLLMConfig(): Promise<{
       openrouterModel: llmConfigCache.openrouterModel,
       openrouterProvider: llmConfigCache.openrouterProvider,
       mistralApiKey: llmConfigCache.mistralApiKey,
-      mistralModel: llmConfigCache.mistralModel
+      mistralModel: llmConfigCache.mistralModel,
+      nvidiaApiKey: llmConfigCache.nvidiaApiKey,
+      nvidiaModel: llmConfigCache.nvidiaModel,
     };
   }
   
@@ -537,6 +543,17 @@ export async function getLLMConfig(): Promise<{
       .from(systemConfig)
       .where(eq(systemConfig.chave, 'mistral_model'));
     
+    // 🆕 Fetch NVIDIA NIM API key e model do banco de dados
+    const nvidiaKeyResult = await db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.chave, 'nvidia_api_key'));
+    
+    const nvidiaModelResult = await db
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.chave, 'nvidia_model'));
+    
     const provider = configs[0]?.valor || 'mistral';
     const groqApiKey = groqKeyResult[0]?.valor || '';
     const groqModel = groqModelResult[0]?.valor || 'openai/gpt-oss-20b';
@@ -547,16 +564,19 @@ export async function getLLMConfig(): Promise<{
     const mistralApiKey = mistralKeyResult[0]?.valor || '';
     // 🥈 Default: mistral-medium-latest - VALIDADO: 22.6% sucesso, 10.5 req/min
     const mistralModel = mistralModelResult[0]?.valor || 'mistral-medium-latest';
+    // 🆕 NVIDIA NIM - inferência ultra-rápida
+    const nvidiaApiKey = nvidiaKeyResult[0]?.valor || process.env.NVIDIA_API_KEY || '';
+    const nvidiaModel = nvidiaModelResult[0]?.valor || 'nvidia/llama-3.3-nemotron-super-49b-v1';
     
     // Salvar no cache
-    llmConfigCache = { provider, groqApiKey, groqModel, openrouterApiKey, openrouterModel, openrouterProvider, mistralApiKey, mistralModel, timestamp: Date.now() };
+    llmConfigCache = { provider, groqApiKey, groqModel, openrouterApiKey, openrouterModel, openrouterProvider, mistralApiKey, mistralModel, nvidiaApiKey, nvidiaModel, timestamp: Date.now() };
     
-    console.log(`[LLM] Config loaded: provider=${provider}, model=${provider === 'openrouter' ? openrouterModel : (provider === 'groq' ? groqModel : mistralModel)}, openrouterProvider=${openrouterProvider}`);
-    return { provider, groqApiKey, groqModel, openrouterApiKey, openrouterModel, openrouterProvider, mistralApiKey, mistralModel };
+    console.log(`[LLM] Config loaded: provider=${provider}, model=${provider === 'openrouter' ? openrouterModel : (provider === 'groq' ? groqModel : (provider === 'nvidia' ? nvidiaModel : mistralModel))}, openrouterProvider=${openrouterProvider}${nvidiaApiKey ? ', nvidia=CONFIGURED' : ''}`);
+    return { provider, groqApiKey, groqModel, openrouterApiKey, openrouterModel, openrouterProvider, mistralApiKey, mistralModel, nvidiaApiKey, nvidiaModel };
   } catch (error) {
     console.error('[LLM] Erro ao carregar configuração:', error);
     // 🔄 Defaults validados por stress test
-    return { provider: 'mistral', groqApiKey: '', groqModel: 'openai/gpt-oss-20b', openrouterApiKey: '', openrouterModel: 'google/gemma-3-4b-it:free', openrouterProvider: 'auto', mistralApiKey: '', mistralModel: 'mistral-medium-latest' };
+    return { provider: 'mistral', groqApiKey: '', groqModel: 'openai/gpt-oss-20b', openrouterApiKey: '', openrouterModel: 'google/gemma-3-4b-it:free', openrouterProvider: 'auto', mistralApiKey: '', mistralModel: 'mistral-medium-latest', nvidiaApiKey: '', nvidiaModel: 'nvidia/llama-3.3-nemotron-super-49b-v1' };
   }
 }
 
@@ -680,6 +700,62 @@ async function callGroqAPI(
     console.log(`[LLM] ✅ Groq respondeu com ${content?.length || 0} caracteres`);
     return typeof content === 'string' ? content : '';
   }, `Groq API (${model})`);
+}
+
+/**
+ * Chama o NVIDIA NIM API COM RETRY AUTOMÁTICO
+ * API OpenAI-compatible em https://integrate.api.nvidia.com/v1
+ * 🆕 NVIDIA NIM - Inferência ultra-rápida com modelos otimizados
+ * 
+ * Modelos recomendados:
+ * - nvidia/llama-3.3-nemotron-super-49b-v1 (melhor custo-benefício para chat)
+ * - meta/llama-3.1-70b-instruct (multilingual, qualidade alta)
+ * - meta/llama-3.1-8b-instruct (ultra rápido)
+ */
+async function callNvidiaAPI(
+  messages: ChatMessage[],
+  apiKey: string,
+  options?: {
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+  }
+): Promise<string> {
+  const model = options?.model || 'nvidia/llama-3.3-nemotron-super-49b-v1';
+  
+  console.log(`[LLM] 🟢 Chamando NVIDIA NIM API com modelo: ${model}`);
+  
+  // 🔄 Usar retry automático para lidar com erros temporários
+  return await withRetryLLM(async () => {
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: options?.temperature ?? 0.7,
+        max_tokens: options?.maxTokens ?? 1024,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[LLM] NVIDIA NIM API error: ${response.status} - ${errorText}`);
+      const error = new Error(`NVIDIA NIM API error: ${response.status}`) as any;
+      error.status = response.status;
+      error.statusCode = response.status;
+      throw error;
+    }
+    
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    console.log(`[LLM] ✅ NVIDIA NIM respondeu com ${content?.length || 0} caracteres`);
+    return typeof content === 'string' ? content : '';
+  }, `NVIDIA NIM API (${model})`);
 }
 
 /**
@@ -812,6 +888,33 @@ export async function callGroq(
       }
     }
     
+    // Se provider é NVIDIA NIM e tem API key válida
+    if (config.provider === 'nvidia' && config.nvidiaApiKey && config.nvidiaApiKey.length > 20) {
+      try {
+        return await callNvidiaAPI(formattedMessages, config.nvidiaApiKey, {
+          ...options,
+          model: options?.model || config.nvidiaModel
+        });
+      } catch (nvidiaError) {
+        console.error('[LLM] Erro no NVIDIA NIM, tentando fallback para OpenRouter:', nvidiaError);
+        // Fallback para OpenRouter
+        if (config.openrouterApiKey && config.openrouterApiKey.length > 20) {
+          return await callOpenRouterAPI(formattedMessages, config.openrouterApiKey, {
+            ...options,
+            model: options?.model || config.openrouterModel,
+            openrouterProvider: config.openrouterProvider
+          });
+        }
+        // Fallback para Groq
+        if (config.groqApiKey && config.groqApiKey.length > 20) {
+          return await callGroqAPI(formattedMessages, config.groqApiKey, {
+            ...options,
+            model: options?.model || config.groqModel
+          });
+        }
+      }
+    }
+    
     // Se provider é Groq e tem API key válida
     if (config.provider === 'groq' && config.groqApiKey && config.groqApiKey.length > 20) {
       try {
@@ -873,12 +976,71 @@ export async function chatComplete(params: {
   const hasGroqKey = config.groqApiKey && config.groqApiKey.length > 20;
   // 🔧 CORRIGIDO: Verificar Mistral key do banco de dados OU variável de ambiente
   const hasMistralKey = (config.mistralApiKey && config.mistralApiKey.length > 10) || (!!process.env.MISTRAL_API_KEY && process.env.MISTRAL_API_KEY.length > 10);
+  // 🆕 NVIDIA NIM key
+  const hasNvidiaKey = config.nvidiaApiKey && config.nvidiaApiKey.length > 20;
   
-  if (!hasOpenRouterKey && !hasGroqKey && !hasMistralKey) {
+  if (!hasOpenRouterKey && !hasGroqKey && !hasMistralKey && !hasNvidiaKey) {
     console.error('❌ [LLM] ERRO: Nenhuma API key configurada!');
     console.error('   └─ Configure uma chave em: Admin → Configurações → Provedor de IA');
     console.error('   └─ Provider atual: ' + config.provider);
     throw new Error('API key não configurada. Configure uma chave de API em: Admin → Configurações → Provedor de IA (LLM)');
+  }
+  
+  // 🆕 Se provider é NVIDIA NIM e tem API key válida
+  if (config.provider === 'nvidia' && hasNvidiaKey) {
+    try {
+      const model = config.nvidiaModel || 'nvidia/llama-3.3-nemotron-super-49b-v1';
+      console.log(`[LLM] 🟢 chatComplete via NVIDIA NIM com modelo: ${model}`);
+      
+      const data = await withRetryLLM(async () => {
+        const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.nvidiaApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model,
+            messages: params.messages,
+            max_tokens: params.maxTokens ?? 1024,
+            temperature: params.temperature ?? 0.7,
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[LLM] NVIDIA NIM API error: ${response.status} - ${errorText}`);
+          const error = new Error(`NVIDIA NIM API error: ${response.status}`) as any;
+          error.status = response.status;
+          error.statusCode = response.status;
+          throw error;
+        }
+        
+        return await response.json();
+      }, `NVIDIA NIM chatComplete (${model})`);
+      
+      const responseContent = data.choices?.[0]?.message?.content;
+      const promptTokens = data.usage?.prompt_tokens;
+      const completionTokens = data.usage?.completion_tokens;
+      
+      console.log(`[LLM] ✅ NVIDIA NIM chatComplete respondeu`);
+      console.log(`[LLM] 📊 Tokens: prompt=${promptTokens || 'N/A'}, completion=${completionTokens || 'N/A'}`);
+      console.log(`[LLM] 📊 Response length: ${responseContent?.length || 0} chars`);
+      
+      return {
+        choices: data.choices?.map((c: any) => ({
+          message: { content: c.message?.content ?? null },
+          finishReason: c.finish_reason
+        })) || []
+      };
+    } catch (nvidiaError: any) {
+      console.error('═══════════════════════════════════════════════════════════════');
+      console.error('🔄 [LLM FALLBACK] NVIDIA NIM FALHOU!');
+      console.error(`   └─ Erro: ${nvidiaError?.message || nvidiaError}`);
+      console.error('🔄 [LLM FALLBACK] Tentando fallback para OpenRouter/Groq/Mistral...');
+      console.error('═══════════════════════════════════════════════════════════════');
+      // Cai para os fallbacks abaixo
+    }
   }
   
   // 🎯 Se provider é Mistral e tem API key válida - USAR COM ROTAÇÃO DE MODELOS
@@ -1003,9 +1165,57 @@ export async function chatComplete(params: {
       }
     }
     
-    // ✅ PASSARAM 5 MINUTOS - Agora pode fazer fallback para OpenRouter/Groq
-    console.log(`✅ [LLM QUEUE] 5 minutos atingidos - liberando fallback para OpenRouter/Groq`);
+    // ✅ PASSARAM 5 MINUTOS - Agora pode fazer fallback para NVIDIA/OpenRouter/Groq
+    console.log(`✅ [LLM QUEUE] 5 minutos atingidos - liberando fallback para NVIDIA/OpenRouter/Groq`);
     clearMistralQueueStatus(); // Limpar status para próxima sessão
+    
+    // 🆕 Tentar fallback para NVIDIA NIM PRIMEIRO (mais rápido)
+    if (hasNvidiaKey) {
+      console.error('🔄 [LLM FALLBACK] Tentando NVIDIA NIM como fallback (ultra-rápido)...');
+      console.error('═══════════════════════════════════════════════════════════════');
+      
+      try {
+        const nvidiaFallbackModel = config.nvidiaModel || 'nvidia/llama-3.3-nemotron-super-49b-v1';
+        console.log(`[LLM] 🆘 NVIDIA NIM FALLBACK - Modelo: ${nvidiaFallbackModel}`);
+        
+        const nvidiaFallbackResponse = await withRetryLLM(async () => {
+          const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${config.nvidiaApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: nvidiaFallbackModel,
+              messages: params.messages,
+              max_tokens: params.maxTokens ?? 1024,
+              temperature: params.temperature ?? 0.7,
+            }),
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[LLM] NVIDIA NIM FALLBACK error: ${response.status} - ${errorText}`);
+            const error = new Error(`NVIDIA NIM FALLBACK error: ${response.status}`) as any;
+            error.status = response.status;
+            throw error;
+          }
+          
+          return await response.json();
+        }, `NVIDIA NIM FALLBACK (${nvidiaFallbackModel})`, 2, 1500);
+        
+        console.log(`[LLM] ✅ NVIDIA NIM FALLBACK respondeu com sucesso!`);
+        return {
+          choices: nvidiaFallbackResponse.choices?.map((c: any) => ({
+            message: { content: c.message?.content ?? null },
+            finishReason: c.finish_reason
+          })) || []
+        };
+      } catch (nvidiaFallbackError: any) {
+        console.error(`❌ [LLM] NVIDIA NIM FALLBACK também falhou: ${nvidiaFallbackError?.message}`);
+        // Continua para tentar OpenRouter
+      }
+    }
     
     // 🔄 Tentar fallback para OpenRouter
     if (hasOpenRouterKey) {
@@ -1110,6 +1320,7 @@ export async function chatComplete(params: {
     console.error('═══════════════════════════════════════════════════════════════');
     console.error('❌ [LLM] TODOS OS PROVIDERS FALHARAM!');
     console.error('   └─ Mistral: Todos os modelos em rate limit');
+    console.error('   └─ NVIDIA NIM: ' + (hasNvidiaKey ? 'Falhou' : 'Não configurado'));
     console.error('   └─ OpenRouter: ' + (hasOpenRouterKey ? 'Falhou' : 'Não configurado'));
     console.error('   └─ Groq: ' + (hasGroqKey ? 'Falhou' : 'Não configurado'));
     console.error('═══════════════════════════════════════════════════════════════');
@@ -1215,14 +1426,41 @@ export async function chatComplete(params: {
       console.error('═══════════════════════════════════════════════════════════════');
       console.error('🔄 [LLM FALLBACK] OpenRouter FALHOU após 3 tentativas!');
       console.error(`   └─ Erro: ${openrouterError?.message || openrouterError}`);
-      console.error('🔄 [LLM FALLBACK] Iniciando fallback para Groq...');
+      console.error('🔄 [LLM FALLBACK] Tentando NVIDIA NIM antes do Groq...');
       console.error('═══════════════════════════════════════════════════════════════');
+      
+      // 🔄 Tentar NVIDIA NIM antes do Groq
+      if (hasNvidiaKey) {
+        try {
+          const nvidiaModel = config.nvidiaModel || 'nvidia/llama-3.3-nemotron-super-49b-v1';
+          console.log(`[LLM] 🔄 NVIDIA NIM fallback (após OpenRouter falhar) com modelo: ${nvidiaModel}`);
+          const nvidiaContent = await callNvidiaAPI(
+            params.messages as ChatMessage[],
+            config.nvidiaApiKey!,
+            {
+              model: nvidiaModel,
+              maxTokens: params.maxTokens ?? 500,
+              temperature: params.temperature ?? 0.7
+            }
+          );
+          
+          console.log(`[LLM] ✅ NVIDIA NIM respondeu como fallback do OpenRouter!`);
+          return {
+            choices: [{
+              message: { content: nvidiaContent },
+              finishReason: 'stop' as const
+            }]
+          };
+        } catch (nvidiaFallbackError: any) {
+          console.error(`[LLM] ❌ NVIDIA NIM fallback também falhou: ${nvidiaFallbackError?.message}`);
+        }
+      }
       // Continua para tentar Groq
     }
   }
   
   // Se provider é Groq e tem API key válida
-  if ((config.provider === 'groq' || config.provider === 'openrouter') && config.groqApiKey && config.groqApiKey.length > 20) {
+  if ((config.provider === 'groq' || config.provider === 'openrouter' || config.provider === 'nvidia') && config.groqApiKey && config.groqApiKey.length > 20) {
     try {
       // Se provider é OpenRouter mas caiu no fallback, usar modelo do Groq
       // Se provider é Groq, usar o modelo do Groq configurado
