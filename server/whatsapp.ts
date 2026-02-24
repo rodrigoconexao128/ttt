@@ -1063,15 +1063,43 @@ const checkedConversationsThisSession = new Set<string>();
 // Esta função é chamada pelo messageQueueService para enviar mensagens reais
 // O callback permite que a fila controle o timing entre mensagens
 // 🆕 v4.0: Agora simula "digitando..." antes de enviar para parecer mais humano
+// 🆕 v4.1: Wait-for-reconnect — se a sessão está reconectando, espera até 15s
 async function internalSendMessageRaw(
   userId: string, 
   jid: string, 
   text: string, 
   options?: { isFromAgent?: boolean }
 ): Promise<string | null> {
-  const session = sessions.get(userId);
-  if (!session?.socket) {
-    throw new Error("WhatsApp not connected");
+  // -----------------------------------------------------------------------
+  // FIX 2026-02-24: WAIT-FOR-RECONNECT
+  // Se a sessão não existe ou não está aberta, esperamos brevemente
+  // porque a conexão pode estar se reconectando (close→open cycle).
+  // Isso evita falhas desnecessárias durante reconexões breves.
+  // -----------------------------------------------------------------------
+  const SEND_WAIT_MAX_MS = 15_000; // máx 15s esperando reconexão
+  const SEND_WAIT_INTERVAL_MS = 2_000; // checar a cada 2s
+  let session = sessions.get(userId);
+  
+  if (!session?.socket || !session.isOpen) {
+    const startWait = Date.now();
+    console.log(`⏳ [SEND] Sessão indisponível para ${userId.substring(0, 8)}... — aguardando reconexão (máx ${SEND_WAIT_MAX_MS / 1000}s)`);
+    
+    while (Date.now() - startWait < SEND_WAIT_MAX_MS) {
+      await new Promise(resolve => setTimeout(resolve, SEND_WAIT_INTERVAL_MS));
+      session = sessions.get(userId);
+      if (session?.socket && session.isOpen) {
+        console.log(`✅ [SEND] Sessão reconectada para ${userId.substring(0, 8)}... após ${Math.round((Date.now() - startWait) / 1000)}s`);
+        break;
+      }
+    }
+    
+    // Re-check after waiting
+    if (!session?.socket) {
+      throw new Error("WhatsApp not connected");
+    }
+    if (!session.isOpen) {
+      throw new Error("Connection Closed");
+    }
   }
 
   // ⚡ FIX: Verificar estado do WebSocket antes de tentar enviar
@@ -2682,6 +2710,15 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       // Ref: https://github.com/WhiskeySockets/Baileys/issues/2370
       // -----------------------------------------------------------------------
       version: [2, 3000, 1033893291],
+      // -----------------------------------------------------------------------
+      // FIX 2026-02-24: Estabilidade de conexão para SaaS multi-session
+      // connectTimeoutMs: Aumentado para 60s (auth com 3000+ files demora)
+      // keepAliveIntervalMs: 25s heartbeat (evita 408 timeout com 70+ sessões)
+      // retryRequestDelayMs: Retry rápido de requests falhados
+      // -----------------------------------------------------------------------
+      connectTimeoutMs: 60_000,
+      keepAliveIntervalMs: 25_000,
+      retryRequestDelayMs: 250,
       syncFullHistory: true,
       shouldSyncHistoryMessage: () => true,
       // -----------------------------------------------------------------------
@@ -8109,6 +8146,9 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       // FIX 2026-02-24: WhatsApp rejeitou Platform.WEB (405 error)
       // -----------------------------------------------------------------------
       version: [2, 3000, 1033893291],
+      connectTimeoutMs: 60_000,
+      keepAliveIntervalMs: 25_000,
+      retryRequestDelayMs: 250,
       // -----------------------------------------------------------------------
       // ?? FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE) - ADMIN
       // -----------------------------------------------------------------------
@@ -9655,6 +9695,9 @@ async function createPairingSocket(
     // Ref: https://github.com/WhiskeySockets/Baileys/issues/2370
     // -----------------------------------------------------------------------
     version: [2, 3000, 1033893291],
+    connectTimeoutMs: 60_000,
+    keepAliveIntervalMs: 25_000,
+    retryRequestDelayMs: 250,
     // -----------------------------------------------------------------------
     // ?? BROWSER CONFIG: Ubuntu + Chrome (compatível com WhatsApp Web)
     // -----------------------------------------------------------------------
@@ -10158,6 +10201,9 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
                 logger: pino({ level: "silent" }),
                 // FIX 2026-02-24: WhatsApp rejeitou Platform.WEB (405 error)
                 version: [2, 3000, 1033893291],
+                connectTimeoutMs: 60_000,
+                keepAliveIntervalMs: 25_000,
+                retryRequestDelayMs: 250,
                 browser: Browsers.macOS('Desktop'),
                 getMessage: async (key) => {
                   if (!key.id) return undefined;
@@ -11235,14 +11281,40 @@ async function processPendingTimersCron(): Promise<void> {
     
     let processed = 0;
     let skipped = 0;
+    const reconnectAttemptedUsers = new Set<string>(); // Guard: 1 reconnect per user per cron cycle
     
     for (const timer of expiredTimers) {
       const { conversationId, userId, contactNumber, jidSuffix, messages } = timer;
       
       // Verificar se a sessão do usuário está disponível
       const session = sessions.get(userId);
-      if (!session?.socket) {
-        console.log(`⏭️ [PENDING CRON] ${contactNumber} - Sessão indisponível, pulando`);
+      if (!session?.socket || !session.isOpen) {
+        // -----------------------------------------------------------------------
+        // FIX 2026-02-24: Quando sessão indisponível mas DB diz conectado,
+        // tentar reconectar ao invés de simplesmente pular.
+        // Isso resolve o caso onde a conexão caiu (408 timeout) e o reconnect
+        // handler atingiu o MAX_RECONNECT_ATTEMPTS, mas o DB ainda marca connected.
+        // Guard: Só tenta reconectar 1x por usuário por ciclo do CRON.
+        // -----------------------------------------------------------------------
+        if (!reconnectAttemptedUsers.has(userId)) {
+          const connState = await storage.getConnectionByUserId(userId);
+          if (connState?.isConnected && connState.id) {
+            const existingSession = sessions.get(connState.id);
+            if (!existingSession?.socket) {
+              console.log(`🔄 [PENDING CRON] ${contactNumber} - Sessão indisponível (userId: ${userId.substring(0,8)}) mas DB=connected. Tentando reconectar...`);
+              reconnectAttemptedUsers.add(userId);
+              try {
+                await connectWhatsApp(userId, connState.id);
+              } catch (reconErr) {
+                console.log(`⏭️ [PENDING CRON] ${contactNumber} - Reconexão falhou, pulando`);
+              }
+            } else {
+              console.log(`⏭️ [PENDING CRON] ${contactNumber} - Socket existe mas isOpen=${existingSession.isOpen}, aguardando...`);
+            }
+          } else {
+            console.log(`⏭️ [PENDING CRON] ${contactNumber} - Sessão indisponível (DB: connected=${connState?.isConnected || false})`);
+          }
+        }
         skipped++;
         continue;
       }
