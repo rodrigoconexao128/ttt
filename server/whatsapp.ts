@@ -2775,36 +2775,12 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
     sessions.set(connection.id, session);
 
     // -----------------------------------------------------------------------
-    // FIX 2026-02-24: CONNECTION OPEN TIMEOUT
-    // If connection.update never fires with "open" within 90 seconds,
-    // force reconnect. This catches sessions stuck in "connection: undefined"
-    // state (common after WhatsApp breaking changes or stale credentials).
-    // Ref: https://github.com/WhiskeySockets/Baileys/issues/2370
+    // NOTA: CONN TIMEOUT removido em 2026-02-24.
+    // O timeout de 90s causava tempestade de reconexão com 70+ sessões
+    // simultâneas, impedindo QUALQUER conexão de estabilizar.
+    // O health check a cada 5 min já cuida de conexões zumbis.
+    // Ref: WhatsApp update Feb 24 2026 - Issues #2370, #2364
     // -----------------------------------------------------------------------
-    const CONNECTION_OPEN_TIMEOUT_MS = 90_000; // 90 seconds
-    session.openTimeout = setTimeout(async () => {
-      const currentSession = sessions.get(connection.id);
-      if (currentSession?.socket === sock && !currentSession.isOpen) {
-        console.log(`⏰ [CONN TIMEOUT] Connection ${connection.id.substring(0, 8)} user ${userId.substring(0, 8)} did NOT reach "open" in ${CONNECTION_OPEN_TIMEOUT_MS / 1000}s — forcing reconnect`);
-        try {
-          // End the stuck socket
-          sock.ev.removeAllListeners('connection.update');
-          sock.ev.removeAllListeners('creds.update');
-          sock.end(new Error('Connection open timeout'));
-        } catch (e) {
-          console.error(`[CONN TIMEOUT] Error ending socket:`, e);
-        }
-        sessions.delete(connection.id);
-        // Force reconnect
-        try {
-          await connectWhatsApp(userId, connection.id);
-          console.log(`✅ [CONN TIMEOUT] Reconnect initiated for ${connection.id.substring(0, 8)}`);
-        } catch (reconErr) {
-          console.error(`❌ [CONN TIMEOUT] Reconnect failed:`, reconErr);
-          await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
-        }
-      }
-    }, CONNECTION_OPEN_TIMEOUT_MS);
     
     // 📲 Registrar sessão no serviço de envio para notificações do sistema (delivery, etc)
     registerWhatsAppSession(userId, sock);
@@ -10893,12 +10869,8 @@ async function connectionHealthCheck(): Promise<void> {
             console.log(`[HEALTH CHECK] Connection ${connection.id} reconectado com sucesso!`);
           } catch (error) {
             console.error(`[HEALTH CHECK] Falha ao reconectar connection ${connection.id}:`, error);
-            // Marcar como desconectado no banco para evitar loops
-            await storage.updateConnection(connection.id, {
-              isConnected: false,
-              qrCode: null,
-            });
-            disconnectedUsers++;
+            // SAFE: Do NOT mark is_connected=false. Will retry on next health check (5 min).
+            console.log(`[HEALTH CHECK] Será tentado novamente no próximo health check.`);
           }
         } else {
           console.log(`?? [HEALTH CHECK] ${connection.userId} sem arquivos de auth - marcando como desconectado`);
@@ -10917,41 +10889,20 @@ async function connectionHealthCheck(): Promise<void> {
         // -----------------------------------------------------------------------
         if (session && session.isOpen === false && session.createdAt) {
           const stuckDurationMs = Date.now() - session.createdAt;
-          const STUCK_THRESHOLD_MS = 120_000; // 2 minutes
+          const STUCK_THRESHOLD_MS = 300_000; // 5 minutes — give Baileys time to negotiate
           if (stuckDurationMs > STUCK_THRESHOLD_MS) {
-            const { shouldSlowDown, attempt } = trackReconnectAttempt(connection.id);
-            
-            if (shouldSlowDown) {
-              // SAFE: Do NOT disconnect. Just end stuck socket and let next health check retry.
-              console.log(`⏳ [HEALTH CHECK] STUCK CONNECTION ${connection.id.substring(0, 8)} — ${attempt} attempts. Skipping (NÃO desconecta, retry in 5min).`);
+            // Connection has been stuck for 5+ min without reaching "open".
+            // End socket so zombie handler can reconnect on next health check cycle.
+            console.log(`⚠️ [HEALTH CHECK] STUCK CONNECTION: user ${connection.userId.substring(0, 8)} conn ${connection.id.substring(0, 8)} — isOpen=false for ${Math.round(stuckDurationMs / 1000)}s. Cleaning socket (zombie handler will reconnect).`);
+            try {
               if (session.openTimeout) { clearTimeout(session.openTimeout); session.openTimeout = undefined; }
               session.socket?.ev?.removeAllListeners('connection.update');
               session.socket?.ev?.removeAllListeners('creds.update');
-              try { session.socket?.end(new Error('Stuck connection - slowing down')); } catch(e) { /* ignore */ }
-              sessions.delete(connection.id);
-            } else {
-            console.log(`⚠️ [HEALTH CHECK] STUCK CONNECTION detected: user ${connection.userId.substring(0, 8)}... conn ${connection.id.substring(0, 8)}`);
-            console.log(`   ⚠️ Socket has user creds but isOpen=false for ${Math.round(stuckDurationMs / 1000)}s`);
-            console.log(`   ⚠️ Attempt #${attempt}/${MAX_FAST_RECONNECT_ATTEMPTS} — forcing reconnect...`);
-            try {
-              // End the stuck socket
-              if (session.openTimeout) {
-                clearTimeout(session.openTimeout);
-                session.openTimeout = undefined;
-              }
-              session.socket?.ev?.removeAllListeners('connection.update');
-              session.socket?.ev?.removeAllListeners('creds.update');
               session.socket?.end(new Error('Health check: stuck connection'));
-              sessions.delete(connection.id);
-              // Reconnect — DB stays is_connected=true
-              await connectWhatsApp(connection.userId, connection.id);
-              reconnectedUsers++;
-              console.log(`✅ [HEALTH CHECK] Stuck connection ${connection.id.substring(0, 8)} reconnected`);
-            } catch (error) {
-              console.error(`❌ [HEALTH CHECK] Stuck connection reconnect failed:`, error);
-              // SAFE: Do NOT mark is_connected=false. Will retry next health check.
-            }
-            }
+            } catch(e) { /* ignore */ }
+            sessions.delete(connection.id);
+            // Don't count as disconnected — DB stays is_connected=true
+            // Next health check cycle will detect as zombie and reconnect
           } else {
             // Still within grace period, count as healthy
             healthyUsers++;
