@@ -2668,6 +2668,12 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       // Ref: https://github.com/WhiskeySockets/Baileys/issues/266
       // ======================================================================
       browser: Browsers.macOS('Desktop'),
+      // -----------------------------------------------------------------------
+      // FIX 2026-02-24: WhatsApp rejeitou Platform.WEB (405 error)
+      // Versão fixa que funciona com Platform.MACOS
+      // Ref: https://github.com/WhiskeySockets/Baileys/issues/2370
+      // -----------------------------------------------------------------------
+      version: [2, 3000, 1033893291],
       syncFullHistory: true,
       shouldSyncHistoryMessage: () => true,
       // -----------------------------------------------------------------------
@@ -8065,6 +8071,10 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       printQRInTerminal: false,
       logger: pino({ level: "silent" }),
       // -----------------------------------------------------------------------
+      // FIX 2026-02-24: WhatsApp rejeitou Platform.WEB (405 error)
+      // -----------------------------------------------------------------------
+      version: [2, 3000, 1033893291],
+      // -----------------------------------------------------------------------
       // ?? FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE) - ADMIN
       // -----------------------------------------------------------------------
       getMessage: async (key) => {
@@ -9590,9 +9600,10 @@ async function createPairingSocket(
   authPath: string,
   connectionId: string
 ): Promise<{ sock: any; state: any; saveCreds: (creds: any) => void }> {
-  // Buscar versão mais recente do Baileys
-  const { version } = await fetchLatestBaileysVersion();
-  console.log(`?? [PAIRING] Baileys version: ${version}`);
+  // FIX 2026-02-24: Versão fixa em vez de fetchLatestBaileysVersion()
+  // WhatsApp rejeitou Platform.WEB, versão fixa compatível com MACOS
+  const version: [number, number, number] = [2, 3000, 1033893291];
+  console.log(`📱 [PAIRING] Baileys version (fixed): ${version}`);
 
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
@@ -9603,7 +9614,12 @@ async function createPairingSocket(
     },
     printQRInTerminal: false,
     logger: pino({ level: "silent" }),
-    version,
+    // -----------------------------------------------------------------------
+    // FIX 2026-02-24: WhatsApp rejeitou Platform.WEB (405 error)
+    // Versão fixa em vez de fetchLatestBaileysVersion()
+    // Ref: https://github.com/WhiskeySockets/Baileys/issues/2370
+    // -----------------------------------------------------------------------
+    version: [2, 3000, 1033893291],
     // -----------------------------------------------------------------------
     // ?? BROWSER CONFIG: Ubuntu + Chrome (compatível com WhatsApp Web)
     // -----------------------------------------------------------------------
@@ -10097,6 +10113,8 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
                 },
                 printQRInTerminal: false,
                 logger: pino({ level: "silent" }),
+                // FIX 2026-02-24: WhatsApp rejeitou Platform.WEB (405 error)
+                version: [2, 3000, 1033893291],
                 browser: Browsers.macOS('Desktop'),
                 getMessage: async (key) => {
                   if (!key.id) return undefined;
