@@ -64,7 +64,7 @@ export function ConnectionPanel() {
   // Query for all connections with agents (multi-connection)
   const { data: allConnections = [], refetch: refetchConnections } = useQuery<ConnectionWithAgents[]>({
     queryKey: ["/api/whatsapp/connections"],
-    enabled: !!connection, // Only fetch after main connection loads (auth ready)
+    enabled: !isLoading, // Always fetch after auth loads (not gated by connection existence)
     retry: 2,
     retryDelay: 1000,
     staleTime: 15000, // 15s: evita refetch desnecessário ao navegar entre páginas
@@ -537,8 +537,29 @@ export function ConnectionPanel() {
     // Se já tem conexão (mesmo desconectada), não fazer nada
     if (connection) return;
     
+    // Se já tem conexões na lista multi-connection, não duplicar
+    if (allConnections.length > 0) return;
+    
     // Se já está mostrando o form de nova conexão, não duplicar
     if (showNewConnForm) return;
+    
+    // Verificar sessionStorage para evitar re-criação em re-mount
+    const savedAutoConnId = sessionStorage.getItem('autoConnectId');
+    if (savedAutoConnId) {
+      console.log('[AUTO-CONNECT] Restaurando estado do sessionStorage:', savedAutoConnId);
+      autoConnectTriggered.current = true;
+      setNewConnId(savedAutoConnId);
+      setShowNewConnForm(true);
+      setNewConnStep("qr-waiting");
+      // Re-trigger connect para gerar novo QR
+      apiRequest("POST", `/api/whatsapp/connections/${savedAutoConnId}/connect`)
+        .then(() => console.log('[AUTO-CONNECT] Re-connect iniciado para conexão restaurada'))
+        .catch(() => {
+          sessionStorage.removeItem('autoConnectId');
+          autoConnectTriggered.current = false;
+        });
+      return;
+    }
     
     // Marcar que já foi triggado para não repetir
     autoConnectTriggered.current = true;
@@ -554,6 +575,9 @@ export function ConnectionPanel() {
         const data = await response.json();
         const connectionId = data.id;
         console.log('[AUTO-CONNECT] Conexão criada com ID:', connectionId);
+        
+        // Salvar em sessionStorage para sobreviver re-mounts
+        sessionStorage.setItem('autoConnectId', connectionId);
         
         // Abrir o fluxo de nova conexão direto no QR waiting
         setNewConnId(connectionId);
@@ -576,7 +600,7 @@ export function ConnectionPanel() {
         console.error('[AUTO-CONNECT] Erro ao criar conexão automática:', error);
         autoConnectTriggered.current = false; // Permitir retry
       });
-  }, [isLoading, connection, showNewConnForm]);
+  }, [isLoading, connection, allConnections, showNewConnForm]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -677,6 +701,8 @@ export function ConnectionPanel() {
               }
             } else if (data.type === "connected") {
               console.log("[WS] WhatsApp conectado!", data.connectionId || "");
+              // Limpar sessionStorage do auto-connect
+              sessionStorage.removeItem('autoConnectId');
               // Clear per-connection QR
               if (data.connectionId) {
                 setConnectionQrCodes(prev => {

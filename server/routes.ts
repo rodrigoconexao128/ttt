@@ -3901,6 +3901,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
         isConnected: false,
       });
 
+      // Invalidar cache do /api/whatsapp/connection para este usuário
+      memoryCache.invalidate(`api:wa-conn:${userId}`);
+
       res.json(newConn);
     } catch (error) {
       console.error("[MULTI-CONN] Erro ao criar conexão:", error);
