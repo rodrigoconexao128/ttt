@@ -26,7 +26,7 @@ import { supabase } from "./supabaseAuth";
 import { messageQueueService } from "./messageQueueService";
 import { db } from "./db";
 import { conversations } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { uploadMediaToStorage } from "./mediaStorageService";
 import { processAudioResponseForAgent } from "./audioResponseService";
 // 🆕 ANTI-REENVIO: Importar serviço de deduplicação para proteção contra instabilidade
@@ -873,6 +873,8 @@ const conversationsBeingProcessed = new Set<string>();
 const SESSION_AVAILABLE_RETRY_MS = 30 * 1000;
 const SESSION_UNAVAILABLE_RETRY_MS = 5 * 60 * 1000;
 const SESSION_UNAVAILABLE_MAX_AGE_MS = 30 * 60 * 1000;
+// ⚡ FIX: Retry rápido quando erro é Connection Closed (socket reconectando)
+const CONNECTION_CLOSED_RETRY_MS = 5 * 1000; // 5 segundos
 
 // -----------------------------------------------------------------------
 // 🔄 IMPLEMENTAÇÃO REAL: checkForMissedMessages
@@ -1062,6 +1064,13 @@ async function internalSendMessageRaw(
   const session = sessions.get(userId);
   if (!session?.socket) {
     throw new Error("WhatsApp not connected");
+  }
+
+  // ⚡ FIX: Verificar estado do WebSocket antes de tentar enviar
+  // Evita timeout desnecessário quando o WS já está fechado
+  const ws = (session.socket as any)?.ws;
+  if (ws && ws.readyState !== 1) { // 1 = OPEN
+    throw new Error("Connection Closed");
   }
 
   // 🆕 v4.0 ANTI-BAN: Simular "digitando..." antes de enviar
@@ -3402,6 +3411,56 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         }
         
         // ======================================================================
+        // ⚡ FIX: Processar timers de IA pendentes IMEDIATAMENTE após reconexão
+        // ======================================================================
+        // Quando Connection Closed causou falha de envio, o timer fica pendente
+        // no banco com retry de 5-30s. Ao reconectar, processar IMEDIATAMENTE
+        // para que o cliente não espere mais.
+        // ======================================================================
+        setTimeout(async () => {
+          try {
+            const pendingTimers = await storage.getPendingAIResponsesForRestore();
+            const userTimers = pendingTimers.filter(t => t.userId === userId);
+            if (userTimers.length > 0) {
+              console.log(`⚡ [RECONNECT-RECOVERY] ${userTimers.length} timers pendentes para ${userId.substring(0, 8)}... - processando IMEDIATAMENTE!`);
+              
+              let processed = 0;
+              for (const timer of userTimers) {
+                if (pendingResponses.has(timer.conversationId) || conversationsBeingProcessed.has(timer.conversationId)) {
+                  continue;
+                }
+                
+                const rPending: PendingResponse = {
+                  timeout: null as any,
+                  messages: timer.messages,
+                  conversationId: timer.conversationId,
+                  userId: timer.userId,
+                  contactNumber: timer.contactNumber,
+                  jidSuffix: timer.jidSuffix || DEFAULT_JID_SUFFIX,
+                  startTime: timer.scheduledAt.getTime(),
+                };
+                
+                const delayMs = processed * 2000; // 2s entre cada para não sobrecarregar
+                rPending.timeout = setTimeout(async () => {
+                  await processAccumulatedMessages(rPending);
+                }, delayMs);
+                
+                pendingResponses.set(timer.conversationId, rPending);
+                processed++;
+                
+                if (processed >= 10) break; // Limitar a 10 por reconexão
+              }
+              
+              if (processed > 0) {
+                console.log(`⚡ [RECONNECT-RECOVERY] ${processed} timers processados imediatamente após reconexão`);
+              }
+            }
+          } catch (recErr) {
+            console.error(`⚡ [RECONNECT-RECOVERY] Erro ao processar timers pendentes:`, recErr);
+          }
+        }, 3000); // 3s após reconexão para dar tempo ao socket estabilizar
+        
+        // ======================================================================
         // ?? FOLLOW-UP: Reativar follow-ups que estavam aguardando conex�o
         // ======================================================================
         // Quando o WhatsApp reconecta, os follow-ups que foram pausados por falta
@@ -5636,6 +5695,54 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       return;
     }
     
+    // ⚡ FIX: Verificar se o socket está REALMENTE pronto para enviar
+    // O session pode existir mas o WebSocket interno pode estar fechado/reconectando
+    // Sem essa verificação, gastamos tokens de LLM e depois falhamos no envio
+    const socketUser = currentSession.socket?.user;
+    const socketWs = (currentSession.socket as any)?.ws;
+    const wsReadyState = socketWs?.readyState;
+    
+    // WebSocket.OPEN = 1. Se != 1, o socket não está pronto para enviar
+    if (!socketUser || (wsReadyState !== undefined && wsReadyState !== 1)) {
+      console.log(`\n${'!'.repeat(60)}`);
+      console.log(`⚡ [AI Agent] BLOQUEIO: Socket existe mas WebSocket NÃO está OPEN`);
+      console.log(`   userId: ${userId}`);
+      console.log(`   conversationId: ${conversationId}`);
+      console.log(`   contactNumber: ${contactNumber}`);
+      console.log(`   socketUser: ${socketUser ? 'sim' : 'não'}`);
+      console.log(`   wsReadyState: ${wsReadyState} (OPEN=1)`);
+      console.log(`   👉 Socket reconectando, retry rápido em ${CONNECTION_CLOSED_RETRY_MS/1000}s`);
+      console.log(`${'!'.repeat(60)}\n`);
+      
+      const retryPending: PendingResponse = {
+        timeout: null as any,
+        messages,
+        conversationId,
+        userId,
+        contactNumber,
+        jidSuffix,
+        startTime: pending.startTime,
+        isCTWAFallback: pending.isCTWAFallback,
+      };
+      
+      retryPending.timeout = setTimeout(async () => {
+        console.log(`🔄 [AI AGENT] Retry rápido (socket não pronto): ${contactNumber}`);
+        await processAccumulatedMessages(retryPending);
+      }, CONNECTION_CLOSED_RETRY_MS);
+      
+      pendingResponses.set(conversationId, retryPending);
+      
+      try {
+        const newExecuteAt = new Date(Date.now() + CONNECTION_CLOSED_RETRY_MS);
+        await storage.updatePendingAIResponseMessages(conversationId, messages, newExecuteAt);
+      } catch (dbErr) {
+        console.error(`⚠️ [AI AGENT] Erro ao reagendar no banco:`, dbErr);
+      }
+      
+      conversationsBeingProcessed.delete(conversationId);
+      return;
+    }
+    
     // 🔒 CHECK DE LIMITE DE MENSAGENS E PLANO VENCIDO
     const FREE_TRIAL_LIMIT = 25;
     const connection = await storage.getConnectionByUserId(userId);
@@ -6093,8 +6200,13 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       
       // ❌ NÃO marcar responseSuccessful - timer será mantido como pending para retry
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ [AI AGENT] RETURN NULL #6: Exceção capturada no catch externo:", error);
+    // ⚡ FIX: Detectar erro de Connection Closed para retry rápido
+    const errorMsg = error?.message || String(error);
+    if (errorMsg.includes('Connection Closed') || errorMsg.includes('connection closed')) {
+      (pending as any)._connectionClosedError = true;
+    }
   } finally {
     // 🔒 ANTI-DUPLICAÇÃO: Remover da lista de conversas em processamento
     conversationsBeingProcessed.delete(conversationId);
@@ -6108,13 +6220,31 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         console.error(`⚠️ [AI AGENT] Erro ao marcar timer como completed (não crítico):`, dbError);
       }
     } else {
-      // 🔄 FIX: Reagendar timer para retry em 15 segundos
-      // Isso evita processamento imediato em loop quando há erros temporários
-      try {
-        await storage.resetPendingAIResponseForRetry(conversationId);
-        console.warn(`🔄 [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: ${conversationId})`);
-      } catch (dbError) {
-        console.error(`⚠️ [AI AGENT] Erro ao reagendar timer para retry:`, dbError);
+      // ⚡ FIX: Se foi erro de Connection Closed, usar retry rápido (5s) em vez de 30s
+      const isConnectionClosed = (pending as any)._connectionClosedError === true;
+      if (isConnectionClosed) {
+        try {
+          // Retry rápido: 5 segundos em vez de 30s quando é problema de conexão
+          await db.execute(sql`
+            UPDATE pending_ai_responses
+            SET status = 'pending',
+                scheduled_at = NOW(),
+                execute_at = NOW() + INTERVAL '5 seconds',
+                updated_at = NOW()
+            WHERE conversation_id = ${conversationId}
+          `);
+          console.warn(`⚡ [AI AGENT] Timer reagendado para retry RÁPIDO em 5s - Connection Closed (conversationId: ${conversationId})`);
+        } catch (dbError) {
+          console.error(`⚠️ [AI AGENT] Erro ao reagendar timer para retry rápido:`, dbError);
+        }
+      } else {
+        // Retry normal: 30 segundos para erros de LLM ou outros
+        try {
+          await storage.resetPendingAIResponseForRetry(conversationId);
+          console.warn(`🔄 [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: ${conversationId})`);
+        } catch (dbError) {
+          console.error(`⚠️ [AI AGENT] Erro ao reagendar timer para retry:`, dbError);
+        }
       }
     }
     
