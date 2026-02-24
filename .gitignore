@@ -49,6 +49,7 @@ remove-*.ts
 # Test scripts
 *.mjs
 !client/**/*.mjs
+!patch-baileys-platform.mjs
 *.py
 *.ps1
 *.cjs
