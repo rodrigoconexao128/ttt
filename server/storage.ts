@@ -5737,16 +5737,20 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     scheduledAt: Date;
   }>> {
     try {
-      // 🔧 FIX: Aumentar intervalo de 5 minutos para 2 HORAS
-      // Isso garante que timers não sejam perdidos em deploys/instabilidades longas
-      // Timers muito antigos (>2h) são considerados "abandonados" e serão limpos pelo cleanup
+      // 🔧 FIX 2026-02-24: REMOVIDO filtro de 2 horas que tornava timers invisíveis!
+      // O filtro anterior (execute_at > NOW() - INTERVAL '2 hours') fazia com que
+      // timers com mais de 2h ficassem PERMANENTEMENTE presos como 'pending' mas
+      // nunca processados pelo CRON. O CRON agora gerencia stale timers:
+      // - >24h: marca como 'failed' (stale_over_24h)
+      // - ≤24h: processa normalmente com prioridade para antigos
+      // LIMIT 200 previne storm em caso de acúmulo massivo
       const result = await db.execute(sql`
         SELECT id, conversation_id, user_id, contact_number, jid_suffix,
                messages, execute_at, scheduled_at
         FROM pending_ai_responses
         WHERE status = 'pending'
-          AND execute_at > NOW() - INTERVAL '2 hours'
         ORDER BY execute_at ASC
+        LIMIT 200
       `);
       
       if (result.rows && result.rows.length > 0) {

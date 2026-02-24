@@ -647,14 +647,23 @@ const waObservability = {
   recoveryPgrst116Count: 0,
   restoreDedupSkipped: 0,
   reconnectAttemptTotal: 0,
+  // FIX 2026-02-24: Pending AI response metrics
+  pendingAI_cronProcessed: 0,
+  pendingAI_cronSkipped: 0,
+  pendingAI_staleFailedOver24h: 0,
+  pendingAI_connectionClosedRetries: 0,
+  pendingAI_maxRetriesExhausted: 0,
   startTime: Date.now(),
 };
 
 // Log observability counters every 5 minutes
 setInterval(() => {
   const uptimeMin = Math.floor((Date.now() - waObservability.startTime) / 60000);
-  if (waObservability.conflict440Count > 0 || waObservability.recoveryPgrst116Count > 0 || waObservability.restoreDedupSkipped > 0) {
-    console.log(`[WA_METRICS] uptime=${uptimeMin}min 440_conflicts=${waObservability.conflict440Count} pgrst116=${waObservability.recoveryPgrst116Count} dedup_skipped=${waObservability.restoreDedupSkipped} reconnect_total=${waObservability.reconnectAttemptTotal} send_fail_closed=${waObservability.connectionClosedSendFail}`);
+  const hasActivity = waObservability.conflict440Count > 0 || waObservability.recoveryPgrst116Count > 0 || 
+    waObservability.restoreDedupSkipped > 0 || waObservability.pendingAI_cronProcessed > 0 || 
+    waObservability.pendingAI_staleFailedOver24h > 0 || waObservability.pendingAI_maxRetriesExhausted > 0;
+  if (hasActivity) {
+    console.log(`[WA_METRICS] uptime=${uptimeMin}min 440=${waObservability.conflict440Count} pgrst116=${waObservability.recoveryPgrst116Count} dedup=${waObservability.restoreDedupSkipped} reconnect=${waObservability.reconnectAttemptTotal} send_fail_closed=${waObservability.connectionClosedSendFail} pending_processed=${waObservability.pendingAI_cronProcessed} pending_skipped=${waObservability.pendingAI_cronSkipped} pending_stale_24h=${waObservability.pendingAI_staleFailedOver24h} pending_max_retries=${waObservability.pendingAI_maxRetriesExhausted} pending_conn_closed_retries=${waObservability.pendingAI_connectionClosedRetries}`);
   }
 }, 5 * 60 * 1000);
 
@@ -898,6 +907,15 @@ const pendingResponses = new Map<string, PendingResponse>(); // key: conversatio
 // 🔴 ANTI-DUPLICAÇÃO: Set para rastrear conversas em processamento
 // Evita que múltiplos timeouts processem a mesma conversa simultaneamente
 const conversationsBeingProcessed = new Set<string>();
+
+// -----------------------------------------------------------------------
+// FIX 2026-02-24: RETRY COUNTER for Connection Closed errors
+// Tracks how many times a conversation has been retried due to send failures.
+// After MAX_SEND_RETRIES, the timer is marked as failed to prevent infinite loops.
+// Entries are cleaned up when a timer completes or fails.
+// -----------------------------------------------------------------------
+const pendingRetryCounter = new Map<string, number>(); // key: conversationId → retry count
+const MAX_SEND_RETRIES = 8; // Max 8 retries (8 x 5s = ~40s for Connection Closed)
 
 const SESSION_AVAILABLE_RETRY_MS = 30 * 1000;
 const SESSION_UNAVAILABLE_RETRY_MS = 5 * 60 * 1000;
@@ -6356,6 +6374,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     if (responseSuccessful) {
       try {
         await storage.markPendingAIResponseCompleted(conversationId);
+        pendingRetryCounter.delete(conversationId); // 🧹 Limpar contador de retries
         console.log(`✅ [AI AGENT] Timer marcado como completed - resposta enviada com sucesso!`);
       } catch (dbError) {
         console.error(`⚠️ [AI AGENT] Erro ao marcar timer como completed (não crítico):`, dbError);
@@ -6363,7 +6382,25 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     } else {
       // ⚡ FIX: Se foi erro de Connection Closed, usar retry rápido (5s) em vez de 30s
       const isConnectionClosed = (pending as any)._connectionClosedError === true;
-      if (isConnectionClosed) {
+      
+      // 🔧 FIX 2026-02-24: RETRY COUNTER - prevent infinite retry loop
+      const currentRetries = (pendingRetryCounter.get(conversationId) || 0) + 1;
+      pendingRetryCounter.set(conversationId, currentRetries);
+      
+      if (currentRetries > MAX_SEND_RETRIES) {
+        // 🛑 MAX RETRIES EXCEEDED - mark as failed
+        try {
+          const reason = isConnectionClosed 
+            ? `connection_closed_max_retries_${currentRetries}` 
+            : `send_failed_max_retries_${currentRetries}`;
+          await storage.markPendingAIResponseFailed(conversationId, reason);
+          pendingRetryCounter.delete(conversationId);
+          waObservability.pendingAI_maxRetriesExhausted++;
+          console.error(`🛑 [AI AGENT] Timer ABANDONADO após ${currentRetries} tentativas (${reason}) - conversationId: ${conversationId}`);
+        } catch (dbError) {
+          console.error(`⚠️ [AI AGENT] Erro ao marcar timer como failed:`, dbError);
+        }
+      } else if (isConnectionClosed) {
         try {
           // Retry rápido: 5 segundos em vez de 30s quando é problema de conexão
           await db.execute(sql`
@@ -6374,7 +6411,8 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
                 updated_at = NOW()
             WHERE conversation_id = ${conversationId}
           `);
-          console.warn(`⚡ [AI AGENT] Timer reagendado para retry RÁPIDO em 5s - Connection Closed (conversationId: ${conversationId})`);
+          waObservability.pendingAI_connectionClosedRetries++;
+          console.warn(`⚡ [AI AGENT] Timer reagendado retry ${currentRetries}/${MAX_SEND_RETRIES} em 5s - Connection Closed (conversationId: ${conversationId})`);
         } catch (dbError) {
           console.error(`⚠️ [AI AGENT] Erro ao reagendar timer para retry rápido:`, dbError);
         }
@@ -6382,7 +6420,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         // Retry normal: 30 segundos para erros de LLM ou outros
         try {
           await storage.resetPendingAIResponseForRetry(conversationId);
-          console.warn(`🔄 [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: ${conversationId})`);
+          console.warn(`🔄 [AI AGENT] Timer reagendado retry ${currentRetries}/${MAX_SEND_RETRIES} em 30s - resposta falhou (conversationId: ${conversationId})`);
         } catch (dbError) {
           console.error(`⚠️ [AI AGENT] Erro ao reagendar timer para retry:`, dbError);
         }
@@ -11401,36 +11439,59 @@ export function startPendingTimersCron(): void {
 
 async function processPendingTimersCron(): Promise<void> {
   try {
-    // Buscar timers pendentes que já expiraram (execute_at no passado)
+    // Buscar timers pendentes (sem filtro de 2h - LIMIT 200 no query)
     const pendingTimers = await storage.getPendingAIResponsesForRestore();
     
     if (pendingTimers.length === 0) {
       return; // Nada para processar
     }
     
-    // Filtrar apenas os que já expiraram e não estão em memória
+    // -----------------------------------------------------------------------
+    // FIX 2026-02-24: STALE TIMER POLICY
+    // Timers >24h são marcados como failed (o cliente já desistiu)
+    // Timers ≤24h são processados normalmente
+    // -----------------------------------------------------------------------
+    const STALE_24H_MS = 24 * 60 * 60 * 1000;
+    const staleTimers = pendingTimers.filter(t => (Date.now() - t.executeAt.getTime()) > STALE_24H_MS);
+    
+    if (staleTimers.length > 0) {
+      console.log(`🗑️ [PENDING CRON] Marcando ${staleTimers.length} timers >24h como FAILED (stale_over_24h)`);
+      for (const stale of staleTimers) {
+        try {
+          await storage.markPendingAIResponseFailed(stale.conversationId, 'stale_over_24h');
+          waObservability.pendingAI_staleFailedOver24h++;
+        } catch (e) {
+          // Ignore individual failures
+        }
+      }
+    }
+    
+    // Filtrar apenas os que já expiraram e não estão em memória (excluir os >24h já marcados)
     const expiredTimers = pendingTimers.filter(timer => {
-      const isExpired = timer.executeAt.getTime() < Date.now();
+      const timeSinceExecute = Date.now() - timer.executeAt.getTime();
+      const isExpired = timeSinceExecute > 0;
+      const isStale24h = timeSinceExecute > STALE_24H_MS;
       const isInMemory = pendingResponses.has(timer.conversationId);
       const isBeingProcessed = conversationsBeingProcessed.has(timer.conversationId);
       
       // 🔍 DEBUG: Logar por que alguns timers são filtrados
-      if (isExpired && (isInMemory || isBeingProcessed)) {
+      if (isExpired && !isStale24h && (isInMemory || isBeingProcessed)) {
         console.log(`⏸️ [PENDING CRON] ${timer.contactNumber} - Filtrado: inMemory=${isInMemory}, beingProcessed=${isBeingProcessed}`);
       }
       
-      return isExpired && !isInMemory && !isBeingProcessed;
+      return isExpired && !isStale24h && !isInMemory && !isBeingProcessed;
     });
     
     if (expiredTimers.length === 0) {
-      // 🔍 DEBUG: Logar quando todos foram filtrados
-      console.log(`🔄 [PENDING CRON] Ciclo: ${pendingTimers.length} timers encontrados, todos filtrados (em memória ou processando)`);
+      if (pendingTimers.length > staleTimers.length) {
+        console.log(`🔄 [PENDING CRON] Ciclo: ${pendingTimers.length} timers (${staleTimers.length} stale removidos), restantes filtrados (em memória/processando/futuros)`);
+      }
       return;
     }
     
     console.log(`\n🔄 [PENDING CRON] =========================================`);
     console.log(`🔄 [PENDING CRON] Encontrados ${expiredTimers.length} timers órfãos para processar`);
-    console.log(`🔄 [PENDING CRON] Sessões ativas: ${sessions.size}`);
+    console.log(`🔄 [PENDING CRON] Sessões ativas: ${sessions.size} | Stale removidos: ${staleTimers.length}`);
     
     let processed = 0;
     let skipped = 0;
@@ -11445,8 +11506,6 @@ async function processPendingTimersCron(): Promise<void> {
         // -----------------------------------------------------------------------
         // FIX 2026-02-24: Quando sessão indisponível mas DB diz conectado,
         // tentar reconectar ao invés de simplesmente pular.
-        // Isso resolve o caso onde a conexão caiu (408 timeout) e o reconnect
-        // handler atingiu o MAX_RECONNECT_ATTEMPTS, mas o DB ainda marca connected.
         // Guard: Só tenta reconectar 1x por usuário por ciclo do CRON.
         // -----------------------------------------------------------------------
         if (!reconnectAttemptedUsers.has(userId)) {
@@ -11469,17 +11528,17 @@ async function processPendingTimersCron(): Promise<void> {
           }
         }
         skipped++;
+        waObservability.pendingAI_cronSkipped++;
         continue;
       }
       
       // Calcular quanto tempo desde que deveria ter executado
       const timeSinceExecute = Date.now() - timer.executeAt.getTime();
       
-      // 🔧 FIX: NÃO MAIS RESETAR TIMERS ANTIGOS - PROCESSAR IMEDIATAMENTE!
-      // O bug anterior resetava e pulava, criando loop infinito
-      // Agora processamos independente da idade do timer
-      if (timeSinceExecute > 30 * 60 * 1000) {
-        console.log(`⚠️ [PENDING CRON] ${contactNumber} - Timer MUITO antigo (${Math.round(timeSinceExecute/60000)}min), PROCESSANDO AGORA mesmo assim!`);
+      if (timeSinceExecute > 2 * 60 * 60 * 1000) {
+        console.log(`⚠️ [PENDING CRON] ${contactNumber} - Timer antigo (${Math.round(timeSinceExecute/60000)}min), processando com prioridade!`);
+      } else if (timeSinceExecute > 30 * 60 * 1000) {
+        console.log(`⚠️ [PENDING CRON] ${contactNumber} - Timer atrasado (${Math.round(timeSinceExecute/60000)}min), PROCESSANDO AGORA!`);
       }
       
       console.log(`🚀 [PENDING CRON] Processando ${contactNumber} (timer órfão há ${Math.round(timeSinceExecute/1000)}s)`);
@@ -11495,17 +11554,16 @@ async function processPendingTimersCron(): Promise<void> {
         startTime: timer.scheduledAt.getTime(),
       };
       
-      // Processar com delay escalonado por USUÁRIO (canal)
-      // Delay de 1.5s entre mensagens do mesmo canal evita ban
-      // Mas canais diferentes podem processar em paralelo!
-      const delayMs = processed * 1500; // 1.5s entre cada (era 3s)
+      // Processar com delay escalonado (1.5s entre cada para evitar ban)
+      const delayMs = processed * 1500;
       setTimeout(async () => {
         await processAccumulatedMessages(pending);
       }, delayMs);
       
       processed++;
+      waObservability.pendingAI_cronProcessed++;
       
-      // Limitar a 25 por ciclo para processar mais rápido (era 15)
+      // Limitar a 25 por ciclo
       if (processed >= 25) {
         console.log(`🔄 [PENDING CRON] Limite de 25 por ciclo atingido, continuará no próximo ciclo`);
         break;
