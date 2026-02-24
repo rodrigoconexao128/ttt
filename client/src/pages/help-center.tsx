@@ -148,19 +148,40 @@ const HELP_CATEGORIES: Category[] = [
           {
             type: "text",
             content:
-              "A conexão é feita pelo protocolo Baileys (semelhante ao WhatsApp Web). Você precisa do celular com WhatsApp ativo para escanear o QR Code.",
+              "A conexão é feita de forma simples, semelhante ao WhatsApp Web. Você precisa do celular com WhatsApp ativo para escanear o QR Code.",
           },
           {
-            type: "steps",
-            heading: "Como conectar:",
+            type: "visual-steps",
+            heading: "Como conectar seu WhatsApp:",
             content: [
-              'No menu lateral, clique em "Conexão".',
-              'Clique no botão "Conectar WhatsApp".',
-              "Um QR Code será exibido na tela.",
-              "No seu celular, abra o WhatsApp → Menu (3 pontos) → Aparelhos conectados → Conectar aparelho.",
-              "Aponte a câmera para o QR Code na tela.",
-              'Aguarde a confirmação. O status mudará para "Conectado" (verde) em alguns segundos.',
-            ],
+              {
+                step: "1",
+                action: 'No menu lateral esquerdo, clique em **"Conexão"**',
+                explain: "Você pode acessar diretamente pelo link: agentezap.online/conexao",
+                screenshot: "02-conexao.png",
+                result: "A tela de Conexão exibe o status atual e um botão para conectar."
+              },
+              {
+                step: "2",
+                action: 'Clique no botão **"Conectar WhatsApp"** (caso ainda não esteja conectado)',
+                explain: "Um QR Code será gerado na tela. Este código é único e válido por 60 segundos.",
+                screenshot: "02-conexao.png",
+                result: "O QR Code aparece na tela, pronto para ser escaneado."
+              },
+              {
+                step: "3",
+                action: 'No seu **celular**, abra o WhatsApp → toque nos 3 pontos (⋮) → **"Aparelhos conectados"** → **"Conectar aparelho"**',
+                explain: "Esta é a mesma função usada para conectar o WhatsApp Web. No iPhone, o caminho é: WhatsApp → Configurações → Aparelhos conectados → Adicionar aparelho.",
+                result: "A câmera do celular é ativada para escanear o QR Code."
+              },
+              {
+                step: "4",
+                action: "Aponte a câmera do celular para o QR Code exibido na tela do computador",
+                explain: "Mantenha o celular estável e bem posicionado. O QR Code será reconhecido automaticamente.",
+                screenshot: "02-conexao.png",
+                result: "A tela muda para 'WhatsApp Conectado' com o número do seu celular exibido em verde."
+              },
+            ] as any,
           },
           {
             type: "warning",
@@ -187,15 +208,38 @@ const HELP_CATEGORIES: Category[] = [
               'Depois de conectar o WhatsApp, vá em "Meu Agente IA" no menu lateral. Aqui você define como o agente vai se comportar.',
           },
           {
-            type: "steps",
-            heading: "Configuração básica:",
+            type: "visual-steps",
+            heading: "Configuração básica do seu Agente IA:",
             content: [
-              "Clique em \"Meu Agente IA\" no menu.",
-              "Na aba \"Configuração\", escreva o prompt do agente (descrição do seu negócio, nome do agente, como deve responder).",
-              "Use o botão \"Gerar com IA\" para criar um prompt automaticamente a partir da descrição do seu negócio.",
-              "Ative o agente com o toggle \"Agente Ativo\".",
-              "Clique em \"Salvar Configurações\".",
-            ],
+              {
+                step: "1",
+                action: 'Clique em **"Meu Agente IA"** no menu lateral esquerdo',
+                explain: "Você pode acessar diretamente pelo link: agentezap.online/meu-agente-ia",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "A tela do Editor de Agente é aberta com o Simulador WhatsApp ao lado direito."
+              },
+              {
+                step: "2",
+                action: 'Na aba **Chat** (padrão), descreva como quer que seu agente se comporte',
+                explain: "Digite uma instrução clara em português. Por exemplo: 'Você é a Mari, atendente da Lanchonete do João. Seja simpática, responda em português. Sempre pergunte o nome do cliente. Nosso cardápio: X-burguer R$15, Coca R$6.' Seja específico sobre o nome do negócio, produtos, horário de funcionamento e tom de voz.",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "O agente confirma que ajustou o prompt com base na sua instrução."
+              },
+              {
+                step: "3",
+                action: 'Verifique o prompt gerado clicando na aba **"Editar"**',
+                explain: "A aba Editar mostra o texto completo do prompt. Você pode revisar e fazer ajustes manuais se necessário.",
+                screenshot: "03-agente-ia-editor.png",
+                result: "Você vê o texto completo das instruções do agente em modo de edição."
+              },
+              {
+                step: "4",
+                action: "Ative o agente pelo **toggle 'IA ON/OFF'** no topo da tela",
+                explain: "O toggle verde 'IA ON' indica que o agente está ativo e responderá mensagens automaticamente. 'IA OFF' significa que o agente está pausado.",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "O toggle fica verde com o texto 'IA ON'. O agente começa a responder automaticamente."
+              },
+            ] as any,
           },
           {
             type: "tip",
@@ -217,16 +261,37 @@ const HELP_CATEGORIES: Category[] = [
               'Com WhatsApp conectado e agente configurado, é hora de testar antes de ativar para o público.',
           },
           {
-            type: "steps",
-            heading: "Como testar:",
+            type: "visual-steps",
+            heading: "Como ativar e testar seu agente:",
             content: [
-              'Vá em "Meu Agente IA" → aba "Testar".',
-              "Digite uma mensagem como se fosse um cliente.",
-              "Veja a resposta do agente em tempo real.",
-              "Se não estiver satisfatório, edite o prompt e salve.",
-              "Repita até estar satisfeito.",
-              'Por fim, certifique-se que o toggle "Agente Ativo" está ligado.',
-            ],
+              {
+                step: "1",
+                action: 'Vá em **"Meu Agente IA"** → certifique-se que o toggle **"IA ON"** está ativo (verde)',
+                explain: "O toggle fica no topo da tela. Quando verde, o agente está ativo e responde automaticamente. Quando cinza, o agente está pausado.",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "Toggle verde mostrando 'IA ON'."
+              },
+              {
+                step: "2",
+                action: "No **Simulador WhatsApp** (painel direito), digite uma mensagem como se fosse um cliente",
+                explain: "O simulador fica à direita da tela. Digite perguntas que seus clientes fariam: 'Olá, qual o preço?', 'Vocês estão abertos?', 'Preciso de ajuda'. Veja se as respostas fazem sentido.",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "O agente responde em tempo real no simulador, mostrando exatamente como responderá no WhatsApp real."
+              },
+              {
+                step: "3",
+                action: "Se as respostas não estiverem boas, ajuste o prompt pelo **Chat** e repita o teste",
+                explain: "Use a aba Chat para fazer ajustes em linguagem natural: 'Seja mais direto', 'Não mencione concorrentes', 'Sempre pergunte o nome do cliente antes de responder'.",
+                screenshot: "03-agente-ia-chat-editor.png",
+                result: "O agente aplica os ajustes e as próximas respostas já refletem as mudanças."
+              },
+              {
+                step: "4",
+                action: "Envie uma mensagem de **outro celular** para o número conectado para testar na prática",
+                explain: "O teste no simulador é ótimo, mas o teste real com outro celular garante que tudo funciona no WhatsApp de verdade. Peça para um amigo ou use um número secundário.",
+                result: "O outro celular recebe a resposta automática do agente — confirmando que tudo está funcionando!"
+              },
+            ] as any,
           },
           {
             type: "tip",
@@ -1631,32 +1696,71 @@ const HELP_CATEGORIES: Category[] = [
     articles: [
       {
         id: "audio-overview",
-        title: "Respostas em áudio com Text-to-Speech",
-        description: "Configure a IA para enviar mensagens de voz",
-        tags: ["áudio", "voz", "tts", "text-to-speech", "voz artificial", "resposta em áudio"],
-        difficulty: "advanced",
+        title: "Falar por Áudio — Configure a voz do seu agente",
+        description: "Faça seu agente responder com mensagens de voz realistas",
+        tags: ["áudio", "voz", "falar por áudio", "mensagem de voz", "voz do agente"],
+        difficulty: "intermediate",
         content: [
           {
             type: "text",
             content:
-              "O módulo de TTS (Text-to-Speech) permite que o agente de IA envie respostas em formato de mensagem de voz, além de (ou em vez de) texto.",
+              "O recurso **Falar por Áudio** permite que o seu agente de IA responda os clientes com mensagens de voz — além (ou no lugar) de texto. Você escolhe o tipo de voz, a velocidade da fala e quando o agente deve enviar áudio.",
           },
           {
-            type: "steps",
-            heading: "Configurar áudio:",
+            type: "screenshot",
+            src: "12-falar-por-audio.png",
+            caption: "Tela Falar por Áudio — escolha a voz, velocidade e ative/desative o recurso",
+          },
+          {
+            type: "visual-steps",
+            heading: "Como ativar e configurar o Falar por Áudio",
             content: [
-              'Acesse "Ferramentas → Falar por Áudio".',
-              "Selecione o provedor de voz (ElevenLabs, OpenAI TTS etc.).",
-              "Insira a chave de API do provedor.",
-              "Escolha o idioma e a voz.",
-              "Defina quando enviar áudio (sempre, só quando solicitado, etc.).",
-              "Salve e teste.",
-            ],
+              {
+                step: "1",
+                action: 'No menu lateral, clique em **Ferramentas** para expandir, depois clique em **Falar por Áudio**',
+                explain: "Você pode acessar diretamente pelo link: agentezap.online/falar-por-audio",
+                screenshot: "12-falar-por-audio.png",
+                result: "A tela de Falar por Áudio é exibida com o painel de Uso Diário e Configurações de Áudio."
+              },
+              {
+                step: "2",
+                action: "Ative as **Configurações de Áudio** pelo toggle no canto superior direito do painel",
+                explain: "O toggle fica na seção 'Configurações de Áudio'. Quando desativado, o agente responde apenas por texto. Ao ativar, o agente começa a enviar mensagens de voz de acordo com as configurações que você definir.",
+                screenshot: "12-falar-por-audio.png",
+                result: "O toggle muda para 'Ativado' e as opções de configuração ficam disponíveis para edição."
+              },
+              {
+                step: "3",
+                action: "Escolha o **Tipo de Voz**: **Francisca** (Voz Feminina) ou **Antonio** (Voz Masculina)",
+                explain: "Clique no card da voz desejada para selecioná-la. Escolha a voz que mais combina com o perfil do seu negócio e público-alvo. Uma voz feminina pode ser mais adequada para salões de beleza, por exemplo, enquanto uma voz masculina pode ser mais indicada para negócios mais formais.",
+                screenshot: "12-falar-por-audio.png",
+                result: "O card da voz selecionada fica destacado com borda colorida."
+              },
+              {
+                step: "4",
+                action: "Ajuste a **Velocidade da Fala** pelo slider (recomendado: 1.0x Normal)",
+                explain: "Arraste o slider para a esquerda para fala mais lenta (0.5x) ou para a direita para mais rápida (2.0x). A velocidade normal (1.0x) é adequada para a maioria dos casos. Você pode usar os botões de atalho: Lento (0.75x), Normal (1x), Rápido (1.25x) ou Muito Rápido (1.5x).",
+                screenshot: "12-falar-por-audio.png",
+                result: "O valor de velocidade é atualizado ao lado do slider."
+              },
+              {
+                step: "5",
+                action: "Clique no botão **Salvar Configurações** para aplicar as mudanças",
+                explain: "Após salvar, o agente passará a enviar respostas em áudio. O limite de uso diário aparece no topo da tela (ex: 30/30 por dia). O contador reseta à meia-noite.",
+                result: "Mensagem de confirmação 'Configurações salvas' é exibida. O agente agora responde com voz."
+              },
+            ] as any,
           },
           {
             type: "tip",
+            heading: "Dicas de uso",
             content:
-              "Vozes humanizadas causam mais engajamento. Escolha uma voz próxima ao perfil do seu público-alvo.",
+              "Vozes humanizadas aumentam o engajamento nas conversas. Experimente enviar uma mensagem de teste pelo WhatsApp para ver como soa. O uso diário é limitado — o contador reseta à meia-noite automaticamente.",
+          },
+          {
+            type: "warning",
+            content:
+              "Se o indicador mostrar 'Limite atingido', aguarde o reset da meia-noite ou desative temporariamente o Falar por Áudio para o agente continuar respondendo por texto.",
           },
         ],
       },

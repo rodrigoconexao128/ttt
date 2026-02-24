@@ -385,6 +385,14 @@ interface WhatsAppSession {
   connectionId: string;
   phoneNumber?: string;
   contactsCache: Map<string, Contact>;
+  // -----------------------------------------------------------------------
+  // FIX 2026-02-24: Track if connection actually reached "open" state
+  // Prevents stuck connections where socket exists but never fully connected
+  // -----------------------------------------------------------------------
+  isOpen?: boolean;
+  connectedAt?: number;   // timestamp when connection.update fired "open"
+  createdAt?: number;     // timestamp when session was created
+  openTimeout?: NodeJS.Timeout; // auto-reconnect if "open" never fires
 }
 
 interface AdminWhatsAppSession {
@@ -2759,10 +2767,44 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       userId,
       connectionId: connection.id,
       contactsCache,
+      isOpen: false,
+      createdAt: Date.now(),
     };
 
     // 🔑 MULTI-CONNECTION: Store by connectionId (SessionMap handles userId lookups)
     sessions.set(connection.id, session);
+
+    // -----------------------------------------------------------------------
+    // FIX 2026-02-24: CONNECTION OPEN TIMEOUT
+    // If connection.update never fires with "open" within 90 seconds,
+    // force reconnect. This catches sessions stuck in "connection: undefined"
+    // state (common after WhatsApp breaking changes or stale credentials).
+    // Ref: https://github.com/WhiskeySockets/Baileys/issues/2370
+    // -----------------------------------------------------------------------
+    const CONNECTION_OPEN_TIMEOUT_MS = 90_000; // 90 seconds
+    session.openTimeout = setTimeout(async () => {
+      const currentSession = sessions.get(connection.id);
+      if (currentSession?.socket === sock && !currentSession.isOpen) {
+        console.log(`⏰ [CONN TIMEOUT] Connection ${connection.id.substring(0, 8)} user ${userId.substring(0, 8)} did NOT reach "open" in ${CONNECTION_OPEN_TIMEOUT_MS / 1000}s — forcing reconnect`);
+        try {
+          // End the stuck socket
+          sock.ev.removeAllListeners('connection.update');
+          sock.ev.removeAllListeners('creds.update');
+          sock.end(new Error('Connection open timeout'));
+        } catch (e) {
+          console.error(`[CONN TIMEOUT] Error ending socket:`, e);
+        }
+        sessions.delete(connection.id);
+        // Force reconnect
+        try {
+          await connectWhatsApp(userId, connection.id);
+          console.log(`✅ [CONN TIMEOUT] Reconnect initiated for ${connection.id.substring(0, 8)}`);
+        } catch (reconErr) {
+          console.error(`❌ [CONN TIMEOUT] Reconnect failed:`, reconErr);
+          await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
+        }
+      }
+    }, CONNECTION_OPEN_TIMEOUT_MS);
     
     // 📲 Registrar sessão no serviço de envio para notificações do sistema (delivery, etc)
     registerWhatsAppSession(userId, sock);
@@ -3166,6 +3208,12 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
 
         // Sempre deletar a sessão primeiro (só se for o socket atual, verificado acima)
         // 🔑 MULTI-CONNECTION: Delete by connectionId, NOT userId
+        // FIX 2026-02-24: Clear open timeout to prevent double reconnects
+        if (session.openTimeout) {
+          clearTimeout(session.openTimeout);
+          session.openTimeout = undefined;
+        }
+        session.isOpen = false;
         sessions.delete(session.connectionId);
         pendingConnections.delete(session.connectionId); // Limpar da lista de pendentes
         pendingConnections.delete(userId); // Also clean legacy key
@@ -3306,6 +3354,17 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         // 🔑 MULTI-CONNECTION: Store by connectionId on open
         // -----------------------------------------------------------------------
         sessions.set(session.connectionId, session);
+
+        // -----------------------------------------------------------------------
+        // FIX 2026-02-24: Mark session as truly open & clear timeout
+        // -----------------------------------------------------------------------
+        session.isOpen = true;
+        session.connectedAt = Date.now();
+        if (session.openTimeout) {
+          clearTimeout(session.openTimeout);
+          session.openTimeout = undefined;
+          console.log(`✅ [CONN OPEN] Connection ${session.connectionId.substring(0, 8)} reached "open" — timeout cleared`);
+        }
 
         // Conexão estabelecida com sucesso - limpar pendentes
         // NÃO resetar reconnectAttempts imediatamente — só após 2min de estabilidade
@@ -9668,6 +9727,9 @@ function setupPairingConnectionHandler(
     const { connection: conn, lastDisconnect } = update;
 
     if (conn === "open") {
+      // FIX 2026-02-24: Mark session as truly open
+      session.isOpen = true;
+      session.connectedAt = Date.now();
       const phoneNum = sock.user?.id?.split(":")[0] || "";
       session.phoneNumber = phoneNum;
 
@@ -9937,6 +9999,8 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       userId,
       connectionId: connection.id,
       contactsCache,
+      isOpen: false,
+      createdAt: Date.now(),
     };
     
     sessions.set(connection.id, session);
@@ -9948,6 +10012,9 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       const { connection: conn, lastDisconnect } = update;
 
       if (conn === "open") {
+        // FIX 2026-02-24: Mark session as truly open
+        session.isOpen = true;
+        session.connectedAt = Date.now();
         const phoneNum = sock.user?.id?.split(":")[0] || "";
         session.phoneNumber = phoneNum;
 
@@ -10145,6 +10212,9 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
                 const { connection: newConn, lastDisconnect: newLastDisconnect } = update;
 
                 if (newConn === "open") {
+                  // FIX 2026-02-24: Mark session as truly open
+                  session.isOpen = true;
+                  session.connectedAt = Date.now();
                   const phoneNum = newSock.user?.id?.split(":")[0] || "";
                   session.phoneNumber = phoneNum;
 
@@ -10839,7 +10909,45 @@ async function connectionHealthCheck(): Promise<void> {
           disconnectedUsers++;
         }
       } else if (isDbConnected && hasActiveSocket) {
-        healthyUsers++;
+        // -----------------------------------------------------------------------
+        // FIX 2026-02-24: STUCK CONNECTION DETECTION
+        // Session has socket with user credential, but isOpen may be false
+        // meaning connection.update never fired with "open" state.
+        // This catches sessions stuck in "connection: undefined" loop.
+        // -----------------------------------------------------------------------
+        if (session && session.isOpen === false && session.createdAt) {
+          const stuckDurationMs = Date.now() - session.createdAt;
+          const STUCK_THRESHOLD_MS = 120_000; // 2 minutes
+          if (stuckDurationMs > STUCK_THRESHOLD_MS) {
+            console.log(`⚠️ [HEALTH CHECK] STUCK CONNECTION detected: user ${connection.userId.substring(0, 8)}... conn ${connection.id.substring(0, 8)}`);
+            console.log(`   ⚠️ Socket has user creds but isOpen=false for ${Math.round(stuckDurationMs / 1000)}s`);
+            console.log(`   ⚠️ Forcing reconnect to recover...`);
+            try {
+              // End the stuck socket
+              if (session.openTimeout) {
+                clearTimeout(session.openTimeout);
+                session.openTimeout = undefined;
+              }
+              session.socket?.ev?.removeAllListeners('connection.update');
+              session.socket?.ev?.removeAllListeners('creds.update');
+              session.socket?.end(new Error('Health check: stuck connection'));
+              sessions.delete(connection.id);
+              // Reconnect
+              await connectWhatsApp(connection.userId, connection.id);
+              reconnectedUsers++;
+              console.log(`✅ [HEALTH CHECK] Stuck connection ${connection.id.substring(0, 8)} reconnected`);
+            } catch (error) {
+              console.error(`❌ [HEALTH CHECK] Stuck connection reconnect failed:`, error);
+              await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
+              disconnectedUsers++;
+            }
+          } else {
+            // Still within grace period, count as healthy
+            healthyUsers++;
+          }
+        } else {
+          healthyUsers++;
+        }
       } else if (!isDbConnected && hasActiveSocket) {
         // -----------------------------------------------------------------------
         // ?? HEALER: DB=false mas socket ativo (caso inverso do zumbi)
