@@ -527,6 +527,63 @@ export function ConnectionPanel() {
     };
   }, [connectingConnectionId, connectionQrCodes, newConnId]);
 
+  // 🆕 AUTO-CONNECT: Quando não existe nenhuma conexão, criar automaticamente e mostrar QR Code
+  const autoConnectTriggered = useRef(false);
+  useEffect(() => {
+    // Só executar uma vez, quando os dados carregam e não tem conexão
+    if (isLoading) return;
+    if (autoConnectTriggered.current) return;
+    
+    // Se já tem conexão (mesmo desconectada), não fazer nada
+    if (connection) return;
+    
+    // Se já está conectando ou aguardando QR, não duplicar
+    if (isConnecting || isWaitingQrCode || qrCode || connectionMethod) return;
+    
+    // Marcar que já foi triggado para não repetir
+    autoConnectTriggered.current = true;
+    
+    console.log('[AUTO-CONNECT] Nenhuma conexão encontrada, criando automaticamente...');
+    
+    // Definir método como QR automaticamente e iniciar conexão
+    setConnectionMethod("qr");
+    setIsWaitingQrCode(true);
+    isWaitingQrCodeRef.current = true;
+    startQrCodePolling();
+    
+    // Chamar POST /api/whatsapp/connect que auto-cria a conexão
+    apiRequest("POST", "/api/whatsapp/connect", {})
+      .then(() => {
+        console.log('[AUTO-CONNECT] Conexão criada, aguardando QR Code...');
+        queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
+        
+        // Timeout de 60s
+        if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
+        waitingTimeoutRef.current = setTimeout(() => {
+          if (isWaitingQrCodeRef.current && !qrCodeRef.current) {
+            setIsWaitingQrCode(false);
+            isWaitingQrCodeRef.current = false;
+            if (qrCodePollingRef.current) {
+              clearInterval(qrCodePollingRef.current);
+              qrCodePollingRef.current = null;
+            }
+          }
+        }, 60000);
+      })
+      .catch((error: any) => {
+        console.error('[AUTO-CONNECT] Erro ao criar conexão automática:', error);
+        setIsWaitingQrCode(false);
+        isWaitingQrCodeRef.current = false;
+        setConnectionMethod(null);
+        autoConnectTriggered.current = false; // Permitir retry
+        if (qrCodePollingRef.current) {
+          clearInterval(qrCodePollingRef.current);
+          qrCodePollingRef.current = null;
+        }
+      });
+  }, [isLoading, connection, isConnecting, isWaitingQrCode, qrCode, connectionMethod, startQrCodePolling]);
+
   useEffect(() => {
     let socket: WebSocket | null = null;
     let reconnectTimer: NodeJS.Timeout | null = null;
