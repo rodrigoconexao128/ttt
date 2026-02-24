@@ -1269,21 +1269,23 @@ export async function chatComplete(params: {
       }
     }
     
-    // 🔄 Tentar fallback para Groq se disponível e OpenRouter falhou
-    if (hasGroqKey) {
-      console.error('🔄 [LLM FALLBACK] Tentando Groq como fallback...');
+    // 🔄 Tentar fallback para OpenRouter com mistral-nemo (substituiu Groq)
+    if (hasOpenRouterKey) {
+      console.error('🔄 [LLM FALLBACK] Tentando OpenRouter (mistral-nemo) como último fallback...');
       console.error('═══════════════════════════════════════════════════════════════');
       
       try {
-        const fallbackModel = config.groqModel || 'llama3-70b-8192';
-        console.log(`[LLM] 🆘 Groq FALLBACK - Modelo: ${fallbackModel}`);
+        const fallbackModel = 'mistralai/mistral-nemo';
+        console.log(`[LLM] 🆘 OpenRouter mistral-nemo FALLBACK - Modelo: ${fallbackModel}`);
         
-        const groqFallbackResponse = await withRetryLLM(async () => {
-          const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const nemoFallbackResponse = await withRetryLLM(async () => {
+          const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${config.groqApiKey}`,
+              'Authorization': `Bearer ${config.openrouterApiKey}`,
               'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://agentezap.online',
+              'X-Title': 'AgenteZap'
             },
             body: JSON.stringify({
               model: fallbackModel,
@@ -1295,24 +1297,24 @@ export async function chatComplete(params: {
           
           if (!response.ok) {
             const errorText = await response.text();
-            console.error(`[LLM] Groq FALLBACK error: ${response.status} - ${errorText}`);
-            const error = new Error(`Groq FALLBACK error: ${response.status}`) as any;
+            console.error(`[LLM] OpenRouter mistral-nemo FALLBACK error: ${response.status} - ${errorText}`);
+            const error = new Error(`OpenRouter mistral-nemo FALLBACK error: ${response.status}`) as any;
             error.status = response.status;
             throw error;
           }
           
           return await response.json();
-        }, `Groq FALLBACK (${fallbackModel})`, 3, 2000);
+        }, `OpenRouter mistral-nemo FALLBACK`, 3, 2000);
         
-        console.log(`[LLM] ✅ Groq FALLBACK respondeu com sucesso!`);
+        console.log(`[LLM] ✅ OpenRouter mistral-nemo FALLBACK respondeu!`);
         return {
-          choices: groqFallbackResponse.choices?.map((c: any) => ({
+          choices: nemoFallbackResponse.choices?.map((c: any) => ({
             message: { content: c.message?.content ?? null },
             finishReason: c.finish_reason
           })) || []
         };
-      } catch (groqFallbackError: any) {
-        console.error(`❌ [LLM] Groq FALLBACK também falhou: ${groqFallbackError?.message}`);
+      } catch (nemoFallbackError: any) {
+        console.error(`❌ [LLM] OpenRouter mistral-nemo FALLBACK também falhou: ${nemoFallbackError?.message}`);
       }
     }
     
@@ -1322,7 +1324,7 @@ export async function chatComplete(params: {
     console.error('   └─ Mistral: Todos os modelos em rate limit');
     console.error('   └─ NVIDIA NIM: ' + (hasNvidiaKey ? 'Falhou' : 'Não configurado'));
     console.error('   └─ OpenRouter: ' + (hasOpenRouterKey ? 'Falhou' : 'Não configurado'));
-    console.error('   └─ Groq: ' + (hasGroqKey ? 'Falhou' : 'Não configurado'));
+    console.error('   └─ OpenRouter (mistral-nemo): ' + (hasOpenRouterKey ? 'Falhou' : 'Não configurado'));
     console.error('═══════════════════════════════════════════════════════════════');
     throw lastMistralError || new Error('Todos os provedores de LLM falharam');
   }
@@ -1459,44 +1461,42 @@ export async function chatComplete(params: {
     }
   }
   
-  // Se provider é Groq e tem API key válida
-  if ((config.provider === 'groq' || config.provider === 'openrouter' || config.provider === 'nvidia') && config.groqApiKey && config.groqApiKey.length > 20) {
+  // 🔄 Último fallback: OpenRouter com mistralai/mistral-nemo (substituiu Groq)
+  if ((config.provider === 'groq' || config.provider === 'openrouter' || config.provider === 'nvidia' || config.provider === 'mistral') && config.openrouterApiKey && config.openrouterApiKey.length > 20) {
     try {
-      // Se provider é OpenRouter mas caiu no fallback, usar modelo do Groq
-      // Se provider é Groq, usar o modelo do Groq configurado
-      const model = config.groqModel;
-      console.log(`[LLM] 🚀 chatComplete via Groq com modelo: ${model}`);
+      const lastResortModel = 'mistralai/mistral-nemo';
+      console.log(`[LLM] 🚀 chatComplete via OpenRouter (último recurso) com modelo: ${lastResortModel}`);
       
-      // 🔄 Usar retry automático para Groq também
       const data = await withRetryLLM(async () => {
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${config.groqApiKey}`,
+            'Authorization': `Bearer ${config.openrouterApiKey}`,
             'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://agentezap.online',
+            'X-Title': 'AgenteZap'
           },
           body: JSON.stringify({
-            model,
+            model: lastResortModel,
             messages: params.messages,
             max_tokens: params.maxTokens ?? 500,
             temperature: params.temperature ?? 0.7,
-            seed: params.randomSeed,
           }),
         });
         
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`[LLM] Groq API error: ${response.status} - ${errorText}`);
-          const error = new Error(`Groq API error: ${response.status}`) as any;
+          console.error(`[LLM] OpenRouter (mistral-nemo) API error: ${response.status} - ${errorText}`);
+          const error = new Error(`OpenRouter (mistral-nemo) API error: ${response.status}`) as any;
           error.status = response.status;
           error.statusCode = response.status;
           throw error;
         }
         
         return await response.json();
-      }, `Groq chatComplete (${model})`);
+      }, `OpenRouter mistral-nemo (último recurso)`);
       
-      console.log(`[LLM] ✅ Groq chatComplete respondeu`);
+      console.log(`[LLM] ✅ OpenRouter mistral-nemo respondeu como último recurso`);
       
       return {
         choices: data.choices?.map((c: any) => ({
@@ -1504,11 +1504,11 @@ export async function chatComplete(params: {
           finishReason: c.finish_reason
         })) || []
       };
-    } catch (groqError: any) {
+    } catch (lastResortError: any) {
       console.error('═══════════════════════════════════════════════════════════════');
-      console.error('🔄 [LLM FALLBACK] Groq FALHOU após 3 tentativas!');
-      console.error(`   └─ Erro: ${groqError?.message || groqError}`);
-      console.error('🔄 [LLM FALLBACK] Iniciando fallback FINAL para Mistral...');
+      console.error('🔄 [LLM FALLBACK] OpenRouter mistral-nemo FALHOU!');
+      console.error(`   └─ Erro: ${lastResortError?.message || lastResortError}`);
+      console.error('🔄 [LLM FALLBACK] Tentando Mistral como último recurso absoluto...');
       console.error('═══════════════════════════════════════════════════════════════');
     }
   }
