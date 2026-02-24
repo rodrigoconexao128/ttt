@@ -877,12 +877,24 @@ Exemplos:
 - Hoje: DATA=${todayStr}
 - Amanhã: DATA=${tomorrowStr}
 
-FLUXO:
+FLUXO DE AGENDAMENTO:
 1. Cliente pergunta horários → Diga as opções disponíveis acima
 2. Cliente escolhe horário → Peça o nome se ainda não souber
 3. Tem horário E nome → USE A TAG! Ex: [AGENDAR: DATA=${tomorrowStr}, HORA=10:15, NOME=João]
 
 Depois da tag, converse naturalmente sobre o agendamento.
+
+⚠️ REGRA CRÍTICA DE CANCELAMENTO:
+Quando o cliente pedir para CANCELAR um agendamento, você DEVE usar a tag [CANCELAR:].
+Sem a tag = o agendamento NÃO será realmente cancelado no sistema!
+
+COMO USAR:
+[CANCELAR: DATA=YYYY-MM-DD, HORA=HH:MM, NOME=Nome do Cliente]
+
+FLUXO DE CANCELAMENTO:
+1. Cliente pede para cancelar → Confirme os dados do agendamento
+2. Após confirmação → USE A TAG! Ex: [CANCELAR: DATA=${tomorrowStr}, HORA=10:15, NOME=João]
+3. Após a tag, ofereça remarcar para outro horário disponível.
 ---
 `;
 }
@@ -956,6 +968,89 @@ export async function processSchedulingTags(
   }
   
   return { text: modifiedText.trim(), appointmentCreated };
+}
+
+/**
+ * Processa tags de cancelamento na resposta da IA
+ */
+export async function processSchedulingCancelTags(
+  responseText: string,
+  userId: string,
+  clientPhone: string
+): Promise<{ text: string; appointmentCancelled?: boolean }> {
+  const cancelTagRegex = /\[CANCELAR:\s*DATA=(\d{4}-\d{2}-\d{2}),\s*HORA=(\d{2}:\d{2}),\s*NOME=([^\]]+)\]/gi;
+  
+  let match = cancelTagRegex.exec(responseText);
+  let modifiedText = responseText;
+  let appointmentCancelled = false;
+  
+  while (match) {
+    const [fullMatch, date, time, clientName] = match;
+    
+    console.log(`📅 [Scheduling] Detected cancellation tag: ${fullMatch}`);
+    
+    try {
+      // Find the appointment by date, time… and optionally client name/phone
+      const { data: appointments, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('appointment_date', date)
+        .eq('start_time', `${time}:00`)
+        .in('status', ['pending', 'confirmed'])
+        .limit(5);
+      
+      if (error) {
+        console.error(`❌ [Scheduling] Error finding appointment to cancel:`, error);
+        modifiedText = modifiedText.replace(fullMatch, '');
+        match = cancelTagRegex.exec(responseText);
+        continue;
+      }
+      
+      // Try to match by client name or phone
+      let appointmentToCancel = appointments?.find(a => 
+        a.client_name?.toLowerCase().trim() === clientName.trim().toLowerCase() ||
+        a.client_phone === clientPhone
+      );
+      
+      // If no name/phone match, take the first one for that date/time
+      if (!appointmentToCancel && appointments && appointments.length > 0) {
+        appointmentToCancel = appointments[0];
+      }
+      
+      if (appointmentToCancel) {
+        const { error: updateError } = await supabase
+          .from('appointments')
+          .update({
+            status: 'cancelled',
+            cancelled_at: new Date().toISOString(),
+            cancelled_by: 'client',
+            cancellation_reason: 'Cancelado pelo cliente via IA',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', appointmentToCancel.id);
+        
+        if (!updateError) {
+          console.log(`✅ [Scheduling] Appointment cancelled: ${appointmentToCancel.id}`);
+          appointmentCancelled = true;
+          modifiedText = modifiedText.replace(fullMatch, '');
+        } else {
+          console.error(`❌ [Scheduling] Error cancelling appointment:`, updateError);
+          modifiedText = modifiedText.replace(fullMatch, '');
+        }
+      } else {
+        console.log(`⚠️ [Scheduling] No matching appointment found to cancel for ${date} ${time} ${clientName}`);
+        modifiedText = modifiedText.replace(fullMatch, '');
+      }
+    } catch (err) {
+      console.error(`❌ [Scheduling] Exception cancelling appointment:`, err);
+      modifiedText = modifiedText.replace(fullMatch, '');
+    }
+    
+    match = cancelTagRegex.exec(responseText);
+  }
+  
+  return { text: modifiedText.trim(), appointmentCancelled };
 }
 
 /**

@@ -236,6 +236,7 @@ import { processResponsePlaceholders } from "./textUtils";
 import {
   generateSchedulingPromptBlock,
   processSchedulingTags,
+  processSchedulingCancelTags,
   detectSchedulingIntent,
   getNextAvailableSlots,
   formatAvailableSlotsForAI,
@@ -3839,6 +3840,19 @@ Cliente: ${newMessageText.trim()}`;
         }
       } catch (schedError) {
         console.error(`📅 [AI Agent] Error processing scheduling tags:`, schedError);
+      }
+    }
+
+    // 📅 PROCESSAR TAGS DE CANCELAMENTO [CANCELAR: DATA=..., HORA=..., NOME=...]
+    if (responseText && options?.contactPhone) {
+      try {
+        const cancelResult = await processSchedulingCancelTags(responseText, userId, options.contactPhone);
+        responseText = cancelResult.text;
+        if (cancelResult.appointmentCancelled) {
+          console.log(`📅 [AI Agent] Appointment cancelled successfully`);
+        }
+      } catch (cancelError) {
+        console.error(`📅 [AI Agent] Error processing cancellation tags:`, cancelError);
       }
     }
 
