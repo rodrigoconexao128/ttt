@@ -527,7 +527,7 @@ export function ConnectionPanel() {
     };
   }, [connectingConnectionId, connectionQrCodes, newConnId]);
 
-  // 🆕 AUTO-CONNECT: Quando não existe nenhuma conexão, criar automaticamente e mostrar QR Code
+  // 🆕 AUTO-CONNECT: Quando não existe nenhuma conexão, criar automaticamente na seção "Minhas Conexões"
   const autoConnectTriggered = useRef(false);
   useEffect(() => {
     // Só executar uma vez, quando os dados carregam e não tem conexão
@@ -537,52 +537,46 @@ export function ConnectionPanel() {
     // Se já tem conexão (mesmo desconectada), não fazer nada
     if (connection) return;
     
-    // Se já está conectando ou aguardando QR, não duplicar
-    if (isConnecting || isWaitingQrCode || qrCode || connectionMethod) return;
+    // Se já está mostrando o form de nova conexão, não duplicar
+    if (showNewConnForm) return;
     
     // Marcar que já foi triggado para não repetir
     autoConnectTriggered.current = true;
     
-    console.log('[AUTO-CONNECT] Nenhuma conexão encontrada, criando automaticamente...');
+    console.log('[AUTO-CONNECT] Nenhuma conexão encontrada, criando automaticamente via multi-connection API...');
     
-    // Definir método como QR automaticamente e iniciar conexão
-    setConnectionMethod("qr");
-    setIsWaitingQrCode(true);
-    isWaitingQrCodeRef.current = true;
-    startQrCodePolling();
-    
-    // Chamar POST /api/whatsapp/connect que auto-cria a conexão
-    apiRequest("POST", "/api/whatsapp/connect", {})
-      .then(() => {
-        console.log('[AUTO-CONNECT] Conexão criada, aguardando QR Code...');
-        queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
+    // Criar conexão via multi-connection API com nome automático
+    apiRequest("POST", "/api/whatsapp/connections", {
+      connectionName: "Conexão Principal",
+      connectionType: "primary",
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        const connectionId = data.id;
+        console.log('[AUTO-CONNECT] Conexão criada com ID:', connectionId);
         
-        // Timeout de 60s
-        if (waitingTimeoutRef.current) clearTimeout(waitingTimeoutRef.current);
-        waitingTimeoutRef.current = setTimeout(() => {
-          if (isWaitingQrCodeRef.current && !qrCodeRef.current) {
-            setIsWaitingQrCode(false);
-            isWaitingQrCodeRef.current = false;
-            if (qrCodePollingRef.current) {
-              clearInterval(qrCodePollingRef.current);
-              qrCodePollingRef.current = null;
-            }
-          }
-        }, 60000);
+        // Abrir o fluxo de nova conexão direto no QR waiting
+        setNewConnId(connectionId);
+        setShowNewConnForm(true);
+        setNewConnStep("qr-waiting");
+        
+        // Refetch connections para mostrar na lista
+        queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connections"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/connection"] });
+        
+        // Auto-iniciar a conexão para gerar QR Code
+        try {
+          await apiRequest("POST", `/api/whatsapp/connections/${connectionId}/connect`);
+          console.log('[AUTO-CONNECT] Conexão iniciada, aguardando QR Code...');
+        } catch (connectError: any) {
+          console.error('[AUTO-CONNECT] Erro ao iniciar conexão:', connectError);
+        }
       })
       .catch((error: any) => {
         console.error('[AUTO-CONNECT] Erro ao criar conexão automática:', error);
-        setIsWaitingQrCode(false);
-        isWaitingQrCodeRef.current = false;
-        setConnectionMethod(null);
         autoConnectTriggered.current = false; // Permitir retry
-        if (qrCodePollingRef.current) {
-          clearInterval(qrCodePollingRef.current);
-          qrCodePollingRef.current = null;
-        }
       });
-  }, [isLoading, connection, isConnecting, isWaitingQrCode, qrCode, connectionMethod, startQrCodePolling]);
+  }, [isLoading, connection, showNewConnForm]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -871,6 +865,8 @@ export function ConnectionPanel() {
           </p>
         </div>
 
+        {/* Card principal de status - ocultar quando auto-connect está em andamento na seção de baixo */}
+        {(connection || (!autoConnectTriggered.current)) && (
         <Card className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1301,6 +1297,7 @@ export function ConnectionPanel() {
             </div>
           )}
         </Card>
+        )}
 
         {/* ============ SEÇÃO MULTI-CONEXÕES E AGENTES ============ */}
         <div className="space-y-4">
