@@ -530,6 +530,46 @@ const ADMIN_RECONNECT_BACKOFF_MULTIPLIER = 2; // Exponential backoff multiplier
 
 const DEFAULT_JID_SUFFIX = "s.whatsapp.net";
 
+function getSessionWsReadyState(session?: WhatsAppSession): number | undefined {
+  return (session?.socket as any)?.ws?.readyState;
+}
+
+function isSessionReadyForMessaging(session?: WhatsAppSession): boolean {
+  if (!session?.socket) {
+    return false;
+  }
+
+  const hasIdentity = session.socket.user !== undefined;
+  if (!hasIdentity) {
+    return false;
+  }
+
+  if (session.isOpen === true) {
+    return true;
+  }
+
+  const wsReadyState = getSessionWsReadyState(session);
+  return wsReadyState === undefined || wsReadyState === 1;
+}
+
+function promoteSessionOpenState(session: WhatsAppSession, reason: string): boolean {
+  if (!isSessionReadyForMessaging(session)) {
+    return false;
+  }
+  if (session.isOpen === true) {
+    return false;
+  }
+
+  session.isOpen = true;
+  session.connectedAt = session.connectedAt || Date.now();
+  if (session.openTimeout) {
+    clearTimeout(session.openTimeout);
+    session.openTimeout = undefined;
+  }
+  console.log(`✅ [SESSION PROMOTE] conn ${session.connectionId.substring(0, 8)} marked isOpen=true via ${reason}`);
+  return true;
+}
+
 // ?? Set para rastrear IDs de mensagens enviadas pelo agente/usu�rio via sendMessage
 // Evita duplicatas quando Baileys dispara evento fromMe ap�s socket.sendMessage()
 const agentMessageIds = new Set<string>();
@@ -634,6 +674,18 @@ interface PendingConnectionEntry {
 }
 const pendingConnections = new Map<string, PendingConnectionEntry>();
 const PENDING_LOCK_TTL_MS = 90_000; // 90 seconds — lock expires after this
+const CONNECT_OPEN_TIMEOUT_MS = Math.max(
+  Number(process.env.WA_CONNECT_OPEN_TIMEOUT_MS || 120_000),
+  60_000
+); // wait for "open" before failing the connect promise
+const RESTORE_BATCH_SIZE = Math.max(
+  Number(process.env.WA_RESTORE_BATCH_SIZE || 3),
+  1
+);
+const RESTORE_BATCH_DELAY_MS = Math.max(
+  Number(process.env.WA_RESTORE_BATCH_DELAY_MS || 3000),
+  0
+);
 
 /**
  * Helper unificado para limpar lock de conexão pendente.
@@ -932,6 +984,7 @@ interface PendingResponse {
   messages: string[];
   conversationId: string;
   userId: string;
+  connectionId?: string;
   contactNumber: string;
   jidSuffix: string;
   startTime: number;
@@ -960,6 +1013,8 @@ const SESSION_UNAVAILABLE_RETRY_MS = 5 * 60 * 1000;
 const SESSION_UNAVAILABLE_MAX_AGE_MS = 30 * 60 * 1000;
 // ⚡ FIX: Retry rápido quando erro é Connection Closed (socket reconectando)
 const CONNECTION_CLOSED_RETRY_MS = 5 * 1000; // 5 segundos
+const SESSION_RECOVERY_ATTEMPT_COOLDOWN_MS = 60 * 1000; // evita storm de reconnect por timer
+const sessionRecoveryAttemptAt = new Map<string, number>(); // key: connectionId or userId
 
 // -----------------------------------------------------------------------
 // 🔄 IMPLEMENTAÇÃO REAL: checkForMissedMessages
@@ -1145,91 +1200,163 @@ async function internalSendMessageRaw(
   userId: string, 
   jid: string, 
   text: string, 
-  options?: { isFromAgent?: boolean }
+  options?: { isFromAgent?: boolean; conversationId?: string; connectionId?: string }
 ): Promise<string | null> {
-  // -----------------------------------------------------------------------
-  // FIX 2026-02-24: WAIT-FOR-RECONNECT
-  // Se a sessão não existe ou não está aberta, esperamos brevemente
-  // porque a conexão pode estar se reconectando (close→open cycle).
-  // Isso evita falhas desnecessárias durante reconexões breves.
-  // -----------------------------------------------------------------------
   const SEND_WAIT_MAX_MS = 15_000; // máx 15s esperando reconexão
   const SEND_WAIT_INTERVAL_MS = 2_000; // checar a cada 2s
-  let session = sessions.get(userId);
-  
-  if (!session?.socket || !session.isOpen) {
-    const startWait = Date.now();
-    console.log(`⏳ [SEND] Sessão indisponível para ${userId.substring(0, 8)}... — aguardando reconexão (máx ${SEND_WAIT_MAX_MS / 1000}s)`);
-    
-    while (Date.now() - startWait < SEND_WAIT_MAX_MS) {
-      await new Promise(resolve => setTimeout(resolve, SEND_WAIT_INTERVAL_MS));
-      session = sessions.get(userId);
-      if (session?.socket && session.isOpen) {
-        console.log(`✅ [SEND] Sessão reconectada para ${userId.substring(0, 8)}... após ${Math.round((Date.now() - startWait) / 1000)}s`);
-        break;
+  const RECOVERY_WAIT_MS = 8_000;
+
+  const isConnectionClosedError = (error: unknown): boolean => {
+    const message = error instanceof Error ? error.message : String(error || "");
+    return /connection closed/i.test(message);
+  };
+
+  const resolveReadySession = (preferredConnectionId?: string): WhatsAppSession | undefined => {
+    if (preferredConnectionId) {
+      const byConnection = sessions.get(preferredConnectionId);
+      if (isSessionReadyForMessaging(byConnection)) {
+        return byConnection;
       }
     }
-    
-    // Re-check after waiting
-    if (!session?.socket) {
-      throw new Error("WhatsApp not connected");
+
+    const byUser = sessions.get(userId);
+    if (isSessionReadyForMessaging(byUser)) {
+      return byUser;
     }
-    if (!session.isOpen) {
-      throw new Error("Connection Closed");
+
+    // Fallback (can still be not-ready, caller validates)
+    return preferredConnectionId
+      ? (sessions.get(preferredConnectionId) || byUser)
+      : byUser;
+  };
+
+  const waitForReadySession = async (
+    preferredConnectionId?: string,
+    maxWaitMs: number = SEND_WAIT_MAX_MS
+  ): Promise<WhatsAppSession | undefined> => {
+    let candidate = resolveReadySession(preferredConnectionId);
+    if (isSessionReadyForMessaging(candidate)) {
+      return candidate;
+    }
+
+    const startWait = Date.now();
+    console.log(`⏳ [SEND] Sessão indisponível para ${userId.substring(0, 8)}... — aguardando reconexão (máx ${Math.round(maxWaitMs / 1000)}s)`);
+    while (Date.now() - startWait < maxWaitMs) {
+      await new Promise(resolve => setTimeout(resolve, SEND_WAIT_INTERVAL_MS));
+      candidate = resolveReadySession(preferredConnectionId);
+      if (isSessionReadyForMessaging(candidate)) {
+        console.log(`✅ [SEND] Sessão reconectada para ${userId.substring(0, 8)}... após ${Math.round((Date.now() - startWait) / 1000)}s`);
+        return candidate;
+      }
+    }
+
+    return candidate;
+  };
+
+  let resolvedConnectionId = options?.connectionId;
+
+  if (!resolvedConnectionId && options?.conversationId) {
+    try {
+      const conversation = await storage.getConversation(options.conversationId);
+      resolvedConnectionId = conversation?.connectionId;
+    } catch (error) {
+      console.warn(`⚠️ [SEND] Falha ao resolver connectionId por conversationId (${options.conversationId}):`, error);
     }
   }
 
-  // ⚡ FIX: Verificar estado do WebSocket antes de tentar enviar
-  // Evita timeout desnecessário quando o WS já está fechado
-  const ws = (session.socket as any)?.ws;
-  if (ws && ws.readyState !== 1) { // 1 = OPEN
+  if (!resolvedConnectionId) {
+    const connection = await storage.getConnectionByUserId(userId);
+    resolvedConnectionId = connection?.id;
+  }
+
+  const sendWithSession = async (activeSession: WhatsAppSession, attemptReason: string): Promise<string | null> => {
+    promoteSessionOpenState(activeSession, attemptReason);
+    if (!activeSession.socket) {
+      throw new Error("WhatsApp not connected");
+    }
+
+    const wsBeforeTyping = getSessionWsReadyState(activeSession);
+    if (wsBeforeTyping !== undefined && wsBeforeTyping !== 1) {
+      throw new Error("Connection Closed");
+    }
+
+    // 🆕 v4.0 ANTI-BAN: Simular "digitando..." antes de enviar
+    try {
+      const typingDuration = antiBanProtectionService.calculateTypingDuration(text.length);
+      await activeSession.socket.sendPresenceUpdate('composing', jid);
+      console.log(`🛡️ [ANTI-BAN] ⌨️ Simulando digitação por ${Math.round(typingDuration/1000)}s...`);
+      await new Promise(resolve => setTimeout(resolve, typingDuration));
+      await activeSession.socket.sendPresenceUpdate('paused', jid);
+      const finalDelay = 500 + Math.random() * 1000;
+      await new Promise(resolve => setTimeout(resolve, finalDelay));
+    } catch (err) {
+      // Não falhar se não conseguir enviar status de digitação
+      console.log(`🛡️ [ANTI-BAN] ⚠️ Não foi possível enviar status de digitação:`, err);
+    }
+
+    const wsBeforeSend = getSessionWsReadyState(activeSession);
+    if (wsBeforeSend !== undefined && wsBeforeSend !== 1) {
+      throw new Error("Connection Closed");
+    }
+
+    const sentMessage = await activeSession.socket.sendMessage(jid, { text });
+
+    if (sentMessage?.key.id) {
+      agentMessageIds.add(sentMessage.key.id);
+      if (sentMessage.message) {
+        cacheMessage(userId, sentMessage.key.id, sentMessage.message);
+      } else {
+        cacheMessage(userId, sentMessage.key.id, { conversation: text });
+      }
+      console.log(`🛡️ [ANTI-BLOCK] ✅ Mensagem enviada - ID: ${sentMessage.key.id}`);
+    }
+
+    return sentMessage?.key.id || null;
+  };
+
+  const initialSession = await waitForReadySession(resolvedConnectionId);
+  if (!initialSession?.socket) {
+    throw new Error("WhatsApp not connected");
+  }
+  if (!isSessionReadyForMessaging(initialSession)) {
     throw new Error("Connection Closed");
   }
 
-  // 🆕 v4.0 ANTI-BAN: Simular "digitando..." antes de enviar
-  // Isso faz a conversa parecer mais natural e humana
   try {
-    const typingDuration = antiBanProtectionService.calculateTypingDuration(text.length);
-    
-    // Enviar status "composing" (digitando)
-    await session.socket.sendPresenceUpdate('composing', jid);
-    console.log(`🛡️ [ANTI-BAN] ⌨️ Simulando digitação por ${Math.round(typingDuration/1000)}s...`);
-    
-    // Aguardar tempo proporcional ao tamanho da mensagem
-    await new Promise(resolve => setTimeout(resolve, typingDuration));
-    
-    // Enviar status "paused" (parou de digitar) antes de enviar
-    await session.socket.sendPresenceUpdate('paused', jid);
-    
-    // Pequeno delay antes do envio real (0.5-1.5s)
-    const finalDelay = 500 + Math.random() * 1000;
-    await new Promise(resolve => setTimeout(resolve, finalDelay));
-  } catch (err) {
-    // Não falhar se não conseguir enviar status de digitação
-    console.log(`🛡️ [ANTI-BAN] ⚠️ Não foi possível enviar status de digitação:`, err);
-  }
-
-  const sentMessage = await session.socket.sendMessage(jid, { text });
-  
-  if (sentMessage?.key.id) {
-    agentMessageIds.add(sentMessage.key.id);
-    
-    // -----------------------------------------------------------------------
-    // 🔑 CACHEAR MENSAGEM PARA getMessage() - FIX "AGUARDANDO MENSAGEM"
-    // -----------------------------------------------------------------------
-    // Armazenar mensagem no cache para que Baileys possa recuperar
-    // em caso de falha na decriptação e necessidade de retry
-    if (sentMessage.message) {
-      cacheMessage(userId, sentMessage.key.id, sentMessage.message);
-    } else {
-      // Se por algum motivo sentMessage.message estiver undefined, criar uma estrutura simples
-      cacheMessage(userId, sentMessage.key.id, { conversation: text });
+    return await sendWithSession(initialSession, 'send_path_ready');
+  } catch (error) {
+    if (!isConnectionClosedError(error)) {
+      throw error;
     }
-    
-    console.log(`🛡️ [ANTI-BLOCK] ✅ Mensagem enviada - ID: ${sentMessage.key.id}`);
-  }
 
-  return sentMessage?.key.id || null;
+    const recoveryScope = resolvedConnectionId || userId;
+    const lastRecoveryAt = sessionRecoveryAttemptAt.get(recoveryScope) || 0;
+    const sinceLastRecoveryMs = Date.now() - lastRecoveryAt;
+
+    if (sinceLastRecoveryMs >= SESSION_RECOVERY_ATTEMPT_COOLDOWN_MS) {
+      if (!resolvedConnectionId) {
+        const fallbackConnection = await storage.getConnectionByUserId(userId);
+        resolvedConnectionId = fallbackConnection?.id;
+      }
+
+      if (resolvedConnectionId) {
+        sessionRecoveryAttemptAt.set(recoveryScope, Date.now());
+        console.warn(`🔄 [SEND] Connection Closed ao enviar para ${jid}. Forçando reconnect (conn=${resolvedConnectionId.substring(0, 8)}, user=${userId.substring(0, 8)})`);
+        try {
+          await connectWhatsApp(userId, resolvedConnectionId);
+        } catch (reconnectError) {
+          console.warn(`⚠️ [SEND] Reconnect após Connection Closed falhou:`, reconnectError);
+        }
+      }
+    }
+
+    const recoveredSession = await waitForReadySession(resolvedConnectionId, RECOVERY_WAIT_MS);
+    if (!recoveredSession?.socket || !isSessionReadyForMessaging(recoveredSession)) {
+      throw error;
+    }
+
+    return await sendWithSession(recoveredSession, 'send_retry_after_reconnect');
+  }
 }
 
 // Registrar callback no messageQueueService
@@ -2187,6 +2314,37 @@ function unwrapIncomingMessageContent(message: any): any {
   return m;
 }
 
+const NON_MEANINGFUL_MESSAGE_KEYS = new Set([
+  "messageContextInfo",
+  "protocolMessage",
+  "senderKeyDistributionMessage",
+  "deviceSentMessage",
+  "reactionMessage",
+]);
+
+function isStubOrIncompleteText(text?: string | null): boolean {
+  if (!text) return true;
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return true;
+  if (normalized.includes("mensagem incompleta")) return true;
+  if (normalized === "[mensagem de protocolo]") return true;
+  return false;
+}
+
+function isMeaningfulIncomingContent(message?: proto.IMessage | null): boolean {
+  const unwrapped = unwrapIncomingMessageContent(message as any);
+  if (!unwrapped || typeof unwrapped !== "object") return false;
+
+  const keys = Object.entries(unwrapped)
+    .filter(([, value]) => value !== null && value !== undefined)
+    .map(([key]) => key);
+
+  if (keys.length === 0) return false;
+
+  const meaningfulKeys = keys.filter((key) => !NON_MEANINGFUL_MESSAGE_KEYS.has(key));
+  return meaningfulKeys.length > 0;
+}
+
 function parseVCardBasic(vcard?: string | null): { waid?: string; phone?: string } {
   if (!vcard) return {};
   const m = vcard.match(/waid=(\d+):\+?([0-9 +()\\-]+)/i);
@@ -2623,11 +2781,38 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
   // 🔒 CRÍTICO: Criar e registrar a promise IMEDIATAMENTE para evitar race conditions
   let resolveConnection: () => void;
   let rejectConnection: (error: Error) => void;
+  let connectionPromiseSettled = false;
+  let connectionOpenTimeout: NodeJS.Timeout | undefined;
   
   const connectionPromise = new Promise<void>((resolve, reject) => {
     resolveConnection = resolve;
     rejectConnection = reject;
   });
+
+  const settleConnectionPromise = (
+    mode: "resolve" | "reject",
+    reason: string,
+    error?: Error,
+  ): void => {
+    if (connectionPromiseSettled) {
+      return;
+    }
+    connectionPromiseSettled = true;
+    if (connectionOpenTimeout) {
+      clearTimeout(connectionOpenTimeout);
+      connectionOpenTimeout = undefined;
+    }
+
+    if (mode === "resolve") {
+      console.log(`[CONNECT] Connection promise resolved for ${lockKey} (${reason})`);
+      resolveConnection!();
+      return;
+    }
+
+    const rejectError = error || new Error(`Connection failed before open (${reason})`);
+    console.log(`[CONNECT] Connection promise rejected for ${lockKey} (${reason}): ${rejectError.message}`);
+    rejectConnection!(rejectError);
+  };
   
   // Registrar ANTES de qualquer operação async — now with metadata
   pendingConnections.set(lockKey, {
@@ -2648,8 +2833,10 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       if (existingSession?.socket) {
         // Verificar se o socket está realmente conectado
         const isSocketConnected = existingSession.socket.user !== undefined;
-        if (isSocketConnected) {
-          console.log(`[CONNECT] ${lockKey} already has an active connected session, using existing one`);
+        if (isSocketConnected && existingSession.isOpen === true) {
+          console.log(`[CONNECT] ${lockKey} already has an active/open session, reusing existing socket`);
+          clearPendingConnectionLock(lockKey, 'already_connected');
+          settleConnectionPromise("resolve", "already_connected");
           return;
         } else {
           // Sessão existe mas não está conectada - limpar e recriar
@@ -2764,6 +2951,15 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       child: () => ctwaLogger,
     };
     
+    // Full history sync is expensive and should only run on first link/new auth.
+    // On normal reconnects it can delay live processing and replay old messages.
+    const shouldEnableFullHistorySync =
+      process.env.WA_ENABLE_FULL_HISTORY_SYNC === "true" || !connection.phoneNumber;
+    const shouldReplayHistoryMessages = process.env.WA_ENABLE_HISTORY_REPLAY === "true";
+    console.log(
+      `[CONNECT] History sync mode for conn ${connection.id.substring(0, 8)}: fullSync=${shouldEnableFullHistorySync} replay=${shouldReplayHistoryMessages}`,
+    );
+
     const sock = makeWASocket({
       auth: {
         creds: state.creds,
@@ -2804,8 +3000,8 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       connectTimeoutMs: 60_000,
       keepAliveIntervalMs: 25_000,
       retryRequestDelayMs: 250,
-      syncFullHistory: true,
-      shouldSyncHistoryMessage: () => true,
+      syncFullHistory: shouldEnableFullHistorySync,
+      shouldSyncHistoryMessage: () => shouldEnableFullHistorySync,
       // -----------------------------------------------------------------------
       // FIX 2026: Evita que WhatsApp redirecione mensagens pro Baileys
       // Sem isso, mensagens ficam como "Aguardando mensagem" no celular
@@ -2901,13 +3097,25 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
     // 🔑 MULTI-CONNECTION: Store by connectionId (SessionMap handles userId lookups)
     sessions.set(connection.id, session);
 
-    // -----------------------------------------------------------------------
-    // NOTA: CONN TIMEOUT removido em 2026-02-24.
-    // O timeout de 90s causava tempestade de reconexão com 70+ sessões
-    // simultâneas, impedindo QUALQUER conexão de estabilizar.
-    // O health check a cada 5 min já cuida de conexões zumbis.
-    // Ref: WhatsApp update Feb 24 2026 - Issues #2370, #2364
-    // -----------------------------------------------------------------------
+    // Failsafe para não manter lock/promise indefinidamente quando "open" nunca chega.
+    connectionOpenTimeout = setTimeout(() => {
+      const currentSession = sessions.get(session.connectionId);
+      if (currentSession?.socket !== sock || currentSession?.isOpen === true) {
+        return;
+      }
+      const timeoutError = new Error(`Connection did not reach open within ${CONNECT_OPEN_TIMEOUT_MS}ms`);
+      console.log(`⚠️ [CONNECT] OPEN TIMEOUT for user ${userId.substring(0, 8)}... conn ${session.connectionId.substring(0, 8)} — closing socket`);
+      clearPendingConnectionLock(session.connectionId, 'connect_open_timeout');
+      clearPendingConnectionLock(userId, 'connect_open_timeout');
+      try {
+        sock.end(timeoutError);
+      } catch (_endErr) {
+        // noop
+      }
+      sessions.delete(session.connectionId);
+      settleConnectionPromise("reject", "open_timeout", timeoutError);
+    }, CONNECT_OPEN_TIMEOUT_MS);
+    session.openTimeout = connectionOpenTimeout;
     
     // 📲 Registrar sessão no serviço de envio para notificações do sistema (delivery, etc)
     registerWhatsAppSession(userId, sock);
@@ -3054,6 +3262,10 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
     // Ref: https://baileys.wiki/docs/socket/history-sync/
     // ======================================================================
     sock.ev.on("messaging-history.set", async ({ chats, contacts, messages, isLatest }) => {
+      if (!shouldEnableFullHistorySync) {
+        return;
+      }
+
       console.log(`\n========================================`);
       console.log(`[HISTORY SYNC] 📚 Baileys emitiu messaging-history.set`);
       console.log(`[HISTORY SYNC] User ID: ${userId}`);
@@ -3067,7 +3279,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       // FIX 2026: Processar mensagens RECENTES do history sync para auto-resposta
       // Mensagens que chegaram durante desconexão precisam ser processadas
       // ─────────────────────────────────────────────────────────────────────────
-      if (messages && messages.length > 0) {
+      if (shouldReplayHistoryMessages && messages && messages.length > 0) {
         const now = Date.now();
         const MAX_AGE_MS = 10 * 60 * 1000; // 10 minutos
         let processedCount = 0;
@@ -3216,6 +3428,27 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
 
       console.log(`[CONNECTION UPDATE] User ${userId.substring(0, 8)}... - connection: ${conn}, hasQR: ${!!qr}, statusCode: ${statusCode || 'none'}`);
 
+      // Fallback for cases where Baileys never emits conn="open" but socket is authenticated.
+      if (!conn && promoteSessionOpenState(session, 'connection_update_undefined')) {
+        clearPendingConnectionLock(session.connectionId, 'implicit_open');
+        clearPendingConnectionLock(userId, 'implicit_open');
+        settleConnectionPromise("resolve", "implicit_open_socket_user");
+
+        const phoneNumber = sock.user?.id?.split(":")[0] || session.phoneNumber || "";
+        session.phoneNumber = phoneNumber;
+        try {
+          await storage.updateConnection(session.connectionId, {
+            isConnected: true,
+            phoneNumber,
+            qrCode: null,
+          });
+        } catch (implicitOpenDbErr) {
+          console.error(`[CONNECTION UPDATE] Failed to persist implicit open for ${session.connectionId}:`, implicitOpenDbErr);
+        }
+        broadcastToUser(userId, { type: "connected", phoneNumber, connectionId: session.connectionId });
+        console.log(`✅ [CONN OPEN FALLBACK] Promoted ${session.connectionId.substring(0, 8)} via connection=undefined + socket.user`);
+      }
+
       // Log adicional em caso de close para diagnóstico
       if (conn === "close") {
         console.log(`[CONNECTION CLOSE] Details:`, {
@@ -3229,11 +3462,21 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
                            `unknown(${statusCode})`
         });
 
-        // Logar estado dos arquivos de auth (apenas contagem, sem conteúdo sensível)
+        // Logar amostra dos arquivos de auth sem varrer diretório inteiro
+        // (evita overhead alto quando há dezenas de milhares de arquivos).
         try {
           const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
-          const files = await fs.readdir(userAuthPath).catch(() => []);
-          console.log(`[CONNECTION CLOSE] Auth files count: ${files.length}, files: ${files.join(', ')}`);
+          const sample: string[] = [];
+          const dir = await fs.opendir(userAuthPath);
+          try {
+            for await (const entry of dir) {
+              sample.push(entry.name);
+              if (sample.length >= 10) break;
+            }
+          } finally {
+            await dir.close().catch(() => undefined);
+          }
+          console.log(`[CONNECTION CLOSE] Auth files sample(${sample.length}): ${sample.join(", ")}`);
         } catch (e) {
           console.log(`[CONNECTION CLOSE] Could not read auth directory`);
         }
@@ -3298,6 +3541,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
           const currentSession440 = sessions.get(connection.id);
           if (currentSession440?.socket !== sock) {
             console.log(`[440 CONFLICT] Stale socket, ignoring.`);
+            settleConnectionPromise("reject", "440_conflict_stale_socket", new Error("440 conflict received from stale socket"));
             return;
           }
           if (currentSession440?.openTimeout) {
@@ -3308,6 +3552,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
           sessions.delete(connection.id);
           clearPendingConnectionLock(connection.id, '440_conflict');
           clearPendingConnectionLock(userId, '440_conflict');
+          settleConnectionPromise("reject", "440_conflict", new Error(`Connection replaced/conflict (status=${statusCode})`));
           await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
           broadcastToUser(userId, { type: "disconnected", reason: "connection_replaced", connectionId: connection.id });
           reconnectAttempts.delete(connection.id);
@@ -3329,6 +3574,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         if (currentSession?.socket !== sock) {
           console.log(`[CONNECTION CLOSE] ?? STALE SOCKET IGNORED - Connection ${connection.id.substring(0, 8)}... User ${userId.substring(0, 8)}...`);
           console.log(`[CONNECTION CLOSE] Current socket differs from closing socket, ignoring close event`);
+          settleConnectionPromise("reject", "stale_socket_closed", new Error("Socket superseded by newer session"));
           // Não fazer nada - o socket atual está ativo, este é um socket antigo
           return;
         }
@@ -3353,6 +3599,9 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
           session.openTimeout = undefined;
         }
         session.isOpen = false;
+        if (!session.connectedAt) {
+          settleConnectionPromise("reject", "close_before_open", new Error(`Connection closed before open (status=${statusCode || 'unknown'})`));
+        }
         sessions.delete(session.connectionId);
         clearPendingConnectionLock(session.connectionId, 'conn_close');
         clearPendingConnectionLock(userId, 'conn_close');
@@ -3511,6 +3760,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         // Isso evita loop infinito: open→close→attempt1→open→close→attempt1...
         clearPendingConnectionLock(session.connectionId, 'conn_open');
         clearPendingConnectionLock(userId, 'conn_open');
+        settleConnectionPromise("resolve", "conn_open");
 
         // Agendar reset do contador de reconexão após 2 minutos de estabilidade
         const STABILITY_DELAY_MS = 120_000; // 2 min
@@ -3625,7 +3875,12 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         setTimeout(async () => {
           try {
             const pendingTimers = await storage.getPendingAIResponsesForRestore();
-            const userTimers = pendingTimers.filter(t => t.userId === userId);
+            const userTimers = pendingTimers.filter((t) => {
+              if (t.connectionId) {
+                return t.connectionId === session.connectionId;
+              }
+              return t.userId === userId;
+            });
             if (userTimers.length > 0) {
               console.log(`⚡ [RECONNECT-RECOVERY] ${userTimers.length} timers pendentes para ${userId.substring(0, 8)}... - processando IMEDIATAMENTE!`);
               
@@ -3640,6 +3895,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
                   messages: timer.messages,
                   conversationId: timer.conversationId,
                   userId: timer.userId,
+                  connectionId: timer.connectionId,
                   contactNumber: timer.contactNumber,
                   jidSuffix: timer.jidSuffix || DEFAULT_JID_SUFFIX,
                   startTime: timer.scheduledAt.getTime(),
@@ -4135,17 +4391,13 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       }
     });
 
-    // Socket inicializado com sucesso - resolver a promise
-    // NOTA: A conex�o ainda n�o est� "open", apenas o socket foi criado
-    // O pendingConnections ser� limpo quando a conex�o abrir (conn === "open")
-    // ou quando houver erro de conex�o (conn === "close")
-    console.log(`[CONNECT] WhatsApp socket initialized for user ${userId}, waiting for connection events...`);
-    resolveConnection!();
+    // Socket inicializado; promise permanece pendente até "open" (ou close/timeout).
+    console.log(`[CONNECT] WhatsApp socket initialized for user ${userId}, waiting for conn=open...`);
 
     } catch (error) {
       console.error("Error connecting WhatsApp:", error);
       clearPendingConnectionLock(lockKey, 'connect_error');
-      rejectConnection!(error as Error);
+      settleConnectionPromise("reject", "connect_error", error as Error);
     }
   })();
 
@@ -5224,23 +5476,118 @@ async function handleIncomingMessage(
     }
 
     if (!ctwaUpdatedExisting) {
-      savedMessage = await storage.createMessage({
-        conversationId: conversation.id,
-        messageId: inboundMessageId,
-        fromMe: false,
-        text: messageText,
-        timestamp: eventTs,
-        isFromAgent: false,
-        mediaType,
-        mediaUrl,
-        mediaMimeType,
-        mediaDuration,
-        mediaCaption,
-        // 🔑 Metadados para re-download de mídia do WhatsApp
-        mediaKey,
-        directPath,
-        mediaUrlOriginal,
-      });
+      try {
+        savedMessage = await storage.createMessage({
+          conversationId: conversation.id,
+          messageId: inboundMessageId,
+          fromMe: false,
+          text: messageText,
+          timestamp: eventTs,
+          isFromAgent: false,
+          mediaType,
+          mediaUrl,
+          mediaMimeType,
+          mediaDuration,
+          mediaCaption,
+          // 🔑 Metadados para re-download de mídia do WhatsApp
+          mediaKey,
+          directPath,
+          mediaUrlOriginal,
+        });
+      } catch (createErr: any) {
+        const isDuplicate =
+          createErr?.code === "23505" ||
+          String(createErr?.message || "").toLowerCase().includes("unique");
+
+        if (!isDuplicate) {
+          throw createErr;
+        }
+
+        console.warn(
+          `⚠️ [INCOMING-DUPLICATE] Colisão de message_id=${inboundMessageId} em conversation=${conversation.id}. Tentando reaproveitar sem abortar pipeline.`,
+        );
+
+        const existingByMessageId = inboundMessageId
+          ? await storage.getMessageByMessageId(inboundMessageId)
+          : undefined;
+
+        if (existingByMessageId) {
+          const existingConversationId =
+            (existingByMessageId as any).conversationId || (existingByMessageId as any).conversation_id;
+
+          if (existingConversationId === conversation.id) {
+            const shouldUpdateExisting =
+              isStubOrIncompleteText(existingByMessageId.text) ||
+              existingByMessageId.text === "Oi" ||
+              existingByMessageId.text === "oi";
+
+            if (shouldUpdateExisting && !isStubOrIncompleteText(messageText)) {
+              try {
+                savedMessage = await storage.updateMessage(existingByMessageId.id, {
+                  text: messageText,
+                  mediaType: mediaType || undefined,
+                  mediaUrl: mediaUrl || undefined,
+                  mediaMimeType: mediaMimeType || undefined,
+                  mediaDuration: mediaDuration || undefined,
+                  mediaCaption: mediaCaption || undefined,
+                  mediaKey: mediaKey || undefined,
+                  directPath: directPath || undefined,
+                  mediaUrlOriginal: mediaUrlOriginal || undefined,
+                });
+              } catch (updateErr) {
+                console.error(
+                  `❌ [INCOMING-DUPLICATE] Falha ao atualizar mensagem existente ${existingByMessageId.id}:`,
+                  updateErr,
+                );
+                savedMessage = existingByMessageId;
+              }
+            } else {
+              savedMessage = existingByMessageId;
+            }
+          }
+        }
+
+        if (!savedMessage) {
+          const fallbackMessageId = `${inboundMessageId}_dup_${Date.now().toString(36)}`;
+          try {
+            savedMessage = await storage.createMessage({
+              conversationId: conversation.id,
+              messageId: fallbackMessageId,
+              fromMe: false,
+              text: messageText,
+              timestamp: eventTs,
+              isFromAgent: false,
+              mediaType,
+              mediaUrl,
+              mediaMimeType,
+              mediaDuration,
+              mediaCaption,
+              mediaKey,
+              directPath,
+              mediaUrlOriginal,
+            });
+            console.warn(
+              `⚠️ [INCOMING-DUPLICATE] Pipeline preservado com message_id alternativo=${fallbackMessageId}.`,
+            );
+          } catch (fallbackErr) {
+            console.error(`❌ [INCOMING-DUPLICATE] Falha no fallback de persistência:`, fallbackErr);
+            savedMessage = {
+              id: fallbackMessageId,
+              conversationId: conversation.id,
+              messageId: fallbackMessageId,
+              fromMe: false,
+              text: messageText,
+              timestamp: eventTs,
+              isFromAgent: false,
+              mediaType,
+              mediaUrl,
+              mediaMimeType,
+              mediaDuration,
+              mediaCaption,
+            } as any;
+          }
+        }
+      }
     }
 
     // Marcar como processada no anti-reenvio APENAS quando nao for stub/incompleta.
@@ -5380,7 +5727,7 @@ async function handleIncomingMessage(
     if (!canAutoReplyThis) {
       if (messageKind === "stub") {
         // ═══════════════════════════════════════════════════════════════════
-        // FIX 2026-02-21 v2: MULTI-ATTEMPT PDO RETRY + FALLBACK INTELIGENTE
+        // FIX 2026-02-24: PDO RETRY CURTO + FALLBACK "OI"
         // ═══════════════════════════════════════════════════════════════════
         // Mensagens CTWA (Click-to-WhatsApp de anúncios Meta/Instagram)
         // chegam SEM encriptação (sem nó 'enc') → Baileys gera stub CIPHERTEXT.
@@ -5390,13 +5737,10 @@ async function handleIncomingMessage(
         // Porém o celular tem apenas 8s para responder → frequentemente falha
         // se o celular estiver dormindo/sem internet/em background.
         //
-        // SOLUÇÃO: 5 tentativas de PDO (inspirado no whatsmeow que faz até 5):
-        //   1ª tentativa: Baileys interna (t=0, timeout 8s)
-        //   2ª tentativa: Nossa re-tentativa manual (t=10s)
-        //   3ª tentativa: Nossa re-tentativa manual (t=22s)
-        //   4ª tentativa: Nossa re-tentativa manual (t=40s)
-        //   5ª tentativa: Nossa re-tentativa manual (t=60s)
-        //   Fallback: "Oi" para IA responder (t=75s)
+        // Estratégia:
+        //   - 4 tentativas de PDO, intervalo de 2s
+        //   - fallback "Oi" em ~8s se continuar sem conteúdo útil
+        // Objetivo: destravar IA rápido sem texto hardcoded de resposta.
         //
         // Ref: https://github.com/WhiskeySockets/Baileys/pull/2334
         // Ref: https://github.com/WhiskeySockets/Baileys/issues/1767
@@ -5410,15 +5754,12 @@ async function handleIncomingMessage(
         const stubSavedMessageId = savedMessage.id;
         const stubJidSuffix = jidSuffix || DEFAULT_JID_SUFFIX;
 
-        // Tempos para cada tentativa (ms) — inspirado no whatsmeow (5 retries)
-        const PDO_RETRY_2_MS = 10000;   // 2ª tentativa: 10s (após 8s timeout interno do Baileys)
-        const PDO_RETRY_3_MS = 22000;   // 3ª tentativa: 22s
-        const PDO_RETRY_4_MS = 40000;   // 4ª tentativa: 40s
-        const PDO_RETRY_5_MS = 60000;   // 5ª tentativa: 60s
-        const FINAL_FALLBACK_MS = 75000; // Fallback "Oi": 75s (dá mais tempo para o celular responder)
+        const MAX_PDO_RETRIES = 4;
+        const PDO_RETRY_INTERVAL_MS = 2000;
+        const FINAL_FALLBACK_MS = MAX_PDO_RETRIES * PDO_RETRY_INTERVAL_MS;
 
-        console.log(`⏳ [STUB-PDO-RETRY] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - iniciando sistema 5-retry PDO (whatsmeow-style)`);
-        console.log(`   📋 Plano: Baileys (0s) → #2 (${PDO_RETRY_2_MS/1000}s) → #3 (${PDO_RETRY_3_MS/1000}s) → #4 (${PDO_RETRY_4_MS/1000}s) → #5 (${PDO_RETRY_5_MS/1000}s) → Fallback (${FINAL_FALLBACK_MS/1000}s)`);
+        console.log(`⏳ [STUB-PDO-RETRY] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - iniciando ${MAX_PDO_RETRIES} tentativas PDO (intervalo=${PDO_RETRY_INTERVAL_MS / 1000}s)`);
+        console.log(`   📋 Plano: #1 (0s) → #2 (2s) → #3 (4s) → #4 (6s) → fallback (${FINAL_FALLBACK_MS / 1000}s)`);
 
         // ── RETRY BOOST: Sinais agressivos para ajudar na descriptografia ──
         try {
@@ -5461,11 +5802,40 @@ async function handleIncomingMessage(
         const checkIfResolved = async (): Promise<boolean> => {
           if (stubDedupeParams) {
             const wasDecrypted = await isIncomingMessageProcessed(stubDedupeParams);
-            if (wasDecrypted) return true;
+            if (wasDecrypted) {
+              if (stubMsgId) {
+                try {
+                  const dbMessage = await storage.getMessageByMessageId(stubMsgId);
+                  if (dbMessage && !isStubOrIncompleteText(dbMessage.text)) {
+                    return true;
+                  }
+                } catch (_dbErr) {
+                  // segue para outras validações
+                }
+              } else {
+                return true;
+              }
+            }
           }
-          // Verificar também se a mensagem no cache indica resolução
-          const cached = getCachedMessage(stubUserId, stubMsgId || '');
-          if (cached) return true;
+
+          if (stubMsgId) {
+            try {
+              const dbMessage = await storage.getMessageByMessageId(stubMsgId);
+              if (dbMessage && !isStubOrIncompleteText(dbMessage.text)) {
+                return true;
+              }
+            } catch (_dbErr) {
+              // segue para cache
+            }
+          }
+
+          // Só considerar cache quando houver conteúdo realmente útil
+          const cached = getCachedMessage(stubUserId, stubMsgId || "");
+          if (cached && isMeaningfulIncomingContent(cached)) return true;
+
+          if (cached) {
+            console.log(`ℹ️ [STUB-PDO-RETRY] Cache técnico detectado para ${stubMsgId}, mantendo retry/fallback.`);
+          }
           return false;
         };
 
@@ -5500,19 +5870,14 @@ async function handleIncomingMessage(
           }
         };
 
-        // ── 2ª TENTATIVA PDO (t=10s) ──
-        setTimeout(() => attemptPDO(2), PDO_RETRY_2_MS);
+        // ── RETRY PDO: 4 tentativas em janela curta ──
+        for (let attemptNum = 1; attemptNum <= MAX_PDO_RETRIES; attemptNum++) {
+          setTimeout(() => {
+            void attemptPDO(attemptNum);
+          }, (attemptNum - 1) * PDO_RETRY_INTERVAL_MS);
+        }
 
-        // ── 3ª TENTATIVA PDO (t=22s) ──
-        setTimeout(() => attemptPDO(3), PDO_RETRY_3_MS);
-
-        // ── 4ª TENTATIVA PDO (t=40s) ──
-        setTimeout(() => attemptPDO(4), PDO_RETRY_4_MS);
-
-        // ── 5ª TENTATIVA PDO (t=60s) ──
-        setTimeout(() => attemptPDO(5), PDO_RETRY_5_MS);
-
-        // ── FALLBACK FINAL (t=75s): Se nenhuma PDO funcionou → "Oi" ──
+        // ── FALLBACK FINAL (t=8s): Se nenhuma PDO funcionou → "Oi" ──
         setTimeout(async () => {
           try {
             // Verificar uma última vez se foi resolvido
@@ -5523,7 +5888,8 @@ async function handleIncomingMessage(
 
             // ── FALLBACK: Usar "Oi" como texto para IA responder ──
             const fallbackText = "Oi";
-            console.log(`⚠️ [STUB-FALLBACK] Mensagem ${stubMsgId} ainda incompleta após 5 tentativas PDO (${FINAL_FALLBACK_MS/1000}s) - usando fallback "${fallbackText}"`);
+            console.log(`⚠️ [STUB-FALLBACK] Mensagem ${stubMsgId} ainda incompleta após ${MAX_PDO_RETRIES} tentativas PDO (${FINAL_FALLBACK_MS/1000}s) - usando fallback "${fallbackText}"`);
+            console.log(`📌 [STUB-FALLBACK] decrypt_fallback_oi_triggered conversation=${stubConversationId} message=${stubMsgId} user=${stubUserId} connection=${stubConnectionId || "none"}`);
 
             // Atualizar texto da mensagem salva
             try {
@@ -5559,6 +5925,7 @@ async function handleIncomingMessage(
             const isAgentDisabled = await storage.isAgentDisabledForConversation(stubConversationId);
             if (isAgentDisabled) {
               console.log(`⏸️ [STUB-FALLBACK] Agente pausado para conversa ${stubConversationId}`);
+              console.log(`📌 [STUB-FALLBACK] decrypt_fallback_blocked_by_rules:agent_paused conversation=${stubConversationId}`);
               return;
             }
 
@@ -5567,6 +5934,7 @@ async function handleIncomingMessage(
                 const connRecord = await storage.getConnectionById(stubConnectionId);
                 if (connRecord && connRecord.aiEnabled === false) {
                   console.log(`🚫 [STUB-FALLBACK] IA desativada para conexão ${stubConnectionId}`);
+                  console.log(`📌 [STUB-FALLBACK] decrypt_fallback_blocked_by_rules:ai_disabled connection=${stubConnectionId}`);
                   return;
                 }
               } catch (_e) { /* prosseguir */ }
@@ -5575,6 +5943,7 @@ async function handleIncomingMessage(
             const isExcluded = await storage.isNumberExcluded(stubUserId, stubContactNumber);
             if (isExcluded) {
               console.log(`🚫 [STUB-FALLBACK] Número ${stubContactNumber} na lista de exclusão`);
+              console.log(`📌 [STUB-FALLBACK] decrypt_fallback_blocked_by_rules:number_excluded contact=${stubContactNumber}`);
               return;
             }
 
@@ -5778,7 +6147,7 @@ async function handleIncomingMessage(
 
 // 🔄 FUNÇÃO PARA PROCESSAR MENSAGENS ACUMULADAS
 async function processAccumulatedMessages(pending: PendingResponse): Promise<void> {
-  const { conversationId, userId, contactNumber, jidSuffix, messages } = pending;
+  const { conversationId, userId, connectionId, contactNumber, jidSuffix, messages } = pending;
   
   // 🔒 ANTI-DUPLICAÇÃO: Verificar se já está processando esta conversa
   if (conversationsBeingProcessed.has(conversationId)) {
@@ -5837,7 +6206,9 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       console.warn(`?? [AI AGENT] Falha ao checar estado de idempot?ncia (n?o cr?tico):`, stateErr);
     }
 
-    const currentSession = sessions.get(userId);
+    const currentSession = connectionId
+      ? sessions.get(connectionId) || sessions.get(userId)
+      : sessions.get(userId);
     if (!currentSession?.socket) {
       console.log(`\n${'!'.repeat(60)}`);
       console.log(`⚠️ [AI Agent] BLOQUEIO: Session/socket não disponível`);
@@ -5848,8 +6219,26 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       console.log(`${'!'.repeat(60)}\n`);
 
       const pendingAgeMs = Date.now() - pending.startTime;
-      const connectionState = await storage.getConnectionByUserId(userId);
+      let connectionState = connectionId
+        ? await storage.getConnectionById(connectionId)
+        : undefined;
+      if (!connectionState) {
+        connectionState = await storage.getConnectionByUserId(userId);
+      }
       const isConnectionMarkedConnected = !!connectionState?.isConnected;
+      const recoveryScope = connectionState?.id || connectionId || userId;
+
+      if (isConnectionMarkedConnected && connectionState?.id) {
+        const lastRecoveryAt = sessionRecoveryAttemptAt.get(recoveryScope) || 0;
+        const sinceLastRecoveryMs = Date.now() - lastRecoveryAt;
+        if (sinceLastRecoveryMs >= SESSION_RECOVERY_ATTEMPT_COOLDOWN_MS) {
+          sessionRecoveryAttemptAt.set(recoveryScope, Date.now());
+          console.log(`🔄 [AI AGENT] Sessão ausente mas DB=connected. Forçando reconnect (conn=${connectionState.id.substring(0, 8)}, user=${userId.substring(0, 8)})`);
+          void connectWhatsApp(userId, connectionState.id).catch((reconnectErr) => {
+            console.error(`⚠️ [AI AGENT] Falha ao disparar reconnect por sessão indisponível:`, reconnectErr);
+          });
+        }
+      }
 
       if (!isConnectionMarkedConnected && pendingAgeMs >= SESSION_UNAVAILABLE_MAX_AGE_MS) {
         console.warn(`🚫 [AI AGENT] Timer antigo sem sessão e conexão offline (${Math.round(pendingAgeMs / 60000)}min). Marcando como failed para evitar loop infinito.`);
@@ -5873,6 +6262,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         messages,
         conversationId,
         userId,
+        connectionId: connectionState?.id || connectionId,
         contactNumber,
         jidSuffix,
         startTime: pending.startTime, // Manter tempo original
@@ -5918,12 +6308,32 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       console.log(`   wsReadyState: ${wsReadyState} (OPEN=1)`);
       console.log(`   👉 Socket reconectando, retry rápido em ${CONNECTION_CLOSED_RETRY_MS/1000}s`);
       console.log(`${'!'.repeat(60)}\n`);
+
+      let socketConnectionState = connectionId
+        ? await storage.getConnectionById(connectionId)
+        : undefined;
+      if (!socketConnectionState) {
+        socketConnectionState = await storage.getConnectionByUserId(userId);
+      }
+      const socketRecoveryScope = socketConnectionState?.id || connectionId || userId;
+      if (socketConnectionState?.isConnected && socketConnectionState.id) {
+        const lastSocketRecoveryAt = sessionRecoveryAttemptAt.get(socketRecoveryScope) || 0;
+        const sinceLastSocketRecoveryMs = Date.now() - lastSocketRecoveryAt;
+        if (sinceLastSocketRecoveryMs >= SESSION_RECOVERY_ATTEMPT_COOLDOWN_MS) {
+          sessionRecoveryAttemptAt.set(socketRecoveryScope, Date.now());
+          console.log(`🔄 [AI AGENT] Socket não OPEN mas DB=connected. Forçando reconnect (conn=${socketConnectionState.id.substring(0, 8)}, user=${userId.substring(0, 8)})`);
+          void connectWhatsApp(userId, socketConnectionState.id).catch((reconnectErr) => {
+            console.error(`⚠️ [AI AGENT] Falha ao disparar reconnect por socket não OPEN:`, reconnectErr);
+          });
+        }
+      }
       
       const retryPending: PendingResponse = {
         timeout: null as any,
         messages,
         conversationId,
         userId,
+        connectionId,
         contactNumber,
         jidSuffix,
         startTime: pending.startTime,
@@ -6269,6 +6679,8 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         // ? Texto enviado EXATAMENTE como gerado pela IA (varia��o REMOVIDA do sistema)
         const queueResult = await messageQueueService.enqueue(userId, jid, part, {
           isFromAgent: true,
+          conversationId,
+          connectionId,
           priority: 'high', // Respostas da IA = prioridade alta
         });
 
@@ -6448,6 +6860,24 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         }
       } else if (isConnectionClosed) {
         try {
+          let reconnectConnection = connectionId
+            ? await storage.getConnectionById(connectionId)
+            : undefined;
+          if (!reconnectConnection) {
+            reconnectConnection = await storage.getConnectionByUserId(userId);
+          }
+
+          const reconnectScope = reconnectConnection?.id || connectionId || userId;
+          const lastReconnectAt = sessionRecoveryAttemptAt.get(reconnectScope) || 0;
+          const reconnectAgeMs = Date.now() - lastReconnectAt;
+          if (reconnectConnection?.id && reconnectAgeMs >= SESSION_RECOVERY_ATTEMPT_COOLDOWN_MS) {
+            sessionRecoveryAttemptAt.set(reconnectScope, Date.now());
+            console.log(`🔄 [AI AGENT] Connection Closed detectado no envio. Disparando reconnect (conn=${reconnectConnection.id.substring(0, 8)}, user=${userId.substring(0, 8)})`);
+            void connectWhatsApp(userId, reconnectConnection.id).catch((reconnectErr) => {
+              console.error(`⚠️ [AI AGENT] Falha ao reconnect após Connection Closed:`, reconnectErr);
+            });
+          }
+
           // Retry rápido: 5 segundos em vez de 30s quando é problema de conexão
           await db.execute(sql`
             UPDATE pending_ai_responses
@@ -6835,6 +7265,8 @@ export async function sendMessage(
 
   const queueResult = await messageQueueService.enqueue(userId, jid, text, {
     isFromAgent: options?.isFromAgent,
+    conversationId,
+    connectionId: conversation.connectionId,
     priority: options?.isFromAgent ? "normal" : "high", // Mensagens manuais do dono = prioridade alta
   });
 
@@ -9583,8 +10015,8 @@ export async function restoreExistingSessions(): Promise<void> {
     // ========================================================================
     // PARALLEL BATCH RESTORE: Connect sessions in batches to minimize downtime
     // ========================================================================
-    const BATCH_SIZE = 5; // Connect 5 sessions in parallel per batch
-    const BATCH_DELAY_MS = 2000; // 2 seconds between batches
+    const BATCH_SIZE = RESTORE_BATCH_SIZE;
+    const BATCH_DELAY_MS = RESTORE_BATCH_DELAY_MS;
     let restoredCount = 0;
     let skippedCount = 0;
     let noAuthCount = 0;
@@ -9641,6 +10073,7 @@ export async function restoreExistingSessions(): Promise<void> {
     }
 
     console.log(`[RESTORE] Found ${toRestore.length} sessions with auth files to restore (${skippedCount} secondary skipped, ${noAuthCount} no auth)`);
+    console.log(`[RESTORE] Runtime restore config: batchSize=${BATCH_SIZE}, batchDelayMs=${BATCH_DELAY_MS}, openTimeoutMs=${CONNECT_OPEN_TIMEOUT_MS}`);
 
     // Parallel batch restore: connect BATCH_SIZE sessions at a time
     for (let batchStart = 0; batchStart < toRestore.length; batchStart += BATCH_SIZE) {
@@ -9658,23 +10091,33 @@ export async function restoreExistingSessions(): Promise<void> {
         })
       );
 
-      for (const result of results) {
+      for (let resultIdx = 0; resultIdx < results.length; resultIdx++) {
+        const result = results[resultIdx];
+        const failedEntry = batch[resultIdx];
         if (result.status === 'fulfilled') {
           restoredCount++;
         } else {
           const reason = result.reason;
           console.error(`[RESTORE] Failed to restore session:`, reason);
-          // Try to mark as disconnected
-          try {
-            const failedEntry = batch.find((_, idx) => results[batch.indexOf(batch[idx])] === result);
-            if (failedEntry) {
+          const reasonText = `${reason?.message || reason || ''}`;
+          const isOpenTimeout = /open within|open_timeout|timeout/i.test(reasonText);
+
+          // Timeout during restore is usually transient (slow WA handshake/startup pressure).
+          // Keep DB state and let health check/pending cron trigger reconnect without forcing disconnect.
+          if (isOpenTimeout && failedEntry) {
+            console.warn(`[RESTORE] Deferred reconnect for ${failedEntry.connectionId.substring(0, 8)} after open-timeout; keeping DB state unchanged`);
+            continue;
+          }
+
+          if (failedEntry) {
+            try {
               await storage.updateConnection(failedEntry.connectionId, {
                 isConnected: false,
                 qrCode: null,
               });
+            } catch (_cleanupErr) {
+              // ignore cleanup errors
             }
-          } catch (e) {
-            // ignore cleanup errors
           }
         }
       }
@@ -11197,6 +11640,15 @@ async function connectionHealthCheck(): Promise<void> {
         // This catches sessions stuck in "connection: undefined" loop.
         // -----------------------------------------------------------------------
         if (session && session.isOpen === false && session.createdAt) {
+          // Recover sessions that are already authenticated but never emitted conn=open.
+          if (promoteSessionOpenState(session, 'health_check_socket_ready')) {
+            clearPendingConnectionLock(connection.id, 'health_promote_open');
+            clearPendingConnectionLock(connection.userId, 'health_promote_open');
+            console.log(`✅ [HEALTH CHECK] Promoted isOpen=true for ${connection.id.substring(0, 8)} using socket.user/ws readiness`);
+            healthyUsers++;
+            continue;
+          }
+
           const stuckDurationMs = Date.now() - session.createdAt;
           const STUCK_THRESHOLD_MS = 300_000; // 5 minutes — give Baileys time to negotiate
           if (stuckDurationMs > STUCK_THRESHOLD_MS) {
@@ -11210,6 +11662,8 @@ async function connectionHealthCheck(): Promise<void> {
               session.socket?.end(new Error('Health check: stuck connection'));
             } catch(e) { /* ignore */ }
             sessions.delete(connection.id);
+            clearPendingConnectionLock(connection.id, 'health_stuck_cleanup');
+            clearPendingConnectionLock(connection.userId, 'health_stuck_cleanup');
             // Don't count as disconnected — DB stays is_connected=true
             // Next health check cycle will detect as zombie and reconnect
           } else {
@@ -11426,6 +11880,7 @@ export async function restorePendingAITimers(): Promise<void> {
           messages,
           conversationId,
           userId,
+          connectionId: timer.connectionId,
           contactNumber,
           jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
           startTime: Date.now() - Math.abs(remainingMs), // Tempo original
@@ -11578,61 +12033,84 @@ async function processPendingTimersCron(): Promise<void> {
     
     let processed = 0;
     let skipped = 0;
-    const reconnectAttemptedUsers = new Set<string>(); // Guard: 1 reconnect per user per cron cycle
+    const reconnectAttemptedScopes = new Set<string>(); // Guard: 1 reconnect per connection scope per cron cycle
     
     for (const timer of expiredTimers) {
       const { conversationId, userId, contactNumber, jidSuffix, messages } = timer;
       
-      // 🔒 SECTION 5: Resolver sessão por connectionId da conversa PRIMEIRO,
-      // depois fallback para userId. Cada conversa pertence a uma connection específica.
+      // 🔒 SECTION 5: Resolver sessão por connectionId do timer PRIMEIRO,
+      // fallback para lookup da conversa e por último userId.
       let session: WhatsAppSession | undefined;
-      let resolvedConnectionId: string | undefined;
+      let resolvedConnectionId: string | undefined = timer.connectionId;
       
-      // Passo 1: Buscar connection_id da conversa
-      try {
-        const conversation = await storage.getConversation(conversationId);
-        if (conversation?.connectionId) {
-          resolvedConnectionId = conversation.connectionId;
-          session = sessions.get(conversation.connectionId);
-          if (session?.socket && session.isOpen) {
-            // Found by connectionId — best case
-          } else {
-            session = undefined; // Will fall through to userId fallback
+      // Passo 1: usar connectionId retornado diretamente do restore
+      if (resolvedConnectionId) {
+        const byTimerConnection = sessions.get(resolvedConnectionId);
+        if (isSessionReadyForMessaging(byTimerConnection)) {
+          if (byTimerConnection) {
+            promoteSessionOpenState(byTimerConnection, 'pending_cron_timer_connection');
           }
+          session = byTimerConnection;
         }
-      } catch (_convErr) {
-        // Non-critical — fallback to userId
+      }
+
+      // Passo 2: fallback para buscar connection_id atual da conversa
+      if (!session && !resolvedConnectionId) {
+        try {
+          const conversation = await storage.getConversation(conversationId);
+          if (conversation?.connectionId) {
+            resolvedConnectionId = conversation.connectionId;
+            const byConversationConnection = sessions.get(conversation.connectionId);
+            if (isSessionReadyForMessaging(byConversationConnection)) {
+              if (byConversationConnection) {
+                promoteSessionOpenState(byConversationConnection, 'pending_cron_conversation_connection');
+              }
+              session = byConversationConnection;
+            }
+          }
+        } catch (_convErr) {
+          // Non-critical — fallback to userId
+        }
       }
       
-      // Passo 2: Fallback para userId (SessionMap has userId index)
+      // Passo 3: Fallback para userId (SessionMap has userId index)
       if (!session) {
         session = sessions.get(userId);
+        if (session) {
+          promoteSessionOpenState(session, 'pending_cron_user_fallback');
+        }
       }
       
-      if (!session?.socket || !session.isOpen) {
+      if (!isSessionReadyForMessaging(session)) {
         // -----------------------------------------------------------------------
         // FIX 2026-02-24: Quando sessão indisponível mas DB diz conectado,
         // tentar reconectar ao invés de simplesmente pular.
         // Guard: Só tenta reconectar 1x por usuário por ciclo do CRON.
         // -----------------------------------------------------------------------
-        if (!reconnectAttemptedUsers.has(userId)) {
-          // Use resolvedConnectionId from conversation if available, otherwise query DB
-          const connId = resolvedConnectionId || (await storage.getConnectionByUserId(userId))?.id;
-          const connState = resolvedConnectionId 
-            ? { isConnected: true, id: resolvedConnectionId } 
-            : await storage.getConnectionByUserId(userId);
+        const reconnectScopeKey = resolvedConnectionId || userId;
+        if (!reconnectAttemptedScopes.has(reconnectScopeKey)) {
+          let connState = resolvedConnectionId
+            ? await storage.getConnectionById(resolvedConnectionId)
+            : undefined;
+          if (!connState) {
+            connState = await storage.getConnectionByUserId(userId);
+          }
+          const connId = connState?.id || resolvedConnectionId;
           if (connState?.isConnected && connId) {
             const existingSession = sessions.get(connId);
-            if (!existingSession?.socket) {
+            if (!isSessionReadyForMessaging(existingSession)) {
               console.log(`🔄 [PENDING CRON] ${contactNumber} - Sessão indisponível (conn: ${connId.substring(0,8)}, userId: ${userId.substring(0,8)}) mas DB=connected. Tentando reconectar...`);
-              reconnectAttemptedUsers.add(userId);
+              reconnectAttemptedScopes.add(reconnectScopeKey);
               try {
                 await connectWhatsApp(userId, connId);
               } catch (reconErr) {
                 console.log(`⏭️ [PENDING CRON] ${contactNumber} - Reconexão falhou, pulando`);
               }
             } else {
-              console.log(`⏭️ [PENDING CRON] ${contactNumber} - Socket existe mas isOpen=${existingSession.isOpen}, aguardando...`);
+              if (existingSession) {
+                promoteSessionOpenState(existingSession, 'pending_cron_existing_ready');
+              }
+              console.log(`⏭️ [PENDING CRON] ${contactNumber} - Socket já está operacional (isOpen=${existingSession?.isOpen}), aguardando próximo ciclo`);
             }
           } else {
             console.log(`⏭️ [PENDING CRON] ${contactNumber} - Sessão indisponível (DB: connected=${connState?.isConnected || false})`);
@@ -11660,6 +12138,7 @@ async function processPendingTimersCron(): Promise<void> {
         messages,
         conversationId,
         userId,
+        connectionId: resolvedConnectionId,
         contactNumber,
         jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
         startTime: timer.scheduledAt.getTime(),

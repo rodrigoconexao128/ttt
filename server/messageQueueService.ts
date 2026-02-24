@@ -103,6 +103,10 @@ class MessageQueueService {
     options?: {
       isFromAgent?: boolean;
       priority?: 'high' | 'normal' | 'low';
+      conversationId?: string;
+      connectionId?: string;
+      messageType?: MessageType;
+      source?: MessageSource;
     }
   ): Promise<MessageSendResult> {
     // Inicializar fila do usuário se não existir

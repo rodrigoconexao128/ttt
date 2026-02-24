@@ -47,11 +47,9 @@ export function ConnectionPanel() {
 
   // Estado para form de nova conexão
   const [showNewConnForm, setShowNewConnForm] = useState(false);
-  const [newConnName, setNewConnName] = useState("");
-  const [newConnType, setNewConnType] = useState("secondary");
   
   // Estado para fluxo de nova conexão (QR/pairing selection)
-  const [newConnStep, setNewConnStep] = useState<"form" | "method" | "qr-waiting" | "qr-display" | "pairing-form" | "pairing-waiting" | "pairing-display">("form");
+  const [newConnStep, setNewConnStep] = useState<"creating" | "method" | "qr-waiting" | "qr-display" | "pairing-form" | "pairing-waiting" | "pairing-display">("creating");
   const [newConnId, setNewConnId] = useState<string | null>(null);
   const [newConnPhoneNumber, setNewConnPhoneNumber] = useState("");
   const [newConnPairingCode, setNewConnPairingCode] = useState<string | null>(null);
@@ -73,10 +71,10 @@ export function ConnectionPanel() {
 
   // Mutation para criar nova conexão
   const createConnectionMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (payload?: { connectionName?: string; connectionType?: string }) => {
       const response = await apiRequest("POST", "/api/whatsapp/connections", {
-        connectionName: newConnName || undefined,
-        connectionType: newConnType,
+        connectionName: payload?.connectionName,
+        connectionType: payload?.connectionType || "secondary",
       });
       return response.json();
     },
@@ -88,6 +86,8 @@ export function ConnectionPanel() {
       toast({ title: "Conexão criada! Escolha como conectar." });
     },
     onError: (error: Error) => {
+      setShowNewConnForm(false);
+      setNewConnStep("creating");
       toast({ title: "Erro ao criar conexão", description: error.message, variant: "destructive" });
     },
   });
@@ -113,13 +113,23 @@ export function ConnectionPanel() {
   // Helper to close the new connection flow
   const closeNewConnFlow = useCallback(() => {
     setShowNewConnForm(false);
-    setNewConnStep("form");
+    setNewConnStep("creating");
     setNewConnId(null);
-    setNewConnName("");
-    setNewConnType("secondary");
     setNewConnPhoneNumber("");
     setNewConnPairingCode(null);
   }, []);
+
+  const startNewConnectionFlow = useCallback(() => {
+    if (createConnectionMutation.isPending) return;
+    setShowNewConnForm(true);
+    setNewConnStep("creating");
+    setNewConnId(null);
+    setNewConnPhoneNumber("");
+    setNewConnPairingCode(null);
+    createConnectionMutation.mutate({
+      connectionType: "secondary",
+    });
+  }, [createConnectionMutation]);
 
   const connectConnectionMutation = useMutation({
     mutationFn: async (connectionId: string) => {
@@ -638,10 +648,8 @@ export function ConnectionPanel() {
                 setNewConnId(prevId => {
                   if (prevId && data.connectionId === prevId) {
                     setShowNewConnForm(false);
-                    setNewConnStep("form");
+                    setNewConnStep("creating");
                     setNewConnId(null);
-                    setNewConnName("");
-                    setNewConnType("secondary");
                     setNewConnPhoneNumber("");
                     setNewConnPairingCode(null);
                   }
@@ -1259,11 +1267,21 @@ export function ConnectionPanel() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => { setShowNewConnForm(true); setNewConnStep("form"); }}
+                onClick={startNewConnectionFlow}
+                disabled={createConnectionMutation.isPending}
                 className="gap-1"
               >
-                <Plus className="w-4 h-4" />
-                Nova Conexão
+                {createConnectionMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Criando...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Nova Conexão
+                  </>
+                )}
               </Button>
             )}
           </div>
@@ -1274,50 +1292,22 @@ export function ConnectionPanel() {
           {/* ============ FLUXO NOVA CONEXÃO ============ */}
           {showNewConnForm && (
             <Card className="p-5 space-y-5 border-2 border-primary/20 bg-primary/5">
-              {/* Step 1: Name/Type form */}
-              {newConnStep === "form" && (
+              {/* Step 1: Auto-create connection */}
+              {newConnStep === "creating" && (
                 <>
                   <div className="flex items-center gap-2">
                     <Plus className="w-5 h-5 text-primary" />
-                    <h3 className="font-semibold">Adicionar Nova Conexão</h3>
+                    <h3 className="font-semibold">Criando nova conexão</h3>
                   </div>
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="conn-name" className="text-sm">Nome da Conexão (opcional)</Label>
-                      <Input
-                        id="conn-name"
-                        value={newConnName}
-                        onChange={(e) => setNewConnName(e.target.value)}
-                        placeholder="Ex: WhatsApp Vendas, Suporte, etc."
-                      />
+                  <div className="p-4 rounded-md border bg-background/60">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Gerando nome automático e preparando opções de conexão...
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => createConnectionMutation.mutate()}
-                      disabled={createConnectionMutation.isPending}
-                    >
-                      {createConnectionMutation.isPending ? (
-                        <>
-                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          Criando...
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-3 h-3 mr-1" />
-                          Continuar
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={closeNewConnFlow}
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
+                  <Button size="sm" variant="ghost" onClick={closeNewConnFlow}>
+                    Cancelar
+                  </Button>
                 </>
               )}
 

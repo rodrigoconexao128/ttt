@@ -144,11 +144,29 @@ setInterval(() => {
  * 
  * IMPORTANTE: Baileys usa socket.user para indicar conexão ativa (não socket.ws.readyState)
  */
-function isUserConnectionActive(userId: string): boolean {
+function isUserConnectionActive(userId: string, preferredConnectionId?: string): boolean {
   const sessions = getSessions();
-  const session = sessions.get(userId);
-  // Baileys: socket.user !== undefined significa conexão ativa
-  return session?.socket?.user !== undefined;
+  const candidates = Array.from(sessions.values()).filter((s) => s.userId === userId);
+
+  if (preferredConnectionId) {
+    const preferred = sessions.get(preferredConnectionId);
+    if (preferred && preferred.userId === userId) {
+      candidates.unshift(preferred);
+    }
+  }
+
+  for (const session of candidates) {
+    if (!session?.socket || session.socket.user === undefined) continue;
+    if (session.isOpen === true) return true;
+
+    // Fallback: some Baileys cycles authenticate the socket but skip conn=open.
+    const wsReadyState = (session.socket as any)?.ws?.readyState;
+    if (wsReadyState === undefined || wsReadyState === 1) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // ============================================================================
@@ -344,7 +362,8 @@ export class UserFollowUpService {
 
     // 🔌 VERIFICAÇÃO POR USUÁRIO: Verificar se ESTE usuário específico tem conexão ativa
     // Isso permite processar follow-ups de outros usuários mesmo se este não está conectado
-    if (!isUserConnectionActive(userId)) {
+    const preferredConnectionId = conversation.connectionId || conversation.connection?.id;
+    if (!isUserConnectionActive(userId, preferredConnectionId)) {
       // Reagendar apenas ESTA conversa para tentar novamente em 5 minutos
       // NÃO bloqueia outras conversas de outros usuários!
       const retryDate = addRandomSeconds(new Date(Date.now() + 5 * 60 * 1000));

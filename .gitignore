@@ -50,6 +50,8 @@ remove-*.ts
 *.mjs
 !client/**/*.mjs
 !patch-baileys-platform.mjs
+!scripts/wa-unfreeze-pending-timers.mjs
+!scripts/recover-incompleta-24h.mjs
 *.py
 *.ps1
 *.cjs

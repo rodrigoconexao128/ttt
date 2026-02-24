@@ -3276,14 +3276,6 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
     try {
 
-      // Evita respostas 304/stale no browser para lista de conversas.
-      // Esta tela precisa refletir mensagens novas o mais rápido possível.
-      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      // ETag dinâmico para neutralizar resposta 304 condicional nesta rota.
-      res.setHeader("ETag", `\"conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}\"`);
-
       const userId = getUserId(req);
 
       const user = await storage.getUser(userId);
@@ -5312,6 +5304,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
   app.get("/api/conversations-with-tags", isAuthenticated, async (req: any, res) => {
 
     try {
+      // Evita respostas 304/stale no browser para lista de conversas.
+      // Esta tela precisa refletir mensagens novas o mais rápido possível.
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      // ETag dinâmico neutraliza cache condicional para este endpoint.
+      res.setHeader("ETag", `\"conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}\"`);
 
       const userId = getUserId(req);
 

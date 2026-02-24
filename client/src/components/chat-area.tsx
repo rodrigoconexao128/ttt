@@ -220,7 +220,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
       return data.messages ?? [];
     },
     enabled: !!conversationId,
-    refetchInterval: 120000, // ⚡ OTIMIZAÇÃO: Fallback polling 2min (era 30s) - WebSocket é primário
+    refetchInterval: 15000, // Fallback polling 15s quando WebSocket oscila
     staleTime: 5000, // Considera dados frescos por 5s
   });
 

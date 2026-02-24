@@ -481,6 +481,7 @@ export interface IStorage {
     id: string;
     conversationId: string;
     userId: string;
+    connectionId?: string;
     contactNumber: string;
     jidSuffix: string;
     messages: string[];
@@ -697,7 +698,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(whatsappConnections.createdAt)
         .limit(1);
       return anyConn;
-    }, 300000); // 5 min cache
+    }, 30000); // 30s cache
   }
 
   async getConnectionById(connectionId: string): Promise<WhatsappConnection | undefined> {
@@ -754,6 +755,7 @@ export class DatabaseStorage implements IStorage {
       .insert(whatsappConnections)
       .values(connectionData)
       .returning();
+    memoryCache.invalidate(`connByUser:${connection.userId}`);
     return connection;
   }
 
@@ -763,11 +765,20 @@ export class DatabaseStorage implements IStorage {
       .set({ ...data, updatedAt: new Date() })
       .where(eq(whatsappConnections.id, id))
       .returning();
+    memoryCache.invalidate(`connByUser:${connection.userId}`);
     return connection;
   }
 
   async deleteConnection(id: string): Promise<void> {
+    const [connection] = await db
+      .select()
+      .from(whatsappConnections)
+      .where(eq(whatsappConnections.id, id))
+      .limit(1);
     await db.delete(whatsappConnections).where(eq(whatsappConnections.id, id));
+    if (connection?.userId) {
+      memoryCache.invalidate(`connByUser:${connection.userId}`);
+    }
   }
 
   // Multi-connection: get all connections for a user
@@ -946,6 +957,13 @@ export class DatabaseStorage implements IStorage {
     }, 30000);
   }
 
+  private invalidateConversationListCaches(connectionId?: string | null): void {
+    if (!connectionId) return;
+    memoryCache.invalidate(`convWithTags:${connectionId}`);
+    memoryCache.invalidate(`convCount:${connectionId}`);
+    memoryCache.invalidate(`convStats:${connectionId}`);
+  }
+
   async createConversation(conversationData: InsertConversation): Promise<Conversation> {
     // FIX DUPLICATAS: Antes de inserir, verificar se já existe conversa ativa para o mesmo contato
     if (conversationData.connectionId && conversationData.contactNumber) {
@@ -969,6 +987,7 @@ export class DatabaseStorage implements IStorage {
       .insert(conversations)
       .values(conversationData)
       .returning();
+    this.invalidateConversationListCaches(conversation.connectionId);
     return conversation;
   }
 
@@ -980,6 +999,7 @@ export class DatabaseStorage implements IStorage {
       .set({ ...data, updatedAt: new Date() })
       .where(eq(conversations.id, id))
       .returning();
+    this.invalidateConversationListCaches(conversation.connectionId);
     return conversation;
   }
 
@@ -5730,6 +5750,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     id: string;
     conversationId: string;
     userId: string;
+    connectionId?: string;
     contactNumber: string;
     jidSuffix: string;
     messages: string[];
@@ -5745,11 +5766,20 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       // - ≤24h: processa normalmente com prioridade para antigos
       // LIMIT 200 previne storm em caso de acúmulo massivo
       const result = await db.execute(sql`
-        SELECT id, conversation_id, user_id, contact_number, jid_suffix,
-               messages, execute_at, scheduled_at
-        FROM pending_ai_responses
-        WHERE status = 'pending'
-        ORDER BY execute_at ASC
+        SELECT 
+          p.id,
+          p.conversation_id,
+          p.user_id,
+          c.connection_id,
+          p.contact_number,
+          p.jid_suffix,
+          p.messages,
+          p.execute_at,
+          p.scheduled_at
+        FROM pending_ai_responses p
+        LEFT JOIN conversations c ON c.id = p.conversation_id
+        WHERE p.status = 'pending'
+        ORDER BY p.execute_at ASC
         LIMIT 200
       `);
       
@@ -5758,6 +5788,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
           id: row.id,
           conversationId: row.conversation_id,
           userId: row.user_id,
+          connectionId: row.connection_id || undefined,
           contactNumber: row.contact_number,
           jidSuffix: row.jid_suffix,
           messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,

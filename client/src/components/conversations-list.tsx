@@ -132,7 +132,7 @@ export function ConversationsList({
       return result;
     },
     enabled: true, // ⚡ OTIMIZADO: Carregar imediatamente - API resolve connectionId server-side
-    refetchInterval: 120000, // Fallback polling 2min (WebSocket é primário)
+    refetchInterval: 15000, // Fallback polling 15s quando WebSocket oscila
     staleTime: 10000, // ⚡ OTIMIZAÇÃO: Dados frescos por 10s - evita refetches redundantes
   });
 
@@ -178,8 +178,6 @@ export function ConversationsList({
 
   // WebSocket para atualização em tempo real
   useEffect(() => {
-    if (!connectionId) return;
-
     let websocket: WebSocket | null = null;
     let cancelled = false;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
@@ -242,7 +240,7 @@ export function ConversationsList({
                   // Nova conversa: adicionar no topo
                   const newConv: ConversationWithTags = {
                     id: update.id,
-                    connectionId: connectionId || "",
+                    connectionId: update.connectionId || connectionId || "",
                     contactNumber: update.contactNumber,
                     contactName: update.contactName,
                     contactAvatar: update.contactAvatar,

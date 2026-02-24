@@ -847,12 +847,14 @@ export default function SchedulingPage() {
 
   // Toggle professional day
   const toggleProfessionalDay = (day: number) => {
-    const currentDays = professionalForm.available_days || [];
-    if (currentDays.includes(day)) {
-      setProfessionalForm({ ...professionalForm, available_days: currentDays.filter(d => d !== day) });
-    } else {
-      setProfessionalForm({ ...professionalForm, available_days: [...currentDays, day].sort() });
-    }
+    setProfessionalForm(prev => {
+      const currentDays = prev.available_days || [];
+      if (currentDays.includes(day)) {
+        return { ...prev, available_days: currentDays.filter(d => d !== day) };
+      } else {
+        return { ...prev, available_days: [...currentDays, day].sort() };
+      }
+    });
   };
 
   const handleSaveConfig = () => {
@@ -895,12 +897,14 @@ export default function SchedulingPage() {
   };
 
   const toggleDay = (day: number) => {
-    const currentDays = configForm.availableDays || [];
-    if (currentDays.includes(day)) {
-      setConfigForm({ ...configForm, availableDays: currentDays.filter(d => d !== day) });
-    } else {
-      setConfigForm({ ...configForm, availableDays: [...currentDays, day].sort() });
-    }
+    setConfigForm(prev => {
+      const currentDays = prev.availableDays || [];
+      if (currentDays.includes(day)) {
+        return { ...prev, availableDays: currentDays.filter(d => d !== day) };
+      } else {
+        return { ...prev, availableDays: [...currentDays, day].sort() };
+      }
+    });
   };
 
   // Group appointments by date
