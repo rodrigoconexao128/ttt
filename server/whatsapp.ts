@@ -10919,9 +10919,20 @@ async function connectionHealthCheck(): Promise<void> {
           const stuckDurationMs = Date.now() - session.createdAt;
           const STUCK_THRESHOLD_MS = 120_000; // 2 minutes
           if (stuckDurationMs > STUCK_THRESHOLD_MS) {
+            const { shouldSlowDown, attempt } = trackReconnectAttempt(connection.id);
+            
+            if (shouldSlowDown) {
+              // SAFE: Do NOT disconnect. Just end stuck socket and let next health check retry.
+              console.log(`⏳ [HEALTH CHECK] STUCK CONNECTION ${connection.id.substring(0, 8)} — ${attempt} attempts. Skipping (NÃO desconecta, retry in 5min).`);
+              if (session.openTimeout) { clearTimeout(session.openTimeout); session.openTimeout = undefined; }
+              session.socket?.ev?.removeAllListeners('connection.update');
+              session.socket?.ev?.removeAllListeners('creds.update');
+              try { session.socket?.end(new Error('Stuck connection - slowing down')); } catch(e) { /* ignore */ }
+              sessions.delete(connection.id);
+            } else {
             console.log(`⚠️ [HEALTH CHECK] STUCK CONNECTION detected: user ${connection.userId.substring(0, 8)}... conn ${connection.id.substring(0, 8)}`);
             console.log(`   ⚠️ Socket has user creds but isOpen=false for ${Math.round(stuckDurationMs / 1000)}s`);
-            console.log(`   ⚠️ Forcing reconnect to recover...`);
+            console.log(`   ⚠️ Attempt #${attempt}/${MAX_FAST_RECONNECT_ATTEMPTS} — forcing reconnect...`);
             try {
               // End the stuck socket
               if (session.openTimeout) {
@@ -10932,14 +10943,14 @@ async function connectionHealthCheck(): Promise<void> {
               session.socket?.ev?.removeAllListeners('creds.update');
               session.socket?.end(new Error('Health check: stuck connection'));
               sessions.delete(connection.id);
-              // Reconnect
+              // Reconnect — DB stays is_connected=true
               await connectWhatsApp(connection.userId, connection.id);
               reconnectedUsers++;
               console.log(`✅ [HEALTH CHECK] Stuck connection ${connection.id.substring(0, 8)} reconnected`);
             } catch (error) {
               console.error(`❌ [HEALTH CHECK] Stuck connection reconnect failed:`, error);
-              await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
-              disconnectedUsers++;
+              // SAFE: Do NOT mark is_connected=false. Will retry next health check.
+            }
             }
           } else {
             // Still within grace period, count as healthy
