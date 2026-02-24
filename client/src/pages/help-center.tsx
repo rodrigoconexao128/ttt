@@ -431,18 +431,49 @@ const HELP_CATEGORIES: Category[] = [
           {
             type: "text",
             content:
-              "Às vezes você precisa responder manualmente sem que a IA interfira. O sistema permite pausar a IA por conversa.",
+              "Às vezes você precisa responder manualmente sem que a IA interfira. O sistema permite pausar a IA por conversa, individualmente.",
           },
           {
-            type: "steps",
-            heading: "Como pausar a IA:",
+            type: "screenshot",
+            src: "04-conversa-aberta.png",
+            caption: "Tela de conversa aberta — o toggle de IA fica no topo do painel de chat",
+          },
+          {
+            type: "visual-steps",
+            heading: "Como pausar a IA em uma conversa:",
             content: [
-              "Abra a conversa desejada.",
-              "No painel de chat, procure o botão/toggle de IA (ícone de robô).",
-              "Desative o toggle para pausar a IA nesta conversa.",
-              "Responda manualmente.",
-              "Quando quiser que a IA volte, reative o toggle.",
-            ],
+              {
+                step: "1",
+                action: 'Abra a **Conversa** que deseja assumir manualmente em **Conversas**',
+                explain: "Clique na conversa da lista. A tela de chat abre com o histórico e os controles.",
+                screenshot: "04-conversas-lista.png",
+                result: "A conversa fica aberta com o painel de chat à direita."
+              },
+              {
+                step: "2",
+                action: "No topo do painel de chat, localize o toggle **'IA'** (com ícone de robô ⚡) e desative",
+                explain: "O toggle fica no cabeçalho da conversa. Quando está verde/ativo, a IA está respondendo automaticamente. Ao desativar, você assume o controle manual.",
+                screenshot: "04-conversa-aberta.png",
+                result: "Toggle muda para desativado. A IA para de responder nesta conversa específica. As demais conversas continuam com IA ativa."
+              },
+              {
+                step: "3",
+                action: "Digite e envie as mensagens manuais normalmente",
+                explain: "Use o campo de texto no rodapé para digitar. Você pode usar as respostas rápidas (⚡), enviar mídia ou enviar mensagem de voz.",
+                result: "Suas mensagens são enviadas diretamente para o cliente."
+              },
+              {
+                step: "4",
+                action: "Quando terminar, reative o toggle de IA para que o agente retome",
+                explain: "Ao reativar, a IA volta a monitorar e responder automaticamente a partir da próxima mensagem do cliente.",
+                result: "Toggle volta para verde. O agente retoma o atendimento automático."
+              },
+            ] as any,
+          },
+          {
+            type: "tip",
+            content:
+              "Use a pausa para situações especiais: negociações complexas, reclamações críticas ou quando o cliente pedir especificamente por atendimento humano. Para a maioria das situações, a IA consegue lidar sozinha.",
           },
           {
             type: "tip",
