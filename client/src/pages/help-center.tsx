@@ -3,7 +3,7 @@
  * Help Center completo com busca, categorias e artigos didáticos
  * Cobre toda a área do cliente (onboarding → avançado)
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -326,6 +326,11 @@ const HELP_CATEGORIES: Category[] = [
               "O Dashboard é a primeira tela que você vê ao entrar. Ele mostra uma visão rápida da saúde do seu atendimento.",
           },
           {
+            type: "screenshot",
+            src: "01-dashboard.png",
+            caption: "Dashboard — visão geral com cards de métricas, status do WhatsApp e guia de início rápido",
+          },
+          {
             type: "list",
             heading: "O que cada card significa:",
             content: [
@@ -391,6 +396,11 @@ const HELP_CATEGORIES: Category[] = [
             type: "text",
             content:
               'A tela de "Conversas" mostra todas as conversas do seu WhatsApp, semelhante ao app do WhatsApp, mas com recursos extras de IA e gestão.',
+          },
+          {
+            type: "screenshot",
+            src: "04-conversas-lista.png",
+            caption: "Tela de Conversas — lista de todas as conversas com filtros, busca e indicadores",
           },
           {
             type: "list",
@@ -969,17 +979,48 @@ const HELP_CATEGORIES: Category[] = [
         difficulty: "beginner",
         content: [
           {
-            type: "steps",
-            heading: "Passo a passo:",
+            type: "screenshot",
+            src: "02-conexao.png",
+            caption: "Tela de Conexão — status da conexão e botão para conectar seu WhatsApp via QR Code",
+          },
+          {
+            type: "visual-steps",
+            heading: "Passo a passo para conectar:",
             content: [
-              'Acesse "Conexão" no menu lateral.',
-              'Clique em "Conectar WhatsApp".',
-              "Aguarde o QR Code aparecer na tela.",
-              "No celular: WhatsApp → ⋮ (3 pontinhos) → Aparelhos conectados → Conectar um aparelho.",
-              "Aponte a câmera do celular para o QR Code na tela.",
-              "Aguarde a confirmação (até 30 segundos).",
-              'Status muda para "Conectado" em verde.',
-            ],
+              {
+                step: "1",
+                action: 'Acesse **"Conexão"** no menu lateral esquerdo',
+                explain: "Clique em 'Conexão' no menu. Você pode acessar diretamente pelo link: agentezap.online/conexao",
+                screenshot: "02-conexao.png",
+                result: "A tela de Conexão é exibida mostrando o status atual e o botão de conexão."
+              },
+              {
+                step: "2",
+                action: 'Clique em **"Conectar WhatsApp"**',
+                explain: "Um QR Code único será gerado para você. Este código é válido por 60 segundos — depois disso, expira automaticamente por segurança.",
+                screenshot: "02-conexao.png",
+                result: "O QR Code aparece na tela, pronto para ser escaneado."
+              },
+              {
+                step: "3",
+                action: "No celular, abra o **WhatsApp** → toque nos **3 pontinhos (⋮)** → **Aparelhos conectados** → **Conectar um aparelho**",
+                explain: "No iPhone: WhatsApp → Configurações → Aparelhos conectados → Adicionar aparelho. Este processo é idêntico ao WhatsApp Web.",
+                result: "A câmera do celular abre pronta para escanear."
+              },
+              {
+                step: "4",
+                action: "Aponte a câmera do celular para o QR Code na tela",
+                explain: "Posicione o QR Code dentro da moldura da câmera. Mantenha firme por 2-3 segundos até o reconhecimento automático.",
+                result: "O celular vibra/pisca confirmando a leitura."
+              },
+              {
+                step: "5",
+                action: "Aguarde a confirmação — até 30 segundos",
+                explain: "A tela atualiza automaticamente. Você não precisa recarregar a página.",
+                screenshot: "02-conexao.png",
+                result: "Status muda para 'Conectado' em verde com o número do seu WhatsApp exibido."
+              },
+            ] as any,
           },
           {
             type: "warning",
@@ -2683,6 +2724,25 @@ export default function HelpCenter() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+
+  // Deep-link: ?article=<id> abre o artigo diretamente
+  // Exemplo: /ajuda?article=followup-setup
+  // Usado pelo ContextualHelpButton de cada página
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const articleId = params.get("article");
+    if (articleId) {
+      for (const cat of HELP_CATEGORIES) {
+        const art = cat.articles.find((a) => a.id === articleId);
+        if (art) {
+          setSelectedCategory(cat);
+          setSelectedArticle(art);
+          break;
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Pesquisa global em todas as categorias/artigos
   const searchResults = useMemo(() => {

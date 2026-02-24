@@ -65,6 +65,10 @@ remove-*.ts
 *.zip
 *.json.backup
 
+# Exception: tutorial screenshots for Help Center
+!client/public/tutorial-screenshots/*.png
+!client/public/tutorial-screenshots/*.jpg
+
 # Admin temp files
 admin_cookies.txt
 cline_mcp_settings.json

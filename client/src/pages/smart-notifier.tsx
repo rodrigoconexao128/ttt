@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ContextualHelpButton } from "@/components/contextual-help-button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,7 +77,10 @@ export default function SmartNotifierPage() {
     <div className="h-full overflow-auto">
       <div className="container max-w-2xl mx-auto p-8 space-y-8">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold">Notificador Inteligente</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold">Notificador Inteligente</h1>
+            <ContextualHelpButton articleId="notifier-overview" title="Como usar o Notificador" description="Configure alertas automáticos para quando um cliente precisar de atenção." />
+          </div>
           <p className="text-muted-foreground">
             Configure notificações automáticas baseadas no contexto das conversas
           </p>

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { ContextualHelpButton } from "@/components/contextual-help-button";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useLocation } from "wouter";
@@ -120,6 +121,7 @@ export default function LeadQualificationPage() {
           <div className="flex gap-2">
             <Button onClick={requireSubscription}>Atualizar com IA</Button>
             <Button variant="outline" onClick={requireSubscription}>Exportar</Button>
+            <ContextualHelpButton articleId="funnel-overview" title="Como usar a Qualificação de Lead" description="Entenda como a IA classifica seus leads em Quente, Morno e Frio." />
           </div>
         </div>
 

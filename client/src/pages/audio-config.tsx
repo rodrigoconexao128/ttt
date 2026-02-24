@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { ContextualHelpButton } from "@/components/contextual-help-button";
 import { 
   Loader2, 
   Mic, 
@@ -189,8 +190,11 @@ export default function AudioConfigPage() {
         <div className="p-3 rounded-full bg-primary/10">
           <Mic className="h-8 w-8 text-primary" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold">Falar por Áudio</h1>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Falar por Áudio</h1>
+            <ContextualHelpButton articleId="audio-overview" title="Como usar o Falar por Áudio" description="Configure seu agente para responder com mensagens de voz." size="sm" />
+          </div>
           <p className="text-muted-foreground">
             Configure as respostas em áudio do seu agente IA
           </p>

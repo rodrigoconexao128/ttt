@@ -11,6 +11,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { ContextualHelpButton } from "@/components/contextual-help-button";
 import { 
   Plus, 
   Search, 
@@ -522,6 +523,7 @@ export default function KanbanPage() {
               <Plus className="w-4 h-4" />
               Nova Etapa
             </Button>
+            <ContextualHelpButton articleId="kanban-overview" title="Como usar o Kanban CRM" description="Organize seus leads em etapas do funil de vendas." />
           </div>
         </div>
       </header>

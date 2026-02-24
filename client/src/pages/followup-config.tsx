@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ContextualHelpButton } from "@/components/contextual-help-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -588,6 +589,7 @@ export default function FollowupConfigPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <ContextualHelpButton articleId="followup-setup" title="Como usar o Follow-up" description="Tutorial passo a passo de configuração do follow-up automático." />
           {mainTab === 'config' && (
             <Button onClick={handleSave} disabled={saveMutation.isPending}>
               <Save className="w-4 h-4 mr-2" />

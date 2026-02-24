@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ContextualHelpButton } from "@/components/contextual-help-button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
@@ -885,6 +886,7 @@ export default function MassSendPage() {
                 <History className="w-4 h-4 mr-2" />
                 Histórico
               </Button>
+              <ContextualHelpButton articleId="mass-send-setup" title="Como usar o Envio em Massa" description="Aprenda a disparar mensagens para múltiplos contatos de forma segura." />
             </div>
           </div>
           
