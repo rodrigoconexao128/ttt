@@ -653,7 +653,8 @@ export function ConnectionPanel() {
                 });
               }
               // Only update global (primary card) QR state for primary connection or legacy events
-              const isPrimaryQr = !data.connectionId || data.connectionId === connection?.id;
+              // 🆕 Se connection é null (conta nova), tratar QUALQUER QR como primário
+              const isPrimaryQr = !data.connectionId || data.connectionId === connection?.id || !connection;
               if (isPrimaryQr) {
                 setQrCode(data.qr);
                 qrCodeRef.current = data.qr;
