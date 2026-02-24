@@ -3276,6 +3276,14 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
     try {
 
+      // Evita respostas 304/stale no browser para lista de conversas.
+      // Esta tela precisa refletir mensagens novas o mais rápido possível.
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      // ETag dinâmico para neutralizar resposta 304 condicional nesta rota.
+      res.setHeader("ETag", `\"conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}\"`);
+
       const userId = getUserId(req);
 
       const user = await storage.getUser(userId);
@@ -40903,6 +40911,188 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
+  // =====================================================================
+  // CANCEL / COMPLETE APPOINTMENT ROUTES
+  // =====================================================================
+
+  /**
+   * Cancelar agendamento
+   * POST /api/scheduling/appointments/:id/cancel
+   */
+  app.post("/api/scheduling/appointments/:id/cancel", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { cancelledBy, reason } = req.body;
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          status: 'cancelled',
+          internal_notes: reason ? `Cancelado por ${cancelledBy || 'business'}: ${reason}` : `Cancelado por ${cancelledBy || 'business'}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      console.log(`❌ [SCHEDULING] Agendamento ${id} cancelado por ${cancelledBy}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error cancelling appointment:", error);
+      res.status(500).json({ message: "Falha ao cancelar agendamento" });
+    }
+  });
+
+  /**
+   * Completar/atualizar status do agendamento
+   * POST /api/scheduling/appointments/:id/complete
+   */
+  app.post("/api/scheduling/appointments/:id/complete", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const validStatuses = ['completed', 'no_show'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ message: "Status inválido" });
+      }
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      console.log(`✅ [SCHEDULING] Agendamento ${id} marcado como ${status}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error completing appointment:", error);
+      res.status(500).json({ message: "Falha ao atualizar status do agendamento" });
+    }
+  });
+
+  // =====================================================================
+  // SCHEDULING SERVICES ROUTES (CRUD de Serviços)
+  // =====================================================================
+
+  /**
+   * Listar serviços do usuário
+   * GET /api/scheduling/services
+   */
+  app.get("/api/scheduling/services", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+
+      const { data, error } = await supabase
+        .from('scheduling_services')
+        .select('*')
+        .eq('user_id', userId)
+        .order('display_order', { ascending: true });
+
+      if (error) throw error;
+      res.json(data || []);
+    } catch (error: any) {
+      console.error("Error fetching services:", error);
+      res.status(500).json({ message: "Falha ao buscar serviços" });
+    }
+  });
+
+  /**
+   * Criar novo serviço
+   * POST /api/scheduling/services
+   */
+  app.post("/api/scheduling/services", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { name, description, durationMinutes, price, color, isActive, allowOnline, allowPresencial, requiresConfirmation, bufferBeforeMinutes, bufferAfterMinutes, maxPerDay, icon, displayOrder } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ message: "Nome do serviço é obrigatório" });
+      }
+
+      const { data, error } = await supabase
+        .from('scheduling_services')
+        .insert({
+          user_id: userId,
+          name,
+          description: description || null,
+          duration_minutes: durationMinutes || 60,
+          price: price || null,
+          color: color || '#3B82F6',
+          is_active: isActive !== undefined ? isActive : true,
+          allow_online: allowOnline !== undefined ? allowOnline : true,
+          allow_presencial: allowPresencial !== undefined ? allowPresencial : true,
+          requires_confirmation: requiresConfirmation || false,
+          buffer_before_minutes: bufferBeforeMinutes || 0,
+          buffer_after_minutes: bufferAfterMinutes || 0,
+          max_per_day: maxPerDay || null,
+          icon: icon || null,
+          display_order: displayOrder || 0,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      console.log(`✅ [SCHEDULING] Serviço criado: ${name} (${userId})`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error creating service:", error);
+      res.status(500).json({ message: "Falha ao criar serviço" });
+    }
+  });
+
+  /**
+   * Atualizar serviço
+   * PUT /api/scheduling/services/:id
+   */
+  app.put("/api/scheduling/services/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const { name, description, durationMinutes, price, color, isActive, allowOnline, allowPresencial, requiresConfirmation, bufferBeforeMinutes, bufferAfterMinutes, maxPerDay, icon, displayOrder } = req.body;
+
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (durationMinutes !== undefined) updateData.duration_minutes = durationMinutes;
+      if (price !== undefined) updateData.price = price;
+      if (color !== undefined) updateData.color = color;
+      if (isActive !== undefined) updateData.is_active = isActive;
+      if (allowOnline !== undefined) updateData.allow_online = allowOnline;
+      if (allowPresencial !== undefined) updateData.allow_presencial = allowPresencial;
+      if (requiresConfirmation !== undefined) updateData.requires_confirmation = requiresConfirmation;
+      if (bufferBeforeMinutes !== undefined) updateData.buffer_before_minutes = bufferBeforeMinutes;
+      if (bufferAfterMinutes !== undefined) updateData.buffer_after_minutes = bufferAfterMinutes;
+      if (maxPerDay !== undefined) updateData.max_per_day = maxPerDay;
+      if (icon !== undefined) updateData.icon = icon;
+      if (displayOrder !== undefined) updateData.display_order = displayOrder;
+
+      const { data, error } = await supabase
+        .from('scheduling_services')
+        .update(updateData)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error updating service:", error);
+      res.status(500).json({ message: "Falha ao atualizar serviço" });
+    }
+  });
+
   /**
 
    * Excluir serviço
@@ -40948,6 +41138,90 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   });
 
 
+
+  // =====================================================================
+  // SCHEDULING EXCEPTIONS ROUTES (Feriados, Bloqueios, Horários Especiais)
+  // =====================================================================
+
+  /**
+   * Listar exceções do usuário
+   * GET /api/scheduling/exceptions
+   */
+  app.get("/api/scheduling/exceptions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+
+      const { data, error } = await supabase
+        .from('scheduling_exceptions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('exception_date', { ascending: true });
+
+      if (error) throw error;
+      res.json(data || []);
+    } catch (error: any) {
+      console.error("Error fetching exceptions:", error);
+      res.status(500).json({ message: "Falha ao buscar exceções" });
+    }
+  });
+
+  /**
+   * Criar nova exceção
+   * POST /api/scheduling/exceptions
+   */
+  app.post("/api/scheduling/exceptions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { exceptionDate, exceptionType, customStartTime, customEndTime, reason } = req.body;
+
+      if (!exceptionDate || !exceptionType) {
+        return res.status(400).json({ message: "Data e tipo da exceção são obrigatórios" });
+      }
+
+      const { data, error } = await supabase
+        .from('scheduling_exceptions')
+        .insert({
+          user_id: userId,
+          exception_date: exceptionDate,
+          exception_type: exceptionType,
+          custom_start_time: customStartTime || null,
+          custom_end_time: customEndTime || null,
+          reason: reason || null,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      console.log(`📅 [SCHEDULING] Exceção criada: ${exceptionType} em ${exceptionDate}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Error creating exception:", error);
+      res.status(500).json({ message: "Falha ao criar exceção" });
+    }
+  });
+
+  /**
+   * Excluir exceção
+   * DELETE /api/scheduling/exceptions/:id
+   */
+  app.delete("/api/scheduling/exceptions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = req.params;
+
+      const { error } = await supabase
+        .from('scheduling_exceptions')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      res.json({ message: "Exceção removida com sucesso" });
+    } catch (error: any) {
+      console.error("Error deleting exception:", error);
+      res.status(500).json({ message: "Falha ao excluir exceção" });
+    }
+  });
 
   // =====================================================================
 
