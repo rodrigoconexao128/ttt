@@ -1423,7 +1423,7 @@ export async function isDeliveryEnabled(userId: string): Promise<boolean> {
       .from('delivery_config')
       .select('is_active')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle(); // FIX 2026-02-25: .single() causes PGRST116 when user has no delivery config
 
     if (error || !data) {
       return false;
@@ -1442,7 +1442,7 @@ export async function getDeliveryData(userId: string): Promise<DeliveryData | nu
       .from('delivery_config')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle(); // FIX 2026-02-25: .single() causes PGRST116 when user has no delivery config
     
     console.log(`🍕 [DeliveryAI] DEBUG getDeliveryData: userId=${userId}`);
     console.log(`🍕 [DeliveryAI] DEBUG config: ${JSON.stringify(config)}`);

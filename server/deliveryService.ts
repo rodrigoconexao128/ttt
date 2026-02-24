@@ -127,7 +127,7 @@ async function getDeliveryConfig(userId: string): Promise<{
       .from('delivery_config')
       .select('delivery_fee, estimated_delivery_time, whatsapp_order_number, business_name, min_order_value')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle(); // FIX 2026-02-25: .single() causes PGRST116 when user has no delivery config
 
     if (error || !data) {
       console.log(`🍕 [Delivery] No config found for user ${userId}`);

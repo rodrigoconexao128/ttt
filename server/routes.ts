@@ -407,6 +407,8 @@ import {
 
   sendAdminNotification,
 
+  getConnectionHealth,
+
 } from "./whatsapp";
 
 import { messageQueueService } from "./messageQueueService";
@@ -26196,6 +26198,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
   // ==================== ADMIN WHATSAPP ROUTES ====================
+
+  // -----------------------------------------------------------------------
+  // FIX 2026-02-25: Connection health diagnostic endpoint (read-only)
+  // Returns real-time socket state, reconnect attempts, and observability metrics
+  // -----------------------------------------------------------------------
+  app.get("/api/admin/whatsapp/connection-health", isAdmin, async (req, res) => {
+    try {
+      const userId = req.query.userId as string | undefined;
+      const health = getConnectionHealth(userId);
+      res.json(health);
+    } catch (err) {
+      console.error("[CONNECTION-HEALTH] Error:", err);
+      res.status(500).json({ error: "Failed to get connection health" });
+    }
+  });
 
   // Get admin WhatsApp connection status - verifica estado REAL da sessão
 

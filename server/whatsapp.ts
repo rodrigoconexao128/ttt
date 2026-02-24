@@ -8029,6 +8029,64 @@ export function getSessions(): Map<string, WhatsAppSession> {
   return sessions;
 }
 
+// =========================================================================
+// FIX 2026-02-25: Connection health diagnostic (read-only)
+// Returns connection state, reconnect attempts, and observability data
+// =========================================================================
+export function getConnectionHealth(userId?: string): {
+  sessions: Array<{
+    connectionId: string;
+    userId: string;
+    isOpen: boolean;
+    connectedAt: string | null;
+    reconnectAttempts: number;
+    hasPendingConnection: boolean;
+  }>;
+  metrics: typeof waObservability;
+  reconnectAttemptsMap: Record<string, { count: number; lastAttempt: string }>;
+} {
+  const sessionList: Array<{
+    connectionId: string;
+    userId: string;
+    isOpen: boolean;
+    connectedAt: string | null;
+    reconnectAttempts: number;
+    hasPendingConnection: boolean;
+  }> = [];
+
+  for (const [connId, session] of sessions) {
+    if (userId && session.userId !== userId) continue;
+    const attempt = reconnectAttempts.get(connId);
+    sessionList.push({
+      connectionId: connId,
+      userId: session.userId,
+      isOpen: session.isOpen || false,
+      connectedAt: session.connectedAt ? new Date(session.connectedAt).toISOString() : null,
+      reconnectAttempts: attempt?.count || 0,
+      hasPendingConnection: pendingConnections.has(connId),
+    });
+  }
+
+  const reconnectMap: Record<string, { count: number; lastAttempt: string }> = {};
+  for (const [key, val] of reconnectAttempts) {
+    if (userId) {
+      // Only include if this key belongs to the user
+      const session = sessions.get(key);
+      if (session && session.userId !== userId) continue;
+    }
+    reconnectMap[key] = {
+      count: val.count,
+      lastAttempt: new Date(val.lastAttempt).toISOString(),
+    };
+  }
+
+  return {
+    sessions: sessionList,
+    metrics: { ...waObservability },
+    reconnectAttemptsMap: reconnectMap,
+  };
+}
+
 export async function disconnectWhatsApp(userId: string, connectionId?: string): Promise<void> {
   // 🛡️ MODO DESENVOLVIMENTO: Bloquear desconexões para evitar conflito com produção
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
