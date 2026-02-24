@@ -625,7 +625,43 @@ const PAIRING_RETRY_COOLDOWN_MS = 10000; // 10 segundos entre retries
 
 // ?? Map para rastrear conex�es em andamento
 // Evita m�ltiplas tentativas de conex�o simult�neas para o mesmo usu�rio
-const pendingConnections = new Map<string, Promise<void>>();
+// FIX 2026-02-24: Evoluído de Map<string, Promise<void>> para estrutura com metadata + TTL
+interface PendingConnectionEntry {
+  promise: Promise<void>;
+  startedAt: number;
+  connectionId?: string;
+  userId: string;
+}
+const pendingConnections = new Map<string, PendingConnectionEntry>();
+const PENDING_LOCK_TTL_MS = 90_000; // 90 seconds — lock expires after this
+
+/**
+ * Helper unificado para limpar lock de conexão pendente.
+ * Chamado em: conn=open, conn=close, 440 conflict, catch, health check.
+ */
+function clearPendingConnectionLock(lockKey: string, reason: string): void {
+  if (pendingConnections.has(lockKey)) {
+    pendingConnections.delete(lockKey);
+    console.log(`🔓 [PENDING LOCK] Cleared lock for ${lockKey.substring(0, 8)}... reason: ${reason}`);
+  }
+}
+
+/**
+ * Check and evict stale pending connection locks (older than TTL).
+ * Called at the start of connectWhatsApp and in health check.
+ */
+function evictStalePendingLocks(): number {
+  let evicted = 0;
+  const now = Date.now();
+  for (const [key, entry] of pendingConnections.entries()) {
+    if (now - entry.startedAt > PENDING_LOCK_TTL_MS) {
+      console.log(`⚠️ [PENDING LOCK] STALE_EVICTED: ${key.substring(0, 8)}... age=${Math.round((now - entry.startedAt) / 1000)}s > TTL=${PENDING_LOCK_TTL_MS / 1000}s`);
+      pendingConnections.delete(key);
+      evicted++;
+    }
+  }
+  return evicted;
+}
 
 // ?? Map para rastrear tentativas de reconex�o e evitar loops infinitos
 interface ReconnectAttempt {
@@ -904,9 +940,11 @@ interface PendingResponse {
 }
 const pendingResponses = new Map<string, PendingResponse>(); // key: conversationId
 
-// 🔴 ANTI-DUPLICAÇÃO: Set para rastrear conversas em processamento
+// 🔴 ANTI-DUPLICAÇÃO: Map para rastrear conversas em processamento (value = timestamp)
 // Evita que múltiplos timeouts processem a mesma conversa simultaneamente
-const conversationsBeingProcessed = new Set<string>();
+// Agora com TTL: se uma conversa ficar presa por mais de PROCESSING_TTL_MS, é liberada
+const conversationsBeingProcessed = new Map<string, number>();
+const PROCESSING_TTL_MS = 120_000; // 2 minutos — máximo esperado para processar IA
 
 // -----------------------------------------------------------------------
 // FIX 2026-02-24: RETRY COUNTER for Connection Closed errors
@@ -2307,7 +2345,7 @@ export async function forceReconnectWhatsApp(userId: string, connectionId?: stri
   }
   
   // Limpar pending connections e tentativas de reconexão
-  pendingConnections.delete(lookupKey);
+  clearPendingConnectionLock(lookupKey, 'disconnect_before_reconnect');
   reconnectAttempts.delete(lookupKey);
   
   // Agora chamar connectWhatsApp normalmente
@@ -2432,7 +2470,7 @@ export async function forceFullContactSync(userId: string): Promise<{ success: b
     // 2. Limpar da memória
     sessions.delete(userId);
     unregisterWhatsAppSession(userId);
-    pendingConnections.delete(userId);
+    clearPendingConnectionLock(userId, 'force_full_sync');
     reconnectAttempts.delete(userId);
 
     // 3. Aguardar um pouco para garantir que fechou
@@ -2513,7 +2551,7 @@ export async function forceResetWhatsApp(userId: string, connectionId?: string):
   }
   
   // Limpar pending connections e tentativas de reconexão
-  pendingConnections.delete(lookupKey);
+  clearPendingConnectionLock(lookupKey, 'force_reset');
   reconnectAttempts.delete(lookupKey);
   
   // APAGAR arquivos de autenticação (força novo QR Code)
@@ -2569,11 +2607,14 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
   // 🔑 Determine the connection lock key: use connectionId if provided, otherwise userId
   const lockKey = targetConnectionId || userId;
   
+  // ⏳ FIX: Evict stale locks before checking
+  evictStalePendingLocks();
+  
   // ⏳ Verificar se já existe uma conexão em andamento
   const existingPendingConnection = pendingConnections.get(lockKey);
   if (existingPendingConnection) {
     console.log(`[CONNECT] Connection already in progress for ${lockKey}, waiting for it to complete...`);
-    return existingPendingConnection;
+    return existingPendingConnection.promise;
   }
 
   // 🔄 Resetar contador de tentativas de reconexão quando usuário inicia conexão manualmente
@@ -2588,8 +2629,13 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
     rejectConnection = reject;
   });
   
-  // Registrar ANTES de qualquer operação async
-  pendingConnections.set(lockKey, connectionPromise);
+  // Registrar ANTES de qualquer operação async — now with metadata
+  pendingConnections.set(lockKey, {
+    promise: connectionPromise,
+    startedAt: Date.now(),
+    connectionId: targetConnectionId,
+    userId,
+  });
   console.log(`[CONNECT] Registered pending connection for user ${userId}${targetConnectionId ? ` (connectionId: ${targetConnectionId})` : ''}`);
 
   // Agora executar a lógica de conexão
@@ -3260,8 +3306,8 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
           }
           currentSession440.isOpen = false;
           sessions.delete(connection.id);
-          pendingConnections.delete(connection.id);
-          pendingConnections.delete(userId);
+          clearPendingConnectionLock(connection.id, '440_conflict');
+          clearPendingConnectionLock(userId, '440_conflict');
           await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
           broadcastToUser(userId, { type: "disconnected", reason: "connection_replaced", connectionId: connection.id });
           reconnectAttempts.delete(connection.id);
@@ -3308,8 +3354,8 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         }
         session.isOpen = false;
         sessions.delete(session.connectionId);
-        pendingConnections.delete(session.connectionId); // Limpar da lista de pendentes
-        pendingConnections.delete(userId); // Also clean legacy key
+        clearPendingConnectionLock(session.connectionId, 'conn_close');
+        clearPendingConnectionLock(userId, 'conn_close');
 
         // Atualizar banco de dados - conexão principal
         await storage.updateConnection(session.connectionId, {
@@ -3463,8 +3509,8 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
         // Conexão estabelecida com sucesso - limpar pendentes
         // NÃO resetar reconnectAttempts imediatamente — só após 2min de estabilidade
         // Isso evita loop infinito: open→close→attempt1→open→close→attempt1...
-        pendingConnections.delete(session.connectionId);
-        pendingConnections.delete(userId); // Also clean legacy key
+        clearPendingConnectionLock(session.connectionId, 'conn_open');
+        clearPendingConnectionLock(userId, 'conn_open');
 
         // Agendar reset do contador de reconexão após 2 minutos de estabilidade
         const STABILITY_DELAY_MS = 120_000; // 2 min
@@ -4098,7 +4144,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
 
     } catch (error) {
       console.error("Error connecting WhatsApp:", error);
-      pendingConnections.delete(lockKey);
+      clearPendingConnectionLock(lockKey, 'connect_error');
       rejectConnection!(error as Error);
     }
   })();
@@ -5741,7 +5787,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
   }
   
   // 🔒 Marcar como em processamento ANTES de qualquer coisa
-  conversationsBeingProcessed.add(conversationId);
+  conversationsBeingProcessed.set(conversationId, Date.now());
   
   // 🚨 CRÍTICO: Verificar se IA foi desativada ANTES de processar timer
   // Bug: Timer criado quando IA ativa pode executar depois que IA foi desativada
@@ -11054,6 +11100,9 @@ async function connectionHealthCheck(): Promise<void> {
   console.log(`?? [HEALTH CHECK] Iniciando verifica��o de conex�es...`);
   console.log(`?? [HEALTH CHECK] Timestamp: ${new Date().toISOString()}`);
   
+  // 🔒 Evict stale pending connection locks before any reconnection attempt
+  evictStalePendingLocks();
+  
   try {
     // 1. Verificar conexões de usuários (Multi-connection: check ALL connections individually)
     const connections = await storage.getAllConnections();
@@ -11102,8 +11151,31 @@ async function connectionHealthCheck(): Promise<void> {
           console.log(`[HEALTH CHECK] Tentando reconectar connection ${connection.id}...`);
           try {
             await connectWhatsApp(connection.userId, connection.id);
-            reconnectedUsers++;
-            console.log(`[HEALTH CHECK] Connection ${connection.id} reconectado com sucesso!`);
+            
+            // 🔒 SECTION 3: Validate isOpen before declaring success
+            const reconnectedSession = sessions.get(connection.id);
+            let isOpenValidated = reconnectedSession?.isOpen === true;
+            if (!isOpenValidated) {
+              const HEALTH_OPEN_TIMEOUT_MS = 8000;
+              const HEALTH_OPEN_POLL_MS = 500;
+              const deadline = Date.now() + HEALTH_OPEN_TIMEOUT_MS;
+              while (Date.now() < deadline) {
+                await new Promise(r => setTimeout(r, HEALTH_OPEN_POLL_MS));
+                const s = sessions.get(connection.id);
+                if (s?.isOpen === true) {
+                  isOpenValidated = true;
+                  break;
+                }
+              }
+            }
+            
+            if (isOpenValidated) {
+              reconnectedUsers++;
+              console.log(`✅ [HEALTH CHECK] Connection ${connection.id} reconectado e isOpen=true!`);
+            } else {
+              console.log(`⚠️ [HEALTH CHECK] HEALTH_RECONNECT_NOT_OPEN: Connection ${connection.id} — connectWhatsApp() retornou mas isOpen ainda false após 8s`);
+              // Don't count as reconnected — will retry on next health check
+            }
           } catch (error) {
             console.error(`[HEALTH CHECK] Falha ao reconectar connection ${connection.id}:`, error);
             // SAFE: Do NOT mark is_connected=false. Will retry on next health check (5 min).
@@ -11472,7 +11544,18 @@ async function processPendingTimersCron(): Promise<void> {
       const isExpired = timeSinceExecute > 0;
       const isStale24h = timeSinceExecute > STALE_24H_MS;
       const isInMemory = pendingResponses.has(timer.conversationId);
-      const isBeingProcessed = conversationsBeingProcessed.has(timer.conversationId);
+      let isBeingProcessed = conversationsBeingProcessed.has(timer.conversationId);
+      
+      // 🔒 SECTION 4: TTL check — release stale processing locks
+      if (isBeingProcessed) {
+        const processingStartedAt = conversationsBeingProcessed.get(timer.conversationId)!;
+        const processingAge = Date.now() - processingStartedAt;
+        if (processingAge > PROCESSING_TTL_MS) {
+          console.log(`⚠️ [PENDING CRON] PROCESSING_STALE_RELEASED: ${timer.contactNumber} (conv ${timer.conversationId.substring(0, 8)}) — preso há ${Math.round(processingAge / 1000)}s, liberando lock`);
+          conversationsBeingProcessed.delete(timer.conversationId);
+          isBeingProcessed = false;
+        }
+      }
       
       // 🔍 DEBUG: Logar por que alguns timers são filtrados
       if (isExpired && !isStale24h && (isInMemory || isBeingProcessed)) {
@@ -11500,8 +11583,32 @@ async function processPendingTimersCron(): Promise<void> {
     for (const timer of expiredTimers) {
       const { conversationId, userId, contactNumber, jidSuffix, messages } = timer;
       
-      // Verificar se a sessão do usuário está disponível
-      const session = sessions.get(userId);
+      // 🔒 SECTION 5: Resolver sessão por connectionId da conversa PRIMEIRO,
+      // depois fallback para userId. Cada conversa pertence a uma connection específica.
+      let session: WhatsAppSession | undefined;
+      let resolvedConnectionId: string | undefined;
+      
+      // Passo 1: Buscar connection_id da conversa
+      try {
+        const conversation = await storage.getConversation(conversationId);
+        if (conversation?.connectionId) {
+          resolvedConnectionId = conversation.connectionId;
+          session = sessions.get(conversation.connectionId);
+          if (session?.socket && session.isOpen) {
+            // Found by connectionId — best case
+          } else {
+            session = undefined; // Will fall through to userId fallback
+          }
+        }
+      } catch (_convErr) {
+        // Non-critical — fallback to userId
+      }
+      
+      // Passo 2: Fallback para userId (SessionMap has userId index)
+      if (!session) {
+        session = sessions.get(userId);
+      }
+      
       if (!session?.socket || !session.isOpen) {
         // -----------------------------------------------------------------------
         // FIX 2026-02-24: Quando sessão indisponível mas DB diz conectado,
@@ -11509,14 +11616,18 @@ async function processPendingTimersCron(): Promise<void> {
         // Guard: Só tenta reconectar 1x por usuário por ciclo do CRON.
         // -----------------------------------------------------------------------
         if (!reconnectAttemptedUsers.has(userId)) {
-          const connState = await storage.getConnectionByUserId(userId);
-          if (connState?.isConnected && connState.id) {
-            const existingSession = sessions.get(connState.id);
+          // Use resolvedConnectionId from conversation if available, otherwise query DB
+          const connId = resolvedConnectionId || (await storage.getConnectionByUserId(userId))?.id;
+          const connState = resolvedConnectionId 
+            ? { isConnected: true, id: resolvedConnectionId } 
+            : await storage.getConnectionByUserId(userId);
+          if (connState?.isConnected && connId) {
+            const existingSession = sessions.get(connId);
             if (!existingSession?.socket) {
-              console.log(`🔄 [PENDING CRON] ${contactNumber} - Sessão indisponível (userId: ${userId.substring(0,8)}) mas DB=connected. Tentando reconectar...`);
+              console.log(`🔄 [PENDING CRON] ${contactNumber} - Sessão indisponível (conn: ${connId.substring(0,8)}, userId: ${userId.substring(0,8)}) mas DB=connected. Tentando reconectar...`);
               reconnectAttemptedUsers.add(userId);
               try {
-                await connectWhatsApp(userId, connState.id);
+                await connectWhatsApp(userId, connId);
               } catch (reconErr) {
                 console.log(`⏭️ [PENDING CRON] ${contactNumber} - Reconexão falhou, pulando`);
               }
