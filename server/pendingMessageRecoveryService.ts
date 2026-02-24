@@ -235,12 +235,12 @@ class PendingMessageRecoveryService {
           ignoreDuplicates: true, // Não atualizar se já existe
         })
         .select('id')
-        .single();
+        .maybeSingle(); // FIX 2026-02-25: .single() causes PGRST116 when upsert ignores duplicate (no row returned)
       
       if (error) {
         // Erro 23505 = duplicata (constraint violation) - é esperado e OK
-        if (error.code === '23505') {
-          console.log(`🚨 [RECOVERY] Mensagem ${messageId} já existe (duplicata)`);
+        if (error.code === '23505' || error.code === 'PGRST116') {
+          console.log(`🚨 [RECOVERY] Mensagem ${messageId} já existe (duplicata, code=${error.code})`);
           this.stats.totalSkipped++;
           return { id: '', isDuplicate: true };
         }
@@ -287,7 +287,7 @@ class PendingMessageRecoveryService {
         .from('pending_incoming_messages')
         .select('process_attempts')
         .eq('whatsapp_message_id', whatsappMessageId)
-        .single();
+        .maybeSingle(); // FIX 2026-02-25: .single() causes PGRST116 if row doesn't exist
       
       const attempts = (data?.process_attempts || 0) + 1;
       const newStatus = attempts >= CONFIG.MAX_PROCESS_ATTEMPTS ? 'failed' : 'pending';
@@ -591,7 +591,7 @@ class PendingMessageRecoveryService {
       .from('pending_messages_stats')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle(); // FIX 2026-02-25: .single() causes PGRST116 if no stats row exists
     
     return {
       pending: data?.pending_count || 0,

@@ -637,6 +637,27 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 // Back-off exponencial: 5s, 15s, 45s, 2min, 5min (NUNCA resetar contador)
 const RECONNECT_BACKOFF_MS = [5000, 15000, 45000, 120000, 300000];
 
+// =========================================================================
+// FIX 2026-02-25: OBSERVABILITY COUNTERS
+// Simple counters for monitoring key events. Logged periodically.
+// =========================================================================
+const waObservability = {
+  conflict440Count: 0,
+  connectionClosedSendFail: 0,
+  recoveryPgrst116Count: 0,
+  restoreDedupSkipped: 0,
+  reconnectAttemptTotal: 0,
+  startTime: Date.now(),
+};
+
+// Log observability counters every 5 minutes
+setInterval(() => {
+  const uptimeMin = Math.floor((Date.now() - waObservability.startTime) / 60000);
+  if (waObservability.conflict440Count > 0 || waObservability.recoveryPgrst116Count > 0 || waObservability.restoreDedupSkipped > 0) {
+    console.log(`[WA_METRICS] uptime=${uptimeMin}min 440_conflicts=${waObservability.conflict440Count} pgrst116=${waObservability.recoveryPgrst116Count} dedup_skipped=${waObservability.restoreDedupSkipped} reconnect_total=${waObservability.reconnectAttemptTotal} send_fail_closed=${waObservability.connectionClosedSendFail}`);
+  }
+}, 5 * 60 * 1000);
+
 // 🔒 RESTORE GUARD: Prevent health check from killing sessions during restore
 let _isRestoringInProgress = false;
 
@@ -2728,6 +2749,11 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       // -----------------------------------------------------------------------
       markOnlineOnConnect: false,
       // -----------------------------------------------------------------------
+      // FIX 2026-02-25: Ignore status@broadcast to reduce noise and processing
+      // Ref: https://github.com/WhiskeySockets/Baileys/issues/2364
+      // -----------------------------------------------------------------------
+      shouldIgnoreJid: (jid: string) => jid === 'status@broadcast',
+      // -----------------------------------------------------------------------
       // ?? FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE)
       // -----------------------------------------------------------------------
       // Esta fun��o � chamada pelo Baileys quando precisa reenviar uma mensagem
@@ -3134,6 +3160,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
           errorMessage: errorMessage || 'none',
           DisconnectReason: statusCode === DisconnectReason.loggedOut ? 'loggedOut' :
                            statusCode === DisconnectReason.connectionClosed ? 'connectionClosed' :
+                           statusCode === DisconnectReason.connectionReplaced ? 'connectionReplaced(440)' :
                            statusCode === DisconnectReason.timedOut ? 'timedOut' :
                            `unknown(${statusCode})`
         });
@@ -3186,7 +3213,42 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
 
       if (conn === "close") {
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+        const errorMsg = (lastDisconnect?.error as any)?.message || '';
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+        // -----------------------------------------------------------------------
+        // FIX 2026-02-25: BREAKER FOR 440 (connectionReplaced) CONFLICTS
+        // -----------------------------------------------------------------------
+        // 440 means another device/socket took over this WhatsApp session.
+        // Reconnecting would just kick the other socket, creating an infinite loop.
+        // Also detect "replaced" or "conflict" in error messages.
+        // -----------------------------------------------------------------------
+        const isConnectionReplaced = statusCode === DisconnectReason.connectionReplaced ||
+                                     statusCode === 440 ||
+                                     /replaced|conflict/i.test(errorMsg);
+        if (isConnectionReplaced) {
+          waObservability.conflict440Count++;
+          console.log(`[440 CONFLICT] ⛔ Connection ${connection.id.substring(0, 8)} replaced by another session (status=${statusCode}). NOT reconnecting to prevent infinite loop.`);
+          console.log(`[440 CONFLICT] Error: ${errorMsg}`);
+          // Clean up session but do NOT reconnect
+          const currentSession440 = sessions.get(connection.id);
+          if (currentSession440?.socket !== sock) {
+            console.log(`[440 CONFLICT] Stale socket, ignoring.`);
+            return;
+          }
+          if (currentSession440?.openTimeout) {
+            clearTimeout(currentSession440.openTimeout);
+            currentSession440.openTimeout = undefined;
+          }
+          currentSession440.isOpen = false;
+          sessions.delete(connection.id);
+          pendingConnections.delete(connection.id);
+          pendingConnections.delete(userId);
+          await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
+          broadcastToUser(userId, { type: "disconnected", reason: "connection_replaced", connectionId: connection.id });
+          reconnectAttempts.delete(connection.id);
+          return; // EXIT — do NOT reconnect
+        }
 
         // -----------------------------------------------------------------------
         // ?? GUARD CONTRA SOCKET STALE
@@ -3279,6 +3341,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
             attempt.count++;
             attempt.lastAttempt = Date.now();
             reconnectAttempts.set(reconnectKey, attempt);
+            waObservability.reconnectAttemptTotal++;
 
             if (attempt.count <= MAX_RECONNECT_ATTEMPTS) {
               const delayMs = RECONNECT_BACKOFF_MS[Math.min(attempt.count - 1, RECONNECT_BACKOFF_MS.length - 1)];
@@ -8150,7 +8213,11 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       keepAliveIntervalMs: 25_000,
       retryRequestDelayMs: 250,
       // -----------------------------------------------------------------------
-      // ?? FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE) - ADMIN
+      // FIX 2026-02-25: Ignore status@broadcast to reduce noise (Admin socket)
+      // -----------------------------------------------------------------------
+      shouldIgnoreJid: (jid: string) => jid === 'status@broadcast',
+      // -----------------------------------------------------------------------
+      // 💡 FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE) - ADMIN
       // -----------------------------------------------------------------------
       getMessage: async (key) => {
         if (!key.id) return undefined;
@@ -9381,6 +9448,16 @@ export async function restoreExistingSessions(): Promise<void> {
     let noAuthCount = 0;
     const toRestore: Array<{ userId: string; connectionId: string }> = [];
 
+    // ========================================================================
+    // FIX 2026-02-25: DEDUPLICATE AUTH SCOPES
+    // Multiple connectionIds can share the same auth directory (auth_userId).
+    // If we restore ALL of them simultaneously, they fight for the same
+    // WhatsApp session causing 440 (connectionReplaced) infinite loops.
+    // Solution: For connections sharing the same auth scope, only restore
+    // the FIRST one (highest priority due to sort: connected > primary > oldest).
+    // ========================================================================
+    const restoredAuthScopes = new Set<string>(); // Track which auth dirs are already being restored
+
     for (const connection of sortedConnections) {
       if (!connection.userId) continue;
 
@@ -9396,6 +9473,22 @@ export async function restoreExistingSessions(): Promise<void> {
       const hasAuthFiles = hasOwnAuth || hasUserAuth;
       
       if (hasAuthFiles) {
+        // Determine which auth scope (directory) this connection will use
+        const authScope = hasOwnAuth
+          ? authDirsByConnId.get(connection.id)!
+          : authDirsWithFiles.get(connection.userId)!;
+
+        // DEDUP: If another connection already claimed this auth scope, skip
+        if (restoredAuthScopes.has(authScope)) {
+          waObservability.restoreDedupSkipped++;
+          console.log(`[RESTORE] ⚠️ DEDUP: conn ${connection.id.substring(0, 8)} skipped — auth scope already claimed by another connection (prevents 440 conflict)`);
+          // Mark as disconnected to avoid stale isConnected=true in DB
+          await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
+          skippedCount++;
+          continue;
+        }
+
+        restoredAuthScopes.add(authScope);
         restoredConnIds.add(connection.id);
         toRestore.push({ userId: connection.userId, connectionId: connection.id });
       } else if (connection.isConnected) {
@@ -10205,6 +10298,8 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
                 keepAliveIntervalMs: 25_000,
                 retryRequestDelayMs: 250,
                 browser: Browsers.macOS('Desktop'),
+                // FIX 2026-02-25: Ignore status@broadcast (Pairing restart)
+                shouldIgnoreJid: (jid: string) => jid === 'status@broadcast',
                 getMessage: async (key) => {
                   if (!key.id) return undefined;
                   const cached = getCachedMessage(userId, key.id);
