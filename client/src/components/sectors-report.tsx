@@ -73,8 +73,10 @@ export default function SectorsReport() {
 
   const formatHours = (hours: number | null) => {
     if (hours === null || hours === undefined) return "—";
-    if (hours < 1) return `${Math.round(hours * 60)}min`;
-    return `${hours.toFixed(1)}h`;
+    const h = Number(hours);
+    if (isNaN(h)) return "—";
+    if (h < 1) return `${Math.round(h * 60)}min`;
+    return `${h.toFixed(1)}h`;
   };
 
   const rate = (closed: number, total: number) =>

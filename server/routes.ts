@@ -40639,10 +40639,6 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           internal_notes: appointmentData.internalNotes || appointmentData.internal_notes,
 
-          custom_message: appointmentData.customMessage || appointmentData.custom_message,
-
-          use_custom_message: appointmentData.useCustomMessage ?? appointmentData.use_custom_message ?? false,
-
           created_by_ai: appointmentData.createdByAi || appointmentData.created_by_ai || false,
 
           conversation_id: appointmentData.conversationId || appointmentData.conversation_id,

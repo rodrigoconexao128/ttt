@@ -188,7 +188,7 @@ export function registerUserSectorRoutes(app: Express): void {
         sectorName: r.sector_name,
         assignedCount: r.assigned_count,
         closedCount: r.closed_count,
-        avgHours: r.avg_hours,
+        avgHours: r.avg_hours != null ? Number(r.avg_hours) : null,
       })),
       byMember: (byMember || []).map((r: any) => ({
         memberId: r.member_id,
@@ -196,7 +196,7 @@ export function registerUserSectorRoutes(app: Express): void {
         memberEmail: r.member_email,
         assignedCount: r.assigned_count,
         closedCount: r.closed_count,
-        avgHours: r.avg_hours,
+        avgHours: r.avg_hours != null ? Number(r.avg_hours) : null,
       })),
     });
   }));
