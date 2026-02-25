@@ -5816,12 +5816,15 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     }
   }
 
-  async markPendingAIResponseFailed(conversationId: string, reason: string): Promise<void> {
+  async markPendingAIResponseFailed(conversationId: string, reason: string, lastError?: string): Promise<void> {
     try {
       console.log(`⚠️ [DB] Marcando timer como FAILED: ${conversationId} - Razão: ${reason}`);
       await db.execute(sql`
         UPDATE pending_ai_responses
         SET status = 'failed',
+            failure_reason = ${reason},
+            last_error = ${lastError || null},
+            last_attempt_at = NOW(),
             updated_at = NOW()
         WHERE conversation_id = ${conversationId}
       `);
@@ -5830,20 +5833,83 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     }
   }
 
-  async resetPendingAIResponseForRetry(conversationId: string): Promise<void> {
+  async markPendingAIResponseSkipped(conversationId: string, reason: string): Promise<void> {
     try {
-      // Reset timer para retry: atualizar execute_at para agora + 30s e scheduled_at para agora
-      console.log(`🔄 [DB] Resetando timer para retry: ${conversationId}`);
+      console.log(`⏭️ [DB] Marcando timer como SKIPPED: ${conversationId} - Razão: ${reason}`);
+      await db.execute(sql`
+        UPDATE pending_ai_responses
+        SET status = 'skipped',
+            failure_reason = ${reason},
+            last_attempt_at = NOW(),
+            updated_at = NOW()
+        WHERE conversation_id = ${conversationId}
+      `);
+    } catch (error) {
+      console.error('Error marking pending AI response as skipped:', error);
+    }
+  }
+
+  async resetPendingAIResponseForRetry(conversationId: string, delaySec: number = 30): Promise<void> {
+    try {
+      console.log(`🔄 [DB] Resetando timer para retry em ${delaySec}s: ${conversationId}`);
       await db.execute(sql`
         UPDATE pending_ai_responses
         SET status = 'pending',
             scheduled_at = NOW(),
-            execute_at = NOW() + INTERVAL '30 seconds',
+            execute_at = NOW() + (${delaySec} || ' seconds')::interval,
+            retry_count = COALESCE(retry_count, 0) + 1,
+            last_attempt_at = NOW(),
             updated_at = NOW()
         WHERE conversation_id = ${conversationId}
       `);
     } catch (error) {
       console.error('Error resetting pending AI response for retry:', error);
+    }
+  }
+
+  // 🔄 AUTO-RECUPERAÇÃO: Busca timers "failed" com razões transitórias que podem ser retentados
+  async getFailedTransientTimers(): Promise<Array<{
+    conversationId: string;
+    userId: string;
+    contactNumber: string;
+    jidSuffix: string;
+    messages: string[];
+    failureReason: string;
+    retryCount: number;
+  }>> {
+    try {
+      const result = await db.execute(sql`
+        SELECT p.conversation_id, p.user_id, p.contact_number, p.jid_suffix, p.messages,
+               p.failure_reason, COALESCE(p.retry_count, 0) as retry_count
+        FROM pending_ai_responses p
+        INNER JOIN whatsapp_connections c ON c.user_id = p.user_id::text
+          AND c.is_connected = true AND c.ai_enabled = true
+        WHERE p.status = 'failed'
+          AND p.updated_at > NOW() - INTERVAL '2 hours'
+          AND (
+            p.failure_reason LIKE 'connection_closed_max_retries_%'
+            OR p.failure_reason LIKE 'send_failed_max_retries_%'
+            OR p.failure_reason = 'session_unavailable_offline'
+          )
+          AND COALESCE(p.retry_count, 0) < 20
+        ORDER BY p.updated_at ASC
+        LIMIT 15
+      `);
+      if (result.rows && result.rows.length > 0) {
+        return result.rows.map((row: any) => ({
+          conversationId: row.conversation_id,
+          userId: row.user_id,
+          contactNumber: row.contact_number,
+          jidSuffix: row.jid_suffix || 's.whatsapp.net',
+          messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : (row.messages || []),
+          failureReason: row.failure_reason,
+          retryCount: Number(row.retry_count) || 0,
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting failed transient timers:', error);
+      return [];
     }
   }
 

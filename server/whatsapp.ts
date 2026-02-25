@@ -148,7 +148,7 @@ async function getOrCreateConversationSafe(
   contactNumber: string,
   createFn: () => Promise<any>,
   lookupFn: () => Promise<any>
-): Promise<any> {
+): Promise<{ conversation: any; wasCreated: boolean }> {
   const lockKey = `${connectionId}:${contactNumber}`;
   
   // Se já existe um lock ativo, esperar ele terminar e usar o resultado
@@ -159,12 +159,12 @@ async function getOrCreateConversationSafe(
     } catch {}
     // Após o lock liberar, buscar a conversa que foi criada
     const existing = await lookupFn();
-    if (existing) return existing;
+    if (existing) return { conversation: existing, wasCreated: false };
   }
   
   // Verificar se já existe
   const existing = await lookupFn();
-  if (existing) return existing;
+  if (existing) return { conversation: existing, wasCreated: false };
   
   // Criar com lock
   const createPromise = createFn();
@@ -172,7 +172,7 @@ async function getOrCreateConversationSafe(
   
   try {
     const result = await createPromise;
-    return result;
+    return { conversation: result, wasCreated: true };
   } finally {
     conversationCreationLocks.delete(lockKey);
   }
@@ -678,6 +678,10 @@ const CONNECT_OPEN_TIMEOUT_MS = Math.max(
   Number(process.env.WA_CONNECT_OPEN_TIMEOUT_MS || 120_000),
   60_000
 ); // wait for "open" before failing the connect promise
+const RESTORE_CONNECT_OPEN_TIMEOUT_MS = Math.max(
+  Number(process.env.WA_RESTORE_CONNECT_OPEN_TIMEOUT_MS || 45_000),
+  20_000
+); // shorter timeout during startup restore to avoid blocking guard for too long
 const RESTORE_BATCH_SIZE = Math.max(
   Number(process.env.WA_RESTORE_BATCH_SIZE || 3),
   1
@@ -686,6 +690,10 @@ const RESTORE_BATCH_DELAY_MS = Math.max(
   Number(process.env.WA_RESTORE_BATCH_DELAY_MS || 3000),
   0
 );
+const RESTORE_GUARD_MAX_BLOCK_MS = Math.max(
+  Number(process.env.WA_RESTORE_GUARD_MAX_BLOCK_MS || 180_000),
+  60_000
+); // health-check can run after this even if restore still running
 
 /**
  * Helper unificado para limpar lock de conexão pendente.
@@ -757,6 +765,7 @@ setInterval(() => {
 
 // 🔒 RESTORE GUARD: Prevent health check from killing sessions during restore
 let _isRestoringInProgress = false;
+let _restoreStartedAt = 0;
 
 // Export function to check if restore is in progress (used by API endpoints)
 export function isRestoringInProgress(): boolean {
@@ -1006,7 +1015,7 @@ const PROCESSING_TTL_MS = 120_000; // 2 minutos — máximo esperado para proces
 // Entries are cleaned up when a timer completes or fails.
 // -----------------------------------------------------------------------
 const pendingRetryCounter = new Map<string, number>(); // key: conversationId → retry count
-const MAX_SEND_RETRIES = 8; // Max 8 retries (8 x 5s = ~40s for Connection Closed)
+const MAX_SEND_RETRIES = 12; // Max 12 retries with exponential backoff
 
 const SESSION_AVAILABLE_RETRY_MS = 30 * 1000;
 const SESSION_UNAVAILABLE_RETRY_MS = 5 * 60 * 1000;
@@ -2753,7 +2762,16 @@ export async function forceResetWhatsApp(userId: string, connectionId?: string):
   console.log(`[FORCE RESET] Complete reset done for ${lookupKey}. User will need to scan new QR code.`);
 }
 
-export async function connectWhatsApp(userId: string, targetConnectionId?: string): Promise<void> {
+interface ConnectWhatsAppOptions {
+  openTimeoutMs?: number;
+  source?: string;
+}
+
+export async function connectWhatsApp(
+  userId: string,
+  targetConnectionId?: string,
+  options?: ConnectWhatsAppOptions,
+): Promise<void> {
   // 🛡️ MODO DESENVOLVIMENTO: Bloquear conexões para evitar conflito com produção
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
     console.log(`\n🛡️ [DEV MODE] Conexão WhatsApp bloqueada para user ${userId}`);
@@ -2764,6 +2782,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
   
   // 🔑 Determine the connection lock key: use connectionId if provided, otherwise userId
   const lockKey = targetConnectionId || userId;
+  const effectiveOpenTimeoutMs = Math.max(options?.openTimeoutMs ?? CONNECT_OPEN_TIMEOUT_MS, 15_000);
   
   // ⏳ FIX: Evict stale locks before checking
   evictStalePendingLocks();
@@ -2928,25 +2947,79 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
     console.log(`[CONNECT] Creating WASocket for ${userId}...`);
     // Create a custom Baileys logger that captures CTWA-related debug messages
     // while keeping everything else silent to avoid log flooding.
-    // pino({ level: 'silent' }) completely disables .debug() calls, so we need 
-    // level: 'debug' with selective output to see CTWA/PDO internal Baileys logs.
-    const baseLogger = pino({ level: "debug" });
+    // NOTE: Avoid logging raw Baileys error objects here (they can contain huge
+    // payloads and sensitive session internals that flood logs and hurt latency).
+    const getBaileysLogText = (arg: any): string => {
+      if (arg == null) return "";
+      if (typeof arg === "string") return arg;
+      if (arg instanceof Error) return arg.message || String(arg);
+      if (typeof arg === "object") {
+        const candidate = [
+          arg.message,
+          arg.msg,
+          arg.error?.message,
+          arg.err?.message,
+          arg.fullErrorNode?.tag,
+          arg.fullErrorNode?.attrs?.code,
+          arg.reason,
+          arg.type,
+        ]
+          .filter((item) => typeof item === "string" && item.length > 0)
+          .join(" ");
+        if (candidate) return candidate;
+      }
+      return "";
+    };
+    const summarizeBaileysArgs = (...args: any[]): string => {
+      const summary = args
+        .map((arg) => getBaileysLogText(arg))
+        .filter(Boolean)
+        .join(" | ")
+        .slice(0, 300);
+      return summary;
+    };
     // Create a selective wrapper that only outputs CTWA/PDO related messages
     const isCTWARelated = (...args: any[]) => {
-      try {
-        const str = JSON.stringify(args);
-        return str.includes('placeholder') || str.includes('PLACEHOLDER') || 
-               str.includes('absent') || str.includes('PDO') ||
-               str.includes('peerData') || str.includes('unavailable_fanout');
-      } catch { return false; }
+      const str = summarizeBaileysArgs(...args).toLowerCase();
+      return (
+        str.includes("placeholder") ||
+        str.includes("absent") ||
+        str.includes("pdo") ||
+        str.includes("peerdata") ||
+        str.includes("unavailable_fanout")
+      );
+    };
+    const isDecryptNoise = (...args: any[]) => {
+      const str = summarizeBaileysArgs(...args).toLowerCase();
+      return str.includes("no session found to decrypt message") || str.includes("failed to decrypt message");
     };
     const ctwaLogger: any = {
       level: 'debug',
-      fatal: (...args: any[]) => { console.error(`💀 [BAILEYS]`, ...args); },
-      error: (...args: any[]) => { console.error(`❌ [BAILEYS]`, ...args); },
-      warn: (...args: any[]) => { /* silent - too noisy */ },
-      info: (...args: any[]) => { /* silent - too noisy */ },
-      debug: (...args: any[]) => { if (isCTWARelated(...args)) console.log(`🔍 [BAILEYS-CTWA]`, ...args); },
+      fatal: (...args: any[]) => {
+        const summary = summarizeBaileysArgs(...args);
+        if (summary) console.error(`💀 [BAILEYS] ${summary}`);
+      },
+      error: (...args: any[]) => {
+        if (isDecryptNoise(...args)) return;
+        if (!isCTWARelated(...args)) return;
+        const summary = summarizeBaileysArgs(...args);
+        if (summary) console.error(`❌ [BAILEYS-CTWA] ${summary}`);
+      },
+      warn: (...args: any[]) => {
+        if (!isCTWARelated(...args)) return;
+        const summary = summarizeBaileysArgs(...args);
+        if (summary) console.warn(`⚠️ [BAILEYS-CTWA] ${summary}`);
+      },
+      info: (...args: any[]) => {
+        if (!isCTWARelated(...args)) return;
+        const summary = summarizeBaileysArgs(...args);
+        if (summary) console.log(`ℹ️ [BAILEYS-CTWA] ${summary}`);
+      },
+      debug: (...args: any[]) => {
+        if (!isCTWARelated(...args)) return;
+        const summary = summarizeBaileysArgs(...args);
+        if (summary) console.log(`🔍 [BAILEYS-CTWA] ${summary}`);
+      },
       trace: (...args: any[]) => { /* silent */ },
       child: () => ctwaLogger,
     };
@@ -3103,7 +3176,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       if (currentSession?.socket !== sock || currentSession?.isOpen === true) {
         return;
       }
-      const timeoutError = new Error(`Connection did not reach open within ${CONNECT_OPEN_TIMEOUT_MS}ms`);
+      const timeoutError = new Error(`Connection did not reach open within ${effectiveOpenTimeoutMs}ms`);
       console.log(`⚠️ [CONNECT] OPEN TIMEOUT for user ${userId.substring(0, 8)}... conn ${session.connectionId.substring(0, 8)} — closing socket`);
       clearPendingConnectionLock(session.connectionId, 'connect_open_timeout');
       clearPendingConnectionLock(userId, 'connect_open_timeout');
@@ -3114,7 +3187,7 @@ export async function connectWhatsApp(userId: string, targetConnectionId?: strin
       }
       sessions.delete(session.connectionId);
       settleConnectionPromise("reject", "open_timeout", timeoutError);
-    }, CONNECT_OPEN_TIMEOUT_MS);
+    }, effectiveOpenTimeoutMs);
     session.openTimeout = connectionOpenTimeout;
     
     // 📲 Registrar sessão no serviço de envio para notificações do sistema (delivery, etc)
@@ -5376,7 +5449,7 @@ async function handleIncomingMessage(
 
   // FIX Encerramento: buscar apenas conversa ATIVA (nao fechada) - se fechada, cria nova
   // FIX 2026-02-21: Usa mutex para prevenir race condition de criação duplicada
-  let conversation = await getOrCreateConversationSafe(
+  const conversationResult = await getOrCreateConversationSafe(
     session.connectionId,
     contactNumber,
     // createFn
@@ -5402,9 +5475,13 @@ async function handleIncomingMessage(
       );
     }
   );
+  let conversation = conversationResult.conversation;
 
   // Used later to decide append-based auto-reply eligibility (Meta/Instagram leads).
-  const wasNewConversation = !conversation.unreadCount || conversation.unreadCount <= 1;
+  const wasNewConversation = conversationResult.wasCreated;
+  const nextUnreadCount = wasNewConversation
+    ? Math.max(1, conversation.unreadCount || 1)
+    : (conversation.unreadCount || 0) + 1;
 
   if (!wasNewConversation) {
     await storage.updateConversation(conversation.id, {
@@ -5413,10 +5490,21 @@ async function handleIncomingMessage(
       lastMessageText: messageText,
       lastMessageTime: eventTs,
       lastMessageFromMe: false,
-      unreadCount: (conversation.unreadCount || 0) + 1,
+      unreadCount: nextUnreadCount,
       contactName: waMessage.pushName || conversation.contactName,
       contactAvatar: contactAvatar || conversation.contactAvatar,
     });
+    conversation = {
+      ...conversation,
+      remoteJid: normalizedJid,
+      jidSuffix,
+      lastMessageText: messageText,
+      lastMessageTime: eventTs,
+      lastMessageFromMe: false,
+      unreadCount: nextUnreadCount,
+      contactName: waMessage.pushName || conversation.contactName,
+      contactAvatar: contactAvatar || conversation.contactAvatar,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -5643,7 +5731,7 @@ async function handleIncomingMessage(
         lastMessageText: effectiveText,
         lastMessageTime: eventTs.toISOString(),
         lastMessageFromMe: false,
-        unreadCount: (conversation.unreadCount || 0) + 1,
+        unreadCount: nextUnreadCount,
         isNew: wasNewConversation,
       },
       // ⚡ REAL-TIME: Enviar mensagem completa para append inline (sem refetch)
@@ -6169,8 +6257,8 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     console.log(`   👉 IA foi desativada entre criação e execução do timer`);
     console.log(`${'!'.repeat(60)}\n`);
     
-    // Marcar timer como completed (cancelado) para não reprocessar
-    await storage.markPendingAIResponseCompleted(conversationId);
+    // Marcar timer como skipped (não é falha técnica, é regra de negócio)
+    await storage.markPendingAIResponseSkipped(conversationId, 'agent_disabled');
     conversationsBeingProcessed.delete(conversationId);
     pendingResponses.delete(conversationId);
     return;
@@ -6243,7 +6331,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       if (!isConnectionMarkedConnected && pendingAgeMs >= SESSION_UNAVAILABLE_MAX_AGE_MS) {
         console.warn(`🚫 [AI AGENT] Timer antigo sem sessão e conexão offline (${Math.round(pendingAgeMs / 60000)}min). Marcando como failed para evitar loop infinito.`);
         try {
-          await storage.markPendingAIResponseFailed(conversationId, 'session_unavailable_offline');
+          await storage.markPendingAIResponseFailed(conversationId, 'session_unavailable_offline', `Session offline for ${Math.round(pendingAgeMs / 60000)}min, connection disconnected in DB`);
         } catch (dbErr) {
           console.error(`⚠️ [AI AGENT] Erro ao marcar timer como failed:`, dbErr);
         }
@@ -6821,6 +6909,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     console.error("❌ [AI AGENT] RETURN NULL #6: Exceção capturada no catch externo:", error);
     // ⚡ FIX: Detectar erro de Connection Closed para retry rápido
     const errorMsg = error?.message || String(error);
+    (pending as any)._lastErrorMsg = errorMsg.substring(0, 500);
     if (errorMsg.includes('Connection Closed') || errorMsg.includes('connection closed')) {
       (pending as any)._connectionClosedError = true;
     }
@@ -6838,20 +6927,21 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         console.error(`⚠️ [AI AGENT] Erro ao marcar timer como completed (não crítico):`, dbError);
       }
     } else {
-      // ⚡ FIX: Se foi erro de Connection Closed, usar retry rápido (5s) em vez de 30s
+      // ⚡ FIX: Se foi erro de Connection Closed, usar retry rápido com backoff
       const isConnectionClosed = (pending as any)._connectionClosedError === true;
+      const errorMsg = (pending as any)._lastErrorMsg || 'unknown';
       
-      // 🔧 FIX 2026-02-24: RETRY COUNTER - prevent infinite retry loop
+      // 🔧 FIX 2026-02-25: RETRY COUNTER with exponential backoff
       const currentRetries = (pendingRetryCounter.get(conversationId) || 0) + 1;
       pendingRetryCounter.set(conversationId, currentRetries);
       
       if (currentRetries > MAX_SEND_RETRIES) {
-        // 🛑 MAX RETRIES EXCEEDED - mark as failed
+        // 🛑 MAX RETRIES EXCEEDED - mark as failed with full details
         try {
           const reason = isConnectionClosed 
             ? `connection_closed_max_retries_${currentRetries}` 
             : `send_failed_max_retries_${currentRetries}`;
-          await storage.markPendingAIResponseFailed(conversationId, reason);
+          await storage.markPendingAIResponseFailed(conversationId, reason, errorMsg);
           pendingRetryCounter.delete(conversationId);
           waObservability.pendingAI_maxRetriesExhausted++;
           console.error(`🛑 [AI AGENT] Timer ABANDONADO após ${currentRetries} tentativas (${reason}) - conversationId: ${conversationId}`);
@@ -6878,25 +6968,30 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             });
           }
 
-          // Retry rápido: 5 segundos em vez de 30s quando é problema de conexão
+          // Retry com exponential backoff: 5s, 10s, 20s, 30s, 30s...
+          const backoffSec = Math.min(5 * Math.pow(2, currentRetries - 1), 30);
           await db.execute(sql`
             UPDATE pending_ai_responses
             SET status = 'pending',
                 scheduled_at = NOW(),
-                execute_at = NOW() + INTERVAL '5 seconds',
+                execute_at = NOW() + (${backoffSec} || ' seconds')::interval,
+                retry_count = COALESCE(retry_count, 0) + 1,
+                last_attempt_at = NOW(),
+                last_error = ${'Connection Closed retry ' + currentRetries},
                 updated_at = NOW()
             WHERE conversation_id = ${conversationId}
           `);
           waObservability.pendingAI_connectionClosedRetries++;
-          console.warn(`⚡ [AI AGENT] Timer reagendado retry ${currentRetries}/${MAX_SEND_RETRIES} em 5s - Connection Closed (conversationId: ${conversationId})`);
+          console.warn(`⚡ [AI AGENT] Timer reagendado retry ${currentRetries}/${MAX_SEND_RETRIES} em ${backoffSec}s - Connection Closed (conversationId: ${conversationId})`);
         } catch (dbError) {
           console.error(`⚠️ [AI AGENT] Erro ao reagendar timer para retry rápido:`, dbError);
         }
       } else {
-        // Retry normal: 30 segundos para erros de LLM ou outros
+        // Retry com backoff: 30s, 60s, 120s... (cap at 5 min)
+        const backoffSec = Math.min(30 * Math.pow(2, currentRetries - 1), 300);
         try {
-          await storage.resetPendingAIResponseForRetry(conversationId);
-          console.warn(`🔄 [AI AGENT] Timer reagendado retry ${currentRetries}/${MAX_SEND_RETRIES} em 30s - resposta falhou (conversationId: ${conversationId})`);
+          await storage.resetPendingAIResponseForRetry(conversationId, backoffSec);
+          console.warn(`🔄 [AI AGENT] Timer reagendado retry ${currentRetries}/${MAX_SEND_RETRIES} em ${backoffSec}s - resposta falhou (conversationId: ${conversationId})`);
         } catch (dbError) {
           console.error(`⚠️ [AI AGENT] Erro ao reagendar timer para retry:`, dbError);
         }
@@ -7773,13 +7868,17 @@ export async function sendUserMediaMessage(
   });
   console.log(`[sendUserMediaMessage] ? Message sent! ID: ${sentMessage?.key?.id}`);
 
+  const sentAt = new Date();
+  const persistedText = media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)} enviado]`;
+  const previewText = media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)}]`;
+
   // Salvar mensagem no banco
-  await storage.createMessage({
+  const savedSentMsg = await storage.createMessage({
     conversationId,
     messageId: sentMessage?.key?.id || Date.now().toString(),
     fromMe: true,
-    text: media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)} enviado]`,
-    timestamp: new Date(),
+    text: persistedText,
+    timestamp: sentAt,
     status: "sent",
     isFromAgent: false,
     mediaType: mediaTypeForStorage,
@@ -7789,8 +7888,43 @@ export async function sendUserMediaMessage(
   });
 
   await storage.updateConversation(conversationId, {
-    lastMessageText: media.caption || `[${media.type.charAt(0).toUpperCase() + media.type.slice(1)}]`,
-    lastMessageTime: new Date(),
+    lastMessageText: previewText,
+    lastMessageTime: sentAt,
+    lastMessageFromMe: true,
+    unreadCount: 0,
+    hasReplied: true,
+  });
+
+  // Atualização em tempo real para evitar lista/mensagens desatualizadas após envio de mídia.
+  broadcastToUser(userId, {
+    type: "message_sent",
+    conversationId,
+    message: persistedText,
+    messageData: {
+      id: savedSentMsg.id,
+      conversationId,
+      messageId: savedSentMsg.messageId || sentMessage?.key?.id || Date.now().toString(),
+      fromMe: true,
+      text: persistedText,
+      timestamp: savedSentMsg.timestamp || sentAt.toISOString(),
+      isFromAgent: false,
+      status: "sent",
+      mediaType: mediaTypeForStorage,
+      mediaUrl: media.data,
+      mediaMimeType: media.mimetype,
+      mediaCaption: media.caption,
+    },
+    conversationUpdate: {
+      id: conversationId,
+      connectionId: conversation.connectionId,
+      contactNumber: conversation.contactNumber,
+      contactName: conversation.contactName,
+      contactAvatar: conversation.contactAvatar,
+      lastMessageText: previewText,
+      lastMessageTime: sentAt.toISOString(),
+      lastMessageFromMe: true,
+      unreadCount: 0,
+    },
   });
 
   // ?? AUTO-PAUSE IA: Quando o dono envia m�dia pelo sistema, PAUSA a IA
@@ -9927,6 +10061,7 @@ export async function restoreExistingSessions(): Promise<void> {
   
   try {
     _isRestoringInProgress = true;
+    _restoreStartedAt = Date.now();
     console.log("Checking for existing WhatsApp connections...");
     // Multi-connection: Restore ALL connections (each gets its own socket)
     const connections = await storage.getAllConnections();
@@ -10073,7 +10208,9 @@ export async function restoreExistingSessions(): Promise<void> {
     }
 
     console.log(`[RESTORE] Found ${toRestore.length} sessions with auth files to restore (${skippedCount} secondary skipped, ${noAuthCount} no auth)`);
-    console.log(`[RESTORE] Runtime restore config: batchSize=${BATCH_SIZE}, batchDelayMs=${BATCH_DELAY_MS}, openTimeoutMs=${CONNECT_OPEN_TIMEOUT_MS}`);
+    console.log(
+      `[RESTORE] Runtime restore config: batchSize=${BATCH_SIZE}, batchDelayMs=${BATCH_DELAY_MS}, openTimeoutMs=${RESTORE_CONNECT_OPEN_TIMEOUT_MS} (restore), defaultOpenTimeoutMs=${CONNECT_OPEN_TIMEOUT_MS}`
+    );
 
     // Parallel batch restore: connect BATCH_SIZE sessions at a time
     for (let batchStart = 0; batchStart < toRestore.length; batchStart += BATCH_SIZE) {
@@ -10086,7 +10223,10 @@ export async function restoreExistingSessions(): Promise<void> {
         batch.map(async ({ userId, connectionId }, idx) => {
           const globalIdx = batchStart + idx + 1;
           console.log(`[RESTORE] (${globalIdx}/${toRestore.length}) Restoring session for user ${userId.substring(0, 8)}... (connId=${connectionId.substring(0, 8)})`);
-          await connectWhatsApp(userId, connectionId);
+          await connectWhatsApp(userId, connectionId, {
+            openTimeoutMs: RESTORE_CONNECT_OPEN_TIMEOUT_MS,
+            source: 'restore',
+          });
           return { userId, connectionId };
         })
       );
@@ -10133,6 +10273,7 @@ export async function restoreExistingSessions(): Promise<void> {
     console.error("Error restoring sessions:", error);
   } finally {
     _isRestoringInProgress = false;
+    _restoreStartedAt = 0;
     console.log(`[RESTORE] 🔓 Restore guard released — health check can now run`);
   }
 }
@@ -11533,10 +11674,18 @@ async function connectionHealthCheck(): Promise<void> {
     return;
   }
 
-  // 🔒 RESTORE GUARD: Skip health check while sessions are being restored
+  // 🔒 RESTORE GUARD: block only for a short window, then let health-check run
   if (_isRestoringInProgress) {
-    console.log(`[HEALTH CHECK] ⏳ Skipped — session restore still in progress`);
-    return;
+    const restoreAgeMs = _restoreStartedAt > 0 ? Date.now() - _restoreStartedAt : 0;
+    if (restoreAgeMs < RESTORE_GUARD_MAX_BLOCK_MS) {
+      console.log(
+        `[HEALTH CHECK] ⏳ Skipped — session restore still in progress (${Math.round(restoreAgeMs / 1000)}s/${Math.round(RESTORE_GUARD_MAX_BLOCK_MS / 1000)}s guard)`
+      );
+      return;
+    }
+    console.log(
+      `[HEALTH CHECK] ⚠️ Restore guard stale (${Math.round(restoreAgeMs / 1000)}s). Running health check anyway.`
+    );
   }
   
   console.log(`\n?? [HEALTH CHECK] -------------------------------------------`);
@@ -11966,6 +12115,13 @@ export function startPendingTimersCron(): void {
 
 async function processPendingTimersCron(): Promise<void> {
   try {
+    // 🚦 FIX 2026-02-25: READINESS GATE — don't process timers if no sessions are connected yet
+    // This prevents timers from exhausting retries during boot before WhatsApp reconnects
+    if (sessions.size === 0) {
+      console.log(`⏸️ [PENDING CRON] Aguardando sessões conectarem (readiness gate)...`);
+      return;
+    }
+    
     // Buscar timers pendentes (sem filtro de 2h - LIMIT 200 no query)
     const pendingTimers = await storage.getPendingAIResponsesForRestore();
     
@@ -12211,15 +12367,20 @@ async function processAutoRecovery(): Promise<void> {
     // Buscar timers "completed" que não têm resposta real
     const failedTimers = await storage.getCompletedTimersWithoutResponse();
     
-    if (failedTimers.length === 0) {
+    // 🔄 FIX 2026-02-25: Also recover "failed" timers with transient reasons
+    const transientFailed = await storage.getFailedTransientTimers();
+    
+    if (failedTimers.length === 0 && transientFailed.length === 0) {
       return; // Nada para recuperar
     }
     
     console.log(`\n🚨 [AUTO-RECOVERY] =========================================`);
-    console.log(`🚨 [AUTO-RECOVERY] Encontrados ${failedTimers.length} timers para recuperar`);
+    console.log(`🚨 [AUTO-RECOVERY] Encontrados ${failedTimers.length} completed sem resposta + ${transientFailed.length} failed transitórios`);
     
     let recovered = 0;
     let skipped = 0;
+    
+    // Process completed-without-response timers first
     
     for (const timer of failedTimers) {
       const { conversationId, userId, contactNumber, jidSuffix, messages } = timer;
@@ -12277,6 +12438,49 @@ async function processAutoRecovery(): Promise<void> {
         console.log(`🚨 [AUTO-RECOVERY] Limite de 10 por ciclo atingido, continuará no próximo`);
         break;
       }
+    }
+    
+    // 🔄 FIX 2026-02-25: Recover failed transient timers
+    for (const timer of transientFailed) {
+      if (recovered >= 15) break; // Limit total per cycle
+      
+      const { conversationId, userId, contactNumber, jidSuffix, messages, failureReason, retryCount } = timer;
+      
+      // Verificar se já está em processamento
+      if (conversationsBeingProcessed.has(conversationId) || pendingResponses.has(conversationId)) {
+        skipped++;
+        continue;
+      }
+      
+      // Verificar sessão
+      const session = sessions.get(userId);
+      if (!isSessionReadyForMessaging(session)) {
+        skipped++;
+        continue;
+      }
+      
+      console.log(`🔄 [AUTO-RECOVERY] Recuperando FAILED transitório: ${contactNumber} (reason: ${failureReason}, retries: ${retryCount})`);
+      
+      // Reset para pending com retry_count preservado
+      await storage.resetPendingAIResponseForRetry(conversationId, 5);
+      // Reset in-memory retry counter to give another chance
+      pendingRetryCounter.delete(conversationId);
+      
+      const pending: PendingResponse = {
+        timeout: null as any,
+        messages,
+        conversationId,
+        userId,
+        contactNumber,
+        jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
+        startTime: Date.now(),
+      };
+      
+      processAccumulatedMessages(pending).catch(err => {
+        console.error(`❌ [AUTO-RECOVERY] Erro ao processar failed transitório ${contactNumber}:`, err);
+      });
+      
+      recovered++;
     }
     
     console.log(`🚨 [AUTO-RECOVERY] Ciclo concluído: ${recovered} enviados para fila, ${skipped} pulados`);
