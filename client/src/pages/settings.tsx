@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Lock, Eye, EyeOff, PenLine } from "lucide-react";
+import { Loader2, User, Lock, Eye, EyeOff, PenLine, Bell, Volume2 } from "lucide-react";
 import type { User as UserType } from "@shared/schema";
 import TeamMembersManager from "@/components/team-members-manager";
 import SectorsManager from "@/components/sectors-manager";
 import SectorsReport from "@/components/sectors-report";
+import { useNotifications } from "@/hooks/useNotifications";
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -33,6 +34,17 @@ export default function SettingsPage() {
   // Estado para assinatura de mensagens
   const [signature, setSignature] = useState("");
   const [signatureEnabled, setSignatureEnabled] = useState(false);
+
+  // ===== Notificações (Parte 9) =====
+  const {
+    soundEnabled,
+    pushEnabled,
+    pushPermission,
+    setSoundEnabled,
+    setPushEnabled,
+    requestPushPermission,
+  } = useNotifications();
+  // ===================================
 
   useEffect(() => {
     if (user) {
@@ -342,6 +354,103 @@ export default function SettingsPage() {
 
         {/* Gerenciador de Membros da Equipe */}
         <TeamMembersManager />
+
+        {/* ===== Notificações (Parte 9) ===== */}
+        <Card data-testid="card-notification-settings">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Bell className="h-5 w-5" />
+              Notificações
+            </CardTitle>
+            <CardDescription className="text-xs md:text-sm">
+              Configure alertas sonoros e push notifications para novas mensagens
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Toggle: Som de Notificação */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Volume2 className="h-5 w-5 mt-0.5 text-muted-foreground shrink-0" />
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Som de Notificação</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Toca um bip quando chegar nova mensagem em /conversas
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={soundEnabled}
+                onCheckedChange={setSoundEnabled}
+                data-testid="switch-sound-notifications"
+              />
+            </div>
+
+            {/* Toggle: Push Notification */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Bell className="h-5 w-5 mt-0.5 text-muted-foreground shrink-0" />
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Notificação Push do Navegador</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Exibe alertas do navegador mesmo quando a aba não está ativa
+                    {pushPermission === "denied" && (
+                      <span className="block text-destructive mt-1">
+                        Permissão negada. Reative nas configurações do navegador.
+                      </span>
+                    )}
+                    {pushPermission === "unsupported" && (
+                      <span className="block text-amber-500 mt-1">
+                        Seu navegador não suporta push notifications.
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <Switch
+                  checked={pushEnabled}
+                  disabled={pushPermission === "denied" || pushPermission === "unsupported"}
+                  onCheckedChange={async (v) => {
+                    if (v && pushPermission === "default") {
+                      const result = await requestPushPermission();
+                      if (result !== "granted") {
+                        toast({
+                          title: "Permissão negada",
+                          description: "Ative as notificações nas configurações do navegador para usar este recurso.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                    }
+                    setPushEnabled(v);
+                  }}
+                  data-testid="switch-push-notifications"
+                />
+                {pushPermission === "default" && !pushEnabled && (
+                  <button
+                    className="text-xs text-primary underline"
+                    onClick={async () => {
+                      const result = await requestPushPermission();
+                      if (result === "granted") {
+                        setPushEnabled(true);
+                        toast({ title: "Push notifications ativadas!" });
+                      } else if (result === "denied") {
+                        toast({
+                          title: "Permissão negada",
+                          description: "Reative nas configurações do navegador.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    Solicitar permissão
+                  </button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        {/* ===================================== */}
 
         {/* Setores de Atendimento (Parte 4) */}
         <SectorsManager />

@@ -8,10 +8,11 @@ import { Search, MessageCircle, Smartphone, X, Tags, Filter, CheckCheck, Circle,
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@shared/schema";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { getAuthToken } from "@/lib/supabase";
+import { useNotifications } from "@/hooks/useNotifications";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,15 @@ export function ConversationsList({
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [ws, setWs] = useState<WebSocket | null>(null);
+
+  // ===== Sistema de Notificações (Parte 9) =====
+  const { notify } = useNotifications();
+  // Anti-spam: registrar IDs de mensagens já notificadas
+  const notifiedMessageIds = useRef<Set<string>>(new Set());
+  // Referência ao selectedConversationId atual (evita closure stale)
+  const selectedConvRef = useRef<string | null>(null);
+  useEffect(() => { selectedConvRef.current = selectedConversationId; }, [selectedConversationId]);
+  // =============================================
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   const [avatarModalImage, setAvatarModalImage] = useState<string | null>(null);
   const [avatarModalName, setAvatarModalName] = useState<string>("");
@@ -220,6 +230,25 @@ export function ConversationsList({
             // 🔥 Real-time update: atualizar conversa inline sem refetch completo
             if ((data.type === "new_message" || data.type === "message_sent") && data.conversationUpdate) {
               const update = data.conversationUpdate;
+
+              // 🔔 Notificação de nova mensagem (Parte 9)
+              // Apenas para mensagens recebidas (não enviadas por mim), quando conversa não está aberta
+              const msgId = data.messageId || data.id || `${update.id}-${update.lastMessageTime}`;
+              const isFromMe = update.lastMessageFromMe === true || data.type === "message_sent";
+              const isCurrentConv = selectedConvRef.current === update.id;
+              if (!isFromMe && !isCurrentConv && !notifiedMessageIds.current.has(msgId)) {
+                notifiedMessageIds.current.add(msgId);
+                // Limpar cache anti-spam após 30s para não crescer indefinidamente
+                setTimeout(() => notifiedMessageIds.current.delete(msgId), 30000);
+                const contactName = update.contactName || update.contactNumber || "Contato";
+                const msgText = update.lastMessageText || "Nova mensagem";
+                notify({
+                  title: `💬 ${contactName}`,
+                  body: msgText.length > 80 ? msgText.slice(0, 77) + "…" : msgText,
+                  tag: `msg-${update.id}`,
+                });
+              }
+
               setAllConversations(prev => {
                 const existingIdx = prev.findIndex(c => c.id === update.id);
                 if (existingIdx >= 0) {
