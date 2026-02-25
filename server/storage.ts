@@ -4157,6 +4157,109 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     return result;
   }
 
+  /**
+   * searchConversations — Parte 9: Busca por contato (nome/número) e por conteúdo de mensagens
+   * Retorna conversas que correspondem ao termo, com o trecho de mensagem mais relevante (snippet).
+   */
+  async searchConversations(
+    connectionId: string,
+    query: string,
+    limit: number = 30
+  ): Promise<Array<(Conversation & { tags: Tag[]; snippet?: string | null; snippetFromMe?: boolean })>> {
+    if (!query || query.trim().length < 2) return [];
+
+    const term = query.trim().toLowerCase();
+    const likeTerm = `%${term}%`;
+
+    // 1. Busca por nome/número do contato
+    const byContact = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.connectionId, connectionId),
+          or(
+            sql`lower(${conversations.contactName}) like ${likeTerm}`,
+            sql`lower(${conversations.contactNumber}) like ${likeTerm}`
+          )
+        )
+      )
+      .orderBy(sql`${conversations.lastMessageTime} DESC NULLS LAST`)
+      .limit(limit);
+
+    // 2. Busca por conteúdo de mensagens — pega as últimas mensagens que contêm o termo
+    //    Fazemos join com conversations para garantir ownership
+    const byMessage = await db
+      .select({
+        conv: conversations,
+        msgText: messages.text,
+        msgFromMe: messages.fromMe,
+        msgTime: messages.timestamp,
+      })
+      .from(messages)
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .where(
+        and(
+          eq(conversations.connectionId, connectionId),
+          sql`lower(${messages.text}) like ${likeTerm}`
+        )
+      )
+      .orderBy(sql`${messages.timestamp} DESC`)
+      .limit(limit * 3); // busca mais e deduplica por conversa
+
+    // Deduplica: mescla contato + mensagem, sem repetir conversas
+    const seen = new Set<string>();
+    const merged: Array<Conversation & { snippet?: string | null; snippetFromMe?: boolean }> = [];
+
+    for (const c of byContact) {
+      if (!seen.has(c.id)) {
+        seen.add(c.id);
+        merged.push({ ...c, snippet: null });
+      }
+    }
+
+    for (const row of byMessage) {
+      const conv = row.conv as Conversation;
+      if (!seen.has(conv.id)) {
+        seen.add(conv.id);
+        merged.push({
+          ...conv,
+          snippet: row.msgText,
+          snippetFromMe: row.msgFromMe,
+        });
+      } else {
+        // Já está na lista (por contato); adiciona snippet se ainda não tem
+        const existing = merged.find(m => m.id === conv.id);
+        if (existing && !existing.snippet) {
+          existing.snippet = row.msgText;
+          existing.snippetFromMe = row.msgFromMe;
+        }
+      }
+    }
+
+    const topResults = merged.slice(0, limit);
+    if (topResults.length === 0) return [];
+
+    // Enriquece com tags
+    const convIds = topResults.map(c => c.id);
+    const allTagRows = await db
+      .select({ conversationId: conversationTags.conversationId, tag: tags })
+      .from(conversationTags)
+      .innerJoin(tags, eq(conversationTags.tagId, tags.id))
+      .where(inArray(conversationTags.conversationId, convIds));
+
+    const tagsByConv = new Map<string, Tag[]>();
+    for (const { conversationId, tag } of allTagRows) {
+      if (!tagsByConv.has(conversationId)) tagsByConv.set(conversationId, []);
+      tagsByConv.get(conversationId)!.push(tag);
+    }
+
+    return topResults.map(c => ({
+      ...c,
+      tags: tagsByConv.get(c.id) || [],
+    }));
+  }
+
   // ============================================
   // RESELLER FUNCTIONS - Sistema de Revenda White-Label
   // ============================================

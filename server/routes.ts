@@ -5371,6 +5371,33 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     }
 
   });
+
+  // ==================== SEARCH CONVERSATIONS (Parte 9) ====================
+  // GET /api/conversations/search?q=termo&limit=30
+  // Busca por nome/número de contato e por conteúdo de mensagens (fulltext ilike)
+  app.get("/api/conversations/search", isAuthenticated, async (req: any, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      const userId = getUserId(req);
+      const q = (req.query.q as string || "").trim();
+      const limit = Math.min(parseInt(req.query.limit as string || "30", 10), 100);
+
+      if (!q || q.length < 2) {
+        return res.json([]);
+      }
+
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        return res.json([]);
+      }
+
+      const results = await storage.searchConversations(connection.id, q, limit);
+      return res.json(results);
+    } catch (error) {
+      console.error("Error searching conversations:", error);
+      res.status(500).json({ message: "Failed to search conversations" });
+    }
+  });
 // ==================== CUSTOM FIELDS - CAMPOS PERSONALIZADOS ====================
 
   // Similar ao Digisac: Nome, Empresa, Email, CPF/CNPJ, Endereço, etc.

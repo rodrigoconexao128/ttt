@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, MessageCircle, Smartphone, X, Tags, Filter, CheckCheck, Circle, Mail, MailOpen, MessageSquarePlus, Archive, ArchiveRestore, Loader2, Bot } from "lucide-react";
+import { Search, MessageCircle, Smartphone, X, Tags, Filter, CheckCheck, Circle, Mail, MailOpen, MessageSquarePlus, Archive, ArchiveRestore, Loader2, Bot, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@shared/schema";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import type React from "react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { getAuthToken } from "@/lib/supabase";
@@ -30,7 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"; // mantido para compatibilidade futura
 import { Label } from "@/components/ui/label";
 import { TagBadges, ConversationTagsModal } from "./conversation-tags";
 import { useToast } from "@/hooks/use-toast";
@@ -49,6 +50,12 @@ interface Tag {
 // Conversation with tags
 interface ConversationWithTags extends Conversation {
   tags?: Tag[];
+}
+
+// Resultado de busca fulltext (inclui snippet de mensagem)
+interface SearchResult extends ConversationWithTags {
+  snippet?: string | null;
+  snippetFromMe?: boolean;
 }
 
 interface ConversationsListProps {
@@ -75,6 +82,54 @@ export function ConversationsList({
   const selectedConvRef = useRef<string | null>(null);
   useEffect(() => { selectedConvRef.current = selectedConversationId; }, [selectedConversationId]);
   // =============================================
+
+  // ===== Busca fulltext (Parte 9) =====
+  // debouncedQuery é o termo enviado à API após 350ms de pausa
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Dispara busca fulltext quando searchQuery tem ≥ 2 chars
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (searchQuery.trim().length < 2) {
+      setDebouncedQuery("");
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    searchDebounceRef.current = setTimeout(async () => {
+      setDebouncedQuery(searchQuery.trim());
+      try {
+        const memberToken = localStorage.getItem("memberToken");
+        const supabaseToken = await getAuthToken();
+        const token = memberToken || supabaseToken;
+        const res = await fetch(
+          `/api/conversations/search?q=${encodeURIComponent(searchQuery.trim())}&limit=30`,
+          {
+            credentials: "include",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error("[Search] Erro na busca:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 350);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [searchQuery]);
+
+  const isSearchMode = searchQuery.trim().length >= 2;
+  // =====================================
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   const [avatarModalImage, setAvatarModalImage] = useState<string | null>(null);
   const [avatarModalName, setAvatarModalName] = useState<string>("");
@@ -633,6 +688,154 @@ export function ConversationsList({
   const archiveActionLabel = statusFilter === "archived" ? "Desarquivar" : "Arquivar";
   const ArchiveActionIcon = statusFilter === "archived" ? ArchiveRestore : Archive;
 
+  /** Destaca o termo de busca no texto com <mark> */
+  const highlightTerm = (text: string | null | undefined, term: string): React.ReactNode => {
+    if (!text || !term) return text || "";
+    const idx = text.toLowerCase().indexOf(term.toLowerCase());
+    if (idx === -1) return text;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark className="bg-yellow-200 dark:bg-yellow-700/60 text-inherit rounded-sm px-0.5">
+          {text.slice(idx, idx + term.length)}
+        </mark>
+        {text.slice(idx + term.length)}
+      </>
+    );
+  };
+
+  /** Render de um item de conversa — reutilizado pela lista normal e pelos resultados de busca */
+  const renderConversationItem = (conversation: SearchResult, isSearch = false) => {
+    const displayNumber =
+      conversation.contactNumber ||
+      (conversation.remoteJid || "").split("@")[0].split(":")[0] ||
+      "?";
+
+    // Snippet: em modo busca, preferir o snippet de mensagem; fora de busca, usar lastMessageText
+    const snippetText = isSearch && conversation.snippet
+      ? conversation.snippet
+      : conversation.lastMessageText;
+
+    // Badge de pendência — só mostrar fora de busca (na lista normal já há o chip de filtro)
+    const showPendingBadge = !conversation.hasReplied && !conversation.isArchived;
+
+    return (
+      <button
+        key={conversation.id}
+        onClick={() => onSelectConversation(conversation.id)}
+        className={`w-full p-3 md:p-4 text-left hover-elevate active-elevate-2 transition-colors touch-manipulation ${
+          selectedConversationId === conversation.id ? "bg-sidebar-accent" : ""
+        }`}
+        data-testid={`conversation-item-${conversation.id}`}
+      >
+        <div className="flex items-start gap-3">
+          {!isSearch && (
+            <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                checked={selectedConversationIds.has(conversation.id)}
+                onCheckedChange={(checked) => toggleConversationSelection(conversation.id, checked === true)}
+                aria-label={`Selecionar ${conversation.contactName || displayNumber}`}
+                className="data-[state=checked]:bg-primary"
+              />
+            </div>
+          )}
+          <Avatar className="w-11 h-11 md:w-12 md:h-12 flex-shrink-0">
+            {conversation.contactAvatar ? (
+              <img
+                src={conversation.contactAvatar}
+                alt={conversation.contactName || displayNumber}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                  e.currentTarget.nextElementSibling?.classList.remove("hidden");
+                }}
+              />
+            ) : null}
+            <AvatarFallback
+              className={`bg-primary/10 text-primary font-semibold ${conversation.contactAvatar ? "hidden" : ""}`}
+            >
+              {conversation.contactName
+                ? conversation.contactName.charAt(0).toUpperCase()
+                : displayNumber.charAt(0)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <h3 className="font-semibold text-sm truncate">
+                {isSearch
+                  ? highlightTerm(conversation.contactName || displayNumber, debouncedQuery)
+                  : (conversation.contactName || displayNumber)}
+              </h3>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {conversation.lastMessageTime && (
+                  <span className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(conversation.lastMessageTime), {
+                      addSuffix: true,
+                      locale: ptBR,
+                    })}
+                  </span>
+                )}
+                {!isSearch && (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="h-6 w-6 opacity-60 hover:opacity-100 flex items-center justify-center rounded-md hover:bg-accent cursor-pointer"
+                    onClick={(e) => openTagModal(conversation, e)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openTagModal(conversation, e);
+                      }
+                    }}
+                  >
+                    <Tags className="w-3.5 h-3.5" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Tags da conversa */}
+            {conversation.tags && conversation.tags.length > 0 && (
+              <div className="mb-1">
+                <TagBadges tags={conversation.tags} maxVisible={3} size="sm" />
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground truncate">
+                {isSearch && conversation.snippet
+                  ? <>{conversation.snippetFromMe ? "Você: " : ""}{highlightTerm(snippetText, debouncedQuery)}</>
+                  : (snippetText || "Sem mensagens")}
+              </p>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {/* Badge pendente (não respondida) — não mostrar no filtro "unreplied" pois já está implícito */}
+                {showPendingBadge && statusFilter !== "unreplied" && !isSearch && (
+                  <Badge
+                    variant="outline"
+                    className="h-5 px-1.5 text-[10px] border-amber-400 text-amber-600 bg-amber-50"
+                    data-testid={`badge-pending-${conversation.id}`}
+                    title="Aguardando resposta humana"
+                  >
+                    Pendente
+                  </Badge>
+                )}
+                {(conversation.unreadCount || 0) > 0 && (
+                  <Badge
+                    variant="default"
+                    className="flex-shrink-0 h-5 min-w-5 px-1.5 text-xs"
+                    data-testid={`badge-unread-${conversation.id}`}
+                  >
+                    {conversation.unreadCount}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="p-3 md:p-4 border-b space-y-3 flex-shrink-0">
@@ -706,30 +909,54 @@ export function ConversationsList({
           </div>
         </div>
         
-        {/* Filtros de status estilo WhatsApp */}
-        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="w-full">
-          <TabsList className="w-full grid grid-cols-5 h-8">
-            <TabsTrigger value="all" className="text-xs px-2 py-1">
-              Todas
-            </TabsTrigger>
-            <TabsTrigger value="unread" className="text-xs px-2 py-1">
-              <Circle className="w-3 h-3 mr-1 fill-green-500 text-green-500" />
-              Não lidas
-            </TabsTrigger>
-            <TabsTrigger value="replied" className="text-xs px-2 py-1">
-              <CheckCheck className="w-3 h-3 mr-1 text-blue-500" />
-              Respondidas
-            </TabsTrigger>
-            <TabsTrigger value="unreplied" className="text-xs px-2 py-1">
-              <Mail className="w-3 h-3 mr-1" />
-              Pendentes
-            </TabsTrigger>
-            <TabsTrigger value="archived" className="text-xs px-2 py-1">
-              <Archive className="w-3 h-3 mr-1" />
-              Arquivadas
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* ===== Filtros de status — chips scroll horizontal (sem sobreposição mobile) ===== */}
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 -mx-1 px-1 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+          {[
+            { value: "all",      label: "Todas",        icon: null },
+            { value: "unread",   label: "Não lidas",    icon: <Circle className="w-3 h-3 fill-green-500 text-green-500 flex-shrink-0" /> },
+            { value: "unreplied",label: "Pendentes",    icon: <Clock  className="w-3 h-3 flex-shrink-0" /> },
+            { value: "replied",  label: "Respondidas",  icon: <CheckCheck className="w-3 h-3 text-blue-500 flex-shrink-0" /> },
+            { value: "archived", label: "Arquivadas",   icon: <Archive className="w-3 h-3 flex-shrink-0" /> },
+          ].map(({ value, label, icon }) => {
+            const active = statusFilter === value;
+            return (
+              <button
+                key={value}
+                onClick={() => setStatusFilter(value as any)}
+                className={`
+                  flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium
+                  whitespace-nowrap flex-shrink-0 transition-colors select-none
+                  ${active
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                  }
+                `}
+                data-testid={`filter-chip-${value}`}
+              >
+                {icon}
+                {label}
+                {/* Contador de não lidas/pendentes no chip */}
+                {value === "unread" && (() => {
+                  const cnt = allConversations.filter(c => (c.unreadCount || 0) > 0 && !c.isArchived).length;
+                  return cnt > 0 ? (
+                    <span className={`ml-0.5 px-1 rounded-full text-[10px] font-bold leading-4 ${active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-green-500 text-white"}`}>
+                      {cnt > 99 ? "99+" : cnt}
+                    </span>
+                  ) : null;
+                })()}
+                {value === "unreplied" && (() => {
+                  const cnt = allConversations.filter(c => !c.hasReplied && !c.isArchived).length;
+                  return cnt > 0 ? (
+                    <span className={`ml-0.5 px-1 rounded-full text-[10px] font-bold leading-4 ${active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-amber-500 text-white"}`}>
+                      {cnt > 99 ? "99+" : cnt}
+                    </span>
+                  ) : null;
+                })()}
+              </button>
+            );
+          })}
+        </div>
+        {/* ================================================================================ */}
         
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -877,196 +1104,128 @@ export function ConversationsList({
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : !connectionId && statusFilteredConversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <Smartphone className="w-12 h-12 text-muted-foreground mb-4" />
-            <h3 className="font-medium text-sm mb-2">WhatsApp não conectado</h3>
-            <p className="text-xs text-muted-foreground max-w-xs mb-3">
-              Conecte seu WhatsApp para começar a receber conversas.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLocation("/conexao")}
-              data-testid="button-minimal-connect-whatsapp-list"
-            >
-              Conectar WhatsApp
-            </Button>
-          </div>
-        ) : statusFilteredConversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <MessageCircle className="w-12 h-12 text-muted-foreground mb-4" />
-            <h3 className="font-medium text-sm mb-2">
-              {searchQuery || selectedTagFilter || statusFilter !== "all" ? "Nenhuma conversa encontrada" : "Nenhuma conversa"}
-            </h3>
-            <p className="text-xs text-muted-foreground max-w-xs">
-              {searchQuery 
-                ? "Tente buscar por outro termo"
-                : selectedTagFilter 
-                  ? "Nenhuma conversa com esta etiqueta"
-                  : statusFilter !== "all"
-                    ? `Nenhuma conversa ${statusFilter === "unread" ? "não lida" : statusFilter === "replied" ? "respondida" : statusFilter === "unreplied" ? "pendente" : "arquivada"}`
-                    : "As conversas aparecerão aqui quando você receber mensagens"}
-            </p>
-            {(selectedTagFilter || statusFilter !== "all") && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2"
-                onClick={() => {
-                  setSelectedTagFilter(null);
-                  setStatusFilter("all");
-                }}
-              >
-                Limpar filtros
-              </Button>
-            )}
-          </div>
+        {/* ===== MODO BUSCA (≥ 2 chars) ===== */}
+        {isSearchMode ? (
+          isSearching ? (
+            <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Buscando...
+            </div>
+          ) : searchResults.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+              <Search className="w-12 h-12 text-muted-foreground mb-4 opacity-40" />
+              <h3 className="font-medium text-sm mb-1">Nenhum resultado</h3>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                Nenhuma conversa ou mensagem encontrada para "<strong>{debouncedQuery}</strong>"
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="px-3 py-1.5 text-xs text-muted-foreground border-b bg-muted/30">
+                {searchResults.length} resultado{searchResults.length !== 1 ? "s" : ""} para "<strong>{debouncedQuery}</strong>"
+              </div>
+              <div className="divide-y" data-testid="list-search-results">
+                {searchResults.map(conv => renderConversationItem(conv, true))}
+              </div>
+            </div>
+          )
         ) : (
-          <>
-          <div className="divide-y" data-testid="list-conversations">
-            {statusFilteredConversations.map((conversation) => {
-              const displayNumber =
-                conversation.contactNumber ||
-                (conversation.remoteJid || "").split("@")[0].split(":")[0] ||
-                "?";
-
-              return (
-                <button
-                  key={conversation.id}
-                  onClick={() => onSelectConversation(conversation.id)}
-                  className={`w-full p-3 md:p-4 text-left hover-elevate active-elevate-2 transition-colors touch-manipulation ${
-                    selectedConversationId === conversation.id
-                      ? "bg-sidebar-accent"
-                      : ""
-                  }`}
-                  data-testid={`conversation-item-${conversation.id}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className="pt-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Checkbox
-                        checked={selectedConversationIds.has(conversation.id)}
-                        onCheckedChange={(checked) => toggleConversationSelection(conversation.id, checked === true)}
-                        aria-label={`Selecionar ${conversation.contactName || displayNumber}`}
-                        className="data-[state=checked]:bg-primary"
-                      />
-                    </div>
-                    <Avatar className="w-11 h-11 md:w-12 md:h-12 flex-shrink-0">
-                      {conversation.contactAvatar ? (
-                        <img 
-                          src={conversation.contactAvatar} 
-                          alt={conversation.contactName || displayNumber}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                          }}
-                        />
-                      ) : null}
-                      <AvatarFallback 
-                        className={`bg-primary/10 text-primary font-semibold ${conversation.contactAvatar ? 'hidden' : ''}`}
-                      >
-                        {conversation.contactName
-                          ? conversation.contactName.charAt(0).toUpperCase()
-                          : displayNumber.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <h3 className="font-semibold text-sm truncate">
-                          {conversation.contactName || displayNumber}
-                        </h3>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {conversation.lastMessageTime && (
-                            <span className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(
-                                new Date(conversation.lastMessageTime),
-                                { addSuffix: true, locale: ptBR }
-                              )}
-                            </span>
-                          )}
-                          {/* Botão de tag - usando div para evitar button aninhado */}
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            className="h-6 w-6 opacity-60 hover:opacity-100 flex items-center justify-center rounded-md hover:bg-accent cursor-pointer"
-                            onClick={(e) => openTagModal(conversation, e)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                openTagModal(conversation, e);
-                              }
-                            }}
-                          >
-                            <Tags className="w-3.5 h-3.5" />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Tags da conversa */}
-                      {conversation.tags && conversation.tags.length > 0 && (
-                        <div className="mb-1">
-                          <TagBadges tags={conversation.tags} maxVisible={3} size="sm" />
-                        </div>
-                      )}
-                      
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs text-muted-foreground truncate">
-                          {conversation.lastMessageText || "Sem mensagens"}
-                        </p>
-                        {conversation.unreadCount > 0 && (
-                          <Badge
-                            variant="default"
-                            className="flex-shrink-0 h-5 min-w-5 px-1.5 text-xs"
-                            data-testid={`badge-unread-${conversation.id}`}
-                          >
-                            {conversation.unreadCount}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Botão Carregar Mais */}
-          {hasMore && !selectedTagFilter && (
-            <div className="p-3 text-center border-t">
+          /* ===== MODO NORMAL (lista filtrada) ===== */
+          isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : !connectionId && statusFilteredConversations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+              <Smartphone className="w-12 h-12 text-muted-foreground mb-4" />
+              <h3 className="font-medium text-sm mb-2">WhatsApp não conectado</h3>
+              <p className="text-xs text-muted-foreground max-w-xs mb-3">
+                Conecte seu WhatsApp para começar a receber conversas.
+              </p>
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full"
-                onClick={loadMoreConversations}
-                disabled={loadingMore}
+                onClick={() => setLocation("/conexao")}
+                data-testid="button-minimal-connect-whatsapp-list"
               >
-                {loadingMore ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Carregando...
-                  </>
-                ) : (
-                  `Carregar mais (${totalCount - allConversations.length} restantes)`
-                )}
+                Conectar WhatsApp
               </Button>
             </div>
-          )}
-
-          {/* Mostrando contagem */}
-          {totalCount > 0 && !selectedTagFilter && (
-            <div className="px-3 py-1 text-xs text-center text-muted-foreground">
-              Mostrando {allConversations.length} de {totalCount} conversas
+          ) : statusFilteredConversations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+              <MessageCircle className="w-12 h-12 text-muted-foreground mb-4" />
+              <h3 className="font-medium text-sm mb-2">
+                {selectedTagFilter || statusFilter !== "all"
+                  ? "Nenhuma conversa encontrada"
+                  : "Nenhuma conversa"}
+              </h3>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                {selectedTagFilter
+                  ? "Nenhuma conversa com esta etiqueta"
+                  : statusFilter !== "all"
+                  ? `Nenhuma conversa ${
+                      statusFilter === "unread"
+                        ? "não lida"
+                        : statusFilter === "replied"
+                        ? "respondida"
+                        : statusFilter === "unreplied"
+                        ? "pendente (aguardando resposta humana)"
+                        : "arquivada"
+                    }`
+                  : "As conversas aparecerão aqui quando você receber mensagens"}
+              </p>
+              {(selectedTagFilter || statusFilter !== "all") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => {
+                    setSelectedTagFilter(null);
+                    setStatusFilter("all");
+                  }}
+                >
+                  Limpar filtros
+                </Button>
+              )}
             </div>
-          )}
-          </>
+          ) : (
+            <>
+              <div className="divide-y" data-testid="list-conversations">
+                {statusFilteredConversations.map((conversation) =>
+                  renderConversationItem(conversation as SearchResult, false)
+                )}
+              </div>
+
+              {/* Botão Carregar Mais */}
+              {hasMore && !selectedTagFilter && (
+                <div className="p-3 text-center border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={loadMoreConversations}
+                    disabled={loadingMore}
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Carregando...
+                      </>
+                    ) : (
+                      `Carregar mais (${totalCount - allConversations.length} restantes)`
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {/* Contagem */}
+              {totalCount > 0 && !selectedTagFilter && (
+                <div className="px-3 py-1 text-xs text-center text-muted-foreground">
+                  Mostrando {allConversations.length} de {totalCount} conversas
+                </div>
+              )}
+            </>
+          )
         )}
       </div>
       
