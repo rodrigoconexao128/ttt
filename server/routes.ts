@@ -42367,11 +42367,25 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
+      // Helper to send self-closing popup page
+      const sendPopupResult = (success: boolean, message: string) => {
+        res.send(`<!DOCTYPE html><html><head><title>Google Calendar</title></head><body>
+          <h2>${success ? '✅ Conectado com sucesso!' : '❌ Erro: ' + message}</h2>
+          <p>${success ? 'Esta janela será fechada automaticamente...' : message}</p>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'google-calendar-connected', success: ${success}, error: ${JSON.stringify(message)} }, '*');
+            }
+            setTimeout(function() { window.close(); }, 2000);
+          </script>
+        </body></html>`);
+      };
+
       if (oauthError) {
 
         console.error('[GoogleCalendar] OAuth error:', oauthError);
 
-        return res.redirect('/#/agendamentos?google_error=' + encodeURIComponent(String(oauthError)));
+        return sendPopupResult(false, String(oauthError));
 
       }
 
@@ -42379,7 +42393,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!code || !userId) {
 
-        return res.redirect('/#/agendamentos?google_error=missing_params');
+        return sendPopupResult(false, 'Parâmetros ausentes');
 
       }
 
@@ -42393,13 +42407,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         console.log(`[GoogleCalendar] Conectado com sucesso para usuário ${userId}`);
 
-        res.redirect('/#/agendamentos?google_connected=true');
+        sendPopupResult(true, '');
 
       } else {
 
         console.error('[GoogleCalendar] Erro no callback:', result.error);
 
-        res.redirect('/#/agendamentos?google_error=' + encodeURIComponent(result.error || 'unknown'));
+        sendPopupResult(false, result.error || 'unknown');
 
       }
 
@@ -42407,7 +42421,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error in Google Calendar callback:", error);
 
-      res.redirect('/#/agendamentos?google_error=' + encodeURIComponent(error.message));
+      res.send(`<!DOCTYPE html><html><body>
+        <h2>❌ Erro: ${error.message}</h2>
+        <script>
+          if (window.opener) window.opener.postMessage({ type: 'google-calendar-connected', success: false, error: '${error.message.replace(/'/g, "\\'")}' }, '*');
+          setTimeout(function() { window.close(); }, 3000);
+        </script>
+      </body></html>`);
 
     }
 

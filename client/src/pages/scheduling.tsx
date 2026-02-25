@@ -71,6 +71,7 @@ interface SchedulingConfig {
   allowCancellation: boolean;
   sendReminder: boolean;
   reminderHoursBefore: number;
+  reminderTimes: number[];
   // Novas opções
   useServices?: boolean;
   useProfessionals?: boolean;
@@ -250,6 +251,23 @@ export default function SchedulingPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
+  // Listen for Google Calendar OAuth popup completion
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'google-calendar-connected') {
+        if (event.data.success) {
+          toast({ title: "✅ Google Calendar conectado com sucesso!" });
+          queryClient.invalidateQueries({ queryKey: ['google-calendar-status'] });
+          queryClient.invalidateQueries({ queryKey: ['scheduling-config'] });
+        } else {
+          toast({ title: "❌ Erro ao conectar Google Calendar", description: event.data.error, variant: "destructive" });
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [toast, queryClient]);
+
   // Helper para converter snake_case do servidor para camelCase
   const transformConfig = (data: any): SchedulingConfig => ({
     id: data.id,
@@ -274,6 +292,7 @@ export default function SchedulingPage() {
     allowCancellation: data.allow_cancellation ?? true,
     sendReminder: data.send_reminder ?? true,
     reminderHoursBefore: data.reminder_hours_before ?? 24,
+    reminderTimes: data.reminder_times ?? [data.reminder_hours_before ?? 24],
     useServices: data.use_services ?? false,
     useProfessionals: data.use_professionals ?? false,
     aiSchedulingEnabled: data.ai_scheduling_enabled ?? true,
@@ -880,6 +899,7 @@ export default function SchedulingPage() {
       allow_cancellation: configForm.allowCancellation,
       send_reminder: configForm.sendReminder,
       reminder_hours_before: configForm.reminderHoursBefore,
+      reminder_times: configForm.reminderTimes,
     } as any);
   };
 
@@ -1234,6 +1254,7 @@ export default function SchedulingPage() {
                         <TableHead>Data</TableHead>
                         <TableHead>Horário</TableHead>
                         <TableHead>Cliente</TableHead>
+                        <TableHead>Serviço</TableHead>
                         <TableHead>Telefone</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Criado por</TableHead>
@@ -1251,6 +1272,16 @@ export default function SchedulingPage() {
                             </TableCell>
                             <TableCell>{apt.start_time} - {apt.end_time}</TableCell>
                             <TableCell>{apt.client_name}</TableCell>
+                            <TableCell>
+                              {apt.service_name ? (
+                                <Badge variant="outline" className="gap-1 bg-blue-50 text-blue-700 border-blue-200">
+                                  <Briefcase className="w-3 h-3" />
+                                  {apt.service_name}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </TableCell>
                             <TableCell>{apt.client_phone}</TableCell>
                             <TableCell>
                               <Badge className={cn("gap-1", statusConfig.color)}>
@@ -1527,15 +1558,66 @@ export default function SchedulingPage() {
                     />
                   </div>
                   {configForm.sendReminder && (
-                    <div className="space-y-2">
-                      <Label>Horas antes do lembrete</Label>
-                      <Input
-                        type="number"
-                        value={configForm.reminderHoursBefore || 24}
-                        onChange={(e) => setConfigForm({ ...configForm, reminderHoursBefore: parseInt(e.target.value) })}
-                        min={1}
-                        max={72}
-                      />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Horários de lembrete (horas antes)</Label>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const times = [...(configForm.reminderTimes || [24])];
+                            // Add a new time suggestion (common values)
+                            const suggestions = [1, 2, 3, 4, 6, 12, 24, 48, 72];
+                            const nextTime = suggestions.find(s => !times.includes(s)) || 1;
+                            times.push(nextTime);
+                            times.sort((a, b) => b - a);
+                            setConfigForm({ ...configForm, reminderTimes: times, reminderHoursBefore: Math.max(...times) });
+                          }}
+                        >
+                          + Adicionar lembrete
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {(configForm.reminderTimes || [24]).map((time, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              <Bell className="w-4 h-4 text-muted-foreground" />
+                              <Input
+                                type="number"
+                                value={time}
+                                onChange={(e) => {
+                                  const times = [...(configForm.reminderTimes || [24])];
+                                  times[index] = parseInt(e.target.value) || 1;
+                                  times.sort((a, b) => b - a);
+                                  setConfigForm({ ...configForm, reminderTimes: times, reminderHoursBefore: Math.max(...times) });
+                                }}
+                                min={1}
+                                max={72}
+                                className="w-20"
+                              />
+                              <span className="text-sm text-muted-foreground">
+                                {time === 1 ? 'hora antes' : time < 24 ? `horas antes` : time === 24 ? '1 dia antes' : `${Math.round(time/24)} dias antes`}
+                              </span>
+                            </div>
+                            {(configForm.reminderTimes || [24]).length > 1 && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-600 h-8 w-8 p-0"
+                                onClick={() => {
+                                  const times = (configForm.reminderTimes || [24]).filter((_, i) => i !== index);
+                                  setConfigForm({ ...configForm, reminderTimes: times, reminderHoursBefore: Math.max(...times) });
+                                }}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        A IA gerará mensagens naturais de lembrete e enviará via WhatsApp nos horários configurados
+                      </p>
                     </div>
                   )}
                 </CardContent>
@@ -2503,6 +2585,12 @@ function AppointmentCard({
           <User className="w-4 h-4 text-muted-foreground" />
           <span className="font-medium">{appointment.client_name}</span>
         </div>
+        {appointment.service_name && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Briefcase className="w-4 h-4" />
+            <span className="font-medium text-primary">{appointment.service_name}</span>
+          </div>
+        )}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Phone className="w-4 h-4" />
           {appointment.client_phone}

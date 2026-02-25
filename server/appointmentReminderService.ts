@@ -68,6 +68,7 @@ interface SchedulingConfig {
   is_enabled: boolean;
   send_reminder: boolean;
   reminder_hours_before: number;
+  reminder_times: number[] | null;
   reminder_message: string;
   service_name: string;
   location: string;
@@ -131,29 +132,31 @@ export class AppointmentReminderService {
 
   /**
    * Processa lembretes para um usuário específico
+   * Suporta múltiplos tempos de lembrete (ex: 24h, 2h, 30min antes)
    */
   private async processUserReminders(config: SchedulingConfig & { user_id: string }) {
     try {
       const now = new Date();
-      const reminderHours = config.reminder_hours_before || 24;
       
-      // Calcular janela de tempo para lembretes
-      // Busca agendamentos que acontecerão nas próximas X horas
-      const reminderWindowStart = new Date(now);
-      const reminderWindowEnd = new Date(now.getTime() + reminderHours * 60 * 60 * 1000);
+      // Usar reminder_times (array) se disponível, senão fallback para reminder_hours_before
+      const reminderTimes: number[] = (config.reminder_times && Array.isArray(config.reminder_times) && config.reminder_times.length > 0)
+        ? config.reminder_times.sort((a: number, b: number) => b - a) // Maior primeiro
+        : [config.reminder_hours_before || 24];
       
-      // Formato de data para comparação
+      const maxReminder = Math.max(...reminderTimes);
+      
+      // Formato de data para comparação - buscar agendamentos nos próximos X horas
       const today = now.toISOString().split('T')[0];
-      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const dayAfterTomorrow = new Date(now.getTime() + maxReminder * 60 * 60 * 1000 + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       
-      // Buscar agendamentos confirmados que precisam de lembrete
+      // Buscar agendamentos confirmados/pendentes que podem precisar de lembrete
       const { data: appointments, error } = await supabase
         .from('appointments')
-        .select('*')
+        .select('*, reminder_times_sent')
         .eq('user_id', config.user_id)
         .in('status', ['confirmed', 'pending'])
-        .eq('reminder_sent', false)
-        .in('appointment_date', [today, tomorrow])
+        .gte('appointment_date', today)
+        .lte('appointment_date', dayAfterTomorrow)
         .order('appointment_date', { ascending: true })
         .order('start_time', { ascending: true });
       
@@ -164,19 +167,48 @@ export class AppointmentReminderService {
       console.log(`📅 [APPOINTMENT-REMINDER] ${appointments.length} agendamentos encontrados para user ${config.user_id}`);
 
       for (const appointment of appointments) {
-        // Verificar se está na janela de lembrete
         const appointmentDateTime = new Date(`${appointment.appointment_date}T${appointment.start_time}`);
         const hoursUntilAppointment = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
         
-        // Só enviar se estiver dentro da janela de lembrete
-        if (hoursUntilAppointment > 0 && hoursUntilAppointment <= reminderHours) {
-          // Verificar cache para evitar duplicatas
-          if (sentRemindersCache.has(appointment.id)) {
-            console.log(`⏭️ [APPOINTMENT-REMINDER] Lembrete já enviado para ${appointment.id}`);
-            continue;
-          }
+        // Pular se já passou
+        if (hoursUntilAppointment <= 0) continue;
+        
+        // Lembretes já enviados para este agendamento
+        const sentTimes: number[] = appointment.reminder_times_sent || [];
+        
+        // Verificar cada tempo de lembrete configurado
+        for (const reminderHour of reminderTimes) {
+          // Pular se este lembrete já foi enviado
+          if (sentTimes.includes(reminderHour)) continue;
           
-          await this.sendReminderViaAI(appointment, config);
+          // Cache key inclui o tempo do lembrete
+          const cacheKey = `${appointment.id}_${reminderHour}h`;
+          if (sentRemindersCache.has(cacheKey)) continue;
+          
+          // Enviar se estamos dentro da janela (entre reminderHour e reminderHour - CHECK_INTERVAL)
+          const windowMinutes = 15; // 15 min de tolerância
+          if (hoursUntilAppointment <= reminderHour && hoursUntilAppointment > (reminderHour - (windowMinutes / 60 + 0.5))) {
+            console.log(`📤 [APPOINTMENT-REMINDER] Enviando lembrete ${reminderHour}h para ${appointment.client_name} (${cacheKey})`);
+            
+            await this.sendReminderViaAI(appointment, config, reminderHour);
+            
+            // Marcar este tempo como enviado no DB
+            const updatedSentTimes = [...sentTimes, reminderHour];
+            await supabase
+              .from('appointments')
+              .update({ 
+                reminder_times_sent: updatedSentTimes,
+                // Manter compatibilidade: marcar reminder_sent=true quando todos foram enviados
+                reminder_sent: updatedSentTimes.length >= reminderTimes.length
+              })
+              .eq('id', appointment.id);
+            
+            // Adicionar ao cache
+            sentRemindersCache.set(cacheKey, Date.now());
+            
+            // Só enviar um lembrete por ciclo por agendamento
+            break;
+          }
         }
       }
     } catch (error) {
@@ -189,7 +221,8 @@ export class AppointmentReminderService {
    */
   private async sendReminderViaAI(
     appointment: AppointmentForReminder, 
-    config: SchedulingConfig & { user_id: string }
+    config: SchedulingConfig & { user_id: string },
+    reminderHour?: number
   ) {
     const userId = config.user_id;
     const clientPhone = appointment.client_phone;
@@ -257,7 +290,6 @@ export class AppointmentReminderService {
       console.log(`📤 [APPOINTMENT-REMINDER] Enviando para ${jid}: ${reminderMessage.substring(0, 50)}...`);
       
       // 🛡️ ANTI-BLOQUEIO: Usar executeWithDelay para garantir try/finally
-      const userId = appointment.user_id;
       const sentMessage = await messageQueueService.executeWithDelay(userId, 'lembrete de agendamento', async () => {
         return await session.socket.sendMessage(jid, { text: reminderMessage });
       });
@@ -280,16 +312,17 @@ export class AppointmentReminderService {
         lastMessageTime: new Date(),
       });
 
-      // 9. Marcar lembrete como enviado
-      await supabase
-        .from('appointments')
-        .update({ reminder_sent: true })
-        .eq('id', appointment.id);
+      // 9. Marcar lembrete como enviado (para lembretes simples sem reminder_times)
+      // Nota: Para múltiplos lembretes, o processUserReminders já faz o tracking
+      if (!reminderHour) {
+        await supabase
+          .from('appointments')
+          .update({ reminder_sent: true })
+          .eq('id', appointment.id);
+        sentRemindersCache.set(appointment.id, Date.now());
+      }
 
-      // Adicionar ao cache
-      sentRemindersCache.set(appointment.id, Date.now());
-
-      console.log(`✅ [APPOINTMENT-REMINDER] Lembrete enviado com sucesso para ${clientPhone}`);
+      console.log(`✅ [APPOINTMENT-REMINDER] Lembrete ${reminderHour ? reminderHour + 'h' : ''} enviado com sucesso para ${clientPhone}`);
 
     } catch (error) {
       console.error(`❌ [APPOINTMENT-REMINDER] Erro ao enviar lembrete:`, error);

@@ -639,7 +639,8 @@ export async function createPendingAppointment(
   appointmentDate: string,
   startTime: string,
   clientNotes?: string,
-  providedConfig?: SchedulingConfig | null
+  providedConfig?: SchedulingConfig | null,
+  serviceName?: string
 ): Promise<{ success: boolean; appointment?: Appointment; error?: string; adjustedTime?: string }> {
   // Usar config fornecida ou buscar do cache
   const config = providedConfig ?? await getSchedulingConfigCached(userId);
@@ -708,7 +709,7 @@ export async function createPendingAppointment(
         user_id: userId,
         client_name: clientName,
         client_phone: clientPhone,
-        service_name: config.service_name,
+        service_name: serviceName || config.service_name,
         appointment_date: appointmentDate,
         start_time: finalStartTime,
         end_time: endTime,
@@ -836,6 +837,29 @@ export async function generateSchedulingPromptBlock(userId: string): Promise<str
     ? 'O cliente pode cancelar seu agendamento a qualquer momento.'
     : 'O cliente NÃO pode cancelar pelo chat. Para cancelamentos, deve entrar em contato por outro meio.';
 
+  // Buscar serviços cadastrados (se use_services está ativo)
+  let servicesText = '';
+  try {
+    const { data: services } = await supabase
+      .from('scheduling_services')
+      .select('name, description, duration_minutes, price, is_active')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true });
+    
+    if (services && services.length > 0) {
+      servicesText = `\n\nSERVIÇOS DISPONÍVEIS:\n${services.map(s => {
+        let line = `• ${s.name}`;
+        if (s.duration_minutes) line += ` (${s.duration_minutes} min)`;
+        if (s.price) line += ` - R$ ${Number(s.price).toFixed(2).replace('.', ',')}`;
+        if (s.description) line += ` - ${s.description}`;
+        return line;
+      }).join('\n')}\nSempre pergunte qual serviço o cliente deseja ao agendar!`;
+    }
+  } catch (e) {
+    // Ignore errors - services are optional
+  }
+
   // Calcular horário mínimo para agendamento hoje (antecedência mínima)
   const currentMinutes = brazil.date.getHours() * 60 + brazil.date.getMinutes();
   const minBookingMinutes = currentMinutes + (config.min_booking_notice_hours * 60);
@@ -850,6 +874,7 @@ export async function generateSchedulingPromptBlock(userId: string): Promise<str
 ---
 📅 RECURSO DE AGENDAMENTO ATIVO
 Agora: ${todayStr} ${currentTime} | Atendimento: ${availableDaysText}, ${config.work_start_time}-${config.work_end_time}${breakText}${noticeText}
+${servicesText}
 
 HORÁRIOS DISPONÍVEIS (ATUALIZADOS EM TEMPO REAL):
 • ${todayInfo}
@@ -871,7 +896,7 @@ A tag é o que REALMENTE cria o agendamento no sistema.
 Sem a tag = sem agendamento = cliente não vai receber confirmação/lembrete!
 
 COMO USAR:
-[AGENDAR: DATA=YYYY-MM-DD, HORA=HH:MM, NOME=Nome do Cliente]
+[AGENDAR: DATA=YYYY-MM-DD, HORA=HH:MM, NOME=Nome do Cliente, SERVICO=Nome do Serviço]
 
 Exemplos:
 - Hoje: DATA=${todayStr}
@@ -879,8 +904,8 @@ Exemplos:
 
 FLUXO DE AGENDAMENTO:
 1. Cliente pergunta horários → Diga as opções disponíveis acima
-2. Cliente escolhe horário → Peça o nome se ainda não souber
-3. Tem horário E nome → USE A TAG! Ex: [AGENDAR: DATA=${tomorrowStr}, HORA=10:15, NOME=João]
+2. Cliente escolhe horário → Peça o nome e o serviço desejado
+3. Tem horário, nome E serviço → USE A TAG! Ex: [AGENDAR: DATA=${tomorrowStr}, HORA=10:15, NOME=João, SERVICO=Consulta]
 
 Depois da tag, converse naturalmente sobre o agendamento.
 
@@ -907,7 +932,7 @@ export async function processSchedulingTags(
   userId: string,
   clientPhone: string
 ): Promise<{ text: string; appointmentCreated?: Appointment }> {
-  const schedulingTagRegex = /\[AGENDAR:\s*DATA=(\d{4}-\d{2}-\d{2}),\s*HORA=(\d{2}:\d{2}),\s*NOME=([^\]]+)\]/gi;
+  const schedulingTagRegex = /\[AGENDAR:\s*DATA=(\d{4}-\d{2}-\d{2}),\s*HORA=(\d{2}:\d{2}),\s*NOME=([^,\]]+)(?:,\s*SERVICO=([^\]]+))?\]/gi;
   
   let match = schedulingTagRegex.exec(responseText);
   let modifiedText = responseText;
@@ -922,7 +947,7 @@ export async function processSchedulingTags(
   }
   
   while (match) {
-    const [fullMatch, date, time, clientName] = match;
+    const [fullMatch, date, time, clientName, serviceName] = match;
     
     console.log(`📅 [Scheduling] Detected scheduling tag: ${fullMatch}`);
     
@@ -931,7 +956,10 @@ export async function processSchedulingTags(
       clientName.trim(),
       clientPhone,
       date,
-      time
+      time,
+      undefined,
+      schedulingConfig,
+      serviceName?.trim()
     );
     
     if (result.success && result.appointment) {
