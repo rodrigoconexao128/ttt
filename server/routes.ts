@@ -27,6 +27,7 @@ import { registerAudioConfigRoutes } from "./routes_audio_config";
 import { registerChatbotFlowRoutes } from "./routes_chatbot_flow";
 
 import { registerSalonRoutes } from "./routes_salon";
+import { registerQrcodeRoutes } from "./routes_qrcode";
 import { registerTicketRoutes } from "./tickets/tickets.routes";
 import { registerSectorRoutes } from "./sectors/sectors.routes";
 import { registerTicketClosureRoutes } from "./ticketClosure.routes";
@@ -968,6 +969,10 @@ Sitemap: https://agentezap.online/sitemap.xml
   // ==================== SALON ROUTES ====================
 
   registerSalonRoutes(app);
+
+  // ==================== QR CODE INTELIGENTE ROUTES ====================
+
+  registerQrcodeRoutes(app);
 
   // ==================== TICKETS/SUPPORT ROUTES ====================
   console.log("?? [DEBUG] About to call registerTicketRoutes...");

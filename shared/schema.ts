@@ -333,6 +333,12 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   // PARTE 5 - Modo Fluxo: chatbot com roteiro pré-definido
   flowScript: text("flow_script"), // Roteiro/prompt de fluxo em texto livre
   flowModeActive: boolean("flow_mode_active").default(false).notNull(), // Se TRUE, IA segue estritamente o roteiro (sem improviso)
+  // PARTE 6 - Saudação personalizada e endereço fixo
+  customGreeting: text("custom_greeting"), // Saudação fixa, suporta {nome}. NULL = IA improvisa
+  customAddress: text("custom_address"), // Endereço fixo do negócio. NULL = não informar
+  greetingVariation: boolean("greeting_variation").default(false).notNull(), // Se TRUE, IA varia a saudação naturalmente
+  greetingEnabled: boolean("greeting_enabled").default(false).notNull(), // Se TRUE, saudação personalizada está ATIVA
+  addressEnabled: boolean("address_enabled").default(false).notNull(), // Se TRUE, endereço fixo está ATIVO
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -3663,3 +3669,131 @@ export const conversationScheduledMessages = pgTable("conversation_scheduled_mes
 
 export type ConversationScheduledMessage = typeof conversationScheduledMessages.$inferSelect;
 export type InsertConversationScheduledMessage = typeof conversationScheduledMessages.$inferInsert;
+
+// =============================================================================
+// QR CODE INTELIGENTE - Ferramenta de geração de QR Codes WhatsApp
+// Step 1: Database schema & types
+// =============================================================================
+
+export const smartQrcodes = pgTable("smart_qrcodes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+
+  // Identidade do QR Code
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  slug: varchar("slug", { length: 100 }).unique(),
+
+  // Destino WhatsApp
+  whatsappNumber: varchar("whatsapp_number", { length: 30 }).notNull(),
+  welcomeMessage: text("welcome_message"),
+
+  // Template / Segmento
+  templateId: varchar("template_id", { length: 100 }),
+  templateName: varchar("template_name", { length: 100 }),
+
+  // Personalização visual
+  foregroundColor: varchar("foreground_color", { length: 20 }).default("#000000"),
+  backgroundColor: varchar("background_color", { length: 20 }).default("#ffffff"),
+  logoUrl: text("logo_url"),
+  logoSize: integer("logo_size").default(20),
+  cornerRadius: integer("corner_radius").default(0),
+  errorCorrection: varchar("error_correction", { length: 1 }).default("H"),
+
+  // Conteúdo gerado
+  targetUrl: text("target_url").notNull(),
+  qrData: text("qr_data"),
+  qrGeneratedAt: timestamp("qr_generated_at"),
+  qrSize: integer("qr_size").default(400),
+
+  // Status e analytics
+  isActive: boolean("is_active").default(true).notNull(),
+  scanCount: integer("scan_count").default(0).notNull(),
+  lastScannedAt: timestamp("last_scanned_at"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_smart_qrcodes_user_id").on(table.userId),
+  index("idx_smart_qrcodes_active").on(table.userId, table.isActive),
+  index("idx_smart_qrcodes_template").on(table.templateId),
+  index("idx_smart_qrcodes_created").on(table.createdAt),
+]);
+
+export const qrcodeScanLogs = pgTable("qrcode_scan_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  qrcodeId: varchar("qrcode_id").notNull().references(() => smartQrcodes.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+
+  scannedAt: timestamp("scanned_at").defaultNow(),
+  userAgent: text("user_agent"),
+  ipAddress: varchar("ip_address", { length: 50 }),
+  referrer: text("referrer"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_qrcode_scan_logs_qrcode").on(table.qrcodeId),
+  index("idx_qrcode_scan_logs_user").on(table.userId),
+  index("idx_qrcode_scan_logs_date").on(table.scannedAt),
+]);
+
+// Relations
+export const smartQrcodesRelations = relations(smartQrcodes, ({ one, many }) => ({
+  user: one(users, {
+    fields: [smartQrcodes.userId],
+    references: [users.id],
+  }),
+  scanLogs: many(qrcodeScanLogs),
+}));
+
+export const qrcodeScanLogsRelations = relations(qrcodeScanLogs, ({ one }) => ({
+  qrcode: one(smartQrcodes, {
+    fields: [qrcodeScanLogs.qrcodeId],
+    references: [smartQrcodes.id],
+  }),
+  user: one(users, {
+    fields: [qrcodeScanLogs.userId],
+    references: [users.id],
+  }),
+}));
+
+// Zod schemas
+export const insertSmartQrcodeSchema = createInsertSchema(smartQrcodes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  qrData: true,
+  qrGeneratedAt: true,
+  scanCount: true,
+  lastScannedAt: true,
+});
+
+export const smartQrcodeSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(200),
+  description: z.string().max(1000).optional().nullable(),
+  slug: z.string().max(100).regex(/^[a-z0-9-]+$/, "Use apenas letras minúsculas, números e hífens").optional().nullable(),
+  whatsappNumber: z.string().min(8, "Número WhatsApp inválido").max(30),
+  welcomeMessage: z.string().max(500).optional().nullable(),
+  templateId: z.string().max(100).optional().nullable(),
+  templateName: z.string().max(100).optional().nullable(),
+  foregroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor inválida").default("#000000"),
+  backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor inválida").default("#ffffff"),
+  logoUrl: z.string().url().optional().nullable(),
+  logoSize: z.number().int().min(5).max(30).default(20),
+  cornerRadius: z.number().int().min(0).max(50).default(0),
+  errorCorrection: z.enum(["L", "M", "Q", "H"]).default("H"),
+  targetUrl: z.string().url("URL inválida"),
+  qrSize: z.number().int().min(200).max(1200).default(400),
+  isActive: z.boolean().default(true),
+});
+
+export const updateSmartQrcodeSchema = smartQrcodeSchema.partial().omit({ targetUrl: true });
+
+// Types
+export type SmartQrcode = typeof smartQrcodes.$inferSelect;
+export type InsertSmartQrcode = z.infer<typeof insertSmartQrcodeSchema>;
+export type SmartQrcodeInput = z.infer<typeof smartQrcodeSchema>;
+export type UpdateSmartQrcodeInput = z.infer<typeof updateSmartQrcodeSchema>;
+
+export type QrcodeScanLog = typeof qrcodeScanLogs.$inferSelect;
+export type InsertQrcodeScanLog = typeof qrcodeScanLogs.$inferInsert;
